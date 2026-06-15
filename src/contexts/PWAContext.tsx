@@ -239,11 +239,15 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (isOffline) return;
 
-    // Do not sync background offline cache for public evaluation and public stock routes
+    // Do not sync background offline cache for public evaluation, public stock, public budget request, and quick register routes
     if (
       window.location.pathname.includes('/satisfacao') ||
       window.location.pathname.includes('/estoque-publico') ||
-      window.location.pathname.includes('/stock_holder')
+      window.location.pathname.includes('/stock_holder') ||
+      window.location.pathname.includes('/pedido-orcamento') ||
+      window.location.pathname.includes('/cadastro-rapido') ||
+      window.location.pathname.includes('/f') ||
+      window.location.pathname.includes('/expo')
     ) {
       return;
     }
