@@ -261,6 +261,31 @@ export default function NegotiationCentral() {
     }
   }, [activeIndication]);
 
+  // Sync spreadsheet items' is_commissionable status with the global database catalog on mount or when registeredProducts loads
+  useEffect(() => {
+    if (isOpen && registeredProducts.length > 0 && commissionedProducts.length > 0) {
+      let isChanged = false;
+      const updated = commissionedProducts.map(p => {
+        if (!p.code) return p;
+        const matched = registeredProducts.find(rp => rp.code === p.code);
+        if (matched) {
+          const expectedIsCommissionable = matched.is_commissionable !== false;
+          if (p.is_commissionable !== expectedIsCommissionable) {
+            isChanged = true;
+            return {
+              ...p,
+              is_commissionable: expectedIsCommissionable
+            };
+          }
+        }
+        return p;
+      });
+      if (isChanged) {
+        setCommissionedProducts(updated);
+      }
+    }
+  }, [isOpen, registeredProducts, activeIndication?.id]);
+
   if (!isOpen || !activeIndication) return null;
 
   const handleAddProductByCode = (code: string) => {
@@ -304,6 +329,40 @@ export default function NegotiationCentral() {
   const removeProduct = (index: number) => {
     setCommissionedProducts(prev => prev.filter((_, i) => i !== index));
     toast.info('Produto removido.');
+  };
+
+  const toggleProductCommissionable = async (index: number) => {
+    const updated = [...commissionedProducts];
+    const current = updated[index];
+    if (!current) return;
+    
+    const nextStatus = current.is_commissionable === false; // Toggle
+    updated[index] = { ...current, is_commissionable: nextStatus };
+    setCommissionedProducts(updated);
+    
+    const toastId = `sync-${current.code}-${index}`;
+    toast.loading("Sincronizando alteração no catálogo...", { id: toastId });
+    
+    if (current.code) {
+      try {
+        const q = query(collection(db, 'registered_products'), where('code', '==', current.code));
+        const qSnap = await getDocs(q);
+        if (!qSnap.empty) {
+          const promises = qSnap.docs.map(d => updateDoc(d.ref, { is_commissionable: nextStatus }));
+          await Promise.all(promises);
+          
+          setRegisteredProducts(prev => prev.map(rp => rp.code === current.code ? { ...rp, is_commissionable: nextStatus } : rp));
+          toast.success(`Catálogo atualizado: ${current.code} agora está marcado como ${nextStatus ? 'comissionável' : 'NÃO comissionável'}.`, { id: toastId });
+        } else {
+          toast.warning(`Produto ${current.code} atualizado localmente, mas não existe no catálogo institucional.`, { id: toastId });
+        }
+      } catch (err) {
+        console.error("Erro na sincronização:", err);
+        toast.error("Erro ao sincronizar alteração com o catálogo central.", { id: toastId });
+      }
+    } else {
+      toast.info(`Status alterado localmente (item sem código cadastrado)`, { id: toastId });
+    }
   };
 
   const isInternalIndicator = indicatorProfile 
@@ -912,6 +971,11 @@ export default function NegotiationCentral() {
 
   const handleOpenFinalizeDialog = () => {
     if (!activeIndication) return;
+    const isSalesOrderLoaded = !!orderNumber && orderNumber.trim() !== '';
+    if (!isSalesOrderLoaded) {
+      toast.error('O faturamento só pode ser finalizado após o carregamento do Pedido de Venda.');
+      return;
+    }
     setInvoiceIndication(activeIndication);
     setIsInvoiceDialogOpen(true);
     closeNegotiation();
@@ -1485,99 +1549,160 @@ export default function NegotiationCentral() {
                         <tr>
                           <th className="px-4 py-1.5 text-[9px] font-bold uppercase text-slate-500 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700 w-28">Código</th>
                           <th className="px-4 py-1.5 text-[9px] font-bold uppercase text-slate-500 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">Descrição</th>
-                          <th className="px-4 py-1.5 text-[9px] font-bold uppercase text-slate-500 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700 w-16">Qtd</th>
-                          <th className="px-4 py-1.5 text-[9px] font-bold uppercase text-slate-500 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700 w-28">Valor Base (R$)</th>
-                          <th className="px-4 py-1.5 text-[9px] font-bold uppercase text-slate-500 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700 w-10 text-center"></th>
+                          <th className="px-4 py-1.5 text-[9px] font-bold uppercase text-slate-500 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700 w-14">Qtd</th>
+                          <th className="px-4 py-1.5 text-[9px] font-bold uppercase text-slate-500 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700 w-44">Valor Base (R$)</th>
+                          <th className="px-4 py-1.5 text-[9px] font-bold uppercase text-slate-500 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700 w-20 text-center">Ações</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                        {commissionedProducts.map((prod, index) => (
-                          <tr key={prod.uniqueId || `${prod.code || 'item'}-${index}`} className={cn(
-                            "hover:bg-muted/10 dark:hover:bg-slate-800/50 transition-colors",
-                            prod.is_commissionable === false && "bg-slate-50/50 dark:bg-slate-800/10"
-                          )}>
-                            <td className="px-4 py-1.5 font-mono text-[10px] font-bold text-primary dark:text-orange-400">
-                              <div className="flex items-center gap-1.5">
-                                {prod.is_commissionable === false && (
-                                  <Badge className="bg-slate-200 hover:bg-slate-200 text-black border-none text-[7px] font-normal uppercase py-0 px-1 shadow-none rounded-sm" title="Item não comissionável">
-                                    NC
-                                  </Badge>
-                                )}
-                                {prod.code}
-                              </div>
-                            </td>
-                            <td className="px-4 py-1.5 text-[11px] text-slate-900 dark:text-slate-100">
-                              <div className="flex items-center gap-2 font-medium">
-                                {prod.name}
-                                {prod.is_commissionable === false && (
-                                  <span title="Este item está marcado como NÃO COMISSIONÁVEL no catálogo. Ele não será somado ao valor base da comissão.">
-                                    <Info className="h-3 w-3 text-slate-400" />
+                        {commissionedProducts.map((prod, index) => {
+                          const isNonComm = prod.is_commissionable === false;
+                          const rowTextColor = isNonComm 
+                            ? "text-red-500 dark:text-red-400" 
+                            : "text-slate-900 dark:text-slate-100";
+                          
+                          return (
+                            <tr key={prod.uniqueId || `${prod.code || 'item'}-${index}`} className={cn(
+                              "hover:bg-muted/10 dark:hover:bg-slate-800/50 transition-colors",
+                              isNonComm ? "bg-red-50/30 dark:bg-red-950/10" : ""
+                            )}>
+                              <td className="px-4 py-1.5 font-mono text-[10px] font-bold">
+                                <div className="flex items-center gap-1.5">
+                                  {isNonComm ? (
+                                    <Badge className="bg-red-100 hover:bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 border-none text-[7px] font-bold uppercase py-0 px-1 shadow-none rounded-sm animate-pulse" title="Item não comissionável">
+                                      NC
+                                    </Badge>
+                                  ) : null}
+                                  <span className={cn(isNonComm ? "text-red-500 dark:text-red-400 font-bold" : "text-primary dark:text-orange-400")}>
+                                    {prod.code}
                                   </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-4 py-1.5">
-                              <Input 
-                                type="number"
-                                disabled={!isEditable}
-                                value={prod.quantity}
-                                onChange={(e) => handleUpdateProduct(index, 'quantity', parseInt(e.target.value) || 0)}
-                                className="h-7 py-0 px-1.5 text-[11px] border-transparent focus:border-primary/50 bg-transparent text-slate-900 dark:text-slate-100 disabled:opacity-75 w-12"
-                              />
-                            </td>
-                            <td className="px-4 py-1.5">
-                              {isEditable ? (
-                                <div className="relative group/base">
-                                  <Input 
-                                    value={maskCurrency(Number(prod.base_value))}
-                                    onChange={(e) => handleUpdateProduct(index, 'base_value', unmaskCurrency(e.target.value))}
-                                    className={cn(
-                                      "h-7 py-0 px-1.5 text-[10px] border-transparent focus:border-primary/50 bg-transparent font-bold transition-all w-28",
-                                      prod.is_commissionable === false 
-                                        ? "text-red-500 dark:text-red-400 font-extrabold" 
-                                        : "text-slate-900 dark:text-slate-100",
-                                      prod.base_value <= 0 && "bg-destructive/5 border-destructive/20 text-destructive dark:text-destructive-foreground animate-pulse"
-                                    )}
-                                    placeholder="Definir"
-                                  />
-                                  {prod.base_value <= 0 && (
-                                    <div className="absolute -right-1 -top-1">
-                                      <span className="flex h-2 w-2">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75"></span>
-                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-destructive"></span>
-                                      </span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-1.5 text-[11px]">
+                                <div className={cn("flex flex-col gap-0.5", rowTextColor)}>
+                                  <span className="font-medium leading-tight">{prod.name}</span>
+                                  {isNonComm && (
+                                    <div className="flex items-center gap-1 mt-0.5">
+                                      <span className="text-[7.5px] uppercase tracking-wide font-extrabold text-red-500 bg-red-100/60 dark:bg-red-950/40 px-1 rounded whitespace-nowrap">Item Não Comissionável</span>
+                                      <Info className="h-2.5 w-2.5 text-red-400" />
                                     </div>
                                   )}
                                 </div>
-                              ) : (
-                                prod.base_value > 0 ? (
-                                  <span className={cn(
-                                    "px-1 text-[10px] font-bold block w-28 truncate",
-                                    prod.is_commissionable === false 
-                                      ? "text-red-500 dark:text-red-400 font-extrabold" 
-                                      : "text-slate-900 dark:text-slate-100"
-                                  )}>{maskCurrency(Number(prod.base_value))}</span>
-                                ) : (
-                                  <div className="flex items-center gap-2">
-                                    <Badge variant="outline" className="text-[7px] font-normal bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200">PENDENTE</Badge>
-                                  </div>
-                                )
-                              )}
-                            </td>
-                            <td className="px-4 py-1.5 text-center">
-                              {isEditable && (
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon" 
-                                  className="h-6 w-6 text-red-500 hover:bg-red-500/10"
-                                  onClick={() => removeProduct(index)}
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
+                              </td>
+                              <td className="px-4 py-1.5">
+                                <Input 
+                                  type="number"
+                                  disabled={!isEditable}
+                                  value={prod.quantity}
+                                  onChange={(e) => handleUpdateProduct(index, 'quantity', parseInt(e.target.value) || 0)}
+                                  className={cn(
+                                    "h-7 py-0 px-1.5 text-[11px] border-transparent focus:border-primary/50 bg-transparent disabled:opacity-75 w-12 font-bold",
+                                    rowTextColor
+                                  )}
+                                />
+                              </td>
+                              <td className="px-4 py-1.5">
+                                <div className="flex flex-col justify-center leading-normal py-0.5 min-w-[140px]">
+                                  {isEditable ? (
+                                    <div className="relative group/base w-full">
+                                      <Input 
+                                        value={maskCurrency(Number(prod.base_value))}
+                                        onChange={(e) => handleUpdateProduct(index, 'base_value', unmaskCurrency(e.target.value))}
+                                        className={cn(
+                                          "h-7 py-0 px-1.5 text-[11px] border-transparent focus:border-primary/50 bg-transparent font-black transition-all w-full",
+                                          isNonComm 
+                                            ? "text-red-500 dark:text-red-400 font-extrabold" 
+                                            : "text-slate-900 dark:text-slate-100",
+                                          prod.base_value <= 0 && "bg-destructive/5 border-destructive/20 text-destructive dark:text-destructive-foreground animate-pulse"
+                                        )}
+                                        placeholder="Definir"
+                                      />
+                                      {prod.base_value <= 0 && (
+                                        <div className="absolute -right-1 -top-1">
+                                          <span className="flex h-2 w-2">
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75"></span>
+                                            <span className="relative inline-flex rounded-full h-2 w-2 bg-destructive"></span>
+                                          </span>
+                                        </div>
+                                      )}
+                                      {prod.quantity > 1 && prod.base_value > 0 && (
+                                        <div className="px-1.5 mt-0.5 flex flex-col leading-none border-l-2 border-slate-200 dark:border-slate-800 pl-1">
+                                          <span className="text-[7.5px] font-bold text-muted-foreground uppercase tracking-tight">
+                                            Un: {maskCurrency(Number(prod.base_value))}
+                                          </span>
+                                          <span className={cn(
+                                            "text-[10px] font-black tracking-tight mt-0.5",
+                                            isNonComm ? "text-red-400 dark:text-red-500" : "text-primary dark:text-orange-400"
+                                          )}>
+                                            Total: {maskCurrency(Number(prod.base_value) * prod.quantity)}
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    prod.base_value > 0 ? (
+                                      prod.quantity > 1 ? (
+                                        <div className="flex flex-col leading-none border-l-2 border-slate-200 dark:border-slate-800 pl-1.5">
+                                          <span className="text-[7.5px] font-bold text-muted-foreground uppercase tracking-tight">
+                                            Un: {maskCurrency(Number(prod.base_value))}
+                                          </span>
+                                          <span className={cn(
+                                            "text-[11px] font-extrabold tracking-tight mt-1",
+                                            isNonComm ? "text-red-505 dark:text-red-450" : "text-slate-900 dark:text-slate-100"
+                                          )}>
+                                            Total: {maskCurrency(Number(prod.base_value) * prod.quantity)}
+                                          </span>
+                                        </div>
+                                      ) : (
+                                        <span className={cn(
+                                          "px-0 ml-1 text-[11px] font-extrabold block",
+                                          isNonComm ? "text-red-500 dark:text-red-450" : "text-slate-900 dark:text-slate-100"
+                                        )}>
+                                          {maskCurrency(Number(prod.base_value))}
+                                        </span>
+                                      )
+                                    ) : (
+                                      <div className="flex items-center gap-2">
+                                        <Badge variant="outline" className="text-[7px] font-normal bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-505 border-slate-205">PENDENTE</Badge>
+                                      </div>
+                                    )
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-4 py-1.5 text-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  {isEditable && (
+                                    <>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className={cn(
+                                          "h-6 w-6 rounded-md transition-all active:scale-95",
+                                          !isNonComm 
+                                            ? "text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/20" 
+                                            : "text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20"
+                                        )}
+                                        onClick={() => toggleProductCommissionable(index)}
+                                        title={!isNonComm ? "Tornar NÃO comissionável" : "Tornar comissionável"}
+                                      >
+                                        <BadgeDollarSign className="h-3.5 w-3.5" />
+                                      </Button>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="h-6 w-6 text-red-500 hover:bg-red-500/10 hover:text-red-600 rounded-md transition-all active:scale-95"
+                                        onClick={() => removeProduct(index)}
+                                        title="Remover item"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                         
                         {/* New Line */}
                         {isEditable && (

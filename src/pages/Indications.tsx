@@ -1478,31 +1478,36 @@ export default function Indications() {
         })()}
 
         {/* Sub-filtro Orçamento para as abas Em Andamento e Vendidos */}
-        {(isInternalSeller || isManager || isAdmin || isTriagem) && !isExternalSeller && ['andamento', 'vendidos'].includes(activeTab) && (() => {
-          const isInternalMatch = (i: any) => {
-            if (!isInternalSeller || isManager || isAdmin) return true;
-            const isOwnerByUid = i.internal_seller_uid === profile?.uid;
-            const isOwnerByName = i.internal_seller_name && profile?.name && 
-                                 i.internal_seller_name.toLowerCase().trim() === profile.name.toLowerCase().trim();
-            const isOwnerByEmail = i.internal_seller_email && profile?.email &&
-                                  i.internal_seller_email.toLowerCase().trim() === profile.email.toLowerCase().trim();
-            return isOwnerByUid || isOwnerByName || isOwnerByEmail;
+        {['andamento', 'vendidos'].includes(activeTab) && (() => {
+          const isMatchForUser = (i: any) => {
+            if (isPureExternalSeller) {
+              return i.external_seller_uid === profile?.uid;
+            }
+            if (isInternalSeller && !isManager && !isAdmin) {
+              const isOwnerByUid = i.internal_seller_uid === profile?.uid;
+              const isOwnerByName = i.internal_seller_name && profile?.name && 
+                                   i.internal_seller_name.toLowerCase().trim() === profile.name.toLowerCase().trim();
+              const isOwnerByEmail = i.internal_seller_email && profile?.email &&
+                                    i.internal_seller_email.toLowerCase().trim() === profile.email.toLowerCase().trim();
+              return isOwnerByUid || isOwnerByName || isOwnerByEmail;
+            }
+            return true;
           };
 
           const totalBudgetCount = indications.filter(i => {
             if (activeTab === 'andamento' && !['pending', 'triagem', 'negotiating'].includes(i.status)) return false;
             if (activeTab === 'vendidos' && i.status !== 'sold') return false;
-            if (!isInternalMatch(i)) return false;
+            if (!isMatchForUser(i)) return false;
             return i.budget_loaded || i.gross_budget_value > 0 || i.budget_pdf_url || (i.budget_pdf_urls && i.budget_pdf_urls.length > 0) || i.budget_number;
           }).length;
 
           return (
             <div className="flex items-center gap-2 w-full max-w-7xl mx-auto mb-6 px-1 flex-wrap">
-              <span className="text-[10px] font-black uppercase text-muted-foreground tracking-wider mr-2">Filtrar Sub-status:</span>
+              <span className="text-[10px] font-black uppercase text-muted-foreground tracking-wider mr-2 font-mono">Status do Orçamento:</span>
               <button
                 onClick={() => setBudgetFilter('all')}
                 className={cn(
-                  "px-3.5 py-1.5 text-xs font-bold rounded-lg border transition-all flex items-center gap-1.5 shadow-sm",
+                  "px-3.5 py-1.5 text-xs font-extrabold rounded-lg border transition-all flex items-center gap-1.5 shadow-sm uppercase tracking-wide",
                   budgetFilter === 'all' 
                     ? "bg-slate-800 dark:bg-slate-700 text-white border-slate-800 dark:border-slate-750" 
                     : "bg-card text-muted-foreground border-border hover:bg-muted hover:text-foreground"
@@ -1513,14 +1518,14 @@ export default function Indications() {
               <button
                 onClick={() => setBudgetFilter('with_budget')}
                 className={cn(
-                  "px-3.5 py-1.5 text-xs font-bold rounded-lg border transition-all flex items-center gap-1.5 shadow-sm",
+                  "px-3.5 py-1.5 text-xs font-extrabold rounded-lg border transition-all flex items-center gap-1.5 shadow-sm uppercase tracking-wide",
                   budgetFilter === 'with_budget' 
-                    ? "bg-orange-500 text-white border-orange-500 hover:bg-orange-600" 
+                    ? "bg-orange-500 text-white border-orange-500 hover:bg-orange-600 shadow-md shadow-orange-500/20" 
                     : "bg-card text-orange-500 border-orange-500/20 hover:bg-orange-500/5 select-none"
                 )}
               >
                 <FileText className="h-4 w-4" />
-                Orçamento Realizado
+                Orçamento
                 <Badge className={cn(
                   "ml-1 h-5 min-w-5 px-1.5 flex items-center justify-center p-0 rounded-full text-[10px] font-bold border-none",
                   budgetFilter === 'with_budget' ? "bg-white text-orange-600" : "bg-orange-100 text-orange-600"
