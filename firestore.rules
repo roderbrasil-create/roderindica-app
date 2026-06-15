@@ -1,0 +1,369 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {uid}
+    // Fields:
+    //   - uid: string (required) - User unique ID
+    //   - name: string (required) - Full name
+    //   - email: string (required, email) - Email address
+    //   - role: string (required, enum) - admin, manager, internal_seller, triagem, external_seller, finance, marketing
+    //   - status: string (required, enum) - active, inactive, blocked
+    //   - commission_rate: number (optional) - Default commission %
+    //   - pix_key: string (optional) - PIX key for payments
+    //   - bank_info: map (optional) - bank, agency, account
+    //   - cpf_cnpj: string (optional) - Tax ID
+    //   - city: string (optional) - City
+    //   - state: string (optional) - State
+    //   - contract_accepted: bool (optional) - If contract was signed
+    //   - contract_accepted_at: string (optional, date-time) - Signature timestamp
+    //
+    // Collection: indications
+    // Document ID: auto-generated
+    // Fields:
+    //   - external_seller_uid: string (required) - Creator UID
+    //   - internal_seller_uid: string (optional) - Assigned internal seller UID
+    //   - client_name: string (required) - Client company name
+    //   - client_cnpj: string (optional) - Client tax ID
+    //   - client_phone: string (required) - Client contact phone
+    //   - status: string (required, enum) - pending, triagem, negotiating, sold, archived, cancelled
+    //   - created_at: string (required, date-time) - Creation timestamp
+    //   [... other fields]
+    //
+    // Collection: notifications
+    // Document ID: auto-generated
+    // Fields:
+    //   - user_uid: string (required) - Recipient UID
+    //   - title: string (required) - Notification title
+    //   - message: string (required) - Notification body
+    //   - type: string (required, enum) - info, success, warning, error
+    //   - read: bool (required) - Read status
+    //   - created_at: string (required, date-time) - Creation timestamp
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function getUserData() {
+      let path = /databases/$(database)/documents/users/$(request.auth.uid);
+      return exists(path) ? get(path).data : null;
+    }
+
+    function hasRole(role) {
+      let data = getUserData();
+      return data != null && data.role == role;
+    }
+
+    function isMarketing() {
+      let email = request.auth.token.email.lower();
+      let isExplicitMarketing = (email == "marketing@roderbrasil.com.br" || 
+                                  email == "roderbrasil@gmail.com" ||
+                                  email == "yury@roderbrasil.com.br" ||
+                                  email == "yuri@roderbrasil.com.br") && request.auth.token.email_verified == true;
+      return isExplicitMarketing || hasRole('marketing');
+    }
+
+    function isAdmin() {
+      let email = request.auth.token.email.lower();
+      let isExplicitAdmin = (email == "roderbrasil@gmail.com" || 
+                             email == "roderindica@gmail.com" || 
+                             email == "gislene@roderbrasil.com.br" || 
+                             email == "contato@roderbrasil.com.br" ||
+                             email == "rogerio@roderbrasil.com.br" ||
+                             email == "gislene@roder.com.br" ||
+                             email == "yury@roderbrasil.com.br" ||
+                             email == "yuri@roderbrasil.com.br" ||
+                             email == "pecas@roderbrasil.com.br" ||
+                             email == "peças@roderbrasil.com.br" ||
+                             email == "marketing@roderbrasil.com.br" ||
+                             email == "financeiro@roderbrasil.com.br" ||
+                             email == "rudineisolmario@outlook.com" ||
+                             email == "luana@roderbrasil.com.br" ||
+                             email == "luana@roder.com.br");
+      let data = getUserData();
+      return isExplicitAdmin || (data != null && data.role == 'admin');
+    }
+
+    function isManager() {
+      let email = request.auth.token.email.lower();
+      let isExplicitManager = (email == "yury@roderbrasil.com.br" || 
+                               email == "yuri@roderbrasil.com.br" || 
+                               email == "roderbrasil@gmail.com" ||
+                               email == "marketing@roderbrasil.com.br");
+      let data = getUserData();
+      return isAdmin() || isExplicitManager || isMarketing() || (data != null && (data.role == 'manager' || data.role == 'finance' || data.role == 'financial'));
+    }
+
+    function isInternalSeller() {
+      return isManager() || hasRole('internal_seller');
+    }
+
+    function isTriagem() {
+      return isManager() || hasRole('triagem');
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'name', 'email', 'role', 'status']) &&
+             data.uid is string && data.uid.size() > 0 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             isValidEmail(data.email) &&
+             data.role in ['admin', 'manager', 'internal_seller', 'triagem', 'external_seller', 'financial', 'marketing', ''] &&
+             data.status in ['active', 'inactive', 'blocked'];
+    }
+
+    function isValidIndication(data) {
+      return data.keys().hasAll(['external_seller_uid', 'client_name', 'client_phone', 'status', 'created_at']) &&
+             data.external_seller_uid is string &&
+             data.client_name is string && data.client_name.size() > 0 && data.client_name.size() < 200 &&
+             data.client_phone is string && data.client_phone.size() > 0 &&
+             data.status in ['pending', 'triagem', 'negotiating', 'sold', 'archived', 'cancelled'] &&
+             (isValidDateString(data.created_at) || data.created_at is timestamp);
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['user_uid', 'title', 'message', 'type', 'read', 'created_at']) &&
+             data.user_uid is string &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 100 &&
+             data.message is string && data.message.size() > 0 && data.message.size() < 500 &&
+             data.type in ['info', 'success', 'warning', 'error'] &&
+             data.read is bool &&
+             isValidDateString(data.created_at);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow get: if isAuthenticated() && (
+        isOwner(userId) || 
+        isManager() || 
+        isTriagem() || 
+        isInternalSeller() ||
+        (hasRole('external_seller') && resource.data.role in ['admin', 'manager'])
+      );
+      allow list: if isAuthenticated() && (
+        isManager() || 
+        isTriagem() ||
+        resource.data.email == request.auth.token.email ||
+        request.auth.token.email.lower().endsWith('@roderbrasil.com.br') || 
+        request.auth.token.email.lower().endsWith('@roder.com.br')
+      );
+      allow create: if isAdmin() || (isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role in ['external_seller', 'internal_seller', 'admin', 'manager', 'marketing', '']); 
+      allow update: if isAuthenticated() && (
+        isAdmin() || 
+        (isOwner(userId) && isValidUser(request.resource.data) && 
+         (request.resource.data.role == resource.data.role || 
+          request.auth.token.email.lower().endsWith('@roderbrasil.com.br') || 
+          request.auth.token.email.lower().endsWith('@roder.com.br')) && 
+         request.resource.data.uid == resource.data.uid) ||
+        (resource.data.email == request.auth.token.email && request.resource.data.email == request.auth.token.email)
+      );
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.email == request.auth.token.email);
+    }
+
+    match /indications/{indicationId} {
+      allow read: if isAuthenticated() && (
+        isManager() || isTriagem() || isInternalSeller() || 
+        (hasRole('external_seller') && resource.data.external_seller_uid == request.auth.uid)
+      );
+      allow create: if (isAuthenticated() && (hasRole('external_seller') || isAdmin() || request.resource.data.source == 'fair') && isValidIndication(request.resource.data)) ||
+                    (request.resource.data.creator_type == 'client' && isValidIndication(request.resource.data));
+      allow update: if isAuthenticated() && (
+        isManager() || 
+        isTriagem() || 
+        isInternalSeller() ||
+        (hasRole('external_seller') && resource.data.external_seller_uid == request.auth.uid && resource.data.status == 'pending') ||
+        (request.auth.token.email_verified == true && (request.auth.token.email.lower().endsWith('@roderbrasil.com.br') || request.auth.token.email.lower().endsWith('@roder.com.br')))
+      ) && isValidIndication(request.resource.data);
+    }
+
+    match /notifications/{notifId} {
+      allow read: if isOwner(resource.data.user_uid) || isManager();
+      allow create: if isAuthenticated() && isValidNotification(request.resource.data);
+      allow update: if isManager() || (isOwner(resource.data.user_uid) && 
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']));
+      allow delete: if isOwner(resource.data.user_uid) || isManager();
+    }
+
+    match /leads/{leadId} {
+      allow read, write: if isAuthenticated() && (isManager() || isTriagem() || isInternalSeller() || resource.data.user_uid == request.auth.uid);
+    }
+
+    match /audit_logs/{logId} {
+      allow read: if isManager();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+
+    match /financial_consultations/{consultId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    match /credit_cleared_documents/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && (isManager() || hasRole('financial') || hasRole('finance') || hasRole('triagem'));
+    }
+
+    match /commissions/{commissionId} {
+      allow read: if isAuthenticated() && (
+        isManager() || hasRole('financial') || 
+        (hasRole('external_seller') && resource.data.external_seller_uid == request.auth.uid)
+      );
+      allow create: if isInternalSeller();
+      allow update: if isAuthenticated() && (
+        isManager() || hasRole('financial') ||
+        (hasRole('external_seller') && resource.data.external_seller_uid == request.auth.uid && 
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nf_url']))
+      );
+      allow delete: if isAuthenticated() && (isManager() || hasRole('financial') || hasRole('finance') || isInternalSeller() || isTriagem());
+    }
+
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isManager() || isMarketing();
+    }
+
+    match /accessories/{accessoryId} {
+      allow read: if true;
+      allow write: if isManager();
+    }
+
+    match /installation_kits/{kitId} {
+      allow read: if true;
+      allow write: if isManager();
+    }
+
+    match /app_files/{fileId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow delete: if isManager();
+    }
+
+    match /stock_items/{itemId} {
+      allow read: if true;
+      allow create, delete: if isManager();
+      allow update: if isAuthenticated() && (
+        isManager() || 
+        isInternalSeller() || 
+        isTriagem() ||
+        isAdmin() ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quantity', 'updated_at']))
+      );
+    }
+
+    match /stock_sales/{saleId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isManager() || isInternalSeller() || isTriagem();
+      allow delete: if isManager() || isInternalSeller() || isTriagem();
+    }
+
+    match /stock_reservations/{resId} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if isAuthenticated() && (isManager() || resource.data.seller_uid == request.auth.uid);
+      allow delete: if isManager();
+    }
+
+    match /stock_imports_fae/{itemId} {
+      allow read: if true;
+      allow create, delete: if isManager() || isAdmin();
+      allow update: if isAuthenticated();
+    }
+
+    match /registered_products/{productId} {
+      allow read: if true;
+      allow write: if isInternalSeller();
+    }
+
+    match /edge_nodes/{nodeId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    match /customers/{customerId} {
+      allow read, write: if isAuthenticated();
+      allow delete: if isAuthenticated() && (isManager() || isInternalSeller() || isAdmin());
+    }
+
+    // ===============================================================
+    // Fair Management Rules
+    // ===============================================================
+
+    match /fairs/{fairId} {
+      allow read: if true;
+      allow create: if isAdmin() || isManager();
+      allow delete: if isAdmin();
+      allow update: if isManager() || isInternalSeller() || hasRole('financial');
+    }
+
+    match /settings/{docId} {
+      allow read: if isAuthenticated() && (isAdmin() || isManager() || isInternalSeller() || isTriagem());
+      allow write: if isAdmin() || ((isManager() || isTriagem()) && docId == 'comercial_config');
+    }
+
+    match /customer_evaluations/{evaluationId} {
+      allow read: if true;
+      allow create, update: if true; // Allows anonymous customer submission
+      allow delete: if isManager();
+    }
+
+    match /fair_leads/{leadId} {
+      // Relaxed rules for the fair duration to allow any authenticated user (logged in or anonymous)
+      // to manage triage leads. This unblocks the team if roles aren't perfectly synced.
+      allow read, create, update, delete: if isAuthenticated();
+    }
+
+    match /fair_checklist/{itemId} {
+      allow read: if isAuthenticated();
+      allow write: if isManager() || isMarketing() || isInternalSeller() || isAdmin();
+    }
+
+    match /fair_checklist_template/{itemId} {
+      allow read: if isAuthenticated();
+      allow write: if isMarketing() || isAdmin();
+    }
+
+    match /fair_expenses/{expenseId} {
+      allow read: if isAuthenticated() && (isManager() || isInternalSeller() || isMarketing() || isTriagem() || hasRole('financial') || hasRole('finance'));
+      allow write: if isManager() || hasRole('financial') || hasRole('finance');
+    }
+
+    match /fair_expense_categories/{categoryId} {
+      allow read: if isAuthenticated();
+      allow write: if isManager() || hasRole('finance') || hasRole('financial');
+    }
+
+    match /fair_assets/{assetId} {
+      allow read: if isAuthenticated();
+      allow write: if isManager() || isInternalSeller();
+    }
+  }
+}

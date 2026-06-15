@@ -1,0 +1,187 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // -------------------------------------------------------------------------
+    // H1: GLOBAL HELPERS & PRIMITIVES
+    // -------------------------------------------------------------------------
+    
+    function isSignedIn() { return request.auth != null; }
+    function isEmailVerified() { return request.auth.token.email_verified == true; }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isAdmin() { return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)); }
+    
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    
+    function isValidId(id) { 
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+    
+    function isRoderEmail() {
+      return request.auth.token.email.lower().endsWith('@roderbrasil.com.br') || 
+             request.auth.token.email.lower().endsWith('@roder.com.br');
+    }
+
+    // -------------------------------------------------------------------------
+    // H2: ENTITY VALIDATIONS (The Anti-Update-Gap)
+    // -------------------------------------------------------------------------
+    
+    function isValidUser(data) {
+      return data.uid == request.auth.uid &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
+             data.status in ['active', 'inactive', 'blocked'] &&
+             data.role in ['admin', 'manager', 'internal_seller', 'triagem', 'external_seller', 'financial', 'marketing', 'fiscal', 'vendedor_padrao'];
+    }
+
+    function isValidIndication(data) {
+      return data.client_name is string && data.client_name.size() < 200 &&
+             data.client_phone is string && data.client_phone.size() < 30 &&
+             data.status in ['pending', 'triagem', 'negotiating', 'sold', 'archived', 'cancelled'] &&
+             data.external_seller_uid == request.auth.uid;
+    }
+
+    // -------------------------------------------------------------------------
+    // DEFAULT DENY ALL
+    // -------------------------------------------------------------------------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // USERS COLLECTION
+    // -------------------------------------------------------------------------
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin() || 
+                   exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'manager', 'triagem'];
+                   
+      allow list: if isAdmin() || (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+                     get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'manager', 'triagem']);
+
+      // Auto-creation: Allow users from Roder domains or specific list to create their own profile
+      allow create: if isOwner(userId) && (
+        isRoderEmail() || 
+        request.auth.token.email.lower() in [
+          'roderbrasil@gmail.com', 'roderindica@gmail.com', 'comercial@ff.ind.br',
+          'rudineisolmario@outlook.com'
+        ] ||
+        // Standard partners are allowed to create their own initial profile as well
+        incoming().role == 'external_seller'
+      ) && isValidUser(incoming());
+
+      allow update: if isOwner(userId) && (
+        // Only allow updating non-privilege fields
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'name', 'phone', 'pix_key', 'pix_type', 'bank_info', 'company_name', 
+          'city', 'state', 'cpf_cnpj', 'is_icms_contributor', 'contract_accepted', 
+          'contract_accepted_at', 'updated_at', 'sidebar_order'
+        ])
+      ) || (isAdmin() || (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+    }
+
+    // -------------------------------------------------------------------------
+    // INDICATIONS COLLECTION
+    // -------------------------------------------------------------------------
+    match /indications/{indicationId} {
+      function canViewIndication() {
+        let userRole = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+        return existing().external_seller_uid == request.auth.uid ||
+               existing().internal_seller_uid == request.auth.uid ||
+               userRole in ['admin', 'manager', 'triagem', 'marketing', 'financial'];
+      }
+
+      allow get: if isSignedIn() && canViewIndication();
+      allow list: if isSignedIn() && (
+        resource.data.external_seller_uid == request.auth.uid ||
+        resource.data.internal_seller_uid == request.auth.uid ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'manager', 'triagem', 'marketing', 'financial']
+      );
+
+      allow create: if isSignedIn() && isValidIndication(incoming());
+      
+      allow update: if isSignedIn() && (
+        // Self-update for seller (restricted)
+        (existing().external_seller_uid == request.auth.uid && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['client_name', 'client_phone', 'description', 'updated_at', 'media_urls'])) ||
+        // Management update
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'manager', 'internal_seller', 'triagem', 'financial'])
+      );
+      
+      allow delete: if isAdmin();
+    }
+
+    // -------------------------------------------------------------------------
+    // STOCK COLLECTION
+    // -------------------------------------------------------------------------
+    match /stock_items/{itemId} {
+      allow read: if isSignedIn() || request.auth == null; // Link público calls 
+      allow write: if isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'manager', 'internal_seller'];
+    }
+
+    match /stock_reservations/{resId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && incoming().seller_uid == request.auth.uid;
+      allow update, delete: if isSignedIn() && (
+        existing().seller_uid == request.auth.uid || 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'manager']
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // PRODUCTS COLLECTION
+    // -------------------------------------------------------------------------
+    match /products/{productId} {
+      allow read: if true; // Catalog is public knowledge
+      allow write: if isAdmin() || (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+                     get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'manager', 'marketing']);
+    }
+
+    match /registered_products/{prodId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+                     get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'manager']);
+    }
+
+    // -------------------------------------------------------------------------
+    // COMMISSIONS & FINANCE
+    // -------------------------------------------------------------------------
+    match /commissions/{commId} {
+      allow read: if isSignedIn() && (
+        resource.data.external_seller_uid == request.auth.uid ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'manager', 'financial']
+      );
+      allow write: if isAdmin() || (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+                     get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'manager', 'financial']);
+    }
+
+    // -------------------------------------------------------------------------
+    // FAIRS & LEADS
+    // -------------------------------------------------------------------------
+    match /fairs/{fairId} {
+      allow read: if true;
+      allow write: if isAdmin() || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'manager', 'marketing'];
+    }
+
+    match /fair_leads/{leadId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // -------------------------------------------------------------------------
+    // SETTINGS
+    // -------------------------------------------------------------------------
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin() || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // -------------------------------------------------------------------------
+    // ADMINS LIST (The Master Gate for Role Checks)
+    // -------------------------------------------------------------------------
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+      allow write: if false; // System manual entry or Cloud Functions only
+    }
+  }
+}

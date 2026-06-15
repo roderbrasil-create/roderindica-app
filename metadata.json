@@ -1,0 +1,12 @@
+{
+  "name": "RODER INDICA V2",
+  "description": "Plataforma estratégica para gestão de indicações, orçamentos e comissões da Roder Máquinas.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,186 @@
+{
+  "entities": {
+    "users": {
+      "title": "User Profile",
+      "description": "Information about a user's account, including their name, role, and contact details.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The unique ID of the user." },
+        "name": { "type": "string", "description": "The full name of the user." },
+        "email": { "type": "string", "description": "The user's email address." },
+        "phone": { "type": "string", "description": "The user's phone number." },
+        "role": { 
+          "type": "string", 
+          "enum": ["admin", "manager", "internal_seller", "triagem", "external_seller", "financial", "marketing", "fiscal", "vendedor_padrao"],
+          "description": "The user's role, determining their level of access."
+        },
+        "status": { 
+          "type": "string", 
+          "enum": ["active", "inactive", "blocked"],
+          "description": "The current status of the user's account."
+        },
+        "is_commissionable": { "type": "boolean", "description": "Whether the user is eligible for commissions." },
+        "pix_key": { "type": "string", "description": "The user's PIX key for commission payments." },
+        "contract_accepted": { "type": "boolean", "description": "Whether the user has accepted the platform contract." },
+        "permissions": {
+          "type": "object",
+          "properties": {
+            "sidebar": { "type": "object", "description": "Explicit overrides for sidebar menu items." },
+            "dashboard_cards": { "type": "object", "description": "Explicit overrides for dashboard widget visibility." }
+          }
+        },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name", "role", "status"]
+    },
+    "indications": {
+      "title": "Indication",
+      "description": "A sales lead or product indication submitted by a partner.",
+      "type": "object",
+      "properties": {
+        "client_name": { "type": "string" },
+        "client_phone": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "triagem", "negotiating", "sold", "archived", "cancelled"] },
+        "external_seller_uid": { "type": "string", "description": "ID of the partner who created the indication." },
+        "internal_seller_uid": { "type": "string", "description": "ID of the internal seller assigned to the lead." },
+        "base_commission_value": { "type": "number", "description": "The value upon which commission is calculated." },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["client_name", "client_phone", "status", "external_seller_uid", "created_at"]
+    },
+    "stock_items": {
+      "title": "Stock Item",
+      "description": "An item currently available in the factory or Sinop warehouse.",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "description": { "type": "string" },
+        "quantity": { "type": "number" },
+        "branch": { "type": "string", "enum": ["matriz", "sinop"] },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["code", "description", "quantity", "branch"]
+    },
+    "commissions": {
+      "title": "Commission",
+      "description": "Records of commissions earned by partners.",
+      "type": "object",
+      "properties": {
+        "indication_id": { "type": "string" },
+        "external_seller_uid": { "type": "string" },
+        "value": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "waiting_nf", "waiting_payment", "paid"] },
+        "created_at": { "type": "string" }
+      },
+      "required": ["indication_id", "external_seller_uid", "value", "status"]
+    },
+    "customer_evaluations": {
+      "title": "Customer Satisfaction Survey",
+      "description": "Records of evaluations and scores provided by customers on Roder machines and sales processes.",
+      "type": "object",
+      "properties": {
+        "indication_id": { "type": "string" },
+        "client_name": { "type": "string" },
+        "client_phone": { "type": "string" },
+        "equipment_name": { "type": "string" },
+        "days_offset": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "sent", "completed"] },
+        "rating_product": { "type": "number" },
+        "rating_service": { "type": "number" },
+        "comments": { "type": "string" },
+        "completed": { "type": "boolean" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "evaluated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["client_name", "equipment_name", "status"]
+    },
+    "credit_cleared_documents": {
+      "title": "Credit Cleared Documents",
+      "description": "Records of CPFs/CNPJs that have had their financial debts/restrictions marked as cleared by financial managers.",
+      "type": "object",
+      "properties": {
+        "document": { "type": "string", "description": "The cleaned document number (CPF or CNPJ)." },
+        "cleared": { "type": "boolean", "description": "Whether the restrictions are considered cleared." },
+        "cleared_at": { "type": "string", "format": "date-time", "description": "Timestamp of when the clearance was issued." }
+      },
+      "required": ["document", "cleared", "cleared_at"]
+    },
+    "customers": {
+      "title": "Customer",
+      "description": "Information about a registered customer, either created manually or automatically when loading budget XML files.",
+      "type": "object",
+      "properties": {
+        "cnpj": { "type": "string" },
+        "name": { "type": "string" },
+        "company_name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "client_code": { "type": "string" },
+        "address": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "users",
+      "description": "Store for user profile and permission data."
+    },
+    "/indications/{indicationId}": {
+      "schema": "indications",
+      "description": "Store for sales leads and tracking."
+    },
+    "/products/{productId}": {
+      "schema": "object",
+      "description": "Equipment catalog available for viewing."
+    },
+    "/stock_items/{itemId}": {
+      "schema": "stock_items",
+      "description": "Real-time inventory levels."
+    },
+    "/stock_imports_fae/{itemId}": {
+      "schema": "object",
+      "description": "FAE imported equipment and tracking details."
+    },
+    "/stock_reservations/{resId}": {
+      "schema": "object",
+      "description": "Temporary equipment reservations by sellers."
+    },
+    "/commissions/{commId}": {
+      "schema": "commissions",
+      "description": "Financial records of commissions."
+    },
+    "/fairs/{fairId}": {
+      "schema": "object",
+      "description": "Event and trade show information."
+    },
+    "/fair_leads/{leadId}": {
+      "schema": "object",
+      "description": "Leads captured during fairs."
+    },
+    "/settings/{settingId}": {
+      "schema": "object",
+      "description": "Global application settings (goals, etc)."
+    },
+    "/edge_nodes/{nodeId}": {
+      "schema": "object",
+      "description": "Real-time online status and heartbeats of active devices."
+    },
+    "/customer_evaluations/{evaluationId}": {
+      "schema": "customer_evaluations",
+      "description": "Customer satisfaction surveys and evaluation scheduling records."
+    },
+    "/credit_cleared_documents/{docId}": {
+      "schema": "credit_cleared_documents",
+      "description": "Store of cleared/regularized CPFs and CNPJs."
+    },
+    "/customers/{customerId}": {
+      "schema": "customers",
+      "description": "Store for customer profiles and details."
+    }
+  }
+}
