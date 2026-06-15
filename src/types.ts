@@ -105,6 +105,10 @@ export interface Indication {
   status: IndicationStatus;
   budget_pdf_url?: string;
   budget_pdf_urls?: string[];
+  budget_loaded?: boolean;
+  budget_number?: string;
+  budget_date?: string;
+  budget_commissionable_value?: number;
   gross_budget_value?: number;
   sale_value?: number;
   commission_value?: number;

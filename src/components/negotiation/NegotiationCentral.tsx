@@ -11,6 +11,7 @@ import {
   Share2,
   Image as ImageIcon,
   CheckCircle2,
+  AlertTriangle,
   Download,
   GripHorizontal,
   Plus,
@@ -130,6 +131,11 @@ export default function NegotiationCentral() {
     uniqueId?: string;
   }[]>([]);
   const [grossBudgetValue, setGrossBudgetValue] = useState('');
+  const [budgetLoaded, setBudgetLoaded] = useState(false);
+  const [budgetNumber, setBudgetNumber] = useState('');
+  const [budgetDate, setBudgetDate] = useState('');
+  const [readingBudgetFile, setReadingBudgetFile] = useState(false);
+  const [saleValue, setSaleValue] = useState('');
   const [standardSellerEnabled, setStandardSellerEnabled] = useState(false);
   const [standardSellerRate, setStandardSellerRate] = useState(2);
   const [historyNote, setHistoryNote] = useState('');
@@ -189,6 +195,10 @@ export default function NegotiationCentral() {
       }));
       setCommissionedProducts(loadedProducts);
       setGrossBudgetValue(activeIndication.gross_budget_value?.toString() || '');
+      setBudgetLoaded(activeIndication.budget_loaded || false);
+      setBudgetNumber(activeIndication.budget_number || '');
+      setBudgetDate(activeIndication.budget_date || '');
+      setSaleValue(activeIndication.sale_value?.toString() || '');
       setStandardSellerEnabled(activeIndication.standard_seller_commission_enabled !== false);
       setStandardSellerRate(activeIndication.standard_seller_commission_rate || 2);
       setDeliveryDate(activeIndication.delivery_date || '');
@@ -301,13 +311,193 @@ export default function NegotiationCentral() {
     : false;
 
   const hasExternalSeller = !!activeIndication?.external_seller_uid && !isInternalIndicator;
-  const totalCommissionable = hasExternalSeller
-    ? commissionedProducts.reduce((acc, curr) => acc + ((curr.is_commissionable !== false ? curr.base_value : 0) * curr.quantity), 0)
-    : 0;
+  const totalCommissionable = commissionedProducts.reduce((acc, curr) => acc + ((curr.is_commissionable !== false ? curr.base_value : 0) * curr.quantity), 0);
   const grossValueNum = parseFloat(grossBudgetValue) || 0;
-  const standardSellerCommission = (standardSellerEnabled && hasExternalSeller) ? (grossValueNum * (standardSellerRate / 100)) : 0;
+  const saleValueNum = parseFloat(saleValue) || 0;
+  const standardSellerCommission = (standardSellerEnabled && hasExternalSeller) 
+    ? ((saleValueNum || grossValueNum) * (standardSellerRate / 100)) 
+    : 0;
 
-  const handleUploadBudget = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUploadBudgetDocument = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeIndication) return;
+
+    try {
+      setReadingBudgetFile(true);
+      setUploadProgress(10);
+      
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve) => {
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(',')[1]);
+        };
+        reader.readAsDataURL(file);
+      });
+      
+      const base64 = await base64Promise;
+      setUploadProgress(40);
+      
+      const result = await analyzeDetailedBudget(base64);
+      setUploadProgress(80);
+      
+      if (result) {
+        setBudgetLoaded(true);
+        if (result.sale_value) {
+          setGrossBudgetValue(result.sale_value.toString());
+        } else {
+          const sumAllItems = result.items?.reduce((acc: number, item: any) => acc + ((item.unit_price || 0) * (item.quantity || 1)), 0) || 0;
+          setGrossBudgetValue(sumAllItems.toString());
+        }
+        
+        if (result.order_number) {
+          setBudgetNumber(result.order_number.toString());
+          toast.success(`Número do orçamento identificado: ${result.order_number}`);
+        } else {
+          setBudgetNumber('');
+        }
+
+        if (result.order_date) {
+          const formattedDate = convertDMYtoYMD(result.order_date);
+          if (formattedDate) {
+            setBudgetDate(formattedDate);
+            toast.success(`Data do orçamento identificada: ${result.order_date}`);
+          }
+        } else {
+          setBudgetDate('');
+        }
+
+        // Auto register client in the 'customers' collection
+        setExtractedCnpj(result.client_cnpj || '');
+        setExtractedEmail(result.client_email || '');
+        setExtractedPhone(result.client_phone || '');
+        setExtractedAddress(result.client_address || '');
+        setCompanyName(result.company_name || '');
+        setClientCode(result.client_code || '');
+
+        if (result.client_cnpj || result.client_name) {
+          try {
+            const clientDocId = result.client_cnpj 
+              ? result.client_cnpj.replace(/\D/g, '')
+              : result.client_name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+            
+            if (clientDocId) {
+              const customerRef = doc(db, 'customers', clientDocId);
+              const customerSnap = await getDoc(customerRef);
+              
+              const cleanedClientName = result.client_name.replace(/^\d+\s*-\s*/, '').trim();
+
+              const customerData = {
+                id: clientDocId,
+                cnpj: result.client_cnpj || '',
+                name: cleanedClientName || result.client_name,
+                company_name: result.company_name || cleanedClientName || result.client_name,
+                email: result.client_email || '',
+                phone: result.client_phone || '',
+                client_code: result.client_code || '',
+                address: result.client_address || '',
+                updated_at: new Date().toISOString()
+              };
+
+              if (customerSnap.exists()) {
+                await updateDoc(customerRef, customerData);
+              } else {
+                await setDoc(customerRef, {
+                  ...customerData,
+                  created_at: new Date().toISOString()
+                });
+                toast.success(`Cliente cadastrado automaticamente: ${cleanedClientName}`);
+              }
+            }
+          } catch (custErr) {
+            console.error('Erro ao cadastrar cliente no Firestore:', custErr);
+          }
+        }
+        
+        if (result.items && result.items.length > 0) {
+          const newProducts: any[] = [];
+          for (const item of result.items) {
+            if (!item.code) continue;
+            
+            const isKit = item.code.startsWith('9000');
+            const registered = registeredProducts.find(p => p.code === item.code);
+            
+            if (registered) {
+              try {
+                const productRef = doc(db, 'registered_products', registered.id);
+                await updateDoc(productRef, {
+                  name: item.name,
+                  base_price: item.unit_price,
+                  updated_at: new Date().toISOString()
+                });
+                registered.name = item.name;
+                registered.base_price = item.unit_price;
+              } catch (catalogErr) {
+                console.error(`Error updating catalog for ${item.code}:`, catalogErr);
+              }
+            } else {
+              try {
+                const newDoc = {
+                  code: item.code,
+                  name: item.name,
+                  base_price: item.unit_price,
+                  category: isKit ? 'Kits de Instalação' : 'Equipamentos',
+                  is_commissionable: !isKit,
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString()
+                };
+                const docRef = await addDoc(collection(db, 'registered_products'), newDoc);
+                const newRegisteredProd = { id: docRef.id, ...newDoc } as any;
+                setRegisteredProducts(prev => [...prev, newRegisteredProd]);
+              } catch (regErr) {
+                console.error(`Error auto-registering new item ${item.code}:`, regErr);
+              }
+            }
+
+            newProducts.push({
+              code: item.code,
+              name: item.name,
+              quantity: item.quantity || 1,
+              base_value: item.unit_price || 0,
+              is_commissionable: registered ? registered.is_commissionable !== false : !isKit
+            });
+          }
+          
+          if (newProducts.length > 0) {
+            setCommissionedProducts(prev => {
+              const prevMap = new Map(prev.map(p => [p.code, {
+                ...p,
+                uniqueId: p.uniqueId || `${p.code || 'item'}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`
+              }]));
+              newProducts.forEach((newP, idx) => {
+                const itemWithId = {
+                  ...newP,
+                  uniqueId: newP.uniqueId || `${newP.code || 'item'}-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`
+                };
+                prevMap.set(itemWithId.code, itemWithId);
+               });
+              return Array.from(prevMap.values());
+            });
+            toast.success(`${newProducts.length} itens do orçamento identificados e sincronizados!`);
+          }
+        }
+        
+        setUploadProgress(100);
+        setTimeout(() => {
+          setReadingBudgetFile(false);
+          setUploadProgress(0);
+          toast.success('Orçamento processado com sucesso');
+        }, 500);
+      }
+    } catch (error: any) {
+      console.error(error);
+      toast.error('Erro na leitura do orçamento: ' + error.message);
+      setReadingBudgetFile(false);
+      setUploadProgress(0);
+    }
+  };
+
+  const handleUploadSalesOrder = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !activeIndication) return;
 
@@ -332,7 +522,10 @@ export default function NegotiationCentral() {
       
       if (result) {
         if (result.sale_value) {
-          setGrossBudgetValue(result.sale_value.toString());
+          setSaleValue(result.sale_value.toString());
+        } else {
+          const sumAllItems = result.items?.reduce((acc: number, item: any) => acc + ((item.unit_price || 0) * (item.quantity || 1)), 0) || 0;
+          setSaleValue(sumAllItems.toString());
         }
         
         if (result.order_number) {
@@ -397,7 +590,6 @@ export default function NegotiationCentral() {
 
               if (customerSnap.exists()) {
                 await updateDoc(customerRef, customerData);
-                console.log(`Cliente ${cleanedClientName} já cadastrado. Dados atualizados!`);
               } else {
                 await setDoc(customerRef, {
                   ...customerData,
@@ -437,7 +629,7 @@ export default function NegotiationCentral() {
               // Rule: Register as a NEW product if code not found in our catalog
               try {
                 const newDoc = {
-                  code: item.code,
+                   code: item.code,
                   name: item.name,
                   base_price: item.unit_price,
                   category: isKit ? 'Kits de Instalação' : 'Equipamentos',
@@ -459,26 +651,17 @@ export default function NegotiationCentral() {
               name: item.name,
               quantity: item.quantity || 1,
               base_value: item.unit_price || 0,
-              is_commissionable: !isKit
+              is_commissionable: registered ? registered.is_commissionable !== false : !isKit
             });
           }
           
           if (newProducts.length > 0) {
-            setCommissionedProducts(prev => {
-              const prevMap = new Map(prev.map(p => [p.code, {
-                ...p,
-                uniqueId: p.uniqueId || `${p.code || 'item'}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`
-              }]));
-              newProducts.forEach((newP, idx) => {
-                const itemWithId = {
-                  ...newP,
-                  uniqueId: newP.uniqueId || `${newP.code || 'item'}-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`
-                };
-                prevMap.set(itemWithId.code, itemWithId);
-              });
-              return Array.from(prevMap.values());
-            });
-            toast.success(`${newProducts.length} itens do pedido identificados e sincronizados!`);
+            const finalProducts = newProducts.map((newP, idx) => ({
+              ...newP,
+              uniqueId: `${newP.code || 'item'}-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`
+            }));
+            setCommissionedProducts(finalProducts);
+            toast.success(`${newProducts.length} itens do pedido de venda identificados e sincronizados (substituindo orçamento)`);
           }
         }
         
@@ -506,6 +689,10 @@ export default function NegotiationCentral() {
       const updateData: any = {
         commissioned_products: commissionedProducts,
         gross_budget_value: grossValueNum,
+        budget_loaded: budgetLoaded,
+        budget_number: budgetNumber,
+        budget_date: budgetDate,
+        sale_value: parseFloat(saleValue) || 0,
         updated_at: new Date().toISOString(),
         base_commission_value: totalCommissionable,
         standard_seller_commission_enabled: standardSellerEnabled,
@@ -521,6 +708,13 @@ export default function NegotiationCentral() {
         client_company_name: companyName || activeIndication.client_company_name || '',
         client_code: clientCode || activeIndication.client_code || ''
       };
+
+      if (budgetLoaded && budgetDate) {
+        // Calculate expiration: 60 days starting from budget_date on the paper
+        const proposalRefDate = new Date(budgetDate + 'T12:00:00');
+        updateData.budget_sent_at = proposalRefDate.toISOString();
+        updateData.protection_expires_at = new Date(proposalRefDate.getTime() + 60 * 24 * 60 * 60 * 1000).toISOString();
+      }
 
       await updateDoc(indicationRef, updateData);
 
@@ -996,10 +1190,27 @@ export default function NegotiationCentral() {
               <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-5 lg:overflow-hidden min-h-0">
                 {/* LEFT COLUMN: Order Details, Commissions & Standard Seller */}
                 <div className="lg:col-span-5 flex flex-col gap-4 lg:overflow-y-auto pr-1">
-                  
-                  {/* Valores do Pedido de Venda */}
-                  <div className="relative space-y-3 p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm shrink-0">
-                    {readingBudget && (
+                  {/* Luana / Gislene warning for missing base commission value */}
+                  {(isAdmin || isManager) && activeIndication?.status === 'negotiating' && (!activeIndication.base_commission_value || activeIndication.base_commission_value <= 0) && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="p-3 bg-amber-50/90 dark:bg-amber-950/40 border-2 border-amber-300/65 dark:border-amber-900/50 rounded-xl flex flex-col gap-1.5 shadow-sm shrink-0"
+                    >
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="h-4 w-4 text-amber-600 animate-pulse" />
+                        <span className="text-[9px] font-black uppercase text-amber-700 tracking-wider">Aviso para Luana / Gislene</span>
+                      </div>
+                      <p className="text-[11px] font-bold text-amber-900 dark:text-amber-200 leading-snug">
+                        Esta indicação está em <b className="underline">Andamento</b>, mas não possui <b className="underline">Valor de Comissão Base</b>. Carregue o Orçamento ou Pedido de Venda para sincronizar produtos comissionáveis.
+                      </p>
+                    </motion.div>
+                  )}
+
+                  {/* Valores do Orçamento / Pedido de Venda */}
+                  <div className="relative space-y-4 p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm shrink-0">
+                    {(readingBudget || readingBudgetFile) && (
                       <div className="absolute inset-0 bg-white/80 dark:bg-slate-950/80 backdrop-blur-[2px] z-20 flex flex-col items-center justify-center rounded-xl">
                         <div className="w-48 h-2 bg-muted rounded-full overflow-hidden mb-3">
                           <motion.div 
@@ -1009,78 +1220,146 @@ export default function NegotiationCentral() {
                           />
                         </div>
                         <p className="text-[10px] font-medium uppercase text-primary animate-pulse flex items-center gap-2">
-                          <Loader2 className="h-3 w-3 animate-spin" /> Processando Pedido de Venda... {uploadProgress}%
+                          <Loader2 className="h-3 w-3 animate-spin" /> Processando {readingBudgetFile ? 'Orçamento' : 'Pedido de Venda'}... {uploadProgress}%
                         </p>
                       </div>
                     )}
-                    
-                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-                      <h4 className="text-[10px] font-bold italic uppercase text-slate-600 dark:text-slate-300 flex items-center gap-2">
-                        <BadgeDollarSign className="h-3.5 w-3.5" /> Valores do Pedido de Venda
-                      </h4>
-                      {isEditable && (
-                        <label className="cursor-pointer">
+
+                    {/* Section 1: Orçamento */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                        <h4 className="text-[10px] font-extrabold italic uppercase text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                          <FileText className="h-3.5 w-3.5 text-orange-500" /> 1. Valores do Orçamento
+                        </h4>
+                        {isEditable && (
+                          <label className="cursor-pointer">
+                            <Input 
+                              type="file" 
+                              className="hidden" 
+                              accept=".pdf,.jpg,.jpeg,.png"
+                              onChange={handleUploadBudgetDocument}
+                            />
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-orange-500 hover:bg-orange-600 text-white rounded-md transition-all shadow-sm active:scale-95 text-[9px] font-black uppercase italic">
+                              <Upload className="h-3 w-3" />
+                              <span>Carregar</span>
+                            </div>
+                          </label>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-[8px] font-bold uppercase text-muted-foreground">Valor Orçamento (R$)</Label>
                           <Input 
-                            type="file" 
-                            className="hidden" 
-                            accept=".pdf,.jpg,.jpeg,.png"
-                            onChange={handleUploadBudget}
+                            disabled={!isEditable}
+                            value={grossBudgetValue ? maskCurrency(Number(grossBudgetValue)) : ''}
+                            onChange={(e) => setGrossBudgetValue(unmaskCurrency(e.target.value).toString())}
+                            placeholder="0,00"
+                            className="bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold text-[11px] h-7 px-1.5"
                           />
-                          <div className="flex items-center gap-2 px-3 py-1 bg-primary text-white rounded-md hover:bg-primary/90 transition-all shadow-sm active:scale-95 group/upload">
-                            <Upload className="h-3 w-3 group-hover:animate-bounce" />
-                            <span className="text-[9px] font-normal uppercase italic">Carregar</span>
-                          </div>
-                        </label>
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-[8px] font-bold uppercase text-muted-foreground">Nº Orçamento</Label>
+                          <Input 
+                            disabled={!isEditable}
+                            value={budgetNumber}
+                            onChange={(e) => setBudgetNumber(e.target.value)}
+                            placeholder="Ex: 0338_26"
+                            className="bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium text-[11px] h-7 px-1.5"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-[8px] font-bold uppercase text-muted-foreground">Data Orçamento</Label>
+                          <Input 
+                            type="date"
+                            disabled={!isEditable}
+                            value={budgetDate}
+                            onChange={(e) => setBudgetDate(e.target.value)}
+                            className="bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium text-[11px] h-7 px-1.5"
+                          />
+                        </div>
+                      </div>
+
+                      {budgetLoaded && (
+                        <div className="p-2 bg-green-500/10 border border-green-500/20 rounded-md flex items-center justify-between text-[9px] text-green-700 font-semibold uppercase leading-none">
+                          <span className="flex items-center gap-1">
+                            <CheckCircle2 className="h-3 w-3 text-green-500" /> Orçamento Realizado/Carregado
+                          </span>
+                          <span className="text-[8px] italic">
+                            Validade: 60 dias de proteção
+                          </span>
+                        </div>
                       )}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3.5">
-                      <div className="space-y-1">
-                        <Label className="text-[9px] font-bold uppercase text-muted-foreground dark:text-slate-400">Valor Total (R$)</Label>
-                        <Input 
-                          disabled={!isEditable}
-                          value={grossBudgetValue ? maskCurrency(Number(grossBudgetValue)) : ''}
-                          onChange={(e) => setGrossBudgetValue(unmaskCurrency(e.target.value).toString())}
-                          placeholder="0,00"
-                          className="bg-slate-50 dark:bg-slate-800 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-semibold text-xs h-8 border-slate-200 focus:border-primary transition-all rounded-lg focus:ring-4 focus:ring-primary/10 disabled:opacity-75 disabled:bg-slate-100 dark:disabled:bg-slate-950 focus:text-slate-950 dark:focus:text-white"
-                        />
-                        <p className="text-[8px] text-muted-foreground dark:text-slate-500 italic">* Bruto do pedido.</p>
+                    {/* Section 2: Pedido de Venda */}
+                    <div className="space-y-3 pt-2 border-t border-slate-150 dark:border-slate-850">
+                      <div className="flex items-center justify-between pb-1">
+                        <h4 className="text-[10px] font-extrabold italic uppercase text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                          <BadgeDollarSign className="h-3.5 w-3.5 text-primary" /> 2. Valores de Venda / Pedido
+                        </h4>
+                        {isEditable && (
+                          <label className="cursor-pointer">
+                            <Input 
+                              type="file" 
+                              className="hidden" 
+                              accept=".pdf,.jpg,.jpeg,.png"
+                              onChange={handleUploadSalesOrder}
+                            />
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-primary hover:bg-primary/95 text-white rounded-md transition-all shadow-sm active:scale-95 text-[9px] font-black uppercase italic">
+                              <Upload className="h-3 w-3" />
+                              <span>Carregar</span>
+                            </div>
+                          </label>
+                        )}
                       </div>
 
-                      <div className="space-y-1">
-                        <Label className="text-[9px] font-bold uppercase text-muted-foreground dark:text-slate-400">Nº do Pedido</Label>
-                        <Input 
-                          disabled={!isEditable}
-                          value={orderNumber}
-                          onChange={(e) => setOrderNumber(e.target.value)}
-                          placeholder="Ex: 9414"
-                          className="bg-slate-50 dark:bg-slate-800 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-semibold text-xs h-8 border-slate-200 focus:border-primary transition-all rounded-lg focus:ring-4 focus:ring-primary/10 disabled:opacity-75 disabled:bg-slate-100 dark:disabled:bg-slate-950 focus:text-slate-950 dark:focus:text-white"
-                        />
-                        <p className="text-[8px] text-muted-foreground dark:text-slate-500 italic">* Extraído.</p>
-                      </div>
+                      <div className="grid grid-cols-2 gap-3.5">
+                        <div className="space-y-1 col-span-2">
+                          <Label className="text-[8px] font-bold uppercase text-muted-foreground">Valor do Pedido de Venda (Definitivo R$)</Label>
+                          <Input 
+                            disabled={!isEditable}
+                            value={saleValue ? maskCurrency(Number(saleValue)) : ''}
+                            onChange={(e) => setSaleValue(unmaskCurrency(e.target.value).toString())}
+                            placeholder="0,00"
+                            className="bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold text-xs h-8 px-1.5 border-dashed"
+                          />
+                        </div>
 
-                      <div className="space-y-1">
-                        <Label className="text-[9px] font-bold uppercase text-muted-foreground dark:text-slate-400">Data do Pedido</Label>
-                        <Input 
-                          type="date"
-                          disabled={!isEditable}
-                          value={orderDate}
-                          onChange={(e) => setOrderDate(e.target.value)}
-                          className="bg-slate-50 dark:bg-slate-800 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-semibold text-xs h-8 border-slate-200 focus:border-primary transition-all rounded-lg focus:ring-4 focus:ring-primary/10 disabled:opacity-75 disabled:bg-slate-100 dark:disabled:bg-slate-950 focus:text-slate-950 dark:focus:text-white"
-                        />
-                        <p className="text-[8px] text-muted-foreground dark:text-slate-500 italic">* Geração.</p>
-                      </div>
+                        <div className="space-y-1">
+                          <Label className="text-[9px] font-bold uppercase text-muted-foreground dark:text-slate-400">Nº do Pedido</Label>
+                          <Input 
+                            disabled={!isEditable}
+                            value={orderNumber}
+                            onChange={(e) => setOrderNumber(e.target.value)}
+                            placeholder="Ex: 9414"
+                            className="bg-slate-50 dark:bg-slate-800 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-semibold text-xs h-8 border-slate-200 focus:border-primary transition-all rounded-lg"
+                          />
+                        </div>
 
-                      <div className="space-y-1">
-                        <Label className="text-[9px] font-bold uppercase text-muted-foreground dark:text-slate-450">Data de Entrega</Label>
-                        <Input 
-                          type="date"
-                          disabled={!isEditable}
-                          value={deliveryDate}
-                          onChange={(e) => setDeliveryDate(e.target.value)}
-                          className="bg-slate-50 dark:bg-slate-800 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-semibold text-xs h-8 border-slate-200 focus:border-primary transition-all rounded-lg focus:ring-4 focus:ring-primary/10 disabled:opacity-75 disabled:bg-slate-100 dark:disabled:bg-slate-950 focus:text-slate-950 dark:focus:text-white"
-                        />
-                        <p className="text-[8px] text-muted-foreground dark:text-slate-500 italic">* Limite.</p>
+                        <div className="space-y-1">
+                          <Label className="text-[9px] font-bold uppercase text-muted-foreground dark:text-slate-400">Data do Pedido</Label>
+                          <Input 
+                            type="date"
+                            disabled={!isEditable}
+                            value={orderDate}
+                            onChange={(e) => setOrderDate(e.target.value)}
+                            className="bg-slate-50 dark:bg-slate-800 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-semibold text-xs h-8 border-slate-200 focus:border-primary transition-all rounded-lg"
+                          />
+                        </div>
+
+                        <div className="space-y-1 col-span-2">
+                          <Label className="text-[9px] font-bold uppercase text-muted-foreground dark:text-slate-450">Data Coleta / Entrega</Label>
+                          <Input 
+                            type="date"
+                            disabled={!isEditable}
+                            value={deliveryDate}
+                            onChange={(e) => setDeliveryDate(e.target.value)}
+                            className="bg-slate-50 dark:bg-slate-800 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-semibold text-xs h-8 border-slate-200 focus:border-primary transition-all rounded-lg"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1095,7 +1374,7 @@ export default function NegotiationCentral() {
                           <Badge variant="outline" className="bg-slate-50 text-slate-400 border-slate-100 font-bold text-[7px] h-3 px-1 uppercase leading-none">Base</Badge>
                         </div>
                         <div className="text-sm font-bold italic text-slate-600 tracking-tighter">
-                          {isInternalIndicator ? "Isento (Interno)" : maskCurrency(totalCommissionable)}
+                          {maskCurrency(totalCommissionable)}
                         </div>
                       </div>
 
@@ -1253,8 +1532,10 @@ export default function NegotiationCentral() {
                                     value={maskCurrency(Number(prod.base_value))}
                                     onChange={(e) => handleUpdateProduct(index, 'base_value', unmaskCurrency(e.target.value))}
                                     className={cn(
-                                      "h-7 py-0 px-1.5 text-[11px] border-transparent focus:border-primary/50 bg-transparent text-slate-900 dark:text-slate-100 font-bold transition-all w-24",
-                                      prod.is_commissionable === false && "text-red-500 dark:text-red-400",
+                                      "h-7 py-0 px-1.5 text-[10px] border-transparent focus:border-primary/50 bg-transparent font-bold transition-all w-28",
+                                      prod.is_commissionable === false 
+                                        ? "text-red-500 dark:text-red-400 font-extrabold" 
+                                        : "text-slate-900 dark:text-slate-100",
                                       prod.base_value <= 0 && "bg-destructive/5 border-destructive/20 text-destructive dark:text-destructive-foreground animate-pulse"
                                     )}
                                     placeholder="Definir"
@@ -1271,12 +1552,14 @@ export default function NegotiationCentral() {
                               ) : (
                                 prod.base_value > 0 ? (
                                   <span className={cn(
-                                    "px-2 text-[11px] font-bold text-slate-900 dark:text-slate-100",
-                                    prod.is_commissionable === false && "text-red-500 dark:text-red-400"
+                                    "px-1 text-[10px] font-bold block w-28 truncate",
+                                    prod.is_commissionable === false 
+                                      ? "text-red-500 dark:text-red-400 font-extrabold" 
+                                      : "text-slate-900 dark:text-slate-100"
                                   )}>{maskCurrency(Number(prod.base_value))}</span>
                                 ) : (
                                   <div className="flex items-center gap-2">
-                                    <Badge variant="outline" className="text-[7px] font-normal bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-505 border-slate-205">PENDENTE</Badge>
+                                    <Badge variant="outline" className="text-[7px] font-normal bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200">PENDENTE</Badge>
                                   </div>
                                 )
                               )}
@@ -1588,30 +1871,39 @@ export default function NegotiationCentral() {
                   )}
                 </div>
               ) : (
-                canInteract && (
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <Button 
-                      onClick={handleOpenFinalizeDialog}
-                      disabled={loading}
-                      className="h-9 px-3 lg:px-6 bg-green-600 hover:bg-green-700 text-white font-bold italic uppercase text-[9px] lg:text-xs tracking-wider shadow-md rounded-lg flex items-center gap-1.5 shrink-0"
-                    >
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      <span>{isMobile ? "Faturar" : "Finalizar Faturamento"}</span>
-                    </Button>
-                    <Button 
-                      onClick={handleSaveNegotiation}
-                      disabled={loading}
-                      className="h-9 px-3 lg:px-8 bg-primary hover:bg-primary/90 text-white font-bold italic uppercase text-[9px] lg:text-xs tracking-wider shadow-sm rounded-lg shrink-0"
-                    >
-                      {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : (
-                        <span className="flex items-center gap-1.5">
-                          <Save className="h-3.5 w-3.5" />
-                          <span>{isMobile ? "Salvar" : "Salvar Progresso"}</span>
-                        </span>
-                      )}
-                    </Button>
-                  </div>
-                )
+                canInteract && (() => {
+                  const isSalesOrderLoaded = !!orderNumber && orderNumber.trim() !== '';
+                  return (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Button 
+                        onClick={handleOpenFinalizeDialog}
+                        disabled={loading || !isSalesOrderLoaded}
+                        className={cn(
+                          "h-9 px-3 lg:px-6 font-bold italic uppercase text-[9px] lg:text-xs tracking-wider shadow-sm rounded-lg flex items-center gap-1.5 shrink-0 transition-all",
+                          isSalesOrderLoaded 
+                            ? "bg-green-600 hover:bg-green-700 text-white shadow-md active:scale-95" 
+                            : "bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed border-none shadow-none pointer-events-none"
+                        )}
+                        title={!isSalesOrderLoaded ? "Faturamento disponível apenas após carregar o Pedido de Venda" : "Clique para finalizar faturamento"}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        <span>{isMobile ? "Faturar" : "Finalizar Faturamento"}</span>
+                      </Button>
+                      <Button 
+                        onClick={handleSaveNegotiation}
+                        disabled={loading}
+                        className="h-9 px-3 lg:px-8 bg-primary hover:bg-primary/90 text-white font-bold italic uppercase text-[9px] lg:text-xs tracking-wider shadow-sm rounded-lg shrink-0"
+                      >
+                        {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : (
+                          <span className="flex items-center gap-1.5">
+                            <Save className="h-3.5 w-3.5" />
+                            <span>{isMobile ? "Salvar" : "Salvar Progresso"}</span>
+                          </span>
+                        )}
+                      </Button>
+                    </div>
+                  );
+                })()
               )}
             </div>
           </div>

@@ -206,6 +206,7 @@ export default function Indications() {
   const [searchTerm, setSearchTerm] = useState('');
   const [missingBaseFilter, setMissingBaseFilter] = useState(false);
   const [coldFilter, setColdFilter] = useState(false);
+  const [budgetFilter, setBudgetFilter] = useState<'all' | 'with_budget'>('all');
 
   // Missing States restored
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
@@ -1018,6 +1019,10 @@ export default function Indications() {
     }
   }, [isInternalSeller, isManager, isAdmin, isTriagem]);
 
+  useEffect(() => {
+    setBudgetFilter('all');
+  }, [activeTab]);
+
   const filteredIndications = indications.filter(ind => {
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch = ind.client_name.toLowerCase().includes(searchLower) || 
@@ -1045,6 +1050,11 @@ export default function Indications() {
       if (ind.status !== 'cancelled') return false;
     } else if (activeTab === 'perdidos') {
       if (ind.status !== 'archived') return false;
+    }
+
+    if (budgetFilter === 'with_budget') {
+      const hasBudget = ind.budget_loaded || ind.gross_budget_value > 0 || ind.budget_pdf_url || (ind.budget_pdf_urls && ind.budget_pdf_urls.length > 0) || ind.budget_number;
+      if (!hasBudget) return false;
     }
     
     // Internal seller ownership logic
@@ -1461,6 +1471,61 @@ export default function Indications() {
                   activeTab === 'cancelados' ? "bg-slate-800 text-white border-none" : "bg-slate-300 text-slate-700 border-none"
                 )}>
                   {indications.filter(i => i.status === 'cancelled' && isInternalMatch(i)).length}
+                </Badge>
+              </button>
+            </div>
+          );
+        })()}
+
+        {/* Sub-filtro Orçamento para as abas Em Andamento e Vendidos */}
+        {(isInternalSeller || isManager || isAdmin || isTriagem) && !isExternalSeller && ['andamento', 'vendidos'].includes(activeTab) && (() => {
+          const isInternalMatch = (i: any) => {
+            if (!isInternalSeller || isManager || isAdmin) return true;
+            const isOwnerByUid = i.internal_seller_uid === profile?.uid;
+            const isOwnerByName = i.internal_seller_name && profile?.name && 
+                                 i.internal_seller_name.toLowerCase().trim() === profile.name.toLowerCase().trim();
+            const isOwnerByEmail = i.internal_seller_email && profile?.email &&
+                                  i.internal_seller_email.toLowerCase().trim() === profile.email.toLowerCase().trim();
+            return isOwnerByUid || isOwnerByName || isOwnerByEmail;
+          };
+
+          const totalBudgetCount = indications.filter(i => {
+            if (activeTab === 'andamento' && !['pending', 'triagem', 'negotiating'].includes(i.status)) return false;
+            if (activeTab === 'vendidos' && i.status !== 'sold') return false;
+            if (!isInternalMatch(i)) return false;
+            return i.budget_loaded || i.gross_budget_value > 0 || i.budget_pdf_url || (i.budget_pdf_urls && i.budget_pdf_urls.length > 0) || i.budget_number;
+          }).length;
+
+          return (
+            <div className="flex items-center gap-2 w-full max-w-7xl mx-auto mb-6 px-1 flex-wrap">
+              <span className="text-[10px] font-black uppercase text-muted-foreground tracking-wider mr-2">Filtrar Sub-status:</span>
+              <button
+                onClick={() => setBudgetFilter('all')}
+                className={cn(
+                  "px-3.5 py-1.5 text-xs font-bold rounded-lg border transition-all flex items-center gap-1.5 shadow-sm",
+                  budgetFilter === 'all' 
+                    ? "bg-slate-800 dark:bg-slate-700 text-white border-slate-800 dark:border-slate-750" 
+                    : "bg-card text-muted-foreground border-border hover:bg-muted hover:text-foreground"
+                )}
+              >
+                Todos
+              </button>
+              <button
+                onClick={() => setBudgetFilter('with_budget')}
+                className={cn(
+                  "px-3.5 py-1.5 text-xs font-bold rounded-lg border transition-all flex items-center gap-1.5 shadow-sm",
+                  budgetFilter === 'with_budget' 
+                    ? "bg-orange-500 text-white border-orange-500 hover:bg-orange-600" 
+                    : "bg-card text-orange-500 border-orange-500/20 hover:bg-orange-500/5 select-none"
+                )}
+              >
+                <FileText className="h-4 w-4" />
+                Orçamento Realizado
+                <Badge className={cn(
+                  "ml-1 h-5 min-w-5 px-1.5 flex items-center justify-center p-0 rounded-full text-[10px] font-bold border-none",
+                  budgetFilter === 'with_budget' ? "bg-white text-orange-600" : "bg-orange-100 text-orange-600"
+                )}>
+                  {totalBudgetCount}
                 </Badge>
               </button>
             </div>
