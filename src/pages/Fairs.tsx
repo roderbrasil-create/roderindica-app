@@ -416,12 +416,24 @@ export default function Fairs() {
     }
   };
 
+  const getEffectiveStatus = (fair: Fair): Fair['status'] => {
+    if (fair.end_date) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const end = new Date(fair.end_date + 'T23:59:59');
+      if (today > end) {
+        return 'completed';
+      }
+    }
+    return fair.status;
+  };
+
   return (
     <Layout>
       <div className="space-y-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Gestão de Feiras</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">Gestão de Feiras e Eventos</h1>
             <p className="text-muted-foreground">Gerencie eventos, orçamentos e captação de leads de feiras.</p>
           </div>
           {canManage && (
@@ -468,9 +480,9 @@ export default function Fairs() {
                     )}
                     <div className={cn(
                       "absolute top-3 right-3 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm",
-                      getStatusColor(fair.status)
+                      getStatusColor(getEffectiveStatus(fair))
                     )}>
-                      {getStatusLabel(fair.status)}
+                      {getStatusLabel(getEffectiveStatus(fair))}
                     </div>
                   </div>
                   
@@ -490,10 +502,10 @@ export default function Fairs() {
                     </div>
 
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between text-[10px] uppercase font-bold text-muted-foreground tracking-widest">
+                       <div className="flex items-center justify-between text-[10px] uppercase font-bold text-muted-foreground tracking-widest">
                         <span>Checklist de Preparação</span>
                         <span>
-                          {allChecklistItems.filter(i => i.fair_id === fair.id && i.completed).length}/
+                           {allChecklistItems.filter(i => i.fair_id === fair.id && i.completed).length}/
                           {allChecklistItems.filter(i => i.fair_id === fair.id).length}
                         </span>
                       </div>
@@ -544,6 +556,24 @@ export default function Fairs() {
                             title="Gerar Relatório PDF & Compartilhar"
                           >
                             <FileDown className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-muted-foreground hover:text-green-500 hover:bg-green-50"
+                            onClick={() => {
+                              const dateText = fair.start_date === fair.end_date 
+                                ? safeFormatDate(fair.start_date) 
+                                : `${safeFormatDate(fair.start_date)} a ${safeFormatDate(fair.end_date)}`;
+                              
+                              const text = `*RODER Máquinas e Equipamentos*\n\nOlá! Viemos te convidar para participar do nosso evento: *${fair.name}*! 🚩\n\n📅 *Data:* ${dateText}\n📍 *Local:* ${fair.location}${fair.map_info ? `\n🏠 *Estande:* ${fair.map_info}` : ''}\n\nFicaremos muito felizes com a sua presença! Venha nos visitar e conhecer nossas soluções inovadoras.\n\nEsperamos você! 🤝`;
+                              
+                              const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+                              window.open(waUrl, '_blank');
+                            }}
+                            title="Convidar via WhatsApp"
+                          >
+                            <MessageCircle className="h-4 w-4 text-green-600" />
                           </Button>
                           {isAdmin && (
                             <Button 

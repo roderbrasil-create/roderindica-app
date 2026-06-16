@@ -550,6 +550,24 @@ export default function FairDetails() {
     }
   };
 
+  const handleDownloadFile = (url: string, defaultName: string) => {
+    if (!url) return;
+    if (url.startsWith('data:')) {
+      const link = document.createElement('a');
+      link.href = url;
+      let ext = 'pdf';
+      if (url.includes('image/png')) ext = 'png';
+      else if (url.includes('image/jpeg') || url.includes('image/jpg')) ext = 'jpg';
+      else if (url.includes('image/webp')) ext = 'webp';
+      link.download = `${defaultName}.${ext}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      window.open(url, '_blank', 'noreferrer');
+    }
+  };
+
   const handleSaveExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fair || !id) return;
@@ -572,17 +590,34 @@ export default function FairDetails() {
       let contract_url = expenseForm.contract_url;
       let payment_proof_url = expenseForm.payment_proof_url;
 
+      const toBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = (err) => reject(err);
+        reader.readAsDataURL(file);
+      });
+
       // Upload files if selected
       if (expenseForm.contractFile) {
-        const fileRef = ref(storage, `fairs/${id}/expenses/contract_${Date.now()}_${expenseForm.contractFile.name}`);
-        const snapshot = await uploadBytes(fileRef, expenseForm.contractFile);
-        contract_url = await getDownloadURL(snapshot.ref);
+        try {
+          const fileRef = ref(storage, `fairs/${id}/expenses/contract_${Date.now()}_${expenseForm.contractFile.name}`);
+          const snapshot = await uploadBytes(fileRef, expenseForm.contractFile);
+          contract_url = await getDownloadURL(snapshot.ref);
+        } catch (storageError) {
+          console.warn("Storage upload failed, falling back to Base64:", storageError);
+          contract_url = await toBase64(expenseForm.contractFile);
+        }
       }
 
       if (expenseForm.proofFile) {
-        const fileRef = ref(storage, `fairs/${id}/expenses/proof_${Date.now()}_${expenseForm.proofFile.name}`);
-        const snapshot = await uploadBytes(fileRef, expenseForm.proofFile);
-        payment_proof_url = await getDownloadURL(snapshot.ref);
+        try {
+          const fileRef = ref(storage, `fairs/${id}/expenses/proof_${Date.now()}_${expenseForm.proofFile.name}`);
+          const snapshot = await uploadBytes(fileRef, expenseForm.proofFile);
+          payment_proof_url = await getDownloadURL(snapshot.ref);
+        } catch (storageError) {
+          console.warn("Storage upload failed, falling back to Base64:", storageError);
+          payment_proof_url = await toBase64(expenseForm.proofFile);
+        }
       }
 
       const expenseData = {
@@ -1468,24 +1503,27 @@ export default function FairDetails() {
                          <div className="flex flex-wrap gap-3 mt-4">
                             {exp.contract_url && (
                               <div className="flex items-center gap-2">
-                                <a 
-                                  href={exp.contract_url} 
-                                  target="_blank" 
-                                  rel="noreferrer" 
-                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 rounded-lg text-[10px] font-black text-blue-600 hover:bg-blue-500/20 transition-colors uppercase tracking-widest"
-                                  title="Visualizar Contrato"
+                                <button 
+                                  onClick={() => handleDownloadFile(exp.contract_url!, `contrato_${exp.vendor_name.replace(/\s+/g, '_')}`)}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 rounded-lg text-[10px] font-black text-blue-600 hover:bg-blue-500/20 transition-colors uppercase tracking-widest cursor-pointer border-0"
+                                  title="Baixar/Visualizar Contrato"
                                 >
                                   <FileCheck className="h-4 w-4" /> Contrato
-                                </a>
+                                </button>
                                 <Button 
                                   variant="ghost" 
                                   size="icon" 
                                   className="h-7 w-7 text-blue-400 hover:text-blue-600"
                                   onClick={() => {
-                                    navigator.clipboard.writeText(exp.contract_url || '');
-                                    toast.success('Link do contrato copiado!');
+                                    if (exp.contract_url?.startsWith('data:')) {
+                                      handleDownloadFile(exp.contract_url, `contrato_${exp.vendor_name.replace(/\s+/g, '_')}`);
+                                      toast.success('Arquivo baixado!');
+                                    } else {
+                                      navigator.clipboard.writeText(exp.contract_url || '');
+                                      toast.success('Link do contrato copiado!');
+                                    }
                                   }}
-                                  title="Copiar Link para compartilhar"
+                                  title={exp.contract_url?.startsWith('data:') ? 'Baixar arquivo' : 'Copiar Link para compartilhar'}
                                 >
                                   <Share2 className="h-3.5 w-3.5" />
                                 </Button>
@@ -1493,24 +1531,27 @@ export default function FairDetails() {
                             )}
                             {exp.payment_proof_url && (
                               <div className="flex items-center gap-2">
-                                <a 
-                                  href={exp.payment_proof_url} 
-                                  target="_blank" 
-                                  rel="noreferrer" 
-                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500/10 rounded-lg text-[10px] font-black text-green-600 hover:bg-green-500/20 transition-colors uppercase tracking-widest"
-                                  title="Visualizar Comprovante"
+                                <button 
+                                  onClick={() => handleDownloadFile(exp.payment_proof_url!, `recibo_${exp.vendor_name.replace(/\s+/g, '_')}`)}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500/10 rounded-lg text-[10px] font-black text-green-600 hover:bg-green-500/20 transition-colors uppercase tracking-widest cursor-pointer border-0"
+                                  title="Baixar/Visualizar Comprovante"
                                 >
                                   <Receipt className="h-4 w-4" /> Recibo
-                                </a>
+                                </button>
                                 <Button 
                                   variant="ghost" 
                                   size="icon" 
                                   className="h-7 w-7 text-green-400 hover:text-green-600"
                                   onClick={() => {
-                                    navigator.clipboard.writeText(exp.payment_proof_url || '');
-                                    toast.success('Link do comprovante copiado!');
+                                    if (exp.payment_proof_url?.startsWith('data:')) {
+                                      handleDownloadFile(exp.payment_proof_url, `recibo_${exp.vendor_name.replace(/\s+/g, '_')}`);
+                                      toast.success('Arquivo baixado!');
+                                    } else {
+                                      navigator.clipboard.writeText(exp.payment_proof_url || '');
+                                      toast.success('Link do comprovante copiado!');
+                                    }
                                   }}
-                                  title="Copiar Link para compartilhar"
+                                  title={exp.payment_proof_url?.startsWith('data:') ? 'Baixar arquivo' : 'Copiar Link para compartilhar'}
                                 >
                                   <Share2 className="h-3.5 w-3.5" />
                                 </Button>

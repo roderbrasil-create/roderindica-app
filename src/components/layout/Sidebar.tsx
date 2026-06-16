@@ -374,7 +374,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
       isOpenState: fairsMenuOpen,
       setIsOpenState: handleSetFairsMenuOpen,
       subItems: [
-        { name: 'Gestão de Feiras', path: '/feiras', icon: Settings, roles: ['admin', 'manager', 'marketing'] },
+        { name: 'Gestão de Feiras e Eventos', path: '/feiras', icon: Settings, roles: ['admin', 'manager', 'marketing'] },
       ]
     },
     { 
