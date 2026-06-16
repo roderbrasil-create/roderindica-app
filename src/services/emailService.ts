@@ -37,15 +37,24 @@ export async function shouldSendNotification(type: string): Promise<boolean> {
 }
 
 export async function getManagerEmails(): Promise<string[]> {
+  const mandatory = ['gislene@roderbrasil.com.br', 'contato@roderbrasil.com.br', 'roderbrasil@gmail.com'];
   try {
     const snap = await getDoc(doc(db, 'settings', 'notifications'));
-    if (!snap.exists()) return ['gislene@roderbrasil.com.br'];
+    if (!snap.exists()) return mandatory;
     const data = snap.data();
-    if (!data.manager_emails) return ['gislene@roderbrasil.com.br'];
+    if (!data.manager_emails) return mandatory;
     const emailsStr = String(data.manager_emails || '');
-    return emailsStr.split(',').map((e: string) => e.trim()).filter((e: string) => e !== '');
+    const list = emailsStr.split(',').map((e: string) => e.trim()).filter((e: string) => e !== '');
+    
+    // Ensure all mandatory ones are present
+    mandatory.forEach(email => {
+      if (!list.map(x => x.toLowerCase()).includes(email.toLowerCase())) {
+        list.push(email);
+      }
+    });
+    return list;
   } catch (error) {
-    return ['gislene@roderbrasil.com.br'];
+    return mandatory;
   }
 }
 
@@ -236,15 +245,15 @@ export async function sendThankYouEmail(clientName: string, clientEmail: string,
 }
 
 export async function notifyLuanaNewFairLead(lead: any, fairName: string) {
-  const luanaEmail = 'contato@roderbrasil.com.br'; // From business context, updated from luana@roderbrasil.com.br to avoid bounces
+  const managers = await getManagerEmails();
   const subject = `NOVO LEAD FEIRA: ${lead.name} (${fairName})`;
   const html = `
     <div style="font-family: sans-serif; color: #333;">
-      <h2 style="color: #22c55e;">Atenção Luana!</h2>
-      <p>Um novo lead acaba de ser capturado na <strong>${fairName}</strong>.</p>
+      <h2 style="color: #22c55e;">Roder Indica V2 - Novo Lead Feira</h2>
+      <p>Um novo lead acaba de ser capturado na feira <strong>${fairName}</strong>!</p>
       
       <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px solid #ddd;">
-        <p><strong>Lead:</strong> ${lead.name}</p>
+        <p><strong>Lead/Cliente:</strong> ${lead.name}</p>
         <p><strong>WhatsApp:</strong> ${lead.phone || 'N/A'}</p>
         <p><strong>E-mail:</strong> ${lead.email || 'N/A'}</p>
         <p><strong>Empresa:</strong> ${lead.company || 'N/A'}</p>
@@ -257,7 +266,11 @@ export async function notifyLuanaNewFairLead(lead: any, fairName: string) {
     </div>
   `;
 
-  return await sendEmail({ to: luanaEmail, subject, html });
+  // Send to all managers (which includes Luana, Gislene, and Admin)
+  const results = await Promise.all(
+    managers.map(email => sendEmail({ to: email, subject, html }))
+  );
+  return { success: true, count: results.length };
 }
 
 export async function notifyStockUpdate(emails: string[], appOrigin: string) {

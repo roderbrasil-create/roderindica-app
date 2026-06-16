@@ -196,6 +196,28 @@ export default function PublicBudgetRequest() {
       setSubmitted(true);
       toast.success('Solicitação enviada com sucesso!');
 
+      // Send email notifications to managers (Admin, Gislene, and Luana)
+      try {
+        const { notifyNewIndication } = await import('../services/emailService');
+        const primaryItem = finalProductName || 'Equipamento';
+        const locationStr = formData.client_location || '';
+        const locationParts = locationStr.includes('-') ? locationStr.split('-') : [locationStr, ''];
+
+        const emailIndicationData = {
+          client_name: formData.client_name,
+          client_phone: formData.client_phone || 'Não informado',
+          company_name: formData.company_name || formData.client_name,
+          city: (locationParts[0] || '').trim(),
+          state: (locationParts[1] || '').trim(),
+          product_name: primaryItem
+        };
+
+        const creatorLabel = isPublic ? 'Solicitação Direta (Site)' : `Link de WhatsApp (${finalIndicatorName || 'Indicador'})`;
+        await notifyNewIndication(emailIndicationData, creatorLabel);
+      } catch (emailErr) {
+        console.warn('Silent email notification failure:', emailErr);
+      }
+
       // Notifications are secondary and might fail due to auth rules (unauthenticated clients)
       // This is expected and shouldn't affect the user experience
       try {

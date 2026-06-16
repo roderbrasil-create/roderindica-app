@@ -1369,59 +1369,76 @@ async function startServer() {
       await sendAutomaticEmail(email, `Relatório de Vendas Roder - ${monthName}`, html);
     }
 
-    // Also send Finance Summary to Elizangela
+    // Prepare Finance summary emails (Financeiro, Novo Financeiro Vanessa, and Admin Jeferson)
+    const financeEmails = [
+      'financeiro@roderbrasil.com.br',
+      'financeiro2@roderbrasil.com.br',
+      'jeferson@roderbrasil.com.br'
+    ];
     if (notif.finance_email) {
-      // Fetch bank details for each seller in the ranking
-      const detailedSellers = await Promise.all(sellersRanking.map(async (s: any) => {
-        if (!s.uid) return { ...s, pix_key: '-', bank_info: { bank: '-', agency: '-', account: '-' } };
-        
-        const userDoc = await db.collection('users').doc(s.uid).get();
-        if (userDoc.exists) {
-          const userData = userDoc.data() || {};
-          return {
-            ...s,
-            pix_key: userData.pix_key || 'Não informado',
-            bank_info: userData.bank_info || { bank: '-', agency: '-', account: '-' }
-          };
+      const customEmails = String(notif.finance_email).split(',').map((e: string) => e.trim()).filter((e: string) => e !== '');
+      customEmails.forEach((email: string) => {
+        if (!financeEmails.map(x => x.toLowerCase()).includes(email.toLowerCase())) {
+          financeEmails.push(email);
         }
-        return { ...s, pix_key: '-', bank_info: { bank: '-', agency: '-', account: '-' } };
-      }));
-
-      const financeHtml = `
-        <div style="font-family: sans-serif; color: #333; max-width: 900px;">
-          <h1 style="color: #0f172a; border-bottom: 2px solid #0f172a; padding-bottom: 10px;">Previsão de Pagamentos - ${monthName}</h1>
-          <p>O valor total de comissões para as vendas de <strong>${monthName}</strong> é de: <strong style="font-size: 18px; color: #eab308;">${formatCurrency(totalCommissions)}</strong>.</p>
-          <p>Abaixo seguem os detalhes de cada vendedor e suas respectivas informações bancárias para processamento do pagamento.</p>
-          
-          <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px;">
-            <thead>
-              <tr style="background: #f1f5f9;">
-                <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Vendedor</th>
-                <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Comissão</th>
-                <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Chave PIX</th>
-                <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Dados Bancários</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${detailedSellers.map((s: any) => `
-                <tr>
-                  <td style="padding: 10px; border: 1px solid #ddd;">${s.name}</td>
-                  <td style="padding: 10px; border: 1px solid #ddd; font-weight: bold;">${formatCurrency(s.commissions)}</td>
-                  <td style="padding: 10px; border: 1px solid #ddd; color: #666;">${s.pix_key}</td>
-                  <td style="padding: 10px; border: 1px solid #ddd; font-size: 11px; color: #666;">
-                    ${s.bank_info?.bank ? `Bco: ${s.bank_info.bank}<br>Ag: ${s.bank_info.agency}<br>Cc: ${s.bank_info.account}` : 'N/A'}
-                  </td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-          <p style="margin-top: 20px; font-size: 12px; color: #666; font-style: italic;">
-            * Por favor, verifique se os vendedores enviaram as Notas Fiscais no sistema antes de efetivar o pagamento.
-          </p>
-        </div>
-      `;
-      await sendAutomaticEmail(notif.finance_email, `Financeiro: Relatório de Pagamentos - ${monthName}`, financeHtml);
+      });
     }
+
+    // Fetch bank details for each seller in the ranking
+    const detailedSellers = await Promise.all(sellersRanking.map(async (s: any) => {
+      if (!s.uid) return { ...s, pix_key: '-', bank_info: { bank: '-', agency: '-', account: '-' } };
+      
+      const userDoc = await db.collection('users').doc(s.uid).get();
+      if (userDoc.exists) {
+        const userData = userDoc.data() || {};
+        return {
+          ...s,
+          pix_key: userData.pix_key || 'Não informado',
+          bank_info: userData.bank_info || { bank: '-', agency: '-', account: '-' }
+        };
+      }
+      return { ...s, pix_key: '-', bank_info: { bank: '-', agency: '-', account: '-' } };
+    }));
+
+    const financeHtml = `
+      <div style="font-family: sans-serif; color: #333; max-width: 900px;">
+        <h1 style="color: #0f172a; border-bottom: 2px solid #0f172a; padding-bottom: 10px;">Previsão de Pagamentos - ${monthName}</h1>
+        <p>O valor total de comissões para as vendas de <strong>${monthName}</strong> é de: <strong style="font-size: 18px; color: #eab308;">${formatCurrency(totalCommissions)}</strong>.</p>
+        <p>Abaixo seguem os detalhes de cada vendedor e suas respectivas informações bancárias para processamento do pagamento.</p>
+        
+        <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px;">
+          <thead>
+            <tr style="background: #f1f5f9;">
+              <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Vendedor</th>
+              <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Comissão</th>
+              <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Chave PIX</th>
+              <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Dados Bancários</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${detailedSellers.map((s: any) => `
+              <tr>
+                <td style="padding: 10px; border: 1px solid #ddd;">${s.name}</td>
+                <td style="padding: 10px; border: 1px solid #ddd; font-weight: bold;">${formatCurrency(s.commissions)}</td>
+                <td style="padding: 10px; border: 1px solid #ddd; color: #666;">${s.pix_key}</td>
+                <td style="padding: 10px; border: 1px solid #ddd; font-size: 11px; color: #666;">
+                  ${s.bank_info?.bank ? `Bco: ${s.bank_info.bank}<br>Ag: ${s.bank_info.agency}<br>Cc: ${s.bank_info.account}` : 'N/A'}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <p style="margin-top: 20px; font-size: 12px; color: #666; font-style: italic;">
+          * Por favor, verifique se os vendedores enviaram as Notas Fiscais no sistema antes de efetivar o pagamento.
+        </p>
+      </div>
+    `;
+
+    for (const email of financeEmails) {
+      await sendAutomaticEmail(email, `Financeiro: Relatório de Pagamentos - ${monthName}`, financeHtml);
+    }
+  }, {
+    timezone: BR_TIMEZONE
   });
 
   // Day 1: Reports to Partners (Value Base Only) - SENT ON THE 1ST
@@ -1502,6 +1519,8 @@ async function startServer() {
 
       await sendAutomaticEmail(partner.email, `Extrato Mensal de Comissões - ${monthName}`, html);
     }
+  }, {
+    timezone: BR_TIMEZONE
   });
 
   // Day 5: Invoice Deadline Reminder
@@ -1570,6 +1589,8 @@ async function startServer() {
         await sendAutomaticEmail(partner.email, `URGENTE: Último dia para Nota Fiscal`, html);
       }
     }
+  }, {
+    timezone: BR_TIMEZONE
   });
 
   // Day 7: Payment Reminder to Finance
@@ -1577,7 +1598,22 @@ async function startServer() {
     console.log("[Schedule] Generating Day 7 Finance Reminders...");
     const notifSnap = await db.collection('settings').doc('notifications').get();
     const notif = notifSnap.data();
-    if (!notif?.payment_reminder_finance || !notif.finance_email) return;
+    if (!notif?.payment_reminder_finance) return;
+
+    // Prepare Finance summary emails (Financeiro, Novo Financeiro Vanessa, and Admin Jeferson)
+    const financeEmails = [
+      'financeiro@roderbrasil.com.br',
+      'financeiro2@roderbrasil.com.br',
+      'jeferson@roderbrasil.com.br'
+    ];
+    if (notif.finance_email) {
+      const customEmails = String(notif.finance_email).split(',').map((e: string) => e.trim()).filter((e: string) => e !== '');
+      customEmails.forEach((email: string) => {
+        if (!financeEmails.map(x => x.toLowerCase()).includes(email.toLowerCase())) {
+          financeEmails.push(email);
+        }
+      });
+    }
 
     const now = new Date();
     const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -1601,14 +1637,18 @@ async function startServer() {
     const html = `
       <div style="font-family: sans-serif; color: #333;">
         <h2 style="color: #0f172a;">Lembrete de Pagamento de Comissões</h2>
-        <p>Olá Elizangela,</p>
+        <p>Olá Setor Financeiro / Jeferson,</p>
         <p>Hoje é dia 7. Lembramos que o valor total de comissões calculadas para o fechamento do mês anterior é de:</p>
         <div style="font-size: 36px; font-weight: 900; color: #eab308; margin: 20px 0;">${formatCurrency(monthlyCommissions)}</div>
-        <p>Após realizar os pagamentos, por favor, carregue os comprovantes no sistema para notificar os parceiros.</p>
+        <p>Após realizar os pagamentos, por favor, certifique que as notas fiscais foram enviadas no sistema e carregue os respectivos comprovantes para notificar os parceiros.</p>
       </div>
     `;
 
-    await sendAutomaticEmail(notif.finance_email, `URGENTE: Pagamento de Comissões do Mês`, html);
+    for (const email of financeEmails) {
+      await sendAutomaticEmail(email, `URGENTE: Pagamento de Comissões do Mês`, html);
+    }
+  }, {
+    timezone: BR_TIMEZONE
   });
 
   app.listen(PORT, "0.0.0.0", () => {

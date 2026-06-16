@@ -1562,7 +1562,7 @@ export default function NegotiationCentral() {
                             : "text-slate-900 dark:text-slate-100";
                           
                           return (
-                            <tr key={prod.uniqueId || `${prod.code || 'item'}-${index}`} className={cn(
+                            <tr key={`${prod.uniqueId || prod.code || 'item'}-${index}`} className={cn(
                               "hover:bg-muted/10 dark:hover:bg-slate-800/50 transition-colors",
                               isNonComm ? "bg-red-50/30 dark:bg-red-950/10" : ""
                             )}>
@@ -1729,9 +1729,15 @@ export default function NegotiationCentral() {
                                       </div>
                                       {registeredProducts
                                         .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.code.toLowerCase().includes(searchQuery.toLowerCase()))
-                                        .map(p => (
+                                        .reduce((acc: RegisteredProduct[], current) => {
+                                          if (!acc.some(p => p.code === current.code || p.id === current.id)) {
+                                            acc.push(current);
+                                          }
+                                          return acc;
+                                        }, [])
+                                        .map((p, index) => (
                                           <div 
-                                            key={p.id}
+                                            key={`${p.id || p.code}-${index}`}
                                             className="px-3 py-2 hover:bg-primary/5 dark:hover:bg-slate-700/50 cursor-pointer flex items-center gap-2 transition-colors border-b border-slate-50 dark:border-slate-700 last:border-0"
                                             onClick={() => {
                                               handleAddProductByCode(p.code);

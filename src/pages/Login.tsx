@@ -6,7 +6,7 @@ import {
   sendPasswordResetEmail 
 } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
-import { doc, getDoc, setDoc, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, where, getDocs, deleteDoc, writeBatch } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
@@ -118,18 +118,23 @@ export default function Login() {
                 dashboard_cards: { ...(currentData.permissions?.dashboard_cards || {}), ...(mergedData.permissions?.dashboard_cards || {}) }
               }
             };
-            
+          }
+          
+          const batch = writeBatch(db);
+          for (const d of docs) {
             if (d.id !== user.uid) {
-              await deleteDoc(doc(db, 'users', d.id));
+              batch.delete(doc(db, 'users', d.id));
             }
           }
           
-          await setDoc(doc(db, 'users', user.uid), {
+          batch.set(doc(db, 'users', user.uid), {
             ...mergedData,
             uid: user.uid,
             status: 'active',
             updated_at: new Date().toISOString()
           });
+          
+          await batch.commit();
           
           toast.success(`Olá, ${mergedData.name || 'Usuário'}!`);
         } else if (user.email === 'roderbrasil@gmail.com' || user.email === 'roderindica@gmail.com') {
