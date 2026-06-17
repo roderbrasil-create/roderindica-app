@@ -1078,7 +1078,7 @@ function AccessoryItem({ label, code, onCopy, isCopied, photoUrl }: { label: str
           </div>
         )}
         <div className="flex flex-col">
-          <span className="text-[7px] md:text-sm font-mono font-bold text-foreground leading-tight text-center md:text-left">
+          <span className="text-[9px] md:text-sm font-mono font-bold text-foreground leading-tight text-center md:text-left">
             {code} - <span className="font-sans font-bold uppercase">{label}</span>
           </span>
         </div>

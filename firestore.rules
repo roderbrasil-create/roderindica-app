@@ -387,5 +387,11 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow write: if isManager() || isInternalSeller();
     }
+
+    match /trash_bin/{docId} {
+      allow read: if isAuthenticated() && (isManager() || isAdmin() || isMarketing());
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && (isManager() || isAdmin() || isMarketing());
+    }
   }
 }

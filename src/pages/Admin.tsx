@@ -3252,8 +3252,10 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
                 disabled={isSettingPassword || passwordForUser.password.length < 6}
                 className="bg-primary text-primary-foreground font-black uppercase tracking-widest"
               >
-                {isSettingPassword ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Key className="h-4 w-4 mr-2" />}
-                Confirmar Senha
+                <span className="flex items-center justify-center">
+                  {isSettingPassword ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Key className="h-4 w-4 mr-2" />}
+                  <span>Confirmar Senha</span>
+                </span>
               </Button>
             </DialogFooter>
           </DialogContent>
