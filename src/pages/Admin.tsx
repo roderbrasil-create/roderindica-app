@@ -2864,24 +2864,24 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
 
         {/* User Dialog */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="bg-card border-border text-card-foreground max-w-xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogContent className="bg-card border-border text-card-foreground sm:max-w-2xl md:max-w-3xl lg:max-w-4xl w-full max-h-[95vh] overflow-hidden flex flex-col">
             <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
-              <DialogTitle>{editingUser ? 'Editar Usuário' : 'Novo Usuário'}</DialogTitle>
-              <DialogDescription className="text-muted-foreground text-xs uppercase font-bold tracking-tight">Defina os dados e as permissões de acesso.</DialogDescription>
+              <DialogTitle className="text-lg md:text-xl font-bold tracking-tight">{editingUser ? 'Editar Usuário' : 'Novo Usuário'}</DialogTitle>
+              <DialogDescription className="text-muted-foreground text-[10px] md:text-xs uppercase font-extrabold tracking-widest text-primary/83">Defina os dados e as permissões de acesso.</DialogDescription>
             </DialogHeader>
 
             <div className="flex-1 overflow-y-auto px-6 py-2">
               <Tabs value={dialogTab} onValueChange={setDialogTab} className="w-full">
                 <TabsList className="grid w-full grid-cols-2 mb-4 bg-muted/50 border border-border">
-                  <TabsTrigger value="general" className="text-[10px] font-black uppercase tracking-tight">Dados Cadastrais</TabsTrigger>
-                  <TabsTrigger value="permissions" className="text-[10px] font-black uppercase tracking-tight">Permissões de Acesso</TabsTrigger>
+                  <TabsTrigger value="general" className="text-[10px] md:text-xs font-black uppercase tracking-wider">Dados Cadastrais</TabsTrigger>
+                  <TabsTrigger value="permissions" className="text-[10px] md:text-xs font-black uppercase tracking-wider">Permissões de Acesso</TabsTrigger>
                 </TabsList>
                 
                 <TabsContent value="general" className="space-y-4">
                   <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border">
                     <div className="space-y-0.5">
-                      <Label className="text-sm font-bold">Status da Conta</Label>
-                      <p className="text-[10px] text-muted-foreground uppercase font-black tracking-tight">
+                      <Label className="text-xs md:text-sm font-bold uppercase tracking-wider text-muted-foreground">Status da Conta</Label>
+                      <p className="text-[9px] md:text-[10px] text-muted-foreground uppercase font-black tracking-widest text-primary">
                         {formData.status === 'active' ? 'Ativo - Acesso Liberado' : 'Inativo - Acesso Bloqueado'}
                       </p>
                     </div>
@@ -2890,7 +2890,7 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
                         checked={formData.status === 'active'}
                         onCheckedChange={(checked) => setFormData({...formData, status: checked ? 'active' : 'inactive'})}
                       />
-                      <Badge variant={formData.status === 'active' ? 'default' : 'destructive'} className="text-[10px] uppercase font-black px-2">
+                      <Badge variant={formData.status === 'active' ? 'default' : 'destructive'} className="text-[9px] md:text-[10px] uppercase font-black px-2 py-0.5">
                         {formData.status === 'active' ? 'ON' : 'OFF'}
                       </Badge>
                     </div>
@@ -2898,44 +2898,46 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="name">Nome Completo</Label>
+                      <Label htmlFor="name" className="text-[10px] md:text-xs font-bold uppercase tracking-wider text-muted-foreground opacity-85">Nome Completo</Label>
                       <Input 
                         id="name" 
                         value={formData.name} 
                         onChange={(e) => setFormData({...formData, name: e.target.value})}
-                        className="bg-background border-border text-sm"
+                        className="bg-background border-border text-xs md:text-sm h-9 md:h-10 px-3 font-medium text-foreground"
                         placeholder="Nome do parceiro"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
+                      <Label htmlFor="email" className="text-[10px] md:text-xs font-bold uppercase tracking-wider text-muted-foreground opacity-85">Email</Label>
                       <Input 
                         id="email" 
                         type="email"
                         value={formData.email} 
                         onChange={(e) => setFormData({...formData, email: e.target.value})}
-                        className="bg-background border-border text-sm"
+                        className="bg-background border-border text-xs md:text-sm h-9 md:h-10 px-3 font-medium text-foreground"
+                        placeholder="exemplo@email.com"
                       />
                     </div>
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="company_name">Nome Fantasia</Label>
+                      <Label htmlFor="company_name" className="text-[10px] md:text-xs font-bold uppercase tracking-wider text-muted-foreground opacity-85">Nome Fantasia / Empresa</Label>
                       <Input 
                         id="company_name" 
                         value={formData.company_name} 
                         onChange={(e) => setFormData({...formData, company_name: e.target.value})}
-                        className="bg-background border-border text-sm"
+                        className="bg-background border-border text-xs md:text-sm h-9 md:h-10 px-3 font-medium text-foreground"
+                        placeholder="Razão ou Nome Fantasia"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="cpf_cnpj">CNPJ ou CPF</Label>
+                      <Label htmlFor="cpf_cnpj" className="text-[10px] md:text-xs font-bold uppercase tracking-wider text-muted-foreground opacity-85">CNPJ ou CPF</Label>
                       <Input 
                         id="cpf_cnpj" 
                         value={formData.cpf_cnpj} 
                         onChange={(e) => setFormData({...formData, cpf_cnpj: maskCpfCnpj(e.target.value)})}
-                        className="bg-background border-border text-sm"
+                        className="bg-background border-border text-xs md:text-sm h-9 md:h-10 px-3 font-mono font-medium text-foreground"
                         placeholder="00.000.000/0000-00"
                       />
                     </div>
@@ -2943,7 +2945,7 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="role">Papel / Função</Label>
+                      <Label htmlFor="role" className="text-[10px] md:text-xs font-bold uppercase tracking-wider text-muted-foreground opacity-85">Papel / Função</Label>
                       <Select 
                         value={formData.role} 
                         onValueChange={(v: UserRole) => {
@@ -2952,7 +2954,7 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
                           applyDefaultPermissions(v);
                         }}
                       >
-                        <SelectTrigger className="bg-background border-border w-full text-sm">
+                        <SelectTrigger className="bg-background border-border w-full text-xs md:text-sm h-9 md:h-10 px-3 text-left font-medium text-foreground">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-card border-border text-card-foreground min-w-[320px]">
@@ -2968,12 +2970,13 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="phone">WhatsApp</Label>
+                      <Label htmlFor="phone" className="text-[10px] md:text-xs font-bold uppercase tracking-wider text-muted-foreground opacity-85">WhatsApp</Label>
                       <Input 
                         id="phone" 
                         value={formData.phone} 
                         onChange={(e) => setFormData({...formData, phone: maskPhone(e.target.value)})}
-                        className="bg-background border-border text-sm"
+                        className="bg-background border-border text-xs md:text-sm h-9 md:h-10 px-3 font-medium text-foreground"
+                        placeholder="(00) 00000-0000"
                       />
                     </div>
                   </div>

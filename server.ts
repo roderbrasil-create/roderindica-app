@@ -19,13 +19,56 @@ const __dirname = process.cwd();
 
 const config = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'firebase-applet-config.json'), 'utf8'));
 
+let adminApp: admin.app.App;
+
 if (admin.apps.length === 0) {
-  admin.initializeApp({
+  let credential: admin.credential.Credential | undefined;
+
+  // 1. Try to load service account from environment variable
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    try {
+      const saStr = process.env.FIREBASE_SERVICE_ACCOUNT.trim();
+      let sa;
+      if (saStr.startsWith('{')) {
+        sa = JSON.parse(saStr);
+      } else {
+        sa = JSON.parse(Buffer.from(saStr, 'base64').toString('ascii'));
+      }
+      credential = admin.credential.cert(sa);
+      console.log("[FIREBASE-ADMIN] Initialized using FIREBASE_SERVICE_ACCOUNT environment variable.");
+    } catch (e: any) {
+      console.error("[FIREBASE-ADMIN] Failed to parse FIREBASE_SERVICE_ACCOUNT env variable:", e.message);
+    }
+  }
+
+  // 2. Try to load service account from a local file
+  if (!credential) {
+    const saPath = path.join(process.cwd(), 'firebase-service-account.json');
+    if (fs.existsSync(saPath)) {
+      try {
+        const sa = JSON.parse(fs.readFileSync(saPath, 'utf8'));
+        credential = admin.credential.cert(sa);
+        console.log("[FIREBASE-ADMIN] Initialized using firebase-service-account.json file.");
+      } catch (e: any) {
+        console.error("[FIREBASE-ADMIN] Failed to parse firebase-service-account.json file:", e.message);
+      }
+    }
+  }
+
+  const initConfig: any = {
     projectId: config.projectId,
-  });
+  };
+
+  if (credential) {
+    initConfig.credential = credential;
+  }
+
+  adminApp = admin.initializeApp(initConfig);
+} else {
+  adminApp = admin.app();
 }
 
-const db = getFirestore(admin.app(), config.firestoreDatabaseId || '(default)');
+const db = getFirestore(adminApp, config.firestoreDatabaseId || '(default)');
 
 // Initialize Gemini AI (Server-side)
 let genAI: GoogleGenAI | null = null;
