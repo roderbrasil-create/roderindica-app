@@ -347,7 +347,7 @@ service cloud.firestore {
     }
 
     match /settings/{docId} {
-      allow read: if isAuthenticated() && (isAdmin() || isManager() || isInternalSeller() || isTriagem());
+      allow read: if isAuthenticated();
       allow write: if isAdmin() || ((isManager() || isTriagem()) && docId == 'comercial_config');
     }
 

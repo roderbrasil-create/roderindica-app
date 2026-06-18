@@ -1204,19 +1204,35 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
         })
       });
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        throw new Error(`Resposta inválida do servidor (${response.status})`);
+      }
+
       if (data.success) {
-        toast.success(data.message, { id: toastId });
-        setIsPasswordDialogOpen(false);
+        toast.success(data.message || 'Senha definida com sucesso!', { id: toastId });
+        // Small delay before closing to avoid React/DOM race conditions with sonner toast
+        setTimeout(() => {
+          setIsPasswordDialogOpen(false);
+          setPasswordForUser({ email: '', password: '', name: '' });
+          setIsSettingPassword(false);
+        }, 100);
+        return; // Success handled
       } else {
         console.error("[PWD-SET] API returned error:", data);
         toast.error('Erro: ' + (data.error || 'Erro desconhecido'), { id: toastId });
       }
     } catch (error: any) {
       console.error("[PWD-SET] Client-side error:", error);
-      toast.error('Erro técnico: ' + error.message, { id: toastId });
+      toast.error('Erro ao processar: ' + (error.message || 'Erro inesperado'), { id: toastId });
     } finally {
-      setIsSettingPassword(false);
+      // If success, we handle state reset in setTimeout
+      // If error, we need to reset loading state here
+      const checkLoading = setTimeout(() => {
+        setIsSettingPassword(false);
+      }, 500);
     }
   };
 
@@ -2864,17 +2880,21 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
 
         {/* User Dialog */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="bg-card border-border text-card-foreground sm:max-w-2xl md:max-w-3xl lg:max-w-4xl w-full max-h-[95vh] overflow-hidden flex flex-col">
-            <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
-              <DialogTitle className="text-lg md:text-xl font-bold tracking-tight">{editingUser ? 'Editar Usuário' : 'Novo Usuário'}</DialogTitle>
-              <DialogDescription className="text-muted-foreground text-[10px] md:text-xs uppercase font-extrabold tracking-widest text-primary/83">Defina os dados e as permissões de acesso.</DialogDescription>
+          <DialogContent className="bg-card border-border text-card-foreground sm:max-w-[700px] md:max-w-[950px] lg:max-w-[1150px] xl:max-w-[1300px] w-full max-h-[95vh] overflow-hidden flex flex-col p-0 gap-0 shadow-2xl">
+            <DialogHeader className="px-8 pt-8 pb-4 shrink-0 bg-muted/30 border-b border-border">
+              <DialogTitle className="text-xl md:text-2xl font-black tracking-tight uppercase italic">{editingUser ? 'Editar Perfil de Acesso' : 'Cadastrar Novo Usuário'}</DialogTitle>
+              <DialogDescription className="text-muted-foreground text-[10px] md:text-[11px] uppercase font-black tracking-[0.2em] text-primary">Configuração de credenciais, dados pessoais e barramento de permissões.</DialogDescription>
             </DialogHeader>
 
-            <div className="flex-1 overflow-y-auto px-6 py-2">
+            <div className="flex-1 overflow-y-auto px-8 py-6">
               <Tabs value={dialogTab} onValueChange={setDialogTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-2 mb-4 bg-muted/50 border border-border">
-                  <TabsTrigger value="general" className="text-[10px] md:text-xs font-black uppercase tracking-wider">Dados Cadastrais</TabsTrigger>
-                  <TabsTrigger value="permissions" className="text-[10px] md:text-xs font-black uppercase tracking-wider">Permissões de Acesso</TabsTrigger>
+                <TabsList className="grid w-full grid-cols-2 mb-8 bg-muted/50 border border-border p-1 h-12">
+                  <TabsTrigger value="general" className="text-xs md:text-sm font-black uppercase tracking-wider py-2">
+                    <User className="h-4 w-4 mr-2" /> Dados Cadastrais
+                  </TabsTrigger>
+                  <TabsTrigger value="permissions" className="text-xs md:text-sm font-black uppercase tracking-wider py-2">
+                    <Shield className="h-4 w-4 mr-2" /> Permissões de Acesso
+                  </TabsTrigger>
                 </TabsList>
                 
                 <TabsContent value="general" className="space-y-4">
@@ -2896,56 +2916,30 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     <div className="space-y-2">
-                      <Label htmlFor="name" className="text-[10px] md:text-xs font-bold uppercase tracking-wider text-muted-foreground opacity-85">Nome Completo</Label>
+                      <Label htmlFor="name" className="text-[10px] md:text-xs font-black uppercase tracking-wider text-muted-foreground opacity-70">Nome Completo</Label>
                       <Input 
                         id="name" 
                         value={formData.name} 
                         onChange={(e) => setFormData({...formData, name: e.target.value})}
-                        className="bg-background border-border text-xs md:text-sm h-9 md:h-10 px-3 font-medium text-foreground"
+                        className="bg-background border-border text-xs md:text-sm h-10 px-3 font-semibold text-foreground uppercase"
                         placeholder="Nome do parceiro"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="email" className="text-[10px] md:text-xs font-bold uppercase tracking-wider text-muted-foreground opacity-85">Email</Label>
+                      <Label htmlFor="email" className="text-[10px] md:text-xs font-black uppercase tracking-wider text-muted-foreground opacity-70">Email de Acesso</Label>
                       <Input 
                         id="email" 
                         type="email"
                         value={formData.email} 
                         onChange={(e) => setFormData({...formData, email: e.target.value})}
-                        className="bg-background border-border text-xs md:text-sm h-9 md:h-10 px-3 font-medium text-foreground"
+                        className="bg-background border-border text-xs md:text-sm h-10 px-3 font-medium text-foreground lowercase"
                         placeholder="exemplo@email.com"
                       />
                     </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="company_name" className="text-[10px] md:text-xs font-bold uppercase tracking-wider text-muted-foreground opacity-85">Nome Fantasia / Empresa</Label>
-                      <Input 
-                        id="company_name" 
-                        value={formData.company_name} 
-                        onChange={(e) => setFormData({...formData, company_name: e.target.value})}
-                        className="bg-background border-border text-xs md:text-sm h-9 md:h-10 px-3 font-medium text-foreground"
-                        placeholder="Razão ou Nome Fantasia"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="cpf_cnpj" className="text-[10px] md:text-xs font-bold uppercase tracking-wider text-muted-foreground opacity-85">CNPJ ou CPF</Label>
-                      <Input 
-                        id="cpf_cnpj" 
-                        value={formData.cpf_cnpj} 
-                        onChange={(e) => setFormData({...formData, cpf_cnpj: maskCpfCnpj(e.target.value)})}
-                        className="bg-background border-border text-xs md:text-sm h-9 md:h-10 px-3 font-mono font-medium text-foreground"
-                        placeholder="00.000.000/0000-00"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="role" className="text-[10px] md:text-xs font-bold uppercase tracking-wider text-muted-foreground opacity-85">Papel / Função</Label>
+                      <Label htmlFor="role" className="text-[10px] md:text-xs font-black uppercase tracking-wider text-muted-foreground opacity-70">Papel / Função</Label>
                       <Select 
                         value={formData.role} 
                         onValueChange={(v: UserRole) => {
@@ -2954,7 +2948,7 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
                           applyDefaultPermissions(v);
                         }}
                       >
-                        <SelectTrigger className="bg-background border-border w-full text-xs md:text-sm h-9 md:h-10 px-3 text-left font-medium text-foreground">
+                        <SelectTrigger className="bg-background border-border w-full text-xs md:text-sm h-10 px-3 text-left font-bold text-foreground">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-card border-border text-card-foreground min-w-[320px]">
@@ -2969,13 +2963,36 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
                         </SelectContent>
                       </Select>
                     </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     <div className="space-y-2">
-                      <Label htmlFor="phone" className="text-[10px] md:text-xs font-bold uppercase tracking-wider text-muted-foreground opacity-85">WhatsApp</Label>
+                      <Label htmlFor="company_name" className="text-[10px] md:text-xs font-black uppercase tracking-wider text-muted-foreground opacity-70">Nome Fantasia / Empresa / Revenda</Label>
+                      <Input 
+                        id="company_name" 
+                        value={formData.company_name} 
+                        onChange={(e) => setFormData({...formData, company_name: e.target.value})}
+                        className="bg-background border-border text-xs md:text-sm h-10 px-3 font-medium text-foreground"
+                        placeholder="Razão ou Nome Fantasia"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="cpf_cnpj" className="text-[10px] md:text-xs font-black uppercase tracking-wider text-muted-foreground opacity-70">CNPJ ou CPF (Documento)</Label>
+                      <Input 
+                        id="cpf_cnpj" 
+                        value={formData.cpf_cnpj} 
+                        onChange={(e) => setFormData({...formData, cpf_cnpj: maskCpfCnpj(e.target.value)})}
+                        className="bg-background border-border text-xs md:text-sm h-10 px-3 font-mono font-bold text-foreground"
+                        placeholder="00.000.000/0000-00"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="phone" className="text-[10px] md:text-xs font-black uppercase tracking-wider text-muted-foreground opacity-70">WhatsApp / Contato Direto</Label>
                       <Input 
                         id="phone" 
                         value={formData.phone} 
                         onChange={(e) => setFormData({...formData, phone: maskPhone(e.target.value)})}
-                        className="bg-background border-border text-xs md:text-sm h-9 md:h-10 px-3 font-medium text-foreground"
+                        className="bg-background border-border text-xs md:text-sm h-10 px-3 font-bold text-foreground"
                         placeholder="(00) 00000-0000"
                       />
                     </div>
@@ -3147,15 +3164,15 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
                       Restaurar Padrão do Cargo ({formData.role === 'external_seller' ? 'Vendedor Externo' : formData.role})
                     </Button>
                   </div>
-                  <div className="space-y-4">
+                  <div className="space-y-6">
                     <h4 className="text-[10px] font-black uppercase text-primary tracking-widest border-b border-primary/10 pb-1">Menu Lateral (Sidebar)</h4>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
                       {sidebarItems.map(item => (
-                        <div key={item.id} className="flex items-center justify-between p-2 rounded-md bg-muted/20 border border-border">
-                          <Label className="text-[11px] font-bold cursor-pointer uppercase tracking-tight" htmlFor={`sidebar-${item.id}`}>{item.label}</Label>
+                        <div key={item.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/20 border border-border hover:bg-muted/30 transition-colors">
+                          <Label className="text-[10px] font-black cursor-pointer uppercase tracking-tight text-foreground pr-2" htmlFor={`sidebar-${item.id}`}>{item.label}</Label>
                           <Switch 
                             id={`sidebar-${item.id}`}
-                            className="scale-75"
+                            className="scale-90"
                             checked={formData.permissions.sidebar[item.id] ?? ROLE_DEFAULTS[formData.role]?.sidebar.includes(item.id)}
                             onCheckedChange={(checked) => setFormData({
                               ...formData,
@@ -3170,15 +3187,15 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
                     </div>
                   </div>
 
-                  <div className="space-y-4">
+                  <div className="space-y-6">
                     <h4 className="text-[10px] font-black uppercase text-orange-500 tracking-widest border-b border-orange-500/10 pb-1">Cards do Dashboard</h4>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
                       {dashboardCards.map(card => (
-                        <div key={card.id} className="flex items-center justify-between p-2 rounded-md bg-orange-500/5 border border-orange-500/10">
-                          <Label className="text-[11px] font-bold cursor-pointer uppercase tracking-tight" htmlFor={`card-${card.id}`}>{card.label}</Label>
+                        <div key={card.id} className="flex items-center justify-between p-3 rounded-lg bg-orange-500/5 border border-orange-500/10 hover:bg-orange-500/10 transition-colors">
+                          <Label className="text-[10px] font-black cursor-pointer uppercase tracking-tight text-foreground pr-2" htmlFor={`card-${card.id}`}>{card.label}</Label>
                           <Switch 
                             id={`card-${card.id}`}
-                            className="scale-75"
+                            className="scale-90"
                             checked={formData.permissions.dashboard_cards[card.id] ?? ROLE_DEFAULTS[formData.role]?.dashboard.includes(card.id)}
                             onCheckedChange={(checked) => setFormData({
                               ...formData,

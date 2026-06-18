@@ -37,7 +37,12 @@ export async function shouldSendNotification(type: string): Promise<boolean> {
 }
 
 export async function getManagerEmails(): Promise<string[]> {
-  const mandatory = ['gislene@roderbrasil.com.br', 'contato@roderbrasil.com.br', 'roderbrasil@gmail.com'];
+  const mandatory = [
+    'gislene@roderbrasil.com.br', 
+    'contato@roderbrasil.com.br', 
+    'roderbrasil@gmail.com',
+    'luana@roderbrasil.com.br'
+  ];
   try {
     const snap = await getDoc(doc(db, 'settings', 'notifications'));
     if (!snap.exists()) return mandatory;

@@ -986,7 +986,7 @@ export default function NewIndication() {
         }
       };
       
-      notifyTriagem();
+      await notifyTriagem();
       clearDraft();
       toast.success('Indicação enviada com sucesso!');
       navigate('/indicacoes');
