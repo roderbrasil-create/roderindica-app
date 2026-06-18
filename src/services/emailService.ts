@@ -64,31 +64,55 @@ export async function getManagerEmails(): Promise<string[]> {
 }
 
 export async function notifyNewIndication(indication: any, partnerName: string) {
-  if (!(await shouldSendNotification('new_indication_admin'))) return;
+  try {
+    const shouldSend = await shouldSendNotification('new_indication_admin');
+    console.log('[NOTIFICATION] shouldSend notifyNewIndication:', shouldSend);
+    if (!shouldSend) return;
 
-  const managers = await getManagerEmails();
-  const subject = `NOVA INDICAÇÃO: ${indication.client_name} (via ${partnerName})`;
-  const html = `
-    <div style="font-family: sans-serif; color: #333;">
-      <h2 style="color: #eab308;">Roder Indica V2 - Nova Indicação</h2>
-      <p>Uma nova indicação foi recebida no sistema!</p>
-      
-      <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin: 20px 0;">
-        <p><strong>Cliente:</strong> ${indication.client_name}</p>
-        <p><strong>WhatsApp:</strong> ${indication.client_phone || 'Não informado'}</p>
-        <p><strong>Empresa:</strong> ${indication.company_name || 'N/A'}</p>
-        <p><strong>Cidade/UF:</strong> ${indication.city}/${indication.state}</p>
-        <p><strong>Equipamento:</strong> ${indication.product_name}</p>
-        <p><strong>Indicador:</strong> ${partnerName}</p>
+    const managers = await getManagerEmails();
+    console.log('[NOTIFICATION] Destinatários da triagem:', managers);
+
+    const subject = `NOVA INDICAÇÃO: ${indication.client_name || indication.company_name} (via ${partnerName})`;
+    const html = `
+      <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 8px; overflow: hidden;">
+        <div style="background-color: #f97316; color: white; padding: 20px; text-align: center;">
+          <h2 style="margin: 0; text-transform: uppercase;">Nova Indicação Recebida</h2>
+          <p style="margin: 5px 0 0 0; opacity: 0.9;">Um novo negócio foi indicado por ${partnerName}</p>
+        </div>
+        
+        <div style="padding: 24px;">
+          <div style="background-color: #fdf2f7; border-left: 4px solid #f97316; padding: 15px; margin-bottom: 20px;">
+             <p style="margin: 0; font-weight: bold; color: #7c2d12;">CLIENTE: ${indication.client_name || indication.company_name}</p>
+          </div>
+
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr><td style="padding: 8px 0; color: #666; width: 120px;">WhatsApp:</td><td style="padding: 8px 0; font-weight: bold;">${indication.client_phone || indication.phone || 'Não informado'}</td></tr>
+            <tr><td style="padding: 8px 0; color: #666;">Empresa:</td><td style="padding: 8px 0;">${indication.company_name || 'N/A'}</td></tr>
+            <tr><td style="padding: 8px 0; color: #666;">Cidade/UF:</td><td style="padding: 8px 0;">${indication.city || '-'}/${indication.state || '-'}</td></tr>
+            <tr><td style="padding: 8px 0; color: #666;">Equipamento:</td><td style="padding: 8px 0; color: #f97316; font-weight: bold;">${indication.product_name || 'Personalizado'}</td></tr>
+          </table>
+
+          <div style="margin-top: 30px; text-align: center;">
+            <a href="${window.location.origin}/triagem" style="background-color: #f97316; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">ACESSAR TRIAGEM NO SISTEMA</a>
+          </div>
+        </div>
       </div>
+    `;
 
-      <p>Acesse o sistema para realizar a triagem deste lead.</p>
-      <a href="${window.location.origin}/indicacoes" style="display: inline-block; background: #eab308; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">Ver Indicação</a>
-    </div>
-  `;
-
-  for (const email of managers) {
-    await sendEmail({ to: email, subject, html });
+    // Send to all managers in parallel and catch individual errors
+    const results = await Promise.allSettled(
+      managers.map(email => 
+        sendEmail({ to: email, subject, html }).then(res => {
+          if (!res.success) throw new Error(`Failed to send to ${email}: ${res.error}`);
+          return email;
+        })
+      )
+    );
+    
+    console.log('[NOTIFICATION] Resultado do envio:', results);
+    return results;
+  } catch (err) {
+    console.error('Erro crítico ao notificar nova indicação:', err);
   }
 }
 

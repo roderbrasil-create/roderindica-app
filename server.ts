@@ -282,6 +282,7 @@ async function startServer() {
 
   app.post("/api/send-email", async (req, res) => {
     const { to, subject, html, replyTo, fromName, settings: bodySettings } = req.body;
+    console.log(`[EMAIL-API] Recebida solicitação de envio para: ${to} | Assunto: ${subject}`);
     
     try {
       let settings = bodySettings;
@@ -356,6 +357,7 @@ async function startServer() {
         };
 
         const result = await transporter.sendMail(mailOptions);
+        console.log(`[EMAIL-API] E-mail enviado com sucesso via Gmail para ${to}. ID: ${result.messageId}`);
         return res.json({ success: true, data: result });
       } else {
         return res.status(400).json({ error: "Provedor de e-mail não suportado ou não configurado." });
