@@ -149,25 +149,25 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
         </DialogHeader>
 
         <Tabs defaultValue="general" className="w-full">
-          <div className="px-6 border-b">
-            <TabsList className="bg-transparent h-12 w-full justify-start gap-4 p-0">
-              <TabsTrigger value="general" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-orange-600 rounded-none h-full shadow-none border-b-2 border-transparent px-2">
-                Informações Gerais
+          <div className="px-4 lg:px-6 border-b overflow-x-auto no-scrollbar">
+            <TabsList className="bg-transparent h-12 w-fit lg:w-full justify-start gap-4 p-0">
+              <TabsTrigger value="general" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-orange-600 rounded-none h-full shadow-none border-b-2 border-transparent px-2 text-sm whitespace-nowrap">
+                Informações
               </TabsTrigger>
-              <TabsTrigger value="financial" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-orange-600 rounded-none h-full shadow-none border-b-2 border-transparent px-2">
-                Controle Financeiro
+              <TabsTrigger value="financial" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-orange-600 rounded-none h-full shadow-none border-b-2 border-transparent px-2 text-sm whitespace-nowrap">
+                Financeiro
               </TabsTrigger>
-              <TabsTrigger value="evidence" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-orange-600 rounded-none h-full shadow-none border-b-2 border-transparent px-2 text-muted-foreground/60 cursor-not-allowed">
-                Evidências & Anexos
+              <TabsTrigger value="evidence" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-orange-600 rounded-none h-full shadow-none border-b-2 border-transparent px-2 text-sm whitespace-nowrap text-muted-foreground/60 cursor-not-allowed">
+                Evidências
               </TabsTrigger>
             </TabsList>
           </div>
 
-          <ScrollArea className="max-h-[70vh]">
-            <div className="p-6">
+          <ScrollArea className="max-h-[85vh] lg:max-h-[70vh]">
+            <div className="p-4 lg:p-6">
               <TabsContent value="general" className="m-0 space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2 space-y-2">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div className="lg:col-span-2 space-y-2">
                     <Label>Nome da Ação</Label>
                     <Input 
                       placeholder="Ex: Café com o Diretor - Aniversariantes de Junho"
@@ -253,7 +253,7 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
                     </Select>
                   </div>
 
-                  <div className="col-span-2 space-y-2">
+                  <div className="lg:col-span-2 space-y-2">
                     <Label>Objetivo da Ação</Label>
                     <Input 
                       placeholder="Breve resumo do que se espera atingir"
@@ -262,7 +262,7 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
                     />
                   </div>
 
-                  <div className="col-span-2 space-y-2">
+                  <div className="lg:col-span-2 space-y-2">
                     <Label>Descrição Detalhada</Label>
                     <Textarea 
                       placeholder="Descreva o passo a passo da ação..."
@@ -303,7 +303,7 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
               </TabsContent>
 
               <TabsContent value="financial" className="m-0 space-y-6">
-                <div className="grid grid-cols-2 gap-4 bg-orange-50 p-4 rounded-lg border border-orange-100">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 bg-orange-50 p-4 rounded-lg border border-orange-100">
                   <div className="space-y-2">
                     <Label className="text-orange-900">Orçamento Previsto (R$)</Label>
                     <Input 
@@ -329,8 +329,8 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
                     </h3>
                   </div>
 
-                  <div className="grid grid-cols-12 gap-2 p-3 bg-muted/30 rounded-lg items-end border">
-                    <div className="col-span-5 space-y-1.5">
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-2 p-3 bg-muted/30 rounded-lg items-end border">
+                    <div className="col-span-1 lg:col-span-5 space-y-1.5">
                       <Label className="text-[10px] uppercase text-muted-foreground">Descrição</Label>
                       <Input 
                         placeholder="Ex: Kit Brindes"
@@ -339,7 +339,7 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
                         onChange={e => setNewItem({ ...newItem, description: e.target.value })}
                       />
                     </div>
-                    <div className="col-span-3 space-y-1.5">
+                    <div className="col-span-1 lg:col-span-3 space-y-1.5">
                       <Label className="text-[10px] uppercase text-muted-foreground">Categoria</Label>
                       <Select 
                         value={newItem.category}
@@ -353,7 +353,7 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="col-span-3 space-y-1.5">
+                    <div className="col-span-1 lg:col-span-3 space-y-1.5">
                       <Label className="text-[10px] uppercase text-muted-foreground">Valor (R$)</Label>
                       <Input 
                         type="number"
@@ -362,19 +362,19 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
                         onChange={e => setNewItem({ ...newItem, value: Number(e.target.value) })}
                       />
                     </div>
-                    <div className="col-span-1">
-                      <Button variant="outline" size="icon" onClick={handleAddItem} className="bg-white h-10 w-10">
-                        <Plus className="h-4 w-4 text-orange-600" />
+                    <div className="col-span-1 border-t lg:border-none pt-2 lg:pt-0">
+                      <Button className="w-full bg-orange-600 hover:bg-orange-700" onClick={handleAddItem}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Adicionar Item
                       </Button>
                     </div>
                   </div>
 
-                  <div className="rounded-md border overflow-hidden">
+                  <div className="rounded-md border overflow-hidden overflow-x-auto">
                     <Table>
                       <TableHeader className="bg-muted/50">
                         <TableRow>
                           <TableHead className="text-xs">Descrição</TableHead>
-                          <TableHead className="text-xs">Categoria</TableHead>
                           <TableHead className="text-xs text-right">Valor</TableHead>
                           <TableHead className="w-10"></TableHead>
                         </TableRow>
@@ -382,20 +382,24 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
                       <TableBody>
                         {financialItems.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={4} className="text-center py-8 text-muted-foreground text-xs italic">
+                            <TableCell colSpan={3} className="text-center py-8 text-muted-foreground text-xs italic">
                               Nenhum item adicionado ainda.
                             </TableCell>
                           </TableRow>
                         ) : (
                           financialItems.map((item) => (
                             <TableRow key={item.id}>
-                              <TableCell className="text-sm">{item.description}</TableCell>
-                              <TableCell className="text-sm font-medium text-orange-600/70">{item.category}</TableCell>
-                              <TableCell className="text-sm font-semibold text-right">
+                              <TableCell className="p-2">
+                                <div className="flex flex-col">
+                                  <span className="text-xs font-semibold">{item.description}</span>
+                                  <span className="text-[10px] text-orange-600/70">{item.category}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-xs font-bold text-right p-2 whitespace-nowrap">
                                 {item.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                               </TableCell>
-                              <TableCell>
-                                <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(item.id!)}>
+                              <TableCell className="p-2">
+                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleRemoveItem(item.id!)}>
                                   <Trash2 className="h-3.5 w-3.5 text-red-400" />
                                 </Button>
                               </TableCell>
