@@ -67,11 +67,19 @@ export async function getManagerEmails(): Promise<string[]> {
 export async function notifyNewIndication(indication: any, partnerName: string) {
   try {
     const shouldSend = await shouldSendNotification('new_indication_admin');
-    console.log('[NOTIFICATION] shouldSend notifyNewIndication:', shouldSend);
-    if (!shouldSend) return;
+    console.log('[NOTIFICATION] notifyNewIndication: shouldSend =', shouldSend);
+    if (!shouldSend) {
+      console.log('[NOTIFICATION] Aborting notifyNewIndication because it is disabled in settings');
+      return;
+    }
 
     const managers = await getManagerEmails();
-    console.log('[NOTIFICATION] Destinatários da triagem:', managers);
+    console.log('[NOTIFICATION] notifyNewIndication: Recipient list =', managers);
+    
+    if (managers.length === 0) {
+      console.warn('[NOTIFICATION] notifyNewIndication: No manager emails found!');
+      return;
+    }
 
     const subject = `NOVA INDICAÇÃO: ${indication.client_name || indication.company_name} (via ${partnerName})`;
     const html = `
@@ -104,13 +112,13 @@ export async function notifyNewIndication(indication: any, partnerName: string) 
     const results = await Promise.allSettled(
       managers.map(email => 
         sendEmail({ to: email, subject, html }).then(res => {
-          if (!res.success) throw new Error(`Failed to send to ${email}: ${res.error}`);
+          if (!res.success) throw new Error(`Email failed: ${res.error}`);
           return email;
         })
       )
     );
     
-    console.log('[NOTIFICATION] Resultado do envio:', results);
+    console.log('[NOTIFICATION] notifyNewIndication results:', results.map(r => r.status === 'fulfilled' ? `SUCCESS: ${r.value}` : `FAILED: ${r.reason}`));
     return results;
   } catch (err) {
     console.error('Erro crítico ao notificar nova indicação:', err);

@@ -717,6 +717,9 @@ export default function NewIndication() {
     }
   };
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionStatus, setSubmissionStatus] = useState<'saving' | 'uploading' | 'notifying' | 'done'>('saving');
+
   const handleSubmit = async () => {
     // Validate fields
     const newErrors: Record<string, boolean> = {};
@@ -793,7 +796,8 @@ export default function NewIndication() {
     }
 
     if (!onlineStatus) {
-      setLoading(true);
+      setIsSubmitting(true);
+      setSubmissionStatus('saving');
       try {
         const tempId = crypto.randomUUID();
         const mediaIds: string[] = [];
@@ -859,12 +863,13 @@ export default function NewIndication() {
         console.error("Error saving offline:", err);
         toast.error('Erro ao guardar indicação localmente.');
       } finally {
-        setLoading(false);
+        setIsSubmitting(false);
       }
       return;
     }
 
-    setLoading(true);
+    setIsSubmitting(true);
+    setSubmissionStatus('saving');
     try {
       const indicationRef = doc(collection(db, 'indications'));
       const indicationId = indicationRef.id;
@@ -947,6 +952,7 @@ export default function NewIndication() {
         protection_expires_at: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
       });
 
+      setSubmissionStatus('notifying');
       // Notify Triagem Luana and Managers and send template emails
       const notifyTriagem = async () => {
         try {
@@ -987,14 +993,16 @@ export default function NewIndication() {
       };
       
       await notifyTriagem();
+      setSubmissionStatus('done');
       clearDraft();
       toast.success('Indicação enviada com sucesso!');
-      navigate('/indicacoes');
+      
+      // Delay slightly for user to see success state
+      setTimeout(() => navigate('/indicacoes'), 1500);
     } catch (saveError: any) {
       console.warn("Save failed, writing offline:", saveError);
       toast.error('Erro de envio. Gravado no rascunho temporário.');
-    } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -1014,8 +1022,74 @@ export default function NewIndication() {
 
   const categories = Array.from(new Set(filteredCatalogProducts.map(p => p.category || 'Geral'))).sort();
 
+  const getStatusText = () => {
+    switch(submissionStatus) {
+      case 'saving': return 'Salvando dados da indicação...';
+      case 'uploading': return 'Fazendo upload das mídias...';
+      case 'notifying': return 'Enviando e-mail de aviso para a RODER...';
+      case 'done': return 'Indicação enviada com sucesso!';
+      default: return 'Processando...';
+    }
+  };
+
   return (
     <Layout>
+      {/* Submission Feedback Dialog */}
+      <Dialog open={isSubmitting} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md bg-white border-2 border-primary/20 shadow-2xl rounded-3xl" showCloseButton={false}>
+          <DialogHeader className="flex flex-col items-center gap-4 py-4">
+            {submissionStatus !== 'done' ? (
+              <div className="relative h-20 w-20">
+                <div className="absolute inset-0 rounded-full border-4 border-primary/10 animate-pulse" />
+                <div className="absolute inset-0 rounded-full border-t-4 border-l-4 border-primary animate-spin" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <Loader2 className="h-10 w-10 text-primary animate-pulse" />
+                </div>
+              </div>
+            ) : (
+              <div className="h-20 w-20 bg-green-100 rounded-full flex items-center justify-center animate-in zoom-in duration-300">
+                <CheckCircle2 className="h-12 w-12 text-green-600" />
+              </div>
+            )}
+            <div className="text-center space-y-2">
+              <DialogTitle className="text-xl font-black uppercase text-slate-900 tracking-tight">
+                {submissionStatus === 'done' ? 'Sucesso!' : 'Enviando Indicação'}
+              </DialogTitle>
+              <DialogDescription className="text-slate-500 font-medium pb-2">
+                {getStatusText()}
+              </DialogDescription>
+            </div>
+          </DialogHeader>
+          
+          {submissionStatus !== 'done' && (
+            <div className="px-6 py-4 space-y-4">
+              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200">
+                <div 
+                  className={cn(
+                    "h-full bg-primary transition-all duration-1000",
+                    submissionStatus === 'saving' ? "w-1/3" : 
+                    submissionStatus === 'uploading' ? "w-2/3" : "w-[90%]"
+                  )} 
+                />
+              </div>
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+                <div className="p-1 bg-amber-100 rounded-full mt-0.5">
+                   <Wifi className="h-3.5 w-3.5 text-amber-600" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-black text-amber-900 uppercase tracking-tight">Aviso Importante</p>
+                  <p className="text-[11px] text-amber-800 leading-relaxed font-medium">
+                    Por favor, <strong>não feche esta aba</strong> e mantenha sua conexão ativa até que os e-mails de confirmação sejam disparados para a equipe da RODER.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter className="hidden sm:flex" />
+        </DialogContent>
+      </Dialog>
+
       <div className="max-w-4xl mx-auto space-y-8">
         {/* Header Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

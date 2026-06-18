@@ -41,6 +41,7 @@ export default function PublicBudgetRequest() {
   const [indicatorName, setIndicatorName] = useState<string | null>(urlIndicatorName ? decodeURIComponent(urlIndicatorName) : null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [submissionStep, setSubmissionStep] = useState<'saving' | 'notifying'>('saving');
   const [submitted, setSubmitted] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
@@ -138,6 +139,7 @@ export default function PublicBudgetRequest() {
 
     try {
       setSubmitting(true);
+      setSubmissionStep('saving');
       
       const isPublic = !indicatorId || indicatorId === 'null' || indicatorId === 'undefined' || indicatorId === '';
       const finalIndicatorId = isPublic ? 'public_request' : indicatorId;
@@ -192,10 +194,7 @@ export default function PublicBudgetRequest() {
 
       await addDoc(collection(db, 'indications'), indicationData);
       
-      // We set submitted immediately after the main record is created
-      setSubmitted(true);
-      toast.success('Solicitação enviada com sucesso!');
-
+      setSubmissionStep('notifying');
       // Send email notifications to managers (Admin, Gislene, and Luana)
       try {
         const { notifyNewIndication } = await import('../services/emailService');
@@ -245,6 +244,10 @@ export default function PublicBudgetRequest() {
       } catch (notifyErr) {
         console.warn('Silent notification failure (likely unauthenticated client):', notifyErr);
       }
+
+      // We set submitted immediately after the main record is created
+      setSubmitted(true);
+      toast.success('Solicitação enviada com sucesso!');
     } catch (err) {
       console.error('Error submitting budget request:', err);
       toast.error('Erro ao enviar solicitação. Por favor, tente novamente.');
@@ -283,6 +286,37 @@ export default function PublicBudgetRequest() {
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center py-6 px-4">
+      {/* Submission Overlay for Public Request */}
+      {submitting && (
+        <div className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-6 text-center animate-in fade-in duration-500">
+           <div className="max-w-sm w-full space-y-8">
+              <div className="relative h-24 w-24 mx-auto">
+                <div className="absolute inset-0 rounded-full border-4 border-primary/20 animate-pulse" />
+                <div className="absolute inset-0 rounded-full border-t-4 border-l-4 border-primary animate-spin" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-primary font-black italic text-4xl">R</span>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <h2 className="text-2xl font-black text-white uppercase tracking-tight">Processando</h2>
+                <p className="text-slate-400 font-medium">
+                  {submissionStep === 'saving' 
+                    ? 'Estamos registrando sua solicitação nos nossos sistemas...' 
+                    : 'Avisando nosso time comercial para te atender o mais rápido possível...'}
+                </p>
+              </div>
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex items-start gap-3">
+                <div className="p-1.5 bg-primary/10 rounded-full shrink-0">
+                  <Loader2 className="h-4 w-4 text-primary animate-spin" />
+                </div>
+                <p className="text-left text-[11px] text-slate-500 leading-relaxed">
+                  <strong>Não feche esta página</strong>. Estamos garantindo que sua mensagem chegue aos diretores da RODER com segurança.
+                </p>
+              </div>
+           </div>
+        </div>
+      )}
+
       <div className="w-full max-w-lg">
         {/* Roder Logo Section */}
         <div className="flex flex-col items-center mb-10">
