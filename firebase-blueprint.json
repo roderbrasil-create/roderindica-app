@@ -124,8 +124,71 @@
       },
       "required": ["name"]
     }
+    },
+    "endomarketing_actions": {
+      "title": "Endomarketing Action",
+      "description": "Records of internal marketing and HR actions for team engagement.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "category": { "type": "string", "enum": ["Dia da Cultura", "Aniversariantes", "Datas comemorativas", "Treinamentos", "Campanhas internas", "Integração", "Reconhecimento", "Saúde e Bem-estar", "Outros"] },
+        "objective": { "type": "string" },
+        "description": { "type": "string" },
+        "responsible_name": { "type": "string" },
+        "responsible_area": { "type": "string", "enum": ["RH", "Marketing", "Compartilhado"] },
+        "date_planned": { "type": "string", "format": "date" },
+        "date_realized": { "type": "string", "format": "date" },
+        "status": { "type": "string", "enum": ["Planejada", "Em andamento", "Concluída", "Cancelada"] },
+        "target_audience": { "type": "string" },
+        "participants_planned": { "type": "number" },
+        "participants_actual": { "type": "number" },
+        "budget_planned": { "type": "number" },
+        "budget_actual": { "type": "number" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "category", "status", "created_at"]
+    },
+    "endomarketing_financial_items": {
+      "title": "Financial Cost Item",
+      "description": "Individual cost records for a specific endomarketing action.",
+      "type": "object",
+      "properties": {
+        "description": { "type": "string" },
+        "category": { "type": "string", "enum": ["Material", "Alimentação", "Estrutura", "Serviços", "Diversos"] },
+        "value": { "type": "number" },
+        "supplier": { "type": "string" },
+        "cost_center": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["description", "category", "value"]
+    },
+    "endomarketing_evidence": {
+      "title": "Action Evidence",
+      "description": "Files, photos, and videos documenting an endomarketing action.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "url": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "url", "created_at"]
+    }
   },
   "firestore": {
+    "/endomarketing_actions/{actionId}": {
+      "schema": "endomarketing_actions",
+      "description": "Primary records for all endomarketing initiatives."
+    },
+    "/endomarketing_actions/{actionId}/financial_items/{itemId}": {
+      "schema": "endomarketing_financial_items",
+      "description": "Cost breakdown for actions."
+    },
+    "/endomarketing_actions/{actionId}/evidence/{evidenceId}": {
+      "schema": "endomarketing_evidence",
+      "description": "Documented proof of actions."
+    },
     "/users/{userId}": {
       "schema": "users",
       "description": "Store for user profile and permission data."

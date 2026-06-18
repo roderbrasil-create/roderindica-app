@@ -283,6 +283,33 @@ service cloud.firestore {
       allow write: if isManager();
     }
 
+    // ===============================================================
+    // Endomarketing Management Rules
+    // ===============================================================
+
+    function isValidEndomarketingAction(data) {
+      return data.keys().hasAll(['name', 'category', 'status', 'created_at']) &&
+             data.name is string && data.name.size() > 0 &&
+             data.category in ["Dia da Cultura", "Aniversariantes", "Datas comemorativas", "Treinamentos", "Campanhas internas", "Integração", "Reconhecimento", "Saúde e Bem-estar", "Outros"] &&
+             data.status in ["Planejada", "Em andamento", "Concluída", "Cancelada"];
+    }
+
+    match /endomarketing_actions/{actionId} {
+      allow read: if isAuthenticated() && (isManager() || isMarketing() || isAdmin());
+      allow create, update: if isAuthenticated() && (isManager() || isMarketing() || isAdmin()) && isValidEndomarketingAction(request.resource.data);
+      allow delete: if isAdmin() || isManager();
+
+      match /financial_items/{itemId} {
+        allow read: if isAuthenticated() && (isManager() || isMarketing() || isAdmin());
+        allow write: if isAuthenticated() && (isManager() || isMarketing() || isAdmin());
+      }
+
+      match /evidence/{evidenceId} {
+        allow read: if isAuthenticated() && (isManager() || isMarketing() || isAdmin());
+        allow write: if isAuthenticated() && (isManager() || isMarketing() || isAdmin());
+      }
+    }
+
     match /app_files/{fileId} {
       allow read: if true;
       allow create: if isAuthenticated();

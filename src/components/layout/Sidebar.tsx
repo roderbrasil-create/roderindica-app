@@ -375,6 +375,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
       setIsOpenState: handleSetFairsMenuOpen,
       subItems: [
         { name: 'Gestão de Feiras e Eventos', path: '/feiras', icon: Settings, roles: ['admin', 'manager', 'marketing'] },
+        { name: 'Endomarketing', path: '/endomarketing', icon: HeartHandshake, roles: ['admin', 'manager', 'marketing'] },
       ]
     },
     { 

@@ -37,6 +37,7 @@ import PublicBudgetRequest from './pages/PublicBudgetRequest';
 import PublicEvaluation from './pages/PublicEvaluation';
 import ComercialAvaliacoes from './pages/ComercialAvaliacoes';
 import Clientes from './pages/Clientes';
+import Endomarketing from './pages/Endomarketing';
 
 function PrivateRoute({ children, roles }: { children: React.ReactNode, roles?: string[] }) {
   const { user, profile, loading, isImpersonating, isAdmin, isManager, isMarketing, isTriagem, isFinancial, isInternalSeller, isExternalSeller, isRegionalSeller } = useAuth();
@@ -78,6 +79,7 @@ function PrivateRoute({ children, roles }: { children: React.ReactNode, roles?: 
 
 import PWAInstallBanner from './components/system/PWAInstallBanner';
 
+// App Version: 2.1.3 - Sidebar Endomarketing Update Pending
 export default function App() {
   const [mounted, setMounted] = useState(false);
   const APP_VERSION = "2.4.4"; // Security fix for permission leak and Yury access
@@ -302,6 +304,12 @@ function AppContent() {
                 <Route path="/comercial/clientes" element={
                   <PrivateRoute roles={['admin', 'manager', 'triagem', 'internal_seller']}>
                     <Clientes />
+                  </PrivateRoute>
+                } />
+
+                <Route path="/endomarketing" element={
+                  <PrivateRoute roles={['admin', 'manager', 'marketing']}>
+                    <Endomarketing />
                   </PrivateRoute>
                 } />
 

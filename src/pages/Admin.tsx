@@ -133,6 +133,7 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'new_indication', label: 'Nova Indicação' },
     { id: 'fairs', label: 'Eventos / Feiras' },
+    { id: 'endomarketing', label: 'Endomarketing' },
     { id: 'finance', label: 'Financeiro / Fiscal' },
     { id: 'my_sales', label: 'Centro de Negócios' },
     { id: 'catalog', label: 'Catálogo Equipamentos' },
@@ -203,20 +204,24 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
       dashboard: ['stats', 'commissions_summary', 'recent_indications', 'equipment_banner', 'quick_actions']
     },
     internal_seller: {
-      sidebar: ['dashboard', 'new_indication', 'catalog', 'products_stock', 'products_registered', 'accessories', 'my_sales', 'fairs', 'profile'],
+      sidebar: ['dashboard', 'new_indication', 'catalog', 'products_stock', 'products_registered', 'accessories', 'my_sales', 'fairs', 'endomarketing', 'profile'],
       dashboard: ['stats', 'funnel', 'recent_indications', 'equipment_banner', 'quick_actions']
     },
     triagem: {
-      sidebar: ['dashboard', 'catalog', 'products_stock', 'products_registered', 'accessories', 'my_sales', 'triagem', 'comercial', 'fairs', 'users', 'profile'],
+      sidebar: ['dashboard', 'catalog', 'products_stock', 'products_registered', 'accessories', 'my_sales', 'triagem', 'comercial', 'fairs', 'endomarketing', 'users', 'profile'],
       dashboard: ['stats', 'funnel', 'recent_indications', 'active_reservations', 'equipment_banner', 'quick_actions', 'fairs_summary']
     },
     manager: {
-      sidebar: ['dashboard', 'new_indication', 'fairs', 'finance', 'my_sales', 'catalog', 'products_stock', 'products_registered', 'accessories', 'triagem', 'comercial', 'users', 'reports', 'profile'],
+      sidebar: ['dashboard', 'new_indication', 'fairs', 'endomarketing', 'finance', 'my_sales', 'catalog', 'products_stock', 'products_registered', 'accessories', 'triagem', 'comercial', 'users', 'reports', 'profile'],
       dashboard: ['stats', 'funnel', 'commissions_summary', 'active_reservations', 'goals', 'recent_indications', 'conversion_ranking', 'manager_financial', 'equipment_banner', 'quick_actions', 'fairs_summary']
     },
     financial: {
       sidebar: ['dashboard', 'products_stock', 'products_registered', 'accessories', 'finance', 'reports', 'profile'],
       dashboard: ['stats', 'commissions_summary', 'goals', 'recent_indications', 'conversion_ranking', 'manager_financial', 'equipment_banner', 'quick_actions']
+    },
+    marketing: {
+      sidebar: ['dashboard', 'catalog', 'products_stock', 'products_registered', 'accessories', 'fairs', 'endomarketing', 'comercial', 'configurations', 'profile'],
+      dashboard: ['stats', 'funnel', 'recent_indications', 'equipment_banner', 'quick_actions', 'fairs_summary']
     },
     admin: {
       sidebar: sidebarItems.map(i => i.id),
