@@ -36,6 +36,7 @@ export async function shouldSendNotification(type: string): Promise<boolean> {
   }
 }
 
+// v2.1.2 - Forced sync for Luana notification
 export async function getManagerEmails(): Promise<string[]> {
   const mandatory = [
     'gislene@roderbrasil.com.br', 
