@@ -874,47 +874,54 @@ export default function NewIndication() {
       const indicationRef = doc(collection(db, 'indications'));
       const indicationId = indicationRef.id;
 
-      // Start asynchronous uploads
-      let completedUploads = 0;
-      files.forEach(async (file) => {
-        try {
-          const storageRef = ref(storage, `indications/${indicationId}/${Date.now()}_${file.name}`);
-          
-          let fileToUpload = file;
-          if (file.type.startsWith('image/')) {
-            fileToUpload = await compressImage(file);
-          }
-          
-          const uploadTask = uploadBytesResumable(storageRef, fileToUpload);
-          
-          uploadTask.on('state_changed', 
-            (snapshot) => {
-              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-              setUploadProgress(prev => ({
-                ...prev,
-                [file.name]: Math.round(progress)
-              }));
-            },
-            (error) => console.error(`Upload error for ${file.name}:`, error),
-            async () => {
-              const url = await getDownloadURL(uploadTask.snapshot.ref);
-              await updateDoc(indicationRef, {
-                media_urls: arrayUnion(url),
-                updated_at: new Date().toISOString()
-              });
-              
-              completedUploads++;
-              if (completedUploads === files.length) {
-                await updateDoc(indicationRef, {
-                  media_upload_status: 'completed'
-                });
-              }
+      // Start asynchronous uploads using for...of to handle async properly
+      const startUploads = async () => {
+        let completedUploads = 0;
+        for (const file of files) {
+          try {
+            const storageRef = ref(storage, `indications/${indicationId}/${Date.now()}_${file.name}`);
+            
+            let fileToUpload = file;
+            if (file.type.startsWith('image/')) {
+              fileToUpload = await compressImage(file);
             }
-          );
-        } catch (uploadError) {
-          console.error(`Error starting upload for ${file.name}:`, uploadError);
+            
+            const uploadTask = uploadBytesResumable(storageRef, fileToUpload);
+            
+            uploadTask.on('state_changed', 
+              (snapshot) => {
+                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                setUploadProgress(prev => ({
+                  ...prev,
+                  [file.name]: Math.round(progress)
+                }));
+              },
+              (error) => console.error(`Upload error for ${file.name}:`, error),
+              async () => {
+                const url = await getDownloadURL(uploadTask.snapshot.ref);
+                await updateDoc(indicationRef, {
+                  media_urls: arrayUnion(url),
+                  updated_at: new Date().toISOString()
+                });
+                
+                completedUploads++;
+                if (completedUploads === files.length) {
+                  await updateDoc(indicationRef, {
+                    media_upload_status: 'completed'
+                  });
+                }
+              }
+            );
+          } catch (uploadError) {
+            console.error(`Error starting upload for ${file.name}:`, uploadError);
+          }
         }
-      });
+      };
+
+      // Trigger uploads in background
+      if (files.length > 0) {
+        startUploads();
+      }
 
       const itemsList = selectedItems
         .map(i => `${i.quantity}x ${i.product_name}`)
@@ -929,13 +936,20 @@ export default function NewIndication() {
         attachments: []
       };
 
+      // Ensure no undefined values are sent to Firestore
+      const cleanFormData = Object.entries(formData).reduce((acc, [key, value]) => {
+        if (value !== undefined) acc[key] = value;
+        return acc;
+      }, {} as any);
+
       await setDoc(indicationRef, {
-        ...formData,
-        is_icms_contributor: formData.is_icms_contributor,
+        ...cleanFormData,
+        id: indicationId,
+        is_icms_contributor: !!formData.is_icms_contributor,
         items: selectedItems,
-        options,
-        external_seller_uid: selectedExternalSeller?.uid || profile?.uid,
-        external_seller_name: selectedExternalSeller?.name || profile?.name,
+        options: options || [],
+        external_seller_uid: selectedExternalSeller?.uid || profile?.uid || 'anonymous',
+        external_seller_name: selectedExternalSeller?.name || profile?.name || 'Parceiro',
         
         // Standard Seller Auto-Assignment
         standard_seller_uid: autoStandardSeller?.uid || null,
@@ -953,16 +967,19 @@ export default function NewIndication() {
       });
 
       setSubmissionStatus('notifying');
-      // Notify Triagem Luana and Managers and send template emails
-      const notifyTriagem = async () => {
+      
+      // Notify in parallel but with explicit try-catch to not break the success flow
+      const runNotifications = async () => {
         try {
+          // Internal notification (Firestore write)
           await notifyManagers(
             'Nova Indicação Recebida',
             `${profile?.name} enviou uma nova indicação para ${formData.client_name || formData.client_person_name}.`,
             `/indicacoes`,
             'info'
-          );
+          ).catch(e => console.warn("Internal notification failed:", e));
 
+          // Email notification
           try {
             const { notifyNewIndication, notifyPartnerIndicationReceived } = await import('../services/emailService');
             const primaryItem = selectedItems[0]?.product_name || 'Equipamento';
@@ -979,20 +996,27 @@ export default function NewIndication() {
               product_name: primaryItem
             };
 
-            await notifyNewIndication(indicationDataForEmail, profile?.name || 'Parceiro');
+            // Run email tasks without awaiting them to fulfill or fail (non-blocking)
+            notifyNewIndication(indicationDataForEmail, profile?.name || 'Parceiro')
+              .then(res => console.log("Email Admin result:", res))
+              .catch(e => console.error("Email Admin failed:", e));
 
             if (profile?.email) {
-              await notifyPartnerIndicationReceived(indicationDataForEmail, profile.email, profile.name || 'Parceiro');
+              notifyPartnerIndicationReceived(indicationDataForEmail, profile.email, profile.name || 'Parceiro')
+                .then(res => console.log("Email Partner result:", res))
+                .catch(e => console.error("Email Partner failed:", e));
             }
           } catch (e) {
-            console.warn("Emails ignored:", e);
+            console.warn("Emails setup error:", e);
           }
         } catch (notifyError) {
-          console.error("Notifications err:", notifyError);
+          console.error("Notifications wrapper err:", notifyError);
         }
       };
       
-      await notifyTriagem();
+      // We don't await runNotifications to ensure the UI proceeds to success immediately
+      runNotifications();
+
       setSubmissionStatus('done');
       clearDraft();
       toast.success('Indicação enviada com sucesso!');
@@ -1000,8 +1024,8 @@ export default function NewIndication() {
       // Delay slightly for user to see success state
       setTimeout(() => navigate('/indicacoes'), 1500);
     } catch (saveError: any) {
-      console.warn("Save failed, writing offline:", saveError);
-      toast.error('Erro de envio. Gravado no rascunho temporário.');
+      console.error("Submission error detail:", saveError);
+      toast.error(`Erro de envio: ${saveError.message || 'Falha na conexão'}. Gravado no rascunho.`);
       setIsSubmitting(false);
     }
   };
