@@ -138,10 +138,10 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl p-0 overflow-hidden">
-        <DialogHeader className="p-6 pb-0">
+      <DialogContent className="w-[98vw] sm:max-w-4xl p-0 overflow-hidden rounded-xl">
+        <DialogHeader className="p-4 lg:p-6 pb-2 lg:pb-0">
           <div className="flex items-center justify-between">
-            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+            <DialogTitle className="text-lg lg:text-xl font-bold flex items-center gap-2">
               <Zap className="h-5 w-5 text-orange-600" />
               {action ? 'Editar Ação' : 'Nova Ação de Endomarketing'}
             </DialogTitle>
@@ -149,15 +149,15 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
         </DialogHeader>
 
         <Tabs defaultValue="general" className="w-full">
-          <div className="px-4 lg:px-6 border-b overflow-x-auto no-scrollbar">
-            <TabsList className="bg-transparent h-12 w-fit lg:w-full justify-start gap-4 p-0">
-              <TabsTrigger value="general" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-orange-600 rounded-none h-full shadow-none border-b-2 border-transparent px-2 text-sm whitespace-nowrap">
+          <div className="px-4 lg:px-6 border-b overflow-x-auto scrollbar-hide">
+            <TabsList className="bg-transparent h-14 w-fit lg:w-full justify-start gap-6 p-0 border-none">
+              <TabsTrigger value="general" className="data-[state=active]:bg-transparent data-[state=active]:text-orange-600 data-[state=active]:border-b-2 data-[state=active]:border-orange-600 rounded-none h-full shadow-none border-b-2 border-transparent px-2 text-xs lg:text-sm whitespace-nowrap font-bold uppercase tracking-tight">
                 Informações
               </TabsTrigger>
-              <TabsTrigger value="financial" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-orange-600 rounded-none h-full shadow-none border-b-2 border-transparent px-2 text-sm whitespace-nowrap">
+              <TabsTrigger value="financial" className="data-[state=active]:bg-transparent data-[state=active]:text-orange-600 data-[state=active]:border-b-2 data-[state=active]:border-orange-600 rounded-none h-full shadow-none border-b-2 border-transparent px-2 text-xs lg:text-sm whitespace-nowrap font-bold uppercase tracking-tight">
                 Financeiro
               </TabsTrigger>
-              <TabsTrigger value="evidence" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-orange-600 rounded-none h-full shadow-none border-b-2 border-transparent px-2 text-sm whitespace-nowrap text-muted-foreground/60 cursor-not-allowed">
+              <TabsTrigger value="evidence" className="data-[state=active]:bg-transparent data-[state=active]:text-orange-600 data-[state=active]:border-b-2 data-[state=active]:border-orange-600 rounded-none h-full shadow-none border-b-2 border-transparent px-2 text-xs lg:text-sm whitespace-nowrap font-bold uppercase tracking-tight text-muted-foreground/60 cursor-not-allowed">
                 Evidências
               </TabsTrigger>
             </TabsList>
@@ -281,19 +281,21 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-4 lg:grid-cols-2">
                     <div className="space-y-2">
-                      <Label>Part. Previstos</Label>
+                      <Label className="text-xs">Part. Previstos</Label>
                       <Input 
                         type="number"
+                        className="h-9"
                         value={formData.participants_planned}
                         onChange={e => setFormData({ ...formData, participants_planned: Number(e.target.value) })}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Part. Reais</Label>
+                      <Label className="text-xs">Part. Reais</Label>
                       <Input 
                         type="number"
+                        className="h-9"
                         value={formData.participants_actual}
                         onChange={e => setFormData({ ...formData, participants_actual: Number(e.target.value) })}
                       />

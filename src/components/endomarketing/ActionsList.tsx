@@ -59,25 +59,25 @@ export default function ActionsList() {
   );
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center gap-4">
-        <div className="relative flex-1 max-w-md">
+    <div className="space-y-4 max-w-full overflow-x-hidden">
+      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 sm:gap-4">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por nome ou categoria..."
-            className="pl-10"
+            placeholder="Buscar..."
+            className="pl-10 w-full"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <Button onClick={() => { setEditingAction(null); setIsFormOpen(true); }} className="bg-orange-600 hover:bg-orange-700">
+        <Button onClick={() => { setEditingAction(null); setIsFormOpen(true); }} className="bg-orange-600 hover:bg-orange-700 w-full sm:w-auto shrink-0 shadow-sm">
           <Plus className="h-4 w-4 mr-2" />
           Nova Ação
         </Button>
       </div>
 
-      <Card className="border-none shadow-none lg:border lg:shadow-sm">
-        <CardContent className="p-0 lg:p-0">
+      <Card className="border-none sm:border shadow-none sm:shadow-sm overflow-hidden">
+        <CardContent className="p-0">
           {/* Desktop Table - Hidden on mobile */}
           <div className="hidden lg:block">
             <Table>
@@ -162,7 +162,7 @@ export default function ActionsList() {
           </div>
 
           {/* Mobile Cards - Shown only on small screens */}
-          <div className="lg:hidden divide-y">
+          <div className="lg:hidden divide-y bg-white rounded-xl border">
             {loading ? (
               <div className="p-8 text-center text-muted-foreground text-sm">Carregando ações...</div>
             ) : filteredActions.length === 0 ? (
@@ -170,36 +170,31 @@ export default function ActionsList() {
             ) : (
               filteredActions.map((action) => (
                 <div key={action.id} className="p-4 space-y-3 active:bg-slate-50 transition-colors" onClick={() => { setEditingAction(action); setIsFormOpen(true); }}>
-                  <div className="flex justify-between items-start gap-2">
-                    <div className="flex flex-col">
-                      <h4 className="font-bold text-sm text-slate-900 leading-tight">{action.name}</h4>
-                      <span className="text-[10px] text-muted-foreground">{action.category}</span>
+                  <div className="flex justify-between items-start gap-3">
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <h4 className="font-bold text-sm text-slate-900 leading-tight truncate">{action.name}</h4>
+                      <span className="text-[10px] text-muted-foreground truncate">{action.category}</span>
                     </div>
-                    <Badge className={cn("text-[8px] py-0 h-4 border-none uppercase font-black", statusColors[action.status])}>
+                    <Badge className={cn("text-[8px] py-0 h-4 border-none uppercase font-black shrink-0 whitespace-nowrap", statusColors[action.status])}>
                       {action.status}
                     </Badge>
                   </div>
                   
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex flex-col">
-                        <span className="text-[8px] uppercase text-muted-foreground font-bold">Data</span>
-                        <div className="flex items-center gap-1 text-[11px] font-semibold">
-                          <Calendar className="h-2.5 w-2.5 text-orange-600" />
-                          {action.date_planned ? format(new Date(action.date_planned), 'dd/MM/yy') : '-'}
-                        </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-md bg-slate-100 shrink-0">
+                        <Calendar className="h-3 w-3 text-orange-600" />
                       </div>
-                      <div className="flex flex-col">
-                        <span className="text-[8px] uppercase text-muted-foreground font-bold">Encargo</span>
-                        <div className="flex items-center gap-1 text-[11px] font-semibold">
-                          <Users className="h-2.5 w-2.5 text-orange-600" />
-                          {action.responsible_name.split(' ')[0]}
-                        </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-[9px] text-muted-foreground font-bold uppercase">Data</span>
+                        <span className="text-[11px] font-semibold truncate">
+                          {action.date_planned ? format(new Date(action.date_planned), 'dd/MM/yy') : '-'}
+                        </span>
                       </div>
                     </div>
 
                     <div className="flex flex-col items-end">
-                      <span className="text-[8px] uppercase text-muted-foreground font-bold">Custo Atual</span>
+                      <span className="text-[9px] text-muted-foreground font-bold uppercase">Investimento</span>
                       <span className="text-xs font-black text-orange-600">
                         {action.budget_actual?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) || 'R$ 0,00'}
                       </span>

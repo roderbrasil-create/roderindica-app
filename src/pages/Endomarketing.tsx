@@ -144,7 +144,7 @@ export default function Endomarketing() {
         </aside>
 
         {/* Content Area */}
-        <main className="flex-1 overflow-y-auto bg-slate-50/20">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden bg-slate-50/20">
           <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b px-4 lg:px-8 py-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Button 
