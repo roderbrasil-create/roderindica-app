@@ -108,12 +108,17 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
         
         // Compress if it's an image
         if (file.type.startsWith('image/')) {
-          const options = {
-            maxSizeMB: 1,
-            maxWidthOrHeight: 1920,
-            useWebWorker: true,
-          };
-          fileToUpload = await imageCompression(file, options);
+          try {
+            const options = {
+              maxSizeMB: 0.8, // Slightly more aggressive compression
+              maxWidthOrHeight: 1280, // Better balance for viewing
+              useWebWorker: true,
+            };
+            fileToUpload = await imageCompression(file, options);
+          } catch (compressError) {
+            console.error('Compression failed, using original file:', compressError);
+            // If compression fails, we still try to upload the original
+          }
         }
 
         const storageRef = ref(storage, `endomarketing/${actionId}/${Date.now()}_${file.name}`);
@@ -129,7 +134,8 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
         });
       } catch (error) {
         console.error(`Error uploading file ${file.name}:`, error);
-        toast.error(`Erro ao subir ${file.name}`);
+        toast.error(`Erro ao subir ${file.name}: verifique as permissões de arquivo.`);
+        // Note: we continue the loop for other files
       }
     }
 
@@ -147,13 +153,17 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
       const budgetActual = calculateTotalActual();
       
       // Temporary ID for new actions to handle storage path
-      const tempId = action?.id || doc(collection(db, 'temp')).id;
+      // doc(collection(db, 'endomarketing_actions')).id is safer than 'temp'
+      const actionDocRef = action?.id 
+        ? doc(db, 'endomarketing_actions', action.id) 
+        : doc(collection(db, 'endomarketing_actions'));
+      
+      const actionId = actionDocRef.id;
       
       // Upload evidences first
-      const updatedEvidences = await uploadEvidences(tempId);
+      const updatedEvidences = await uploadEvidences(actionId);
       
-      // Clean undefined values for Firestore and ensure no NaN
-      // We explicitly exclude id and any internal state fields
+      // Explicitly clean data for Firestore (remove undefined, preserve created_at)
       const cleanData: any = {};
       Object.entries(formData).forEach(([key, value]) => {
         if (value !== undefined && key !== 'id') {
@@ -161,27 +171,30 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
         }
       });
 
-      // Override with fresh calculations and evidence urls
+      // Ensure mandatory fields for security rules are present and valid
       const finalData = {
         ...cleanData,
-        budget_actual: budgetActual,
-        evidences: updatedEvidences,
+        name: formData.name || '',
+        category: formData.category || 'Outros',
+        status: formData.status || 'Planejada',
+        budget_actual: Number(budgetActual) || 0,
+        evidences: updatedEvidences || [],
         budget_planned: Number(formData.budget_planned) || 0,
         participants_planned: Number(formData.participants_planned) || 0,
         participants_actual: Number(formData.participants_actual) || 0,
         updated_at: new Date().toISOString(),
       };
 
-      let actionId = action?.id;
-
-      if (actionId) {
-        await updateDoc(doc(db, 'endomarketing_actions', actionId), finalData);
+      // Security rules require created_at for ALL writes (create and update)
+      if (!action) {
+        finalData.created_at = new Date().toISOString();
+        await addDoc(collection(db, 'endomarketing_actions'), finalData);
       } else {
-        const docRef = await addDoc(collection(db, 'endomarketing_actions'), {
-          ...finalData,
-          created_at: new Date().toISOString(),
-        });
-        actionId = docRef.id;
+        // If it's an update, we MUST ensure created_at is present because the rule isValidEndomarketingAction(request.resource.data) checks for it
+        if (!finalData.created_at) {
+          finalData.created_at = action.created_at || new Date().toISOString();
+        }
+        await updateDoc(actionDocRef, finalData);
       }
 
       // Sync financial items
@@ -190,10 +203,13 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
       const batch = writeBatch(db);
       
       existingItems.forEach(d => batch.delete(d.ref));
+      
       financialItems.forEach(item => {
         const { id, ...itemData } = item;
         const cleanItemData = {
           ...itemData,
+          description: itemData.description || '',
+          category: itemData.category || 'Outros',
           value: Number(itemData.value) || 0
         };
         const newRef = doc(itemsCollectionRef);
@@ -204,9 +220,11 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
 
       toast.success('Ação salva com sucesso!');
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving action:', error);
-      toast.error('Erro ao salvar ação. Verifique sua conexão.');
+      // More descriptive error for debugging
+      const errorMessage = error?.message || 'Erro desconhecido';
+      toast.error(`Erro ao salvar ação: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
