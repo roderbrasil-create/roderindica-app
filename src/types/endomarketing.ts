@@ -19,6 +19,7 @@ export interface EndomarketingAction {
   participants_actual: number;
   budget_planned: number;
   budget_actual: number;
+  evidences?: ActionEvidence[];
   created_at: string;
   updated_at: string;
 }

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { collection, addDoc, updateDoc, doc, getDocs, deleteDoc, writeBatch } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
-import { EndomarketingAction, FinancialItem, ActionStatus, ActionCategory, ResponsibleArea, AssetCategory } from '../../types/endomarketing';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../../lib/firebase';
+import { EndomarketingAction, FinancialItem, ActionStatus, ActionCategory, ResponsibleArea, AssetCategory, ActionEvidence } from '../../types/endomarketing';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -13,7 +14,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { ScrollArea } from '../ui/scroll-area';
 import { Badge } from '../ui/badge';
-import { Plus, Trash2, Save, X, Calculator, Paperclip, Info, Zap, ChevronLeft, HelpCircle } from 'lucide-react';
+import imageCompression from 'browser-image-compression';
+import { Plus, Trash2, Save, X, Calculator, Paperclip, Info, Zap, ChevronLeft, HelpCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ActionFormProps {
@@ -95,6 +97,45 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
     return financialItems.reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
   };
 
+  const uploadEvidences = async (actionId: string): Promise<ActionEvidence[]> => {
+    if (evidenceFiles.length === 0) return formData.evidences || [];
+
+    const uploadedEvidences: ActionEvidence[] = [...(formData.evidences || [])];
+    
+    for (const file of evidenceFiles) {
+      try {
+        let fileToUpload = file;
+        
+        // Compress if it's an image
+        if (file.type.startsWith('image/')) {
+          const options = {
+            maxSizeMB: 1,
+            maxWidthOrHeight: 1920,
+            useWebWorker: true,
+          };
+          fileToUpload = await imageCompression(file, options);
+        }
+
+        const storageRef = ref(storage, `endomarketing/${actionId}/${Date.now()}_${file.name}`);
+        const snapshot = await uploadBytes(storageRef, fileToUpload);
+        const downloadURL = await getDownloadURL(snapshot.ref);
+
+        uploadedEvidences.push({
+          id: Math.random().toString(36).substr(2, 9),
+          name: file.name,
+          type: file.type,
+          url: downloadURL,
+          created_at: new Date().toISOString()
+        });
+      } catch (error) {
+        console.error(`Error uploading file ${file.name}:`, error);
+        toast.error(`Erro ao subir ${file.name}`);
+      }
+    }
+
+    return uploadedEvidences;
+  };
+
   const handleSave = async () => {
     if (!formData.name || !formData.date_planned) {
       toast.error('Preencha os campos obrigatórios (Nome e Data).');
@@ -105,18 +146,31 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
     try {
       const budgetActual = calculateTotalActual();
       
+      // Temporary ID for new actions to handle storage path
+      const tempId = action?.id || doc(collection(db, 'temp')).id;
+      
+      // Upload evidences first
+      const updatedEvidences = await uploadEvidences(tempId);
+      
       // Clean undefined values for Firestore and ensure no NaN
-      const cleanData = { ...formData };
-      if (cleanData.budget_planned === undefined || isNaN(cleanData.budget_planned)) cleanData.budget_planned = 0;
-      if (cleanData.participants_planned === undefined || isNaN(cleanData.participants_planned)) cleanData.participants_planned = 0;
-      if (cleanData.participants_actual === undefined || isNaN(cleanData.participants_actual)) cleanData.participants_actual = 0;
+      // We explicitly exclude id and any internal state fields
+      const cleanData: any = {};
+      Object.entries(formData).forEach(([key, value]) => {
+        if (value !== undefined && key !== 'id') {
+          cleanData[key] = value;
+        }
+      });
 
+      // Override with fresh calculations and evidence urls
       const finalData = {
         ...cleanData,
         budget_actual: budgetActual,
+        evidences: updatedEvidences,
+        budget_planned: Number(formData.budget_planned) || 0,
+        participants_planned: Number(formData.participants_planned) || 0,
+        participants_actual: Number(formData.participants_actual) || 0,
         updated_at: new Date().toISOString(),
       };
-
 
       let actionId = action?.id;
 
@@ -138,10 +192,9 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
       existingItems.forEach(d => batch.delete(d.ref));
       financialItems.forEach(item => {
         const { id, ...itemData } = item;
-        // Clean item values
         const cleanItemData = {
           ...itemData,
-          value: itemData.value || 0
+          value: Number(itemData.value) || 0
         };
         const newRef = doc(itemsCollectionRef);
         batch.set(newRef, cleanItemData);
@@ -529,6 +582,26 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
                   </div>
                 )}
 
+                {formData.evidences && formData.evidences.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-[10px] font-bold uppercase text-slate-500">Arquivos Salvos</h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {formData.evidences.map((evidence) => (
+                        <a 
+                          key={evidence.id} 
+                          href={evidence.url} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="relative group bg-orange-50 border border-orange-100 p-2 rounded-lg flex items-center gap-2 overflow-hidden hover:bg-orange-100 transition-colors"
+                        >
+                          <Paperclip className="h-3 w-3 text-orange-600 shrink-0" />
+                          <span className="text-[10px] truncate flex-1 font-bold text-orange-800">{evidence.name}</span>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="p-4 bg-orange-50 rounded-xl border border-orange-100">
                   <p className="text-[11px] text-orange-800 leading-relaxed font-medium">
                     As evidências são essenciais para comprovar a execução da ação e medir o sucesso (pós-ação). 
@@ -557,7 +630,12 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
               Cancelar
             </Button>
             <Button onClick={handleSave} disabled={loading} className="bg-orange-600 hover:bg-orange-700 min-w-[100px] lg:w-32 shadow-sm font-bold text-xs lg:text-sm h-9 lg:h-10">
-              {loading ? 'Salvando...' : (
+              {loading ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span>Salvando...</span>
+                </div>
+              ) : (
                 <>
                   <Save className="h-3.5 w-3.5 mr-2" />
                   Salvar
