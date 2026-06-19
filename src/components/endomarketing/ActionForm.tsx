@@ -37,9 +37,9 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
     date_realized: '',
     status: 'Planejada',
     target_audience: '',
-    participants_planned: 0,
-    participants_actual: 0,
-    budget_planned: 0,
+    participants_planned: undefined,
+    participants_actual: undefined,
+    budget_planned: undefined,
     budget_actual: 0,
   });
 
@@ -47,8 +47,22 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
   const [newItem, setNewItem] = useState<Partial<FinancialItem>>({
     description: '',
     category: 'Material',
-    value: 0
+    value: undefined
   });
+
+  const formatCurrency = (val: number | undefined) => {
+    if (val === undefined || isNaN(val)) return '';
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(val);
+  };
+
+  const parseCurrency = (val: string) => {
+    const cleanValue = val.replace(/\D/g, '');
+    return Number(cleanValue) / 100;
+  };
+
 
   useEffect(() => {
     if (action) {
@@ -90,11 +104,19 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
     setLoading(true);
     try {
       const budgetActual = calculateTotalActual();
+      
+      // Clean undefined values for Firestore and ensure no NaN
+      const cleanData = { ...formData };
+      if (cleanData.budget_planned === undefined || isNaN(cleanData.budget_planned)) cleanData.budget_planned = 0;
+      if (cleanData.participants_planned === undefined || isNaN(cleanData.participants_planned)) cleanData.participants_planned = 0;
+      if (cleanData.participants_actual === undefined || isNaN(cleanData.participants_actual)) cleanData.participants_actual = 0;
+
       const finalData = {
-        ...formData,
+        ...cleanData,
         budget_actual: budgetActual,
         updated_at: new Date().toISOString(),
       };
+
 
       let actionId = action?.id;
 
@@ -108,8 +130,7 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
         actionId = docRef.id;
       }
 
-      // Sync financial items (Naive implementation: delete all and re-add for simplicity in this demo)
-      // For production, a more granular sync would be better.
+      // Sync financial items
       const itemsCollectionRef = collection(db, `endomarketing_actions/${actionId}/financial_items`);
       const existingItems = await getDocs(itemsCollectionRef);
       const batch = writeBatch(db);
@@ -117,8 +138,13 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
       existingItems.forEach(d => batch.delete(d.ref));
       financialItems.forEach(item => {
         const { id, ...itemData } = item;
+        // Clean item values
+        const cleanItemData = {
+          ...itemData,
+          value: itemData.value || 0
+        };
         const newRef = doc(itemsCollectionRef);
-        batch.set(newRef, itemData);
+        batch.set(newRef, cleanItemData);
       });
 
       await batch.commit();
@@ -126,12 +152,13 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
       toast.success('Ação salva com sucesso!');
       onClose();
     } catch (error) {
-      console.error(error);
-      toast.error('Erro ao salvar ação.');
+      console.error('Error saving action:', error);
+      toast.error('Erro ao salvar ação. Verifique sua conexão.');
     } finally {
       setLoading(false);
     }
   };
+
 
   const categories: ActionCategory[] = [
     "Dia da Cultura", "Aniversariantes", "Datas comemorativas", "Treinamentos", 
@@ -153,7 +180,7 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
               {action ? 'Editar Ação' : 'Nova Ação'}
             </h2>
           </div>
-          <Button variant="ghost" size="icon" className="h-9 w-9 text-orange-600 animate-fluorescent border border-orange-200/50 rounded-full" onClick={() => setShowHelp(true)}>
+          <Button variant="ghost" size="icon" className="h-9 w-9 text-orange-600 animate-fluorescent border-2 border-orange-400 bg-orange-50/50 rounded-full shadow-[0_0_10px_rgba(249,115,22,0.3)]" onClick={() => setShowHelp(true)}>
             <HelpCircle className="h-5 w-5" />
           </Button>
         </div>
@@ -164,10 +191,11 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
               <Zap className="h-5 w-5 text-orange-600" />
               {action ? 'Editar Ação' : 'Nova Ação de Endomarketing'}
             </DialogTitle>
-            <Button variant="ghost" size="sm" onClick={() => setShowHelp(true)} className="text-orange-600 gap-1.5 animate-fluorescent border border-orange-100 rounded-full px-4">
+            <Button variant="ghost" size="sm" onClick={() => setShowHelp(true)} className="text-orange-600 gap-1.5 animate-fluorescent border-2 border-orange-200 bg-orange-50/50 rounded-full px-4 font-black shadow-[0_0_15px_rgba(249,115,22,0.2)]">
               <HelpCircle className="h-4 w-4" />
-              Como funciona?
+              COMO FUNCIONA?
             </Button>
+
           </div>
         </DialogHeader>
 
@@ -188,9 +216,9 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
 
           <ScrollArea className="flex-1 overflow-y-auto">
             <div className="p-3 lg:p-6 pb-20 lg:pb-6">
-              <TabsContent value="general" className="m-0 space-y-3 lg:space-y-4">
+              <TabsContent value="general" className="m-0 space-y-2 lg:space-y-4">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 lg:gap-4">
-                  <div className="lg:col-span-2 space-y-1">
+                  <div className="lg:col-span-2 space-y-0.5">
                     <Label className="text-[10px] lg:text-xs uppercase text-slate-500 font-bold">Nome da Ação</Label>
                     <Input 
                       placeholder="Ex: Café com o Diretor"
@@ -200,8 +228,8 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
                     />
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-3 lg:col-span-2">
-                    <div className="space-y-1">
+                  <div className="grid grid-cols-2 gap-2 lg:col-span-2">
+                    <div className="space-y-0.5">
                       <Label className="text-[10px] lg:text-xs uppercase text-slate-500 font-bold">Categoria</Label>
                       <Select 
                         value={formData.category} 
@@ -216,7 +244,7 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
                       </Select>
                     </div>
 
-                    <div className="space-y-1">
+                    <div className="space-y-0.5">
                       <Label className="text-[10px] lg:text-xs uppercase text-slate-500 font-bold">Status</Label>
                       <Select 
                         value={formData.status} 
@@ -235,40 +263,40 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 lg:col-span-2">
-                    <div className="space-y-1">
+                  <div className="grid grid-cols-2 gap-2 lg:col-span-2">
+                    <div className="space-y-0.5">
                       <Label className="text-[10px] lg:text-xs uppercase text-slate-500 font-bold">Data Planejada</Label>
                       <Input 
                         type="date"
-                        className="h-8 lg:h-9 text-xs lg:text-sm px-2"
+                        className="h-8 lg:h-9 text-xs lg:text-sm px-1.5 w-[95%]"
                         value={formData.date_planned}
                         onChange={e => setFormData({ ...formData, date_planned: e.target.value })}
                       />
                     </div>
 
-                    <div className="space-y-1">
-                      <Label className="text-[10px] lg:text-xs uppercase text-slate-500 font-bold whitespace-nowrap truncate">Data Realizada</Label>
+                    <div className="space-y-0.5 flex flex-col items-end">
+                      <Label className="text-[10px] lg:text-xs uppercase text-slate-500 font-bold whitespace-nowrap truncate w-full text-left">Data Realizada</Label>
                       <Input 
                         type="date"
-                        className="h-8 lg:h-9 text-xs lg:text-sm px-2"
+                        className="h-8 lg:h-9 text-xs lg:text-sm px-1.5 w-[95%]"
                         value={formData.date_realized}
                         onChange={e => setFormData({ ...formData, date_realized: e.target.value })}
                       />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:col-span-2">
-                    <div className="space-y-1">
+                  <div className="grid grid-cols-2 gap-2 lg:col-span-2">
+                    <div className="space-y-0.5">
                       <Label className="text-[10px] lg:text-xs uppercase text-slate-500 font-bold">Responsável</Label>
                       <Input 
-                        placeholder="Nome do colaborador"
+                        placeholder="Nome"
                         className="h-8 lg:h-9 text-xs lg:text-sm"
                         value={formData.responsible_name}
                         onChange={e => setFormData({ ...formData, responsible_name: e.target.value })}
                       />
                     </div>
 
-                    <div className="space-y-1">
+                    <div className="space-y-0.5">
                       <Label className="text-[10px] lg:text-xs uppercase text-slate-500 font-bold">Área</Label>
                       <Select 
                         value={formData.responsible_area} 
@@ -286,7 +314,8 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
                     </div>
                   </div>
 
-                  <div className="lg:col-span-2 space-y-1">
+
+                  <div className="lg:col-span-2 space-y-0.5">
                     <Label className="text-[10px] lg:text-xs uppercase text-slate-500 font-bold">Objetivo</Label>
                     <Input 
                       placeholder="O que se espera atingir?"
@@ -296,7 +325,7 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
                     />
                   </div>
 
-                  <div className="lg:col-span-2 space-y-1">
+                  <div className="lg:col-span-2 space-y-0.5">
                     <Label className="text-[10px] lg:text-xs uppercase text-slate-500 font-bold">Resumo / Público</Label>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
                       <Input 
@@ -309,30 +338,33 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
                         <div className="relative">
                           <Input 
                             type="number"
-                            className="h-8 lg:h-9 text-xs lg:text-sm pl-7"
-                            value={formData.participants_planned}
-                            onChange={e => setFormData({ ...formData, participants_planned: Number(e.target.value) })}
+                            className="h-8 lg:h-9 text-xs lg:text-sm pl-8"
+                            title="Participantes Planejados"
+                            value={formData.participants_planned ?? ''}
+                            onChange={e => setFormData({ ...formData, participants_planned: e.target.value ? Number(e.target.value) : undefined })}
                           />
-                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-400">P.</span>
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-400">PLAN.</span>
                         </div>
                         <div className="relative">
                           <Input 
                             type="number"
-                            className="h-8 lg:h-9 text-xs lg:text-sm pl-7"
-                            value={formData.participants_actual}
-                            onChange={e => setFormData({ ...formData, participants_actual: Number(e.target.value) })}
+                            className="h-8 lg:h-9 text-xs lg:text-sm pl-8"
+                            title="Participantes Reais"
+                            value={formData.participants_actual ?? ''}
+                            onChange={e => setFormData({ ...formData, participants_actual: e.target.value ? Number(e.target.value) : undefined })}
                           />
-                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-green-500">R.</span>
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-green-500">REAL</span>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="lg:col-span-2 space-y-1">
+
+                  <div className="lg:col-span-2 space-y-0.5">
                     <Label className="text-[10px] lg:text-xs uppercase text-slate-500 font-bold">Descrição Detalhada</Label>
                     <Textarea 
                       placeholder="Passo a passo da ação..."
-                      className="min-h-[60px] text-xs lg:text-sm"
+                      className="min-h-[50px] text-xs lg:text-sm"
                       value={formData.description}
                       onChange={e => setFormData({ ...formData, description: e.target.value })}
                     />
@@ -340,15 +372,15 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
                 </div>
               </TabsContent>
 
+
               <TabsContent value="financial" className="m-0 space-y-4 lg:space-y-6">
                 <div className="grid grid-cols-2 gap-3 bg-orange-50 p-3 lg:p-4 rounded-lg border border-orange-100">
                   <div className="space-y-1">
                     <Label className="text-[10px] lg:text-xs text-orange-900 uppercase font-bold">Orçamento Previsto</Label>
                     <Input 
-                      type="number"
                       className="bg-white border-orange-200 h-9 lg:h-10 text-sm"
-                      value={formData.budget_planned}
-                      onChange={e => setFormData({ ...formData, budget_planned: Number(e.target.value) })}
+                      value={formatCurrency(formData.budget_planned)}
+                      onChange={e => setFormData({ ...formData, budget_planned: parseCurrency(e.target.value) })}
                     />
                   </div>
                   <div className="space-y-1">
@@ -393,15 +425,15 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
                         </Select>
                       </div>
                       <div className="space-y-1">
-                        <Label className="text-[10px] uppercase text-muted-foreground font-bold">Valor (R$)</Label>
+                        <Label className="text-[10px] uppercase text-muted-foreground font-bold">Valor</Label>
                         <Input 
-                          type="number"
                           className="bg-white h-9 text-sm"
-                          value={newItem.value}
-                          onChange={e => setNewItem({ ...newItem, value: Number(e.target.value) })}
+                          value={formatCurrency(newItem.value)}
+                          onChange={e => setNewItem({ ...newItem, value: parseCurrency(e.target.value) })}
                         />
                       </div>
                     </div>
+
                     <div className="col-span-1 lg:col-span-1 mt-1 lg:mt-0">
                       <Button className="w-full h-9 bg-orange-600 hover:bg-orange-700 p-0" onClick={handleAddItem}>
                         <Plus className="h-4 w-4" />
