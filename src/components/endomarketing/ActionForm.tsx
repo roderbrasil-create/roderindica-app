@@ -25,6 +25,7 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
   const [showHelp, setShowHelp] = useState(false);
+  const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
   const [formData, setFormData] = useState<Partial<EndomarketingAction>>({
     name: '',
     category: 'Outros',
@@ -141,9 +142,9 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="w-full h-full sm:h-auto sm:w-[98vw] sm:max-w-4xl p-0 overflow-hidden sm:rounded-xl flex flex-col">
+      <DialogContent className="w-full h-full sm:h-auto sm:w-[98vw] sm:max-w-3xl p-0 overflow-hidden sm:rounded-xl flex flex-col">
         {/* Mobile Sticky Header */}
-        <div className="lg:hidden sticky top-0 z-50 bg-white border-b px-4 h-14 flex items-center justify-between shrink-0">
+        <div className="lg:hidden sticky top-0 z-50 bg-white border-b px-4 h-11 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="icon" className="h-9 w-9" onClick={onClose}>
               <ChevronLeft className="h-5 w-5" />
@@ -152,7 +153,7 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
               {action ? 'Editar Ação' : 'Nova Ação'}
             </h2>
           </div>
-          <Button variant="ghost" size="icon" className="h-9 w-9 text-orange-600" onClick={() => setShowHelp(true)}>
+          <Button variant="ghost" size="icon" className="h-9 w-9 text-orange-600 animate-fluorescent border border-orange-200/50 rounded-full" onClick={() => setShowHelp(true)}>
             <HelpCircle className="h-5 w-5" />
           </Button>
         </div>
@@ -163,7 +164,7 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
               <Zap className="h-5 w-5 text-orange-600" />
               {action ? 'Editar Ação' : 'Nova Ação de Endomarketing'}
             </DialogTitle>
-            <Button variant="ghost" size="sm" onClick={() => setShowHelp(true)} className="text-orange-600 gap-1.5">
+            <Button variant="ghost" size="sm" onClick={() => setShowHelp(true)} className="text-orange-600 gap-1.5 animate-fluorescent border border-orange-100 rounded-full px-4">
               <HelpCircle className="h-4 w-4" />
               Como funciona?
             </Button>
@@ -171,8 +172,8 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1 flex flex-col overflow-hidden">
-          <div className="px-4 lg:px-6 border-b overflow-x-auto scrollbar-hide bg-white sticky top-14 lg:top-0 z-40 shrink-0">
-            <TabsList className="bg-transparent h-12 lg:h-14 w-fit lg:w-full justify-start gap-4 lg:gap-6 p-0 border-none">
+          <div className="px-4 lg:px-6 border-b overflow-x-auto scrollbar-hide bg-white sticky top-0 lg:top-0 z-40 shrink-0">
+            <TabsList className="bg-transparent h-10 lg:h-12 w-fit lg:w-full justify-start gap-4 lg:gap-6 p-0 border-none">
               <TabsTrigger value="general" className="data-[state=active]:bg-transparent data-[state=active]:text-orange-600 data-[state=active]:border-b-2 data-[state=active]:border-orange-600 rounded-none h-full shadow-none border-b-2 border-transparent px-2 text-[11px] lg:text-sm whitespace-nowrap font-bold uppercase tracking-tight">
                 Informações
               </TabsTrigger>
@@ -186,27 +187,27 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
           </div>
 
           <ScrollArea className="flex-1 overflow-y-auto">
-            <div className="p-4 lg:p-6 pb-24 lg:pb-6">
-              <TabsContent value="general" className="m-0 space-y-4 lg:space-y-6">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
-                  <div className="lg:col-span-2 space-y-1.5">
-                    <Label className="text-[11px] lg:text-sm uppercase text-slate-500 font-bold">Nome da Ação</Label>
+            <div className="p-3 lg:p-6 pb-20 lg:pb-6">
+              <TabsContent value="general" className="m-0 space-y-3 lg:space-y-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 lg:gap-4">
+                  <div className="lg:col-span-2 space-y-1">
+                    <Label className="text-[10px] lg:text-xs uppercase text-slate-500 font-bold">Nome da Ação</Label>
                     <Input 
                       placeholder="Ex: Café com o Diretor"
-                      className="h-9 lg:h-10 text-sm"
+                      className="h-8 lg:h-9 text-xs lg:text-sm"
                       value={formData.name}
                       onChange={e => setFormData({ ...formData, name: e.target.value })}
                     />
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-3 lg:col-span-2 lg:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <Label className="text-[11px] lg:text-sm uppercase text-slate-500 font-bold">Categoria</Label>
+                  <div className="grid grid-cols-2 gap-3 lg:col-span-2">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] lg:text-xs uppercase text-slate-500 font-bold">Categoria</Label>
                       <Select 
                         value={formData.category} 
                         onValueChange={v => setFormData({ ...formData, category: v as ActionCategory })}
                       >
-                        <SelectTrigger className="h-9 lg:h-10 text-sm">
+                        <SelectTrigger className="h-8 lg:h-9 text-xs lg:text-sm">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -215,13 +216,13 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
                       </Select>
                     </div>
 
-                    <div className="space-y-1.5">
-                      <Label className="text-[11px] lg:text-sm uppercase text-slate-500 font-bold">Status</Label>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] lg:text-xs uppercase text-slate-500 font-bold">Status</Label>
                       <Select 
                         value={formData.status} 
                         onValueChange={v => setFormData({ ...formData, status: v as ActionStatus })}
                       >
-                        <SelectTrigger className="h-9 lg:h-10 text-sm">
+                        <SelectTrigger className="h-8 lg:h-9 text-xs lg:text-sm">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -234,22 +235,22 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 lg:col-span-2 lg:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <Label className="text-[11px] lg:text-sm uppercase text-slate-500 font-bold">Data Planejada</Label>
+                  <div className="grid grid-cols-2 gap-3 lg:col-span-2">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] lg:text-xs uppercase text-slate-500 font-bold">Data Planejada</Label>
                       <Input 
                         type="date"
-                        className="h-9 lg:h-10 text-sm"
+                        className="h-8 lg:h-9 text-xs lg:text-sm px-2"
                         value={formData.date_planned}
                         onChange={e => setFormData({ ...formData, date_planned: e.target.value })}
                       />
                     </div>
 
-                    <div className="space-y-1.5">
-                      <Label className="text-[11px] lg:text-sm uppercase text-slate-500 font-bold whitespace-nowrap truncate">Data Realizada</Label>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] lg:text-xs uppercase text-slate-500 font-bold whitespace-nowrap truncate">Data Realizada</Label>
                       <Input 
                         type="date"
-                        className="h-9 lg:h-10 text-sm"
+                        className="h-8 lg:h-9 text-xs lg:text-sm px-2"
                         value={formData.date_realized}
                         onChange={e => setFormData({ ...formData, date_realized: e.target.value })}
                       />
@@ -257,23 +258,23 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
                   </div>
 
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:col-span-2">
-                    <div className="space-y-1.5">
-                      <Label className="text-[11px] lg:text-sm uppercase text-slate-500 font-bold">Responsável</Label>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] lg:text-xs uppercase text-slate-500 font-bold">Responsável</Label>
                       <Input 
                         placeholder="Nome do colaborador"
-                        className="h-9 lg:h-10 text-sm"
+                        className="h-8 lg:h-9 text-xs lg:text-sm"
                         value={formData.responsible_name}
                         onChange={e => setFormData({ ...formData, responsible_name: e.target.value })}
                       />
                     </div>
 
-                    <div className="space-y-1.5">
-                      <Label className="text-[11px] lg:text-sm uppercase text-slate-500 font-bold">Área</Label>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] lg:text-xs uppercase text-slate-500 font-bold">Área</Label>
                       <Select 
                         value={formData.responsible_area} 
                         onValueChange={v => setFormData({ ...formData, responsible_area: v as ResponsibleArea })}
                       >
-                        <SelectTrigger className="h-9 lg:h-10 text-sm">
+                        <SelectTrigger className="h-8 lg:h-9 text-xs lg:text-sm">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -285,22 +286,22 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
                     </div>
                   </div>
 
-                  <div className="lg:col-span-2 space-y-1.5">
-                    <Label className="text-[11px] lg:text-sm uppercase text-slate-500 font-bold">Objetivo</Label>
+                  <div className="lg:col-span-2 space-y-1">
+                    <Label className="text-[10px] lg:text-xs uppercase text-slate-500 font-bold">Objetivo</Label>
                     <Input 
                       placeholder="O que se espera atingir?"
-                      className="h-9 lg:h-10 text-sm"
+                      className="h-8 lg:h-9 text-xs lg:text-sm"
                       value={formData.objective}
                       onChange={e => setFormData({ ...formData, objective: e.target.value })}
                     />
                   </div>
 
-                  <div className="lg:col-span-2 space-y-1.5">
-                    <Label className="text-[11px] lg:text-sm uppercase text-slate-500 font-bold">Resumo / Público</Label>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  <div className="lg:col-span-2 space-y-1">
+                    <Label className="text-[10px] lg:text-xs uppercase text-slate-500 font-bold">Resumo / Público</Label>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
                       <Input 
                         placeholder="Ex: Operacional, Lideranças..."
-                        className="h-9 lg:h-10 text-sm"
+                        className="h-8 lg:h-9 text-xs lg:text-sm"
                         value={formData.target_audience}
                         onChange={e => setFormData({ ...formData, target_audience: e.target.value })}
                       />
@@ -308,30 +309,30 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
                         <div className="relative">
                           <Input 
                             type="number"
-                            className="h-9 lg:h-10 text-sm pl-7"
+                            className="h-8 lg:h-9 text-xs lg:text-sm pl-7"
                             value={formData.participants_planned}
                             onChange={e => setFormData({ ...formData, participants_planned: Number(e.target.value) })}
                           />
-                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[9px] font-black text-slate-400">P.</span>
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-400">P.</span>
                         </div>
                         <div className="relative">
                           <Input 
                             type="number"
-                            className="h-9 lg:h-10 text-sm pl-7"
+                            className="h-8 lg:h-9 text-xs lg:text-sm pl-7"
                             value={formData.participants_actual}
                             onChange={e => setFormData({ ...formData, participants_actual: Number(e.target.value) })}
                           />
-                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[9px] font-black text-green-500">R.</span>
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-green-500">R.</span>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="lg:col-span-2 space-y-1.5">
-                    <Label className="text-[11px] lg:text-sm uppercase text-slate-500 font-bold">Descrição Detalhada</Label>
+                  <div className="lg:col-span-2 space-y-1">
+                    <Label className="text-[10px] lg:text-xs uppercase text-slate-500 font-bold">Descrição Detalhada</Label>
                     <Textarea 
                       placeholder="Passo a passo da ação..."
-                      className="min-h-[80px] text-sm"
+                      className="min-h-[60px] text-xs lg:text-sm"
                       value={formData.description}
                       onChange={e => setFormData({ ...formData, description: e.target.value })}
                     />
@@ -450,20 +451,58 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
                 </div>
               </TabsContent>
 
-              <TabsContent value="evidence" className="flex flex-col items-center justify-center p-8 space-y-4 text-center">
-                 <div className="p-4 bg-orange-100 rounded-full">
-                   <Paperclip className="h-8 w-8 text-orange-600" />
-                 </div>
-                 <div className="space-y-2">
-                   <h3 className="text-lg font-bold">O que são as Evidências?</h3>
-                   <p className="text-sm text-muted-foreground max-w-sm leading-relaxed">
-                     Esta aba serve para o <strong>pós-ação</strong>. Use para carregar fotos, vídeos, listas de presenças assinadas e relatórios de feedback. 
-                     As evidências comprovam a execução e o sucesso das suas iniciativas.
-                   </p>
-                   <div className="pt-4">
-                     <Badge variant="outline" className="text-orange-600 border-orange-200 bg-orange-50">Funcionalidade em breve</Badge>
-                   </div>
-                 </div>
+              <TabsContent value="evidence" className="m-0 space-y-4">
+                <div className="bg-slate-50 p-4 rounded-xl border border-dashed border-slate-300 flex flex-col items-center justify-center text-center space-y-3">
+                  <div className="p-3 bg-white rounded-full shadow-sm text-orange-600">
+                    <Paperclip className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-800">Anexar Evidências</h3>
+                    <p className="text-[11px] text-slate-500 mt-1">Fotos, vídeos e listas de presença</p>
+                  </div>
+                  <div className="relative group">
+                    <Button variant="outline" className="bg-white hover:bg-slate-50 border-slate-200 h-9 px-6 text-xs font-bold gap-2">
+                      <Plus className="h-3.5 w-3.5" />
+                      Selecionar Arquivos
+                    </Button>
+                    <input 
+                      type="file" 
+                      multiple 
+                      className="absolute inset-0 opacity-0 cursor-pointer" 
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || []);
+                        setEvidenceFiles(prev => [...prev, ...files]);
+                        toast.success(`${files.length} arquivo(s) selecionados.`);
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {evidenceFiles.length > 0 && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {evidenceFiles.map((file, idx) => (
+                      <div key={idx} className="relative group bg-white border p-2 rounded-lg flex items-center gap-2 overflow-hidden">
+                        <Paperclip className="h-3 w-3 text-slate-400 shrink-0" />
+                        <span className="text-[10px] truncate flex-1 font-medium">{file.name}</span>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-5 w-5 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => setEvidenceFiles(prev => prev.filter((_, i) => i !== idx))}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="p-4 bg-orange-50 rounded-xl border border-orange-100">
+                  <p className="text-[11px] text-orange-800 leading-relaxed font-medium">
+                    As evidências são essenciais para comprovar a execução da ação e medir o sucesso (pós-ação). 
+                    As fotos também alimentam o nosso mural de cultura!
+                  </p>
+                </div>
               </TabsContent>
             </div>
           </ScrollArea>
@@ -548,7 +587,7 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
 
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
               <p className="text-[10px] text-slate-500 font-medium italic">
-                Dica: Mantenha os dados financeiros sempre atualizados para que a Luana e a Gislene possam acompanhar a saúde dos orçamentos do RH e Marketing.
+                Dica: Mantenha os dados financeiros sempre atualizados para que o Financeiro possa acompanhar a saúde dos orçamentos da empresa.
               </p>
             </div>
           </div>
