@@ -240,6 +240,34 @@ const drawMonthlyTrendChart = (actions: EndomarketingAction[]): string => {
   return canvas.toDataURL('image/png');
 };
 
+const loadImageAsBase64 = (url: string): Promise<string | null> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous'; // critical for CORS!
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL('image/jpeg', 0.85));
+          return;
+        }
+      } catch (e) {
+        console.error('Failed to convert image to base64:', e);
+      }
+      resolve(null);
+    };
+    img.onerror = () => {
+      console.error('Failed to load image:', url);
+      resolve(null);
+    };
+    img.src = url;
+  });
+};
+
 export default function EndoReports() {
   const { user } = useAuth();
   const [actions, setActions] = useState<EndomarketingAction[]>([]);
@@ -749,6 +777,19 @@ export default function EndoReports() {
         });
       }
 
+      // Filter image evidences and load them asynchronously in parallel
+      const imageEvidences = (action.evidences || []).filter(e => e.type?.startsWith('image/') && e.url);
+      const loadedImages: { name: string; base64: string }[] = [];
+      if (imageEvidences.length > 0) {
+        const promises = imageEvidences.map(async (ev) => {
+          const b64 = await loadImageAsBase64(ev.url);
+          if (b64) {
+            loadedImages.push({ name: ev.name, base64: b64 });
+          }
+        });
+        await Promise.all(promises);
+      }
+
       // Evidence list if present
       const hasEvidences = action.evidences && action.evidences.length > 0;
       const finalFinY = (doc as any).lastAutoTable?.finalY || (tableFinY + 22);
@@ -784,6 +825,66 @@ export default function EndoReports() {
         });
       }
 
+      // Organized image gallery section
+      if (loadedImages.length > 0) {
+        doc.addPage();
+        doc.setFillColor(15, 23, 42);
+        doc.rect(15, 18, 180, 8, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9.5);
+        doc.text('GALERIA DE FOTOS DO EVENTO', 20, 23.5);
+
+        let imgIdx = 0;
+        let col = 0; // 0 or 1
+        let row = 0; // 0, 1, or 2
+        let yStart = 32;
+
+        for (const imgData of loadedImages) {
+          if (imgIdx > 0 && imgIdx % 6 === 0) {
+            doc.addPage();
+            row = 0;
+            col = 0;
+            yStart = 20; // no banner on subsequent pages, start higher
+          }
+
+          const x = col === 0 ? 15 : 110;
+          const y = yStart + (row * 78);
+
+          // Organized photo card slot (gray outline box)
+          doc.setDrawColor(226, 232, 240);
+          doc.setFillColor(250, 250, 250);
+          doc.rect(x, y, 85, 68, 'FD');
+
+          try {
+            // Place image padded inside card center
+            doc.addImage(imgData.base64, 'JPEG', x + 4, y + 4, 77, 52);
+          } catch (err) {
+            console.error('Error rendering image in PDF:', err);
+            doc.setFillColor(241, 245, 249);
+            doc.rect(x + 4, y + 4, 77, 52, 'F');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(8);
+            doc.setTextColor(148, 163, 184);
+            doc.text('Erro na renderização da imagem', x + 42.5, y + 30, { align: 'center' });
+          }
+
+          // File name caption underneath
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(7.5);
+          doc.setTextColor(71, 85, 105);
+          const shortName = imgData.name.length > 40 ? imgData.name.substring(0, 37) + '...' : imgData.name;
+          doc.text(shortName, x + 42.5, y + 62, { align: 'center' });
+
+          col++;
+          if (col > 1) {
+            col = 0;
+            row++;
+          }
+          imgIdx++;
+        }
+      }
+
       // Closing Success Panel
       const closureY = (doc as any).lastAutoTable?.finalY + 10 || finalFinY + 12;
       const room = 297 - closureY > 50;
@@ -815,6 +916,15 @@ export default function EndoReports() {
       }
 
       doc.save(`dossie_evento_${action.name.toLowerCase().replace(/\s+/g, '_')}.pdf`);
+
+      try {
+        const pdfBlob = doc.output('blob');
+        const blobUrl = URL.createObjectURL(pdfBlob);
+        window.open(blobUrl, '_blank');
+      } catch (openErr) {
+        console.warn('Popup blocker or sandbox prevented automatically opening the tab:', openErr);
+      }
+
       toast.success('Dossiê do Evento em PDF exportado com sucesso!');
     } catch (e) {
       console.error(e);
