@@ -295,18 +295,28 @@ service cloud.firestore {
     }
 
     match /endomarketing_actions/{actionId} {
-      allow read: if isAuthenticated() && (isManager() || isMarketing() || isAdmin());
-      allow create, update: if isAuthenticated() && (isManager() || isMarketing() || isAdmin()) && isValidEndomarketingAction(request.resource.data);
-      allow delete: if isAdmin() || isManager();
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && (
+        isManager() || isMarketing() || isAdmin() || 
+        (getUserData() != null && getUserData().role in ['admin', 'manager', 'marketing', 'financial', 'finance'])
+      ) && isValidEndomarketingAction(request.resource.data);
+      allow delete: if isAdmin() || isManager() || 
+        (getUserData() != null && getUserData().role in ['admin', 'manager', 'financial', 'finance']);
 
       match /financial_items/{itemId} {
-        allow read: if isAuthenticated() && (isManager() || isMarketing() || isAdmin());
-        allow write: if isAuthenticated() && (isManager() || isMarketing() || isAdmin());
+        allow read: if isAuthenticated();
+        allow write: if isAuthenticated() && (
+          isManager() || isMarketing() || isAdmin() || 
+          (getUserData() != null && getUserData().role in ['admin', 'manager', 'marketing', 'financial', 'finance'])
+        );
       }
 
       match /evidence/{evidenceId} {
-        allow read: if isAuthenticated() && (isManager() || isMarketing() || isAdmin());
-        allow write: if isAuthenticated() && (isManager() || isMarketing() || isAdmin());
+        allow read: if isAuthenticated();
+        allow write: if isAuthenticated() && (
+          isManager() || isMarketing() || isAdmin() || 
+          (getUserData() != null && getUserData().role in ['admin', 'manager', 'marketing', 'financial', 'finance'])
+        );
       }
     }
 

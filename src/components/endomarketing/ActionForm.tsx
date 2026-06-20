@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc, updateDoc, doc, getDocs, deleteDoc, writeBatch } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, getDocs, deleteDoc, writeBatch, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../../lib/firebase';
 import { EndomarketingAction, FinancialItem, ActionStatus, ActionCategory, ResponsibleArea, AssetCategory, ActionEvidence } from '../../types/endomarketing';
@@ -172,6 +172,7 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
       });
 
       // Ensure mandatory fields for security rules are present and valid
+      const now = new Date().toISOString();
       const finalData = {
         ...cleanData,
         name: formData.name || '',
@@ -182,18 +183,14 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
         budget_planned: Number(formData.budget_planned) || 0,
         participants_planned: Number(formData.participants_planned) || 0,
         participants_actual: Number(formData.participants_actual) || 0,
-        updated_at: new Date().toISOString(),
+        updated_at: now,
+        created_at: action?.created_at || now,
       };
 
       // Security rules require created_at for ALL writes (create and update)
       if (!action) {
-        finalData.created_at = new Date().toISOString();
-        await addDoc(collection(db, 'endomarketing_actions'), finalData);
+        await setDoc(actionDocRef, finalData);
       } else {
-        // If it's an update, we MUST ensure created_at is present because the rule isValidEndomarketingAction(request.resource.data) checks for it
-        if (!finalData.created_at) {
-          finalData.created_at = action.created_at || new Date().toISOString();
-        }
         await updateDoc(actionDocRef, finalData);
       }
 

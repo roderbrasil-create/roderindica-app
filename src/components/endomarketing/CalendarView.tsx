@@ -7,12 +7,18 @@ import { Badge } from '../ui/badge';
 import { CalendarIcon, MapPin, User, ChevronRight, Clock } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function CalendarView() {
+  const { user } = useAuth();
   const [actions, setActions] = useState<EndomarketingAction[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
     const q = query(collection(db, 'endomarketing_actions'), orderBy('date_planned', 'asc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const actionsData = snapshot.docs.map(doc => ({
@@ -21,10 +27,13 @@ export default function CalendarView() {
       })) as EndomarketingAction[];
       setActions(actionsData);
       setLoading(false);
+    }, (error) => {
+      console.error("Error in CalendarView onSnapshot:", error);
+      setLoading(false);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [user]);
 
   // Group actions by month
   const groupedActions = actions.reduce((acc: Record<string, EndomarketingAction[]>, action) => {

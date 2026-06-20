@@ -6,10 +6,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { TrendingUp, DollarSign, Calendar, CheckCircle2, AlertCircle } from 'lucide-react';
 
+import { useAuth } from '../../contexts/AuthContext';
+
 export default function EndoDashboard() {
+  const { user } = useAuth();
   const [actions, setActions] = useState<EndomarketingAction[]>([]);
 
   useEffect(() => {
+    if (!user) return;
     const q = query(collection(db, 'endomarketing_actions'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const actionsData = snapshot.docs.map(doc => ({
@@ -17,10 +21,12 @@ export default function EndoDashboard() {
         ...doc.data()
       })) as EndomarketingAction[];
       setActions(actionsData);
+    }, (error) => {
+      console.error("Error in EndoDashboard onSnapshot:", error);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [user]);
 
   const totalActionCount = actions.length;
   const completedActions = actions.filter(a => a.status === 'Concluída').length;

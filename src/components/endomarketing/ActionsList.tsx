@@ -13,8 +13,10 @@ import ActionForm from './ActionForm';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '../../lib/utils';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function ActionsList() {
+  const { user } = useAuth();
   const [actions, setActions] = useState<EndomarketingAction[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -22,6 +24,10 @@ export default function ActionsList() {
   const [editingAction, setEditingAction] = useState<EndomarketingAction | null>(null);
 
   useEffect(() => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
     const q = query(collection(db, 'endomarketing_actions'), orderBy('date_planned', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const actionsData = snapshot.docs.map(doc => ({
@@ -30,10 +36,13 @@ export default function ActionsList() {
       })) as EndomarketingAction[];
       setActions(actionsData);
       setLoading(false);
+    }, (error) => {
+      console.error("Error in ActionsList onSnapshot:", error);
+      setLoading(false);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [user]);
 
   const handleDelete = async (id: string) => {
     if (window.confirm('Tem certeza que deseja excluir esta ação?')) {
