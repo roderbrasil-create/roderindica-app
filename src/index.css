@@ -243,6 +243,79 @@
   /* Ensure text colors are strong enough */
   .text-slate-400, .text-slate-500 { color: #333 !important; }
   .text-slate-300 { color: #555 !important; }
+
+  /* RODER CFO Report Print-Specific Overrides (White Background, Ink-Saving) */
+  .print-report-container {
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    color: #09090b !important;
+    padding: 10px !important;
+  }
+  .print-report-container * {
+    text-shadow: none !important;
+    box-shadow: none !important;
+  }
+  .print-report-container .text-white,
+  .print-report-container .text-zinc-100,
+  .print-report-container .text-zinc-200 {
+    color: #09090b !important;
+  }
+  .print-report-container .text-zinc-300,
+  .print-report-container .text-zinc-400,
+  .print-report-container .text-zinc-500 {
+    color: #3f3f46 !important;
+  }
+  .print-report-container .text-emerald-400 {
+    color: #047857 !important; /* Rich Dark Green */
+  }
+  .print-report-container .text-rose-400 {
+    color: #b91c1c !important; /* Rich Dark Red */
+  }
+  .print-report-container .text-amber-500 {
+    color: #b45309 !important; /* Rich Amber */
+  }
+  .print-report-container .bg-emerald-500\/10,
+  .print-report-container .bg-amber-500\/10,
+  .print-report-container .bg-rose-500\/10 {
+    background-color: #f4f4f5 !important;
+    border-color: #d4d4d8 !important;
+  }
+  .print-report-container .bg-zinc-900\/50,
+  .print-report-container .bg-zinc-900\/30,
+  .print-report-container .bg-zinc-900\/40 {
+    background-color: #fcfcfc !important;
+    border: 1px solid #e4e4e7 !important;
+  }
+  .print-report-container div[class*="border-emerald-500/15"],
+  .print-report-container div[class*="bg-emerald-500/"],
+  .print-report-container div[class*="bg-rose-500/"] {
+    background-color: #fafafa !important;
+    border: 1px solid #e4e4e7 !important;
+  }
+  .print-report-container .border-zinc-800,
+  .print-report-container .border-zinc-800\/60,
+  .print-report-container .border-zinc-800\/50,
+  .print-report-container .border-zinc-800\/30,
+  .print-report-container .border-emerald-500\/20,
+  .print-report-container .border-emerald-500\/10 {
+    border-color: #e4e4e7 !important;
+  }
+  .print-report-container table {
+    border-color: #d4d4d8 !important;
+  }
+  .print-report-container th {
+    background-color: #f4f4f5 !important;
+    color: #09090b !important;
+    border-bottom: 2px solid #e4e4e7 !important;
+  }
+  .print-report-container td {
+    border-bottom: 1px solid #e4e4e7 !important;
+    color: #09090b !important;
+  }
+  .print-page-break {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
 }
 
 @keyframes fluorescent-glow {

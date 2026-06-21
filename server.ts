@@ -8,6 +8,10 @@ import nodemailer from "nodemailer";
 import cron from "node-cron";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
+import multer from "multer";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const { PDFParse } = require("pdf-parse");
 
 dotenv.config();
 
@@ -925,6 +929,333 @@ async function startServer() {
     } catch (error: any) {
       console.error("[OCR-MONDAY] Error processing sheet image:", error);
       return res.status(500).json({ error: error.message || "Erro interno ao processar imagem." });
+    }
+  });
+
+  // Configure multer storage
+  const upload = multer({ storage: multer.memoryStorage() });
+
+  // PDF Financial Reports Parsing Route with automatic missing files detection
+  app.post("/api/financeiro/parse-pdf", upload.array("files"), async (req, res) => {
+    try {
+      const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) {
+        return res.status(400).json({ error: "Nenhum arquivo enviado." });
+      }
+
+      console.log(`[FINANCE-PARSER] Received ${files.length} PDF files for parsing.`);
+      const ai = getGenAI();
+      if (!ai) {
+        return res.status(500).json({ error: "O cliente da API Gemini não foi inicializado no servidor." });
+      }
+
+      // 1. Read files and extract text using pdf-parse PDFParse class, with deduplication checks
+      const parsedFiles: { filename: string; text: string }[] = [];
+      const seenTexts = new Set<string>();
+      for (const file of files) {
+        try {
+          const parser = new PDFParse({ data: file.buffer });
+          const result = await parser.getText();
+          const textStr = result.text || "";
+          const trimmedText = textStr.trim();
+          
+          if (seenTexts.has(trimmedText)) {
+            console.log(`[FINANCE-PARSER] Skipping duplicate PDF file by content: ${file.originalname}`);
+            continue;
+          }
+          seenTexts.add(trimmedText);
+
+          parsedFiles.push({
+            filename: file.originalname,
+            text: textStr
+          });
+        } catch (pdfErr: any) {
+          console.error(`Error parsing PDF file ${file.originalname}:`, pdfErr);
+        }
+      }
+
+      if (parsedFiles.length === 0) {
+        return res.status(400).json({ error: "Nenhum arquivo PDF pôde ser extraído." });
+      }
+
+      // 2. Ask Gemini to identify the date and extract all KPIs for both Matriz (Roder Máquinas) and Filial (Sinop).
+      const prompt = `Você é um analista financeiro sênior e especialista da Roder Brasil.
+Seu trabalho é processar relatórios em formato de texto extraídos de arquivos PDF de controle financeiro mensal da Matriz ("Roder Máquinas" ou "Fábrica") e da Filial ("Sinop" ou "Filial").
+
+REGRAS GERAIS DE NEGÓCIO:
+- Identifique o ANO (format: YYYY) e MÊS (número de 1 a 12) a partir do cabeçalho dos relatórios. Todos os relatórios devem pertencer ao mesmo período. No JSON retorne "year" e "month" e "monthId" no formato "YYYY-MM" (por exemplo, "2026-05").
+- O pacote mensal ideal deve conter 20 relatórios divididos entre Matriz e Filial:
+  • Receita Sintético - Matriz ("Roder Máquinas")
+  • Receita Sintético - Filial ("Sinop" ou "Filial")
+  • Despesas Fixas - Matriz
+  • Despesas Fixas - Filial
+  • Despesas Variáveis - Matriz
+  • Despesas Variáveis - Filial
+  • EBITDA - Matriz
+  • EBITDA - Filial
+  • Geração de Caixa (NCC) - Matriz
+  • Geração de Caixa (NCC) - Filial
+  • Lucratividade Líquida - Matriz
+  • Lucratividade Líquida - Filial
+  • Margem de Contribuição - Matriz
+  • Margem de Contribuição - Filial
+  • Ponto de Equilíbrio - Matriz
+  • Ponto de Equilíbrio - Filial
+  • Resultado Líquido - Matriz
+  • Resultado Líquido - Filial
+  • Resultado Operacional de Caixa - Matriz
+  • Resultado Operacional de Caixa - Filial
+- Compare o conjunto de textos fornecidos com os 20 relatórios esperados e preencha uma lista "filesUploaded" com as descrições dos relatórios que de fato encontrou, e "missingFiles" com o título amigável dos relatórios que estão faltando se houver (por exemplo, "EBITDA - Filial" ou "Despesas Fixas - Matriz").
+
+VALORES DOS KPIs ESPERADOS PARA EXTRAÇÃO:
+Para a Matriz ("matriz") e a Filial ("filial"), extraia os seguintes KPIs caso existam nos relatórios. Mantenha os valores como números (Float):
+- "faturamento": O faturamento total ou total de receitas brutas (se houver relatório de Receitas ou Emissão de Notas).
+- "receita_liquida": Receita após deduções primárias (no relatório de Lucratividade, EBITDA ou Margem de contribuição).
+- "margem_liquida": Margem de lucro líquida em percentual (geralmente nos relatórios de Lucratividade Líquida).
+- "resultado_liquido": O valor monetário final de lucro líquido (geralmente no relatório de Resultado Líquido).
+- "lucro_bruto": Lucro bruto monetário (Receitas - Custos Diretos/CMV).
+- "rentabilidade": Taxa de rentabilidade em percentual (geralmente sob rentabilidade ou lucratividade líquida).
+- "ponto_equilibrio": Valor monetário para ponto de equilíbrio (geralmente no relatório de Ponto de Equilíbrio).
+- "ebitda": Valor monetário do EBITDA (no relatório de EBITDA).
+- "margem_ebitda": Margem EBITDA em percentual (geralmente de 0 a 100).
+- "lucro_liquido": Lucro líquido absoluto.
+- "margem_bruta": Margem Bruta em percentual.
+- "fluxo_caixa_operacional": Saldo operacional de caixa ou Resultado Operacional de Caixa (no relatório de Resultado Operacional de Caixa).
+- "saldo_caixa": Saldo acumulado em caixa no mês (ex: do Geração de Caixa ou Resultado Operacional de Caixa, tipo item "1 - Caixa").
+- "geracao_caixa_ncc": Valor da Geração de Caixa - NCC (do relatório de Geração de Caixa NCC).
+- "capacidade_gerar_lucro": Percentual de Capacidade de Gerar Lucro.
+- "lucro_operacional": Lucro Operacional monetário.
+- "margem_contribuicao": Margem de Contribuição em percentual.
+- "capital_giro": Valor monetário para Capital de Giro.
+- "pmr": Prazo Médio de Recebimento em dias (se houver, senão calcule ou use um valor padrão como 45 se houver menção, ou 0).
+- "pmp": Prazo Médio de Pagamento em dias (se houver, senão use padrão como 30 se houver menção, ou 0).
+- "indice_inadimplencia": Índice de inadimplência em percentual.
+- "liquidez_corrente": Índice de liquidez corrente (Ex: Ativo / Passivo or calculated).
+
+CÁLCULO DE VALORES FALTANTES:
+Se algum valor não puder ser encontrado diretamente mas os valores brutos para calculá-lo existirem, realize o cálculo apropriado. Se não houver dados, retorne null.
+
+CONSOLIDAÇÃO ("consolidado"):
+Calcule e consolide os valores da Matriz e Filial para preencher a estrutura "consolidado":
+- KPIs absolutos monetários (Faturamento, Receita Líquida, Resultado Líquido, Lucro Bruto, EBITDA, Saldo de Caixa, Fluxo de Caixa Operacional, etc.) devem ser a soma exata: Matriz + Filial.
+- KPIs percentuais (Margem Líquida, Rentabilidade, Margem EBITDA, Margem de Contribuição, Margem Bruta) devem ser recalculados proporcionalmente com base nos consolidados absolutos. Por exemplo, Margem EBITDA Consolidada = (EBITDA Consolidado / Receita Líquida Consolidada) * 100.
+
+POR FAVOR, RETORNE UM JSON DE ACORDO COM O SCHEMATYPE DEFINIDO.`;
+
+      const gResponse = await generateContentWithRetry(ai, {
+        defaultModel: "gemini-3.5-flash",
+        contents: [
+          { text: prompt },
+          { text: `TEXTOS DOS ARQUIVOS PDF CARREGADOS:\n\n${JSON.stringify(parsedFiles, null, 2)}` }
+        ],
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              monthId: { type: Type.STRING },
+              year: { type: Type.INTEGER },
+              month: { type: Type.INTEGER },
+              filesUploaded: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING }
+              },
+              missingFiles: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING }
+              },
+              matriz: {
+                type: Type.OBJECT,
+                properties: {
+                  faturamento: { type: Type.NUMBER },
+                  receita_liquida: { type: Type.NUMBER },
+                  margem_liquida: { type: Type.NUMBER },
+                  resultado_liquido: { type: Type.NUMBER },
+                  lucro_bruto: { type: Type.NUMBER },
+                  rentabilidade: { type: Type.NUMBER },
+                  ponto_equilibrio: { type: Type.NUMBER },
+                  ebitda: { type: Type.NUMBER },
+                  margem_ebitda: { type: Type.NUMBER },
+                  lucro_liquido: { type: Type.NUMBER },
+                  margem_bruta: { type: Type.NUMBER },
+                  fluxo_caixa_operacional: { type: Type.NUMBER },
+                  saldo_caixa: { type: Type.NUMBER },
+                  geracao_caixa_ncc: { type: Type.NUMBER },
+                  capacidade_gerar_lucro: { type: Type.NUMBER },
+                  lucro_operacional: { type: Type.NUMBER },
+                  margem_contribuicao: { type: Type.NUMBER },
+                  capital_giro: { type: Type.NUMBER },
+                  pmr: { type: Type.NUMBER },
+                  pmp: { type: Type.NUMBER },
+                  indice_inadimplencia: { type: Type.NUMBER },
+                  liquidez_corrente: { type: Type.NUMBER }
+                }
+              },
+              filial: {
+                type: Type.OBJECT,
+                properties: {
+                  faturamento: { type: Type.NUMBER },
+                  receita_liquida: { type: Type.NUMBER },
+                  margem_liquida: { type: Type.NUMBER },
+                  resultado_liquido: { type: Type.NUMBER },
+                  lucro_bruto: { type: Type.NUMBER },
+                  rentabilidade: { type: Type.NUMBER },
+                  ponto_equilibrio: { type: Type.NUMBER },
+                  ebitda: { type: Type.NUMBER },
+                  margem_ebitda: { type: Type.NUMBER },
+                  lucro_liquido: { type: Type.NUMBER },
+                  margem_bruta: { type: Type.NUMBER },
+                  fluxo_caixa_operacional: { type: Type.NUMBER },
+                  saldo_caixa: { type: Type.NUMBER },
+                  geracao_caixa_ncc: { type: Type.NUMBER },
+                  capacidade_gerar_lucro: { type: Type.NUMBER },
+                  lucro_operacional: { type: Type.NUMBER },
+                  margem_contribuicao: { type: Type.NUMBER },
+                  capital_giro: { type: Type.NUMBER },
+                  pmr: { type: Type.NUMBER },
+                  pmp: { type: Type.NUMBER },
+                  indice_inadimplencia: { type: Type.NUMBER },
+                  liquidez_corrente: { type: Type.NUMBER }
+                }
+              },
+              consolidado: {
+                type: Type.OBJECT,
+                properties: {
+                  faturamento: { type: Type.NUMBER },
+                  receita_liquida: { type: Type.NUMBER },
+                  margem_liquida: { type: Type.NUMBER },
+                  resultado_liquido: { type: Type.NUMBER },
+                  lucro_bruto: { type: Type.NUMBER },
+                  rentabilidade: { type: Type.NUMBER },
+                  ponto_equilibrio: { type: Type.NUMBER },
+                  ebitda: { type: Type.NUMBER },
+                  margem_ebitda: { type: Type.NUMBER },
+                  lucro_liquido: { type: Type.NUMBER },
+                  margem_bruta: { type: Type.NUMBER },
+                  fluxo_caixa_operacional: { type: Type.NUMBER },
+                  saldo_caixa: { type: Type.NUMBER },
+                  geracao_caixa_ncc: { type: Type.NUMBER },
+                  capacidade_gerar_lucro: { type: Type.NUMBER },
+                  lucro_operacional: { type: Type.NUMBER },
+                  margem_contribuicao: { type: Type.NUMBER },
+                  capital_giro: { type: Type.NUMBER },
+                  pmr: { type: Type.NUMBER },
+                  pmp: { type: Type.NUMBER },
+                  indice_inadimplencia: { type: Type.NUMBER },
+                  liquidez_corrente: { type: Type.NUMBER }
+                }
+              }
+            },
+            required: ["monthId", "year", "month", "filesUploaded", "missingFiles", "matriz", "filial", "consolidado"]
+          }
+        }
+      });
+
+      const textResult = gResponse.text || "{}";
+      const jsonMatch = textResult.match(/\{[\s\S]*\}/);
+      const parsedResult = JSON.parse(jsonMatch ? jsonMatch[0] : textResult);
+      return res.json({ success: true, data: parsedResult });
+
+    } catch (error: any) {
+      console.error("[FINANCE-PARSER] Error during PDF ingestion:", error);
+      return res.status(500).json({ error: error.message || "Falha ao processar arquivos do demonstrativo financeiro." });
+    }
+  });
+
+  // AI Financial Diagnose API
+  app.post("/api/financeiro/diagnose", async (req, res) => {
+    try {
+      const { current, history, entity } = req.body;
+      if (!current) {
+        return res.status(400).json({ error: "O demonstrativo do período atual é obrigatório para diagnóstico." });
+      }
+
+      const ai = getGenAI();
+      if (!ai) {
+        return res.status(500).json({ error: "Gemini API key is not configured on the server." });
+      }
+
+      const targetEntity = entity || "consolidado";
+      const currentMonthData = current[targetEntity] || {};
+      
+      const prompt = `Você é o Diretor Financeiro (CFO) Inteligente e Consultor Executivo da RODER Brasil, especialista em diagnósticos financeiros de alto nível para indústrias de equipamentos florestais e agro.
+Analise com extrema atenção e rigor os indicadores fornecidos para a entidade "${targetEntity}" do período ${current.monthId}.
+
+DADOS FINANCEIROS ATUAIS (${current.monthId} - ${targetEntity}):
+${JSON.stringify(currentMonthData, null, 2)}
+
+DADOS HISTÓRICOS (Múltiplos períodos ordenados cronologicamente):
+${JSON.stringify((history || []).map((h: any) => ({ monthId: h.monthId, data: h[targetEntity] })), null, 2)}
+
+SUAS TAREFAS:
+1. Avalie a saúde econômica geral da empresa com base em faturamento, receita líquida, lucratividade/margem líquida, EBITDA, saldo de caixa e fluxo de caixa operacional. Classifique em: "Saudável" (todos principais saudáveis), "Atenção" (algum sinalizador que expõe a empresa a médio prazo), ou "Crítico" (riscos severos de caixa, margem líquida negativa severa ou alto endividamento silencioso).
+2. Forneça um título executivo dinâmico e impactante para o painel de apresentação do CFO.
+3. Elabore um Resumo Executivo detalhado (3 a 5 linhas) explicando a performance financeira e os fatores mais pós-venda fundamentais para o resultado (ex: compressão de custos, melhoria de vendas, descasamento entre PMR/PMP, ou estabilidade).
+4. Indique de 2 a 3 pontos fortes e de 2 a 3 pontos de atenção urgentes.
+5. Indique de 3 a 4 sugestões acionáveis, explicando o que deve ser feito e o impacto estratégico ou retorno financeiro esperado.
+
+Por favor, gere e ordene tudo de forma que faça total sentido real de mercado para uma indústria real. Retorne a resposta em formato JSON estrito em língua Portuguesa de acordo com o esquema definido.`;
+
+      const gResponse = await generateContentWithRetry(ai, {
+        defaultModel: "gemini-3.5-flash",
+        contents: [
+          { text: prompt }
+        ],
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              financialHealth: { type: Type.STRING },
+              healthCheckTitle: { type: Type.STRING },
+              summary: { type: Type.STRING },
+              strengths: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    title: { type: Type.STRING },
+                    desc: { type: Type.STRING }
+                  },
+                  required: ["title", "desc"]
+                }
+              },
+              alerts: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    title: { type: Type.STRING },
+                    desc: { type: Type.STRING }
+                  },
+                  required: ["title", "desc"]
+                }
+              },
+              suggestions: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    action: { type: Type.STRING },
+                    impact: { type: Type.STRING }
+                  },
+                  required: ["action", "impact"]
+                }
+              }
+            },
+            required: ["financialHealth", "healthCheckTitle", "summary", "strengths", "alerts", "suggestions"]
+          }
+        }
+      });
+
+      const textResult = gResponse.text || "{}";
+      const jsonMatch = textResult.match(/\{[\s\S]*\}/);
+      const parsedResult = JSON.parse(jsonMatch ? jsonMatch[0] : textResult);
+      return res.json({ success: true, data: parsedResult });
+
+    } catch (error: any) {
+      console.error("[CFO-DIAGNOSE] Error generating financial diagnostic:", error);
+      return res.status(500).json({ error: error.message || "Falha ao gerar diagnóstico financeiro inteligente." });
     }
   });
 

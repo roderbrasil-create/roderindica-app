@@ -244,6 +244,12 @@ function AppContent() {
                   </PrivateRoute>
                 } />
 
+                <Route path="/financeiro/kpis" element={
+                  <PrivateRoute roles={['admin', 'manager', 'financial']}>
+                    <Finance />
+                  </PrivateRoute>
+                } />
+
                 <Route path="/consulta-financeira" element={
                   <PrivateRoute roles={['admin', 'manager', 'financial', 'internal_seller']}>
                     <FinancialConsultation />

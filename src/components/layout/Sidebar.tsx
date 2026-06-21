@@ -299,7 +299,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
   React.useEffect(() => {
     const path = location.pathname;
     const isFairsPath = path.startsWith('/feiras') || path === '/cadastro-rapido';
-    const isFinancialPath = path === '/comissoes' || path === '/consulta-financeira';
+    const isFinancialPath = path === '/comissoes' || path === '/consulta-financeira' || path.startsWith('/financeiro');
     const isComercialPath = path.startsWith('/comercial');
 
     if (isFairsPath) {
@@ -409,6 +409,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
         { name: 'Relatório de Comissões', path: '/comissoes', icon: DollarSign },
         { name: 'Consulta Financeira', path: '/consulta-financeira', icon: History },
         { name: 'Faturamentos (Vendas)', path: '/indicacoes', icon: Filter },
+        { name: 'Demonstrativo de KPIs', path: '/financeiro/kpis', icon: BarChart3 },
       ]
     },
     { id: 'configurations', name: 'Configurações', path: '/admin', icon: Settings, roles: ['admin', 'manager', 'triagem', 'marketing'] },

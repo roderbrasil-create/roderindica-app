@@ -430,5 +430,9 @@ service cloud.firestore {
       allow create: if isAuthenticated();
       allow update, delete: if isAuthenticated() && (isManager() || isAdmin() || isMarketing());
     }
+
+    match /financial_dashboard_months/{monthId} {
+      allow read, write: if isAuthenticated();
+    }
   }
 }
