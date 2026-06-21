@@ -244,55 +244,76 @@ export default function FinanceDashboard() {
   };
 
   const handleDownloadPDF = async () => {
-    const reportRef = document.querySelector('.print-report-container');
-    if (!reportRef) {
-      toast.error("Erro: Conteúdo do relatório não encontrado.");
+    const p1 = document.getElementById('cfo-report-page-1');
+    const p2 = document.getElementById('cfo-report-page-2');
+    const p3 = document.getElementById('cfo-report-page-3');
+
+    if (!p1 || !p2 || !p3) {
+      toast.error("Erro: Estrutura do relatório não encontrada na tela.");
       return;
     }
 
-    const toastId = toast.loading("Gerando arquivo PDF...", {
-      description: "Por favor, aguarde alguns instantes enquanto renderizamos o relatório com alta definição.",
+    const toastId = toast.loading("Gerando PDF executivo (3 páginas)...", {
+      description: "Por favor, aguarde enquanto renderizamos os gráficos e consolidações em alta resolução.",
     });
 
     try {
-      // 1. Add temporary white background class
-      reportRef.classList.add('force-light-print');
-
-      // Wait a brief tick to ensure DOM paints class
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      // 2. Generate PNG image via html-to-image
-      const dataUrl = await toPng(reportRef as HTMLElement, {
+      // Generate clean PNGs with dark presentation styling, matching the live preview
+      const opts = {
         quality: 0.98,
-        pixelRatio: 2, // Retinal high resolution
-        backgroundColor: '#ffffff',
-      });
+        pixelRatio: 2, // High resolution retina rendering
+        backgroundColor: '#09090b', // Deep dark solid background
+        style: {
+          padding: '24px',
+          margin: '0',
+          width: '1200px', // Uniform high-width rendering for beautiful proportions
+          borderRadius: '16px'
+        }
+      };
 
-      // 3. Remove class to restore screen dark mode immediately
-      reportRef.classList.remove('force-light-print');
+      // Generate all pages in parallel for ultra-high speed performance
+      const [img1, img2, img3] = await Promise.all([
+        toPng(p1, opts),
+        toPng(p2, opts),
+        toPng(p3, opts)
+      ]);
 
-      // 4. Initialize jsPDF
+      // Initialize a multi-page A4 PDF (Portrait, Pixels)
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'px',
         format: 'a4'
       });
 
-      const imgProps = pdf.getImageProperties(dataUrl);
       const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      const pdfHeight = pdf.internal.pageSize.getHeight();
 
-      pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`Relatorio_CFO_RODER_${selectedEntity}_${selectedMonth}.pdf`);
+      // PAGE 1
+      const props1 = pdf.getImageProperties(img1);
+      const h1 = (props1.height * pdfWidth) / props1.width;
+      pdf.addImage(img1, 'PNG', 0, 0, pdfWidth, Math.min(h1, pdfHeight));
+
+      // PAGE 2
+      pdf.addPage();
+      const props2 = pdf.getImageProperties(img2);
+      const h2 = (props2.height * pdfWidth) / props2.width;
+      pdf.addImage(img2, 'PNG', 0, 0, pdfWidth, Math.min(h2, pdfHeight));
+
+      // PAGE 3
+      pdf.addPage();
+      const props3 = pdf.getImageProperties(img3);
+      const h3 = (props3.height * pdfWidth) / props3.width;
+      pdf.addImage(img3, 'PNG', 0, 0, pdfWidth, Math.min(h3, pdfHeight));
+
+      // Save PDF directly to user download folder without manual window intervention
+      pdf.save(`Relatorio_CFO_RODER_${selectedEntity.toUpperCase()}_${selectedMonth}.pdf`);
 
       toast.dismiss(toastId);
-      toast.success("PDF baixado automaticamente com sucesso!");
+      toast.success("PDF baixado com sucesso!");
     } catch (err: any) {
-      console.error("PDF download error:", err);
-      // Fallback cleanup
-      if (reportRef) reportRef.classList.remove('force-light-print');
+      console.error("PDF generation failure:", err);
       toast.dismiss(toastId);
-      toast.error(`Falha ao baixar PDF diretamente: ${err.message}. Tente usar o botão Imprimir e salvar como PDF.`);
+      toast.error(`Falha ao exportar PDF diretamente: ${err.message}.`);
     }
   };
 
@@ -302,7 +323,7 @@ export default function FinanceDashboard() {
       return;
     }
 
-    // 1. First trigger the automatic PDF download so they have the file ready to attach
+    // First trigger PDF generation so it downloads to their device automatically
     handleDownloadPDF();
 
     const compFaturamento = comparisonIndicators?.find(c => c.key === 'faturamento');
@@ -318,25 +339,23 @@ export default function FinanceDashboard() {
     const healthStatus = diagnoseResult.financialHealth === 'Saudável' ? '🟢 Saudável' : 
                          diagnoseResult.financialHealth === 'Atenção' ? '🟡 Em Alerta' : '🔴 Crítico';
 
-    const text = `📊 *RODER BRASIL - Relatório CFO* 📊\n` +
-                 `• Competência: *${selectedMonth}*\n` +
-                 `• Unidade de Negócio: *${selectedEntity.toUpperCase()}*\n\n` +
+    const text = `📊 *RODER BRASIL - Relatório CFO (${selectedEntity.toUpperCase()})* 📊\n` +
+                 `• Competência: *${selectedMonth}*\n\n` +
                  `🩺 *Status de Saúde:* ${healthStatus}\n` +
                  `📌 *"${diagnoseResult.healthCheckTitle}"*\n\n` +
-                 `📈 *Kpis Principais:* \n` +
+                 `📈 *KPIs Principais:* \n` +
                  `  - Faturamento: *${faturamentoStr}*\n` +
                  `  - Receita Líquida: *${receitaStr}*\n` +
                  `  - EBITDA: *${ebitdaStr}*\n` +
                  `  - Resultado Líquido: *${lucroStr}*\n\n` +
                  `📝 *Resumo CFO:* ${diagnoseResult.summary.substring(0, 250)}...\n\n` +
-                 `📎 *Aviso:* O PDF do relatório foi baixado automaticamente. Basta anexá-lo nesta conversa do WhatsApp!`;
+                 `📎 *Aviso:* O PDF executivo oficial de 3 páginas foi gerado e baixado automaticamente no seu dispositivo. Basta anexar o arquivo na conversa do WhatsApp que abrimos para você!`;
 
     const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
     
-    // Open whatsapp in new tab
     setTimeout(() => {
       window.open(whatsappUrl, '_blank');
-      toast.success("Mensagem de fechamento copiada e WhatsApp aberto! Basta anexar o PDF baixado.");
+      toast.success("Resumo copiado e painel do WhatsApp aberto!");
     }, 1200);
   };
 
@@ -978,7 +997,7 @@ export default function FinanceDashboard() {
             <div className="print-report-container p-6 md:p-12 space-y-12 bg-[#09090b] text-zinc-100 min-h-full">
               
               {/* PAGE 1: Capa e Sumário de Fechamento */}
-              <div className="print-page-break space-y-8">
+              <div id="cfo-report-page-1" className="print-page-break space-y-8 bg-[#09090b] text-zinc-100 p-6 md:p-8 rounded-2xl border border-zinc-800/80 shadow-2xl">
                 {/* Header branding */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between border-b-2 border-emerald-500/20 pb-4 gap-4">
                   <div>
@@ -1002,7 +1021,7 @@ export default function FinanceDashboard() {
                 </div>
 
                 {/* AI HEALTH BANNER */}
-                <div className="p-6 bg-zinc-900/50 border border-zinc-800 rounded-2xl space-y-4 shadow-sm relative overflow-hidden">
+                <div className="p-6 bg-zinc-900/80 border border-zinc-800 rounded-2xl space-y-4 shadow-lg relative overflow-hidden">
                   <div className="absolute top-0 right-0 h-40 w-40 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
                   
                   <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 pb-3.5">
@@ -1047,7 +1066,7 @@ export default function FinanceDashboard() {
                     const meta = KPI_METADATA[key];
                     
                     return (
-                      <div key={key} className="p-4 bg-zinc-900/30 border border-zinc-800/80 rounded-xl flex flex-col justify-between space-y-3">
+                      <div key={key} className="p-5 bg-[#121214] border border-zinc-800 rounded-xl flex flex-col justify-between space-y-3 shadow-md">
                         <div className="flex items-center justify-between border-b border-zinc-800/30 pb-1.5">
                           <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest leading-none shrink-0">{meta.label}</span>
                           <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: meta.color }} />
@@ -1074,7 +1093,7 @@ export default function FinanceDashboard() {
 
                 {/* PAGE 1 GRAPH: Chronological Evolution of Key CFO metrics */}
                 {presentationChartData.length > 0 && (
-                  <div className="p-5 bg-zinc-900/30 border border-zinc-800/80 rounded-2xl space-y-4 mt-6">
+                  <div className="p-5 bg-zinc-950 border border-zinc-805/80 rounded-2xl space-y-4 mt-6 shadow-md">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-zinc-800/40 pb-2.5 gap-2">
                       <div className="flex items-center gap-2">
                         <TrendingUp className="h-4.5 w-4.5 text-emerald-400" />
@@ -1152,7 +1171,7 @@ export default function FinanceDashboard() {
               </div>
 
               {/* PAGE 2: Diagnóstico Detalhado & Recomendações */}
-              <div className="print-page-break space-y-8 pt-8 border-t border-zinc-800/50">
+              <div id="cfo-report-page-2" className="print-page-break space-y-8 bg-[#09090b] text-zinc-100 p-6 md:p-8 rounded-2xl border border-zinc-800/80 shadow-2xl mt-8">
                 <div className="flex items-center gap-2 border-b border-zinc-800 pb-3">
                   <Activity className="h-5 w-5 text-emerald-400" />
                   <h3 className="font-black text-sm text-white tracking-tight uppercase">Diagnóstico Analítico do CFO (RODER IA)</h3>
@@ -1161,7 +1180,7 @@ export default function FinanceDashboard() {
                 {/* Forces & Weaknesses columns */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Positive Points */}
-                  <div className="p-5 bg-emerald-500/[0.02] border border-emerald-500/15 rounded-2xl space-y-4">
+                  <div className="p-6 bg-emerald-950/20 border border-emerald-500/20 rounded-2xl space-y-4 shadow-sm">
                     <h4 className="font-extrabold text-xs text-emerald-400 tracking-wider flex items-center gap-1.5 uppercase border-b border-emerald-500/10 pb-2">
                       <Check className="h-4 w-4" /> Pontos Fortes e Alavancas
                     </h4>
@@ -1180,7 +1199,7 @@ export default function FinanceDashboard() {
                   </div>
 
                   {/* Risks Alert Points */}
-                  <div className="p-5 bg-rose-500/[0.02] border border-rose-500/15 rounded-2xl space-y-4">
+                  <div className="p-6 bg-rose-950/20 border border-rose-500/20 rounded-2xl space-y-4 shadow-sm">
                     <h4 className="font-extrabold text-xs text-rose-400 tracking-wider flex items-center gap-1.5 uppercase border-b border-rose-500/10 pb-2">
                       <AlertCircle className="h-4 w-4" /> Pontos de Atenção e Alertas
                     </h4>
@@ -1208,7 +1227,7 @@ export default function FinanceDashboard() {
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {diagnoseResult.suggestions.map((item: any, idx: number) => (
-                      <div key={idx} className="p-4 bg-zinc-900/40 border border-zinc-800/80 rounded-xl space-y-2 flex flex-col justify-between">
+                      <div key={idx} className="p-5 bg-[#121214] border border-zinc-800 rounded-xl space-y-2.5 flex flex-col justify-between shadow-md">
                         <div className="space-y-1">
                           <span className="text-[9px] font-black tracking-widest text-emerald-500 uppercase">Sugestão #{idx+1}</span>
                           <h5 className="font-bold text-white text-xs">{item.action}</h5>
@@ -1223,7 +1242,7 @@ export default function FinanceDashboard() {
               </div>
 
               {/* PAGE 3: Tabela Comparativa Completa */}
-              <div className="print-page-break space-y-6 pt-8 border-t border-zinc-800/50">
+              <div id="cfo-report-page-3" className="print-page-break space-y-6 bg-[#09090b] text-zinc-100 p-6 md:p-8 rounded-2xl border border-zinc-800/80 shadow-2xl mt-8">
                 <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-zinc-800 pb-3 gap-2">
                   <div className="flex items-center gap-2">
                     <TrendingDown className="h-5 w-5 text-emerald-400" />
