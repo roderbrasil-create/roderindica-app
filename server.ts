@@ -10,8 +10,22 @@ import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import multer from "multer";
 import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-const { PDFParse } = require("pdf-parse");
+
+let customRequire: any;
+if (typeof require !== "undefined") {
+  customRequire = require;
+} else {
+  try {
+    customRequire = createRequire(import.meta.url);
+  } catch (err) {
+    customRequire = (moduleName: string) => {
+      console.warn("Could not load module dynamically in ESM", moduleName);
+      return {};
+    };
+  }
+}
+
+const { PDFParse } = customRequire("pdf-parse");
 
 dotenv.config();
 
