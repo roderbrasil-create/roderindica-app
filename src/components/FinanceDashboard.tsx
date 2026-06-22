@@ -1148,34 +1148,34 @@ export default function FinanceDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           
           {/* Card 1: Consolidado */}
-          <Card className="bg-[#121214]/40 border border-emerald-500/20">
+          <Card className="bg-black border border-emerald-500/40 text-white shadow-xl">
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest flex items-center gap-1.5">
                   <FileCheck2 className="h-4 w-4" /> Roder Consolidado
                 </span>
-                <Badge variant="outline" className={goalsSummaries.consolidado.isOnTrack ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[9px] font-bold" : "bg-rose-500/10 text-rose-400 border-rose-500/20 text-[9px] font-bold"}>
+                <Badge variant="outline" className={goalsSummaries.consolidado.isOnTrack ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[9px] font-black uppercase" : "bg-rose-500/20 text-rose-300 border-rose-500/30 text-[9px] font-black uppercase"}>
                   {goalsSummaries.consolidado.isOnTrack ? "No Caminho Certo" : "Abaixo da Meta"}
                 </Badge>
               </div>
               <div className="space-y-3">
                 <div className="flex items-baseline justify-between text-xs">
-                  <span className="text-[10px] text-zinc-400">Meta Mensal / Anual:</span>
-                  <span className="font-extrabold text-zinc-200 font-mono">R$ 2,5M / R$ 30,0M</span>
+                  <span className="text-[10px] text-zinc-300 font-medium uppercase tracking-wider">Meta Mensal / Anual:</span>
+                  <span className="font-extrabold text-zinc-100 font-mono text-xs">R$ 2,5M / R$ 30,0M</span>
                 </div>
                 <div>
-                  <div className="flex justify-between text-xs font-bold mb-1">
-                    <span className="text-zinc-300">Atingido YTD: R$ {goalsSummaries.consolidado.achieved.toLocaleString('pt-BR')}</span>
-                    <span className="text-emerald-400">{goalsSummaries.consolidado.percent.toFixed(1)}%</span>
+                  <div className="flex justify-between text-xs font-black mb-1">
+                    <span className="text-zinc-100">Atingido YTD: R$ {goalsSummaries.consolidado.achieved.toLocaleString('pt-BR')}</span>
+                    <span className="text-emerald-400 font-mono">{goalsSummaries.consolidado.percent.toFixed(1)}%</span>
                   </div>
-                  <div className="w-full bg-zinc-805 rounded-full h-1.5 overflow-hidden">
+                  <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
                     <div className="bg-emerald-500 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, goalsSummaries.consolidado.percent)}%` }} />
                   </div>
                 </div>
-                <div className="flex justify-between text-[10px] text-zinc-400 mt-1">
+                <div className="flex justify-between text-[10px] text-zinc-300 mt-1">
                   <span>Falta: R$ {goalsSummaries.consolidado.missed.toLocaleString('pt-BR')}</span>
                   {goalsSummaries.monthsRemaining > 0 && (
-                    <span>Meta Residual: R$ {goalsSummaries.consolidado.rateRequired.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}/mês</span>
+                    <span className="font-semibold text-emerald-300">Meta Residual: R$ {goalsSummaries.consolidado.rateRequired.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}/mês</span>
                   )}
                 </div>
               </div>
@@ -1183,34 +1183,34 @@ export default function FinanceDashboard() {
           </Card>
 
           {/* Card 2: Matriz */}
-          <Card className="bg-[#121214]/40 border border-sky-500/20">
+          <Card className="bg-black border border-sky-500/40 text-white shadow-xl">
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-sky-400 uppercase tracking-widest flex items-center gap-1.5">
                   <Building2 className="h-4 w-4 animate-pulse" /> Roder Matriz
                 </span>
-                <Badge variant="outline" className={goalsSummaries.matriz.isOnTrack ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[9px] font-bold" : "bg-rose-500/10 text-rose-400 border-rose-500/20 text-[9px] font-bold"}>
+                <Badge variant="outline" className={goalsSummaries.matriz.isOnTrack ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[9px] font-black uppercase" : "bg-rose-500/20 text-rose-300 border-rose-500/30 text-[9px] font-black uppercase"}>
                   {goalsSummaries.matriz.isOnTrack ? "No Caminho Certo" : "Abaixo da Meta"}
                 </Badge>
               </div>
               <div className="space-y-3">
                 <div className="flex items-baseline justify-between text-xs">
-                  <span className="text-[10px] text-zinc-400">Meta Mensal / Anual:</span>
-                  <span className="font-extrabold text-zinc-200 font-mono">R$ 2,1M / R$ 25,2M</span>
+                  <span className="text-[10px] text-zinc-300 font-medium uppercase tracking-wider">Meta Mensal / Anual:</span>
+                  <span className="font-extrabold text-zinc-100 font-mono text-xs">R$ 2,1M / R$ 25,2M</span>
                 </div>
                 <div>
-                  <div className="flex justify-between text-xs font-bold mb-1">
-                    <span className="text-zinc-300">Atingido YTD: R$ {goalsSummaries.matriz.achieved.toLocaleString('pt-BR')}</span>
-                    <span className="text-sky-400">{goalsSummaries.matriz.percent.toFixed(1)}%</span>
+                  <div className="flex justify-between text-xs font-black mb-1">
+                    <span className="text-zinc-100">Atingido YTD: R$ {goalsSummaries.matriz.achieved.toLocaleString('pt-BR')}</span>
+                    <span className="text-sky-400 font-mono">{goalsSummaries.matriz.percent.toFixed(1)}%</span>
                   </div>
-                  <div className="w-full bg-zinc-850 rounded-full h-1.5 overflow-hidden">
+                  <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
                     <div className="bg-sky-500 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, goalsSummaries.matriz.percent)}%` }} />
                   </div>
                 </div>
-                <div className="flex justify-between text-[10px] text-zinc-400 mt-1">
+                <div className="flex justify-between text-[10px] text-zinc-300 mt-1">
                   <span>Falta: R$ {goalsSummaries.matriz.missed.toLocaleString('pt-BR')}</span>
                   {goalsSummaries.monthsRemaining > 0 && (
-                    <span>Meta Residual: R$ {goalsSummaries.matriz.rateRequired.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}/mês</span>
+                    <span className="font-semibold text-sky-300">Meta Residual: R$ {goalsSummaries.matriz.rateRequired.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}/mês</span>
                   )}
                 </div>
               </div>
@@ -1218,34 +1218,34 @@ export default function FinanceDashboard() {
           </Card>
 
           {/* Card 3: Filial */}
-          <Card className="bg-[#121214]/40 border border-amber-500/20">
+          <Card className="bg-black border border-amber-500/40 text-white shadow-xl">
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-amber-500 uppercase tracking-widest flex items-center gap-1.5">
                   <Building className="h-4 w-4" /> Filial Sinop
                 </span>
-                <Badge variant="outline" className={goalsSummaries.filial.isOnTrack ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[9px] font-bold" : "bg-rose-500/10 text-rose-400 border-rose-500/20 text-[9px] font-bold"}>
+                <Badge variant="outline" className={goalsSummaries.filial.isOnTrack ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[9px] font-black uppercase" : "bg-rose-500/20 text-rose-300 border-rose-500/30 text-[9px] font-black uppercase"}>
                   {goalsSummaries.filial.isOnTrack ? "No Caminho Certo" : "Abaixo da Meta"}
                 </Badge>
               </div>
               <div className="space-y-3">
                 <div className="flex items-baseline justify-between text-xs">
-                  <span className="text-[10px] text-zinc-400">Meta Mensal / Anual:</span>
-                  <span className="font-extrabold text-zinc-200 font-mono">R$ 400k / R$ 4,8M</span>
+                  <span className="text-[10px] text-zinc-300 font-medium uppercase tracking-wider">Meta Mensal / Anual:</span>
+                  <span className="font-extrabold text-zinc-100 font-mono text-xs">R$ 400k / R$ 4,8M</span>
                 </div>
                 <div>
-                  <div className="flex justify-between text-xs font-bold mb-1">
-                    <span className="text-zinc-300">Atingido YTD: R$ {goalsSummaries.filial.achieved.toLocaleString('pt-BR')}</span>
-                    <span className="text-amber-500">{goalsSummaries.filial.percent.toFixed(1)}%</span>
+                  <div className="flex justify-between text-xs font-black mb-1">
+                    <span className="text-zinc-100 font-bold">Atingido YTD: R$ {goalsSummaries.filial.achieved.toLocaleString('pt-BR')}</span>
+                    <span className="text-amber-500 font-mono">{goalsSummaries.filial.percent.toFixed(1)}%</span>
                   </div>
-                  <div className="w-full bg-zinc-850 rounded-full h-1.5 overflow-hidden">
+                  <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
                     <div className="bg-amber-500 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, goalsSummaries.filial.percent)}%` }} />
                   </div>
                 </div>
-                <div className="flex justify-between text-[10px] text-zinc-400 mt-1">
+                <div className="flex justify-between text-[10px] text-zinc-300 mt-1">
                   <span>Falta: R$ {goalsSummaries.filial.missed.toLocaleString('pt-BR')}</span>
                   {goalsSummaries.monthsRemaining > 0 && (
-                    <span>Meta Residual: R$ {goalsSummaries.filial.rateRequired.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}/mês</span>
+                    <span className="font-semibold text-amber-300">Meta Residual: R$ {goalsSummaries.filial.rateRequired.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}/mês</span>
                   )}
                 </div>
               </div>
@@ -1314,7 +1314,7 @@ export default function FinanceDashboard() {
         </div>
       </div>
 
-      {/* Grid displays for active KPIs of Selected Period */}
+      {/* Table display for active KPIs of Selected Period */}
       {currentMonthData ? (
         <div className="space-y-4">
           <div className="flex items-center justify-between border-b border-border/50 pb-2">
@@ -1324,36 +1324,110 @@ export default function FinanceDashboard() {
             </Badge>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {Object.keys(KPI_METADATA).map((key) => {
-              const meta = KPI_METADATA[key];
-              const entityValues = currentMonthData[selectedEntity] || {};
-              const rawVal = (entityValues as any)[key];
-              
-              return (
-                <Card 
-                  key={key} 
-                  className={`bg-card/45 border transition-all ${activeKPIs.includes(key) ? 'border-sky-500/30 bg-sky-500/[0.015]' : 'border-border hover:border-zinc-700/60'}`}
-                >
-                  <CardContent className="p-4 flex flex-col h-full justify-between">
-                    <div>
-                      <div className="flex items-start justify-between gap-1">
-                        <span className="text-xs font-bold text-muted-foreground truncate" title={meta.label}>
+          <div className="overflow-x-auto rounded-xl border border-border bg-card/45 shadow-sm">
+            <table className="w-full text-left border-collapse text-xs md:text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/40 font-bold text-muted-foreground uppercase tracking-widest text-[10px] md:text-[11px] select-none">
+                  <th className="py-2.5 px-4">Indicador / KPI</th>
+                  <th className="py-2.5 px-4 text-right">Valor Alcançado</th>
+                  <th className="py-2.5 px-4 hidden md:table-cell">Significado & Descrição</th>
+                  <th className="py-2.5 px-4 text-center w-24">Ativo no Gráfico</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/40 font-medium">
+                {Object.keys(KPI_METADATA).map((key) => {
+                  const meta = KPI_METADATA[key];
+                  const entityValues = currentMonthData[selectedEntity] || {};
+                  const rawVal = (entityValues as any)[key];
+                  const isActive = activeKPIs.includes(key);
+                  
+                  // Style value based on absolute value (colored green/emerald if positive, rose if negative for lucros/resultados/margens)
+                  const isNegativeValue = typeof rawVal === 'number' && rawVal < 0;
+                  const isFinancialorPercent = meta.isPercent || meta.suffix === 'R$';
+                  const valueColorClass = isNegativeValue && isFinancialorPercent
+                    ? 'text-rose-600 dark:text-rose-400 font-extrabold'
+                    : isFinancialorPercent && !isNegativeValue && rawVal > 0 && (key.includes('lucro') || key.includes('margem') || key.includes('resultado') || key.includes('receita') || key.includes('faturamento') || key.includes('ebitda') || key.includes('fluxo') || key.includes('saldo'))
+                    ? 'text-emerald-600 dark:text-emerald-400 font-extrabold'
+                    : 'text-foreground font-semibold';
+
+                  return (
+                    <tr 
+                      key={key} 
+                      onClick={() => toggleKPI(key)}
+                      className={`cursor-pointer transition-colors group select-none text-[11px] md:text-xs ${isActive ? 'bg-sky-500/5 hover:bg-sky-500/10' : 'hover:bg-muted/10'}`}
+                    >
+                      {/* KPI Title & Dot */}
+                      <td className="py-2 px-4 flex items-center gap-2.5">
+                        <span className="h-2 w-2 rounded-full shrink-0 flex-none" style={{ backgroundColor: meta.color }} />
+                        <div className="font-bold text-foreground">
                           {meta.label}
-                        </span>
-                        <span className="h-1.5 w-1.5 rounded-full shrink-0 mt-1" style={{ backgroundColor: meta.color }} />
-                      </div>
-                      <h4 className="text-lg font-bold text-foreground mt-2 font-mono">
+                          {/* Description in mobile tooltip or subtle layout */}
+                          <p className="text-[9px] text-muted-foreground font-normal leading-tight md:hidden mt-0.5 max-w-[200px]">
+                            {meta.description}
+                          </p>
+                        </div>
+                      </td>
+
+                      {/* KPI Value */}
+                      <td className={`py-2 px-4 text-right font-mono ${valueColorClass}`}>
                         {formatValue(rawVal, key)}
-                      </h4>
+                      </td>
+
+                      {/* Description */}
+                      <td className="py-2 px-4 text-muted-foreground hidden md:table-cell text-xs font-normal">
+                        {meta.description}
+                      </td>
+
+                      {/* Interactive checkbox indicator */}
+                      <td className="py-2 px-4 text-center">
+                        <div className="inline-flex items-center justify-center">
+                          <input 
+                            type="checkbox"
+                            checked={isActive}
+                            onChange={() => {}} // toggled on row click
+                            className="rounded border-gray-300 dark:border-zinc-700 text-sky-500 focus:ring-sky-500 h-3 w-3 dark:bg-black pointer-events-none"
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              
+              {/* Highlighted Totals in table footer to answer user request for "e com os totais" */}
+              <tfoot>
+                <tr className="border-t-2 border-border/70 bg-muted/70 select-none font-bold text-xs md:text-sm">
+                  <td className="py-3 px-4 font-black uppercase text-foreground/85 flex items-center gap-2">
+                    <span className="h-2 w-2 bg-emerald-500 rounded-full animate-pulse" />
+                    Totais Consolidados do Período
+                  </td>
+                  <td className="py-3 px-4 text-right font-mono" colSpan={1}>
+                    {/* Compact display of key period aggregates */}
+                    <div className="flex flex-col text-right items-end gap-1 select-none">
+                      <div className="flex justify-between w-full max-w-[280px] gap-4 text-[10px] md:text-xs">
+                        <span className="text-muted-foreground font-semibold">FATURAMENTO BRUTO:</span>
+                        <span className="text-foreground tracking-tight font-bold">{formatValue((currentMonthData[selectedEntity] || {}).faturamento, 'faturamento')}</span>
+                      </div>
+                      <div className="flex justify-between w-full max-w-[280px] gap-4 text-[10px] md:text-xs">
+                        <span className="text-muted-foreground font-semibold">RECEITA LÍQUIDA:</span>
+                        <span className="text-emerald-600 dark:text-emerald-400 font-bold tracking-tight">{formatValue((currentMonthData[selectedEntity] || {}).receita_liquida, 'receita_liquida')}</span>
+                      </div>
+                      <div className="flex justify-between w-full max-w-[280px] gap-4 text-[10px] md:text-xs border-t border-border/30 pt-1">
+                        <span className="text-muted-foreground font-black">RESULTADO LÍQUIDO:</span>
+                        <span className={`font-black tracking-tight ${((currentMonthData[selectedEntity] || {}).resultado_liquido || 0) < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                          {formatValue((currentMonthData[selectedEntity] || {}).resultado_liquido, 'resultado_liquido')}
+                        </span>
+                      </div>
                     </div>
-                    <p className="text-[10px] text-muted-foreground leading-relaxed mt-2 line-clamp-2 border-t border-border/20 pt-1.5">
-                      {meta.description}
-                    </p>
-                  </CardContent>
-                </Card>
-              );
-            })}
+                  </td>
+                  {/* Fill empty cells for desktop layout */}
+                  <td className="py-3 px-4 hidden md:table-cell text-muted-foreground text-xs font-normal leading-relaxed">
+                    Resumo analítico dos indicadores chave da Roder para a unidade e competência selecionadas no painel.
+                  </td>
+                  <td className="py-3 px-4"></td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
         </div>
       ) : (
