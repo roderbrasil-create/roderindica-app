@@ -273,6 +273,7 @@ export interface InstallationKit {
   code: string;
   description: string;
   items: InstallationKitItem[];
+  photo_url?: string;
   created_at: string;
 }
 

@@ -31,6 +31,7 @@ dotenv.config();
 
 import admin from "firebase-admin";
 import { getFirestore } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
 
 // Resolve __dirname safely to avoid crashes in bundled CommonJS mode
 const __dirname = process.cwd();
@@ -154,6 +155,14 @@ async function startServer() {
   const PORT = Number(process.env.PORT) || 3000;
 
   app.use(express.json({ limit: '50mb' }));
+
+  // Ensure local uploads directory exists for robust image fallback
+  const uploadsDir = path.join(process.cwd(), "uploads");
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+  // Serve uploads with express static middleware
+  app.use("/uploads", express.static(uploadsDir));
 
   // API routes
   app.get("/api/health", (req, res) => {
@@ -295,6 +304,157 @@ async function startServer() {
     } catch (err: any) {
       console.error("[AdminFix] Error running fix:", err);
       res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Upload image to Firebase Storage on the server-side, with full local disk fallback
+  app.post("/api/upload-image", async (req, res) => {
+    try {
+      const { fileBase64, fileName, contentType, folder = "installation_kits" } = req.body;
+      if (!fileBase64 || !fileName) {
+        return res.status(400).json({ error: "Faltando base64 ou nome de arquivo." });
+      }
+
+      let cleanBase64 = fileBase64;
+      if (fileBase64.includes(";base64,")) {
+        cleanBase64 = fileBase64.split(";base64,")[1];
+      }
+
+      const buffer = Buffer.from(cleanBase64, 'base64');
+      // Clean up file name to prevent special character paths issues
+      const cleanedFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const filenameWithTimestamp = `${Date.now()}__${cleanedFileName}`;
+
+      // 1. Try Firebase Cloud Storage Upload
+      try {
+        const bucketName = config.storageBucket || `${config.projectId}.appspot.com`;
+        console.log(`[STORAGE-UPLOAD] Tentando enviar para o primeiro bucket GCS: ${bucketName}...`);
+        
+        const storageInstance = getStorage(adminApp);
+        let bucket = storageInstance.bucket(bucketName);
+        let file = bucket.file(`${folder}/${filenameWithTimestamp}`);
+
+        try {
+          await file.save(buffer, {
+            contentType: contentType || 'image/jpeg',
+            metadata: { cacheControl: 'public, max-age=31536000' }
+          });
+        } catch (saveErr: any) {
+          const appspotBucket = `${config.projectId}.appspot.com`;
+          if (bucketName !== appspotBucket) {
+            console.warn(`[STORAGE-UPLOAD] Falha no primeiro bucket. Tentando fallback para ${appspotBucket}...`, saveErr.message);
+            bucket = storageInstance.bucket(appspotBucket);
+            file = bucket.file(`${folder}/${filenameWithTimestamp}`);
+            await file.save(buffer, {
+              contentType: contentType || 'image/jpeg',
+              metadata: { cacheControl: 'public, max-age=31536000' }
+            });
+          } else {
+            throw saveErr;
+          }
+        }
+
+        // Try to make file public (optional - works if Fine-grained controls are enabled)
+        try {
+          await file.makePublic();
+        } catch (pubErr: any) {
+          console.warn("[STORAGE-UPLOAD] makePublic falhou (Uniform Bucket Access?).", pubErr.message);
+        }
+
+        const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(file.name)}?alt=media`;
+        console.log(`[STORAGE-UPLOAD] Upload GCS bem-sucedido! URL: ${downloadUrl}`);
+        
+        return res.json({ 
+          success: true, 
+          url: downloadUrl 
+        });
+
+      } catch (gcsErr: any) {
+        console.warn("[STORAGE-UPLOAD] GCS upload falhou ou sem permissão. Usando fallback de armazenamento local no servidor...", gcsErr.message);
+        
+        // 2. Safe Local Storage Fallback inside the container
+        const localFilePath = path.join(uploadsDir, filenameWithTimestamp);
+        await fs.promises.writeFile(localFilePath, buffer);
+        
+        // Using relative path for robustness across standard proxies and localhost ports
+        const localDownloadUrl = `/uploads/${filenameWithTimestamp}`;
+        
+        console.log(`[STORAGE-UPLOAD] Fallback local completo! Carregado em: ${localDownloadUrl}`);
+        
+        return res.json({ 
+          success: true, 
+          url: localDownloadUrl,
+          isLocalFallback: true
+        });
+      }
+    } catch (err: any) {
+      console.error("[STORAGE-UPLOAD] Erro fatal no upload geral:", err);
+      return res.status(500).json({ error: "Erro interno no upload via backend.", details: err.message });
+    }
+  });
+
+  // Proxy endpoint to load Firebase Storage images without CORS / read permission blocks
+  app.get("/api/proxy-image", async (req, res) => {
+    try {
+      const { url } = req.query;
+      if (!url || typeof url !== 'string') {
+        return res.status(400).send("Faltando URL do arquivo.");
+      }
+
+      console.log(`[PROXY-IMAGE] Solicitada proxy de imagem para: ${url}`);
+
+      // If it's starting with firebasestorage.googleapis.com, we can proxy with admin credentials
+      if (url.startsWith("https://firebasestorage.googleapis.com")) {
+        const match = url.match(/\/b\/([^\/]+)\/o\/([^?#]+)/);
+        if (match) {
+          const bucketName = decodeURIComponent(match[1]);
+          const filePath = decodeURIComponent(match[2]);
+          
+          console.log(`[PROXY-IMAGE] Baixando do GCS: bucket=${bucketName}, path=${filePath}`);
+          
+          const storageInstance = getStorage(adminApp);
+          const bucket = storageInstance.bucket(bucketName);
+          const file = bucket.file(filePath);
+          
+          const [exists] = await file.exists();
+          if (!exists) {
+            console.warn(`[PROXY-IMAGE] Arquivo no caminho ${filePath} não existe no GCS!`);
+            return res.status(404).send("Arquivo não encontrado no GCS.");
+          }
+          
+          const [metadata] = await file.getMetadata();
+          res.setHeader('Content-Type', metadata.contentType || 'image/jpeg');
+          res.setHeader('Cache-Control', 'public, max-age=31536000');
+          
+          file.createReadStream()
+            .on('error', (streamErr) => {
+              console.error("[PROXY-IMAGE] Erro durante o stream da imagem:", streamErr);
+              if (!res.headersSent) {
+                res.status(500).send("Erro ao obter stream da imagem.");
+              }
+            })
+            .pipe(res);
+          return;
+        }
+      }
+
+      // If it's already a local/relative or localhost URL, redirect to or fetch directly
+      if (url.startsWith("http://localhost") || url.includes("/uploads/")) {
+        const parts = url.split("/uploads/");
+        if (parts.length > 1) {
+          const localFile = path.join(uploadsDir, parts[1]);
+          if (fs.existsSync(localFile)) {
+            res.setHeader('Cache-Control', 'public, max-age=31536000');
+            return res.sendFile(localFile);
+          }
+        }
+      }
+
+      // Default fallback
+      return res.redirect(url);
+    } catch (error: any) {
+      console.error("[PROXY-IMAGE] Erro fatal ao servir proxy da imagem:", error);
+      return res.status(500).send(`Erro interno ao processar proxy de imagem: ${error.message}`);
     }
   });
 

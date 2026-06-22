@@ -24,7 +24,9 @@ import {
   Loader2,
   Share2,
   Camera,
-  FileDown
+  FileDown,
+  Eye,
+  Image
 } from 'lucide-react';
 import { ACCESSORIES_DATA, INSTALLATION_KITS as DEFAULT_KITS } from '../constants';
 import { Accessory, InstallationKit, InstallationKitItem } from '../types';
@@ -59,6 +61,34 @@ import {
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
+
+const getDisplayImageUrl = (url: string | undefined): string => {
+  if (!url) return '';
+  // Clean up any historical localhost absolute URLs stored in Firestore
+  let cleanUrl = url;
+  if (cleanUrl.includes('/uploads/')) {
+    const parts = cleanUrl.split('/uploads/');
+    cleanUrl = `/uploads/${parts[parts.length - 1]}`;
+  }
+  
+  if (cleanUrl.startsWith('https://firebasestorage.googleapis.com')) {
+    return `/api/proxy-image?url=${encodeURIComponent(cleanUrl)}`;
+  }
+  return cleanUrl;
+};
+
+const getAbsoluteImageUrl = (url: string | undefined): string => {
+  if (!url) return '';
+  let cleanUrl = url;
+  if (cleanUrl.includes('/uploads/')) {
+    const parts = cleanUrl.split('/uploads/');
+    cleanUrl = `/uploads/${parts[parts.length - 1]}`;
+  }
+  if (cleanUrl.startsWith('/')) {
+    return window.location.origin + cleanUrl;
+  }
+  return cleanUrl;
+};
 
 // Background Seeding Helpers
 const seedMissingAccessories = async (existing: Accessory[]) => {
@@ -378,10 +408,21 @@ export default function Accessories() {
       }
       setIsKitModalOpen(false);
       setEditingKit(null);
-      setKitForm({ code: '', description: '', items: [] });
+      setKitForm({ code: '', description: '', items: [], photo_url: '' });
     } catch (error) {
       toast.error('Erro ao salvar.');
     }
+  };
+
+  const blobToBase64 = (blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        resolve(reader.result as string);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'ponteira' | 'suporte' | 'link') => {
@@ -393,10 +434,28 @@ export default function Accessories() {
 
     try {
       const compressedFile = await compressImage(file);
-      const storageRef = ref(storage, `accessories/${Date.now()}_${type}_${file.name}`);
-      
-      await uploadBytes(storageRef, compressedFile);
-      const downloadURL = await getDownloadURL(storageRef);
+      const base64Data = await blobToBase64(compressedFile);
+
+      const res = await fetch('/api/upload-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          fileBase64: base64Data,
+          fileName: `${type}_${file.name}`,
+          contentType: file.type,
+          folder: 'accessories'
+        })
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Falha no upload do servidor');
+      }
+
+      const uploadResult = await res.json();
+      const downloadURL = uploadResult.url;
 
       setAccessoryForm(prev => ({
         ...prev,
@@ -412,6 +471,54 @@ export default function Accessories() {
       console.error(error);
       toast.dismiss(loadingToast);
       toast.error('Erro ao enviar foto.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleKitFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const loadingToast = toast.loading("Compactando e enviando foto do kit...");
+
+    try {
+      const compressedFile = await compressImage(file);
+      const base64Data = await blobToBase64(compressedFile);
+
+      const res = await fetch('/api/upload-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          fileBase64: base64Data,
+          fileName: file.name,
+          contentType: file.type,
+          folder: 'installation_kits'
+        })
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Falha no upload do kit');
+      }
+
+      const uploadResult = await res.json();
+      const downloadURL = uploadResult.url;
+
+      setKitForm(prev => ({
+        ...prev,
+        photo_url: downloadURL
+      }));
+
+      toast.dismiss(loadingToast);
+      toast.success('Foto do kit enviada com sucesso!');
+    } catch (error) {
+      console.error(error);
+      toast.dismiss(loadingToast);
+      toast.error('Erro ao enviar foto do kit.');
     } finally {
       setIsUploading(false);
     }
@@ -681,7 +788,7 @@ export default function Accessories() {
                 {isManager && (
                   <Button size="sm" onClick={() => {
                     setEditingKit(null);
-                    setKitForm({ code: '', description: '', items: [] });
+                    setKitForm({ code: '', description: '', items: [], photo_url: '' });
                     setIsKitModalOpen(true);
                   }} className="h-8 gap-1 bg-blue-600 hover:bg-blue-700">
                     <Plus className="h-4 w-4" /> Novo Kit
@@ -715,12 +822,76 @@ export default function Accessories() {
                         onClick={() => setSelectedKit(kit)}
                       >
                         <div className="flex items-start justify-between gap-2 md:gap-4">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-0.5 md:mb-1">
-                              <span className="text-xs md:text-sm font-mono font-bold text-blue-500">{kit.code}</span>
-                              {selectedKit?.code === kit.code && <Check className="h-3 w-3 text-blue-500" />}
+                          <div className="flex items-start gap-3 flex-1 min-w-0">
+                            {/* Photo Thumbnail */}
+                            {kit.photo_url ? (
+                              <Dialog>
+                                <DialogTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                  <div className="h-12 w-12 rounded-lg bg-slate-100 dark:bg-slate-800 overflow-hidden cursor-pointer border border-border hover:border-blue-500/50 shadow-sm hover:shadow transition-all shrink-0 flex items-center justify-center relative group">
+                                    <img src={getDisplayImageUrl(kit.photo_url)} alt={kit.description} className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-110" referrerPolicy="no-referrer" />
+                                    <div className="absolute inset-x-0 bottom-0 bg-black/60 py-0.5 text-[8px] text-white text-center font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                                      Ver Foto
+                                    </div>
+                                  </div>
+                                </DialogTrigger>
+                                <DialogContent className="sm:max-w-[550px] p-0 overflow-hidden bg-card border-border">
+                                  <DialogHeader className="p-4 border-b border-border bg-muted/20">
+                                    <DialogTitle className="text-base font-bold text-foreground">{kit.description}</DialogTitle>
+                                    <DialogDescription className="font-mono text-xs text-blue-500 font-semibold">{kit.code}</DialogDescription>
+                                  </DialogHeader>
+                                  <div className="aspect-[4/3] bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-4">
+                                    <img src={getDisplayImageUrl(kit.photo_url)} alt={kit.description} className="max-w-full max-h-full object-contain rounded-lg shadow-md" referrerPolicy="no-referrer" />
+                                  </div>
+                                  <div className="p-4 border-t border-border bg-muted/10 flex flex-col sm:flex-row gap-2 justify-end">
+                                    <Button 
+                                      type="button"
+                                      variant="outline" 
+                                      size="sm" 
+                                      className="text-xs font-medium gap-1.5"
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(getAbsoluteImageUrl(kit.photo_url) || '');
+                                        toast.success('Link da foto copiado!');
+                                      }}
+                                    >
+                                      <Copy className="h-3.5 w-3.5" /> Copiar Link
+                                    </Button>
+                                    <Button 
+                                      type="button"
+                                      variant="default" 
+                                      size="sm" 
+                                      className="text-xs font-bold bg-green-600 hover:bg-green-700 hover:text-white text-white gap-1.5"
+                                      onClick={() => {
+                                        const text = `Confira o Kit de Instalação da Roder: *${kit.description}* (Cód. ${kit.code})\n\nFoto do kit: ${getAbsoluteImageUrl(kit.photo_url)}`;
+                                        window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+                                      }}
+                                    >
+                                      <Share2 className="h-3.5 w-3.5" /> Enviar pelo WhatsApp
+                                    </Button>
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
+                            ) : (
+                              <div 
+                                className="h-12 w-12 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center shrink-0 text-slate-400 cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-800/50"
+                                onClick={(e) => {
+                                  if (isManager) {
+                                    e.stopPropagation();
+                                    handleManualKitEdit(kit);
+                                  }
+                                }}
+                                title={isManager ? "Clique para adicionar uma foto" : undefined}
+                              >
+                                <Image className="h-5 w-5 opacity-40 hover:opacity-70 transition-opacity" />
+                              </div>
+                            )}
+
+                            <div className="flex-1 min-w-0" onClick={() => setSelectedKit(kit)}>
+                              <div className="flex items-center gap-2 mb-0.5 md:mb-1">
+                                <span className="text-xs md:text-sm font-mono font-bold text-blue-500">{kit.code}</span>
+                                {selectedKit?.code === kit.code && <Check className="h-3 w-3 text-blue-500" />}
+                              </div>
+                              <p className="text-xs md:text-sm font-bold text-foreground leading-tight">{kit.description}</p>
                             </div>
-                            <p className="text-xs md:text-sm font-bold text-foreground leading-tight">{kit.description}</p>
                           </div>
                           <div className="flex items-center gap-2">
                             {isManager && (
@@ -1013,6 +1184,43 @@ export default function Accessories() {
               </div>
             </div>
 
+            <div className="space-y-2">
+              <Label>Foto do Kit (Opcional)</Label>
+              <div className="flex gap-2 items-center">
+                <Input 
+                  placeholder="URL da Foto do Kit" 
+                  value={kitForm.photo_url || ''} 
+                  onChange={e => setKitForm({...kitForm, photo_url: e.target.value})} 
+                  className="flex-1"
+                />
+                <div className="relative">
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    className="absolute inset-0 opacity-0 cursor-pointer" 
+                    onChange={handleKitFileUpload}
+                    disabled={isUploading}
+                  />
+                  <Button variant="outline" size="icon" disabled={isUploading}>
+                    {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                  </Button>
+                </div>
+                {kitForm.photo_url && (
+                  <div className="h-10 w-10 rounded border border-border overflow-hidden relative group shrink-0">
+                    <img src={getDisplayImageUrl(kitForm.photo_url)} alt="Miniatura" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                    <button 
+                      type="button" 
+                      onClick={() => setKitForm({...kitForm, photo_url: ''})}
+                      className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white text-[10px] font-bold"
+                    >
+                      Remover
+                    </button>
+                  </div>
+                )}
+              </div>
+              <p className="text-[10px] text-muted-foreground">Envie uma foto ou insira um link. A foto facilitará o envio pelo WhatsApp.</p>
+            </div>
+
             {!editingKit && (
               <div className="space-y-2">
                 <Label>Importação Rápida (Texto da Planilha / PDF)</Label>
@@ -1128,11 +1336,11 @@ function AccessoryItem({ label, code, onCopy, isCopied, photoUrl }: { label: str
           <Dialog>
             <DialogTrigger asChild>
               <div className="h-8 w-8 md:h-10 md:w-10 rounded bg-muted overflow-hidden cursor-pointer border border-border hover:border-primary/50 transition-all">
-                <img src={photoUrl} alt={label} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                <img src={getDisplayImageUrl(photoUrl)} alt={label} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
               </div>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden">
-              <img src={photoUrl} alt={label} className="w-full h-auto" referrerPolicy="no-referrer" />
+              <img src={getDisplayImageUrl(photoUrl)} alt={label} className="w-full h-auto" referrerPolicy="no-referrer" />
             </DialogContent>
           </Dialog>
         ) : (
