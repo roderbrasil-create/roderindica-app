@@ -209,7 +209,7 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
     },
     triagem: {
       sidebar: ['dashboard', 'catalog', 'products_stock', 'products_registered', 'accessories', 'my_sales', 'triagem', 'comercial', 'fairs', 'endomarketing', 'users', 'profile'],
-      dashboard: ['stats', 'funnel', 'recent_indications', 'active_reservations', 'equipment_banner', 'quick_actions', 'fairs_summary']
+      dashboard: ['stats', 'funnel', 'recent_indications', 'active_reservations', 'equipment_banner', 'fairs_summary']
     },
     manager: {
       sidebar: ['dashboard', 'new_indication', 'fairs', 'endomarketing', 'finance', 'my_sales', 'catalog', 'products_stock', 'products_registered', 'accessories', 'triagem', 'comercial', 'users', 'reports', 'profile'],
@@ -221,7 +221,7 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
     },
     marketing: {
       sidebar: ['dashboard', 'catalog', 'products_stock', 'products_registered', 'accessories', 'fairs', 'endomarketing', 'comercial', 'configurations', 'profile'],
-      dashboard: ['stats', 'funnel', 'recent_indications', 'equipment_banner', 'quick_actions', 'fairs_summary']
+      dashboard: ['stats', 'funnel', 'recent_indications', 'equipment_banner', 'fairs_summary']
     },
     admin: {
       sidebar: sidebarItems.map(i => i.id),

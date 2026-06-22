@@ -33,7 +33,11 @@ import {
   YAxis, 
   CartesianGrid, 
   Tooltip, 
-  Legend 
+  Legend,
+  BarChart,
+  Bar,
+  AreaChart,
+  Area
 } from 'recharts';
 import { 
   Upload, 
@@ -289,18 +293,24 @@ export default function FinanceDashboard() {
       const pdfHeight = pdf.internal.pageSize.getHeight();
 
       // PAGE 1
+      pdf.setFillColor(9, 9, 11); // solid #09090b
+      pdf.rect(0, 0, pdfWidth, pdfHeight, 'F');
       const props1 = pdf.getImageProperties(img1);
       const h1 = (props1.height * pdfWidth) / props1.width;
       pdf.addImage(img1, 'PNG', 0, 0, pdfWidth, Math.min(h1, pdfHeight));
 
       // PAGE 2
       pdf.addPage();
+      pdf.setFillColor(9, 9, 11); // solid #09090b
+      pdf.rect(0, 0, pdfWidth, pdfHeight, 'F');
       const props2 = pdf.getImageProperties(img2);
       const h2 = (props2.height * pdfWidth) / props2.width;
       pdf.addImage(img2, 'PNG', 0, 0, pdfWidth, Math.min(h2, pdfHeight));
 
       // PAGE 3
       pdf.addPage();
+      pdf.setFillColor(9, 9, 11); // solid #09090b
+      pdf.rect(0, 0, pdfWidth, pdfHeight, 'F');
       const props3 = pdf.getImageProperties(img3);
       const h3 = (props3.height * pdfWidth) / props3.width;
       pdf.addImage(img3, 'PNG', 0, 0, pdfWidth, Math.min(h3, pdfHeight));
@@ -545,6 +555,225 @@ export default function FinanceDashboard() {
       };
     });
   }, [history, selectedMonth, selectedEntity]);
+
+  // 2026 Target Tracking variables
+  const targetTrackerData = React.useMemo(() => {
+    if (history.length === 0) return [];
+    const selectedMonthDoc = history.find(m => m.monthId === selectedMonth);
+    const targetYear = selectedMonthDoc?.year || 2026;
+    
+    // Set annual and monthly targets based on the active selectedEntity
+    let ANNUAL_TARGET = 30000000;
+    if (selectedEntity === 'matriz') {
+      ANNUAL_TARGET = 25200000;
+    } else if (selectedEntity === 'filial') {
+      ANNUAL_TARGET = 4800000;
+    }
+    const MONTHLY_TARGET = ANNUAL_TARGET / 12;
+
+    const monthsNames = [
+      "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", 
+      "Jul", "Ago", "Set", "Out", "Nov", "Dez"
+    ];
+
+    let cumulativeActual = 0;
+    let cumulativeTarget = 0;
+
+    return monthsNames.map((name, index) => {
+      const monthNum = index + 1;
+      const monthStr = monthNum < 10 ? `0${monthNum}` : `${monthNum}`;
+      const monthId = `${targetYear}-${monthStr}`;
+      
+      const recordedDoc = history.find(h => h.monthId === monthId);
+      const actualFaturamento = recordedDoc ? ((recordedDoc[selectedEntity] as any)?.faturamento || 0) : 0;
+      
+      const reached = actualFaturamento;
+      const missed = Math.max(0, MONTHLY_TARGET - reached);
+      const percentAchieved = MONTHLY_TARGET > 0 ? (reached / MONTHLY_TARGET) * 100 : 0;
+      const exists = !!recordedDoc;
+
+      cumulativeTarget += MONTHLY_TARGET;
+      if (exists) {
+        cumulativeActual += reached;
+      }
+
+      return {
+        monthNum,
+        monthName: name,
+        monthId,
+        reached,
+        missed,
+        target: MONTHLY_TARGET,
+        percentAchieved,
+        exists,
+        cumulativeActual: exists ? cumulativeActual : null,
+        cumulativeTarget
+      };
+    });
+  }, [history, selectedMonth, selectedEntity]);
+
+  // Computing summary metrics for 2026 goals
+  const targetSummary = React.useMemo(() => {
+    const selectedMonthDoc = history.find(m => m.monthId === selectedMonth);
+    const targetYear = selectedMonthDoc?.year || 2026;
+    
+    // Set annual and monthly targets based on the active selectedEntity
+    let ANNUAL_TARGET = 30000000;
+    if (selectedEntity === 'matriz') {
+      ANNUAL_TARGET = 25200000;
+    } else if (selectedEntity === 'filial') {
+      ANNUAL_TARGET = 4800000;
+    }
+    const MONTHLY_TARGET = ANNUAL_TARGET / 12;
+
+    const targetMonths = history.filter(h => h.year === targetYear);
+    const totalAchieved = targetMonths.reduce((sum, h) => sum + ((h[selectedEntity] as any)?.faturamento || 0), 0);
+    const totalTargetSoFar = targetMonths.length * MONTHLY_TARGET;
+    const percentCompleted = ANNUAL_TARGET > 0 ? (totalAchieved / ANNUAL_TARGET) * 100 : 0;
+    const isOnTrack = totalAchieved >= totalTargetSoFar;
+    const totalMissed = Math.max(0, ANNUAL_TARGET - totalAchieved);
+
+    const monthsUploadedCount = targetMonths.length;
+    const monthsRemaining = Math.max(0, 12 - monthsUploadedCount);
+    const rateRequired = monthsRemaining > 0 ? totalMissed / monthsRemaining : 0;
+
+    return {
+      targetYear,
+      annualTarget: ANNUAL_TARGET,
+      monthlyTarget: MONTHLY_TARGET,
+      totalAchieved,
+      totalTargetSoFar,
+      percentCompleted,
+      isOnTrack,
+      totalMissed,
+      monthsUploadedCount,
+      monthsRemaining,
+      rateRequired
+    };
+  }, [history, selectedMonth, selectedEntity]);
+
+  // Computing faturamento target values for Matriz, Filial, and Consolidado simultaneously
+  const goalsTrackerData = React.useMemo(() => {
+    const targetYear = 2026;
+    const monthsNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    
+    // Monthly Targets
+    const MATRIZ_MONTHLY_TARGET = 2100000; // 2.1M
+    const FILIAL_MONTHLY_TARGET = 400000;   // 400k
+    const CONSOLIDATED_MONTHLY_TARGET = 2500000; // 2.5M
+
+    let accMatriz = 0;
+    let accFilial = 0;
+    let accConsolidated = 0;
+
+    return monthsNames.map((name, index) => {
+      const monthNum = index + 1;
+      const monthStr = monthNum < 10 ? `0${monthNum}` : `${monthNum}`;
+      const monthId = `${targetYear}-${monthStr}`;
+      
+      const doc = history.find(h => h.monthId === monthId);
+      const exists = !!doc;
+
+      const matrizFat = doc ? ((doc.matriz as any)?.faturamento || 0) : 0;
+      const filialFat = doc ? ((doc.filial as any)?.faturamento || 0) : 0;
+      const consolidatedFat = doc ? ((doc.consolidado as any)?.faturamento || 0) : 0;
+
+      if (exists) {
+        accMatriz += matrizFat;
+        accFilial += filialFat;
+        accConsolidated += consolidatedFat;
+      }
+
+      return {
+        monthNum,
+        monthName: name,
+        monthId,
+        exists,
+        // Matriz Faturamento
+        matrizReal: matrizFat,
+        matrizTarget: MATRIZ_MONTHLY_TARGET,
+        matrizCumReal: exists ? accMatriz : null,
+        matrizCumTarget: (index + 1) * MATRIZ_MONTHLY_TARGET,
+        // Filial Faturamento
+        filialReal: filialFat,
+        filialTarget: FILIAL_MONTHLY_TARGET,
+        filialCumReal: exists ? accFilial : null,
+        filialCumTarget: (index + 1) * FILIAL_MONTHLY_TARGET,
+        // Consolidated Faturamento
+        consolidatedReal: consolidatedFat,
+        consolidatedTarget: CONSOLIDATED_MONTHLY_TARGET,
+        consolidatedCumReal: exists ? accConsolidated : null,
+        consolidatedCumTarget: (index + 1) * CONSOLIDATED_MONTHLY_TARGET,
+      };
+    });
+  }, [history]);
+
+  const goalsSummaries = React.useMemo(() => {
+    const targetYear = 2026;
+    const targetMonths = history.filter(h => h.year === targetYear);
+    const monthsUploadedCount = targetMonths.length;
+    const monthsRemaining = Math.max(0, 12 - monthsUploadedCount);
+
+    // Matriz (Target: 2.1M monthly, 25.2M annual)
+    const matrizAnnualTarget = 25200000;
+    const matrizMonthlyTarget = 2100000;
+    const matrizAchieved = targetMonths.reduce((sum, h) => sum + ((h.matriz as any)?.faturamento || 0), 0);
+    const matrizPercent = matrizAnnualTarget > 0 ? (matrizAchieved / matrizAnnualTarget) * 100 : 0;
+    const matrizMissed = Math.max(0, matrizAnnualTarget - matrizAchieved);
+    const matrizOnTrack = matrizAchieved >= (monthsUploadedCount * matrizMonthlyTarget);
+    const matrizRateRequired = monthsRemaining > 0 ? matrizMissed / monthsRemaining : 0;
+
+    // Filial (Target: 400k monthly, 4.8M annual)
+    const filialAnnualTarget = 4800000;
+    const filialMonthlyTarget = 400000;
+    const filialAchieved = targetMonths.reduce((sum, h) => sum + ((h.filial as any)?.faturamento || 0), 0);
+    const filialPercent = filialAnnualTarget > 0 ? (filialAchieved / filialAnnualTarget) * 100 : 0;
+    const filialMissed = Math.max(0, filialAnnualTarget - filialAchieved);
+    const filialOnTrack = filialAchieved >= (monthsUploadedCount * filialMonthlyTarget);
+    const filialRateRequired = monthsRemaining > 0 ? filialMissed / monthsRemaining : 0;
+
+    // Consolidated (Target: 2.5M monthly, 30M annual)
+    const consolidatedAnnualTarget = 30000000;
+    const consolidatedMonthlyTarget = 2500000;
+    const consolidatedAchieved = targetMonths.reduce((sum, h) => sum + ((h.consolidado as any)?.faturamento || 0), 0);
+    const consolidatedPercent = consolidatedAnnualTarget > 0 ? (consolidatedAchieved / consolidatedAnnualTarget) * 100 : 0;
+    const consolidatedMissed = Math.max(0, consolidatedAnnualTarget - consolidatedAchieved);
+    const consolidatedOnTrack = consolidatedAchieved >= (monthsUploadedCount * consolidatedMonthlyTarget);
+    const consolidatedRateRequired = monthsRemaining > 0 ? consolidatedMissed / monthsRemaining : 0;
+
+    return {
+      targetYear,
+      monthsUploadedCount,
+      monthsRemaining,
+      matriz: {
+        annualTarget: matrizAnnualTarget,
+        monthlyTarget: matrizMonthlyTarget,
+        achieved: matrizAchieved,
+        percent: matrizPercent,
+        missed: matrizMissed,
+        isOnTrack: matrizOnTrack,
+        rateRequired: matrizRateRequired,
+      },
+      filial: {
+        annualTarget: filialAnnualTarget,
+        monthlyTarget: filialMonthlyTarget,
+        achieved: filialAchieved,
+        percent: filialPercent,
+        missed: filialMissed,
+        isOnTrack: filialOnTrack,
+        rateRequired: filialRateRequired,
+      },
+      consolidado: {
+        annualTarget: consolidatedAnnualTarget,
+        monthlyTarget: consolidatedMonthlyTarget,
+        achieved: consolidatedAchieved,
+        percent: consolidatedPercent,
+        missed: consolidatedMissed,
+        isOnTrack: consolidatedOnTrack,
+        rateRequired: consolidatedRateRequired,
+      }
+    };
+  }, [history]);
 
   return (
     <div className="space-y-6">
@@ -903,6 +1132,188 @@ export default function FinanceDashboard() {
 
       </div>
 
+      {/* Painel de Metas de Faturamento 2026 (Matriz vs Filial) */}
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-border/50 pb-2 gap-2">
+          <div className="flex items-center gap-2">
+            <Award className="h-5 w-5 text-emerald-400" />
+            <h3 className="text-sm font-bold text-foreground">Acompanhamento e Monitoramento de Metas de Faturamento {goalsSummaries.targetYear}</h3>
+          </div>
+          <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[10px] font-bold">
+            Meta 2026: R$ 30M Consolidado (R$ 2.5M/Mês)
+          </Badge>
+        </div>
+
+        {/* 3 Metric cards representing Consolidated, Matriz, and Filial progress side-by-side */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          
+          {/* Card 1: Consolidado */}
+          <Card className="bg-[#121214]/40 border border-emerald-500/20">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest flex items-center gap-1.5">
+                  <FileCheck2 className="h-4 w-4" /> Roder Consolidado
+                </span>
+                <Badge variant="outline" className={goalsSummaries.consolidado.isOnTrack ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[9px] font-bold" : "bg-rose-500/10 text-rose-400 border-rose-500/20 text-[9px] font-bold"}>
+                  {goalsSummaries.consolidado.isOnTrack ? "No Caminho Certo" : "Abaixo da Meta"}
+                </Badge>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-baseline justify-between text-xs">
+                  <span className="text-[10px] text-zinc-400">Meta Mensal / Anual:</span>
+                  <span className="font-extrabold text-zinc-200 font-mono">R$ 2,5M / R$ 30,0M</span>
+                </div>
+                <div>
+                  <div className="flex justify-between text-xs font-bold mb-1">
+                    <span className="text-zinc-300">Atingido YTD: R$ {goalsSummaries.consolidado.achieved.toLocaleString('pt-BR')}</span>
+                    <span className="text-emerald-400">{goalsSummaries.consolidado.percent.toFixed(1)}%</span>
+                  </div>
+                  <div className="w-full bg-zinc-805 rounded-full h-1.5 overflow-hidden">
+                    <div className="bg-emerald-500 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, goalsSummaries.consolidado.percent)}%` }} />
+                  </div>
+                </div>
+                <div className="flex justify-between text-[10px] text-zinc-400 mt-1">
+                  <span>Falta: R$ {goalsSummaries.consolidado.missed.toLocaleString('pt-BR')}</span>
+                  {goalsSummaries.monthsRemaining > 0 && (
+                    <span>Meta Residual: R$ {goalsSummaries.consolidado.rateRequired.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}/mês</span>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card 2: Matriz */}
+          <Card className="bg-[#121214]/40 border border-sky-500/20">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-sky-400 uppercase tracking-widest flex items-center gap-1.5">
+                  <Building2 className="h-4 w-4 animate-pulse" /> Roder Matriz
+                </span>
+                <Badge variant="outline" className={goalsSummaries.matriz.isOnTrack ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[9px] font-bold" : "bg-rose-500/10 text-rose-400 border-rose-500/20 text-[9px] font-bold"}>
+                  {goalsSummaries.matriz.isOnTrack ? "No Caminho Certo" : "Abaixo da Meta"}
+                </Badge>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-baseline justify-between text-xs">
+                  <span className="text-[10px] text-zinc-400">Meta Mensal / Anual:</span>
+                  <span className="font-extrabold text-zinc-200 font-mono">R$ 2,1M / R$ 25,2M</span>
+                </div>
+                <div>
+                  <div className="flex justify-between text-xs font-bold mb-1">
+                    <span className="text-zinc-300">Atingido YTD: R$ {goalsSummaries.matriz.achieved.toLocaleString('pt-BR')}</span>
+                    <span className="text-sky-400">{goalsSummaries.matriz.percent.toFixed(1)}%</span>
+                  </div>
+                  <div className="w-full bg-zinc-850 rounded-full h-1.5 overflow-hidden">
+                    <div className="bg-sky-500 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, goalsSummaries.matriz.percent)}%` }} />
+                  </div>
+                </div>
+                <div className="flex justify-between text-[10px] text-zinc-400 mt-1">
+                  <span>Falta: R$ {goalsSummaries.matriz.missed.toLocaleString('pt-BR')}</span>
+                  {goalsSummaries.monthsRemaining > 0 && (
+                    <span>Meta Residual: R$ {goalsSummaries.matriz.rateRequired.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}/mês</span>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card 3: Filial */}
+          <Card className="bg-[#121214]/40 border border-amber-500/20">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-amber-500 uppercase tracking-widest flex items-center gap-1.5">
+                  <Building className="h-4 w-4" /> Filial Sinop
+                </span>
+                <Badge variant="outline" className={goalsSummaries.filial.isOnTrack ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[9px] font-bold" : "bg-rose-500/10 text-rose-400 border-rose-500/20 text-[9px] font-bold"}>
+                  {goalsSummaries.filial.isOnTrack ? "No Caminho Certo" : "Abaixo da Meta"}
+                </Badge>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-baseline justify-between text-xs">
+                  <span className="text-[10px] text-zinc-400">Meta Mensal / Anual:</span>
+                  <span className="font-extrabold text-zinc-200 font-mono">R$ 400k / R$ 4,8M</span>
+                </div>
+                <div>
+                  <div className="flex justify-between text-xs font-bold mb-1">
+                    <span className="text-zinc-300">Atingido YTD: R$ {goalsSummaries.filial.achieved.toLocaleString('pt-BR')}</span>
+                    <span className="text-amber-500">{goalsSummaries.filial.percent.toFixed(1)}%</span>
+                  </div>
+                  <div className="w-full bg-zinc-850 rounded-full h-1.5 overflow-hidden">
+                    <div className="bg-amber-500 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, goalsSummaries.filial.percent)}%` }} />
+                  </div>
+                </div>
+                <div className="flex justify-between text-[10px] text-zinc-400 mt-1">
+                  <span>Falta: R$ {goalsSummaries.filial.missed.toLocaleString('pt-BR')}</span>
+                  {goalsSummaries.monthsRemaining > 0 && (
+                    <span>Meta Residual: R$ {goalsSummaries.filial.rateRequired.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}/mês</span>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+        </div>
+
+        {/* 2 Dedicated charts representing monthly evolution of Matriz and Filial faturamento against their goals */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          
+          {/* Chart Matriz */}
+          <Card className="bg-card border border-border shadow-sm">
+            <CardHeader className="py-3 px-4 border-b border-border/40 flex flex-row items-center justify-between">
+              <CardTitle className="text-xs font-extrabold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <Building2 className="h-4 w-4 text-sky-400" /> Evolutivo de Faturamento Mensal - Matriz (Meta: R$ 2,1M/Mês)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-3">
+              <div className="h-[210px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={goalsTrackerData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" opacity={0.25} vertical={false} />
+                    <XAxis dataKey="monthName" stroke="#71717a" fontSize={10} tickLine={false} />
+                    <YAxis stroke="#71717a" fontSize={9} tickLine={false} axisLine={false} tickFormatter={(v) => `R$ ${(v / 1000000).toFixed(1)}M`} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '8px', fontSize: '10px' }}
+                      formatter={(v: any, name: any) => [`R$ ${Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`, name === 'matrizReal' ? 'Faturamento Matriz' : 'Meta Mensal Matriz']}
+                    />
+                    <Legend verticalAlign="top" height={24} iconType="rect" wrapperStyle={{ fontSize: '10px' }} />
+                    <Bar dataKey="matrizReal" name="Realizado" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+                    <Line type="monotone" dataKey="matrizTarget" name="Meta da Matriz (R$ 2,1M)" stroke="#f43f5e" strokeWidth={1.5} dot={false} strokeDasharray="3 3" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Chart Filial */}
+          <Card className="bg-card border border-border shadow-sm">
+            <CardHeader className="py-3 px-4 border-b border-border/40 flex flex-row items-center justify-between">
+              <CardTitle className="text-xs font-extrabold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <Building className="h-4 w-4 text-amber-500" /> Evolutivo de Faturamento Mensal - Filial Sinop (Meta: R$ 400k/Mês)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-3">
+              <div className="h-[210px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={goalsTrackerData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" opacity={0.25} vertical={false} />
+                    <XAxis dataKey="monthName" stroke="#71717a" fontSize={10} tickLine={false} />
+                    <YAxis stroke="#71717a" fontSize={9} tickLine={false} axisLine={false} tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '8px', fontSize: '10px' }}
+                      formatter={(v: any, name: any) => [`R$ ${Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`, name === 'filialReal' ? 'Faturamento Filial' : 'Meta Mensal Filial']}
+                    />
+                    <Legend verticalAlign="top" height={24} iconType="rect" wrapperStyle={{ fontSize: '10px' }} />
+                    <Bar dataKey="filialReal" name="Realizado" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                    <Line type="monotone" dataKey="filialTarget" name="Meta da Filial (R$ 400k)" stroke="#f43f5e" strokeWidth={1.5} dot={false} strokeDasharray="3 3" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+        </div>
+      </div>
+
       {/* Grid displays for active KPIs of Selected Period */}
       {currentMonthData ? (
         <div className="space-y-4">
@@ -997,318 +1408,490 @@ export default function FinanceDashboard() {
             <div className="print-report-container p-6 md:p-12 space-y-12 bg-[#09090b] text-zinc-100 min-h-full">
               
               {/* PAGE 1: Capa e Sumário de Fechamento */}
-              <div id="cfo-report-page-1" className="print-page-break space-y-8 bg-[#09090b] text-zinc-100 p-6 md:p-8 rounded-2xl border border-zinc-800/80 shadow-2xl">
-                {/* Header branding */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between border-b-2 border-emerald-500/20 pb-4 gap-4">
-                  <div>
-                    <h1 className="text-lg font-black tracking-widest text-emerald-400 font-sans uppercase">RODER BRASIL</h1>
-                    <p className="text-xs font-bold text-zinc-400 tracking-wider">DEMONSTRATIVO DE FECHAMENTO FINANCEIRO E FISCAL</p>
-                  </div>
-                  <div className="text-left md:text-right">
-                    <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 py-1 px-3 text-xs font-extrabold">
-                      Unidade: {selectedEntity.toUpperCase()}
-                    </Badge>
-                    <p className="text-[10px] text-zinc-500 mt-1 font-mono">Competência: {selectedMonth} • Gerado em: {new Date().toLocaleDateString('pt-BR')}</p>
-                  </div>
-                </div>
-
-                {/* Cover title banner */}
-                <div className="text-center py-6 border-b border-zinc-800/60 max-w-2xl mx-auto">
-                  <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Apresentação Estratégica do CFO</span>
-                  <h2 className="text-2xl font-black tracking-tight text-white mt-1 leading-tight">
-                    Análise Consolidada do Fechamento de Caixa e KPIs
-                  </h2>
-                </div>
-
-                {/* AI HEALTH BANNER */}
-                <div className="p-6 bg-zinc-900/80 border border-zinc-800 rounded-2xl space-y-4 shadow-lg relative overflow-hidden">
-                  <div className="absolute top-0 right-0 h-40 w-40 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
-                  
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 pb-3.5">
-                    <div className="flex items-center gap-2.5">
-                      <Award className="h-5.5 w-5.5 text-emerald-400" />
-                      <h3 className="font-extrabold text-sm text-zinc-100">Avaliação Geral de Saúde Econômica</h3>
-                    </div>
+              <div id="cfo-report-page-1" className="print-page-break flex flex-col justify-between min-h-[1350px] bg-[#09090b] text-zinc-100 p-8 rounded-2xl border border-zinc-800/80 shadow-2xl">
+                <div className="space-y-8">
+                  {/* Header branding */}
+                  <div className="flex flex-col md:flex-row md:items-center justify-between border-b-2 border-emerald-500/20 pb-4 gap-4">
                     <div>
-                      {diagnoseResult.financialHealth === 'Saudável' && (
-                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-xs font-extrabold text-emerald-400">
-                          <CheckCircle2 className="h-4 w-4" /> Saúde Financeira: Saudável
-                        </div>
-                      )}
-                      {diagnoseResult.financialHealth === 'Atenção' && (
-                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-xs font-extrabold text-amber-500">
-                          <AlertTriangle className="h-4 w-4" /> Saúde Financeira: Em Alerta
-                        </div>
-                      )}
-                      {diagnoseResult.financialHealth === 'Crítico' && (
-                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/30 text-xs font-extrabold text-rose-400">
-                          <AlertCircle className="h-4 w-4" /> Saúde Financeira: Crítico
-                        </div>
-                      )}
+                      <h1 className="text-lg font-black tracking-widest text-emerald-400 font-sans uppercase">RODER BRASIL</h1>
+                      <p className="text-xs font-bold text-zinc-400 tracking-wider">DEMONSTRATIVO DE FECHAMENTO FINANCEIRO E FISCAL</p>
+                    </div>
+                    <div className="text-left md:text-right">
+                      <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 py-1 px-3 text-xs font-extrabold font-mono">
+                        Unidade: {selectedEntity.toUpperCase()}
+                      </Badge>
+                      <p className="text-[10px] text-zinc-500 mt-1 font-mono">Competência: {selectedMonth} • Gerado em: {new Date().toLocaleDateString('pt-BR')}</p>
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <h4 className="font-black text-white text-base leading-snug">
-                      "{diagnoseResult.healthCheckTitle}"
-                    </h4>
-                    <p className="text-zinc-300 text-xs leading-relaxed font-medium">
-                      {diagnoseResult.summary}
+                  {/* Cover title banner */}
+                  <div className="text-center py-6 border-b border-zinc-800/60 max-w-2xl mx-auto">
+                    <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Apresentação Estratégica do CFO</span>
+                    <h2 className="text-2xl font-black tracking-tight text-white mt-1 leading-tight">
+                      Análise Consolidada do Fechamento de Caixa e KPIs
+                    </h2>
+                  </div>
+
+                  {/* AI HEALTH BANNER */}
+                  <div className="p-6 bg-zinc-900/80 border border-zinc-805 rounded-2xl space-y-4 shadow-lg relative overflow-hidden">
+                    <div className="absolute top-0 right-0 h-40 w-40 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+                    
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 pb-3.5">
+                      <div className="flex items-center gap-2.5">
+                        <Award className="h-5.5 w-5.5 text-emerald-400" />
+                        <h3 className="font-extrabold text-sm text-zinc-100">Avaliação Geral de Saúde Econômica</h3>
+                      </div>
+                      <div>
+                        {diagnoseResult.financialHealth === 'Saudável' && (
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-xs font-extrabold text-emerald-400">
+                            <CheckCircle2 className="h-4 w-4" /> Saúde Financeira: Saudável
+                          </div>
+                        )}
+                        {diagnoseResult.financialHealth === 'Atenção' && (
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-xs font-extrabold text-amber-500">
+                            <AlertTriangle className="h-4 w-4" /> Saúde Financeira: Em Alerta
+                          </div>
+                        )}
+                        {diagnoseResult.financialHealth === 'Crítico' && (
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/30 text-xs font-extrabold text-rose-400">
+                            <AlertCircle className="h-4 w-4" /> Saúde Financeira: Crítico
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <h4 className="font-black text-white text-base leading-snug">
+                        "{diagnoseResult.healthCheckTitle}"
+                      </h4>
+                      <p className="text-zinc-300 text-xs leading-relaxed font-medium">
+                        {diagnoseResult.summary}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Primary 4 Card Grid for High Impact Presentation */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-4">
+                    {['faturamento', 'receita_liquida', 'ebitda', 'resultado_liquido'].map(key => {
+                      const compMeta = comparisonIndicators.find(c => c.key === key);
+                      if (!compMeta) return null;
+                      const meta = KPI_METADATA[key];
+                      
+                      return (
+                        <div key={key} className="p-5 bg-[#121214] border border-zinc-800 rounded-xl flex flex-col justify-between space-y-3 shadow-md">
+                          <div className="flex items-center justify-between border-b border-zinc-800/30 pb-1.5">
+                            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest leading-none shrink-0">{meta.label}</span>
+                            <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: meta.color }} />
+                          </div>
+                          <div>
+                            <h5 className="text-base sm:text-md md:text-lg font-extrabold md:font-black text-white font-mono leading-snug tracking-tight break-all mt-1">
+                              {formatValue(compMeta.currentVal, key)}
+                            </h5>
+                            {compMeta.deltaPrev !== null && (
+                              <div className="flex items-center gap-1 text-[10px] mt-1 text-zinc-400">
+                                {compMeta.deltaPrev >= 0 ? (
+                                  <span className="font-extrabold text-emerald-400">▲ +{compMeta.deltaPrev.toFixed(1)}%</span>
+                                ) : (
+                                  <span className="font-extrabold text-rose-400">▼ {compMeta.deltaPrev.toFixed(1)}%</span>
+                                )}
+                                <span>vs mês anterior</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* PAGE 1 GRAPH: Chronological Evolution of Key CFO metrics */}
+                  {presentationChartData.length > 0 && (
+                    <div className="p-5 bg-zinc-950 border border-zinc-800 rounded-2xl space-y-4 mt-6 shadow-md">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[#27272a] pb-2.5 gap-2">
+                        <div className="flex items-center gap-2">
+                          <TrendingUp className="h-4.5 w-4.5 text-emerald-400" />
+                          <h4 className="font-extrabold text-xs text-zinc-100 tracking-wide uppercase">Tendência de Desempenho (Últimos 6 Meses)</h4>
+                        </div>
+                        <span className="text-[10px] text-zinc-400">Evolução do Faturamento, Receita, EBITDA e Lucro</span>
+                      </div>
+                      <div className="h-72 w-full pr-4 text-zinc-300">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={presentationChartData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#27272a" strokeOpacity={0.4} vertical={false} />
+                            <XAxis 
+                              dataKey="monthId" 
+                              stroke="#71717a" 
+                              fontSize={11}
+                              tickLine={false}
+                            />
+                            <YAxis 
+                              stroke="#71717a" 
+                              fontSize={11}
+                              tickLine={false}
+                              axisLine={false}
+                              tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`}
+                            />
+                            <Tooltip 
+                              contentStyle={{ 
+                                backgroundColor: '#09090b', 
+                                borderColor: '#27272a',
+                                color: '#ffffff',
+                                borderRadius: '8px',
+                                fontSize: '11px'
+                              }}
+                              formatter={(v: any) => [`R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, '']}
+                            />
+                            <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '11px' }} />
+                            <Line 
+                              type="monotone" 
+                              dataKey="Faturamento" 
+                              name="Faturamento"
+                              stroke="#10b981" 
+                              strokeWidth={3} 
+                              dot={{ r: 4, strokeWidth: 2 }} 
+                              activeDot={{ r: 6 }} 
+                            />
+                            <Line 
+                              type="monotone" 
+                              dataKey="Receita Líquida" 
+                              name="Receita Líquida"
+                              stroke="#0ea5e9" 
+                              strokeWidth={2.5} 
+                              dot={{ r: 3 }} 
+                            />
+                            <Line 
+                              type="monotone" 
+                              dataKey="EBITDA" 
+                              name="EBITDA"
+                              stroke="#f59e0b" 
+                              strokeWidth={2.5} 
+                              dot={{ r: 3 }} 
+                            />
+                            <Line 
+                              type="monotone" 
+                              dataKey="Resultado Líquido" 
+                              name="Resultado Líquido"
+                              stroke="#f43f5e" 
+                              strokeWidth={3} 
+                              strokeDasharray="4 4"
+                              dot={{ r: 4 }} 
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="text-[10px] text-zinc-500 font-mono text-center pt-4 border-t border-zinc-900 mt-4 flex justify-between">
+                  <span>RODER BRASIL • Relatório CFO Executivo</span>
+                  <span>Página 1 de 3</span>
+                </div>
+              </div>
+
+              {/* PAGE 2: Monitoramento de Metas de Faturamento 2026 */}
+              <div id="cfo-report-page-2" className="print-page-break flex flex-col justify-between min-h-[1350px] bg-[#09090b] text-zinc-100 p-8 rounded-2xl border border-zinc-800/80 shadow-2xl mt-8">
+                <div className="space-y-6">
+                  {/* Title Header */}
+                  <div className="flex items-center justify-between border-b border-zinc-800 pb-3 gap-2">
+                    <div className="flex items-center gap-2">
+                      <Award className="h-5 w-5 text-emerald-400" />
+                      <h3 className="font-black text-sm text-white tracking-tight uppercase">Monitoramento Especial de Faturamento e Metas {goalsSummaries.targetYear}</h3>
+                    </div>
+                    <span className="text-[10px] text-emerald-400 font-extrabold bg-emerald-400/10 px-2 py-0.5 rounded border border-emerald-500/20 uppercase">Meta Global: R$ 30M/ano</span>
+                  </div>
+ 
+                  {/* High Level Math Breakdown Row */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Consolidado */}
+                    <div className="bg-[#121214] border border-zinc-800 rounded-xl p-4 flex flex-col justify-between space-y-2 shadow-sm">
+                      <div className="flex items-center justify-between border-b border-zinc-800 pb-1">
+                        <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest">Consolidado Roder</span>
+                        <span className="text-[9px] text-zinc-500">YTD ({goalsSummaries.targetYear})</span>
+                      </div>
+                      <div>
+                        <h4 className="text-md font-extrabold font-mono text-emerald-400">R$ {goalsSummaries.consolidado.achieved.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</h4>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <span className="text-xs font-bold text-zinc-300">{goalsSummaries.consolidado.percent.toFixed(1)}%</span>
+                          <div className="w-full bg-zinc-805 rounded-full h-1 overflow-hidden font-bold">
+                            <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${Math.min(100, goalsSummaries.consolidado.percent)}%` }} />
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-[9px] text-zinc-500">Meta: R$ 2,5M / R$ 30,0M ano</p>
+                    </div>
+
+                    {/* Matriz */}
+                    <div className="bg-[#121214] border border-zinc-800 rounded-xl p-4 flex flex-col justify-between space-y-2 shadow-sm">
+                      <div className="flex items-center justify-between border-b border-zinc-800 pb-1">
+                        <span className="text-[9px] font-bold text-sky-400 uppercase tracking-widest">Roder Matriz</span>
+                        <span className="text-[9px] text-zinc-500">YTD ({goalsSummaries.targetYear})</span>
+                      </div>
+                      <div>
+                        <h4 className="text-md font-extrabold font-mono text-sky-400">R$ {goalsSummaries.matriz.achieved.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</h4>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <span className="text-xs font-bold text-zinc-300">{goalsSummaries.matriz.percent.toFixed(1)}%</span>
+                          <div className="w-full bg-zinc-850 rounded-full h-1 overflow-hidden font-bold">
+                            <div className="bg-sky-500 h-full rounded-full" style={{ width: `${Math.min(100, goalsSummaries.matriz.percent)}%` }} />
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-[9px] text-zinc-500">Meta: R$ 2,1M / R$ 25,2M ano</p>
+                    </div>
+
+                    {/* Filial */}
+                    <div className="bg-[#121214] border border-zinc-800 rounded-xl p-4 flex flex-col justify-between space-y-2 shadow-sm">
+                      <div className="flex items-center justify-between border-b border-zinc-800 pb-1">
+                        <span className="text-[9px] font-bold text-amber-500 uppercase tracking-widest">Filial Sinop</span>
+                        <span className="text-[9px] text-zinc-500">YTD ({goalsSummaries.targetYear})</span>
+                      </div>
+                      <div>
+                        <h4 className="text-md font-extrabold font-mono text-amber-500">R$ {goalsSummaries.filial.achieved.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</h4>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <span className="text-xs font-bold text-zinc-300">{goalsSummaries.filial.percent.toFixed(1)}%</span>
+                          <div className="w-full bg-zinc-850 rounded-full h-1 overflow-hidden font-bold">
+                            <div className="bg-amber-500 h-full rounded-full" style={{ width: `${Math.min(100, goalsSummaries.filial.percent)}%` }} />
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-[9px] text-zinc-500">Meta: R$ 400k / R$ 4,8M ano</p>
+                    </div>
+                  </div>
+ 
+                  {/* Math text insight */}
+                  <div className="p-4 bg-zinc-900/40 border border-zinc-800 rounded-xl text-xs leading-relaxed text-zinc-300">
+                    <p>
+                      <strong>Diagnóstico de Trajetória Consolidada (Matriz vs Filial):</strong> O faturamento corporativo no ano soma R$ {goalsSummaries.consolidado.achieved.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ({goalsSummaries.consolidado.percent.toFixed(1)}% da meta anual global). Desse montante, a Matriz foi responsável pelo faturamento de R$ {goalsSummaries.matriz.achieved.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (meta de R$ 2.100.000,00/mês), e a Filial Sinop pelo faturamento de R$ {goalsSummaries.filial.achieved.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (meta de R$ 400.000,00/mês). Isso demonstra o posicionamento de cada unidade produtiva para a realização do plano estratégico plurianual da Roder.
                     </p>
                   </div>
-                </div>
-
-                {/* Primary 4 Card Grid for High Impact Presentation */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-4">
-                  {['faturamento', 'receita_liquida', 'ebitda', 'resultado_liquido'].map(key => {
-                    const compMeta = comparisonIndicators.find(c => c.key === key);
-                    if (!compMeta) return null;
-                    const meta = KPI_METADATA[key];
-                    
-                    return (
-                      <div key={key} className="p-5 bg-[#121214] border border-zinc-800 rounded-xl flex flex-col justify-between space-y-3 shadow-md">
-                        <div className="flex items-center justify-between border-b border-zinc-800/30 pb-1.5">
-                          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest leading-none shrink-0">{meta.label}</span>
-                          <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: meta.color }} />
-                        </div>
-                        <div>
-                          <h5 className="text-base sm:text-md md:text-lg font-extrabold md:font-black text-white font-mono leading-snug tracking-tight break-all mt-1">
-                            {formatValue(compMeta.currentVal, key)}
-                          </h5>
-                          {compMeta.deltaPrev !== null && (
-                            <div className="flex items-center gap-1 text-[10px] mt-1 text-zinc-400">
-                              {compMeta.deltaPrev >= 0 ? (
-                                <span className="font-extrabold text-emerald-400">▲ +{compMeta.deltaPrev.toFixed(1)}%</span>
-                              ) : (
-                                <span className="font-extrabold text-rose-400">▼ {compMeta.deltaPrev.toFixed(1)}%</span>
-                              )}
-                              <span>vs mês anterior</span>
-                            </div>
-                          )}
-                        </div>
+ 
+                  {/* Two Graphs Grid Side-by-Side */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                    {/* Graph 1: Matriz */}
+                    <div className="p-4 bg-zinc-950 border border-zinc-850 rounded-2xl space-y-3 shadow-md">
+                      <div className="flex items-center gap-1.5 border-b border-[#27272a] pb-2 text-zinc-200">
+                        <Building2 className="h-4 w-4 text-sky-400" />
+                        <h4 className="font-extrabold text-xs text-zinc-100 uppercase">Faturamento Mensal da Matriz (Meta: R$ 2.1M)</h4>
                       </div>
-                    );
-                  })}
-                </div>
-
-                {/* PAGE 1 GRAPH: Chronological Evolution of Key CFO metrics */}
-                {presentationChartData.length > 0 && (
-                  <div className="p-5 bg-zinc-950 border border-zinc-805/80 rounded-2xl space-y-4 mt-6 shadow-md">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-zinc-800/40 pb-2.5 gap-2">
-                      <div className="flex items-center gap-2">
-                        <TrendingUp className="h-4.5 w-4.5 text-emerald-400" />
-                        <h4 className="font-extrabold text-xs text-zinc-100 tracking-wide uppercase">Tendência de Desempenho (Últimos 6 Meses)</h4>
+                      <div className="h-60 w-full pr-4 text-zinc-300">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={goalsTrackerData} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#27272a" strokeOpacity={0.3} vertical={false} />
+                            <XAxis dataKey="monthName" stroke="#71717a" fontSize={10} tickLine={false} />
+                            <YAxis stroke="#71717a" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`} />
+                            <Tooltip
+                              contentStyle={{ backgroundColor: '#09090b', borderColor: '#27272a', color: '#ffffff', borderRadius: '8px', fontSize: '11px' }}
+                              formatter={(value) => `R$ ${Number(value).toLocaleString('pt-BR')}`}
+                            />
+                            <Legend verticalAlign="top" height={24} iconType="rect" wrapperStyle={{ fontSize: '10px' }} />
+                            <Bar dataKey="matrizReal" name="Faturamento Realizado" fill="#0ea5e9" />
+                            <Line type="monotone" dataKey="matrizTarget" name="Meta Matriz (R$ 2.1M)" stroke="#f43f5e" strokeWidth={1.5} dot={false} strokeDasharray="3 3" />
+                          </BarChart>
+                        </ResponsiveContainer>
                       </div>
-                      <span className="text-[10px] text-zinc-400">Evolução do Faturamento, Receita, EBITDA e Lucro</span>
                     </div>
-                    <div className="h-80 w-full pr-4 text-zinc-300">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={presentationChartData}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#27272a" strokeOpacity={0.4} vertical={false} />
-                          <XAxis 
-                            dataKey="monthId" 
-                            stroke="#71717a" 
-                            fontSize={11}
-                            tickLine={false}
-                          />
-                          <YAxis 
-                            stroke="#71717a" 
-                            fontSize={11}
-                            tickLine={false}
-                            axisLine={false}
-                            tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`}
-                          />
-                          <Tooltip 
-                            contentStyle={{ 
-                              backgroundColor: '#09090b', 
-                              borderColor: '#27272a',
-                              color: '#ffffff',
-                              borderRadius: '8px',
-                              fontSize: '11px'
-                            }}
-                            formatter={(v: any) => [`R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, '']}
-                          />
-                          <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '11px' }} />
-                          <Line 
-                            type="monotone" 
-                            dataKey="Faturamento" 
-                            name="Faturamento"
-                            stroke="#10b981" 
-                            strokeWidth={3} 
-                            dot={{ r: 4, strokeWidth: 2 }} 
-                            activeDot={{ r: 6 }} 
-                          />
-                          <Line 
-                            type="monotone" 
-                            dataKey="Receita Líquida" 
-                            name="Receita Líquida"
-                            stroke="#0ea5e9" 
-                            strokeWidth={2.5} 
-                            dot={{ r: 3 }} 
-                          />
-                          <Line 
-                            type="monotone" 
-                            dataKey="EBITDA" 
-                            name="EBITDA"
-                            stroke="#f59e0b" 
-                            strokeWidth={2.5} 
-                            dot={{ r: 3 }} 
-                          />
-                          <Line 
-                            type="monotone" 
-                            dataKey="Resultado Líquido" 
-                            name="Resultado Líquido"
-                            stroke="#f43f5e" 
-                            strokeWidth={3} 
-                            strokeDasharray="4 4"
-                            dot={{ r: 4 }} 
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
+ 
+                    {/* Graph 2: Filial */}
+                    <div className="p-4 bg-zinc-950 border border-zinc-850 rounded-2xl space-y-3 shadow-md">
+                      <div className="flex items-center gap-1.5 border-b border-[#27272a] pb-2 text-zinc-200">
+                        <Building className="h-4 w-4 text-amber-500" />
+                        <h4 className="font-extrabold text-xs text-zinc-100 uppercase">Faturamento Mensal da Filial (Meta: R$ 400k)</h4>
+                      </div>
+                      <div className="h-60 w-full pr-4 text-zinc-300">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={goalsTrackerData} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#27272a" strokeOpacity={0.3} vertical={false} />
+                            <XAxis dataKey="monthName" stroke="#71717a" fontSize={10} tickLine={false} />
+                            <YAxis stroke="#71717a" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`} />
+                            <Tooltip
+                              contentStyle={{ backgroundColor: '#09090b', borderColor: '#27272a', color: '#ffffff', borderRadius: '8px', fontSize: '11px' }}
+                              formatter={(value) => `R$ ${Number(value).toLocaleString('pt-BR')}`}
+                            />
+                            <Legend verticalAlign="top" height={24} iconType="rect" wrapperStyle={{ fontSize: '10px' }} />
+                            <Bar dataKey="filialReal" name="Faturamento Realizado" fill="#f59e0b" />
+                            <Line type="monotone" dataKey="filialTarget" name="Meta Filial (R$ 400k)" stroke="#f43f5e" strokeWidth={1.5} dot={false} strokeDasharray="3 3" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
                     </div>
                   </div>
-                )}
-              </div>
-
-              {/* PAGE 2: Diagnóstico Detalhado & Recomendações */}
-              <div id="cfo-report-page-2" className="print-page-break space-y-8 bg-[#09090b] text-zinc-100 p-6 md:p-8 rounded-2xl border border-zinc-800/80 shadow-2xl mt-8">
-                <div className="flex items-center gap-2 border-b border-zinc-800 pb-3">
-                  <Activity className="h-5 w-5 text-emerald-400" />
-                  <h3 className="font-black text-sm text-white tracking-tight uppercase">Diagnóstico Analítico do CFO (RODER IA)</h3>
-                </div>
-
-                {/* Forces & Weaknesses columns */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Positive Points */}
-                  <div className="p-6 bg-emerald-950/20 border border-emerald-500/20 rounded-2xl space-y-4 shadow-sm">
-                    <h4 className="font-extrabold text-xs text-emerald-400 tracking-wider flex items-center gap-1.5 uppercase border-b border-emerald-500/10 pb-2">
-                      <Check className="h-4 w-4" /> Pontos Fortes e Alavancas
-                    </h4>
-                    <div className="space-y-3.5">
-                      {diagnoseResult.strengths.map((item: any, idx: number) => (
-                        <div key={idx} className="space-y-1">
-                          <h5 className="font-bold text-white text-xs flex items-center gap-1.5">
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" /> {item.title}
-                          </h5>
-                          <p className="text-zinc-400 text-[11px] leading-relaxed pl-3 font-medium">
-                            {item.desc}
-                          </p>
-                        </div>
-                      ))}
+ 
+                  {/* Operational suggestions to hit target */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 border-b border-zinc-800 pb-1.5">
+                      <FileText className="h-4 w-4 text-emerald-400" />
+                      <h4 className="font-extrabold text-xs text-zinc-100 uppercase font-bold">Diretrizes Práticas para Maximização de Faturamento</h4>
                     </div>
-                  </div>
-
-                  {/* Risks Alert Points */}
-                  <div className="p-6 bg-rose-950/20 border border-rose-500/20 rounded-2xl space-y-4 shadow-sm">
-                    <h4 className="font-extrabold text-xs text-rose-400 tracking-wider flex items-center gap-1.5 uppercase border-b border-rose-500/10 pb-2">
-                      <AlertCircle className="h-4 w-4" /> Pontos de Atenção e Alertas
-                    </h4>
-                    <div className="space-y-3.5">
-                      {diagnoseResult.alerts.map((item: any, idx: number) => (
-                        <div key={idx} className="space-y-1">
-                          <h5 className="font-bold text-white text-xs flex items-center gap-1.5">
-                            <span className="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0" /> {item.title}
-                          </h5>
-                          <p className="text-zinc-400 text-[11px] leading-relaxed pl-3 font-medium">
-                            {item.desc}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Strategic Roadmap Recommendations */}
-                <div className="space-y-4 pt-4">
-                  <div className="flex items-center gap-2 border-b border-zinc-800/50 pb-2">
-                    <FileText className="h-4 w-4 text-emerald-400" />
-                    <h4 className="font-extrabold text-xs text-zinc-100 tracking-wide uppercase">Plano Estratégico & Sugestões de Ação Continuada</h4>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {diagnoseResult.suggestions.map((item: any, idx: number) => (
-                      <div key={idx} className="p-5 bg-[#121214] border border-zinc-800 rounded-xl space-y-2.5 flex flex-col justify-between shadow-md">
-                        <div className="space-y-1">
-                          <span className="text-[9px] font-black tracking-widest text-emerald-500 uppercase">Sugestão #{idx+1}</span>
-                          <h5 className="font-bold text-white text-xs">{item.action}</h5>
-                        </div>
-                        <p className="text-zinc-400 text-[11px] leading-relaxed border-t border-zinc-800 pt-1.5 mt-1 font-medium">
-                          <strong className="text-emerald-400">Impacto Esperado:</strong> {item.impact}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="p-4 bg-[#121214] border border-zinc-800/80 rounded-xl space-y-1.5 shadow-sm">
+                        <h5 className="font-bold text-emerald-400 text-xs uppercase tracking-wide">1. Alinhamento de Pipeline e Faturamento de Cabeçotes</h5>
+                        <p className="text-zinc-400 text-[11px] leading-relaxed">
+                          Concentrar esforços na fabricação e fechamento ágil de pedidos de equipamentos florestais de alta margem (ex: cabeçotes de colheita/feller). Faturar as máquinas finais imediatamente após a montagem para injetar faturamento operacional real e consolidar o target mensal de R$ 2.5M.
                         </p>
                       </div>
-                    ))}
+                      <div className="p-4 bg-[#121214] border border-zinc-800/80 rounded-xl space-y-1.5 shadow-sm">
+                        <h5 className="font-bold text-emerald-400 text-xs uppercase tracking-wide">2. Ativação Técnica de Upgrade de Frota Agroflorestal</h5>
+                        <p className="text-zinc-400 text-[11px] leading-relaxed">
+                          Estimular upgrades preventivos e reforma de cabeçotes antigos em campo. Campanhas focadas em produtores rurais de grande porte em Sinop e região geram reconhecimento de receita rápida via serviços de engenharia aplicada e peças, suprindo flutuações sazonais.
+                        </p>
+                      </div>
+                    </div>
                   </div>
+                </div>
+ 
+                <div className="text-[10px] text-zinc-500 font-mono text-center pt-4 border-t border-zinc-900 mt-4 flex justify-between">
+                  <span>RODER BRASIL • Relatório CFO Executivo</span>
+                  <span>Página 2 de 3</span>
                 </div>
               </div>
 
-              {/* PAGE 3: Tabela Comparativa Completa */}
-              <div id="cfo-report-page-3" className="print-page-break space-y-6 bg-[#09090b] text-zinc-100 p-6 md:p-8 rounded-2xl border border-zinc-800/80 shadow-2xl mt-8">
-                <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-zinc-800 pb-3 gap-2">
-                  <div className="flex items-center gap-2">
-                    <TrendingDown className="h-5 w-5 text-emerald-400" />
-                    <h3 className="font-black text-sm text-white tracking-tight uppercase">Histórico Comparativo e Tendências</h3>
+              {/* PAGE 3: Diagnóstico Detalhado & Tabela Comparativa Completa */}
+              <div id="cfo-report-page-3" className="print-page-break flex flex-col justify-between min-h-[1350px] bg-[#09090b] text-zinc-100 p-8 rounded-2xl border border-zinc-800/80 shadow-2xl mt-8">
+                <div className="space-y-6">
+                  {/* Title Header */}
+                  <div className="flex items-center justify-between border-b border-zinc-800 pb-3 gap-2">
+                    <div className="flex items-center gap-2">
+                      <Activity className="h-5 w-5 text-emerald-400" />
+                      <h3 className="font-black text-sm text-white tracking-tight uppercase">Diagnóstico Analítico do CFO (RODER IA) & Tendências</h3>
+                    </div>
+                    <span className="text-[10px] text-zinc-400">Visão qualitativa profunda e aderência de KPIs corporativos</span>
                   </div>
-                  <p className="text-[10px] text-zinc-400">Comparações automáticas vs período anterior e base homóloga anterior</p>
+
+                  {/* Forces & Weaknesses columns */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Positive Points */}
+                    <div className="p-5 bg-[#121214] border border-emerald-500/20 rounded-2xl space-y-3.5 shadow-sm">
+                      <h4 className="font-extrabold text-xs text-emerald-400 tracking-wider flex items-center gap-1.5 uppercase border-b border-emerald-500/10 pb-2">
+                        <Check className="h-4 w-4" /> Pontos Fortes e Alavancas
+                      </h4>
+                      <div className="space-y-3">
+                        {diagnoseResult.strengths.map((item: any, idx: number) => (
+                          <div key={idx} className="space-y-0.5">
+                            <h5 className="font-bold text-white text-xs flex items-center gap-1.5">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" /> {item.title}
+                            </h5>
+                            <p className="text-zinc-400 text-[11px] leading-relaxed pl-3 font-medium">
+                              {item.desc}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Risks Alert Points */}
+                    <div className="p-5 bg-[#121214] border border-rose-500/20 rounded-2xl space-y-3.5 shadow-sm">
+                      <h4 className="font-extrabold text-xs text-rose-400 tracking-wider flex items-center gap-1.5 uppercase border-b border-rose-500/10 pb-2">
+                        <AlertCircle className="h-4 w-4" /> Pontos de Atenção e Alertas
+                      </h4>
+                      <div className="space-y-3">
+                        {diagnoseResult.alerts.map((item: any, idx: number) => (
+                          <div key={idx} className="space-y-0.5">
+                            <h5 className="font-bold text-white text-xs flex items-center gap-1.5">
+                              <span className="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0" /> {item.title}
+                            </h5>
+                            <p className="text-zinc-400 text-[11px] leading-relaxed pl-3 font-medium">
+                              {item.desc}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Strategic Suggestions from the IA */}
+                  {diagnoseResult.suggestions && diagnoseResult.suggestions.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 border-b border-zinc-800 pb-1.5">
+                        <FileText className="h-4 w-4 text-emerald-400" />
+                        <h4 className="font-extrabold text-xs text-zinc-100 tracking-wide uppercase">Sugestões de Ação para Sustentar a Operação e Caixa</h4>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {diagnoseResult.suggestions.slice(0, 2).map((item: any, idx: number) => (
+                          <div key={idx} className="p-4 bg-[#121214] border border-zinc-800 rounded-xl space-y-2 flex flex-col justify-between shadow-md animate-fade-in">
+                            <div>
+                              <span className="text-[9px] font-black tracking-widest text-emerald-500 uppercase">Sugestão #{idx+1}</span>
+                              <h5 className="font-bold text-white text-xs">{item.action}</h5>
+                            </div>
+                            <p className="text-zinc-400 text-[11px] leading-relaxed border-t border-zinc-800/50 pt-1.5 mt-1 font-medium">
+                              <strong className="text-emerald-400">Impacto Esperado:</strong> {item.impact}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Table Comparativa Completa */}
+                  <div className="space-y-3 pt-2">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-zinc-800 pb-1.5 gap-2">
+                      <h4 className="font-extrabold text-xs text-zinc-100 uppercase">Tabela Comparativa Analítica do Fechamento</h4>
+                      <p className="text-[10px] text-zinc-400">Comparações automáticas vs período anterior e base homóloga anterior</p>
+                    </div>
+
+                    <div className="overflow-x-auto border border-zinc-800 rounded-xl">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-zinc-950 border-b border-zinc-800 text-zinc-400 font-extrabold">
+                            <th className="p-3">Indicador Financeiro / Fiscal</th>
+                            <th className="p-3 text-right">Fechamento: {selectedMonth}</th>
+                            <th className="p-3 text-right">Mês Anterior</th>
+                            <th className="p-3 text-right">Ano Anterior</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-800/40">
+                          {comparisonIndicators.map((row) => (
+                            <tr key={row.key} className="hover:bg-zinc-900/20 transition-colors">
+                              <td className="p-2.5 font-semibold text-zinc-100 flex items-center justify-between gap-1">
+                                <span>{row.label}</span>
+                                <span className="text-[9px] font-mono px-1 rounded bg-zinc-800/80 border border-zinc-700/60 text-zinc-400 shrink-0">
+                                  {row.suffix}
+                                </span>
+                              </td>
+                              <td className="p-2.5 text-right font-bold font-mono text-zinc-200">
+                                {formatValue(row.currentVal, row.key)}
+                              </td>
+                              {/* Previous Month Compare */}
+                              <td className="p-2.5 text-right font-mono">
+                                <div className="flex flex-col items-end">
+                                  <span className="text-zinc-300 font-medium">{formatValue(row.prevVal, row.key)}</span>
+                                  {row.deltaPrev !== null ? (
+                                    <span className={`text-[10px] font-extrabold ${row.deltaPrev >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                      {row.deltaPrev >= 0 ? '▲ +' : '▼ '}{row.deltaPrev.toFixed(1)}%
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-zinc-500">-</span>
+                                  )}
+                                </div>
+                              </td>
+                              {/* Year over Year Compare */}
+                              <td className="p-2.5 text-right font-mono">
+                                <div className="flex flex-col items-end">
+                                  <span className="text-zinc-300 font-medium">{formatValue(row.prevYearVal, row.key)}</span>
+                                  {row.deltaYear !== null ? (
+                                    <span className={`text-[10px] font-extrabold ${row.deltaYear >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                      {row.deltaYear >= 0 ? '▲ +' : '▼ '}{row.deltaYear.toFixed(1)}%
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-zinc-500">-</span>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="overflow-x-auto border border-zinc-800 rounded-xl">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-zinc-950/80 border-b border-zinc-800 text-zinc-400 font-extrabold">
-                        <th className="p-3">Indicador Financeiro / Fiscal</th>
-                        <th className="p-3 text-right">Fechamento: {selectedMonth}</th>
-                        <th className="p-3 text-right">Mês Anterior</th>
-                        <th className="p-3 text-right">Ano Anterior</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-zinc-800/40">
-                      {comparisonIndicators.map((row) => (
-                        <tr key={row.key} className="hover:bg-zinc-900/20 transition-colors">
-                          <td className="p-3 font-semibold text-zinc-100 flex items-center justify-between gap-2">
-                            <span>{row.label}</span>
-                            <span className="text-[9px] font-mono px-1 rounded bg-zinc-800/80 border border-zinc-700/60 text-zinc-400 shrink-0">
-                              {row.suffix}
-                            </span>
-                          </td>
-                          <td className="p-3 text-right font-bold font-mono text-zinc-200">
-                            {formatValue(row.currentVal, row.key)}
-                          </td>
-                          {/* Previous Month Compare */}
-                          <td className="p-3 text-right font-mono">
-                            <div className="flex flex-col items-end">
-                              <span className="text-zinc-300 font-medium">{formatValue(row.prevVal, row.key)}</span>
-                              {row.deltaPrev !== null ? (
-                                <span className={`text-[10px] font-extrabold ${row.deltaPrev >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                  {row.deltaPrev >= 0 ? '▲ +' : '▼ '}{row.deltaPrev.toFixed(1)}%
-                                </span>
-                              ) : (
-                                <span className="text-[10px] text-zinc-500">-</span>
-                              )}
-                            </div>
-                          </td>
-                          {/* Year over Year Compare */}
-                          <td className="p-3 text-right font-mono">
-                            <div className="flex flex-col items-end">
-                              <span className="text-zinc-300 font-medium">{formatValue(row.prevYearVal, row.key)}</span>
-                              {row.deltaYear !== null ? (
-                                <span className={`text-[10px] font-extrabold ${row.deltaYear >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                  {row.deltaYear >= 0 ? '▲ +' : '▼ '}{row.deltaYear.toFixed(1)}%
-                                </span>
-                              ) : (
-                                <span className="text-[10px] text-zinc-500">-</span>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="p-4 bg-zinc-900/25 border border-zinc-800 rounded-xl">
-                  <p className="text-[10px] text-zinc-400 leading-normal font-medium">
+                <div className="p-4 bg-zinc-900/10 border border-zinc-800 rounded-xl mt-4">
+                  <p className="text-[9.5px] text-zinc-400 leading-normal font-medium">
                     <strong className="text-emerald-400 font-black">Nota Metodológica:</strong> As variações percentuais são computadas de forma linear e em módulos absolutos para evitar erros de inversão de sinais em transações de saídas ou margens monetárias deficitárias consolidadas.
                   </p>
+                </div>
+
+                <div className="text-[10px] text-zinc-500 font-mono text-center pt-4 border-t border-zinc-900 mt-4 flex justify-between">
+                  <span>RODER BRASIL • Relatório CFO Executivo</span>
+                  <span>Página 3 de 3</span>
                 </div>
               </div>
 

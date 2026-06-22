@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Layout from '../components/layout/Layout';
+import FinanceDashboard from '../components/FinanceDashboard';
 import { useAuth } from '../contexts/AuthContext';
 import { collection, query, where, onSnapshot, orderBy, limit, getDocs, getDocsFromCache, updateDoc, doc, serverTimestamp, or } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
@@ -67,6 +68,7 @@ export default function Dashboard() {
   const [usersList, setUsersList] = useState<any[]>([]);
   const [commissions, setCommissions] = useState<Commission[]>([]);
   const [fairs, setFairs] = useState<Fair[]>([]);
+  const [endoActions, setEndoActions] = useState<any[]>([]);
   const [highlightedProducts, setHighlightedProducts] = useState<Product[]>([]);
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -87,6 +89,60 @@ export default function Dashboard() {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [latestEvaluations, setLatestEvaluations] = useState<any[]>([]);
+  const [showFinanceModal, setShowFinanceModal] = useState(false);
+
+  // Filter for upcoming Endomarketing actions (Planned or In Progress, or planned date not older than today)
+  const upcomingEndoActions = React.useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    return endoActions.filter((act: any) => 
+      act.status !== 'Cancelada' && 
+      act.status !== 'Concluída' &&
+      (act.date_planned >= todayStr || act.status === 'Em andamento')
+    );
+  }, [endoActions]);
+
+  // Filter for upcoming fairs (Active or Planned, or end date not older than today)
+  const upcomingFairs = React.useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    return fairs.filter((fair: any) => 
+      fair.status !== 'completed' && 
+      fair.status !== 'cancelled' &&
+      fair.end_date >= todayStr
+    );
+  }, [fairs]);
+
+  const isRHUser = isTriagem || profile?.role === 'triagem' || profile?.name?.toLowerCase().includes('julia') || profile?.email?.toLowerCase().includes('rh');
+  const isMarketingUser = isMarketing || profile?.role === 'marketing' || profile?.name?.toLowerCase().includes('franciele') || profile?.email?.toLowerCase().includes('marketing');
+  const isFinanceiroUser = isFinancial || profile?.role === 'financial' || profile?.email?.toLowerCase().includes('finance');
+
+  const shouldShowTargetCards = isRHUser || isMarketingUser || isFinanceiroUser || isAdmin || isManager;
+
+  // Explicit overrides from profile permissions or defaults
+  const showQuickActions = profile?.permissions?.dashboard_cards && 'quick_actions' in profile.permissions.dashboard_cards
+    ? !!profile.permissions.dashboard_cards.quick_actions
+    : !(isRHUser || isMarketingUser);
+
+  const showRecentIndications = profile?.permissions?.dashboard_cards && 'recent_indications' in profile.permissions.dashboard_cards
+    ? !!profile.permissions.dashboard_cards.recent_indications
+    : !(isRHUser || isMarketingUser);
+
+  const showGoals = profile?.permissions?.dashboard_cards && 'goals' in profile.permissions.dashboard_cards
+    ? !!profile.permissions.dashboard_cards.goals
+    : !(isRHUser || isMarketingUser);
+
+  const showReservations = profile?.permissions?.dashboard_cards && ('active_reservations' in profile.permissions.dashboard_cards || 'reservations' in profile.permissions.dashboard_cards)
+    ? (profile.permissions.dashboard_cards.active_reservations !== false && profile.permissions.dashboard_cards.reservations !== false)
+    : !(isRHUser || isMarketingUser);
+
+  const shouldShowOnlyFairsCard = !shouldShowTargetCards && (
+    isInternalSeller || 
+    isExternalSeller || 
+    isRegionalSeller || 
+    isPureExternalSeller ||
+    profile?.role === 'vendedor_padrao' || 
+    profile?.role === 'external_seller' || 
+    profile?.role === 'internal_seller'
+  );
 
   const filteredFinancialData = React.useMemo(() => {
     let filteredIndications = indications;
@@ -476,6 +532,16 @@ export default function Dashboard() {
       fairsData.sort((a, b) => new Date(b.start_date || 0).getTime() - new Date(a.start_date || 0).getTime());
       setFairs(fairsData);
     }, (err) => console.error("Fairs error:", err));
+    return () => unsubscribe();
+  }, [profile?.uid]);
+
+  // 7.5. Endomarketing Actions
+  useEffect(() => {
+    if (!profile?.uid) return;
+    const unsubscribe = onSnapshot(collection(db, 'endomarketing_actions'), (snap) => {
+      const actionsData = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setEndoActions(actionsData);
+    }, (err) => console.error("Endomarketing actions error in Dashboard:", err));
     return () => unsubscribe();
   }, [profile?.uid]);
 
@@ -976,7 +1042,7 @@ export default function Dashboard() {
             )}
 
             {/* Quick Actions - Top Priority for External */}
-            {(!profile?.permissions?.dashboard_cards || profile.permissions.dashboard_cards.quick_actions !== false) && (
+            {showQuickActions && (
               <div className="grid grid-cols-5 gap-1 md:gap-4 pb-2 overflow-hidden px-0.5">
                 <QuickActionCard 
                   title="Nova Indicação" 
@@ -1023,7 +1089,7 @@ export default function Dashboard() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {/* Active Indications Card - Highly requested by users */}
-              {(!profile?.permissions?.dashboard_cards || profile.permissions.dashboard_cards.recent_indications !== false) && (
+              {showRecentIndications && (
                 <Card className="bg-card border-border shadow-sm border-l-4 border-l-blue-500 overflow-hidden flex flex-col h-full">
                 <CardHeader className="p-3 pb-1 bg-muted/20">
                   <CardTitle className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5">
@@ -1070,7 +1136,7 @@ export default function Dashboard() {
               )}
 
               {/* Goals Card - Motivation */}
-              {(!profile?.permissions?.dashboard_cards || profile.permissions.dashboard_cards.goals !== false) && (
+              {showGoals && (
                 <Card className="bg-card border-border shadow-sm flex flex-col h-full overflow-hidden border-l-4 border-l-yellow-500">
                 <CardHeader className="p-3 pb-1 border-b border-border/30 bg-muted/20">
                   <CardTitle className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5">
@@ -1164,7 +1230,62 @@ export default function Dashboard() {
                 </Card>
               )}
 
-              {/* Fairs Section for External - Hidden based on restricted permissions */}
+              {/* Fairs Section for External */}
+              {shouldShowOnlyFairsCard && (
+                <Card className="bg-card border-border shadow-sm border-t-4 border-t-primary flex flex-col h-full overflow-hidden">
+                  <CardHeader className="p-4 pb-2 border-b border-border/30 bg-muted/20">
+                    <CardTitle className="text-sm font-black uppercase tracking-wider flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-primary">
+                        <Building2 className="h-5 w-5" /> Próximas Feiras e Eventos
+                      </div>
+                      <Badge className="text-xs h-5 bg-primary/10 text-primary border-primary/20">
+                        {upcomingFairs.length}
+                      </Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0 flex-1 overflow-hidden">
+                    <div className="overflow-y-auto no-scrollbar max-h-[300px]">
+                      {upcomingFairs.length === 0 ? (
+                        <div className="py-12 px-4 text-center flex flex-col items-center justify-center gap-2">
+                          <Building2 className="h-10 w-10 text-muted-foreground/30" />
+                          <p className="text-sm text-slate-500 dark:text-slate-400 italic font-medium">Nenhuma feira planejada ou ativa.</p>
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-border/10">
+                          {upcomingFairs.slice(0, 5).map((fair) => {
+                            const startStr = fair.start_date ? new Date(fair.start_date + "T12:00:00").toLocaleDateString('pt-BR') : '-';
+                            const endStr = fair.end_date ? new Date(fair.end_date + "T12:00:00").toLocaleDateString('pt-BR') : '-';
+                            return (
+                              <div key={fair.id} className="p-4 hover:bg-muted/30 transition-colors flex items-start gap-4 justify-between">
+                                <div className="space-y-1 min-w-0 flex-1">
+                                  <h4 className="text-xs font-bold text-foreground uppercase truncate">{fair.name}</h4>
+                                  <p className="text-[11px] text-muted-foreground flex items-center gap-1 leading-normal">
+                                    <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" /> {fair.location}
+                                  </p>
+                                  <p className="text-[10px] text-muted-foreground pt-0.5">
+                                    Status: <span className={cn(
+                                      "font-semibold uppercase text-xs",
+                                      fair.status === 'active' ? "text-green-600 bg-green-500/10 px-1 rounded" : "text-amber-600 bg-amber-500/10 px-1 rounded"
+                                    )}>{fair.status === 'active' ? 'Ativa' : 'Planejada'}</span>
+                                  </p>
+                                </div>
+                                <div className="text-right shrink-0 flex flex-col gap-1 items-end">
+                                  <span className="text-[10px] font-mono bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-1 rounded font-bold whitespace-nowrap">{startStr} - {endStr}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                  <Link to="/feiras" className="block border-t border-border/30 bg-muted/10">
+                    <Button variant="ghost" className="w-full h-11 text-[11px] font-bold uppercase text-primary hover:text-primary/95 tracking-wider">
+                      Gerenciar Feiras
+                    </Button>
+                  </Link>
+                </Card>
+              )}
             </div>
           </div>
         ) : (!isAdmin && !isManager && (isInternalSeller || isTriagem || isFinancial || isMarketing || isFiscal || profile?.role === 'financial' || profile?.role === 'internal_seller' || profile?.role === 'triagem' || profile?.role === 'marketing' || profile?.role === 'fiscal')) ? (
@@ -1172,7 +1293,7 @@ export default function Dashboard() {
           <>
             <div className="space-y-6">
             {/* Quick Actions for Internal/Management */}
-            {(!profile?.permissions?.dashboard_cards || profile.permissions.dashboard_cards.quick_actions !== false) && (
+            {showQuickActions && (
               <div className="grid grid-cols-4 gap-1 md:gap-4 pb-2 px-0.5">
                 <QuickActionCard 
                   title="Nova Indicação" 
@@ -1203,7 +1324,7 @@ export default function Dashboard() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Card for leads waiting for quote (Internal Seller focus) */}
-              {(!profile?.permissions?.dashboard_cards || profile.permissions.dashboard_cards.recent_indications !== false) && (
+              {showRecentIndications && (
                 <Card className="bg-card border-border shadow-sm border-l-4 border-l-orange-500 overflow-hidden flex flex-col h-full animate-pulse-subtle">
                 <CardHeader className="p-4 pb-2 bg-muted/20">
                   <CardTitle className="text-sm font-black uppercase tracking-wider flex items-center justify-between">
@@ -1249,7 +1370,7 @@ export default function Dashboard() {
               </Card>
               )}
 
-              {(!profile?.permissions?.dashboard_cards || profile.permissions.dashboard_cards.goals !== false) && (
+              {showGoals && (
                 <Card className="bg-card border-border shadow-sm border-l-4 border-l-green-500 overflow-hidden flex flex-col h-full">
                 <CardHeader className="p-3 pb-1 bg-muted/20">
                   <CardTitle className="text-sm lg:text-base font-black uppercase tracking-wider flex items-center gap-1.5">
@@ -1287,7 +1408,7 @@ export default function Dashboard() {
               )}
 
               {/* Reservations Card */}
-              {profile && !(isFinancial || isFiscal) && (!profile?.permissions?.dashboard_cards || profile.permissions.dashboard_cards.reservations !== false) && (
+              {profile && !(isFinancial || isFiscal) && showReservations && (
                 <Card className="bg-card border-border shadow-sm flex flex-col h-full overflow-hidden">
                 <CardHeader className="p-3 pb-1 border-b border-border/30 bg-muted/20">
                   <CardTitle className="text-[12px] lg:text-[13px] font-black uppercase tracking-wider flex items-center justify-between">
@@ -1414,7 +1535,211 @@ export default function Dashboard() {
                   </CardContent>
                 </Card>
               )}
+
+              {/* Evolutivo & Histórico Financeiro Card for Financial and Fiscal roles */}
+              {(isFinancial || isFiscal) && (
+                <Card 
+                  onClick={() => setShowFinanceModal(true)}
+                  className="bg-card border-border shadow-sm border-l-4 border-l-sky-500 overflow-hidden flex flex-col h-full cursor-pointer hover:border-sky-500/50 hover:bg-sky-500/[0.015] transition-all group duration-300 animate-in fade-in zoom-in duration-500"
+                >
+                  <CardHeader className="p-3 pb-1 bg-muted/20">
+                    <CardTitle className="text-[10px] lg:text-[11px] font-black uppercase tracking-wider flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <TrendingUp className="h-3.5 w-3.5 text-sky-500" /> Evolutivo Financeiro
+                      </div>
+                      <Badge className="text-[8px] lg:text-[9px] h-4.5 bg-sky-500/10 text-sky-600 border-sky-500/20">KPIs</Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 flex-1 flex flex-col justify-between">
+                    <div className="space-y-2">
+                      <p className="text-[11px] text-muted-foreground leading-relaxed font-normal">
+                        Acompanhe a saúde financeira da Roder com gráficos, análises de fechamentos, KPIs e margens.
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 pt-1.5">
+                        <span className="text-[8px] px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground border border-border uppercase font-semibold">Consolidado</span>
+                        <span className="text-[8px] px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground border border-border uppercase font-semibold">Margens</span>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex items-center text-[10px] lg:text-[11px] font-bold text-sky-500 uppercase tracking-wider group-hover:text-sky-400 gap-1.5">
+                      Abrir Painel KPIs <ArrowRight className="h-3 w-3 group-hover:translate-x-1 transition-transform" />
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
+
+            {/* Seção de Próximos Eventos (Endomarketing e Feiras) para Júlia, Franciele e Financeiro */}
+            {shouldShowTargetCards && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 animate-in fade-in duration-500">
+                {/* Card de Endomarketing */}
+                <Card className="bg-card border-border shadow-sm border-t-4 border-t-orange-600 flex flex-col h-full overflow-hidden">
+                  <CardHeader className="p-4 pb-2 border-b border-border/30 bg-muted/20">
+                    <CardTitle className="text-sm font-black uppercase tracking-wider flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-orange-600">
+                        <Zap className="h-5 w-5" /> Próximos Eventos de Endomarketing
+                      </div>
+                      <Badge className="text-xs h-5 bg-orange-600/10 text-orange-600 border-orange-500/20">
+                        {upcomingEndoActions.length}
+                      </Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0 flex-1 overflow-hidden">
+                    <div className="overflow-y-auto no-scrollbar max-h-[300px]">
+                      {upcomingEndoActions.length === 0 ? (
+                        <div className="py-12 px-4 text-center flex flex-col items-center justify-center gap-2">
+                          <Calendar className="h-10 w-10 text-muted-foreground/30" />
+                          <p className="text-sm text-slate-500 dark:text-slate-400 italic font-medium">Nenhum evento de Endomarketing planejado.</p>
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-border/10">
+                          {upcomingEndoActions.slice(0, 5).map((act) => {
+                            const dateLabel = act.date_planned ? new Date(act.date_planned + "T12:00:00").toLocaleDateString('pt-BR') : '-';
+                            return (
+                              <div key={act.id} className="p-4 hover:bg-muted/30 transition-colors flex items-start gap-4 justify-between">
+                                <div className="space-y-1 min-w-0 flex-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <h4 className="text-xs font-bold text-foreground uppercase truncate max-w-[200px]">{act.name}</h4>
+                                    <Badge className="text-[9px] px-1.5 py-0.5 bg-orange-50/10 text-orange-600 border-none shrink-0 font-bold uppercase">{act.category}</Badge>
+                                  </div>
+                                  <p className="text-[11px] text-muted-foreground line-clamp-1">{act.objective || 'Sem objetivo descrito'}</p>
+                                  <div className="flex items-center gap-3 text-[10px] text-muted-foreground pt-0.5 flex-wrap">
+                                    <span className="font-semibold text-orange-600">Resp: {act.responsible_name || 'N/A'} ({act.responsible_area || 'N/A'})</span>
+                                    <span>•</span>
+                                    <span>Orçamento planejado: R$ {act.budget_planned?.toLocaleString('pt-BR') || '0,00'}</span>
+                                  </div>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <span className="text-[10px] font-mono bg-orange-500/10 dark:bg-orange-500/5 text-orange-600 dark:text-orange-400 px-2 py-1 rounded font-bold">{dateLabel}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                  <Link to="/endomarketing" className="block border-t border-border/30 bg-muted/10">
+                    <Button variant="ghost" className="w-full h-11 text-[11px] font-bold uppercase text-orange-600 hover:text-orange-700 tracking-wider">
+                      Gerenciar Endomarketing
+                    </Button>
+                  </Link>
+                </Card>
+
+                {/* Card de Feiras */}
+                <Card className="bg-card border-border shadow-sm border-t-4 border-t-primary flex flex-col h-full overflow-hidden">
+                  <CardHeader className="p-4 pb-2 border-b border-border/30 bg-muted/20">
+                    <CardTitle className="text-sm font-black uppercase tracking-wider flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-primary">
+                        <Building2 className="h-5 w-5" /> Próximas Feiras e Eventos
+                      </div>
+                      <Badge className="text-xs h-5 bg-primary/10 text-primary border-primary/20">
+                        {upcomingFairs.length}
+                      </Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0 flex-1 overflow-hidden">
+                    <div className="overflow-y-auto no-scrollbar max-h-[300px]">
+                      {upcomingFairs.length === 0 ? (
+                        <div className="py-12 px-4 text-center flex flex-col items-center justify-center gap-2">
+                          <Building2 className="h-10 w-10 text-muted-foreground/30" />
+                          <p className="text-sm text-slate-500 dark:text-slate-400 italic font-medium">Nenhuma feira planejada ou ativa.</p>
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-border/10">
+                          {upcomingFairs.slice(0, 5).map((fair) => {
+                            const startStr = fair.start_date ? new Date(fair.start_date + "T12:00:00").toLocaleDateString('pt-BR') : '-';
+                            const endStr = fair.end_date ? new Date(fair.end_date + "T12:00:00").toLocaleDateString('pt-BR') : '-';
+                            return (
+                              <div key={fair.id} className="p-4 hover:bg-muted/30 transition-colors flex items-start gap-4 justify-between">
+                                <div className="space-y-1 min-w-0 flex-1">
+                                  <h4 className="text-xs font-bold text-foreground uppercase truncate">{fair.name}</h4>
+                                  <p className="text-[11px] text-muted-foreground flex items-center gap-1 leading-normal">
+                                    <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" /> {fair.location}
+                                  </p>
+                                  <p className="text-[10px] text-muted-foreground pt-0.5">
+                                    Status: <span className={cn(
+                                      "font-semibold uppercase text-xs",
+                                      fair.status === 'active' ? "text-green-600 bg-green-500/10 px-1 rounded" : "text-amber-600 bg-amber-500/10 px-1 rounded"
+                                    )}>{fair.status === 'active' ? 'Ativa' : 'Planejada'}</span>
+                                  </p>
+                                </div>
+                                <div className="text-right shrink-0 flex flex-col gap-1 items-end">
+                                  <span className="text-[10px] font-mono bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-1 rounded font-bold whitespace-nowrap">{startStr} - {endStr}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                  <Link to="/feiras" className="block border-t border-border/30 bg-muted/10">
+                    <Button variant="ghost" className="w-full h-11 text-[11px] font-bold uppercase text-primary hover:text-primary/95 tracking-wider">
+                      Gerenciar Feiras
+                    </Button>
+                  </Link>
+                </Card>
+              </div>
+            )}
+
+            {/* Seção de Próximas Feiras e Eventos para Vendedores Internos */}
+            {shouldShowOnlyFairsCard && (
+              <div className="grid grid-cols-1 gap-6 pt-2 animate-in fade-in duration-500">
+                <Card className="bg-card border-border shadow-sm border-t-4 border-t-primary flex flex-col h-full overflow-hidden">
+                  <CardHeader className="p-4 pb-2 border-b border-border/30 bg-muted/20">
+                    <CardTitle className="text-sm font-black uppercase tracking-wider flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-primary">
+                        <Building2 className="h-5 w-5" /> Próximas Feiras e Eventos
+                      </div>
+                      <Badge className="text-xs h-5 bg-primary/10 text-primary border-primary/20">
+                        {upcomingFairs.length}
+                      </Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0 flex-1 overflow-hidden">
+                    <div className="overflow-y-auto no-scrollbar max-h-[300px]">
+                      {upcomingFairs.length === 0 ? (
+                        <div className="py-12 px-4 text-center flex flex-col items-center justify-center gap-2">
+                          <Building2 className="h-10 w-10 text-muted-foreground/30" />
+                          <p className="text-sm text-slate-500 dark:text-slate-400 italic font-medium">Nenhuma feira planejada ou ativa.</p>
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-border/10">
+                          {upcomingFairs.slice(0, 5).map((fair) => {
+                            const startStr = fair.start_date ? new Date(fair.start_date + "T12:00:00").toLocaleDateString('pt-BR') : '-';
+                            const endStr = fair.end_date ? new Date(fair.end_date + "T12:00:00").toLocaleDateString('pt-BR') : '-';
+                            return (
+                              <div key={fair.id} className="p-4 hover:bg-muted/30 transition-colors flex items-start gap-4 justify-between">
+                                <div className="space-y-1 min-w-0 flex-1">
+                                  <h4 className="text-xs font-bold text-foreground uppercase truncate">{fair.name}</h4>
+                                  <p className="text-[11px] text-muted-foreground flex items-center gap-1 leading-normal">
+                                    <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" /> {fair.location}
+                                  </p>
+                                  <p className="text-[10px] text-muted-foreground pt-0.5">
+                                    Status: <span className={cn(
+                                      "font-semibold uppercase text-xs",
+                                      fair.status === 'active' ? "text-green-600 bg-green-500/10 px-1 rounded" : "text-amber-600 bg-amber-500/10 px-1 rounded"
+                                    )}>{fair.status === 'active' ? 'Ativa' : 'Planejada'}</span>
+                                  </p>
+                                </div>
+                                <div className="text-right shrink-0 flex flex-col gap-1 items-end">
+                                  <span className="text-[10px] font-mono bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-1 rounded font-bold whitespace-nowrap">{startStr} - {endStr}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                  <Link to="/feiras" className="block border-t border-border/30 bg-muted/10">
+                    <Button variant="ghost" className="w-full h-11 text-[11px] font-bold uppercase text-primary hover:text-primary/95 tracking-wider">
+                      Gerenciar Feiras
+                    </Button>
+                  </Link>
+                </Card>
+              </div>
+            )}
 
             {/* Split layout: Recent Sales & Recent Evaluations */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1530,7 +1855,7 @@ export default function Dashboard() {
         </>
         ) : (isAdmin || isManager) ? (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
               {/* Conversion Funnel & Fast Access */}
               <Card className="bg-card border-border shadow-sm overflow-hidden flex flex-col">
                 <CardHeader className="p-3 pb-1 border-b border-border/30 bg-muted/20">
@@ -1646,7 +1971,7 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
 
-              {(!profile?.permissions?.dashboard_cards || profile.permissions.dashboard_cards.reservations !== false) && (
+              {showReservations && (
                 <Card className="bg-card border-border shadow-sm flex flex-col h-full overflow-hidden">
                  <CardHeader className="p-3 pb-1 border-b border-border/30 bg-muted/20">
                    <CardTitle className="text-[10px] lg:text-[11px] font-black uppercase tracking-wider flex items-center justify-between">
@@ -1706,7 +2031,7 @@ export default function Dashboard() {
                 </Card>
               )}
 
-              {(!profile?.permissions?.dashboard_cards || profile.permissions.dashboard_cards.goals !== false) && (
+              {showGoals && (
                 <Card className="bg-card border-border shadow-sm border-l-4 border-l-green-500 overflow-hidden flex flex-col">
                 <CardHeader className="p-3 pb-1 bg-muted/20">
                   <CardTitle className="text-[10px] lg:text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5">
@@ -1735,13 +2060,41 @@ export default function Dashboard() {
                       />
                     </div>
                     <div className="flex justify-between items-baseline">
-                      <span className="text-[10px] lg:text-[11px] font-normal text-green-600">R$ {performanceData.monthly_sales.toLocaleString()}</span>
+                      <span className="text-[10px] lg:text-[11px] font-normal text-green-600 font-bold">R$ {performanceData.monthly_sales.toLocaleString()}</span>
                       <span className="text-[8px] lg:text-[9px] text-muted-foreground uppercase font-normal tracking-wider">Meta: R$ {goals.monthly_revenue?.toLocaleString()}</span>
                     </div>
                   </div>
                 </CardContent>
                 </Card>
               )}
+
+              <Card 
+                onClick={() => setShowFinanceModal(true)}
+                className="bg-card border-border shadow-sm border-l-4 border-l-sky-500 overflow-hidden flex flex-col h-full cursor-pointer hover:border-sky-500/50 hover:bg-sky-500/[0.015] transition-all group duration-300 animate-in fade-in zoom-in duration-500"
+              >
+                <CardHeader className="p-3 pb-1 bg-muted/20">
+                  <CardTitle className="text-[10px] lg:text-[11px] font-black uppercase tracking-wider flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <TrendingUp className="h-3.5 w-3.5 text-sky-500" /> Evolutivo Financeiro
+                    </div>
+                    <Badge className="text-[8px] lg:text-[9px] h-4.5 bg-sky-500/10 text-sky-600 border-sky-500/20">KPIs</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 flex-1 flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <p className="text-[11px] text-muted-foreground leading-relaxed font-normal">
+                      Acompanhe a saúde financeira da Roder com gráficos, análises de fechamentos, KPIs e margens.
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 pt-1.5">
+                      <span className="text-[8px] px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground border border-border uppercase font-semibold">Consolidado</span>
+                      <span className="text-[8px] px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground border border-border uppercase font-semibold">Margens</span>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex items-center text-[10px] lg:text-[11px] font-bold text-sky-500 uppercase tracking-wider group-hover:text-sky-400 gap-1.5">
+                    Abrir Painel KPIs <ArrowRight className="h-3 w-3 group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </CardContent>
+              </Card>
             </div>
 
             {/* Manager/Admin Sharing Tools */}
@@ -1865,7 +2218,7 @@ export default function Dashboard() {
               </Card>
               )}
 
-              {(!profile?.permissions?.dashboard_cards || profile.permissions.dashboard_cards.recent_indications !== false) && (
+              {showRecentIndications && (
                 <Card className="bg-card border-border shadow-sm shrink-0">
                   <CardHeader className="p-4 md:p-6 pb-2">
                     <CardTitle className="text-lg font-bold">Indicações Recentes</CardTitle>
@@ -2069,6 +2422,55 @@ export default function Dashboard() {
           </div>
         )}
     </div>
+
+    {/* Financial Evolution and KPIs Fullscreen Modal */}
+    <AnimatePresence>
+      {showFinanceModal && (
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/85 backdrop-blur-md flex flex-col p-4 md:p-6"
+        >
+          <motion.div 
+            initial={{ scale: 0.96, y: 15 }}
+            animate={{ scale: 1, y: 0 }}
+            exit={{ scale: 0.96, y: 15 }}
+            transition={{ type: "spring", damping: 28, stiffness: 380 }}
+            className="w-full max-w-7xl mx-auto bg-background rounded-2xl border border-border/80 shadow-2xl flex flex-col overflow-hidden my-auto max-h-[92vh]"
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 md:p-5 border-b border-border/80 bg-card shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-sky-500/10 text-sky-500 rounded-lg">
+                  <TrendingUp className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-base md:text-lg font-black uppercase tracking-tighter text-foreground">
+                    Evolutivo & Histórico Financeiro
+                  </h2>
+                  <p className="text-[10px] md:text-xs text-muted-foreground font-normal">
+                    Selecione os KPIs desejados nas opções do painel secundário do dashboard para filtrar os dados históricos.
+                  </p>
+                </div>
+              </div>
+              <Button 
+                variant="outline" 
+                onClick={() => setShowFinanceModal(false)}
+                className="font-bold uppercase tracking-wider text-[10px] h-9 border-border hover:bg-muted text-foreground px-4 shrink-0"
+              >
+                Fechar
+              </Button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-background">
+              <FinanceDashboard />
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   </Layout>
   );
 }

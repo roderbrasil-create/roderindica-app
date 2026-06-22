@@ -401,7 +401,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
       id: 'finance',
       name: 'Financeiro / Fiscal', 
       icon: DollarSign, 
-      roles: ['admin', 'manager', 'financial', 'finance'],
+      roles: ['admin', 'manager', 'financial', 'fiscal', 'finance'],
       isParent: true,
       isOpenState: financialMenuOpen,
       setIsOpenState: handleSetFinancialMenuOpen,

@@ -216,7 +216,9 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
       await batch.commit();
 
       toast.success('Ação salva com sucesso!');
-      onClose();
+      setTimeout(() => {
+        onClose();
+      }, 100);
     } catch (error: any) {
       console.error('Error saving action:', error);
       // More descriptive error for debugging
@@ -276,13 +278,13 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
               <TabsTrigger value="financial" className="data-[state=active]:bg-transparent data-[state=active]:text-orange-600 data-[state=active]:border-b-2 data-[state=active]:border-orange-600 rounded-none h-full shadow-none border-b-2 border-transparent px-2 text-[11px] lg:text-sm whitespace-nowrap font-bold uppercase tracking-tight">
                 Financeiro
               </TabsTrigger>
-              <TabsTrigger value="evidence" className="data-[state=active]:bg-transparent data-[state=active]:text-orange-600 data-[state=active]:border-b-2 data-[state=active]:border-orange-600 rounded-none h-full shadow-none border-b-2 border-transparent px-2 text-[11px] lg:text-sm whitespace-nowrap font-bold uppercase tracking-tight text-muted-foreground/60 cursor-not-allowed">
+              <TabsTrigger value="evidence" className="data-[state=active]:bg-transparent data-[state=active]:text-orange-600 data-[state=active]:border-b-2 data-[state=active]:border-orange-600 rounded-none h-full shadow-none border-b-2 border-transparent px-2 text-[11px] lg:text-sm whitespace-nowrap font-bold uppercase tracking-tight">
                 Evidências
               </TabsTrigger>
             </TabsList>
           </div>
 
-          <ScrollArea className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto">
             <div className="p-3 lg:p-6 pb-20 lg:pb-6">
               <TabsContent value="general" className="m-0 space-y-2 lg:space-y-4">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 lg:gap-4">
@@ -625,7 +627,7 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
                 </div>
               </TabsContent>
             </div>
-          </ScrollArea>
+          </div>
         </Tabs>
 
         {/* Action Bar - Fixed on mobile footer */}
@@ -636,8 +638,8 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
           </div>
           <div className="lg:hidden">
              <div className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
-               <Info className="h-3 w-3 text-orange-400" />
-               Restrito
+                <Info className="h-3 w-3 text-orange-400" />
+                Restrito
              </div>
           </div>
           <div className="flex gap-2">
@@ -661,68 +663,76 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
         </div>
       </DialogContent>
 
-      {/* Module Help Guide Dialog */}
-      <Dialog open={showHelp} onOpenChange={setShowHelp}>
-        <DialogContent className="sm:max-w-md rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-orange-600 font-black uppercase tracking-tight">
+      {/* Module Help Guide Overlay */}
+      {showHelp && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white text-slate-900 rounded-2xl sm:max-w-md w-full p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[90vh] overflow-hidden">
+            <button 
+              className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 rounded-lg p-1 hover:bg-slate-100 transition-colors"
+              onClick={() => setShowHelp(false)}
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <div className="flex items-center gap-2 text-orange-600 font-black uppercase tracking-tight mb-4 shrink-0">
               <Zap className="h-5 w-5" />
               Guia do Módulo Endomarketing
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-6 pt-4">
-            <div className="space-y-2">
-              <h4 className="text-sm font-black text-slate-900 border-l-4 border-orange-500 pl-2">O QUE É?</h4>
-              <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                É o espaço centralizado para planejar, gerenciar e avaliar todas as ações internas voltadas aos nossos colaboradores. O foco é fortalecer a cultura e o engajamento na RODER.
-              </p>
             </div>
+            
+            <div className="space-y-6 overflow-y-auto pr-1 flex-1">
+              <div className="space-y-2">
+                <h4 className="text-sm font-black text-slate-950 border-l-4 border-orange-500 pl-2">O QUE É?</h4>
+                <p className="text-xs text-slate-600 leading-relaxed font-semibold">
+                  É o espaço centralizado para planejar, gerenciar e avaliar todas as ações internas voltadas aos nossos colaboradores. O foco é fortalecer a cultura e o engajamento na RODER.
+                </p>
+              </div>
 
-            <div className="space-y-4">
-               <div className="flex gap-3">
-                 <div className="p-2 bg-blue-50 rounded-xl shrink-0 h-fit">
-                    <Info className="h-4 w-4 text-blue-600" />
+              <div className="space-y-4">
+                 <div className="flex gap-3">
+                   <div className="p-2 bg-blue-50 rounded-xl shrink-0 h-fit">
+                      <Info className="h-4 w-4 text-blue-600" />
+                   </div>
+                   <div className="space-y-1">
+                     <h5 className="text-[11px] font-black uppercase text-slate-800 font-bold">Informações</h5>
+                     <p className="text-[10px] text-slate-500 leading-normal font-medium">Defina o "quem", "quando" e "onde". Aqui você registra os objetivos estratégicos e o público que será impactado pela ação.</p>
+                   </div>
                  </div>
-                 <div className="space-y-1">
-                   <h5 className="text-[11px] font-black uppercase">Informações</h5>
-                   <p className="text-[10px] text-slate-500 leading-normal">Defina o "quem", "quando" e "onde". Aqui você registra os objetivos estratégicos e o público que será impactado pela ação.</p>
-                 </div>
-               </div>
 
-               <div className="flex gap-3">
-                 <div className="p-2 bg-green-50 rounded-xl shrink-0 h-fit">
-                    <Calculator className="h-4 w-4 text-green-600" />
+                 <div className="flex gap-3">
+                   <div className="p-2 bg-green-50 rounded-xl shrink-0 h-fit">
+                      <Calculator className="h-4 w-4 text-green-600" />
+                   </div>
+                   <div className="space-y-1">
+                     <h5 className="text-[11px] font-black uppercase text-slate-800 font-bold">Financeiro</h5>
+                     <p className="text-[10px] text-slate-500 leading-normal font-medium">Controle de investimentos. Lance gastos com materiais, alimentação e serviços para que o sistema calcule automaticamente o custo total e o valor investido por pessoa.</p>
+                   </div>
                  </div>
-                 <div className="space-y-1">
-                   <h5 className="text-[11px] font-black uppercase">Financeiro</h5>
-                   <p className="text-[10px] text-slate-500 leading-normal">Controle de investimentos. Lance gastos com materiais, alimentação e serviços para que o sistema calcule automaticamente o custo total e o valor investido por pessoa.</p>
-                 </div>
-               </div>
 
-               <div className="flex gap-3">
-                 <div className="p-2 bg-purple-50 rounded-xl shrink-0 h-fit">
-                    <Paperclip className="h-4 w-4 text-purple-600" />
+                 <div className="flex gap-3">
+                   <div className="p-2 bg-purple-50 rounded-xl shrink-0 h-fit">
+                      <Paperclip className="h-4 w-4 text-purple-600" />
+                   </div>
+                   <div className="space-y-1">
+                     <h5 className="text-[11px] font-black uppercase text-slate-800 font-bold">Evidências</h5>
+                     <p className="text-[10px] text-slate-500 leading-normal font-medium">A memória da ação. Use para anexar fotos dos eventos, listas de presença e feedbacks recebidos. Essencial para retrospectivas e relatórios de diretoria.</p>
+                   </div>
                  </div>
-                 <div className="space-y-1">
-                   <h5 className="text-[11px] font-black uppercase">Evidências</h5>
-                   <p className="text-[10px] text-slate-500 leading-normal">A memória da ação. Use para anexar fotos dos eventos, listas de presença e feedbacks recebidos. Essencial para retrospectivas e relatórios de diretoria.</p>
-                 </div>
-               </div>
+              </div>
+
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <p className="text-[10px] text-slate-500 font-medium italic">
+                  Dica: Mantenha os dados financeiros sempre atualizados para que o Financeiro possa acompanhar a saúde dos orçamentos da empresa.
+                </p>
+              </div>
             </div>
-
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
-              <p className="text-[10px] text-slate-500 font-medium italic">
-                Dica: Mantenha os dados financeiros sempre atualizados para que o Financeiro possa acompanhar a saúde dos orçamentos da empresa.
-              </p>
+            
+            <div className="pt-4 shrink-0">
+              <Button className="w-full bg-slate-900 hover:bg-slate-800 text-white font-black h-11 rounded-xl" onClick={() => setShowHelp(false)}>
+                ENTENDI
+              </Button>
             </div>
           </div>
-          <div className="pt-4">
-            <Button className="w-full bg-slate-900 font-black h-11 rounded-xl" onClick={() => setShowHelp(false)}>
-              ENTENDI
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
     </Dialog>
   );
 }

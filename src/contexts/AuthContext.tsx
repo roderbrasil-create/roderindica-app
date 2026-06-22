@@ -430,7 +430,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   },
                   triagem: {
                     sidebar: ['dashboard', 'catalog', 'products_stock', 'products_registered', 'accessories', 'my_sales', 'triagem', 'comercial', 'fairs', 'users', 'profile'],
-                    dashboard_cards: ['stats', 'funnel', 'recent_indications', 'active_reservations', 'equipment_banner', 'quick_actions', 'fairs_summary']
+                    dashboard_cards: ['stats', 'funnel', 'recent_indications', 'active_reservations', 'equipment_banner', 'fairs_summary']
+                  },
+                  marketing: {
+                    sidebar: ['dashboard', 'catalog', 'products_stock', 'products_registered', 'accessories', 'fairs', 'endomarketing', 'comercial', 'configurations', 'profile'],
+                    dashboard_cards: ['stats', 'funnel', 'recent_indications', 'equipment_banner', 'fairs_summary']
                   },
                   manager: {
                     sidebar: ['dashboard', 'new_indication', 'fairs', 'finance', 'my_sales', 'catalog', 'products_stock', 'products_registered', 'accessories', 'triagem', 'comercial', 'users', 'reports', 'profile'],
