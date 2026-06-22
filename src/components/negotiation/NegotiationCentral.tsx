@@ -94,7 +94,7 @@ export default function NegotiationCentral() {
     setIsInvoiceDialogOpen,
     setInvoiceIndication
   } = useNegotiation();
-  const { profile, isAdmin, isManager, isTriagem } = useAuth();
+  const { user, profile, isAdmin, isManager, isTriagem } = useAuth();
   const isInternalSeller = profile?.role === 'internal_seller';
   const isRegionalSeller = profile?.role === 'vendedor_padrao';
   const canInteract = isAdmin || isManager || isTriagem || isInternalSeller;
@@ -368,6 +368,25 @@ export default function NegotiationCentral() {
   const isInternalIndicator = indicatorProfile 
     ? ['admin', 'manager', 'internal_seller', 'triagem', 'financial', 'marketing', 'fiscal', 'vendedor_padrao'].includes(indicatorProfile.role)
     : false;
+
+  const isOwnerIndicator = user?.uid && activeIndication?.external_seller_uid 
+    ? activeIndication.external_seller_uid === user.uid 
+    : false;
+
+  const isOwnerStandardSeller = user?.uid && activeIndication?.standard_seller_uid 
+    ? activeIndication.standard_seller_uid === user.uid 
+    : false;
+
+  const cleanHistoryContent = (content: string) => {
+    if (!content) return '';
+    if (isAdmin || isManager || isTriagem) return content;
+    
+    let masked = content;
+    masked = masked.replace(/Comissão de [^%]*% aplicada sobre o valor de produtos comissionáveis de R\$ [^\s.]*/g, "Comissão aplicada [Acesso Restrito]");
+    masked = masked.replace(/Comissão: R\$ [^\s.]*/ig, "Comissão: [Acesso Restrito]");
+    masked = masked.replace(/Valor da comissão: R\$ [^\s.]*/ig, "Valor da comissão: [Acesso Restrito]");
+    return masked;
+  };
 
   const hasExternalSeller = !!activeIndication?.external_seller_uid && !isInternalIndicator;
   const totalCommissionable = commissionedProducts.reduce((acc, curr) => acc + ((curr.is_commissionable !== false ? curr.base_value : 0) * curr.quantity), 0);
@@ -1451,7 +1470,7 @@ export default function NegotiationCentral() {
                               Não Aplicável
                             </div>
                           </div>
-                        ) : (isAdmin || isManager || isTriagem) ? (
+                        ) : (isAdmin || isManager || isTriagem || isOwnerIndicator) ? (
                           <>
                             <div className="flex items-center gap-1 mb-1 justify-between">
                               <span className="text-[8px] font-bold uppercase text-primary tracking-tight">Comissão</span>
@@ -1522,10 +1541,17 @@ export default function NegotiationCentral() {
                       </div>
 
                       <div className="flex items-center justify-between border-t border-orange-500/10 pt-2 text-[9px] text-muted-foreground font-medium">
-                        <div className="flex gap-3">
-                          <span>Tx: <b className="font-semibold text-slate-850">{standardSellerRate}%</b></span>
-                          <span>Comissão: <b className="font-semibold text-orange-600">{maskCurrency(standardSellerCommission)}</b></span>
-                        </div>
+                        {(isAdmin || isManager || isTriagem || isOwnerStandardSeller) ? (
+                          <div className="flex gap-3">
+                            <span>Tx: <b className="font-semibold text-slate-850">{standardSellerRate}%</b></span>
+                            <span>Comissão: <b className="font-semibold text-orange-600">{maskCurrency(standardSellerCommission)}</b></span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <Badge className="bg-muted text-muted-foreground border-none text-[8px] font-bold uppercase py-0 px-1 shadow-none">Acesso Restrito</Badge>
+                            <span className="text-[8px] text-muted-foreground/50 uppercase font-bold">Comissões ocultas</span>
+                          </div>
+                        )}
                         <p className="text-[8px] italic max-w-[160px] text-right leading-tight">
                           Incide sobre o valor bruto.
                         </p>
@@ -1839,7 +1865,7 @@ export default function NegotiationCentral() {
                                     <Calendar className="h-3 w-3" /> {format(new Date(entry.created_at), "dd/MM/yy 'às' HH:mm", { locale: ptBR })}
                                   </span>
                                 </div>
-                                <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap mb-3">{entry.content}</p>
+                                <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap mb-3">{cleanHistoryContent(entry.content)}</p>
                                 
                                 {entry.attachments && entry.attachments.length > 0 && (
                                   <div className="flex flex-wrap gap-2 pt-2 border-t border-border/30">

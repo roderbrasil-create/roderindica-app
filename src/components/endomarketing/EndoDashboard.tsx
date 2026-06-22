@@ -4,7 +4,7 @@ import { db } from '../../lib/firebase';
 import { EndomarketingAction } from '../../types/endomarketing';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
-import { TrendingUp, DollarSign, Calendar, CheckCircle2, AlertCircle } from 'lucide-react';
+import { TrendingUp, DollarSign, Calendar, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
 
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -31,6 +31,7 @@ export default function EndoDashboard() {
   const totalActionCount = actions.length;
   const completedActions = actions.filter(a => a.status === 'Concluída').length;
   const plannedActions = actions.filter(a => a.status === 'Planejada').length;
+  const inProgressActions = actions.filter(a => a.status === 'Em andamento').length;
   const totalInvestment = actions.reduce((acc, curr) => acc + (curr.budget_actual || 0), 0);
   const avgInvestment = totalActionCount > 0 ? totalInvestment / totalActionCount : 0;
 
@@ -67,7 +68,7 @@ export default function EndoDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 xl:grid-cols-5 gap-4">
         <Card className="bg-orange-50 border-orange-100">
           <CardContent className="p-6">
             <div className="flex justify-between items-start">
@@ -100,20 +101,6 @@ export default function EndoDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="bg-green-50 border-green-100">
-          <CardContent className="p-6">
-            <div className="flex justify-between items-start">
-              <div className="space-y-1">
-                <p className="text-xs font-semibold text-green-900/60 uppercase tracking-wider">Ações Concluídas</p>
-                <h3 className="text-2xl font-bold text-green-700">{completedActions}</h3>
-              </div>
-              <div className="bg-white p-2 rounded-lg shadow-sm border border-green-100">
-                <CheckCircle2 className="h-5 w-5 text-green-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         <Card className="bg-slate-50 border-slate-100">
           <CardContent className="p-6">
             <div className="flex justify-between items-start">
@@ -123,6 +110,34 @@ export default function EndoDashboard() {
               </div>
               <div className="bg-white p-2 rounded-lg shadow-sm border border-slate-100">
                 <Calendar className="h-5 w-5 text-slate-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-amber-50 border-amber-100">
+          <CardContent className="p-6">
+            <div className="flex justify-between items-start">
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-amber-900/60 uppercase tracking-wider">Ações em Andamento</p>
+                <h3 className="text-2xl font-bold text-amber-700">{inProgressActions}</h3>
+              </div>
+              <div className="bg-white p-2 rounded-lg shadow-sm border border-amber-100">
+                <Clock className="h-5 w-5 text-amber-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-green-50 border-green-100">
+          <CardContent className="p-6">
+            <div className="flex justify-between items-start">
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-green-900/60 uppercase tracking-wider">Ações Concluídas</p>
+                <h3 className="text-2xl font-bold text-green-700">{completedActions}</h3>
+              </div>
+              <div className="bg-white p-2 rounded-lg shadow-sm border border-green-100">
+                <CheckCircle2 className="h-5 w-5 text-green-600" />
               </div>
             </div>
           </CardContent>

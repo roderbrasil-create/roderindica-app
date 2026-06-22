@@ -60,6 +60,65 @@ import { ScrollArea } from '../components/ui/scroll-area';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 
+// Background Seeding Helpers
+const seedMissingAccessories = async (existing: Accessory[]) => {
+  if ((window as any).isSeedingAccessories) return;
+  (window as any).isSeedingAccessories = true;
+
+  try {
+    const toSeed = ACCESSORIES_DATA.filter(defaultItem => {
+      return !existing.some(firestoreItem => {
+        if (firestoreItem.brand.toLowerCase() !== defaultItem.brand.toLowerCase()) return false;
+        
+        const cleanModel = (m: string) => m.toLowerCase().replace(/[\s\/-]/g, '');
+        const dm = cleanModel(defaultItem.model);
+        const fm = cleanModel(firestoreItem.model);
+        
+        return fm.includes(dm) || dm.includes(fm);
+      });
+    });
+
+    if (toSeed.length > 0) {
+      console.log(`Seeding ${toSeed.length} missing default accessories to Firestore...`);
+      for (const item of toSeed) {
+        await addDoc(collection(db, 'accessories'), {
+          ...item,
+          created_at: new Date().toISOString()
+        });
+      }
+    }
+  } catch (e) {
+    console.error("Error seeding accessories:", e);
+  } finally {
+    (window as any).isSeedingAccessories = false;
+  }
+};
+
+const seedMissingKits = async (existing: InstallationKit[]) => {
+  if ((window as any).isSeedingKits) return;
+  (window as any).isSeedingKits = true;
+
+  try {
+    const toSeed = DEFAULT_KITS.filter(defaultKit => {
+      return !existing.some(fk => fk.code === defaultKit.code);
+    });
+
+    if (toSeed.length > 0) {
+      console.log(`Seeding ${toSeed.length} missing default kits to Firestore...`);
+      for (const kit of toSeed) {
+        await addDoc(collection(db, 'installation_kits'), {
+          ...kit,
+          created_at: new Date().toISOString()
+        });
+      }
+    }
+  } catch (e) {
+    console.error("Error seeding installation kits:", e);
+  } finally {
+    (window as any).isSeedingKits = false;
+  }
+};
+
 export default function Accessories() {
   const { isManager, profile } = useAuth();
   
@@ -104,6 +163,8 @@ export default function Accessories() {
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Accessory));
         setAccessories(data.length > 0 ? data : ACCESSORIES_DATA as unknown as Accessory[]);
         setLoading(false);
+        // Automatically seed/restore missing default accessories
+        seedMissingAccessories(data);
       },
       (error) => {
         console.error("Error fetching accessories:", error);
@@ -117,6 +178,8 @@ export default function Accessories() {
       (snapshot) => {
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as InstallationKit));
         setKits(data.length > 0 ? data : DEFAULT_KITS as unknown as InstallationKit[]);
+        // Automatically seed/restore missing default installation kits
+        seedMissingKits(data);
       },
       (error) => {
         console.error("Error fetching kits:", error);

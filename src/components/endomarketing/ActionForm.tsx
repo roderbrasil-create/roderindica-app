@@ -270,15 +270,27 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1 flex flex-col overflow-hidden">
-          <div className="px-4 lg:px-6 border-b overflow-x-auto scrollbar-hide bg-white sticky top-0 lg:top-0 z-40 shrink-0">
-            <TabsList className="bg-transparent h-10 lg:h-12 w-fit lg:w-full justify-start gap-4 lg:gap-6 p-0 border-none">
-              <TabsTrigger value="general" className="data-[state=active]:bg-transparent data-[state=active]:text-orange-600 data-[state=active]:border-b-2 data-[state=active]:border-orange-600 rounded-none h-full shadow-none border-b-2 border-transparent px-2 text-[11px] lg:text-sm whitespace-nowrap font-bold uppercase tracking-tight">
+          <div className="px-4 lg:px-6 border-b bg-white sticky top-0 lg:top-0 z-40 shrink-0">
+            <TabsList className="bg-slate-100/90 dark:bg-slate-800/90 p-1.5 rounded-xl flex gap-1.5 w-full max-w-xl mx-auto my-3 border border-slate-200/60 dark:border-slate-700/60 h-11 lg:h-13 shadow-none select-none">
+              <TabsTrigger 
+                value="general" 
+                className="flex-1 flex items-center justify-center gap-1.5 lg:gap-2 text-[10px] lg:text-xs font-black uppercase tracking-wider text-slate-500 hover:text-slate-800 hover:bg-slate-200/40 dark:hover:bg-slate-700/40 rounded-lg py-1.5 lg:py-2.5 px-2 lg:px-4 focus-visible:outline-none focus-visible:none transition-all duration-200 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:text-orange-600 data-[state=active]:shadow-md data-[state=active]:border data-[state=active]:border-slate-200/80 cursor-pointer"
+              >
+                <Info className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
                 Informações
               </TabsTrigger>
-              <TabsTrigger value="financial" className="data-[state=active]:bg-transparent data-[state=active]:text-orange-600 data-[state=active]:border-b-2 data-[state=active]:border-orange-600 rounded-none h-full shadow-none border-b-2 border-transparent px-2 text-[11px] lg:text-sm whitespace-nowrap font-bold uppercase tracking-tight">
+              <TabsTrigger 
+                value="financial" 
+                className="flex-1 flex items-center justify-center gap-1.5 lg:gap-2 text-[10px] lg:text-xs font-black uppercase tracking-wider text-slate-500 hover:text-slate-800 hover:bg-slate-200/40 dark:hover:bg-slate-700/40 rounded-lg py-1.5 lg:py-2.5 px-2 lg:px-4 focus-visible:outline-none focus-visible:none transition-all duration-200 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:text-orange-600 data-[state=active]:shadow-md data-[state=active]:border data-[state=active]:border-slate-200/80 cursor-pointer"
+              >
+                <Calculator className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
                 Financeiro
               </TabsTrigger>
-              <TabsTrigger value="evidence" className="data-[state=active]:bg-transparent data-[state=active]:text-orange-600 data-[state=active]:border-b-2 data-[state=active]:border-orange-600 rounded-none h-full shadow-none border-b-2 border-transparent px-2 text-[11px] lg:text-sm whitespace-nowrap font-bold uppercase tracking-tight">
+              <TabsTrigger 
+                value="evidence" 
+                className="flex-1 flex items-center justify-center gap-1.5 lg:gap-2 text-[10px] lg:text-xs font-black uppercase tracking-wider text-slate-500 hover:text-slate-800 hover:bg-slate-200/40 dark:hover:bg-slate-700/40 rounded-lg py-1.5 lg:py-2.5 px-2 lg:px-4 focus-visible:outline-none focus-visible:none transition-all duration-200 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:text-orange-600 data-[state=active]:shadow-md data-[state=active]:border data-[state=active]:border-slate-200/80 cursor-pointer"
+              >
+                <Paperclip className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
                 Evidências
               </TabsTrigger>
             </TabsList>
