@@ -1023,14 +1023,14 @@ export default function FinanceDashboard() {
         </Card>
 
         {/* Historic Multi-Axis Graphical Chart Card */}
-        <Card className="bg-card border border-border shadow-sm lg:col-span-3">
+        <Card className="bg-card border border-border shadow-sm lg:col-span-3 flex flex-col">
           <CardHeader className="pb-1">
             <CardTitle className="text-sm font-bold text-foreground">Evolutivo Histórico e Tendências</CardTitle>
             <p className="text-xs text-muted-foreground">Eixo esquerdo para valores monetários absolutos (R$) • Eixo direito para Margens (%), Prazos (dias) ou Índices.</p>
           </CardHeader>
-          <CardContent className="p-4">
+          <CardContent className="p-4 flex-1 flex flex-col">
             {chartData.length < 1 ? (
-              <div className="h-[360px] flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-border/80 rounded-xl bg-muted/10">
+              <div className="h-[480px] md:h-[550px] flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-border/80 rounded-xl bg-muted/10">
                 <AlertTriangle className="h-9 w-9 text-sky-500/50 mb-3" />
                 <h4 className="font-bold text-sm text-foreground">Nenhum Demonstrativo Salvo</h4>
                 <p className="text-xs text-muted-foreground max-w-sm mt-1 leading-relaxed">
@@ -1038,7 +1038,7 @@ export default function FinanceDashboard() {
                 </p>
               </div>
             ) : (
-              <div className="h-[360px] w-full min-w-0 flex flex-col justify-between">
+              <div className="h-[480px] md:h-[550px] w-full min-w-0 flex flex-col justify-between flex-1">
                 {chartData.length === 1 && (
                   <div className="mb-2 px-3 py-1.5 rounded-lg bg-sky-500/10 border border-sky-500/20 text-[11px] text-sky-400 flex items-center gap-2">
                     <TrendingUp className="h-3.5 w-3.5 shrink-0" />
