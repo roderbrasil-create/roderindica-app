@@ -434,8 +434,19 @@ export default function Triagem() {
                   {/* Header row: Title and Badges */}
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <h3 className="text-sm font-black text-foreground truncate uppercase" title={ind.client_name}>
-                        {ind.client_name}
+                      <h3 className="text-sm font-black text-foreground uppercase tracking-tight" title={ind.client_person_name ? `${ind.client_person_name}${ind.client_name ? ` - ${ind.client_name}` : ''}` : ind.client_name || 'Nome não informado'}>
+                        {ind.client_person_name ? (
+                          <div className="flex flex-col">
+                            <span className="text-slate-900 dark:text-white font-black text-sm truncate">{ind.client_person_name}</span>
+                            {ind.client_name && ind.client_name.trim() !== '' && (
+                              <span className="text-[10px] text-muted-foreground font-semibold mt-0.5 uppercase truncate">
+                                Empresa: {ind.client_name}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          ind.client_name || 'Nome não informado'
+                        )}
                       </h3>
                       <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
                         <History className="h-3 w-3 inline" /> Recebido em {safeFormatDate(ind.created_at, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}

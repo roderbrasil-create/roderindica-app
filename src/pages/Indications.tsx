@@ -1660,11 +1660,22 @@ export default function Indications() {
                                 <td className="p-4 align-middle">
                                   <div className="flex items-center gap-3">
                                     <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0">
-                                      {ind.client_name.charAt(0).toUpperCase()}
+                                      {(ind.client_person_name || ind.client_name || '?').charAt(0).toUpperCase()}
                                     </div>
                                     <div className="min-w-0 max-w-[220px]">
-                                      <h4 className="font-extrabold text-xs text-foreground uppercase truncate" title={ind.client_name}>
-                                        {ind.client_name}
+                                      <h4 className="font-extrabold text-xs text-foreground uppercase tracking-tight" title={ind.client_person_name ? `${ind.client_person_name}${ind.client_name ? ` (${ind.client_name})` : ''}` : ind.client_name || 'Nome não informado'}>
+                                        {ind.client_person_name ? (
+                                          <div className="flex flex-col">
+                                            <span className="font-extrabold text-xs text-foreground uppercase truncate">{ind.client_person_name}</span>
+                                            {ind.client_name && ind.client_name.trim() !== '' && (
+                                              <span className="text-[10px] text-muted-foreground truncate uppercase font-semibold mt-0.5">
+                                                {ind.client_name}
+                                              </span>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          ind.client_name || 'Nome não informado'
+                                        )}
                                       </h4>
                                       {ind.client_phone ? (
                                         <div className="flex items-center gap-1 mt-1 mr-1" onClick={(e) => e.stopPropagation()}>
@@ -1755,8 +1766,8 @@ export default function Indications() {
                         >
                           <div className="min-w-0 flex-1 space-y-1">
                             <div className="flex items-center justify-between gap-1 leading-none">
-                              <span className="font-extrabold text-xs text-foreground uppercase truncate" title={ind.client_name}>
-                                {ind.client_name}
+                              <span className="font-extrabold text-xs text-foreground uppercase truncate" title={ind.client_person_name ? `${ind.client_person_name}${ind.client_name ? ` (${ind.client_name})` : ''}` : ind.client_name || 'Nome não informado'}>
+                                {ind.client_person_name || ind.client_name || 'Nome não informado'}
                               </span>
                               <span className="text-[9px] text-muted-foreground shrink-0 font-medium">
                                 {new Date(ind.created_at).toLocaleDateString('pt-BR')}
@@ -1872,11 +1883,22 @@ export default function Indications() {
                             <td className="p-4 align-middle">
                               <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0">
-                                  {ind.client_name.charAt(0).toUpperCase()}
+                                  {(ind.client_person_name || ind.client_name || '?').charAt(0).toUpperCase()}
                                 </div>
                                 <div className="min-w-0 max-w-[200px]">
-                                  <h4 className="font-extrabold text-xs text-foreground uppercase truncate" title={ind.client_name}>
-                                    {ind.client_name}
+                                  <h4 className="font-extrabold text-xs text-foreground uppercase tracking-tight" title={ind.client_person_name ? `${ind.client_person_name}${ind.client_name ? ` (${ind.client_name})` : ''}` : ind.client_name || 'Nome não informado'}>
+                                    {ind.client_person_name ? (
+                                      <div className="flex flex-col">
+                                        <span className="font-extrabold text-xs text-foreground uppercase truncate">{ind.client_person_name}</span>
+                                        {ind.client_name && ind.client_name.trim() !== '' && (
+                                          <span className="text-[10px] text-muted-foreground truncate uppercase font-semibold mt-0.5">
+                                            {ind.client_name}
+                                          </span>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      ind.client_name || 'Nome não informado'
+                                    )}
                                   </h4>
                                   {ind.client_phone ? (
                                     <div className="flex items-center gap-1 mt-1 mr-1" onClick={(e) => e.stopPropagation()}>
@@ -2191,8 +2213,8 @@ export default function Indications() {
                         {/* Row 1: Client Name & Date */}
                         <div className="flex items-center justify-between gap-1 leading-none">
                           <div className="flex items-center gap-1 flex-wrap min-w-0" onClick={(e) => e.stopPropagation()}>
-                            <span className="font-extrabold text-xs text-foreground uppercase truncate" title={ind.client_name}>
-                              {ind.client_name}
+                            <span className="font-extrabold text-xs text-foreground uppercase truncate" title={ind.client_person_name ? `${ind.client_person_name}${ind.client_name ? ` (${ind.client_name})` : ''}` : ind.client_name || 'Nome não informado'}>
+                              {ind.client_person_name || ind.client_name || 'Nome não informado'}
                             </span>
                             {ind.client_phone && (
                               <a

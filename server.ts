@@ -501,9 +501,13 @@ async function startServer() {
         const resend = new Resend(settings.apiKey);
         const fromEmail = settings.senderEmail || 'vendas@roderbrasil.com.br';
         
+        const toArray = typeof to === 'string'
+          ? to.split(',').map((e: string) => e.trim()).filter((e: string) => e !== '')
+          : Array.isArray(to) ? to : [to];
+
         const { data, error } = await resend.emails.send({
           from: fromName ? `${fromName} <${fromEmail}>` : `RODER Indica <${fromEmail}>`,
-          to: [to],
+          to: toArray,
           subject: subject,
           html: html,
           replyTo: replyTo || fromEmail

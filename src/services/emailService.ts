@@ -121,18 +121,12 @@ export async function notifyNewIndication(indication: any, partnerName: string) 
       </div>
     `;
 
-    // Send to all managers in parallel and catch individual errors
-    const results = await Promise.allSettled(
-      managers.map(email => 
-        sendEmail({ to: email, subject, html }).then(res => {
-          if (!res.success) throw new Error(`Email failed: ${res.error}`);
-          return email;
-        })
-      )
-    );
-    
-    console.log('[NOTIFICATION] notifyNewIndication results:', results.map(r => r.status === 'fulfilled' ? `SUCCESS: ${r.value}` : `FAILED: ${r.reason}`));
-    return results;
+    // Send a single email with all manager recipients to avoid concurrent connection rate limits on Gmail SMTP
+    const recipientString = managers.join(', ');
+    console.log('[NOTIFICATION] notifyNewIndication: Sending single combined email to:', recipientString);
+    const result = await sendEmail({ to: recipientString, subject, html });
+    console.log('[NOTIFICATION] notifyNewIndication result:', result);
+    return result;
   } catch (err) {
     console.error('Erro crítico ao notificar nova indicação:', err);
   }
@@ -317,11 +311,11 @@ export async function notifyLuanaNewFairLead(lead: any, fairName: string) {
     </div>
   `;
 
-  // Send to all managers (which includes Luana, Gislene, and Admin)
-  const results = await Promise.all(
-    managers.map(email => sendEmail({ to: email, subject, html }))
-  );
-  return { success: true, count: results.length };
+  // Send a single email with all manager recipients to avoid concurrent connection rate limits on Gmail SMTP
+  const recipientString = managers.join(', ');
+  console.log('[NOTIFICATION] notifyLuanaNewFairLead: Sending single combined email to:', recipientString);
+  const result = await sendEmail({ to: recipientString, subject, html });
+  return { success: result.success, count: managers.length };
 }
 
 export async function notifyStockUpdate(emails: string[], appOrigin: string) {
@@ -526,21 +520,15 @@ export async function notifyClosedOrder(params: {
     </div>
   `;
 
-  const results = await Promise.all(
-    recipients.map(async (email) => {
-      try {
-        return await sendEmail({
-          to: email,
-          subject,
-          html,
-          fromName: 'Roder Indica'
-        });
-      } catch (err) {
-        console.error(`Failed to send order closed email to ${email}:`, err);
-        return { success: false, error: err };
-      }
-    })
-  );
+  // Send a single email with all recipients to avoid concurrent connection rate limits on Gmail SMTP
+  const recipientString = recipients.join(', ');
+  console.log('[NOTIFICATION] notifyClosedOrder: Sending single combined email to:', recipientString);
+  const result = await sendEmail({
+    to: recipientString,
+    subject,
+    html,
+    fromName: 'Roder Indica'
+  });
 
-  return { success: true, total: recipients.length };
+  return { success: result.success, total: recipients.length };
 }
