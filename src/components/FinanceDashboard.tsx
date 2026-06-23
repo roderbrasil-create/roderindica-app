@@ -8,6 +8,7 @@ import {
   orderBy 
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { getApiBaseUrl } from '../lib/utils';
 import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { 
@@ -405,7 +406,8 @@ export default function FinanceDashboard() {
     }
 
     try {
-      const response = await fetch('/api/financeiro/parse-pdf', {
+      const baseUrl = getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/financeiro/parse-pdf`, {
         method: 'POST',
         body: formData,
       });

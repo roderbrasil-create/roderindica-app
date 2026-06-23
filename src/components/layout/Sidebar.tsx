@@ -38,7 +38,7 @@ import {
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import { Progress } from '../ui/progress';
-import { cn } from '../../lib/utils';
+import { cn, getApiBaseUrl } from '../../lib/utils';
 import { toast } from 'sonner';
 
 interface SidebarProps {
@@ -328,7 +328,8 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
   React.useEffect(() => {
     const fetchHealth = async () => {
       try {
-        const res = await fetch('/api/health');
+        const baseUrl = getApiBaseUrl();
+        const res = await fetch(`${baseUrl}/api/health`);
         const data = await res.json();
         if (data.aiHealth) setAiStatus(data.aiHealth);
       } catch (e) {

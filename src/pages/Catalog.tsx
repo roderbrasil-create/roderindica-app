@@ -75,7 +75,7 @@ import { Checkbox } from '../components/ui/checkbox';
 import { ref, uploadBytes, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
 import { useNavigate } from 'react-router-dom';
 import { compressImage } from '../lib/imageUtils';
-import { cn } from '../lib/utils';
+import { cn, getApiBaseUrl } from '../lib/utils';
 import { ImageLightbox } from '../components/ui/ImageLightbox';
 
 function SmartImage({ src, alt, className, zoom = 1, ...props }: any) {
@@ -2272,9 +2272,37 @@ export default function Catalog() {
 
       // Priority 2: Storage
       console.log(`SmartUpload: Using Storage for ${fileName} (${blob.size} bytes)`);
-      const storageRef = ref(storage, `${path}/${Date.now()}_${fileName.replace(/[^a-zA-Z0-9.]/g, '_')}`);
-      await uploadBytes(storageRef, blob, { contentType: blob.type });
-      return await getDownloadURL(storageRef);
+      try {
+        const storageRef = ref(storage, `${path}/${Date.now()}_${fileName.replace(/[^a-zA-Z0-9.]/g, '_')}`);
+        await uploadBytes(storageRef, blob, { contentType: blob.type });
+        return await getDownloadURL(storageRef);
+      } catch (storageError: any) {
+        console.warn(`Direct client-side Firebase Storage upload failed for ${fileName}. Trying robust server-side proxy fallback...`, storageError);
+        try {
+          const uploadFile = blob instanceof File ? blob : new File([blob], fileName, { type: blob.type });
+          const formDataObj = new FormData();
+          formDataObj.append('image', uploadFile);
+          formDataObj.append('folder', path);
+          
+          const baseUrl = getApiBaseUrl();
+          const proxyRes = await fetch(`${baseUrl}/api/upload-image`, {
+            method: 'POST',
+            body: formDataObj
+          });
+          
+          if (proxyRes.ok) {
+            const data = await proxyRes.json();
+            if (data.success && data.url) {
+              console.log("Server fallback upload successful!", data.url);
+              return data.url;
+            }
+          }
+          throw new Error('Server proxy upload failed or returned invalid response');
+        } catch (fallbackError) {
+          console.error("Both direct and proxy fallbacks failed for upload:", fallbackError);
+          throw storageError;
+        }
+      }
     } catch (error) {
       console.error('Error in smartUpload:', error);
       return typeof fileOrBase64 === 'string' ? fileOrBase64 : '';
@@ -3228,11 +3256,11 @@ export default function Catalog() {
 
           {/* Models List - Compact Bento Style */}
           <div className="flex-1 px-6 py-4 md:px-3 md:py-6 max-w-[1440px] mx-auto w-full space-y-4 md:space-y-4">
-            {viewingGallery.models?.map((model: any) => (
+            {viewingGallery.models?.map((model: any, idx: number) => (
               <motion.div
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
-                key={model.id}
+                key={model.id || `gallery-model-${idx}`}
                 className="bg-white rounded-xl border border-border shadow-sm overflow-hidden flex flex-row h-auto min-h-[140px] md:min-h-[252px]"
               >
                 {/* Left side: Compact Image */}
@@ -3685,9 +3713,9 @@ export default function Catalog() {
                 selectedModel && "hidden md:block"
               )}>
                 <div className="p-3 space-y-2">
-                  {selectedProductModels?.models?.map((model) => (
+                  {selectedProductModels?.models?.map((model, idx) => (
                     <div
-                      key={model.id}
+                      key={model.id || `sel-model-${idx}`}
                       className={cn(
                         "w-full flex items-center p-1 rounded-lg transition-all group",
                         selectedModel?.id === model.id 
@@ -4468,7 +4496,7 @@ export default function Catalog() {
                 <ScrollArea className="h-[300px] pr-4">
                   <div className="space-y-2">
                     {formData.models.map((model, idx) => (
-                      <div key={model.id} className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/10 group">
+                      <div key={model.id || `mgmt-model-${idx}`} className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/10 group">
                         <div className="flex items-center gap-3">
                           <div className="h-10 w-10 rounded bg-primary/10 flex items-center justify-center">
                             <Package className="h-5 w-5 text-primary" />
@@ -5027,8 +5055,8 @@ export default function Catalog() {
                         <div className="grid grid-cols-2 gap-2">
                           {(isEditingFromProductDialog ? formData.models : (selectedProductModels?.models || viewingGallery?.models || []))
                             .filter(m => m.id !== editingModelData.id)
-                            .map(m => (
-                              <div key={m.id} className="flex items-center gap-2">
+                            .map((m, idx) => (
+                              <div key={m.id || `apply-${idx}`} className="flex items-center gap-2">
                                 <Checkbox 
                                   id={`apply-${m.id}`}
                                   checked={applyImageToOtherModels.includes(m.id)}

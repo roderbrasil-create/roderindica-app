@@ -72,7 +72,7 @@ import {
   YAxis
 } from 'recharts';
 import { toast } from 'sonner';
-import { cn, formatCurrency, safeFormatDate } from '../lib/utils';
+import { cn, formatCurrency, safeFormatDate, getApiBaseUrl } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -120,7 +120,8 @@ export default function FairDetails() {
   useEffect(() => {
     const checkAI = async () => {
         try {
-            const res = await fetch('/api/health');
+            const baseUrl = getApiBaseUrl();
+            const res = await fetch(`${baseUrl}/api/health`);
             const data = await res.json();
             if (data.aiHealth) {
                 setAiHealth(data.aiHealth);

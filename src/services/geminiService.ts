@@ -2,8 +2,11 @@
 // This file runs inside the browser and forwards all AI queries to the secure backend.
 // This prevents exposing process.env keys and loading Node-only libraries on the client.
 
+import { getApiBaseUrl } from "../lib/utils";
+
 async function executeBackendAI(action: string, args: any = {}): Promise<any> {
-  const response = await fetch("/api/gemini/execute", {
+  const baseUrl = getApiBaseUrl();
+  const response = await fetch(`${baseUrl}/api/gemini/execute`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

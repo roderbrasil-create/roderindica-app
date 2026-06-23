@@ -1,5 +1,6 @@
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { getApiBaseUrl } from '../lib/utils';
 
 export interface EmailOptions {
   to: string;
@@ -11,7 +12,8 @@ export interface EmailOptions {
 
 export async function sendEmail(options: EmailOptions) {
   try {
-    const response = await fetch('/api/send-email', {
+    const baseUrl = getApiBaseUrl();
+    const response = await fetch(`${baseUrl}/api/send-email`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(options)

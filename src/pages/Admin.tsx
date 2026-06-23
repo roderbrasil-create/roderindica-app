@@ -73,6 +73,7 @@ import { Switch } from '../components/ui/switch';
 import { Link, useNavigate } from 'react-router-dom';
 import { usePWA } from '../contexts/PWAContext';
 import { Wifi, WifiOff, Download } from 'lucide-react';
+import { getApiBaseUrl } from '../lib/utils';
 
 import { maskPhone, maskCpfCnpj } from '../lib/masks';
 
@@ -619,7 +620,8 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
           </div>
         `;
 
-        const response = await fetch('/api/send-email', {
+        const baseUrl = getApiBaseUrl();
+        const response = await fetch(`${baseUrl}/api/send-email`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1048,7 +1050,8 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
 
     const toastId = toast.loading('Enviando e-mail de teste...');
     try {
-      const response = await fetch('/api/send-email', {
+      const baseUrl = getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/send-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1199,7 +1202,8 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
       const token = await auth.currentUser?.getIdToken();
       if (!token) throw new Error('Sessão expirada. Refaça o login.');
 
-      const response = await fetch('/api/admin/set-user-password', {
+      const baseUrl = getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/admin/set-user-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

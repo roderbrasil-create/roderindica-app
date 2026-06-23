@@ -70,7 +70,7 @@ import {
 } from '../components/ui/table';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { toast } from 'sonner';
-import { cn, safeFormatDate } from '../lib/utils';
+import { cn, safeFormatDate, getApiBaseUrl } from '../lib/utils';
 import { StockItem, StockSale, StockReservation, RegisteredProduct, StockImportFAE } from '../types';
 import { toPng } from 'html-to-image';
 import { scanStockPDF } from '../services/geminiService';
@@ -999,7 +999,8 @@ export default function Stock() {
       reader.readAsDataURL(file);
       const base64Data = await base64Promise;
 
-      const response = await fetch('/api/ocr-monday', {
+      const baseUrl = getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/ocr-monday`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

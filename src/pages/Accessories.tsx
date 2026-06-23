@@ -48,7 +48,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
-import { cn } from '../lib/utils';
+import { cn, getApiBaseUrl } from '../lib/utils';
 import { 
   Dialog, 
   DialogContent, 
@@ -434,7 +434,8 @@ export default function Accessories() {
       const compressedFile = await compressImage(file);
       const base64Data = await blobToBase64(compressedFile);
 
-      const res = await fetch('/api/upload-image', {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/api/upload-image`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -485,7 +486,8 @@ export default function Accessories() {
       const compressedFile = await compressImage(file);
       const base64Data = await blobToBase64(compressedFile);
 
-      const res = await fetch('/api/upload-image', {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/api/upload-image`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

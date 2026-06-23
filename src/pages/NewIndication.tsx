@@ -1370,7 +1370,10 @@ export default function NewIndication() {
                       onBlur={() => {
                         const masked = maskCpfCnpj(formData.client_cnpj);
                         setFormData(p => ({ ...p, client_cnpj: masked }));
-                        if (masked.replace(/\D/g, '').length === 14) {
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
                           handleCnpjLookup();
                         }
                       }}
