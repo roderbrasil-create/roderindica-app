@@ -24,5 +24,18 @@ export function safeFormatDate(date: any, options: Intl.DateTimeFormatOptions = 
 }
 
 export function getApiBaseUrl(): string {
+  if ((import.meta as any).env?.VITE_API_BASE_URL) {
+    return (import.meta as any).env.VITE_API_BASE_URL;
+  }
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    if (
+      hostname === 'roderindica.com' || 
+      hostname === 'www.roderindica.com' || 
+      hostname === 'roderindica.roderbrasil.com.br'
+    ) {
+      return 'https://roder-indica-v2-142737915053.us-west1.run.app';
+    }
+  }
   return '';
 }

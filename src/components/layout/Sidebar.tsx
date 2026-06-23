@@ -343,7 +343,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
 
   // Sync counts separately
   React.useEffect(() => {
-    if (!profile?.uid || !(isAdmin || isManager || isTriagem || isMarketing)) {
+    if (!profile?.uid || !(isAdmin || isManager || isTriagem)) {
       setPendingTriageCount(0);
       return;
     }
@@ -356,7 +356,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     return () => {
       unsubTriage();
     };
-  }, [profile?.uid, profile?.role, isAdmin, isManager, isTriagem, isMarketing]);
+  }, [profile?.uid, profile?.role, isAdmin, isManager, isTriagem]);
 
   // navItems logic - now depends on counts but not on the toggle states themselves 
   // to avoid re-calculating the whole tree when a menu opens
