@@ -66,12 +66,7 @@ export async function getManagerEmails(): Promise<string[]> {
 
 export async function notifyNewIndication(indication: any, partnerName: string) {
   try {
-    const shouldSend = await shouldSendNotification('new_indication_admin');
-    console.log('[NOTIFICATION] notifyNewIndication: shouldSend =', shouldSend);
-    if (!shouldSend) {
-      console.log('[NOTIFICATION] Aborting notifyNewIndication because it is disabled in settings');
-      return;
-    }
+    console.log('[NOTIFICATION] notifyNewIndication force-enabled for partnerName:', partnerName);
 
     const managers = await getManagerEmails();
     console.log('[NOTIFICATION] notifyNewIndication: Recipient list =', managers);
@@ -81,28 +76,44 @@ export async function notifyNewIndication(indication: any, partnerName: string) 
       return;
     }
 
-    const subject = `NOVA INDICAÇÃO: ${indication.client_name || indication.company_name} (via ${partnerName})`;
+    const subject = `🔥 NOVO LEAD CADASTRADO: ${indication.client_name || indication.company_name} (via ${partnerName})`;
     const html = `
       <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 8px; overflow: hidden;">
         <div style="background-color: #f97316; color: white; padding: 20px; text-align: center;">
           <h2 style="margin: 0; text-transform: uppercase;">Nova Indicação Recebida</h2>
-          <p style="margin: 5px 0 0 0; opacity: 0.9;">Um novo negócio foi indicado por ${partnerName}</p>
+          <p style="margin: 5px 0 0 0; opacity: 0.9;">Um novo negócio foi registrado no sistema por <strong>${partnerName}</strong></p>
         </div>
         
         <div style="padding: 24px;">
           <div style="background-color: #fdf2f7; border-left: 4px solid #f97316; padding: 15px; margin-bottom: 20px;">
-             <p style="margin: 0; font-weight: bold; color: #7c2d12;">CLIENTE: ${indication.client_name || indication.company_name}</p>
+             <p style="margin: 0; font-weight: bold; color: #7c2d12; font-size: 16px;">CLIENTE: ${indication.client_name || indication.company_name}</p>
           </div>
 
           <table style="width: 100%; border-collapse: collapse;">
-            <tr><td style="padding: 8px 0; color: #666; width: 120px;">WhatsApp:</td><td style="padding: 8px 0; font-weight: bold;">${indication.client_phone || indication.phone || 'Não informado'}</td></tr>
-            <tr><td style="padding: 8px 0; color: #666;">Empresa:</td><td style="padding: 8px 0;">${indication.company_name || 'N/A'}</td></tr>
-            <tr><td style="padding: 8px 0; color: #666;">Cidade/UF:</td><td style="padding: 8px 0;">${indication.city || '-'}/${indication.state || '-'}</td></tr>
-            <tr><td style="padding: 8px 0; color: #666;">Equipamento:</td><td style="padding: 8px 0; color: #f97316; font-weight: bold;">${indication.product_name || 'Personalizado'}</td></tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; width: 140px; border-bottom: 1px solid #f3f4f6;">Origem / Indicador:</td>
+              <td style="padding: 8px 0; font-weight: bold; color: #f97316; border-bottom: 1px solid #f3f4f6;">${partnerName}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; border-bottom: 1px solid #f3f4f6;">WhatsApp Cliente:</td>
+              <td style="padding: 8px 0; font-weight: bold; border-bottom: 1px solid #f3f4f6;">${indication.client_phone || indication.phone || 'Não informado'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; border-bottom: 1px solid #f3f4f6;">Nome da Empresa:</td>
+              <td style="padding: 8px 0; border-bottom: 1px solid #f3f4f6;">${indication.company_name || 'N/A'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; border-bottom: 1px solid #f3f4f6;">Cidade/UF:</td>
+              <td style="padding: 8px 0; border-bottom: 1px solid #f3f4f6;">${indication.city || '-'}/${indication.state || '-'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; border-bottom: 1px solid #f3f4f6;">Equipamento:</td>
+              <td style="padding: 8px 0; color: #f97316; font-weight: bold; border-bottom: 1px solid #f3f4f6;">${indication.product_name || 'Personalizado'}</td>
+            </tr>
           </table>
 
           <div style="margin-top: 30px; text-align: center;">
-            <a href="${window.location.origin}/triagem" style="background-color: #f97316; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">ACESSAR TRIAGEM NO SISTEMA</a>
+            <a href="https://roderindica.roderbrasil.com.br/triagem" style="background-color: #f97316; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">ACESSAR TRIAGEM NO SISTEMA</a>
           </div>
         </div>
       </div>

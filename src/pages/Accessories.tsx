@@ -64,11 +64,13 @@ import { Textarea } from '../components/ui/textarea';
 
 const getDisplayImageUrl = (url: string | undefined): string => {
   if (!url) return '';
-  // Clean up any historical localhost absolute URLs stored in Firestore
-  let cleanUrl = url;
+  let cleanUrl = url.trim();
+  
   if (cleanUrl.includes('/uploads/')) {
     const parts = cleanUrl.split('/uploads/');
     cleanUrl = `/uploads/${parts[parts.length - 1]}`;
+  } else if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://') && !cleanUrl.startsWith('/')) {
+    cleanUrl = `/uploads/${cleanUrl}`;
   }
   
   if (cleanUrl.startsWith('https://firebasestorage.googleapis.com')) {
@@ -79,11 +81,7 @@ const getDisplayImageUrl = (url: string | undefined): string => {
 
 const getAbsoluteImageUrl = (url: string | undefined): string => {
   if (!url) return '';
-  let cleanUrl = url;
-  if (cleanUrl.includes('/uploads/')) {
-    const parts = cleanUrl.split('/uploads/');
-    cleanUrl = `/uploads/${parts[parts.length - 1]}`;
-  }
+  const cleanUrl = getDisplayImageUrl(url);
   if (cleanUrl.startsWith('/')) {
     return window.location.origin + cleanUrl;
   }
