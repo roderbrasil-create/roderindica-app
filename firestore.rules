@@ -141,7 +141,7 @@ service cloud.firestore {
     function isValidIndication(data) {
       return data.keys().hasAll(['external_seller_uid', 'client_name', 'client_phone', 'status', 'created_at']) &&
              data.external_seller_uid is string &&
-             data.client_name is string && data.client_name.size() > 0 && data.client_name.size() < 200 &&
+             data.client_name is string && data.client_name.size() >= 0 && data.client_name.size() < 200 &&
              data.client_phone is string && data.client_phone.size() > 0 &&
              data.status in ['pending', 'triagem', 'negotiating', 'sold', 'archived', 'cancelled'] &&
              (isValidDateString(data.created_at) || data.created_at is timestamp);
@@ -216,7 +216,7 @@ service cloud.firestore {
         isManager() || isTriagem() || isInternalSeller() || 
         (hasRole('external_seller') && resource.data.external_seller_uid == request.auth.uid)
       );
-      allow create: if (isAuthenticated() && (hasRole('external_seller') || isAdmin() || request.resource.data.source == 'fair') && isValidIndication(request.resource.data)) ||
+      allow create: if (isAuthenticated() && isValidIndication(request.resource.data)) ||
                     (request.resource.data.creator_type == 'client' && isValidIndication(request.resource.data));
       allow update: if isAuthenticated() && (
         isManager() || 

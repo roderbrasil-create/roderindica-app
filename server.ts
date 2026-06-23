@@ -156,6 +156,17 @@ async function startServer() {
 
   app.use(express.json({ limit: '50mb' }));
 
+  // CORS Middleware to allow requests from Hostinger custom domains (e.g., roderindica.com) and other external origins
+  app.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
   // Ensure local uploads directory exists for robust image fallback
   const uploadsDir = path.join(process.cwd(), "uploads");
   if (!fs.existsSync(uploadsDir)) {

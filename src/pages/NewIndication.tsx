@@ -1382,11 +1382,13 @@ export default function NewIndication() {
                     <Button 
                       type="button" 
                       variant="outline" 
-                      className="border-border h-11 px-3 shadow-sm bg-white dark:bg-zinc-950 hover:bg-muted" 
+                      className="border-border h-11 px-3 shadow-sm bg-white dark:bg-zinc-950 hover:bg-muted flex items-center justify-center" 
                       onClick={handleCnpjLookup} 
                       disabled={loading}
                     >
-                      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4 text-muted-foreground" />}
+                      <span key={loading ? "loading" : "search"} className="flex items-center justify-center">
+                        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4 text-muted-foreground" />}
+                      </span>
                     </Button>
                   </div>
                 </div>
@@ -1825,12 +1827,24 @@ export default function NewIndication() {
             </Button>
             <div className="w-full sm:w-auto flex items-center gap-1.5">
               <Button 
+                type="button"
                 onClick={handleSubmit}
                 disabled={loading}
                 className="w-full sm:w-auto h-12 px-8 bg-primary hover:bg-primary/95 text-primary-foreground font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/10 flex items-center justify-center"
               >
-                {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
-                {loading ? 'Processando envio...' : 'Enviar Nova Indicação'}
+                <span key={loading ? "submitting" : "ready"} className="flex items-center justify-center">
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Processando envio...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      Enviar Nova Indicação
+                    </>
+                  )}
+                </span>
               </Button>
               <HelpTooltip content="Finaliza o cadastro da indicação comercial. Luana e Gislene receberão alertas instantâneos de negócios no ERP." />
             </div>
