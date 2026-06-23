@@ -60,25 +60,34 @@ service cloud.firestore {
     }
 
     function getUserData() {
-      let path = /databases/$(database)/documents/users/$(request.auth.uid);
-      return exists(path) ? get(path).data : null;
+      return (request.auth != null && request.auth.uid != null && exists(/databases/$(database)/documents/users/$(request.auth.uid))) 
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data 
+        : null;
     }
 
     function hasRole(role) {
       let data = getUserData();
-      return data != null && data.role == role;
+      return data != null && 'role' in data && data.role == role;
     }
 
     function isMarketing() {
+      if (request.auth == null || request.auth.token == null || !('email' in request.auth.token) || request.auth.token.email == null) {
+        return false;
+      }
       let email = request.auth.token.email.lower();
       let isExplicitMarketing = (email == "marketing@roderbrasil.com.br" || 
-                                  email == "roderbrasil@gmail.com" ||
-                                  email == "yury@roderbrasil.com.br" ||
-                                  email == "yuri@roderbrasil.com.br") && request.auth.token.email_verified == true;
-      return isExplicitMarketing || hasRole('marketing');
+                                 email == "roderbrasil@gmail.com" ||
+                                 email == "yury@roderbrasil.com.br" ||
+                                 email == "yuri@roderbrasil.com.br") && 
+                                ('email_verified' in request.auth.token && request.auth.token.email_verified == true);
+      let data = getUserData();
+      return isExplicitMarketing || (data != null && 'role' in data && data.role == 'marketing');
     }
 
     function isAdmin() {
+      if (request.auth == null || request.auth.token == null || !('email' in request.auth.token) || request.auth.token.email == null) {
+        return false;
+      }
       let email = request.auth.token.email.lower();
       let isExplicitAdmin = (email == "roderbrasil@gmail.com" || 
                              email == "roderindica@gmail.com" || 
@@ -96,25 +105,63 @@ service cloud.firestore {
                              email == "luana@roderbrasil.com.br" ||
                              email == "luana@roder.com.br");
       let data = getUserData();
-      return isExplicitAdmin || (data != null && data.role == 'admin');
+      return isExplicitAdmin || (data != null && 'role' in data && data.role == 'admin');
     }
 
     function isManager() {
+      if (request.auth == null || request.auth.token == null || !('email' in request.auth.token) || request.auth.token.email == null) {
+        return false;
+      }
       let email = request.auth.token.email.lower();
       let isExplicitManager = (email == "yury@roderbrasil.com.br" || 
                                email == "yuri@roderbrasil.com.br" || 
                                email == "roderbrasil@gmail.com" ||
                                email == "marketing@roderbrasil.com.br");
       let data = getUserData();
-      return isAdmin() || isExplicitManager || isMarketing() || (data != null && (data.role == 'manager' || data.role == 'finance' || data.role == 'financial'));
+      
+      let role = data != null && 'role' in data ? data.role : '';
+      let isExplicitAdmin = (email == "roderbrasil@gmail.com" || 
+                             email == "roderindica@gmail.com" || 
+                             email == "gislene@roderbrasil.com.br" || 
+                             email == "contato@roderbrasil.com.br" ||
+                             email == "rogerio@roderbrasil.com.br" ||
+                             email == "gislene@roder.com.br" ||
+                             email == "yury@roderbrasil.com.br" ||
+                             email == "yuri@roderbrasil.com.br" ||
+                             email == "pecas@roderbrasil.com.br" ||
+                             email == "peças@roderbrasil.com.br" ||
+                             email == "marketing@roderbrasil.com.br" ||
+                             email == "financeiro@roderbrasil.com.br" ||
+                             email == "rudineisolmario@outlook.com" ||
+                             email == "luana@roderbrasil.com.br" ||
+                             email == "luana@roder.com.br");
+                             
+      let isExplicitMarketing = (email == "marketing@roderbrasil.com.br" || 
+                                 email == "roderbrasil@gmail.com" ||
+                                 email == "yury@roderbrasil.com.br" ||
+                                 email == "yuri@roderbrasil.com.br") && 
+                                ('email_verified' in request.auth.token && request.auth.token.email_verified == true);
+
+      return isExplicitAdmin || 
+             role == 'admin' || 
+             isExplicitManager || 
+             isExplicitMarketing || 
+             role == 'marketing' || 
+             role == 'manager' || 
+             role == 'finance' || 
+             role == 'financial';
     }
 
     function isInternalSeller() {
-      return isManager() || hasRole('internal_seller');
+      let data = getUserData();
+      let role = data != null && 'role' in data ? data.role : '';
+      return isManager() || role == 'internal_seller';
     }
 
     function isTriagem() {
-      return isManager() || hasRole('triagem');
+      let data = getUserData();
+      let role = data != null && 'role' in data ? data.role : '';
+      return isManager() || role == 'triagem';
     }
 
     function isValidEmail(email) {
@@ -225,6 +272,7 @@ service cloud.firestore {
         (hasRole('external_seller') && resource.data.external_seller_uid == request.auth.uid && resource.data.status == 'pending') ||
         (request.auth.token.email_verified == true && (request.auth.token.email.lower().endsWith('@roderbrasil.com.br') || request.auth.token.email.lower().endsWith('@roder.com.br')))
       ) && isValidIndication(request.resource.data);
+      allow delete: if isAdmin() || isManager();
     }
 
     match /notifications/{notifId} {
@@ -318,6 +366,11 @@ service cloud.firestore {
           (getUserData() != null && getUserData().role in ['admin', 'manager', 'marketing', 'financial', 'finance'])
         );
       }
+    }
+
+    match /endomarketing_financial_categories/{categoryId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
     }
 
     match /app_files/{fileId} {

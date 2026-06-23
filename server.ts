@@ -527,6 +527,9 @@ async function startServer() {
           auth: {
             user: settings.user, // ex: roderindica@gmail.com
             pass: settings.pass.replace(/\s/g, '') // remove spaces just in case
+          },
+          tls: {
+            rejectUnauthorized: false
           }
         });
 

@@ -42,6 +42,7 @@ import {
   DollarSign,
   Calendar,
   AlertCircle,
+  AlertTriangle,
   Play,
   Image as ImageIcon,
   Download,
@@ -210,6 +211,8 @@ export default function Indications() {
 
   // Missing States restored
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelDetails, setCancelDetails] = useState('');
   const [invoiceType, setInvoiceType] = useState<'order' | 'invoice'>('order');
@@ -768,6 +771,20 @@ export default function Indications() {
       toast.error('Erro ao cancelar: ' + error.message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDeleteIndication = async () => {
+    if (!selectedIndication) return;
+    try {
+      setDeleting(true);
+      await deleteDoc(doc(db, 'indications', selectedIndication.id));
+      toast.success('Indicação excluída permanentemente de todos os registros.');
+      setIsDeleteDialogOpen(false);
+    } catch (error: any) {
+      toast.error('Erro ao excluir indicação: ' + error.message);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -2127,10 +2144,8 @@ export default function Indications() {
                                     {(isAdmin || isManager) && (
                                       <DropdownMenuItem 
                                         onClick={() => {
-                                          if (confirm('Tem certeza que deseja excluir esta indicação permanentemente?')) {
-                                            deleteDoc(doc(db, 'indications', ind.id));
-                                            toast.success('Indicação excluída.');
-                                          }
+                                          setSelectedIndication(ind);
+                                          setIsDeleteDialogOpen(true);
                                         }}
                                         className="text-xs font-semibold text-muted-foreground hover:bg-muted gap-2 focus:bg-muted"
                                       >
@@ -2330,10 +2345,8 @@ export default function Indications() {
                             {(isAdmin || isManager) && (
                               <DropdownMenuItem 
                                 onClick={() => {
-                                  if (confirm('Tem certeza que deseja excluir esta indicação permanentemente?')) {
-                                    deleteDoc(doc(db, 'indications', ind.id));
-                                    toast.success('Indicação excluída.');
-                                  }
+                                  setSelectedIndication(ind);
+                                  setIsDeleteDialogOpen(true);
                                 }}
                                 className="text-xs font-semibold text-muted-foreground hover:bg-muted gap-1.5 py-2 focus:bg-muted"
                               >
@@ -2406,6 +2419,47 @@ export default function Indications() {
               >
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                 Confirmar Cancelamento
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Indication Permanent Dialog */}
+        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <DialogContent className="bg-card border-border text-card-foreground sm:max-w-lg w-full max-w-[calc(100%-2rem)]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-destructive font-black uppercase italic tracking-tighter text-lg">
+                <AlertTriangle className="h-5 w-5 animate-pulse text-red-500" /> Excluir Registro Permanentemente
+              </DialogTitle>
+              <DialogDescription className="text-muted-foreground text-sm leading-relaxed mt-1">
+                Deseja realmente excluir permanentemente a indicação de <strong>{selectedIndication?.client_name || selectedIndication?.client_person_name}</strong>?
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-2">
+              <div className="rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/20 p-4">
+                <div className="flex gap-3">
+                  <AlertTriangle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+                  <div className="space-y-1.5">
+                    <p className="text-sm font-bold text-red-800 dark:text-red-400">Atenção: Ação Irreversível</p>
+                    <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+                      Se você excluir este registro, não haverá mais nenhuma possibilidade de ele aparecer novamente no sistema. Ele será excluído completamente de todos os relatórios, históricos e painéis do RODER Indica.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="ghost" onClick={() => setIsDeleteDialogOpen(false)} disabled={deleting}>
+                Voltar
+              </Button>
+              <Button 
+                variant="destructive" 
+                className="font-bold uppercase tracking-wide gap-2 px-6 bg-red-600 hover:bg-red-700 text-white"
+                onClick={handleDeleteIndication}
+                disabled={deleting}
+              >
+                {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Confirmar Exclusão Definitiva
               </Button>
             </DialogFooter>
           </DialogContent>

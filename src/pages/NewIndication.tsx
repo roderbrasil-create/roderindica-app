@@ -996,16 +996,24 @@ export default function NewIndication() {
               product_name: primaryItem
             };
 
-            // Run email tasks without awaiting them to fulfill or fail (non-blocking)
-            notifyNewIndication(indicationDataForEmail, profile?.name || 'Parceiro')
-              .then(res => console.log("Email Admin result:", res))
-              .catch(e => console.error("Email Admin failed:", e));
+            const emailPromises: Promise<any>[] = [];
+
+            // Run email tasks with Promise.allSettled to ensure they are fully sent
+            emailPromises.push(
+              notifyNewIndication(indicationDataForEmail, profile?.name || 'Parceiro')
+                .then(res => console.log("Email Admin result:", res))
+                .catch(e => console.error("Email Admin failed:", e))
+            );
 
             if (profile?.email) {
-              notifyPartnerIndicationReceived(indicationDataForEmail, profile.email, profile.name || 'Parceiro')
-                .then(res => console.log("Email Partner result:", res))
-                .catch(e => console.error("Email Partner failed:", e));
+              emailPromises.push(
+                notifyPartnerIndicationReceived(indicationDataForEmail, profile.email, profile.name || 'Parceiro')
+                  .then(res => console.log("Email Partner result:", res))
+                  .catch(e => console.error("Email Partner failed:", e))
+              );
             }
+
+            await Promise.allSettled(emailPromises);
           } catch (e) {
             console.warn("Emails setup error:", e);
           }
@@ -1014,14 +1022,14 @@ export default function NewIndication() {
         }
       };
       
-      // We don't await runNotifications to ensure the UI proceeds to success immediately
-      runNotifications();
+      // Await runNotifications to ensure the email requests are completely dispatched before page unmounts/navigates
+      await runNotifications();
 
       setSubmissionStatus('done');
       clearDraft();
       toast.success('Indicação enviada com sucesso!');
       
-      // Delay slightly for user to see success state
+      // Delay slightly for user to see success state (e.g., green checkmark)
       setTimeout(() => navigate('/indicacoes'), 1500);
     } catch (saveError: any) {
       console.error("Submission error detail:", saveError);

@@ -52,6 +52,13 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
     value: undefined
   });
 
+  const [assetCategories, setAssetCategories] = useState<string[]>([
+    "Material", "Alimentação", "Estrutura", "Serviços", "Diversos"
+  ]);
+  const [isNewCategoryOpen, setIsNewCategoryOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [savingCategory, setSavingCategory] = useState(false);
+
   const formatCurrency = (val: number | undefined) => {
     if (val === undefined || isNaN(val)) return '';
     return new Intl.NumberFormat('pt-BR', {
@@ -72,6 +79,53 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
       fetchFinancialItems(action.id!);
     }
   }, [action]);
+
+  useEffect(() => {
+    const fetchCustomCategories = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, 'endomarketing_financial_categories'));
+        const customCats = querySnapshot.docs.map(doc => doc.data().name as string);
+        const uniqueCats = Array.from(new Set([
+          "Material", "Alimentação", "Estrutura", "Serviços", "Diversos", ...customCats
+        ]));
+        setAssetCategories(uniqueCats);
+      } catch (err) {
+        console.error('Error fetching financial categories:', err);
+      }
+    };
+    fetchCustomCategories();
+  }, []);
+
+  const handleSaveCategory = async () => {
+    const trimmed = newCategoryName.trim();
+    if (!trimmed) {
+      toast.error('Digite o nome da categoria.');
+      return;
+    }
+    if (assetCategories.some(c => c.toLowerCase() === trimmed.toLowerCase())) {
+      toast.error('Esta categoria já existe.');
+      return;
+    }
+    setSavingCategory(true);
+    try {
+      const catRef = doc(collection(db, 'endomarketing_financial_categories'));
+      await setDoc(catRef, {
+        name: trimmed,
+        created_at: new Date().toISOString()
+      });
+      const updated = [...assetCategories, trimmed];
+      setAssetCategories(updated);
+      setNewItem(prev => ({ ...prev, category: trimmed }));
+      toast.success('Categoria criada com sucesso!');
+      setNewCategoryName('');
+      setIsNewCategoryOpen(false);
+    } catch (err: any) {
+      console.error('Error saving custom category:', err);
+      toast.error('Erro ao salvar categoria: ' + err.message);
+    } finally {
+      setSavingCategory(false);
+    }
+  };
 
   const fetchFinancialItems = async (actionId: string) => {
     const querySnapshot = await getDocs(collection(db, `endomarketing_actions/${actionId}/financial_items`));
@@ -234,8 +288,6 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
     "Dia da Cultura", "Aniversariantes", "Datas comemorativas", "Treinamentos", 
     "Campanhas internas", "Integração", "Reconhecimento", "Saúde e Bem-estar", "Outros"
   ];
-
-  const assetCategories: AssetCategory[] = ["Material", "Alimentação", "Estrutura", "Serviços", "Diversos"];
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
@@ -494,17 +546,31 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
                     <div className="grid grid-cols-2 gap-2 col-span-1 lg:col-span-6">
                       <div className="space-y-1">
                         <Label className="text-[10px] uppercase text-muted-foreground font-bold">Categoria</Label>
-                        <Select 
-                          value={newItem.category}
-                          onValueChange={v => setNewItem({ ...newItem, category: v as AssetCategory })}
-                        >
-                          <SelectTrigger className="bg-white h-9 text-sm">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {assetCategories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
+                        <div className="flex gap-1 items-center">
+                          <div className="flex-1 min-w-0">
+                            <Select 
+                              value={newItem.category}
+                              onValueChange={v => setNewItem({ ...newItem, category: v })}
+                            >
+                              <SelectTrigger className="bg-white h-9 text-xs truncate w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {assetCategories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <Button 
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9 bg-white border border-slate-200 text-orange-600 hover:bg-orange-50 hover:text-orange-700 shrink-0"
+                            onClick={() => setIsNewCategoryOpen(true)}
+                            title="Nova Categoria"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[10px] uppercase text-muted-foreground font-bold">Valor</Label>
@@ -744,6 +810,42 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
             </div>
           </div>
         </div>
+      )}
+
+      {isNewCategoryOpen && (
+        <Dialog open={true} onOpenChange={setIsNewCategoryOpen}>
+          <DialogContent className="sm:max-w-md w-full max-w-[calc(100%-2rem)] bg-white text-slate-900 border border-slate-200 p-6 rounded-xl">
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold flex items-center gap-2 text-slate-800">
+                <Plus className="h-4 w-4 text-orange-600" />
+                Nova Categoria de Custo
+              </DialogTitle>
+            </DialogHeader>
+            <div className="py-4 space-y-2">
+              <Label htmlFor="category-name" className="text-xs font-bold text-slate-500 uppercase">Nome da Categoria</Label>
+              <Input
+                id="category-name"
+                placeholder="Ex: Brindes, Uniformes..."
+                value={newCategoryName}
+                onChange={e => setNewCategoryName(e.target.value)}
+                className="h-10 text-sm bg-white border border-slate-200"
+              />
+            </div>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="ghost" onClick={() => setIsNewCategoryOpen(false)} disabled={savingCategory}>
+                Cancelar
+              </Button>
+              <Button 
+                className="bg-orange-600 hover:bg-orange-700 font-bold uppercase tracking-wide gap-2 text-white h-10 px-6"
+                onClick={handleSaveCategory}
+                disabled={savingCategory}
+              >
+                {savingCategory ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Salvar Categoria
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </Dialog>
   );

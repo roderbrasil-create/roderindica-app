@@ -54,6 +54,8 @@ export default function Triagem() {
   const [assigning, setAssigning] = useState(false);
   const [pendingFairLeadsCount, setPendingFairLeadsCount] = useState(0);
   const [statusFilter, setStatusFilter] = useState<'pending' | 'negotiating'>('pending');
+  const [indicationToDelete, setIndicationToDelete] = useState<Indication | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     // Count pending records from fairs
@@ -72,13 +74,15 @@ export default function Triagem() {
     return () => unsubscribe();
   }, []);
 
-  const handleDelete = async (indication: Indication) => {
-    if (!window.confirm(`Tem certeza que deseja excluir permanentemente a solicitação de ${indication.client_name}? Esta ação não gera relatórios e é irreversível.`)) {
-      return;
-    }
+  const handleDelete = (indication: Indication) => {
+    setIndicationToDelete(indication);
+  };
 
+  const confirmDelete = async () => {
+    if (!indicationToDelete) return;
+    setDeleting(true);
     try {
-      await updateDoc(doc(db, 'indications', indication.id), {
+      await updateDoc(doc(db, 'indications', indicationToDelete.id), {
         status: 'cancelled',
         cancellation_reason: 'Excluído pelo Administrador (Teste/Outros)',
         updated_at: new Date().toISOString(),
@@ -86,8 +90,11 @@ export default function Triagem() {
         is_deleted: true
       });
       toast.success('Solicitação excluída com sucesso.');
+      setIndicationToDelete(null);
     } catch (error: any) {
       toast.error('Erro ao excluir: ' + error.message);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -588,6 +595,51 @@ export default function Triagem() {
             ))
           )}
         </div>
+
+        {/* Deletion Confirmation Dialog */}
+        <Dialog open={!!indicationToDelete} onOpenChange={(open) => !open && setIndicationToDelete(null)}>
+          <DialogContent className="bg-card border-border text-card-foreground">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-destructive">
+                <Trash2 className="h-5 w-5" /> Confirmar Exclusão de Lead
+              </DialogTitle>
+              <DialogDescription className="text-muted-foreground">
+                Tem certeza que deseja excluir permanentemente o lead de <strong>{indicationToDelete?.client_name}</strong>?
+              </DialogDescription>
+            </DialogHeader>
+            <div className="p-4 rounded-lg bg-muted text-sm space-y-3">
+              <p>Esta ação é <strong>irreversível</strong> e o lead será cancelado sem gerar relatórios ou métricas comerciais.</p>
+              <p className="text-[10px] text-muted-foreground italic">* Recomendado apenas para leads de teste ou enviados por engano.</p>
+            </div>
+            <DialogFooter className="flex flex-col sm:flex-row gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setIndicationToDelete(null)} 
+                className="border-border"
+                disabled={deleting}
+              >
+                Cancelar
+              </Button>
+              <Button 
+                onClick={confirmDelete}
+                disabled={deleting}
+                className="bg-destructive hover:bg-destructive/90 text-destructive-foreground font-bold flex items-center gap-2"
+              >
+                {deleting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Excluindo...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4" />
+                    Sim, Excluir Lead
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Duplicate/Integrity Warning Dialog */}
         <Dialog open={!!duplicateAlert} onOpenChange={() => setDuplicateAlert(null)}>

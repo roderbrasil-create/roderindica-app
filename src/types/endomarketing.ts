@@ -27,7 +27,7 @@ export interface EndomarketingAction {
 export interface FinancialItem {
   id?: string;
   description: string;
-  category: AssetCategory;
+  category: string;
   value: number;
   supplier?: string;
   cost_center?: string;
