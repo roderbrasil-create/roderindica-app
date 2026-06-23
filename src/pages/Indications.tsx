@@ -778,9 +778,14 @@ export default function Indications() {
     if (!selectedIndication) return;
     try {
       setDeleting(true);
-      await deleteDoc(doc(db, 'indications', selectedIndication.id));
-      toast.success('Indicação excluída permanentemente de todos os registros.');
+      const indicationId = selectedIndication.id;
       setIsDeleteDialogOpen(false);
+      
+      // Delay deletion slightly so the dialog closing transitions can settle
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      
+      await deleteDoc(doc(db, 'indications', indicationId));
+      toast.success('Indicação excluída permanentemente de todos os registros.');
     } catch (error: any) {
       toast.error('Erro ao excluir indicação: ' + error.message);
     } finally {
