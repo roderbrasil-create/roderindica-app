@@ -23,7 +23,10 @@ import {
   Loader2,
   Building2,
   Sparkles,
-  ChevronRight
+  ChevronRight,
+  Calendar,
+  Palmtree,
+  UserCheck
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { HelpTooltip } from '../components/base/HelpTooltip';
@@ -37,6 +40,8 @@ import {
 } from '../components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Label } from '../components/ui/label';
+import { Switch } from '../components/ui/switch';
+import { Input } from '../components/ui/input';
 
 export default function Triagem() {
   const [indications, setIndications] = useState<Indication[]>([]);
@@ -56,6 +61,12 @@ export default function Triagem() {
   const [statusFilter, setStatusFilter] = useState<'pending' | 'negotiating'>('pending');
   const [indicationToDelete, setIndicationToDelete] = useState<Indication | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Vacation states
+  const [vacationSeller, setVacationSeller] = useState<UserProfile | null>(null);
+  const [vacationStart, setVacationStart] = useState<string>('');
+  const [vacationEnd, setVacationEnd] = useState<string>('');
+  const [isVacationDialogOpen, setIsVacationDialogOpen] = useState(false);
 
   useEffect(() => {
     // Count pending records from fairs
@@ -356,6 +367,84 @@ export default function Triagem() {
     }
   };
 
+  const getTodayDateString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const isSellerOnVacation = (seller: UserProfile) => {
+    if (!seller.vacation_start || !seller.vacation_end) return false;
+    const today = getTodayDateString();
+    return today >= seller.vacation_start && today <= seller.vacation_end;
+  };
+
+  const formatLocalDate = (dateStr?: string) => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return safeFormatDate(dateStr);
+  };
+
+  const handleOpenVacationDialog = (seller: UserProfile) => {
+    setVacationSeller(seller);
+    setVacationStart(seller.vacation_start || '');
+    setVacationEnd(seller.vacation_end || '');
+    setIsVacationDialogOpen(true);
+  };
+
+  const handleSaveVacation = async () => {
+    if (!vacationSeller) return;
+    
+    if (vacationStart && !vacationEnd) {
+      toast.error('Por favor, defina a data de fim das férias.');
+      return;
+    }
+    if (!vacationStart && vacationEnd) {
+      toast.error('Por favor, defina a data de início das férias.');
+      return;
+    }
+    if (vacationStart && vacationEnd && vacationEnd < vacationStart) {
+      toast.error('A data de fim não pode ser anterior à data de início.');
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, 'users', vacationSeller.uid), {
+        vacation_start: vacationStart || null,
+        vacation_end: vacationEnd || null,
+        updated_at: new Date().toISOString()
+      });
+      toast.success(`Férias de ${vacationSeller.name} salvas com sucesso!`);
+      setIsVacationDialogOpen(false);
+    } catch (err: any) {
+      toast.error('Erro ao salvar férias: ' + err.message);
+    }
+  };
+
+  const handleClearVacation = async (seller: UserProfile) => {
+    try {
+      await updateDoc(doc(db, 'users', seller.uid), {
+        vacation_start: null,
+        vacation_end: null,
+        updated_at: new Date().toISOString()
+      });
+      toast.success(`Período de férias de ${seller.name} removido com sucesso.`);
+    } catch (err: any) {
+      toast.error('Erro ao remover férias: ' + err.message);
+    }
+  };
+
+  // Filter internal sellers to manage
+  const sellersToManage = internalSellers.filter(u => 
+    u.role === 'internal_seller' || 
+    ['monali', 'heloisa', 'yury'].some(name => u.name?.toLowerCase().includes(name))
+  );
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -420,7 +509,10 @@ export default function Triagem() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
+          {/* Coluna da Esquerda: Leads (3 das 4 colunas no desktop) */}
+          <div className="lg:col-span-3 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {indications.length === 0 ? (
             <Card className="bg-card border-border shadow-sm md:col-span-2 lg:col-span-3">
               <CardContent className="p-12 text-center text-muted-foreground">
@@ -605,7 +697,182 @@ export default function Triagem() {
               </Card>
             ))
           )}
+            </div>
+          </div>
+
+          {/* Sidebar content: management of internal sellers */}
+          <div className="space-y-6">
+            <Card className="bg-card border-border shadow-xs">
+              <CardHeader className="pb-3 border-b border-border/50">
+                <div className="flex items-center gap-2">
+                  <Palmtree className="h-4 w-4 text-primary" />
+                  <CardTitle className="text-sm font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                    Recebedores de Lead / Férias
+                  </CardTitle>
+                </div>
+                <CardDescription className="text-[11px] leading-relaxed">
+                  Controle quem recebe os leads e agende férias para suspender o envio automático nesse período.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-4">
+                {sellersToManage.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-4">
+                    Nenhum vendedor interno encontrado.
+                  </p>
+                ) : (
+                  sellersToManage.map((seller) => {
+                    const onVacation = isSellerOnVacation(seller);
+                    const hasVacationConfigured = seller.vacation_start && seller.vacation_end;
+                    return (
+                      <div 
+                        key={seller.uid} 
+                        className={cn(
+                          "p-3 rounded-lg border transition-all text-xs flex flex-col gap-2.5",
+                          onVacation 
+                            ? "bg-amber-500/5 border-amber-500/20" 
+                            : "bg-muted/30 border-border/60 hover:border-border"
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-bold text-foreground text-sm truncate">{seller.name}</p>
+                            <p className="text-[10px] text-muted-foreground truncate">{seller.email}</p>
+                          </div>
+                          
+                          {/* Toggle lead receiver switch */}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[10px] font-bold text-muted-foreground">
+                              {seller.is_lead_receiver ? 'ATIVO' : 'INATIVO'}
+                            </span>
+                            <Switch 
+                              checked={!!seller.is_lead_receiver} 
+                              onCheckedChange={async (val) => {
+                                try {
+                                  await updateDoc(doc(db, 'users', seller.uid), {
+                                    is_lead_receiver: val,
+                                    updated_at: new Date().toISOString()
+                                  });
+                                  toast.success(`${seller.name} ${val ? 'ativado' : 'desativado'} para recebimento de leads.`);
+                                } catch (err: any) {
+                                  toast.error('Erro ao atualizar: ' + err.message);
+                                }
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2 border-t border-border/40 pt-2 text-[11px]">
+                          <div className="flex items-center gap-1.5">
+                            {onVacation ? (
+                              <Badge className="bg-amber-500 text-white font-black text-[9px] hover:bg-amber-500 rounded py-0 px-1.5 flex items-center gap-1">
+                                <Palmtree className="h-3 w-3" /> EM FÉRIAS
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-emerald-600 text-white font-black text-[9px] hover:bg-emerald-600 rounded py-0 px-1.5 flex items-center gap-1">
+                                <UserCheck className="h-3 w-3" /> DISPONÍVEL
+                              </Badge>
+                            )}
+                            
+                            {hasVacationConfigured && (
+                              <span className="text-[10px] text-muted-foreground font-medium">
+                                {formatLocalDate(seller.vacation_start)} até {formatLocalDate(seller.vacation_end)}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            {hasVacationConfigured && (
+                              <Button 
+                                size="icon" 
+                                variant="ghost" 
+                                className="h-6 w-6 text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                                onClick={() => handleClearVacation(seller)}
+                                title="Remover férias"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 px-2 text-[10px] font-bold border-primary/30 text-primary hover:bg-primary/5 gap-1"
+                              onClick={() => handleOpenVacationDialog(seller)}
+                            >
+                              <Calendar className="h-3 w-3" />
+                              Férias
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
+
+        {/* Vacation Management Dialog */}
+        <Dialog open={isVacationDialogOpen} onOpenChange={setIsVacationDialogOpen}>
+          <DialogContent className="bg-card border-border text-card-foreground">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Palmtree className="h-5 w-5 text-primary" /> Agendar Férias - {vacationSeller?.name}
+              </DialogTitle>
+              <DialogDescription className="text-muted-foreground">
+                Insira o período em que o vendedor estará de férias. O sistema bloqueará o encaminhamento automático de leads durante esse intervalo.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="vacation_start" className="text-xs font-black uppercase tracking-wider text-muted-foreground">
+                  Início das Férias
+                </Label>
+                <Input 
+                  id="vacation_start" 
+                  type="date" 
+                  value={vacationStart} 
+                  onChange={(e) => setVacationStart(e.target.value)}
+                  className="bg-background border-border text-foreground text-sm font-bold h-10 px-3"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="vacation_end" className="text-xs font-black uppercase tracking-wider text-muted-foreground">
+                  Fim das Férias (inclusive)
+                </Label>
+                <Input 
+                  id="vacation_end" 
+                  type="date" 
+                  value={vacationEnd} 
+                  onChange={(e) => setVacationEnd(e.target.value)}
+                  className="bg-background border-border text-foreground text-sm font-bold h-10 px-3"
+                />
+              </div>
+
+              <p className="text-[10px] text-muted-foreground italic leading-relaxed">
+                * Nota: Ao fim do dia final, o vendedor voltará a receber leads normalmente, de forma 100% automatizada.
+              </p>
+            </div>
+
+            <DialogFooter className="flex flex-col sm:flex-row gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setIsVacationDialogOpen(false)} 
+                className="border-border text-xs"
+              >
+                Cancelar
+              </Button>
+              <Button 
+                onClick={handleSaveVacation}
+                className="bg-primary hover:bg-primary/95 text-primary-foreground font-bold text-xs"
+              >
+                Salvar Configurações
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Deletion Confirmation Dialog */}
         <Dialog open={!!indicationToDelete} onOpenChange={(open) => !open && setIndicationToDelete(null)}>

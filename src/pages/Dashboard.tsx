@@ -689,7 +689,34 @@ export default function Dashboard() {
           where('is_lead_receiver', '==', true)
         );
         const sellersSnap = await getDocs(qSellers);
-        const sellers = sellersSnap.docs.map(d => ({ uid: d.id, name: d.data().name }));
+        
+        // Helper to get local date in YYYY-MM-DD
+        const getTodayDateString = () => {
+          const d = new Date();
+          const year = d.getFullYear();
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        };
+        const todayStr = getTodayDateString();
+
+        const sellers = sellersSnap.docs
+          .map(d => {
+            const data = d.data();
+            return { 
+              uid: d.id, 
+              name: data.name,
+              vacation_start: data.vacation_start,
+              vacation_end: data.vacation_end
+            };
+          })
+          .filter(s => {
+            // Filter out sellers currently on vacation
+            if (s.vacation_start && s.vacation_end) {
+              return !(todayStr >= s.vacation_start && todayStr <= s.vacation_end);
+            }
+            return true;
+          });
 
         if (sellers.length === 0) return;
 

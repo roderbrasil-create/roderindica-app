@@ -10,6 +10,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import multer from "multer";
 import { createRequire } from "module";
+import cors from "cors";
 
 let customRequire: any;
 if (typeof require !== "undefined") {
@@ -157,15 +158,18 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' }));
 
   // CORS Middleware to allow requests from Hostinger custom domains (e.g., roderindica.com) and other external origins
-  app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    if (req.method === 'OPTIONS') {
-      return res.sendStatus(200);
-    }
-    next();
-  });
+  app.use(cors({
+    origin: (origin, callback) => {
+      // If there is no origin (same-origin, server-to-server, or local tools), allow it
+      if (!origin) {
+        return callback(null, true);
+      }
+      callback(null, true);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
+  }));
 
   // Ensure local uploads directory exists for robust image fallback
   const uploadsDir = path.join(process.cwd(), "uploads");

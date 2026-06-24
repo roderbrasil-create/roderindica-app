@@ -26,6 +26,8 @@ export interface UserProfile {
   is_icms_contributor?: boolean;
   is_lead_receiver?: boolean;
   is_commissionable?: boolean;
+  vacation_start?: string;
+  vacation_end?: string;
   contract_accepted?: boolean;
   contract_accepted_at?: string;
   sidebar_order?: string[];
