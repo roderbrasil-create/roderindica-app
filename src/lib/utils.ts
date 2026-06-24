@@ -39,6 +39,10 @@ export function getApiBaseUrl(): string {
     if (
       hostname === 'roderindica.com' || 
       hostname === 'www.roderindica.com' || 
+      hostname === 'roderindica.com.br' || 
+      hostname === 'www.roderindica.com.br' || 
+      hostname === 'roderassistance.com' || 
+      hostname === 'www.roderassistance.com' || 
       hostname === 'roderindica.roderbrasil.com.br'
     ) {
       return 'https://roder-indica-v2-142737915053.us-west1.run.app';
@@ -53,6 +57,10 @@ if (typeof window !== 'undefined') {
   if (
     hostname === 'roderindica.com' || 
     hostname === 'www.roderindica.com' || 
+    hostname === 'roderindica.com.br' || 
+    hostname === 'www.roderindica.com.br' || 
+    hostname === 'roderassistance.com' || 
+    hostname === 'www.roderassistance.com' || 
     hostname === 'roderindica.roderbrasil.com.br'
   ) {
     // Ping local Hostinger health endpoint to see if Node.js server runs locally
