@@ -491,11 +491,22 @@ async function startServer() {
           console.warn("Could not read email settings from DB, and no settings provided in request body.");
         }
       }
+
+      // Fallback to local server environment variables (perfect for Hostinger without Firebase service account)
+      if (!settings && process.env.SMTP_USER && process.env.SMTP_PASS) {
+        console.log("[EMAIL-API] No body or DB email settings found, using local server SMTP environment variables fallback.");
+        settings = {
+          provider: process.env.SMTP_PROVIDER || 'gmail',
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS,
+          senderEmail: process.env.SMTP_SENDER_EMAIL || process.env.SMTP_USER
+        };
+      }
       
       if (!settings) {
         return res.status(400).json({ 
           error: "Configurações de e-mail não encontradas no sistema.",
-          details: "O servidor não conseguiu ler o banco de dados e as configurações não foram enviadas na requisição."
+          details: "O servidor não conseguiu ler o banco de dados e nenhuma configuração de SMTP local (env) foi definida."
         });
       }
 

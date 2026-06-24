@@ -1243,34 +1243,32 @@ export default function NegotiationCentral() {
               </div>
             )}
 
-            {activeTab === 'commercial' && (
-              <AnimatePresence>
-                {(isAdmin || isManager) && commissionedProducts.some(p => p.base_value <= 0) && (
-                  <motion.div 
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="shrink-0"
-                  >
-                    <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-3 flex items-center justify-between shadow-sm">
-                      <div className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600">
-                          <BadgeDollarSign className="h-5 w-5" />
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-medium uppercase text-amber-600 leading-none mb-1">Ação Requerida</p>
-                          <p className="text-xs font-normal text-amber-900 leading-tight">Existem itens sem valor base cadastrado. A comissão não será calculada corretamente.</p>
-                        </div>
+            <AnimatePresence>
+              {activeTab === 'commercial' && (isAdmin || isManager) && commissionedProducts.some(p => p.base_value <= 0) && (
+                <motion.div 
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="shrink-0"
+                >
+                  <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-3 flex items-center justify-between shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600">
+                        <BadgeDollarSign className="h-5 w-5" />
                       </div>
-                      <Badge className="bg-amber-500 text-white border-none text-[8px] font-black uppercase py-0.5 px-2">Atenção</Badge>
+                      <div>
+                        <p className="text-[10px] font-medium uppercase text-amber-600 leading-none mb-1">Ação Requerida</p>
+                        <p className="text-xs font-normal text-amber-900 leading-tight">Existem itens sem valor base cadastrado. A comissão não será calculada corretamente.</p>
+                      </div>
                     </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            )}
+                    <Badge className="bg-amber-500 text-white border-none text-[8px] font-black uppercase py-0.5 px-2">Atenção</Badge>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {activeTab === 'commercial' ? (
-              <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-5 lg:overflow-hidden min-h-0">
+              <div key="commercial-tab-content" className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-5 lg:overflow-hidden min-h-0">
                 {/* LEFT COLUMN: Order Details, Commissions & Standard Seller */}
                 <div className="lg:col-span-5 flex flex-col gap-4 lg:overflow-y-auto pr-1">
                   {/* Luana / Gislene warning for missing base commission value */}
@@ -1830,7 +1828,7 @@ export default function NegotiationCentral() {
                 </div>
               </div>
             ) : (
-              <div className="flex-1 flex gap-6 overflow-hidden">
+              <div key="timeline-tab-content" className="flex-1 flex gap-6 overflow-hidden">
                 <div className="flex-1 flex flex-col gap-4 overflow-hidden">
                   <div className="flex flex-col h-full bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
                     <div className="bg-muted/50 px-4 py-3 border-b border-border flex items-center justify-between">

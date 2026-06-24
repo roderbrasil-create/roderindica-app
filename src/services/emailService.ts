@@ -8,15 +8,30 @@ export interface EmailOptions {
   html: string;
   fromName?: string;
   replyTo?: string;
+  settings?: any;
 }
 
 export async function sendEmail(options: EmailOptions) {
   try {
     const baseUrl = getApiBaseUrl();
+    const payload = { ...options };
+
+    // Auto-fetch email settings client-side if not already provided in options, to assist Node.js servers (like Hostinger) that lack Firebase Admin SDK configuration.
+    if (!payload.settings) {
+      try {
+        const snap = await getDoc(doc(db, 'settings', 'email'));
+        if (snap.exists()) {
+          payload.settings = snap.data();
+        }
+      } catch (clientDbErr) {
+        console.warn('[EMAIL-SERVICE] Client-side email settings fetch failed (expected for public/unauthenticated routes):', clientDbErr);
+      }
+    }
+
     const response = await fetch(`${baseUrl}/api/send-email`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(options)
+      body: JSON.stringify(payload)
     });
     return await response.json();
   } catch (error) {
@@ -121,12 +136,22 @@ export async function notifyNewIndication(indication: any, partnerName: string) 
       </div>
     `;
 
-    // Send a single email with all manager recipients to avoid concurrent connection rate limits on Gmail SMTP
-    const recipientString = managers.join(', ');
-    console.log('[NOTIFICATION] notifyNewIndication: Sending single combined email to:', recipientString);
-    const result = await sendEmail({ to: recipientString, subject, html });
-    console.log('[NOTIFICATION] notifyNewIndication result:', result);
-    return result;
+    // Send to each manager individually to avoid Gmail rate/format limits and secure delivery for all valid recipients
+    console.log('[NOTIFICATION] notifyNewIndication: Sending individual emails to:', managers);
+    const results = await Promise.allSettled(
+      managers.map(async (managerEmail) => {
+        try {
+          console.log(`[NOTIFICATION] Sending email to manager: ${managerEmail}`);
+          const res = await sendEmail({ to: managerEmail, subject, html });
+          return { email: managerEmail, success: res?.success || false, data: res };
+        } catch (innerErr: any) {
+          console.error(`[NOTIFICATION] Failed to send email to ${managerEmail}:`, innerErr);
+          return { email: managerEmail, success: false, error: innerErr.message };
+        }
+      })
+    );
+    console.log('[NOTIFICATION] notifyNewIndication individual results:', results);
+    return { success: true, results };
   } catch (err) {
     console.error('Erro crítico ao notificar nova indicação:', err);
   }
