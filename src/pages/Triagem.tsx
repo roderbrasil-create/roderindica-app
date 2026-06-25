@@ -183,6 +183,14 @@ export default function Triagem() {
     return fallbackName || 'Vendedor';
   };
 
+  const getSellerSymbol = (sellerUid: string) => {
+    const seller = externalSellers.find(s => s.uid === sellerUid) || internalSellers.find(s => s.uid === sellerUid);
+    const role = seller?.role || 'external_seller';
+    if (role === 'manager' || role === 'admin') return '👑';
+    if (role === 'vendedor_padrao') return '💼';
+    return '🤝';
+  };
+
   const checkIntegrity = async (indication: Indication) => {
     // Se já está em negociação, estamos apenas redistribuindo, então não precisa validar duplicidade de novo
     if (indication.status === 'negotiating') return true;
@@ -580,7 +588,10 @@ export default function Triagem() {
 
                     <div>
                       <p className="text-muted-foreground uppercase text-[9px] font-extrabold tracking-wider">Indicador</p>
-                      <div className="flex items-center gap-1 mt-0.5 overflow-hidden">
+                      <div className="flex items-center gap-1.5 mt-0.5 overflow-hidden">
+                        <span className="text-sm shrink-0 select-none">
+                          {getSellerSymbol(ind.external_seller_uid || '')}
+                        </span>
                         <span className="font-bold text-primary truncate max-w-[110px]" title={getSellerName(ind.external_seller_uid || '', ind.external_seller_name || '')}>
                           {getSellerName(ind.external_seller_uid || '', ind.external_seller_name || '')}
                         </span>

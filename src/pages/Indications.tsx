@@ -152,6 +152,12 @@ export default function Indications() {
     return seller?.email || seller?.phone || sellerName || 'Vendedor Parceiro';
   };
 
+  const getSellerSymbol = (role: string) => {
+    if (role === 'manager' || role === 'admin') return '👑';
+    if (role === 'vendedor_padrao') return '💼';
+    return '🤝';
+  };
+
   const getEffectiveHistory = (ind: Indication | null) => {
     if (!ind) return [];
     const history = ind.negotiation_history || [];
@@ -200,7 +206,7 @@ export default function Indications() {
   };
   const [loading, setLoading] = useState(true);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
-  const [externalSellers, setExternalSellers] = useState<{uid: string, name: string, email: string, phone?: string}[]>([]);
+  const [externalSellers, setExternalSellers] = useState<{uid: string, name: string, email: string, phone?: string, role?: string}[]>([]);
   const [internalSellers, setInternalSellers] = useState<{uid: string, name: string}[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [internalSellerFilter, setInternalSellerFilter] = useState<string>('all');
@@ -811,14 +817,17 @@ export default function Indications() {
 
     const fetchExternalSellers = async () => {
       try {
-        const q = query(collection(db, 'users'), where('role', '==', 'external_seller'), orderBy('name', 'asc'));
+        const q = query(collection(db, 'users'), where('role', 'in', ['external_seller', 'vendedor_padrao', 'manager']));
         const snapshot = await getDocs(q);
-        setExternalSellers(snapshot.docs.map(d => ({ 
+        const sellersList = snapshot.docs.map(d => ({ 
           uid: d.id, 
           name: d.data().name || 'Sem Nome',
           email: d.data().email || '',
-          phone: d.data().phone || ''
-        })));
+          phone: d.data().phone || '',
+          role: d.data().role || 'external_seller'
+        }));
+        sellersList.sort((a, b) => a.name.localeCompare(b.name));
+        setExternalSellers(sellersList);
       } catch (err) {
         console.error("Error fetching external sellers:", err);
       }
@@ -1938,8 +1947,10 @@ export default function Indications() {
                             {/* 3. INDICADOR / CONSULTOR */}
                             <td className="p-4 align-middle">
                               <div className="space-y-1 text-xs max-w-[160px]">
-                                <div className="flex items-center gap-1 text-primary font-bold uppercase truncate group/edit" title="Indicador">
-                                  <User className="h-3 w-3 shrink-0" />
+                                <div className="flex items-center gap-1.5 text-primary font-bold uppercase truncate group/edit" title="Indicador">
+                                  <span className="text-sm shrink-0 select-none">
+                                    {getSellerSymbol(userRolesMap[ind.external_seller_uid || ''] || 'external_seller')}
+                                  </span>
                                   <span className="truncate">
                                     {getSellerName(ind.external_seller_uid || '', ind.external_seller_name || '')}
                                   </span>
@@ -1955,9 +1966,14 @@ export default function Indications() {
                                           <Pencil className="h-2 w-2" />
                                         </Button>
                                       </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="start" className="bg-card border-border w-48">
+                                      <DropdownMenuContent align="start" className="bg-card border-border w-56 shadow-lg">
                                         <DropdownMenuLabel className="text-[10px] font-black uppercase text-muted-foreground">Trocar Indicador</DropdownMenuLabel>
-                                        <ScrollArea className="h-40">
+                                        <div className="px-2 py-1 text-[8px] font-bold text-muted-foreground border-b border-border/50 mb-1 flex flex-col gap-0.5 bg-muted/30">
+                                          <div>🤝 Parceiro Indicador</div>
+                                          <div>💼 Vendedor Padrão (Regional)</div>
+                                          <div>👑 Gerente Comercial</div>
+                                        </div>
+                                        <ScrollArea className="h-48">
                                           {externalSellers.map((seller) => (
                                             <DropdownMenuItem 
                                               key={seller.uid}
@@ -1965,9 +1981,12 @@ export default function Indications() {
                                                 external_seller_uid: seller.uid, 
                                                 external_seller_name: seller.name 
                                               })}
-                                              className="text-xs font-bold"
+                                              className="text-xs font-bold flex items-center gap-1.5 py-1.5"
                                             >
-                                              {seller.name}
+                                              <span className="text-sm shrink-0">
+                                                {getSellerSymbol(seller.role || '')}
+                                              </span>
+                                              <span className="truncate">{seller.name}</span>
                                             </DropdownMenuItem>
                                           ))}
                                         </ScrollArea>
@@ -2284,7 +2303,13 @@ export default function Indications() {
 
                         {/* Row 3: Indicator and Consultant */}
                         <div className="flex items-center gap-1.5 text-[8px] text-muted-foreground truncate leading-none">
-                          <span className="truncate">Ind: {getSellerName(ind.external_seller_uid || '', ind.external_seller_name || '')}</span>
+                          <span className="truncate flex items-center gap-1">
+                            <span>Ind:</span>
+                            <span className="text-[10px] select-none">
+                              {getSellerSymbol(userRolesMap[ind.external_seller_uid || ''] || 'external_seller')}
+                            </span>
+                            <span>{getSellerName(ind.external_seller_uid || '', ind.external_seller_name || '')}</span>
+                          </span>
                           {ind.internal_seller_name && <span className="opacity-80">| Cons: {ind.internal_seller_name}</span>}
                         </div>
                       </div>
