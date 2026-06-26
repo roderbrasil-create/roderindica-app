@@ -55,7 +55,7 @@ export function HighTipFicha({ onClose }: HighTipFichaProps) {
             @media print {
               @page {
                 size: A4;
-                margin: 1.2cm;
+                margin: 0.8cm;
               }
               body {
                 background-color: white !important;
@@ -283,12 +283,14 @@ export function HighTipFicha({ onClose }: HighTipFichaProps) {
                     </div>
                   </div>
                   
-                  <div className="p-3 bg-amber-500/5 rounded-xl border border-amber-500/10 space-y-1">
-                    <p className="text-[10px] uppercase font-black text-amber-600 tracking-wider">Materiais Médios (700 - 1100 kg/m³)</p>
+                  <div className="p-3 bg-sky-500/5 rounded-xl border border-sky-500/10 space-y-1">
+                    <p className="text-[10px] uppercase font-black text-sky-600 tracking-wider">Materiais Médios (700 - 1000 kg/m³)</p>
                     <div className="text-[11px] text-slate-700 space-y-0.5 font-medium">
-                      <p>• Milho em grão: ~730 kg/m³</p>
-                      <p>• Soja em grão: ~750 kg/m³</p>
-                      <p>• Fertilizantes: ~1000 kg/m³</p>
+                      <p>• Milho, Soja e Trigo: ~730 - 770 kg/m³</p>
+                      <p>• Cevada e Arroz em casca: ~720 - 760 kg/m³</p>
+                      <p>• Ração / Silagem: ~780 - 850 kg/m³</p>
+                      <p>• Gesso e Argila seca: ~900 - 950 kg/m³</p>
+                      <p>• Fertilizante químico: ~1000 kg/m³</p>
                     </div>
                   </div>
 
@@ -313,39 +315,46 @@ export function HighTipFicha({ onClose }: HighTipFichaProps) {
                 <div className="overflow-x-auto border border-slate-200 rounded-lg">
                   <table className="w-full text-left text-[11px] border-collapse">
                     <thead>
-                      <tr className="bg-slate-950 text-white text-[10px] uppercase tracking-wider font-bold">
-                        <th className="p-2 border-r border-slate-800">Fabricante</th>
-                        <th className="p-2 border-r border-slate-800">Modelo</th>
-                        <th className="p-2 border-r border-slate-800 text-center">Peso Op. (t)</th>
-                        <th className="p-2 border-r border-slate-800">Classe</th>
-                        <th className="p-2 border-r border-slate-800 text-center">Concha Orig.</th>
-                        <th className="p-2 border-r border-slate-800 text-center bg-emerald-900/40 text-emerald-100">C. Leve (m³)</th>
-                        <th className="p-2 text-center bg-amber-900/40 text-amber-100">C. Pesado (m³)</th>
+                      <tr className="bg-slate-950 text-white text-[9.5px] uppercase tracking-wider font-bold">
+                        <th className="p-1.5 border-r border-slate-800">Fabricante</th>
+                        <th className="p-1.5 border-r border-slate-800">Modelo</th>
+                        <th className="p-1.5 border-r border-slate-800 text-center">Peso Op.</th>
+                        <th className="p-1.5 border-r border-slate-800">Classe</th>
+                        <th className="p-1.5 border-r border-slate-800 text-center">Concha Orig.</th>
+                        <th className="p-1.5 border-r border-slate-800 text-center bg-emerald-900/40 text-emerald-100">C. Leve (≤600)</th>
+                        <th className="p-1.5 border-r border-slate-800 text-center bg-sky-900/40 text-sky-100">C. Médio (700-1000)</th>
+                        <th className="p-1.5 text-center bg-amber-900/40 text-amber-100">C. Pesado (&gt;1000)</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 font-medium">
                       {MACHINES.map((m, idx) => {
                         const lightH = calculateDischargeHeights(m, m.recommendedLight);
+                        const mediumH = calculateDischargeHeights(m, m.recommendedMedium);
                         const heavyH = calculateDischargeHeights(m, m.recommendedHeavy);
                         return (
                           <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
-                            <td className="p-1.5 pl-2 font-bold border-r border-slate-100">{m.brand}</td>
-                            <td className="p-1.5 font-black border-r border-slate-100">{m.model}</td>
-                            <td className="p-1.5 text-center border-r border-slate-100">{m.operatingWeight.toFixed(1)}t</td>
-                            <td className="p-1.5 border-r border-slate-100 text-slate-500 text-[10px]">{m.class}</td>
-                            <td className="p-1.5 text-center border-r border-slate-100 text-slate-600">
-                              <div>{m.originalBucket}</div>
+                            <td className="p-1 pl-1.5 font-bold border-r border-slate-100 text-[10.5px]">{m.brand}</td>
+                            <td className="p-1 font-black border-r border-slate-100 text-[10.5px]">{m.model}</td>
+                            <td className="p-1 text-center border-r border-slate-100 text-[10px]">{m.operatingWeight.toFixed(1)}t</td>
+                            <td className="p-1 border-r border-slate-100 text-slate-500 text-[9px]">{m.class}</td>
+                            <td className="p-1 text-center border-r border-slate-100 text-slate-600 text-[9px]">
+                              <div className="font-bold">{m.originalBucket}</div>
                               <div className="text-[8px] text-slate-400 font-normal">Pino: {lightH.originalPinHeight.toFixed(2)}m</div>
                             </td>
-                            <td className="p-1.5 text-center border-r border-slate-100 bg-emerald-500/5">
+                            <td className="p-1 text-center border-r border-slate-100 bg-emerald-500/5 text-[9.5px]">
                               <div className="font-black text-emerald-700">{m.recommendedLight} m³</div>
-                              <div className="text-[10px] text-emerald-600 font-black">Descarga: {lightH.highTipDischargeHeight.toFixed(2)}m</div>
-                              <div className="text-[8px] text-emerald-600 font-semibold">Ganho Real: +{lightH.gainHeight.toFixed(2)}m</div>
+                              <div className="text-[9px] text-emerald-600 font-black">Des.: {lightH.highTipDischargeHeight.toFixed(2)}m</div>
+                              <div className="text-[7.5px] text-emerald-600 font-semibold">Ganho: +{lightH.gainHeight.toFixed(2)}m</div>
                             </td>
-                            <td className="p-1.5 text-center bg-amber-500/5">
+                            <td className="p-1 text-center border-r border-slate-100 bg-sky-500/5 text-[9.5px]">
+                              <div className="font-black text-sky-700">{m.recommendedMedium} m³</div>
+                              <div className="text-[9px] text-sky-600 font-black">Des.: {mediumH.highTipDischargeHeight.toFixed(2)}m</div>
+                              <div className="text-[7.5px] text-sky-600 font-semibold">Ganho: +{mediumH.gainHeight.toFixed(2)}m</div>
+                            </td>
+                            <td className="p-1 text-center bg-amber-500/5 text-[9.5px]">
                               <div className="font-black text-amber-700">{m.recommendedHeavy} m³</div>
-                              <div className="text-[10px] text-amber-600 font-black">Descarga: {heavyH.highTipDischargeHeight.toFixed(2)}m</div>
-                              <div className="text-[8px] text-amber-600 font-semibold">Ganho Real: +{heavyH.gainHeight.toFixed(2)}m</div>
+                              <div className="text-[9px] text-amber-600 font-black">Des.: {heavyH.highTipDischargeHeight.toFixed(2)}m</div>
+                              <div className="text-[7.5px] text-amber-600 font-semibold">Ganho: +{heavyH.gainHeight.toFixed(2)}m</div>
                             </td>
                           </tr>
                         );

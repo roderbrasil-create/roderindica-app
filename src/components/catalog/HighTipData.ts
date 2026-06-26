@@ -4,7 +4,8 @@ export interface Machine {
   operatingWeight: number; // t
   class: string;
   originalBucket: string;
-  recommendedLight: string; // "2.0", "3.0", "4.0", "5.0"
+  recommendedLight: string; // "2.0", "3.0", "4.0", "5.0", "7.0"
+  recommendedMedium: string; // "2.0", "2.8", "3.0", "4.0", "5.0" (new intermediate capacity)
   recommendedHeavy: string; // "2.0", "2.5", "2.8", "3.0"
 }
 
@@ -61,42 +62,48 @@ export interface Material {
 }
 
 export const MACHINES: Machine[] = [
-  { brand: 'Bruto', model: 'BRT20', operatingWeight: 7.0, class: 'Compacta', originalBucket: '1,3 m³', recommendedLight: '2.0', recommendedHeavy: '2.0' },
-  { brand: 'Bruto', model: 'BRT25', operatingWeight: 8.5, class: 'Compacta', originalBucket: '1,6 m³', recommendedLight: '2.0', recommendedHeavy: '2.0' },
-  { brand: 'XCMG', model: 'LW188', operatingWeight: 8.8, class: 'Compacta', originalBucket: '1,8 m³', recommendedLight: '2.0', recommendedHeavy: '2.0' },
-  { brand: 'LiuGong', model: '816', operatingWeight: 9.5, class: 'Compacta', originalBucket: '1,8 m³', recommendedLight: '2.0', recommendedHeavy: '2.0' },
-  { brand: 'Michigan', model: '55', operatingWeight: 9.5, class: 'Compacta', originalBucket: '1,8 m³', recommendedLight: '2.0', recommendedHeavy: '2.0' },
-  { brand: 'SDLG', model: 'LG918', operatingWeight: 9.8, class: 'Compacta', originalBucket: '1,8 m³', recommendedLight: '2.0', recommendedHeavy: '2.0' },
-  { brand: 'XGMA', model: 'XG935', operatingWeight: 10.0, class: 'Compacta', originalBucket: '1,8 m³', recommendedLight: '2.0', recommendedHeavy: '2.0' },
-  { brand: 'Case', model: 'W20', operatingWeight: 10.2, class: 'Pequena', originalBucket: '2,0 m³', recommendedLight: '3.0', recommendedHeavy: '2.5' },
-  { brand: 'New Holland', model: '12D / W12D', operatingWeight: 10.515, class: 'Pequena', originalBucket: '1,9 m³', recommendedLight: '3.0', recommendedHeavy: '2.5' },
-  { brand: 'XCMG', model: 'LW300KV', operatingWeight: 10.9, class: 'Pequena', originalBucket: '1,8 m³', recommendedLight: '3.0', recommendedHeavy: '2.5' },
-  { brand: 'Volvo', model: 'L60', operatingWeight: 11.8, class: 'Pequena', originalBucket: '2,1 m³', recommendedLight: '3.0', recommendedHeavy: '2.5' },
-  { brand: 'SDLG', model: 'LG936', operatingWeight: 11.8, class: 'Pequena', originalBucket: '2,1 m³', recommendedLight: '3.0', recommendedHeavy: '2.5' },
-  { brand: 'JCB', model: '422 / 422ZX', operatingWeight: 11.9, class: 'Pequena', originalBucket: '2,1 m³', recommendedLight: '3.0', recommendedHeavy: '2.5' },
-  { brand: 'LiuGong', model: '842', operatingWeight: 11.9, class: 'Pequena', originalBucket: '2,2 m³', recommendedLight: '3.0', recommendedHeavy: '2.5' },
-  { brand: 'New Holland', model: 'W130', operatingWeight: 12.0, class: 'Pequena', originalBucket: '2,2 m³', recommendedLight: '3.0', recommendedHeavy: '2.5' },
-  { brand: 'Case', model: '621', operatingWeight: 12.5, class: 'Média', originalBucket: '2,1 m³', recommendedLight: '4.0', recommendedHeavy: '2.8' },
-  { brand: 'Hyundai', model: 'HL745', operatingWeight: 12.5, class: 'Média', originalBucket: '2,3 m³', recommendedLight: '4.0', recommendedHeavy: '2.8' },
-  { brand: 'Caterpillar', model: '924K', operatingWeight: 12.8, class: 'Média', originalBucket: '2,1 m³', recommendedLight: '4.0', recommendedHeavy: '2.8' },
-  { brand: 'John Deere', model: '524K', operatingWeight: 12.8, class: 'Média', originalBucket: '2,3 m³', recommendedLight: '4.0', recommendedHeavy: '2.8' },
-  { brand: 'Komatsu', model: 'WA200', operatingWeight: 12.8, class: 'Média', originalBucket: '2,3 m³', recommendedLight: '4.0', recommendedHeavy: '2.8' },
-  { brand: 'Randon', model: 'RD410', operatingWeight: 13.0, class: 'Média', originalBucket: '2,3 m³', recommendedLight: '4.0', recommendedHeavy: '2.8' },
-  { brand: 'SDLG', model: 'LG938', operatingWeight: 13.2, class: 'Média', originalBucket: '2,5 m³', recommendedLight: '4.0', recommendedHeavy: '2.8' },
-  { brand: 'Volvo', model: 'L70', operatingWeight: 14.2, class: 'Média/Pesada', originalBucket: '2,5 m³', recommendedLight: '5.0', recommendedHeavy: '3.0' },
-  { brand: 'Komatsu', model: 'WA320', operatingWeight: 14.3, class: 'Média/Pesada', originalBucket: '2,5 m³', recommendedLight: '5.0', recommendedHeavy: '3.0' },
-  { brand: 'JCB', model: '426 / 426ZX', operatingWeight: 14.5, class: 'Média/Pesada', originalBucket: '2,6 m³', recommendedLight: '5.0', recommendedHeavy: '3.0' },
-  { brand: 'Volvo', model: 'L90', operatingWeight: 15.0, class: 'Média/Pesada', originalBucket: '2,7 m³', recommendedLight: '5.0', recommendedHeavy: '3.0' },
-  { brand: 'Hyundai', model: 'HL757', operatingWeight: 15.2, class: 'Média/Pesada', originalBucket: '2,8 m³', recommendedLight: '5.0', recommendedHeavy: '3.0' },
-  { brand: 'John Deere', model: '624K', operatingWeight: 15.5, class: 'Média/Pesada', originalBucket: '2,7 m³', recommendedLight: '5.0', recommendedHeavy: '3.0' },
-  { brand: 'LiuGong', model: '848', operatingWeight: 15.8, class: 'Média/Pesada', originalBucket: '2,8 m³', recommendedLight: '5.0', recommendedHeavy: '3.0' },
-  { brand: 'Caterpillar', model: '938K / 938M', operatingWeight: 15.9, class: 'Média/Pesada', originalBucket: '2,8 m³', recommendedLight: '5.0', recommendedHeavy: '3.0' },
-  { brand: 'Michigan', model: '75', operatingWeight: 16.0, class: 'Média/Pesada', originalBucket: '2,8 m³', recommendedLight: '5.0', recommendedHeavy: '3.0' },
-  { brand: 'LiuGong', model: '856', operatingWeight: 17.0, class: 'Média/Pesada', originalBucket: '3,0 m³', recommendedLight: '7.0', recommendedHeavy: '3.0' },
-  { brand: 'SDLG', model: 'L956F', operatingWeight: 17.2, class: 'Média/Pesada', originalBucket: '3,0 m³', recommendedLight: '7.0', recommendedHeavy: '3.0' },
-  { brand: 'XCMG', model: 'LW500KV', operatingWeight: 17.2, class: 'Média/Pesada', originalBucket: '3,0 m³', recommendedLight: '7.0', recommendedHeavy: '3.0' },
-  { brand: 'New Holland', model: 'W190', operatingWeight: 17.5, class: 'Média/Pesada', originalBucket: '3,2 m³', recommendedLight: '7.0', recommendedHeavy: '3.0' },
-  { brand: 'Volvo', model: 'L120', operatingWeight: 20.0, class: 'Pesada', originalBucket: '3,5 m³', recommendedLight: '7.0', recommendedHeavy: '3.0' },
+  { brand: 'Bruto', model: 'BRT20', operatingWeight: 7.0, class: 'Compacta', originalBucket: '1,3 m³', recommendedLight: '2.0', recommendedMedium: '2.0', recommendedHeavy: '2.0' },
+  { brand: 'Bruto', model: 'BRT25', operatingWeight: 8.5, class: 'Compacta', originalBucket: '1,6 m³', recommendedLight: '2.0', recommendedMedium: '2.0', recommendedHeavy: '2.0' },
+  { brand: 'XCMG', model: 'LW188', operatingWeight: 8.8, class: 'Compacta', originalBucket: '1,8 m³', recommendedLight: '2.0', recommendedMedium: '2.0', recommendedHeavy: '2.0' },
+  { brand: 'LiuGong', model: '816', operatingWeight: 9.5, class: 'Compacta', originalBucket: '1,8 m³', recommendedLight: '2.0', recommendedMedium: '2.0', recommendedHeavy: '2.0' },
+  { brand: 'Michigan', model: '55', operatingWeight: 9.5, class: 'Compacta', originalBucket: '1,8 m³', recommendedLight: '2.0', recommendedMedium: '2.0', recommendedHeavy: '2.0' },
+  { brand: 'Volvo', model: 'L50F / L50H', operatingWeight: 9.5, class: 'Compacta', originalBucket: '1,6 m³', recommendedLight: '2.0', recommendedMedium: '2.0', recommendedHeavy: '2.0' },
+  { brand: 'SDLG', model: 'LG918', operatingWeight: 9.8, class: 'Compacta', originalBucket: '1,8 m³', recommendedLight: '2.0', recommendedMedium: '2.0', recommendedHeavy: '2.0' },
+  { brand: 'XGMA', model: 'XG935', operatingWeight: 10.0, class: 'Compacta', originalBucket: '1,8 m³', recommendedLight: '2.0', recommendedMedium: '2.0', recommendedHeavy: '2.0' },
+  { brand: 'Case', model: 'W20', operatingWeight: 10.2, class: 'Pequena', originalBucket: '2,0 m³', recommendedLight: '3.0', recommendedMedium: '2.8', recommendedHeavy: '2.5' },
+  { brand: 'New Holland', model: '12D / W12D', operatingWeight: 10.515, class: 'Pequena', originalBucket: '1,9 m³', recommendedLight: '3.0', recommendedMedium: '2.8', recommendedHeavy: '2.5' },
+  { brand: 'XCMG', model: 'LW300KV', operatingWeight: 10.9, class: 'Pequena', originalBucket: '1,8 m³', recommendedLight: '3.0', recommendedMedium: '2.8', recommendedHeavy: '2.5' },
+  { brand: 'LiuGong', model: '835 / 835H', operatingWeight: 11.0, class: 'Pequena', originalBucket: '2,0 m³', recommendedLight: '3.0', recommendedMedium: '2.8', recommendedHeavy: '2.5' },
+  { brand: 'Sany', model: 'SW936K / SW936K1', operatingWeight: 11.0, class: 'Pequena', originalBucket: '2,0 m³', recommendedLight: '3.0', recommendedMedium: '2.8', recommendedHeavy: '2.5' },
+  { brand: 'Volvo', model: 'L60', operatingWeight: 11.8, class: 'Pequena', originalBucket: '2,1 m³', recommendedLight: '3.0', recommendedMedium: '2.8', recommendedHeavy: '2.5' },
+  { brand: 'SDLG', model: 'LG936', operatingWeight: 11.8, class: 'Pequena', originalBucket: '2,1 m³', recommendedLight: '3.0', recommendedMedium: '2.8', recommendedHeavy: '2.5' },
+  { brand: 'JCB', model: '422 / 422ZX', operatingWeight: 11.9, class: 'Pequena', originalBucket: '2,1 m³', recommendedLight: '3.0', recommendedMedium: '2.8', recommendedHeavy: '2.5' },
+  { brand: 'LiuGong', model: '842', operatingWeight: 11.9, class: 'Pequena', originalBucket: '2,2 m³', recommendedLight: '3.0', recommendedMedium: '2.8', recommendedHeavy: '2.5' },
+  { brand: 'New Holland', model: 'W130 / W130B', operatingWeight: 12.0, class: 'Pequena', originalBucket: '2,2 m³', recommendedLight: '3.0', recommendedMedium: '2.8', recommendedHeavy: '2.5' },
+  { brand: 'Case', model: '621', operatingWeight: 12.5, class: 'Média', originalBucket: '2,1 m³', recommendedLight: '4.0', recommendedMedium: '3.0', recommendedHeavy: '2.8' },
+  { brand: 'Hyundai', model: 'HL745', operatingWeight: 12.5, class: 'Média', originalBucket: '2,3 m³', recommendedLight: '4.0', recommendedMedium: '3.0', recommendedHeavy: '2.8' },
+  { brand: 'Caterpillar', model: '924K', operatingWeight: 12.8, class: 'Média', originalBucket: '2,1 m³', recommendedLight: '4.0', recommendedMedium: '3.0', recommendedHeavy: '2.8' },
+  { brand: 'John Deere', model: '524K', operatingWeight: 12.8, class: 'Média', originalBucket: '2,3 m³', recommendedLight: '4.0', recommendedMedium: '3.0', recommendedHeavy: '2.8' },
+  { brand: 'Komatsu', model: 'WA200', operatingWeight: 12.8, class: 'Média', originalBucket: '2,3 m³', recommendedLight: '4.0', recommendedMedium: '3.0', recommendedHeavy: '2.8' },
+  { brand: 'Randon', model: 'RD410', operatingWeight: 13.0, class: 'Média', originalBucket: '2,3 m³', recommendedLight: '4.0', recommendedMedium: '3.0', recommendedHeavy: '2.8' },
+  { brand: 'SDLG', model: 'LG938', operatingWeight: 13.2, class: 'Média', originalBucket: '2,5 m³', recommendedLight: '4.0', recommendedMedium: '3.0', recommendedHeavy: '2.8' },
+  { brand: 'Volvo', model: 'L70', operatingWeight: 14.2, class: 'Média/Pesada', originalBucket: '2,5 m³', recommendedLight: '5.0', recommendedMedium: '4.0', recommendedHeavy: '3.0' },
+  { brand: 'Komatsu', model: 'WA320', operatingWeight: 14.3, class: 'Média/Pesada', originalBucket: '2,5 m³', recommendedLight: '5.0', recommendedMedium: '4.0', recommendedHeavy: '3.0' },
+  { brand: 'Clark Michigan', model: '75C', operatingWeight: 14.33, class: 'Média/Pesada', originalBucket: '2,2 m³', recommendedLight: '5.0', recommendedMedium: '4.0', recommendedHeavy: '3.0' },
+  { brand: 'JCB', model: '426 / 426ZX', operatingWeight: 14.5, class: 'Média/Pesada', originalBucket: '2,6 m³', recommendedLight: '5.0', recommendedMedium: '4.0', recommendedHeavy: '3.0' },
+  { brand: 'Case', model: '721E / 721G', operatingWeight: 14.8, class: 'Média/Pesada', originalBucket: '2,7 m³', recommendedLight: '5.0', recommendedMedium: '4.0', recommendedHeavy: '3.0' },
+  { brand: 'Volvo', model: 'L90', operatingWeight: 15.0, class: 'Média/Pesada', originalBucket: '2,7 m³', recommendedLight: '5.0', recommendedMedium: '4.0', recommendedHeavy: '3.0' },
+  { brand: 'Hyundai', model: 'HL757', operatingWeight: 15.2, class: 'Média/Pesada', originalBucket: '2,8 m³', recommendedLight: '5.0', recommendedMedium: '4.0', recommendedHeavy: '3.0' },
+  { brand: 'John Deere', model: '624K', operatingWeight: 15.5, class: 'Média/Pesada', originalBucket: '2,7 m³', recommendedLight: '5.0', recommendedMedium: '4.0', recommendedHeavy: '3.0' },
+  { brand: 'LiuGong', model: '848', operatingWeight: 15.8, class: 'Média/Pesada', originalBucket: '2,8 m³', recommendedLight: '5.0', recommendedMedium: '4.0', recommendedHeavy: '3.0' },
+  { brand: 'Caterpillar', model: '938K / 938M', operatingWeight: 15.9, class: 'Média/Pesada', originalBucket: '2,8 m³', recommendedLight: '5.0', recommendedMedium: '4.0', recommendedHeavy: '3.0' },
+  { brand: 'LiuGong', model: '856', operatingWeight: 17.0, class: 'Média/Pesada', originalBucket: '3,0 m³', recommendedLight: '7.0', recommendedMedium: '5.0', recommendedHeavy: '3.0' },
+  { brand: 'Sany', model: 'SYL956H5', operatingWeight: 17.1, class: 'Média/Pesada', originalBucket: '3,0 m³', recommendedLight: '7.0', recommendedMedium: '5.0', recommendedHeavy: '3.0' },
+  { brand: 'SDLG', model: 'L956F', operatingWeight: 17.2, class: 'Média/Pesada', originalBucket: '3,0 m³', recommendedLight: '7.0', recommendedMedium: '5.0', recommendedHeavy: '3.0' },
+  { brand: 'XCMG', model: 'LW500KV', operatingWeight: 17.2, class: 'Média/Pesada', originalBucket: '3,0 m³', recommendedLight: '7.0', recommendedMedium: '5.0', recommendedHeavy: '3.0' },
+  { brand: 'New Holland', model: 'W190', operatingWeight: 17.5, class: 'Média/Pesada', originalBucket: '3,2 m³', recommendedLight: '7.0', recommendedMedium: '5.0', recommendedHeavy: '3.0' },
+  { brand: 'John Deere', model: '644K / 644L', operatingWeight: 18.5, class: 'Pesada', originalBucket: '3,2 m³', recommendedLight: '7.0', recommendedMedium: '5.0', recommendedHeavy: '3.0' },
+  { brand: 'Volvo', model: 'L120', operatingWeight: 20.0, class: 'Pesada', originalBucket: '3,5 m³', recommendedLight: '7.0', recommendedMedium: '5.0', recommendedHeavy: '3.0' },
 ];
 
 export const MATERIALS: Material[] = [
@@ -108,9 +115,20 @@ export const MATERIALS: Material[] = [
   { name: 'Casca de pinus', density: 375, class: 'Muito leve' },
   { name: 'Carvão vegetal', density: 350, class: 'Muito leve' },
   { name: 'Resíduos recicláveis', density: 350, class: 'Muito leve' },
-  { name: 'Milho', density: 730, class: 'Médio' },
-  { name: 'Soja', density: 750, class: 'Médio' },
-  { name: 'Fertilizante', density: 1000, class: 'Pesado' },
+  { name: 'Cevada em grão', density: 720, class: 'Médio' },
+  { name: 'Milho em grão', density: 730, class: 'Médio' },
+  { name: 'Sementes de colza / canola', density: 740, class: 'Médio' },
+  { name: 'Soja em grão', density: 750, class: 'Médio' },
+  { name: 'Arroz em casca', density: 760, class: 'Médio' },
+  { name: 'Trigo em grão', density: 770, class: 'Médio' },
+  { name: 'Ração animal peletizada', density: 780, class: 'Médio' },
+  { name: 'Adubo orgânico seco', density: 800, class: 'Médio' },
+  { name: 'Carvão vegetal moído', density: 820, class: 'Médio' },
+  { name: 'Silagem compactada', density: 850, class: 'Médio' },
+  { name: 'Gesso em pó', density: 900, class: 'Médio' },
+  { name: 'Argila seca em pó', density: 950, class: 'Médio' },
+  { name: 'Sal grosso', density: 960, class: 'Médio' },
+  { name: 'Fertilizante químico', density: 1000, class: 'Médio' },
   { name: 'Terra seca', density: 1200, class: 'Pesado' },
   { name: 'Calcário', density: 1350, class: 'Pesado' },
   { name: 'Cascalho', density: 1600, class: 'Muito pesado' },
@@ -121,10 +139,14 @@ export const MATERIALS: Material[] = [
 ];
 
 export function getRecommendedBucket(machine: Machine, density: number): string {
-  // Threshold to determine light vs heavy material selection.
-  // Materials <= 600 kg/m³ are considered light
+  // Threshold to determine light, medium or heavy material selection.
+  // Materials <= 600 kg/m³ are considered light (e.g. wood chips, bagasse)
+  // Materials between 700 and 1000 kg/m³ are medium (e.g. grains, soy, fertilizers)
+  // Materials > 1000 kg/m³ are heavy (e.g. earth, gravel, stone)
   if (density <= 600) {
     return machine.recommendedLight;
+  } else if (density <= 1000) {
+    return machine.recommendedMedium;
   } else {
     return machine.recommendedHeavy;
   }

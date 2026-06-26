@@ -562,6 +562,7 @@ export default function Catalog() {
   const [selectedModel, setSelectedModel] = useState<any>(null);
   const [animationType, setAnimationType] = useState<'tilt' | 'rotate'>('rotate'); // Default to rotate as requested
   const [isHighTipFichaOpen, setIsHighTipFichaOpen] = useState(false);
+  const [isHighTipSelectorOpen, setIsHighTipSelectorOpen] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
   const [isModelEditOpen, setIsModelEditOpen] = useState(false);
   const [editingModelData, setEditingModelData] = useState<any>(null);
@@ -799,8 +800,14 @@ export default function Catalog() {
         const cacambaHighTip = data.find(p => p.name === 'Caçamba High Tip');
         if (!cacambaHighTip && data.length > 0) {
           addCacambaHighTip();
-        } else if (cacambaHighTip?.is_blocked) {
-          updateDoc(doc(db, 'products', cacambaHighTip.id), { is_blocked: false });
+        } else if (cacambaHighTip) {
+          if (cacambaHighTip.is_blocked) {
+            updateDoc(doc(db, 'products', cacambaHighTip.id), { is_blocked: false });
+          }
+          const hasCht70 = cacambaHighTip.models?.some((m: any) => m.id === 'cht-70');
+          if (!hasCht70 && data.length > 0) {
+            addCacambaHighTip();
+          }
         }
       }
       
@@ -3834,8 +3841,7 @@ export default function Catalog() {
                         setViewingGallery(product);
                       }}
                       onOpenDigitalSelection={(product: Product) => {
-                        setSelectedProductModels(product);
-                        setSelectedModel(null);
+                        setIsHighTipSelectorOpen(true);
                       }}
                       onIndicate={handleIndicate}
                     />
@@ -5291,6 +5297,53 @@ export default function Catalog() {
         {isHighTipFichaOpen && (
           <HighTipFicha onClose={() => setIsHighTipFichaOpen(false)} />
         )}
+
+        <Dialog open={isHighTipSelectorOpen} onOpenChange={setIsHighTipSelectorOpen}>
+          <DialogContent className="bg-card border-border text-card-foreground sm:max-w-[90vw] md:max-w-3xl lg:max-w-4xl w-full max-h-[92vh] overflow-y-auto p-0 shadow-2xl rounded-2xl flex flex-col">
+            <DialogHeader className="p-6 border-b border-border bg-muted/30 relative shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10 text-primary animate-pulse">
+                  <Calculator className="h-6 w-6" />
+                </div>
+                <div>
+                  <DialogTitle className="text-xl font-bold">Guia de Seleção Digital</DialogTitle>
+                  <DialogDescription className="text-muted-foreground text-xs md:text-sm mt-0.5">
+                    Selecione a sua pá carregadeira e o material para obter o modelo ideal de Caçamba High Tip Roder.
+                  </DialogDescription>
+                </div>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="absolute right-4 top-4 h-10 w-10 rounded-full hover:bg-muted"
+                onClick={() => setIsHighTipSelectorOpen(false)}
+              >
+                <Plus className="h-6 w-6 rotate-45" />
+              </Button>
+            </DialogHeader>
+            <div className="p-4 md:p-6 flex-1 overflow-y-auto">
+              <HighTipSelector 
+                onSelectModel={(capacity) => {
+                  setIsHighTipSelectorOpen(false);
+                  const foundProduct = products.find(p => p.name === 'Caçamba High Tip');
+                  if (foundProduct) {
+                    setSelectedProductModels(foundProduct);
+                    const foundModel = foundProduct.models?.find(m => 
+                      m.name.includes(capacity) || 
+                      (m.technical_specs && (m.technical_specs as any).capacidade?.includes(capacity))
+                    );
+                    if (foundModel) {
+                      setSelectedModel(foundModel);
+                    } else {
+                      setSelectedModel(foundProduct.models && foundProduct.models.length > 0 ? foundProduct.models[0] : null);
+                    }
+                  }
+                }}
+                embedded={true}
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
     </Layout>
   );
 }
