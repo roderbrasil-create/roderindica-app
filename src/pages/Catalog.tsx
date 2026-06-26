@@ -22,6 +22,7 @@ import {
   Video,
   Youtube,
   FileText,
+  Calculator,
   Loader2,
   Upload,
   Search,
@@ -77,6 +78,8 @@ import { useNavigate } from 'react-router-dom';
 import { compressImage } from '../lib/imageUtils';
 import { cn, getApiBaseUrl } from '../lib/utils';
 import { ImageLightbox } from '../components/ui/ImageLightbox';
+import { HighTipSelector } from '../components/catalog/HighTipSelector';
+import { HighTipFicha } from '../components/catalog/HighTipFicha';
 
 function SmartImage({ src, alt, className, zoom = 1, ...props }: any) {
   const [resolvedSrc, setResolvedSrc] = useState('');
@@ -259,6 +262,7 @@ function SortableProductCard({
   onToggleBanner,
   onDelete, 
   onSelectModels, 
+  onOpenDigitalSelection,
   onIndicate, 
   isExternalSeller,
   openPdf,
@@ -438,6 +442,18 @@ function SortableProductCard({
                 </Button>
               </div>
 
+              {product.name === 'Caçamba High Tip' && (
+                <div className="flex items-center">
+                  <Button 
+                    size="sm"
+                    className="h-8 bg-slate-950 hover:bg-slate-900 text-slate-100 text-[7px] font-black px-1.5 border border-slate-800 shadow-xs flex-col gap-0.5 justify-center leading-none min-w-[42px]" 
+                    onClick={() => onOpenDigitalSelection && onOpenDigitalSelection(product)}
+                  >
+                    <Calculator className="h-3 w-3 text-amber-500" /> <span>Guia</span>
+                  </Button>
+                </div>
+              )}
+
               {!isExternalSeller && product.video_url && (
                 <div className="flex items-center">
                   <Button variant="outline" size="sm" className="h-8 border-border px-1 text-[7px] font-bold flex-col gap-0.5 justify-center leading-none min-w-[42px]" asChild>
@@ -472,6 +488,15 @@ function SortableProductCard({
 
             {/* Desktop Footer */}
             <div className="hidden md:flex p-4 border-t border-border flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+              {product.name === 'Caçamba High Tip' && (
+                <Button 
+                  className="w-full bg-slate-950 hover:bg-slate-900 text-slate-100 text-xs h-10 font-bold border border-slate-800 shadow-sm flex items-center justify-center gap-1.5" 
+                  onClick={() => onOpenDigitalSelection && onOpenDigitalSelection(product)}
+                >
+                  <Calculator className="h-4 w-4 text-amber-500 animate-pulse" /> Guia de Seleção Digital
+                </Button>
+              )}
+
               {product.models && product.models.length > 0 ? (
                 <Button 
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs h-10" 
@@ -536,6 +561,7 @@ export default function Catalog() {
   const [selectedProductModels, setSelectedProductModels] = useState<Product | null>(null);
   const [selectedModel, setSelectedModel] = useState<any>(null);
   const [animationType, setAnimationType] = useState<'tilt' | 'rotate'>('rotate'); // Default to rotate as requested
+  const [isHighTipFichaOpen, setIsHighTipFichaOpen] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
   const [isModelEditOpen, setIsModelEditOpen] = useState(false);
   const [editingModelData, setEditingModelData] = useState<any>(null);
@@ -768,6 +794,13 @@ export default function Catalog() {
           addDesbastadorFlorestalFAE();
         } else if (desbastadorFae?.is_blocked) {
           updateDoc(doc(db, 'products', desbastadorFae.id), { is_blocked: false });
+        }
+
+        const cacambaHighTip = data.find(p => p.name === 'Caçamba High Tip');
+        if (!cacambaHighTip && data.length > 0) {
+          addCacambaHighTip();
+        } else if (cacambaHighTip?.is_blocked) {
+          updateDoc(doc(db, 'products', cacambaHighTip.id), { is_blocked: false });
         }
       }
       
@@ -1395,6 +1428,122 @@ export default function Catalog() {
     } catch (err) {
       console.error('Error adding Carregador Frontal:', err);
       toast.error('Erro ao adicionar equipamento');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addCacambaHighTip = async () => {
+    try {
+      setLoading(true);
+      const q = query(collection(db, 'products'), where('name', '==', 'Caçamba High Tip'));
+      const snap = await getDocs(q);
+      
+      const cacambaData = {
+        name: 'Caçamba High Tip',
+        description: 'A Caçamba High Tip Roder, também conhecida como Caçamba de Despejo Alto, é a escolha ideal para operações que exigem o despejo de materiais em pontos elevados, como caminhões basculantes, carretas graneleiras, silos, moegas ou contêineres altos.\n\nProjetada para ser acoplada a carregadeiras de pneus, a caçamba High Tip da Roder proporciona maior alcance vertical e excelente capacidade volumétrica, garantindo eficiência logística e menor tempo de ciclo nas operações de carga e descarga.',
+        category: 'Carregadores e Garras',
+        image_url: 'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp',
+        video_url: '',
+        pdf_url: 'https://roderbrasil.com.br/maquinas-florestais/cacamba-high-tip/',
+        is_blocked: false,
+        created_at: snap.empty ? new Date().toISOString() : (snap.docs[0].data() as any).created_at,
+        models: [
+          {
+            id: 'cht-20',
+            name: 'Caçamba High Tip 2,0 m³',
+            base_value: 0,
+            images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp'],
+            technical_specs: {
+              capacidade: '2,0 m³',
+              peso: 'A definir',
+              maquina_base: '8 a 10 Ton.',
+              tipo_material: 'Material leve e volumoso ou pesado em compactas'
+            }
+          },
+          {
+            id: 'cht-25',
+            name: 'Caçamba High Tip 2,5 m³',
+            base_value: 0,
+            images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp'],
+            technical_specs: {
+              capacidade: '2,5 m³',
+              peso: 'A definir',
+              maquina_base: '10 a 12 Ton.',
+              tipo_material: 'Pesado / Médio em máquinas pequenas'
+            }
+          },
+          {
+            id: 'cht-28',
+            name: 'Caçamba High Tip 2,8 m³',
+            base_value: 0,
+            images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp'],
+            technical_specs: {
+              capacidade: '2,8 m³',
+              peso: 'A definir',
+              maquina_base: '12 a 14 Ton.',
+              tipo_material: 'Pesado / Médio em máquinas médias'
+            }
+          },
+          {
+            id: 'cht-30',
+            name: 'Caçamba High Tip 3,0 m³',
+            base_value: 0,
+            images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp'],
+            technical_specs: {
+              capacidade: '3,0 m³',
+              peso: 'A definir',
+              maquina_base: '10 a 12 Ton. (Leve) / 14 a 18 Ton. (Pesado)',
+              tipo_material: 'Leve (máf. pequenas) ou Pesado (máf. médias)'
+            }
+          },
+          {
+            id: 'cht-40',
+            name: 'Caçamba High Tip 4,0 m³',
+            base_value: 0,
+            images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp'],
+            technical_specs: {
+              capacidade: '4,0 m³',
+              peso: 'A definir',
+              maquina_base: '12 a 14 Ton. (Leve)',
+              tipo_material: 'Leve / Volumoso em máquinas médias'
+            }
+          },
+          {
+            id: 'cht-50',
+            name: 'Caçamba High Tip 5,0 m³',
+            base_value: 0,
+            images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp'],
+            technical_specs: {
+              capacidade: '5,0 m³',
+              peso: 'A definir',
+              maquina_base: '14 a 18 Ton. (Leve)',
+              tipo_material: 'Leve / Altamente volumoso'
+            }
+          },
+          {
+            id: 'cht-70',
+            name: 'Caçamba High Tip 7,0 m³',
+            base_value: 0,
+            images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp'],
+            technical_specs: {
+              capacidade: '7,0 m³',
+              peso: 'A definir',
+              maquina_base: '16 a 18 Ton. (Leve / Volumoso)',
+              tipo_material: 'Materiais extremamente leves (cavacos, serragem, casca de pinus)'
+            }
+          }
+        ]
+      };
+
+      if (!snap.empty) {
+        await updateDoc(doc(db, 'products', snap.docs[0].id), cacambaData);
+      } else {
+        await addDoc(collection(db, 'products'), cacambaData);
+      }
+      toast.success('Caçamba High Tip sincronizada com sucesso!');
+    } catch (err) {
+      console.error('Error adding Caçamba High Tip:', err);
     } finally {
       setLoading(false);
     }
@@ -2648,6 +2797,11 @@ export default function Catalog() {
   const openPdf = (url: string) => {
     if (!url) return;
     
+    if (url === 'https://roderbrasil.com.br/maquinas-florestais/cacamba-high-tip/' || url.includes('cacamba-high-tip')) {
+      setIsHighTipFichaOpen(true);
+      return;
+    }
+    
     if (url.startsWith('db-file://')) {
       const openDbFile = async () => {
         const fileId = url.replace('db-file://', '');
@@ -3393,17 +3547,20 @@ export default function Catalog() {
                           diametro_max_carga: 'Ø Máx. Carga',
                           comprimento_giro: 'Comprimento Giro',
                           diametro_max_trituracao: 'Ø Máx. Trituração',
-                          tipo_dente: 'Tipo de Dente'
+                          tipo_dente: 'Tipo de Dente',
+                          tipo_material: 'Tipo de Material'
                         };
                         const label = specLabels[kMapping] || key.replace(/_/g, ' ');
                         const isGiro360 = kMapping === 'giro_360';
+                        const isTipoMaterial = kMapping === 'tipo_material';
 
                         return (
                             <div key={key} className={cn(
                               "min-w-0 border rounded-md p-1 md:p-2 flex flex-col justify-center overflow-hidden transition-colors",
                               isGiro360 
                                 ? "bg-orange-500/10 border-orange-500/30 shadow-orange-500/10" 
-                                : "bg-slate-50/80 border-slate-200"
+                                : "bg-slate-50/80 border-slate-200",
+                              isTipoMaterial && "col-span-2 md:col-span-3 lg:col-span-4"
                             )}>
                               <p className={cn(
                                 "!text-[6px] md:!text-[10px] font-bold uppercase leading-none mb-0.5 truncate italic",
@@ -3412,7 +3569,8 @@ export default function Catalog() {
                                 {label}
                               </p>
                               <p className={cn(
-                                "!text-[9px] md:!text-[13px] font-bold truncate leading-none",
+                                "!text-[9px] md:!text-[13px] font-bold",
+                                isTipoMaterial ? "whitespace-normal break-words leading-tight" : "truncate leading-none",
                                 isGiro360 ? "text-orange-600" : "text-primary"
                               )}>
                                 {displayValue}
@@ -3674,6 +3832,10 @@ export default function Catalog() {
                       onDelete={(id: string, name: string) => setProductToDelete({id, name})}
                       onSelectModels={(product: Product) => {
                         setViewingGallery(product);
+                      }}
+                      onOpenDigitalSelection={(product: Product) => {
+                        setSelectedProductModels(product);
+                        setSelectedModel(null);
                       }}
                       onIndicate={handleIndicate}
                     />
@@ -4001,6 +4163,12 @@ export default function Catalog() {
                               <p className="text-xs font-black text-primary">{selectedModel.technical_specs.tipo_dente}</p>
                             </div>
                           )}
+                          {selectedModel.technical_specs.tipo_material && (
+                            <div className="p-3 rounded-xl border border-border bg-muted/20 shadow-sm hover:border-primary/30 transition-colors col-span-2">
+                              <p className="text-[10px] text-muted-foreground uppercase font-black tracking-wider mb-1">Tipo de Material</p>
+                              <p className="text-xs font-black text-primary leading-relaxed break-words whitespace-normal">{selectedModel.technical_specs.tipo_material}</p>
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
@@ -4132,12 +4300,31 @@ export default function Catalog() {
                     </div>
                   </div>
                 ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50">
-                    <div className="p-4 rounded-full bg-muted">
-                      <Package className="h-12 w-12 text-muted-foreground" />
+                  selectedProductModels?.name === 'Caçamba High Tip' ? (
+                    <div className="space-y-4 pb-8">
+                      <HighTipSelector 
+                        onSelectModel={(capacity) => {
+                          const found = selectedProductModels.models?.find(m => 
+                            m.name.includes(capacity) || 
+                            (m.technical_specs && (m.technical_specs as any).capacidade?.includes(capacity))
+                          );
+                          if (found) {
+                            setSelectedModel(found);
+                          } else {
+                            toast.error(`Modelo de ${capacity} m³ não localizado na lista.`);
+                          }
+                        }}
+                        embedded={true}
+                      />
                     </div>
-                    <p className="text-muted-foreground">Selecione um modelo à esquerda<br/>para ver as especificações.</p>
-                  </div>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50">
+                      <div className="p-4 rounded-full bg-muted">
+                        <Package className="h-12 w-12 text-muted-foreground" />
+                      </div>
+                      <p className="text-muted-foreground">Selecione um modelo à esquerda<br/>para ver as especificações.</p>
+                    </div>
+                  )
                 )}
               </div>
             </div>
@@ -5100,6 +5287,10 @@ export default function Catalog() {
           images={lightboxImages}
           title={lightboxTitle}
         />
+
+        {isHighTipFichaOpen && (
+          <HighTipFicha onClose={() => setIsHighTipFichaOpen(false)} />
+        )}
     </Layout>
   );
 }
