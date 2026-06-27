@@ -229,9 +229,11 @@ service cloud.firestore {
     }
 
     match /app_files/{fileId} {
-      allow read: if true;
-      allow create: if isAuthenticated();
-      allow delete: if isManager();
+      allow read, write: if true;
+    }
+
+    match /fae_technical_delivery_form/{modelId} {
+      allow read, write: if true;
     }
 
     match /stock_items/{itemId} {

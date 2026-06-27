@@ -18,7 +18,8 @@ import {
   ChevronRight,
   Send,
   PhoneCall,
-  Check
+  Check,
+  Share2
 } from 'lucide-react';
 import { RODER_LOGO_BASE64 } from '../components/catalog/RoderLogo';
 import { toast } from 'sonner';
@@ -217,6 +218,34 @@ export default function PublicTechnicalDelivery() {
   const page1Ref = useRef<HTMLDivElement>(null);
   const page2Ref = useRef<HTMLDivElement>(null);
   const page3Ref = useRef<HTMLDivElement>(null);
+
+  // Dynamic preview scale for mobile devices
+  const [previewScale, setPreviewScale] = useState(1);
+  const previewContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const updateScale = () => {
+      if (previewContainerRef.current) {
+        // We measure the container's width, subtracting padding
+        const parentWidth = previewContainerRef.current.clientWidth - 32;
+        if (parentWidth < 794) {
+          setPreviewScale(parentWidth / 794);
+        } else {
+          setPreviewScale(1);
+        }
+      }
+    };
+
+    updateScale();
+    // Use a small timeout to let the DOM settle, especially on mount/load
+    const timeoutId = setTimeout(updateScale, 100);
+
+    window.addEventListener('resize', updateScale);
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener('resize', updateScale);
+    };
+  }, []);
 
   // Map model name based on modelId selector
   useEffect(() => {
@@ -464,6 +493,37 @@ export default function PublicTechnicalDelivery() {
     window.open(url, '_blank');
   };
 
+  // Shares the actual PDF file using Web Share API
+  const handleSharePdf = async () => {
+    if (!generatedPdfBlob) {
+      toast.error('PDF ainda não foi gerado.');
+      return;
+    }
+
+    try {
+      const fileName = `Entrega_Tecnica_Roder_${serialNumber || 'FAE'}.pdf`;
+      const file = new File([generatedPdfBlob], fileName, { type: 'application/pdf' });
+
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: 'Ficha de Entrega Técnica Roder',
+          text: `Segue em anexo a Ficha de Entrega Técnica assinada do Triturador FAE de Série: ${serialNumber || ''}`
+        });
+        toast.success('PDF compartilhado com sucesso!');
+      } else {
+        // Fallback: Share text on WhatsApp if file sharing is not supported (e.g., on desktop)
+        handleWhatsAppShare();
+      }
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        console.error('Erro ao compartilhar arquivo:', err);
+        // Fallback to WhatsApp link text
+        handleWhatsAppShare();
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans">
       
@@ -643,7 +703,10 @@ export default function PublicTechnicalDelivery() {
         </section>
 
         {/* Right Side: A4 visual layout previews (Continuous flow) */}
-        <section className="lg:col-span-8 flex flex-col items-center gap-8 overflow-x-auto bg-slate-950 p-4 rounded-3xl border border-slate-800/60 shadow-inner">
+        <section 
+          ref={previewContainerRef}
+          className="lg:col-span-8 flex flex-col items-center gap-6 bg-slate-950 p-4 rounded-3xl border border-slate-800/60 shadow-inner w-full overflow-hidden"
+        >
           
           <div className="text-center py-2">
             <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest bg-slate-900 px-3.5 py-1.5 rounded-full border border-slate-800">
@@ -651,12 +714,22 @@ export default function PublicTechnicalDelivery() {
             </span>
           </div>
 
-          {/* PAGE 1 */}
+          {/* PAGE 1 WRAPPER */}
           <div 
-            ref={page1Ref}
-            className="w-[794px] h-[1123px] bg-white text-slate-900 p-[40px] relative flex flex-col justify-between overflow-hidden shrink-0 shadow-2xl select-text"
-            style={{ boxSizing: 'border-box' }}
+            style={{ 
+              width: `${794 * previewScale}px`, 
+              height: `${1123 * previewScale}px`
+            }}
+            className="relative flex items-start justify-center shrink-0"
           >
+            <div 
+              ref={page1Ref}
+              className="w-[794px] h-[1123px] bg-white text-slate-900 p-[40px] absolute top-0 origin-top flex flex-col justify-between overflow-hidden shadow-2xl select-text"
+              style={{ 
+                boxSizing: 'border-box',
+                transform: `scale(${previewScale})`
+              }}
+            >
             <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -z-10 pointer-events-none"></div>
             
             <div className="flex flex-col flex-1">
@@ -825,13 +898,24 @@ export default function PublicTechnicalDelivery() {
               <span>Página 1 de 3</span>
             </div>
           </div>
+        </div>
 
-          {/* PAGE 2 */}
+          {/* PAGE 2 WRAPPER */}
           <div 
-            ref={page2Ref}
-            className="w-[794px] h-[1123px] bg-white text-slate-900 p-[40px] relative flex flex-col justify-between overflow-hidden shrink-0 shadow-2xl select-text"
-            style={{ boxSizing: 'border-box' }}
+            style={{ 
+              width: `${794 * previewScale}px`, 
+              height: `${1123 * previewScale}px`
+            }}
+            className="relative flex items-start justify-center shrink-0"
           >
+            <div 
+              ref={page2Ref}
+              className="w-[794px] h-[1123px] bg-white text-slate-900 p-[40px] absolute top-0 origin-top flex flex-col justify-between overflow-hidden shadow-2xl select-text"
+              style={{ 
+                boxSizing: 'border-box',
+                transform: `scale(${previewScale})`
+              }}
+            >
             <div className="flex flex-col flex-1">
               
               {/* SECTION 2: LUBRICATION & DAILY CARE */}
@@ -1013,13 +1097,24 @@ export default function PublicTechnicalDelivery() {
               <span>Página 2 de 3</span>
             </div>
           </div>
+        </div>
 
-          {/* PAGE 3 */}
+          {/* PAGE 3 WRAPPER */}
           <div 
-            ref={page3Ref}
-            className="w-[794px] h-[1123px] bg-white text-slate-900 p-[40px] relative flex flex-col justify-between overflow-hidden shrink-0 shadow-2xl select-text"
-            style={{ boxSizing: 'border-box' }}
+            style={{ 
+              width: `${794 * previewScale}px`, 
+              height: `${1123 * previewScale}px`
+            }}
+            className="relative flex items-start justify-center shrink-0"
           >
+            <div 
+              ref={page3Ref}
+              className="w-[794px] h-[1123px] bg-white text-slate-900 p-[40px] absolute top-0 origin-top flex flex-col justify-between overflow-hidden shadow-2xl select-text"
+              style={{ 
+                boxSizing: 'border-box',
+                transform: `scale(${previewScale})`
+              }}
+            >
             <div className="flex flex-col flex-1">
               
               {/* SECTION 4: OPERATIONAL INSTRUCTIONS */}
@@ -1063,7 +1158,7 @@ export default function PublicTechnicalDelivery() {
                         <div>
                           <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-tight">Rebaixamento de Tocos</h4>
                           <p className="text-xs text-slate-500 leading-relaxed mt-0.5">
-                            Não desça diretamente no centro. Vá rando a superfície lateral de 5 a 10 cm por passada.
+                            Não desça diretamente no centro. Trabalhe, ralando, a superfície no toco lateralmente, passando por cima do toco, retirando de 5 a 10 centímetros por passada.
                           </p>
                         </div>
                       </div>
@@ -1172,6 +1267,7 @@ export default function PublicTechnicalDelivery() {
               <span>Página 3 de 3</span>
             </div>
           </div>
+        </div>
 
         </section>
       </main>
@@ -1227,19 +1323,29 @@ export default function PublicTechnicalDelivery() {
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 mt-4">
+            <div className="space-y-3 mt-4">
+              {/* Primary file-sharing button */}
               <button
-                onClick={handleLocalDownload}
-                className="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-black uppercase tracking-wider rounded-xl flex items-center justify-center gap-1.5 transition-all border border-slate-700/50"
+                onClick={handleSharePdf}
+                className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-600/20"
               >
-                <Download className="h-4 w-4 text-slate-400" /> Baixar PDF
+                <Share2 className="h-4.5 w-4.5" /> Compartilhar PDF (WhatsApp/E-mail)
               </button>
-              <button
-                onClick={handleWhatsAppShare}
-                className="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-md shadow-emerald-600/10"
-              >
-                <PhoneCall className="h-4 w-4" /> Enviar WhatsApp
-              </button>
+
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={handleLocalDownload}
+                  className="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-black uppercase tracking-wider rounded-xl flex items-center justify-center gap-1.5 transition-all border border-slate-700/50"
+                >
+                  <Download className="h-4 w-4 text-slate-400" /> Baixar PDF
+                </button>
+                <button
+                  onClick={handleWhatsAppShare}
+                  className="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-black uppercase tracking-wider rounded-xl flex items-center justify-center gap-1.5 transition-all border border-slate-700/50"
+                >
+                  <PhoneCall className="h-4 w-4 text-slate-400" /> Texto WhatsApp
+                </button>
+              </div>
             </div>
 
             <button

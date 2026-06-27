@@ -221,6 +221,36 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
   const page2Ref = useRef<HTMLDivElement>(null);
   const page3Ref = useRef<HTMLDivElement>(null);
 
+  // Dynamic preview scale for mobile devices
+  const [previewScale, setPreviewScale] = useState(1);
+  const previewContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const updateScale = () => {
+      if (previewContainerRef.current) {
+        // We measure the container's width, subtracting padding
+        const parentWidth = previewContainerRef.current.clientWidth - 32;
+        if (parentWidth < 794) {
+          setPreviewScale(parentWidth / 794);
+        } else {
+          setPreviewScale(1);
+        }
+      }
+    };
+
+    updateScale();
+    // Use a small timeout to let the DOM settle, especially on mount/load
+    const timeoutId = setTimeout(updateScale, 100);
+
+    window.addEventListener('resize', updateScale);
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener('resize', updateScale);
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleDownloadPdf = async () => {
@@ -416,14 +446,27 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
         </div>
 
         {/* Scrollable Container with exact A4 pages rendered visually */}
-        <div className="p-4 md:p-8 flex-1 overflow-y-auto max-h-[650px] bg-slate-100 flex flex-col items-center gap-8 shadow-inner select-text">
+        <div 
+          ref={previewContainerRef}
+          className="p-4 md:p-8 flex-1 overflow-y-auto max-h-[650px] bg-slate-100 flex flex-col items-center gap-6 shadow-inner select-text w-full overflow-x-hidden"
+        >
           
           {/* PAGE 1: Cabeçalho & Acoplamento */}
           <div 
-            ref={page1Ref}
-            className="w-[794px] h-[1123px] bg-white text-slate-900 p-[40px] shadow-lg relative flex flex-col justify-between overflow-hidden border border-slate-200 shrink-0 select-text"
-            style={{ boxSizing: 'border-box' }}
+            style={{ 
+              width: `${794 * previewScale}px`, 
+              height: `${1123 * previewScale}px`
+            }}
+            className="relative flex items-start justify-center shrink-0"
           >
+            <div 
+              ref={page1Ref}
+              className="w-[794px] h-[1123px] bg-white text-slate-900 p-[40px] shadow-lg absolute top-0 origin-top flex flex-col justify-between overflow-hidden border border-slate-200 select-text"
+              style={{ 
+                boxSizing: 'border-box',
+                transform: `scale(${previewScale})`
+              }}
+            >
             {/* Background watermark/design elements */}
             <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -z-10 pointer-events-none"></div>
             
@@ -599,14 +642,25 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
               <span>Página 1 de 3</span>
             </div>
           </div>
+        </div>
 
 
           {/* PAGE 2: Manutenção de Ferramentas & Lubrificação */}
           <div 
-            ref={page2Ref}
-            className="w-[794px] h-[1123px] bg-white text-slate-900 p-[40px] shadow-lg relative flex flex-col justify-between overflow-hidden border border-slate-200 shrink-0 select-text"
-            style={{ boxSizing: 'border-box' }}
+            style={{ 
+              width: `${794 * previewScale}px`, 
+              height: `${1123 * previewScale}px`
+            }}
+            className="relative flex items-start justify-center shrink-0"
           >
+            <div 
+              ref={page2Ref}
+              className="w-[794px] h-[1123px] bg-white text-slate-900 p-[40px] shadow-lg absolute top-0 origin-top flex flex-col justify-between overflow-hidden border border-slate-200 select-text"
+              style={{ 
+                boxSizing: 'border-box',
+                transform: `scale(${previewScale})`
+              }}
+            >
             <div className="flex flex-col flex-1">
               
               {/* SECTION 2: LUBRICATION & DAILY CARE */}
@@ -789,14 +843,25 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
               <span>Página 2 de 3</span>
             </div>
           </div>
+        </div>
 
 
           {/* PAGE 3: Instruções Operacionais & Assinaturas */}
           <div 
-            ref={page3Ref}
-            className="w-[794px] h-[1123px] bg-white text-slate-900 p-[40px] shadow-lg relative flex flex-col justify-between overflow-hidden border border-slate-200 shrink-0 select-text"
-            style={{ boxSizing: 'border-box' }}
+            style={{ 
+              width: `${794 * previewScale}px`, 
+              height: `${1123 * previewScale}px`
+            }}
+            className="relative flex items-start justify-center shrink-0"
           >
+            <div 
+              ref={page3Ref}
+              className="w-[794px] h-[1123px] bg-white text-slate-900 p-[40px] shadow-lg absolute top-0 origin-top flex flex-col justify-between overflow-hidden border border-slate-200 select-text"
+              style={{ 
+                boxSizing: 'border-box',
+                transform: `scale(${previewScale})`
+              }}
+            >
             <div className="flex flex-col flex-1">
               
               {/* SECTION 4: OPERATIONAL INSTRUCTIONS */}
@@ -840,7 +905,7 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
                         <div>
                           <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-tight">Rebaixamento de Tocos</h4>
                           <p className="text-xs text-slate-500 leading-relaxed mt-0.5">
-                            Não desça diretamente no centro. Vá rando a superfície lateral de 5 a 10 cm por passada.
+                            Não desça diretamente no centro. Trabalhe, ralando, a superfície no toco lateralmente, passando por cima do toco, retirando de 5 a 10 centímetros por passada.
                           </p>
                         </div>
                       </div>
@@ -918,6 +983,7 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
               <span>Página 3 de 3</span>
             </div>
           </div>
+        </div>
 
         </div>
       </div>
