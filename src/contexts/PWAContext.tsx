@@ -217,14 +217,8 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
             toast.dismiss(toastId);
           }
         } else {
-          // Only show standard download errors once per session as well
-          if (!sessionStorage.getItem('roder_download_error_notified')) {
-            sessionStorage.setItem('roder_download_error_notified', 'true');
-            toast.error('Erro ao baixar dados', {
-              id: toastId,
-              description: 'Tente novamente quando tiver uma conexão melhor.'
-            });
-          } else if (toastId) {
+          // Quietly dismiss download toast and log standard errors to console
+          if (toastId) {
             toast.dismiss(toastId);
           }
         }

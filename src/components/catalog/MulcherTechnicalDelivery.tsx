@@ -459,14 +459,22 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
             }}
             className="relative flex items-start justify-center shrink-0"
           >
-            <div 
-              ref={page1Ref}
-              className="w-[794px] h-[1123px] bg-white text-slate-900 p-[40px] shadow-lg absolute top-0 origin-top flex flex-col justify-between overflow-hidden border border-slate-200 select-text"
-              style={{ 
-                boxSizing: 'border-box',
-                transform: `scale(${previewScale})`
+            <div
+              style={{
+                transform: `scale(${previewScale})`,
+                transformOrigin: 'top left',
+                width: '794px',
+                height: '1123px',
               }}
+              className="absolute top-0 left-0"
             >
+              <div 
+                ref={page1Ref}
+                className="w-[794px] h-[1123px] bg-white text-slate-900 p-[40px] shadow-lg flex flex-col justify-between overflow-hidden border border-slate-200 select-text"
+                style={{ 
+                  boxSizing: 'border-box'
+                }}
+              >
             {/* Background watermark/design elements */}
             <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -z-10 pointer-events-none"></div>
             
@@ -552,7 +560,7 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
               <div className="space-y-4">
                 <div className="flex items-center gap-2 border-b-2 border-slate-900 pb-1.5">
                   <Wrench className="h-4.5 w-4.5 text-primary" />
-                  <h2 className="text-[13px] font-black uppercase text-slate-900 tracking-tight">
+                  <h2 className="text-[13px] font-bold uppercase text-slate-900 tracking-tight">
                     1. Esquema de Acoplamento Mecânico e Hidráulico na Escavadeira
                   </h2>
                 </div>
@@ -566,29 +574,29 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
                     {/* Steps vertically stacked for better fit */}
                     <div className="space-y-2.5">
                       <div className="border border-slate-200 rounded-xl p-2.5 bg-slate-50/50 flex gap-3">
-                        <div className="w-6 h-6 rounded-full bg-slate-900 text-white text-[10px] font-black flex items-center justify-center shrink-0 shadow-sm">01</div>
+                        <div className="w-6 h-6 rounded-full bg-slate-900 text-white text-[10px] font-bold flex items-center justify-center shrink-0 shadow-sm">01</div>
                         <div>
-                          <h4 className="text-[10.5px] font-black uppercase text-slate-800 tracking-tight">Acoplamento Físico</h4>
+                          <h4 className="text-[10.5px] font-bold uppercase text-slate-800 tracking-tight">Acoplamento Físico</h4>
                           <p className="text-[9.5px] text-slate-500 leading-relaxed">
-                            Utilize os <strong className="text-slate-800 font-extrabold">2 pinos originais</strong> do sistema de engate da concha da escavadeira hidráulica para fixar com segurança a estrutura do triturador florestal.
+                            Utilize os <strong className="text-slate-800 font-bold">2 pinos originais</strong> do sistema de engate da concha da escavadeira hidráulica para fixar com segurança a estrutura do triturador florestal.
                           </p>
                         </div>
                       </div>
                       <div className="border border-slate-200 rounded-xl p-2.5 bg-slate-50/50 flex gap-3">
-                        <div className="w-6 h-6 rounded-full bg-slate-900 text-white text-[10px] font-black flex items-center justify-center shrink-0 shadow-sm">02</div>
+                        <div className="w-6 h-6 rounded-full bg-slate-900 text-white text-[10px] font-bold flex items-center justify-center shrink-0 shadow-sm">02</div>
                         <div>
-                          <h4 className="text-[10.5px] font-black uppercase text-slate-800 tracking-tight">Conexão do Sistema</h4>
+                          <h4 className="text-[10.5px] font-bold uppercase text-slate-800 tracking-tight">Conexão do Sistema</h4>
                           <p className="text-[9.5px] text-slate-500 leading-relaxed">
-                            Conecte firmemente as <strong className="text-slate-800 font-extrabold">mangueiras hidráulicas</strong> de pressão e de retorno às conexões rápidas. Em seguida, conecte com atenção o <strong className="text-slate-800 font-extrabold">chicote elétrico</strong> da máquina.
+                            Conecte firmemente as <strong className="text-slate-800 font-bold">mangueiras hidráulicas</strong> de pressão e de retorno às conexões rápidas. Em seguida, conecte com atenção o <strong className="text-slate-800 font-bold">chicote elétrico</strong> da máquina.
                           </p>
                         </div>
                       </div>
                       <div className="border border-slate-200 rounded-xl p-2.5 bg-slate-50/50 flex gap-3">
-                        <div className="w-6 h-6 rounded-full bg-slate-900 text-white text-[10px] font-black flex items-center justify-center shrink-0 shadow-sm">03</div>
+                        <div className="w-6 h-6 rounded-full bg-slate-900 text-white text-[10px] font-bold flex items-center justify-center shrink-0 shadow-sm">03</div>
                         <div>
-                          <h4 className="text-[10.5px] font-black uppercase text-slate-800 tracking-tight">Liberação de Fluxo</h4>
+                          <h4 className="text-[10.5px] font-bold uppercase text-slate-800 tracking-tight">Liberação de Fluxo</h4>
                           <p className="text-[9.5px] text-slate-500 leading-relaxed">
-                            Abra totalmente o <strong className="text-slate-800 font-extrabold">registro da linha hidráulica</strong> na posição de fluxo máximo (indicado pela marcação de seta) para liberar o curso completo do óleo hidráulico.
+                            Abra totalmente o <strong className="text-slate-800 font-bold">registro da linha hidráulica</strong> na posição de fluxo máximo (indicado pela marcação de seta) para liberar o curso completo do óleo hidráulico.
                           </p>
                         </div>
                       </div>
@@ -607,7 +615,7 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
                       outerMinHeightClass="min-h-[190px]"
                       innerMinHeightClass="min-h-[170px]"
                     />
-                    <span className="text-[8px] text-slate-400 font-black uppercase tracking-wider mt-1.5 block text-center">EQUIPAMENTO MULTIPLICADOR RODER</span>
+                    <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wider mt-1.5 block text-center">EQUIPAMENTO MULTIPLICADOR RODER</span>
                   </div>
                 </div>
 
@@ -642,6 +650,7 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
               <span>Página 1 de 3</span>
             </div>
           </div>
+          </div>
         </div>
 
 
@@ -653,21 +662,29 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
             }}
             className="relative flex items-start justify-center shrink-0"
           >
-            <div 
-              ref={page2Ref}
-              className="w-[794px] h-[1123px] bg-white text-slate-900 p-[40px] shadow-lg absolute top-0 origin-top flex flex-col justify-between overflow-hidden border border-slate-200 select-text"
-              style={{ 
-                boxSizing: 'border-box',
-                transform: `scale(${previewScale})`
+            <div
+              style={{
+                transform: `scale(${previewScale})`,
+                transformOrigin: 'top left',
+                width: '794px',
+                height: '1123px',
               }}
+              className="absolute top-0 left-0"
             >
+              <div 
+                ref={page2Ref}
+                className="w-[794px] h-[1123px] bg-white text-slate-900 p-[40px] shadow-lg flex flex-col justify-between overflow-hidden border border-slate-200 select-text"
+                style={{ 
+                  boxSizing: 'border-box'
+                }}
+              >
             <div className="flex flex-col flex-1">
               
               {/* SECTION 2: LUBRICATION & DAILY CARE */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 border-b-2 border-slate-900 pb-1.5">
                   <Clock className="h-4.5 w-4.5 text-primary" />
-                  <h2 className="text-base font-black uppercase text-slate-900 tracking-tight">
+                  <h2 className="text-base font-bold uppercase text-slate-900 tracking-tight">
                     2. Lubrificação e Rotina de Cuidados Diários
                   </h2>
                 </div>
@@ -681,20 +698,20 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
                     <div className="grid grid-cols-2 gap-4">
                       <div className="border border-slate-200 rounded-xl p-3.5 bg-slate-50/50 flex flex-col justify-between shadow-sm">
                         <div>
-                          <span className="text-[10px] font-black uppercase text-primary tracking-wider block">Rotor</span>
-                          <h4 className="text-xs md:text-sm font-black text-slate-800 tracking-tight mb-1">Rolamentos (Cada 8h)</h4>
+                          <span className="text-[10px] font-bold uppercase text-primary tracking-wider block">Rotor</span>
+                          <h4 className="text-xs md:text-sm font-bold text-slate-800 tracking-tight mb-1">Rolamentos (Cada 8h)</h4>
                           <p className="text-xs text-slate-500 leading-relaxed">
-                            Utilize <strong className="text-slate-800 font-extrabold">Graxa de Alta Performance</strong> nos 2 pontos específicos do rotor a cada 8 horas de operação contínua.
+                            Utilize <strong className="text-slate-800 font-bold">Graxa de Alta Performance</strong> nos 2 pontos específicos do rotor a cada 8 horas de operação contínua.
                           </p>
                         </div>
                       </div>
 
                       <div className="border border-slate-200 rounded-xl p-3.5 bg-slate-50/50 flex flex-col justify-between shadow-sm">
                         <div>
-                          <span className="text-[10px] font-black uppercase text-primary tracking-wider block">Acoplamento</span>
-                          <h4 className="text-xs md:text-sm font-black text-slate-800 tracking-tight mb-1">Pinos e Articulações</h4>
+                          <span className="text-[10px] font-bold uppercase text-primary tracking-wider block">Acoplamento</span>
+                          <h4 className="text-xs md:text-sm font-bold text-slate-800 tracking-tight mb-1">Pinos e Articulações</h4>
                           <p className="text-xs text-slate-500 leading-relaxed">
-                            Sempre que realizar a lubrificação geral do Triturador, <strong className="text-slate-800 font-extrabold">lubrifique com graxa os pinos de fixação</strong> articulados.
+                            Sempre que realizar a lubrificação geral do Triturador, <strong className="text-slate-800 font-bold">lubrifique com graxa os pinos de fixação</strong> articulados.
                           </p>
                         </div>
                       </div>
@@ -721,7 +738,7 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
               <div className="space-y-4 mt-6">
                 <div className="flex items-center gap-2 border-b-2 border-slate-900 pb-1.5">
                   <Settings className="h-4.5 w-4.5 text-primary" />
-                  <h2 className="text-base font-black uppercase text-slate-900 tracking-tight">
+                  <h2 className="text-base font-bold uppercase text-slate-900 tracking-tight">
                     3. Manutenção das Ferramentas (Dentes) de Vídia e Limite de Desgaste
                   </h2>
                 </div>
@@ -735,27 +752,27 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
                     </p>
 
                     <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/50 space-y-2.5 shadow-sm">
-                      <span className="text-xs font-black uppercase text-slate-800 block border-b border-slate-200 pb-1">Inspeção Diária Pré-Operação</span>
+                      <span className="text-xs font-bold uppercase text-slate-800 block border-b border-slate-200 pb-1">Inspeção Diária Pré-Operação</span>
                       <p className="text-xs text-slate-500 leading-relaxed">
                         Diariamente, antes de iniciar o turno, verifique visualmente se todas as ferramentas estão devidamente posicionadas no lugar e se não há dentes quebrados ou soltos.
                       </p>
-                      <div className="bg-red-50 text-red-600 p-3 rounded-lg text-xs font-black leading-relaxed shadow-sm">
+                      <div className="bg-red-50 text-red-600 p-3 rounded-lg text-xs font-bold leading-relaxed shadow-sm">
                         AVISO CRÍTICO: Dentes quebrados ou ausentes causam desbalanceamento dinâmico severo no rotor do triturador, gerando forte vibração que destrói rolamentos, mancais e a carcaça. Substitua imediatamente ferramentas avariadas!
                       </div>
                     </div>
 
                     <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/50 shadow-sm space-y-2">
-                      <span className="text-xs font-black uppercase text-slate-800 block border-b border-slate-200 pb-1">Durabilidade Estrita pelo Tipo de Solo</span>
+                      <span className="text-xs font-bold uppercase text-slate-800 block border-b border-slate-200 pb-1">Durabilidade Estrita pelo Tipo de Solo</span>
                       <p className="text-xs text-slate-500 leading-relaxed mt-1">
                         A vida útil da ferramenta de vídia depende imensamente da <strong>abrasividade do solo</strong> onde atua, muito mais do que da rigidez da própria madeira a ser triturada.
                       </p>
                       <div className="grid grid-cols-2 gap-3.5 mt-2 text-xs">
                         <div className="bg-amber-500/5 border border-amber-500/20 p-3 rounded-lg">
-                          <span className="font-extrabold text-amber-600 block">Solo Arenoso</span>
+                          <span className="font-bold text-amber-600 block">Solo Arenoso</span>
                           <span className="text-[10.5px] text-slate-500 block leading-tight mt-0.5">Substituição completa em até <strong>200 horas</strong>.</span>
                         </div>
                         <div className="bg-green-500/5 border border-green-500/20 p-3 rounded-lg">
-                          <span className="font-extrabold text-green-600 block">Solo Argiloso</span>
+                          <span className="font-bold text-green-600 block">Solo Argiloso</span>
                           <span className="text-[10.5px] text-slate-500 block leading-tight mt-0.5">Trabalha com segurança até <strong>700 horas</strong>.</span>
                         </div>
                       </div>
@@ -765,25 +782,25 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
                   {/* Right Column - Tooth Types (with auto-saving C3 upload) & Wear limits (with auto-saving wear limit upload) */}
                   <div className="col-span-6 space-y-4">
                     <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/50 shadow-sm space-y-3">
-                      <span className="text-xs font-black uppercase text-slate-800 block border-b border-slate-200 pb-1">Tipos de Ferramentas no Rotor</span>
+                      <span className="text-xs font-bold uppercase text-slate-800 block border-b border-slate-200 pb-1">Tipos de Ferramentas no Rotor</span>
                       <div className="space-y-3 text-xs">
                         <div className="flex justify-between items-start border-b border-slate-100 pb-2">
                           <div>
-                            <span className="font-extrabold text-slate-800 block">Dente Central BSD (C/3 BSD)</span>
+                            <span className="font-bold text-slate-800 block">Dente Central BSD (C/3 BSD)</span>
                             <span className="text-slate-500 text-[11px]">Múltiplas ferramentas centrais</span>
                           </div>
                           <span className="text-slate-500 font-bold bg-slate-100 px-1.5 py-0.5 rounded text-[10px]">6000.2010.0001</span>
                         </div>
                         <div className="flex justify-between items-start border-b border-slate-100 pb-2">
                           <div>
-                            <span className="font-extrabold text-slate-800 block">Dente Lateral Esquerdo (C/3)</span>
+                            <span className="font-bold text-slate-800 block">Dente Lateral Esquerdo (C/3)</span>
                             <span className="text-slate-500 text-[11px]">02 peças nas extremidades</span>
                           </div>
                           <span className="text-slate-500 font-bold bg-slate-100 px-1.5 py-0.5 rounded text-[10px]">6000.2001.0018</span>
                         </div>
                         <div className="flex justify-between items-start">
                           <div>
-                            <span className="font-extrabold text-slate-800 block">Dente Lateral Direito (C/3)</span>
+                            <span className="font-bold text-slate-800 block">Dente Lateral Direito (C/3)</span>
                             <span className="text-slate-500 text-[11px]">02 peças nas extremidades</span>
                           </div>
                           <span className="text-slate-500 font-bold bg-slate-100 px-1.5 py-0.5 rounded text-[10px]">6000.2001.0017</span>
@@ -792,7 +809,7 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
 
                       {/* Upload area for the 3 C3 tools image (Central and two lateral ones) inside this card */}
                       <div className="pt-2 border-t border-slate-200">
-                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block mb-1.5 text-center">Foto dos 3 Dentes de Vídia C3 (Central e Laterais)</span>
+                        <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-1.5 text-center">Foto dos 3 Dentes de Vídia C3 (Central e Laterais)</span>
                         <EditableImage 
                           src={teethC3TypesImg} 
                           onChange={(base64) => handleImageChange('fae_teeth_c3_types', base64, setTeethC3TypesImg, teethC3TypesImgZoom)} 
@@ -810,14 +827,14 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
                     {/* Desgaste card with explanation and upload slot */}
                     <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/50 shadow-sm space-y-3">
                       <div>
-                        <span className="text-xs font-black uppercase text-slate-800 block border-b border-slate-200 pb-1 mb-1.5">Limite de Desgaste das Ferramentas</span>
+                        <span className="text-xs font-bold uppercase text-slate-800 block border-b border-slate-200 pb-1 mb-1.5">Limite de Desgaste das Ferramentas</span>
                         <p className="text-xs text-slate-500 leading-relaxed">
                           O limite de desbaste se dá exatamente ao final da ponta triangular desenhada atrás da vídia.
                         </p>
                       </div>
 
                       <div className="pt-2 border-t border-slate-200">
-                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block mb-1.5 text-center">Foto do Limite de Desgaste da Ferramenta</span>
+                        <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-1.5 text-center">Foto do Limite de Desgaste da Ferramenta</span>
                         <EditableImage 
                           src={wearLimitImg} 
                           onChange={(base64) => handleImageChange('fae_wear_limit', base64, setWearLimitImg, wearLimitImgZoom)} 
@@ -843,6 +860,7 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
               <span>Página 2 de 3</span>
             </div>
           </div>
+          </div>
         </div>
 
 
@@ -854,21 +872,29 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
             }}
             className="relative flex items-start justify-center shrink-0"
           >
-            <div 
-              ref={page3Ref}
-              className="w-[794px] h-[1123px] bg-white text-slate-900 p-[40px] shadow-lg absolute top-0 origin-top flex flex-col justify-between overflow-hidden border border-slate-200 select-text"
-              style={{ 
-                boxSizing: 'border-box',
-                transform: `scale(${previewScale})`
+            <div
+              style={{
+                transform: `scale(${previewScale})`,
+                transformOrigin: 'top left',
+                width: '794px',
+                height: '1123px',
               }}
+              className="absolute top-0 left-0"
             >
+              <div 
+                ref={page3Ref}
+                className="w-[794px] h-[1123px] bg-white text-slate-900 p-[40px] shadow-lg flex flex-col justify-between overflow-hidden border border-slate-200 select-text"
+                style={{ 
+                  boxSizing: 'border-box'
+                }}
+              >
             <div className="flex flex-col flex-1">
               
               {/* SECTION 4: OPERATIONAL INSTRUCTIONS */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 border-b-2 border-slate-900 pb-1.5">
                   <RotateCw className="h-4.5 w-4.5 text-primary" />
-                  <h2 className="text-base font-black uppercase text-slate-900 tracking-tight">
+                  <h2 className="text-base font-bold uppercase text-slate-900 tracking-tight">
                     4. Diretrizes Operacionais e Técnicas de Condução em Trabalho
                   </h2>
                 </div>
@@ -881,9 +907,9 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
 
                     <div className="space-y-3.5 text-sm">
                       <div className="border border-slate-100 rounded-xl p-3 bg-slate-50/50 flex gap-3 shadow-sm">
-                        <div className="bg-slate-900 text-white rounded-lg h-6 w-6 flex items-center justify-center font-black shrink-0 text-xs shadow-sm">A</div>
+                        <div className="bg-slate-900 text-white rounded-lg h-6 w-6 flex items-center justify-center font-bold shrink-0 text-xs shadow-sm">A</div>
                         <div>
-                          <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-tight">Giro da Escavadeira</h4>
+                          <h4 className="font-bold text-slate-800 text-xs uppercase tracking-tight">Giro da Escavadeira</h4>
                           <p className="text-xs text-slate-500 leading-relaxed mt-0.5">
                             Mantenha a movimentação de giro horizontal da escavadeira sempre constante e suave.
                           </p>
@@ -891,9 +917,9 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
                       </div>
 
                       <div className="border border-slate-100 rounded-xl p-3 bg-slate-50/50 flex gap-3 shadow-sm">
-                        <div className="bg-slate-900 text-white rounded-lg h-6 w-6 flex items-center justify-center font-black shrink-0 text-xs shadow-sm">B</div>
+                        <div className="bg-slate-900 text-white rounded-lg h-6 w-6 flex items-center justify-center font-bold shrink-0 text-xs shadow-sm">B</div>
                         <div>
-                          <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-tight">Trabalho Vertical</h4>
+                          <h4 className="font-bold text-slate-800 text-xs uppercase tracking-tight">Trabalho Vertical</h4>
                           <p className="text-xs text-slate-500 leading-relaxed mt-0.5">
                             Para árvores na vertical, desça de forma controlada. Levante levemente se a rotação cair.
                           </p>
@@ -901,9 +927,9 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
                       </div>
 
                       <div className="border border-slate-100 rounded-xl p-3 bg-slate-50/50 flex gap-3 shadow-sm">
-                        <div className="bg-slate-900 text-white rounded-lg h-6 w-6 flex items-center justify-center font-black shrink-0 text-xs shadow-sm">C</div>
+                        <div className="bg-slate-900 text-white rounded-lg h-6 w-6 flex items-center justify-center font-bold shrink-0 text-xs shadow-sm">C</div>
                         <div>
-                          <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-tight">Rebaixamento de Tocos</h4>
+                          <h4 className="font-bold text-slate-800 text-xs uppercase tracking-tight">Rebaixamento de Tocos</h4>
                           <p className="text-xs text-slate-500 leading-relaxed mt-0.5">
                             Não desça diretamente no centro. Trabalhe, ralando, a superfície no toco lateralmente, passando por cima do toco, retirando de 5 a 10 centímetros por passada.
                           </p>
@@ -911,9 +937,9 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
                       </div>
 
                       <div className="border border-slate-100 rounded-xl p-3 bg-slate-50/50 flex gap-3 shadow-sm">
-                        <div className="bg-slate-900 text-white rounded-lg h-6 w-6 flex items-center justify-center font-black shrink-0 text-xs shadow-sm">D</div>
+                        <div className="bg-slate-900 text-white rounded-lg h-6 w-6 flex items-center justify-center font-bold shrink-0 text-xs shadow-sm">D</div>
                         <div>
-                          <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-tight">Sensibilidade no Painel</h4>
+                          <h4 className="font-bold text-slate-800 text-xs uppercase tracking-tight">Sensibilidade no Painel</h4>
                           <p className="text-xs text-slate-500 leading-relaxed mt-0.5">
                             Cada escavadeira possui vazão diferente. Sinta as reações do conjunto nas primeiras horas.
                           </p>
@@ -934,7 +960,7 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
                       outerMinHeightClass="min-h-[260px]"
                       innerMinHeightClass="min-h-[240px]"
                     />
-                    <span className="text-[8px] text-slate-400 font-black uppercase tracking-wider mt-1.5 block text-center">SEGURANÇA EM PRIMEIRO LUGAR</span>
+                    <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wider mt-1.5 block text-center">SEGURANÇA EM PRIMEIRO LUGAR</span>
                   </div>
                 </div>
               </div>
@@ -943,7 +969,7 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
               <div className="space-y-4 mt-6">
                 <div className="flex items-center gap-2 border-b-2 border-slate-900 pb-1.5">
                   <CheckCircle className="h-4.5 w-4.5 text-primary" />
-                  <h2 className="text-base font-black uppercase text-slate-900 tracking-tight">
+                  <h2 className="text-base font-bold uppercase text-slate-900 tracking-tight">
                     5. Termo de Instrução Técnica e Assinaturas de Conformidade
                   </h2>
                 </div>
@@ -954,24 +980,24 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
 
                 <div className="grid grid-cols-3 gap-6 pt-12 text-sm">
                   <div className="text-center flex flex-col items-center justify-between">
-                    <div className="w-full border-b border-slate-400 pb-1.5 h-6 text-xs font-extrabold text-slate-800 uppercase truncate">
+                    <div className="w-full border-b border-slate-400 pb-1.5 h-6 text-xs font-bold text-slate-800 uppercase truncate">
                       {clientName || ''}
                     </div>
-                    <span className="text-[10px] font-black uppercase text-slate-400 mt-2 block">CLIENTE / RESPONSÁVEL</span>
+                    <span className="text-[10px] font-bold uppercase text-slate-400 mt-2 block">CLIENTE / RESPONSÁVEL</span>
                   </div>
 
                   <div className="text-center flex flex-col items-center justify-between">
-                    <div className="w-full border-b border-slate-400 pb-1.5 h-6 text-xs font-extrabold text-slate-800 uppercase truncate">
+                    <div className="w-full border-b border-slate-400 pb-1.5 h-6 text-xs font-bold text-slate-800 uppercase truncate">
                       {operatorName || ''}
                     </div>
-                    <span className="text-[10px] font-black uppercase text-slate-400 mt-2 block">OPERADOR TREINADO</span>
+                    <span className="text-[10px] font-bold uppercase text-slate-400 mt-2 block">OPERADOR TREINADO</span>
                   </div>
 
                   <div className="text-center flex flex-col items-center justify-between">
-                    <div className="w-full border-b border-slate-400 pb-1.5 h-6 text-xs font-extrabold text-slate-800 uppercase truncate">
+                    <div className="w-full border-b border-slate-400 pb-1.5 h-6 text-xs font-bold text-slate-800 uppercase truncate">
                       {technicianName || ''}
                     </div>
-                    <span className="text-[10px] font-black uppercase text-slate-400 mt-2 block">TÉCNICO RODER</span>
+                    <span className="text-[10px] font-bold uppercase text-slate-400 mt-2 block">TÉCNICO RODER</span>
                   </div>
                 </div>
               </div>
@@ -982,6 +1008,7 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
               <span>Roder Máquinas e Equipamentos Ltda.</span>
               <span>Página 3 de 3</span>
             </div>
+          </div>
           </div>
         </div>
 
