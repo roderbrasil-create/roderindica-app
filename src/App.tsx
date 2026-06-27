@@ -38,6 +38,7 @@ import PublicEvaluation from './pages/PublicEvaluation';
 import ComercialAvaliacoes from './pages/ComercialAvaliacoes';
 import Clientes from './pages/Clientes';
 import Endomarketing from './pages/Endomarketing';
+import PublicTechnicalDelivery from './pages/PublicTechnicalDelivery';
 
 function PrivateRoute({ children, roles }: { children: React.ReactNode, roles?: string[] }) {
   const { user, profile, loading, isImpersonating, isAdmin, isManager, isMarketing, isTriagem, isFinancial, isInternalSeller, isExternalSeller, isRegionalSeller } = useAuth();
@@ -152,7 +153,8 @@ function AppContent() {
                         location.pathname.startsWith('/estoque-publico') || 
                         location.pathname.startsWith('/pedido-orcamento') ||
                         location.pathname.startsWith('/satisfacao') ||
-                        location.pathname.startsWith('/stock_holder');
+                        location.pathname.startsWith('/stock_holder') ||
+                        location.pathname.startsWith('/entrega-tecnica-fae');
 
   useEffect(() => {
     // If we are in standalone (added to home screen) and have a last fair, 
@@ -300,6 +302,7 @@ function AppContent() {
                 <Route path="/stock_holder" element={<PublicStock />} />
                 <Route path="/pedido-orcamento" element={<PublicBudgetRequest />} />
                 <Route path="/satisfacao" element={<PublicEvaluation />} />
+                <Route path="/entrega-tecnica-fae" element={<PublicTechnicalDelivery />} />
 
                 <Route path="/comercial/avaliacoes" element={
                   <PrivateRoute roles={['admin', 'manager', 'triagem', 'marketing', 'internal_seller']}>

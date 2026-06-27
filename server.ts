@@ -474,7 +474,7 @@ async function startServer() {
   });
 
   app.post("/api/send-email", async (req, res) => {
-    const { to, subject, html, replyTo, fromName, settings: bodySettings } = req.body;
+    const { to, subject, html, replyTo, fromName, settings: bodySettings, attachments } = req.body;
     console.log(`[EMAIL-API] Recebida solicitação de envio para: ${to} | Assunto: ${subject}`);
     
     try {
@@ -510,6 +510,21 @@ async function startServer() {
         });
       }
 
+      // Format attachments if present
+      const formattedAttachments = attachments && Array.isArray(attachments)
+        ? attachments.map((att: any) => {
+            let cleanBase64 = att.content;
+            if (att.content && att.content.includes(";base64,")) {
+              cleanBase64 = att.content.split(";base64,")[1];
+            }
+            return {
+              filename: att.filename,
+              content: Buffer.from(cleanBase64, 'base64'),
+              contentType: att.contentType || 'application/pdf'
+            };
+          })
+        : [];
+
       if (settings.provider === 'resend') {
         if (!settings.apiKey) return res.status(400).json({ error: "API Key do Resend não configurada." });
         
@@ -525,7 +540,11 @@ async function startServer() {
           to: toArray,
           subject: subject,
           html: html,
-          replyTo: replyTo || fromEmail
+          replyTo: replyTo || fromEmail,
+          attachments: formattedAttachments.map((att: any) => ({
+            filename: att.filename,
+            content: att.content
+          }))
         });
 
         if (error) {
@@ -564,7 +583,8 @@ async function startServer() {
           to: to,
           subject: subject,
           html: `${html}${footer}`,
-          replyTo: replyTo || settings.user
+          replyTo: replyTo || settings.user,
+          attachments: formattedAttachments
         };
 
         const result = await transporter.sendMail(mailOptions);

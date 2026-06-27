@@ -1,15 +1,19 @@
 import React, { useRef } from 'react';
 import { 
-  Printer, 
   X, 
   CheckCircle, 
   ShieldCheck, 
   Settings, 
   TrendingUp, 
   AlertTriangle,
-  Info
+  Info,
+  Download
 } from 'lucide-react';
 import { MACHINES, MATERIALS, calculateDischargeHeights } from './HighTipData';
+import { RODER_LOGO_BASE64 } from './RoderLogo';
+import { toPng } from 'html-to-image';
+import { jsPDF } from 'jspdf';
+import { toast } from 'sonner';
 
 interface HighTipFichaProps {
   onClose: () => void;
@@ -18,101 +22,73 @@ interface HighTipFichaProps {
 export function HighTipFicha({ onClose }: HighTipFichaProps) {
   const printRef = useRef<HTMLDivElement>(null);
 
-  const handlePrint = () => {
-    const printContent = printRef.current;
-    if (!printContent) return;
+  const handleDownloadPdf = async () => {
+    const element = printRef.current;
+    if (!element) return;
 
-    // Create a hidden iframe
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    document.body.appendChild(iframe);
+    const toastId = toast.loading("Gerando ficha técnica em PDF de alta definição...");
 
-    const doc = iframe.contentWindow?.document;
-    if (!doc) return;
+    try {
+      const options = {
+        quality: 1.0,
+        pixelRatio: 2, // Enhances text clarity
+        backgroundColor: '#ffffff',
+        style: {
+          transform: 'scale(1)',
+          transformOrigin: 'top left',
+          width: '850px', // Standard width for high-fidelity export
+        }
+      };
 
-    // Set page title so it prints or saves as "Caçamba Height Tip Holder.pdf" (user preferred name, or Caçamba High Tip Roder)
-    doc.title = 'Caçamba Height Tip Holder';
+      const dataUrl = await toPng(element, options);
 
-    // Get Tailwind style tags or other styles to inject into iframe so it retains beautiful layout
-    let stylesHTML = '';
-    const styleElements = document.querySelectorAll('style, link[rel="stylesheet"]');
-    styleElements.forEach(el => {
-      stylesHTML += el.outerHTML;
-    });
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
 
-    doc.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Caçamba Height Tip Holder</title>
-          ${stylesHTML}
-          <style>
-            @media print {
-              @page {
-                size: A4;
-                margin: 0.8cm;
-              }
-              body {
-                background-color: white !important;
-                color: black !important;
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-                padding: 0 !important;
-                margin: 0 !important;
-              }
-              .page-break {
-                page-break-before: always !important;
-                break-before: page !important;
-                margin-top: 1.5cm !important;
-                border-top: none !important;
-                padding-top: 0 !important;
-              }
-            }
-            body {
-              padding: 20px;
-              margin: 0;
-              background-color: white;
-              font-family: system-ui, sans-serif;
-            }
-            /* Reset card sizing for full A4 print layout */
-            .print-container {
-              border: none !important;
-              box-shadow: none !important;
-              padding: 0 !important;
-              margin: 0 !important;
-              width: 100% !important;
-              max-width: 100% !important;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="print-container">
-            ${printContent.innerHTML}
-          </div>
-          <script>
-            window.onload = function() {
-              setTimeout(function() {
-                window.focus();
-                window.print();
-                setTimeout(function() {
-                  window.parent.document.body.removeChild(window.frameElement);
-                }, 500);
-              }, 500);
-            };
-          </script>
-        </body>
-      </html>
-    `);
-    doc.close();
+      const imgWidth = 210;
+      const pageHeight = 297;
+      
+      const elementWidth = element.scrollWidth || element.clientWidth || 850;
+      const elementHeight = element.scrollHeight || element.clientHeight;
+      const imgHeight = (elementHeight * imgWidth) / elementWidth;
+
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      // Add first page
+      pdf.addImage(dataUrl, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+      heightLeft -= pageHeight;
+
+      // Multi-page export handling
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(dataUrl, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+        heightLeft -= pageHeight;
+      }
+
+      pdf.save('Ficha_Tecnica_Roder_High_Tip.pdf');
+
+      try {
+        const blob = pdf.output('blob');
+        const blobURL = URL.createObjectURL(blob);
+        window.open(blobURL, '_blank');
+      } catch (e) {
+        console.warn("Could not open PDF in new tab, but download started.", e);
+      }
+
+      toast.success("Ficha técnica salva com sucesso!", { id: toastId });
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast.error("Erro ao gerar PDF. Por favor, tente novamente.", { id: toastId });
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/75 flex items-center justify-center p-2 sm:p-4 md:p-6 no-print-backdrop">
+    <div className="fixed inset-0 z-[99999] overflow-y-auto bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-6 no-print-backdrop">
       <div className="bg-card text-card-foreground w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden border border-border flex flex-col max-h-[96vh]">
         
         {/* Header Controls */}
@@ -125,10 +101,10 @@ export function HighTipFicha({ onClose }: HighTipFichaProps) {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={handlePrint}
+              onClick={handleDownloadPdf}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-black text-xs hover:bg-primary/90 transition-all shadow-sm"
             >
-              <Printer className="h-3.5 w-3.5" /> Imprimir / PDF
+              <Download className="h-3.5 w-3.5" /> Salvar PDF
             </button>
             <button
               onClick={onClose}
@@ -140,17 +116,25 @@ export function HighTipFicha({ onClose }: HighTipFichaProps) {
         </div>
 
         {/* Scrollable Printable Area */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-neutral-100" ref={printRef}>
-          <div className="bg-white text-neutral-900 mx-auto max-w-4xl p-6 sm:p-12 shadow-md border border-neutral-200 rounded-lg print-container font-sans leading-relaxed text-sm">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-neutral-100">
+          <div className="bg-white text-neutral-900 mx-auto max-w-4xl p-6 sm:p-12 shadow-md border border-neutral-200 rounded-lg print-container font-sans leading-relaxed text-sm" ref={printRef}>
             
             {/* SHEET PAGE 1: INTRODUCTION & REINFORCEMENTS */}
             <div className="space-y-6">
               
               {/* Logo & Header */}
               <div className="flex justify-between items-start border-b-2 border-amber-500 pb-4">
-                <div>
-                  <h1 className="text-3xl font-black text-slate-950 tracking-tight leading-none">Roder</h1>
-                  <p className="text-[10px] font-black tracking-widest uppercase text-amber-600 mt-1">Equipamentos Florestais</p>
+                <div className="flex items-center gap-3">
+                  <img 
+                    src={RODER_LOGO_BASE64} 
+                    alt="Roder" 
+                    className="h-11 object-contain brightness-100"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div>
+                    <h1 className="text-2xl font-black text-slate-950 tracking-tight leading-none">Roder</h1>
+                    <p className="text-[9px] font-black tracking-widest uppercase text-amber-600 mt-1">Equipamentos Florestais</p>
+                  </div>
                 </div>
                 <div className="text-right">
                   <span className="text-xs bg-slate-900 text-white px-2 py-0.5 rounded-md font-bold">Ficha de Equipamento</span>
@@ -333,8 +317,8 @@ export function HighTipFicha({ onClose }: HighTipFichaProps) {
                         const heavyH = calculateDischargeHeights(m, m.recommendedHeavy);
                         return (
                           <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
-                            <td className="p-1 pl-1.5 font-bold border-r border-slate-100 text-[10.5px]">{m.brand}</td>
-                            <td className="p-1 font-black border-r border-slate-100 text-[10.5px]">{m.model}</td>
+                            <td translate="no" className="p-1 pl-1.5 font-bold border-r border-slate-100 text-[10.5px] notranslate">{m.brand}</td>
+                            <td translate="no" className="p-1 font-black border-r border-slate-100 text-[10.5px] notranslate">{m.model}</td>
                             <td className="p-1 text-center border-r border-slate-100 text-[10px]">{m.operatingWeight.toFixed(1)}t</td>
                             <td className="p-1 border-r border-slate-100 text-slate-500 text-[9px]">{m.class}</td>
                             <td className="p-1 text-center border-r border-slate-100 text-slate-600 text-[9px]">

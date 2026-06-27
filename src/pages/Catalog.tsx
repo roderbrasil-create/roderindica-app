@@ -38,7 +38,8 @@ import {
   ArrowLeft,
   GripVertical,
   Megaphone,
-  Layers
+  Layers,
+  ClipboardCheck
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import {
@@ -80,6 +81,7 @@ import { cn, getApiBaseUrl } from '../lib/utils';
 import { ImageLightbox } from '../components/ui/ImageLightbox';
 import { HighTipSelector } from '../components/catalog/HighTipSelector';
 import { HighTipFicha } from '../components/catalog/HighTipFicha';
+import { MulcherTechnicalDelivery } from '../components/catalog/MulcherTechnicalDelivery';
 
 function SmartImage({ src, alt, className, zoom = 1, ...props }: any) {
   const [resolvedSrc, setResolvedSrc] = useState('');
@@ -563,6 +565,7 @@ export default function Catalog() {
   const [animationType, setAnimationType] = useState<'tilt' | 'rotate'>('rotate'); // Default to rotate as requested
   const [isHighTipFichaOpen, setIsHighTipFichaOpen] = useState(false);
   const [isHighTipSelectorOpen, setIsHighTipSelectorOpen] = useState(false);
+  const [isTechnicalDeliveryOpen, setIsTechnicalDeliveryOpen] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
   const [isModelEditOpen, setIsModelEditOpen] = useState(false);
   const [editingModelData, setEditingModelData] = useState<any>(null);
@@ -3368,7 +3371,7 @@ export default function Catalog() {
       {viewingGallery ? (
         <div className="flex flex-col min-h-screen bg-slate-50 -m-4 md:-m-8">
           {/* Gallery Header - Fixed Sticky */}
-          <header className="sticky top-0 z-[60] bg-white border-b border-border shadow-md p-3 md:p-4 flex items-center gap-3 md:gap-4">
+          <header className="sticky top-0 z-30 bg-white border-b border-border shadow-md p-3 md:p-4 flex items-center gap-3 md:gap-4">
             <Button 
               variant="ghost" 
               size="sm" 
@@ -3589,7 +3592,12 @@ export default function Catalog() {
 
                   {/* Documentation & Actions - Ultra Compact Single Row */}
                   <div className="mt-auto pt-0.5 border-t border-border/50">
-                    <div className="grid grid-cols-4 gap-0.5 md:gap-2.5 pt-2">
+                    <div className={cn(
+                      "grid gap-0.5 md:gap-2.5 pt-2",
+                      ['fae-uml-ex-vt', 'fae-uml-s-ex-vt', 'fae-umm-ex-vt'].includes(model.id?.toLowerCase()) 
+                        ? "grid-cols-5" 
+                        : "grid-cols-4"
+                    )}>
                        <div className="flex items-center gap-0.5 md:gap-1">
                         <Button 
                           size="sm"
@@ -3643,6 +3651,25 @@ export default function Catalog() {
                                <span className="inline sm:hidden">MANU</span>
                              </Button>
                            </div>
+                       )}
+
+                       {/* Ficha de Entrega Técnica - Only for FAE UML/EX/VT, UML/S/EX/VT, UMM/EX/VT */}
+                       {['fae-uml-ex-vt', 'fae-uml-s-ex-vt', 'fae-umm-ex-vt'].includes(model.id?.toLowerCase()) && (
+                         <div className="flex items-center gap-0.5 md:gap-1">
+                          <Button 
+                            variant="outline"
+                            size="sm"
+                            className="w-full h-5 md:h-12 uppercase px-0 border-amber-500/30 text-amber-700 bg-amber-500/5 hover:bg-amber-500/10 shadow-sm leading-none flex flex-col md:flex-row items-center justify-center font-bold"
+                            onClick={() => {
+                              setSelectedModel(model);
+                              setIsTechnicalDeliveryOpen(true);
+                            }}
+                          >
+                            <ClipboardCheck className="!h-2.5 !w-2.5 md:!h-4 md:!w-4 mb-0.5 md:mb-0 md:mr-0.5 text-amber-500" />
+                            <span className="hidden sm:inline">Entrega</span>
+                            <span className="inline sm:hidden !text-[7.5px]">OPER</span>
+                          </Button>
+                         </div>
                        )}
 
                        <div className="flex items-center gap-0.5 md:gap-1">
@@ -4274,6 +4301,15 @@ export default function Catalog() {
                         >
                           <MessageCircle className="h-4 w-4 text-green-500" /> WhatsApp (Ficha + Vídeo)
                         </Button>
+                        {['fae-uml-ex-vt', 'fae-uml-s-ex-vt', 'fae-umm-ex-vt'].includes(selectedModel.id) && (
+                          <Button 
+                            variant="outline" 
+                            className="w-full justify-start gap-2 border-border h-11 bg-amber-500/5 hover:bg-amber-500/10 border-amber-500/20 text-slate-800 font-semibold"
+                            onClick={() => setIsTechnicalDeliveryOpen(true)}
+                          >
+                            <FileText className="h-4 w-4 text-amber-500" /> Ficha de Entrega Técnica
+                          </Button>
+                        )}
                         {selectedModel.parts_manual_url && (
                           <Button 
                             variant="outline" 
@@ -4316,11 +4352,10 @@ export default function Catalog() {
                           );
                           if (found) {
                             setSelectedModel(found);
-                          } else {
-                            toast.error(`Modelo de ${capacity} m³ não localizado na lista.`);
                           }
                         }}
                         embedded={true}
+                        modelsList={selectedProductModels.models || []}
                       />
                     </div>
                   ) : (
@@ -5298,6 +5333,15 @@ export default function Catalog() {
           <HighTipFicha onClose={() => setIsHighTipFichaOpen(false)} />
         )}
 
+        {isTechnicalDeliveryOpen && selectedModel && (
+          <MulcherTechnicalDelivery
+            modelId={selectedModel.id}
+            modelName={`${selectedProductModels?.name} ${selectedModel.name}`}
+            isOpen={isTechnicalDeliveryOpen}
+            onClose={() => setIsTechnicalDeliveryOpen(false)}
+          />
+        )}
+
         <Dialog open={isHighTipSelectorOpen} onOpenChange={setIsHighTipSelectorOpen}>
           <DialogContent className="bg-card border-border text-card-foreground sm:max-w-[90vw] md:max-w-3xl lg:max-w-4xl w-full max-h-[92vh] overflow-y-auto p-0 shadow-2xl rounded-2xl flex flex-col">
             <DialogHeader className="p-6 border-b border-border bg-muted/30 relative shrink-0">
@@ -5306,7 +5350,7 @@ export default function Catalog() {
                   <Calculator className="h-6 w-6" />
                 </div>
                 <div>
-                  <DialogTitle className="text-xl font-bold">Guia de Seleção Digital</DialogTitle>
+                  <DialogTitle className="text-xl font-bold">Guia de Seleção Digital de Caçamba High Tip</DialogTitle>
                   <DialogDescription className="text-muted-foreground text-xs md:text-sm mt-0.5">
                     Selecione a sua pá carregadeira e o material para obter o modelo ideal de Caçamba High Tip Roder.
                   </DialogDescription>
@@ -5324,6 +5368,19 @@ export default function Catalog() {
             <div className="p-4 md:p-6 flex-1 overflow-y-auto">
               <HighTipSelector 
                 onSelectModel={(capacity) => {
+                  const foundProduct = products.find(p => p.name === 'Caçamba High Tip');
+                  if (foundProduct) {
+                    setSelectedProductModels(foundProduct);
+                    const foundModel = foundProduct.models?.find(m => 
+                      m.name.includes(capacity) || 
+                      (m.technical_specs && (m.technical_specs as any).capacidade?.includes(capacity))
+                    );
+                    if (foundModel) {
+                      setSelectedModel(foundModel);
+                    }
+                  }
+                }}
+                onViewFicha={(capacity) => {
                   setIsHighTipSelectorOpen(false);
                   const foundProduct = products.find(p => p.name === 'Caçamba High Tip');
                   if (foundProduct) {
@@ -5334,12 +5391,11 @@ export default function Catalog() {
                     );
                     if (foundModel) {
                       setSelectedModel(foundModel);
-                    } else {
-                      setSelectedModel(foundProduct.models && foundProduct.models.length > 0 ? foundProduct.models[0] : null);
                     }
                   }
                 }}
                 embedded={true}
+                modelsList={products.find(p => p.name === 'Caçamba High Tip')?.models || []}
               />
             </div>
           </DialogContent>

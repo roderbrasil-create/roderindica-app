@@ -14,7 +14,8 @@ import {
   Printer,
   X,
   ChevronRight,
-  Check
+  Check,
+  Download
 } from 'lucide-react';
 import { 
   MACHINES, 
@@ -25,13 +26,18 @@ import {
   Material 
 } from './HighTipData';
 import { RODER_LOGO_BASE64 } from './RoderLogo';
+import { toPng } from 'html-to-image';
+import { jsPDF } from 'jspdf';
+import { toast } from 'sonner';
 
 interface HighTipSelectorProps {
   onSelectModel?: (modelCapacity: string) => void;
+  onViewFicha?: (modelCapacity: string) => void;
   embedded?: boolean;
+  modelsList?: any[];
 }
 
-export function HighTipSelector({ onSelectModel, embedded = false }: HighTipSelectorProps) {
+export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, modelsList }: HighTipSelectorProps) {
   const [selectedBrand, setSelectedBrand] = useState<string>('');
   const [selectedModelName, setSelectedModelName] = useState<string>('');
   const [densityMode, setDensityMode] = useState<'material' | 'custom'>('material');
@@ -109,9 +115,19 @@ export function HighTipSelector({ onSelectModel, embedded = false }: HighTipSele
       materialClass: matClass
     });
 
+    // Automatically notify the parent of the recommended capacity so it updates background selection instantly
+    // We removed automatic call to prevent opening the model technical sheet during active parameter selection
+
   }, [selectedBrand, selectedModelName, densityMode, selectedMaterialName, customDensity]);
 
   const heights = recommendation ? calculateDischargeHeights(recommendation.machine, recommendation.capacity) : null;
+
+  const recommendedModel = modelsList?.find(m => {
+    const modelCap = m.technical_specs?.capacidade || m.name || '';
+    return modelCap.includes(recommendation?.capacity || '');
+  });
+
+  const recommendedModelImage = recommendedModel?.images?.[0] || recommendedModel?.technical_sheet_image || 'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp';
 
   const generateWhatsAppText = () => {
     if (!recommendation || !reportData || !heights) return '';
@@ -169,88 +185,80 @@ export function HighTipSelector({ onSelectModel, embedded = false }: HighTipSele
     });
   };
 
-  const handlePrint = () => {
-    const printContent = reportRef.current;
-    if (!printContent) return;
+  const handleGeneratePDF = async () => {
+    const element = reportRef.current;
+    if (!element) {
+      toast.error("Elemento do relatório não encontrado.");
+      return;
+    }
 
-    // Create a hidden iframe
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    document.body.appendChild(iframe);
+    const toastId = toast.loading("Gerando relatório técnico em PDF...");
 
-    const doc = iframe.contentWindow?.document;
-    if (!doc) return;
+    try {
+      // Small timeout to ensure everything is rendered
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
-    doc.title = 'Relatorio_Tecnico_Roder_High_Tip';
+      // Capture options for high-quality PDF rendering with fixed style width
+      const options = {
+        quality: 1.0,
+        pixelRatio: 2, // Enhances text clarity
+        backgroundColor: '#ffffff',
+        style: {
+          transform: 'scale(1)',
+          transformOrigin: 'top left',
+          width: '850px', // Uniform design width for high-fidelity export
+        }
+      };
 
-    // Get Tailwind style tags or other styles to inject into iframe so it retains beautiful layout
-    let stylesHTML = '';
-    const styleElements = document.querySelectorAll('style, link[rel="stylesheet"]');
-    styleElements.forEach(el => {
-      stylesHTML += el.outerHTML;
-    });
+      const dataUrl = await toPng(element, options);
 
-    doc.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Relatório Técnico Roder High Tip</title>
-          ${stylesHTML}
-          <style>
-            @media print {
-              @page {
-                size: A4;
-                margin: 1.2cm 1cm;
-              }
-              body {
-                background-color: white !important;
-                color: black !important;
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-                padding: 0 !important;
-                margin: 0 !important;
-              }
-            }
-            body {
-              padding: 10px;
-              margin: 0;
-              background-color: white;
-              font-family: system-ui, sans-serif;
-            }
-            .print-container {
-              border: none !important;
-              box-shadow: none !important;
-              padding: 0 !important;
-              margin: 0 !important;
-              width: 100% !important;
-              max-width: 100% !important;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="print-container">
-            ${printContent.innerHTML}
-          </div>
-          <script>
-            window.onload = function() {
-              setTimeout(function() {
-                window.focus();
-                window.print();
-                setTimeout(function() {
-                  window.parent.document.body.removeChild(window.frameElement);
-                }, 500);
-              }, 500);
-            };
-          </script>
-        </body>
-      </html>
-    `);
-    doc.close();
+      // A4 Dimensions: 210mm x 297mm
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const imgWidth = 210;
+      const pageHeight = 297;
+      
+      const elementWidth = element.scrollWidth || element.clientWidth || 850;
+      const elementHeight = element.scrollHeight || element.clientHeight;
+      const imgHeight = (elementHeight * imgWidth) / elementWidth;
+
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      // Add first page
+      pdf.addImage(dataUrl, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+      heightLeft -= pageHeight;
+
+      // Add extra pages if report is taller than one A4 page
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(dataUrl, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+        heightLeft -= pageHeight;
+      }
+
+      // Save the PDF file
+      const docName = `Relatorio_Tecnico_Roder_High_Tip_${recommendation?.capacity || 'Selecao'}.pdf`;
+      pdf.save(docName);
+
+      // Also try to open the PDF in a new tab / window
+      try {
+        const blob = pdf.output('blob');
+        const blobURL = URL.createObjectURL(blob);
+        window.open(blobURL, '_blank');
+      } catch (e) {
+        console.warn("Could not open PDF in new window (possibly blocked by popup blocker), but download started.", e);
+      }
+
+      toast.success("PDF baixado e aberto com sucesso!", { id: toastId });
+    } catch (error) {
+      console.error("Erro ao gerar PDF:", error);
+      toast.error("Ocorreu um erro ao gerar o arquivo PDF.", { id: toastId });
+    }
   };
 
   const getReportData = () => {
@@ -298,8 +306,8 @@ export function HighTipSelector({ onSelectModel, embedded = false }: HighTipSele
           <Calculator className="h-5 w-5" />
         </div>
         <div>
-          <h4 className="font-extrabold text-lg text-foreground">Guia de Seleção Digital</h4>
-          <p className="text-xs text-muted-foreground">Selecione a carregadeira e o material para obter o modelo ideal.</p>
+          <h4 className="font-extrabold text-lg text-foreground">Guia de Seleção Digital de Caçamba High Tip</h4>
+          <p className="text-xs text-muted-foreground">Selecione a carregadeira e o material para obter o modelo ideal de Caçamba High Tip Roder.</p>
         </div>
       </div>
 
@@ -316,8 +324,9 @@ export function HighTipSelector({ onSelectModel, embedded = false }: HighTipSele
                 <button
                   key={brand}
                   type="button"
+                  translate="no"
                   onClick={() => handleBrandChange(brand)}
-                  className={`px-2 py-1.5 rounded-lg text-xs font-bold border transition-all truncate text-center ${
+                  className={`px-2 py-1.5 rounded-lg text-xs font-bold border transition-all truncate text-center notranslate ${
                     selectedBrand === brand
                       ? 'bg-primary border-primary text-primary-foreground shadow-sm'
                       : 'border-border bg-muted/20 hover:bg-muted text-muted-foreground'
@@ -344,14 +353,15 @@ export function HighTipSelector({ onSelectModel, embedded = false }: HighTipSele
                   <button
                     key={m.model}
                     type="button"
+                    translate="no"
                     onClick={() => handleModelChange(m.model)}
-                    className={`px-2 py-2 rounded-lg text-xs font-bold border transition-all text-left flex flex-col justify-between ${
+                    className={`px-2 py-2 rounded-lg text-xs font-bold border transition-all text-left flex flex-col justify-between notranslate ${
                       selectedModelName === m.model
                         ? 'bg-primary/15 border-primary text-primary shadow-sm'
                         : 'border-border bg-muted/10 hover:bg-muted text-foreground'
                     }`}
                   >
-                    <span className="font-extrabold">{m.model}</span>
+                    <span className="font-extrabold notranslate" translate="no">{m.model}</span>
                     <span className="text-[9px] text-muted-foreground font-medium">{m.operatingWeight}t | {m.class}</span>
                   </button>
                 ))}
@@ -471,7 +481,7 @@ export function HighTipSelector({ onSelectModel, embedded = false }: HighTipSele
                     <span className="text-[9px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-black uppercase tracking-wider">
                       Recomendação Técnica
                     </span>
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground font-semibold pt-1">
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground font-semibold pt-1 notranslate" translate="no">
                       <Truck className="h-3.5 w-3.5 text-primary" />
                       {recommendation.machine.brand} {recommendation.machine.model}
                     </span>
@@ -483,6 +493,18 @@ export function HighTipSelector({ onSelectModel, embedded = false }: HighTipSele
                     referrerPolicy="no-referrer"
                   />
                 </div>
+
+                {/* Dynamic recommended bucket model image */}
+                {recommendedModelImage && (
+                  <div className="rounded-xl border border-border/45 overflow-hidden bg-white my-3 aspect-video relative max-h-[160px] flex items-center justify-center p-2 shadow-inner">
+                    <img 
+                      src={recommendedModelImage} 
+                      alt={`Caçamba High Tip ${recommendation.capacity} m³`}
+                      className="max-h-[144px] max-w-full object-contain transition-all duration-300"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                )}
 
                 <div className="text-center py-4 bg-muted/20 border border-border/40 rounded-xl my-2">
                   <p className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Tamanho de Concha Indicado</p>
@@ -594,9 +616,15 @@ export function HighTipSelector({ onSelectModel, embedded = false }: HighTipSele
                   )}
                 </button>
 
-                {onSelectModel && (
+                { (onSelectModel || onViewFicha) && (
                   <Button
-                    onClick={() => onSelectModel(recommendation.capacity)}
+                    onClick={() => {
+                      if (onViewFicha) {
+                        onViewFicha(recommendation.capacity);
+                      } else if (onSelectModel) {
+                        onSelectModel(recommendation.capacity);
+                      }
+                    }}
                     size="lg"
                     className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-black shadow-md shadow-primary/10 flex items-center justify-center gap-2 mt-2"
                   >
@@ -619,7 +647,7 @@ export function HighTipSelector({ onSelectModel, embedded = false }: HighTipSele
 
     {/* A4 Technical Selection Report Modal */}
     {isReportOpen && reportData && (
-      <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-start justify-center p-4 sm:p-6 md:p-10 print:p-0 print:absolute print:inset-0 print:bg-white print:z-[100]">
+      <div className="fixed inset-0 z-[99999] overflow-y-auto bg-slate-950/80 backdrop-blur-md flex items-start justify-center p-4 sm:p-6 md:p-10 print:p-0 print:absolute print:inset-0 print:bg-white print:z-[100]">
         <div className="relative bg-white text-slate-900 rounded-2xl shadow-2xl max-w-4xl w-full flex flex-col overflow-hidden border border-slate-200/80 animate-in fade-in zoom-in-95 duration-200 print:shadow-none print:border-none print:rounded-none print:w-full print:max-w-none">
           
           {/* Modal Controls - Hidden during Printing */}
@@ -632,7 +660,7 @@ export function HighTipSelector({ onSelectModel, embedded = false }: HighTipSele
                 </h3>
               </div>
               <p className="text-[10px] text-slate-500 font-medium">
-                💡 Dica: No diálogo de impressão, escolha <span className="font-bold text-orange-600">"Salvar como PDF"</span> para gerar o arquivo digital.
+                💡 Dica: O PDF será gerado com o design completo e salvo diretamente no seu dispositivo.
               </p>
             </div>
             <div className="flex items-center gap-2 self-end sm:self-auto">
@@ -648,11 +676,11 @@ export function HighTipSelector({ onSelectModel, embedded = false }: HighTipSele
                 {copied ? 'Copiado!' : 'Copiar Texto'}
               </button>
               <button
-                onClick={handlePrint}
+                onClick={handleGeneratePDF}
                 className="flex items-center gap-1.5 py-1.5 px-3 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
               >
-                <Printer className="h-3.5 w-3.5" />
-                Imprimir / Salvar PDF
+                <Download className="h-3.5 w-3.5" />
+                Salvar PDF
               </button>
               <button
                 onClick={() => setIsReportOpen(false)}
@@ -731,7 +759,7 @@ export function HighTipSelector({ onSelectModel, embedded = false }: HighTipSele
                   <div className="space-y-1.5 text-xs text-slate-600 font-medium">
                     <div className="flex justify-between">
                       <span>Marca/Modelo:</span>
-                      <span className="font-bold text-slate-900">{reportData.machine.brand} {reportData.machine.model}</span>
+                      <span translate="no" className="font-bold text-slate-900 notranslate">{reportData.machine.brand} {reportData.machine.model}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Peso Operacional:</span>

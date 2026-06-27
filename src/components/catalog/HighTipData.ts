@@ -87,6 +87,7 @@ export const MACHINES: Machine[] = [
   { brand: 'Komatsu', model: 'WA200', operatingWeight: 12.8, class: 'Média', originalBucket: '2,3 m³', recommendedLight: '4.0', recommendedMedium: '3.0', recommendedHeavy: '2.8' },
   { brand: 'Randon', model: 'RD410', operatingWeight: 13.0, class: 'Média', originalBucket: '2,3 m³', recommendedLight: '4.0', recommendedMedium: '3.0', recommendedHeavy: '2.8' },
   { brand: 'SDLG', model: 'LG938', operatingWeight: 13.2, class: 'Média', originalBucket: '2,5 m³', recommendedLight: '4.0', recommendedMedium: '3.0', recommendedHeavy: '2.8' },
+  { brand: 'Caterpillar', model: '930K', operatingWeight: 14.0, class: 'Média/Pesada', originalBucket: '2,3 m³', recommendedLight: '5.0', recommendedMedium: '4.0', recommendedHeavy: '3.0' },
   { brand: 'Volvo', model: 'L70', operatingWeight: 14.2, class: 'Média/Pesada', originalBucket: '2,5 m³', recommendedLight: '5.0', recommendedMedium: '4.0', recommendedHeavy: '3.0' },
   { brand: 'Komatsu', model: 'WA320', operatingWeight: 14.3, class: 'Média/Pesada', originalBucket: '2,5 m³', recommendedLight: '5.0', recommendedMedium: '4.0', recommendedHeavy: '3.0' },
   { brand: 'Clark Michigan', model: '75C', operatingWeight: 14.33, class: 'Média/Pesada', originalBucket: '2,2 m³', recommendedLight: '5.0', recommendedMedium: '4.0', recommendedHeavy: '3.0' },
