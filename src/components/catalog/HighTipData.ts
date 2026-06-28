@@ -139,16 +139,55 @@ export const MATERIALS: Material[] = [
   { name: 'Minério de ferro', density: 2250, class: 'Extremamente pesado' },
 ];
 
-export function getRecommendedBucket(machine: Machine, density: number): string {
-  // Threshold to determine light, medium or heavy material selection.
-  // Materials <= 600 kg/m³ are considered light (e.g. wood chips, bagasse)
-  // Materials between 700 and 1000 kg/m³ are medium (e.g. grains, soy, fertilizers)
-  // Materials > 1000 kg/m³ are heavy (e.g. earth, gravel, stone)
-  if (density <= 600) {
-    return machine.recommendedLight;
-  } else if (density <= 1000) {
-    return machine.recommendedMedium;
-  } else {
-    return machine.recommendedHeavy;
+export function getHighTipBucketWeight(capacity: string): number {
+  const cap = parseFloat(capacity.replace(',', '.'));
+  if (cap <= 2.1) return 1000;
+  if (cap <= 3.1) return 1800; // Covers 2.5, 2.8, 3.0
+  if (cap <= 4.1) return 2000; // Covers 4.0
+  if (cap <= 5.1) return 2200; // Covers 5.0
+  return 2500; // Covers 7.0
+}
+
+export function getRecommendedBucket(machine: Machine, density: number, useTurnSafety: boolean = false): string {
+  const AVAILABLE_BUCKETS = [2.0, 2.5, 2.8, 3.0, 4.0, 5.0, 7.0];
+  const payloadLimit = Math.round(machine.operatingWeight * 300); // in kg
+  
+  // Factoring in physics-based safety adjustments:
+  // 1. Articulation safety (15% reduction for turning/maneuvering to prevent lateral tipping) -> 0.85 (if enabled)
+  // 2. Load center displacement (12% reduction due to 50cm forward displacement by high-tip mechanism) -> 0.88
+  const turnSafetyFactor = useTurnSafety ? 0.85 : 1.0;
+  const adjustedPayloadLimit = Math.round(payloadLimit * turnSafetyFactor * 0.88);
+  
+  // Calculate utilization for each bucket capacity, including the 20% weight penalty of the high-tip bucket
+  const options = AVAILABLE_BUCKETS.map(cap => {
+    const sizeStr = cap.toFixed(1);
+    const materialLoad = Math.round(cap * density);
+    const highTipWeight = getHighTipBucketWeight(sizeStr);
+    const originalWeight = highTipWeight / 1.2;
+    const extraWeight = highTipWeight - originalWeight; // ~16.67% of High Tip weight, representing the 20% excess over original
+    const totalEffectiveLoad = materialLoad + extraWeight;
+    
+    // Utilization calculated against the structurally safe adjusted limit
+    const utilization = (totalEffectiveLoad / adjustedPayloadLimit) * 100;
+    return { cap: sizeStr, utilization };
+  });
+
+  // 1. Try to find options strictly within the 60% to 80% range
+  const idealOptions = options.filter(opt => opt.utilization >= 60 && opt.utilization <= 80);
+  if (idealOptions.length > 0) {
+    // Maximize capacity within the ideal 60% to 80% range
+    const best = idealOptions.reduce((prev, curr) => parseFloat(curr.cap) > parseFloat(prev.cap) ? curr : prev);
+    return best.cap;
   }
+
+  // 2. If no ideal option exists, find options below 60%
+  const safeBelowRange = options.filter(opt => opt.utilization < 60);
+  if (safeBelowRange.length > 0) {
+    // Maximize capacity to get as close to 60% as possible
+    const best = safeBelowRange.reduce((prev, curr) => parseFloat(curr.cap) > parseFloat(prev.cap) ? curr : prev);
+    return best.cap;
+  }
+
+  // 3. If all options exceed 80%, recommend the smallest possible bucket (2.0)
+  return "2.0";
 }

@@ -5343,7 +5343,7 @@ export default function Catalog() {
         )}
 
         <Dialog open={isHighTipSelectorOpen} onOpenChange={setIsHighTipSelectorOpen}>
-          <DialogContent className="bg-card border-border text-card-foreground sm:max-w-[90vw] md:max-w-3xl lg:max-w-4xl w-full max-h-[92vh] overflow-y-auto p-0 shadow-2xl rounded-2xl flex flex-col">
+          <DialogContent className="bg-card border-border text-card-foreground sm:max-w-[95vw] md:max-w-4xl lg:max-w-5xl xl:max-w-6xl w-full max-h-[95vh] overflow-y-auto p-0 shadow-2xl rounded-2xl flex flex-col">
             <DialogHeader className="p-6 border-b border-border bg-muted/30 relative shrink-0">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-primary/10 text-primary animate-pulse">
@@ -5367,6 +5367,8 @@ export default function Catalog() {
             </DialogHeader>
             <div className="p-4 md:p-6 flex-1 overflow-y-auto">
               <HighTipSelector 
+                embedded={true}
+                modelsList={products.find(p => p.name === 'Caçamba High Tip')?.models || []}
                 onSelectModel={(capacity) => {
                   const foundProduct = products.find(p => p.name === 'Caçamba High Tip');
                   if (foundProduct) {
@@ -5394,8 +5396,6 @@ export default function Catalog() {
                     }
                   }
                 }}
-                embedded={true}
-                modelsList={products.find(p => p.name === 'Caçamba High Tip')?.models || []}
               />
             </div>
           </DialogContent>

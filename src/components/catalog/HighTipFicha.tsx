@@ -158,13 +158,13 @@ export function HighTipFicha({ onClose }: HighTipFichaProps) {
                     <Settings className="h-3.5 w-3.5 text-amber-600" /> Modelos Padrão
                   </h4>
                   <ul className="text-xs text-slate-800 space-y-1 font-bold">
-                    <li>• Caçamba Roder 2,0 m³</li>
-                    <li>• Caçamba Roder 2,5 m³</li>
-                    <li>• Caçamba Roder 2,8 m³</li>
-                    <li>• Caçamba Roder 3,0 m³</li>
-                    <li>• Caçamba Roder 4,0 m³</li>
-                    <li>• Caçamba Roder 5,0 m³</li>
-                    <li>• Caçamba Roder 7,0 m³ <span className="text-[10px] text-amber-600 font-semibold">(Novo - Para materiais leves)</span></li>
+                    <li>• Caçamba Roder 2,0 m³ <span className="text-[10px] text-slate-500 font-medium">(Est. 1.000 kg)</span></li>
+                    <li>• Caçamba Roder 2,5 m³ <span className="text-[10px] text-slate-500 font-medium">(Est. 1.800 kg)</span></li>
+                    <li>• Caçamba Roder 2,8 m³ <span className="text-[10px] text-slate-500 font-medium">(Est. 1.800 kg)</span></li>
+                    <li>• Caçamba Roder 3,0 m³ <span className="text-[10px] text-slate-500 font-medium">(Est. 1.800 kg)</span></li>
+                    <li>• Caçamba Roder 4,0 m³ <span className="text-[10px] text-slate-500 font-medium">(Est. 2.000 kg)</span></li>
+                    <li>• Caçamba Roder 5,0 m³ <span className="text-[10px] text-slate-500 font-medium">(Est. 2.200 kg)</span></li>
+                    <li>• Caçamba Roder 7,0 m³ <span className="text-[10px] text-amber-600 font-semibold">(Est. 2.500 kg - Novo)</span></li>
                     <li className="text-[10px] text-slate-500 pt-1 font-normal">*Modelos sob medida disponíveis</li>
                   </ul>
                 </div>

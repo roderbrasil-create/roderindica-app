@@ -7,7 +7,7 @@ import {
   Cpu, 
   CheckCircle, 
   HelpCircle,
-  Truck,
+  Tractor,
   Scale,
   FileText,
   Share2,
@@ -22,6 +22,7 @@ import {
   MATERIALS, 
   getRecommendedBucket, 
   calculateDischargeHeights,
+  getHighTipBucketWeight,
   Machine, 
   Material 
 } from './HighTipData';
@@ -50,9 +51,20 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
     density: number;
     materialClass: 'light' | 'medium' | 'heavy';
   } | null>(null);
+  const [selectedBucket, setSelectedBucket] = useState<string>('');
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [useTurnSafety, setUseTurnSafety] = useState<boolean>(false);
   const reportRef = useRef<HTMLDivElement>(null);
+
+  // Synchronize selectedBucket when recommendation is recalculated
+  useEffect(() => {
+    if (recommendation?.capacity) {
+      setSelectedBucket(recommendation.capacity);
+    } else {
+      setSelectedBucket('');
+    }
+  }, [recommendation?.capacity]);
 
   // Get unique brands
   const brands = Array.from(new Set(MACHINES.map(m => m.brand))).sort();
@@ -99,7 +111,7 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
       matName = `Densidade ${customDensity} kg/m³`;
     }
 
-    const recommendedSize = getRecommendedBucket(machine, density);
+    const recommendedSize = getRecommendedBucket(machine, density, useTurnSafety);
     let matClass: 'light' | 'medium' | 'heavy' = 'heavy';
     if (density <= 600) {
       matClass = 'light';
@@ -118,13 +130,13 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
     // Automatically notify the parent of the recommended capacity so it updates background selection instantly
     // We removed automatic call to prevent opening the model technical sheet during active parameter selection
 
-  }, [selectedBrand, selectedModelName, densityMode, selectedMaterialName, customDensity]);
+  }, [selectedBrand, selectedModelName, densityMode, selectedMaterialName, customDensity, useTurnSafety]);
 
-  const heights = recommendation ? calculateDischargeHeights(recommendation.machine, recommendation.capacity) : null;
+  const heights = (recommendation && selectedBucket) ? calculateDischargeHeights(recommendation.machine, selectedBucket) : null;
 
   const recommendedModel = modelsList?.find(m => {
     const modelCap = m.technical_specs?.capacidade || m.name || '';
-    return modelCap.includes(recommendation?.capacity || '');
+    return modelCap.includes(selectedBucket || '');
   });
 
   const recommendedModelImage = recommendedModel?.images?.[0] || recommendedModel?.technical_sheet_image || 'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp';
@@ -134,12 +146,16 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
     const brand = recommendation.machine.brand;
     const model = recommendation.machine.model;
     const material = recommendation.materialName;
-    const cap = recommendation.capacity;
+    const cap = selectedBucket;
     const density = recommendation.density;
     const origBucketCap = reportData.origBucketCap;
     const payloadLimit = reportData.payloadLimit;
+    const adjustedPayloadLimit = reportData.adjustedPayloadLimit;
     const loadWithOriginalBucket = reportData.loadWithOriginalBucket;
     const loadWithHighTip = reportData.loadWithHighTip;
+    const highTipWeight = reportData.highTipWeight;
+    const extraWeight = reportData.extraWeight;
+    const totalEffectiveLoad = reportData.totalEffectiveLoad;
     const utilizationWithOriginalBucket = reportData.utilizationWithOriginalBucket;
     const utilizationWithHighTip = reportData.utilizationWithHighTip;
     const gainPercentage = reportData.gainPercentage;
@@ -157,18 +173,23 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
            `*2. DIMENSIONAMENTO RECOMENDADO:*\n` +
            `• Caçamba Original Padrão: *${origBucketCap.toFixed(1)} m³*\n` +
            `• 👉 *CAÇAMBA INDICADA: Caçamba High Tip Roder de ${cap} m³*\n` +
-           `• Limite de Carga de Segurança (Payload): *${payloadLimit.toLocaleString('pt-BR')} kg*\n\n` +
-           `*3. ESTUDO DE PRODUTIVIDADE POR CICLO:*\n` +
+           `• Peso Estimado da Caçamba High Tip: *${highTipWeight.toLocaleString('pt-BR')} kg*\n` +
+           `• Diferencial de Peso (+20% vs Original): *+${extraWeight.toLocaleString('pt-BR')} kg*\n\n` +
+           `*3. ANÁLISE DE SEGURANÇA E ESTABILIDADE TÉCNICA:*\n` +
+           `• Limite de Carga Nominal (Linha Reta): *${payloadLimit.toLocaleString('pt-BR')} kg*\n` +
+           (useTurnSafety ? `• Margem p/ Esterçamento Máximo (Curvas): *-15%* (Segurança contra tombo lateral)\n` : `• Margem p/ Esterçamento Máximo (Curvas): *Desativado*\n`) +
+           `• Deslocamento do Centro de Carga (+50 cm à frente): *-12%* (Momento de Alavanca do braço High Tip)\n` +
+           `• 🛡️ *Limite de Trabalho Seguro Ajustado:* *${adjustedPayloadLimit.toLocaleString('pt-BR')} kg*\n\n` +
+           `*4. ESTUDO DE PRODUTIVIDADE E CARGA EFETIVA:*\n` +
            `• Carga com Caçamba Padrão: *${loadWithOriginalBucket.toLocaleString('pt-BR')} kg* (${utilizationWithOriginalBucket}% da capacidade)\n` +
-           `• Carga com Caçamba High Tip Roder: *${loadWithHighTip.toLocaleString('pt-BR')} kg* (${utilizationWithHighTip}% da capacidade)\n` +
+           `• Carga Efetiva total com Caçamba High Tip: *${totalEffectiveLoad.toLocaleString('pt-BR')} kg* (${utilizationWithHighTip}% do Limite Seguro)\n` +
            `• 📈 *Ganho Volumétrico Estimado:* *+${gainPercentage}%* de volume por ciclo!\n\n` +
-           `*4. GANHO GEOMÉTRICO DE ALTURA DE DESCARGA:*\n` +
+           `*5. GANHO GEOMÉTRICO DE ALTURA DE DESCARGA:*\n` +
            `• Altura Original de Descarga Livre: *${standardH} m*\n` +
            `• 🔺 *Altura de Descarga High Tip Roder:* *${finalH} m*\n` +
            `• 📈 *Ganho Real de Altura Livre:* *+${gain} m*\n\n` +
-           `*5. JUSTIFICATIVA TÉCNICA:*\n` +
-           `• Ao carregar ${material} com a caçamba padrão de ${origBucketCap.toFixed(1)} m³, a máquina trabalha "vazia" volumetricamente com apenas ${utilizationWithOriginalBucket}% da sua capacidade útil de carga. Com a *Caçamba High Tip Roder de ${cap} m³*, a produtividade por ciclo sobe para ${utilizationWithHighTip}% do limite de segurança, entregando *+${gainPercentage}% de volume por ciclo* sem sobrecarregar a estrutura hidráulica!\n\n` +
-           `Este estudo confirma que a Caçamba High Tip Roder de ${cap} m³ é a escolha ideal de produtividade para a sua operação.`;
+           `*6. JUSTIFICATIVA OPERACIONAL:*\n` +
+           `• Ao carregar ${material} com a caçamba padrão, a máquina trabalha subutilizada volumetricamente com apenas ${utilizationWithOriginalBucket}% da sua capacidade. Com a *Caçamba High Tip Roder de ${cap} m³*, elevamos a eficiência para *${utilizationWithHighTip}% do limite de segurança estrutural*, já considerando a compensação do braço de alavanca de 50 cm${useTurnSafety ? ' e a estabilidade lateral em curvas fechadas' : ''}. Isso garante produtividade máxima com zero risco de empinar as rodas traseiras!`;
   };
 
   const generateWhatsAppLink = () => {
@@ -198,7 +219,7 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
       // Small timeout to ensure everything is rendered
       await new Promise((resolve) => setTimeout(resolve, 300));
 
-      // Capture options for high-quality PDF rendering with fixed style width
+      // Capture options for high-quality single-page PDF rendering
       const options = {
         quality: 1.0,
         pixelRatio: 2, // Enhances text clarity
@@ -206,43 +227,24 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
         style: {
           transform: 'scale(1)',
           transformOrigin: 'top left',
-          width: '850px', // Uniform design width for high-fidelity export
+          width: '794px',
+          height: '1123px',
         }
       };
 
       const dataUrl = await toPng(element, options);
 
-      // A4 Dimensions: 210mm x 297mm
+      // A4 Dimensions: 210mm x 297mm (fits exactly 1 page)
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
         format: 'a4'
       });
 
-      const imgWidth = 210;
-      const pageHeight = 297;
-      
-      const elementWidth = element.scrollWidth || element.clientWidth || 850;
-      const elementHeight = element.scrollHeight || element.clientHeight;
-      const imgHeight = (elementHeight * imgWidth) / elementWidth;
-
-      let heightLeft = imgHeight;
-      let position = 0;
-
-      // Add first page
-      pdf.addImage(dataUrl, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
-      heightLeft -= pageHeight;
-
-      // Add extra pages if report is taller than one A4 page
-      while (heightLeft >= 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(dataUrl, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
-        heightLeft -= pageHeight;
-      }
+      pdf.addImage(dataUrl, 'PNG', 0, 0, 210, 297, undefined, 'FAST');
 
       // Save the PDF file
-      const docName = `Relatorio_Tecnico_Roder_High_Tip_${recommendation?.capacity || 'Selecao'}.pdf`;
+      const docName = `Relatorio_Tecnico_Roder_High_Tip_${selectedBucket || 'Selecao'}.pdf`;
       pdf.save(docName);
 
       // Also try to open the PDF in a new tab / window
@@ -262,12 +264,12 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
   };
 
   const getReportData = () => {
-    if (!recommendation) return null;
+    if (!recommendation || !selectedBucket) return null;
     
     const machine = recommendation.machine;
     const materialName = recommendation.materialName;
     const density = recommendation.density;
-    const recCap = parseFloat(recommendation.capacity.replace(',', '.'));
+    const recCap = parseFloat(selectedBucket.replace(',', '.'));
     
     // Parse original bucket capacity
     const origBucketStr = machine.originalBucket.replace('m³', '').replace('m3', '').replace(',', '.').trim();
@@ -275,11 +277,24 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
     
     // Limits
     const payloadLimit = Math.round(machine.operatingWeight * 300); // in kg
+    
+    // Safety reductions:
+    // 1. Articulation safety (15% reduction for turning/maneuvering to prevent lateral tipping) -> factor of 0.85 (if enabled)
+    // 2. Load center displacement (12% reduction because high-tip frame moves bucket 50cm forward) -> factor of 0.88
+    const turnSafetyFactor = useTurnSafety ? 0.85 : 1.0;
+    const adjustedPayloadLimit = Math.round(payloadLimit * turnSafetyFactor * 0.88);
+    
     const loadWithOriginalBucket = Math.round(origBucketCap * density);
     const loadWithHighTip = Math.round(recCap * density);
     
+    // Weights logic based on high-tip bucket size
+    const highTipWeight = getHighTipBucketWeight(selectedBucket);
+    const originalWeight = Math.round(highTipWeight / 1.2);
+    const extraWeight = Math.round(highTipWeight - originalWeight); // Excess weight (+20% over original bucket)
+    const totalEffectiveLoad = loadWithHighTip + extraWeight;
+    
     const utilizationWithOriginalBucket = Math.min(100, Math.round((loadWithOriginalBucket / payloadLimit) * 100));
-    const utilizationWithHighTip = Math.min(100, Math.round((loadWithHighTip / payloadLimit) * 100));
+    const utilizationWithHighTip = Math.round((totalEffectiveLoad / adjustedPayloadLimit) * 100); // Calculated against the strictly safe adjusted stability limit!
     const gainPercentage = Math.round(((loadWithHighTip - loadWithOriginalBucket) / loadWithOriginalBucket) * 100);
     
     return {
@@ -289,8 +304,13 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
       recCap,
       origBucketCap,
       payloadLimit,
+      adjustedPayloadLimit,
       loadWithOriginalBucket,
       loadWithHighTip,
+      highTipWeight,
+      originalWeight,
+      extraWeight,
+      totalEffectiveLoad,
       utilizationWithOriginalBucket,
       utilizationWithHighTip,
       gainPercentage,
@@ -301,15 +321,17 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
 
   return (
     <div className={`w-full rounded-2xl border border-border bg-card text-card-foreground shadow-sm ${embedded ? 'p-0 border-none bg-transparent shadow-none' : 'p-6'}`}>
-      <div className="flex items-center gap-2 mb-4">
-        <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
-          <Calculator className="h-5 w-5" />
+      {!embedded && (
+        <div className="flex items-center gap-2 mb-4">
+          <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+            <Calculator className="h-5 w-5" />
+          </div>
+          <div>
+            <h4 className="font-extrabold text-lg text-foreground antialiased subpixel-antialiased tracking-tight">Guia de Seleção Digital de Caçamba High Tip</h4>
+            <p className="text-xs text-muted-foreground antialiased">Selecione a carregadeira e o material para obter o modelo ideal de Caçamba High Tip Roder.</p>
+          </div>
         </div>
-        <div>
-          <h4 className="font-extrabold text-lg text-foreground">Guia de Seleção Digital de Caçamba High Tip</h4>
-          <p className="text-xs text-muted-foreground">Selecione a carregadeira e o material para obter o modelo ideal de Caçamba High Tip Roder.</p>
-        </div>
-      </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Input Controls */}
@@ -407,7 +429,7 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
               </div>
 
               {densityMode === 'material' ? (
-                <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
+                <div className="grid grid-cols-2 gap-1.5 max-h-[290px] overflow-y-auto pr-1">
                   {MATERIALS.map(m => (
                     <button
                       key={m.name}
@@ -466,10 +488,9 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
         {/* Output Recommendation Card */}
         <div className="flex flex-col justify-center">
           {recommendation ? (
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/5 via-transparent to-primary/5 p-5 relative overflow-hidden flex flex-col h-full min-h-[300px] justify-between shadow-lg"
+            <div
+              className="rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/5 via-transparent to-primary/5 p-5 relative overflow-hidden flex flex-col h-full min-h-[300px] justify-between shadow-lg antialiased subpixel-antialiased"
+              style={{ WebkitFontSmoothing: 'subpixel-antialiased', MozOsxFontSmoothing: 'auto' }}
             >
               {/* Background ambient accents */}
               <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -mr-16 -mt-16" />
@@ -478,50 +499,181 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
               <div className="space-y-4 relative">
                 <div className="flex items-start justify-between gap-2 border-b border-border/40 pb-3">
                   <div className="space-y-1">
-                    <span className="text-[9px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-black uppercase tracking-wider">
+                    <span className="text-[9px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-black uppercase tracking-wider antialiased">
                       Recomendação Técnica
                     </span>
                     <span className="flex items-center gap-1 text-xs text-muted-foreground font-semibold pt-1 notranslate" translate="no">
-                      <Truck className="h-3.5 w-3.5 text-primary" />
+                      <Tractor className="h-3.5 w-3.5 text-primary" />
                       {recommendation.machine.brand} {recommendation.machine.model}
                     </span>
+                    <div className="pt-1">
+                      <span className="text-[12px] font-black text-orange-600 dark:text-orange-500 uppercase tracking-tight antialiased subpixel-antialiased">
+                        Modelo Recomendado: Caçamba Roder HT {recommendation.capacity} m³
+                      </span>
+                    </div>
                   </div>
                   <img 
                     src={RODER_LOGO_BASE64} 
                     alt="Roder" 
-                    className="h-8 object-contain brightness-100 dark:brightness-110"
+                    className="h-8 object-contain brightness-0 dark:brightness-100 dark:invert"
                     referrerPolicy="no-referrer"
                   />
                 </div>
 
-                {/* Dynamic recommended bucket model image */}
-                {recommendedModelImage && (
-                  <div className="rounded-xl border border-border/45 overflow-hidden bg-white my-3 aspect-video relative max-h-[160px] flex items-center justify-center p-2 shadow-inner">
-                    <img 
-                      src={recommendedModelImage} 
-                      alt={`Caçamba High Tip ${recommendation.capacity} m³`}
-                      className="max-h-[144px] max-w-full object-contain transition-all duration-300"
-                      referrerPolicy="no-referrer"
-                    />
+                {/* Interactive Bucket Size Selectors */}
+                <div className="space-y-2 my-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-black uppercase text-muted-foreground tracking-wider antialiased">
+                      Selecione o tamanho da caçamba Roder:
+                    </span>
+                    <span className="text-[10px] text-primary font-bold antialiased">
+                      Estudo Dinâmico
+                    </span>
+                  </div>
+                  
+                  <div className="grid grid-cols-7 gap-1">
+                    {['2.0', '2.5', '2.8', '3.0', '4.0', '5.0', '7.0'].map((size) => {
+                      const isActive = selectedBucket === size;
+                      const isRecommended = recommendation.capacity === size;
+                      const bucketWeight = getHighTipBucketWeight(size);
+                      return (
+                        <button
+                          key={size}
+                          onClick={() => setSelectedBucket(size)}
+                          className={`relative py-1.5 px-0.5 rounded-lg text-[10.5px] font-black transition-all flex flex-col items-center justify-center border h-13 antialiased ${
+                            isActive
+                              ? 'bg-orange-500 border-orange-500 text-white shadow-md shadow-orange-500/15 scale-[1.02]'
+                              : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-700 dark:text-slate-300'
+                          }`}
+                        >
+                          <span className="leading-tight font-black">{size} m³</span>
+                          <span className={`text-[7px] font-bold mt-0.5 leading-none ${isActive ? 'text-orange-100' : 'text-muted-foreground'}`}>
+                            {bucketWeight.toLocaleString('pt-BR')} kg
+                          </span>
+                          {isRecommended && (
+                            <span className={`text-[6px] font-extrabold uppercase px-0.5 rounded mt-0.5 leading-none tracking-tighter ${isActive ? 'bg-white text-orange-600' : 'bg-orange-100 text-orange-600'}`}>
+                              ★ Rec
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* On-Screen Live Load Capacity Chart */}
+                {reportData && (
+                  <div className="p-3 bg-slate-50 dark:bg-slate-900/60 border border-border/60 rounded-xl space-y-3 my-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-black uppercase text-slate-700 dark:text-slate-300 tracking-wider">
+                        Análise de Carga vs Limite Hidráulico
+                      </span>
+                      {reportData.utilizationWithHighTip > 100 ? (
+                        <span className="text-[8px] font-extrabold bg-red-100 dark:bg-red-950 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded uppercase">
+                          ⚠️ Sobrecarga!
+                        </span>
+                      ) : reportData.utilizationWithHighTip >= 60 && reportData.utilizationWithHighTip <= 85 ? (
+                        <span className="text-[8px] font-extrabold bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded uppercase">
+                          ✓ Zona Ideal
+                        </span>
+                      ) : (
+                        <span className="text-[8px] font-extrabold bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded uppercase">
+                          Operação Segura
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="space-y-2.5">
+                      {/* Original Bucket */}
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-[10px] font-semibold text-muted-foreground">
+                          <span>Original ({reportData.origBucketCap.toFixed(1)} m³)</span>
+                          <span>{reportData.loadWithOriginalBucket.toLocaleString()} kg ({reportData.utilizationWithOriginalBucket}%)</span>
+                        </div>
+                        <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                          <div
+                            className="bg-slate-400 dark:bg-slate-500 h-full rounded-full"
+                            style={{ width: `${Math.min(100, reportData.utilizationWithOriginalBucket)}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Selected High Tip Bucket */}
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-[10px] font-bold">
+                          <span className={`${selectedBucket === recommendation.capacity ? 'text-primary' : 'text-foreground'}`}>
+                            Roder Selecionada ({selectedBucket} m³)
+                          </span>
+                          <span className={
+                            reportData.utilizationWithHighTip > 100 ? 'text-red-600 font-extrabold' : 'text-primary font-bold'
+                          }>
+                            {reportData.totalEffectiveLoad.toLocaleString('pt-BR')} kg ({reportData.utilizationWithHighTip}%)
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-200 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden relative">
+                          <div
+                            className={`h-full rounded-full transition-all duration-300 ${
+                              reportData.utilizationWithHighTip > 100
+                                ? 'bg-red-500'
+                                : reportData.utilizationWithHighTip > 85
+                                  ? 'bg-amber-500'
+                                  : reportData.utilizationWithHighTip >= 60
+                                    ? 'bg-emerald-500'
+                                    : 'bg-sky-500'
+                            }`}
+                            style={{ width: `${Math.min(100, reportData.utilizationWithHighTip)}%` }}
+                          />
+                        </div>
+                        {reportData.utilizationWithHighTip > 100 && (
+                          <div className="text-[8.5px] text-red-500 font-bold leading-tight mt-1.5 space-y-0.5 animate-pulse">
+                            <p>⚠️ ALERTA DE TOMBAMENTO E SEGURANÇA:</p>
+                            <p>A carga efetiva ultrapassa o limite seguro de {reportData.adjustedPayloadLimit.toLocaleString('pt-BR')} kg para operação {useTurnSafety ? 'articulada (esterçada) ' : ''}com deslocamento frontal do centro de carga (+50 cm).</p>
+                          </div>
+                        )}
+                        {reportData.utilizationWithHighTip <= 100 && (
+                          <p className="text-[8px] text-slate-500 mt-1 leading-normal">
+                            🛡️ Limite ajustado considerando {useTurnSafety ? 'esterçamento (curva) e ' : ''}projeção frontal do centro de carga (+50 cm).
+                          </p>
+                        )}
+                        {reportData.utilizationWithHighTip < 60 && (
+                          <p className="text-[8px] text-sky-500 font-bold leading-none mt-1">
+                            ℹ️ DICA: Capacidade de carga abaixo de 60%. Teste uma caçamba Roder maior!
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Toggle for Turn Safety */}
+                    <div className="pt-2.5 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                      <div className="flex flex-col">
+                        <span className="text-[9.5px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">Cálculo de Esterçamento (-15%)</span>
+                        <span className="text-[8px] text-muted-foreground">Aplica margem de segurança para manobras/curvas</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setUseTurnSafety(!useTurnSafety)}
+                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          useTurnSafety ? 'bg-orange-500' : 'bg-slate-200 dark:bg-slate-700'
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            useTurnSafety ? 'translate-x-4' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
                   </div>
                 )}
 
-                <div className="text-center py-4 bg-muted/20 border border-border/40 rounded-xl my-2">
-                  <p className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Tamanho de Concha Indicado</p>
-                  <p className="text-4xl md:text-5xl font-black text-primary tracking-tight mt-1 animate-pulse">
-                    {recommendation.capacity} m³
-                  </p>
-                  <p className="text-[9px] text-muted-foreground font-bold mt-1.5">Caçamba High Tip Roder</p>
-                </div>
-
-                <div className="space-y-2 text-xs border-t border-border/40 pt-3">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground font-medium">Material de Trabalho:</span>
-                    <span className="font-bold text-foreground text-right max-w-[150px] truncate">{recommendation.materialName}</span>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px] border-t border-border/40 pt-2.5 antialiased">
+                  <div className="flex justify-between border-b border-dashed border-border/20 pb-1">
+                    <span className="text-muted-foreground font-semibold">Material:</span>
+                    <span className="font-extrabold text-foreground truncate max-w-[100px]" translate="no">{recommendation.materialName}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground font-medium">Classe do Material:</span>
-                    <span className={`font-extrabold uppercase text-[10px] ${
+                  <div className="flex justify-between border-b border-dashed border-border/20 pb-1">
+                    <span className="text-muted-foreground font-semibold">Classe:</span>
+                    <span className={`font-extrabold uppercase text-[9px] ${
                       recommendation.materialClass === 'light' 
                         ? 'text-emerald-500' 
                         : recommendation.materialClass === 'medium'
@@ -529,45 +681,108 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
                           : 'text-amber-500'
                     }`}>
                       {recommendation.materialClass === 'light' 
-                        ? 'Leve (150 a 600 kg/m³)' 
+                        ? 'Leve' 
                         : recommendation.materialClass === 'medium'
-                          ? 'Médio (700 a 1000 kg/m³)'
-                          : 'Pesado (1200 a 2200+ kg/m³)'}
+                          ? 'Médio'
+                          : 'Pesado'}
                     </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground font-medium">Peso Operacional Máquina:</span>
-                    <span className="font-bold text-foreground">{recommendation.machine.operatingWeight} t ({recommendation.machine.class})</span>
+                  <div className="flex justify-between border-b border-dashed border-border/20 pb-1">
+                    <span className="text-muted-foreground font-semibold">Peso Operac.:</span>
+                    <span className="font-extrabold text-foreground">{recommendation.machine.operatingWeight} t ({recommendation.machine.class})</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground font-medium">Caçamba Original Carregadeira:</span>
-                    <span className="font-bold text-foreground">{recommendation.machine.originalBucket}</span>
+                  <div className="flex justify-between border-b border-dashed border-border/20 pb-1">
+                    <span className="text-muted-foreground font-semibold">Caçamba Original:</span>
+                    <span className="font-extrabold text-foreground">{recommendation.machine.originalBucket}</span>
                   </div>
+                </div>
 
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                  {/* Cálculo de Carga */}
+                  {reportData && (
+                    <div className="space-y-1 bg-orange-500/5 p-2.5 rounded-xl border border-orange-500/10 flex flex-col justify-between antialiased">
+                      <div>
+                        <p className="text-[9.5px] uppercase font-black text-orange-600 tracking-wider mb-1.5 pb-1 border-b border-orange-500/10">Cálculo de Carga (Ciclo)</p>
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-[10.5px]">
+                            <span className="text-muted-foreground font-medium">Carga Líq. Material:</span>
+                            <span className="font-extrabold text-foreground">{reportData.loadWithHighTip.toLocaleString('pt-BR')} kg</span>
+                          </div>
+                          <div className="flex justify-between text-[10.5px]">
+                            <span className="text-muted-foreground font-medium">Peso Caçamba HT:</span>
+                            <span className="font-extrabold text-foreground">{reportData.highTipWeight.toLocaleString('pt-BR')} kg</span>
+                          </div>
+                          <div className="flex justify-between text-[10.5px]">
+                            <span className="text-muted-foreground font-medium">Remoção Original:</span>
+                            <span className="font-medium text-slate-500 line-through">-{reportData.originalWeight.toLocaleString('pt-BR')} kg</span>
+                          </div>
+                          <div className="flex justify-between text-[10.5px]">
+                            <span className="text-muted-foreground font-medium">Diferencial (+20%):</span>
+                            <span className="font-extrabold text-orange-600">+{reportData.extraWeight.toLocaleString('pt-BR')} kg</span>
+                          </div>
+                          <div className="flex justify-between text-[10.5px] pt-1 border-t border-orange-500/10">
+                            <span className="text-muted-foreground font-semibold">L. Nominal (Reta):</span>
+                            <span className="font-extrabold text-slate-700">{reportData.payloadLimit.toLocaleString('pt-BR')} kg</span>
+                          </div>
+                          {useTurnSafety ? (
+                            <div className="flex justify-between text-[10.5px]">
+                              <span className="text-muted-foreground font-medium">Esterçamento (-15%):</span>
+                              <span className="font-extrabold text-amber-600">-15%</span>
+                            </div>
+                          ) : (
+                            <div className="flex justify-between text-[10.5px] opacity-40 line-through">
+                              <span className="text-muted-foreground font-medium">Esterçamento (-15%):</span>
+                              <span className="font-bold text-slate-400">Desativado</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between text-[10.5px]">
+                            <span className="text-muted-foreground font-medium">CG Projeção (-12%):</span>
+                            <span className="font-extrabold text-amber-600">-12%</span>
+                          </div>
+                          <div className="flex justify-between text-[10.5px]">
+                            <span className="text-muted-foreground font-semibold">L. Seguro Ajustado:</span>
+                            <span className="font-extrabold text-emerald-600">{reportData.adjustedPayloadLimit.toLocaleString('pt-BR')} kg</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex justify-between text-[11px] pt-1.5 border-t border-orange-500/20 mt-1.5">
+                        <span className="font-black text-foreground">Carga Efetiva:</span>
+                        <span className="font-black text-orange-600">{reportData.totalEffectiveLoad.toLocaleString('pt-BR')} kg</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Cálculo de Altura de Descarga */}
                   {heights && (
-                    <div className="mt-3 pt-3 border-t border-border/45 space-y-1.5 bg-primary/5 p-2.5 rounded-xl border border-primary/10">
-                      <p className="text-[10px] uppercase font-black text-primary tracking-wider mb-1">Cálculo de Altura de Descarga</p>
-                      <div className="flex justify-between text-[11px]">
-                        <span className="text-muted-foreground font-medium">Altura Original do Pino (Solo):</span>
-                        <span className="font-bold text-foreground">{heights.originalPinHeight} m</span>
+                    <div className="space-y-1 bg-primary/5 p-2.5 rounded-xl border border-primary/10 flex flex-col justify-between antialiased">
+                      <div>
+                        <p className="text-[9.5px] uppercase font-black text-primary tracking-wider mb-1.5 pb-1 border-b border-primary/10">Cálculo de Altura</p>
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-[10.5px]">
+                            <span className="text-muted-foreground font-medium">Pino Solo Original:</span>
+                            <span className="font-extrabold text-foreground">{heights.originalPinHeight} m</span>
+                          </div>
+                          <div className="flex justify-between text-[10.5px]">
+                            <span className="text-muted-foreground font-medium">Descarga Padrão:</span>
+                            <span className="font-medium text-slate-500 line-through">{heights.standardDischargeHeight} m</span>
+                          </div>
+                          <div className="flex justify-between text-[10.5px]">
+                            <span className="text-muted-foreground font-medium">Elevação HT:</span>
+                            <span className="font-extrabold text-slate-700">{heights.highTipElevation.toFixed(2)} m</span>
+                          </div>
+                          <div className="flex justify-between text-[10.5px] pt-1 border-t border-primary/10">
+                            <span className="text-muted-foreground font-semibold">Ganho Real Altura:</span>
+                            <span className="font-black text-emerald-600 font-extrabold">+{heights.gainHeight.toFixed(2)} m</span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex justify-between text-[11px]">
-                        <span className="text-muted-foreground font-medium">Descarga Padrão da Máquina:</span>
-                        <span className="font-medium text-slate-500 line-through">{heights.standardDischargeHeight} m</span>
+                      <div className="pt-1.5 border-t border-primary/20 mt-1.5">
+                        <div className="flex justify-between items-center text-[11px]">
+                          <span className="font-black text-foreground">Alt. Máx High Tip:</span>
+                          <span className="font-black text-primary text-[13px]">{heights.highTipDischargeHeight} m</span>
+                        </div>
+                        <p className="text-[7.5px] text-muted-foreground leading-none text-right mt-1">* Estimado a 45°</p>
                       </div>
-                      <div className="flex justify-between text-[11px]">
-                        <span className="text-muted-foreground font-medium">Estrutura do Braço High Tip:</span>
-                        <span className="font-bold text-slate-700">{heights.highTipElevation.toFixed(2)} m</span>
-                      </div>
-                      <div className="flex justify-between text-[11px]">
-                        <span className="text-muted-foreground font-medium">Ganho Real de Altura Livre:</span>
-                        <span className="font-extrabold text-emerald-600">+{heights.gainHeight.toFixed(2)} m</span>
-                      </div>
-                      <div className="flex justify-between text-xs pt-1 border-t border-primary/20 mt-1">
-                        <span className="font-black text-foreground">Alt. Descarga High Tip:</span>
-                        <span className="font-extrabold text-primary text-sm">{heights.highTipDischargeHeight} m *</span>
-                      </div>
-                      <p className="text-[8px] text-muted-foreground leading-none text-right mt-1">* Altura de descarga estimada a 45°</p>
                     </div>
                   )}
                 </div>
@@ -620,19 +835,19 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
                   <Button
                     onClick={() => {
                       if (onViewFicha) {
-                        onViewFicha(recommendation.capacity);
+                        onViewFicha(selectedBucket);
                       } else if (onSelectModel) {
-                        onSelectModel(recommendation.capacity);
+                        onSelectModel(selectedBucket);
                       }
                     }}
                     size="lg"
                     className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-black shadow-md shadow-primary/10 flex items-center justify-center gap-2 mt-2"
                   >
-                    Ver Ficha do Equipamento de {recommendation.capacity} m³ <ArrowRight className="h-4 w-4" />
+                    Ver Ficha do Equipamento de {selectedBucket} m³ <ArrowRight className="h-4 w-4" />
                   </Button>
                 )}
               </div>
-            </motion.div>
+            </div>
           ) : (
             <div className="rounded-2xl border-2 border-dashed border-border/60 bg-muted/5 flex flex-col items-center justify-center text-center p-8 min-h-[300px]">
               <Cpu className="h-10 w-10 text-muted-foreground/30 mb-3 stroke-1" />
@@ -719,202 +934,220 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
               }
             `}} />
 
-            <div ref={reportRef} id="print-area" className="space-y-6 text-slate-900">
-              {/* Header with Logo */}
-              <div className="flex items-center justify-between border-b-4 border-orange-500 pb-4">
-                <div className="space-y-1">
-                  <p className="text-[10px] text-orange-600 font-extrabold uppercase tracking-widest">Estudo de Produtividade & Engenharia</p>
-                  <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-tight">
-                    RELATÓRIO TÉCNICO DE SELEÇÃO
-                  </h1>
-                  <p className="text-[11px] text-slate-500 font-semibold uppercase">
-                    Caçamba de Alto Volteio (High Tip) • Doc: #RT-{Math.floor(100000 + Math.random() * 900000)}
+            <div ref={reportRef} id="print-area" className="w-[794px] h-[1123px] bg-white text-slate-900 p-[40px] flex flex-col justify-between overflow-hidden shadow-2xl relative select-text text-left">
+              <div className="space-y-4">
+                {/* Header with Logo */}
+                <div className="flex items-center justify-between border-b-4 border-orange-500 pb-3">
+                  <div className="space-y-0.5">
+                    <p className="text-[9px] text-orange-600 font-extrabold uppercase tracking-widest">Estudo de Produtividade & Engenharia</p>
+                    <h1 className="text-xl font-black text-slate-900 tracking-tight leading-none uppercase">
+                      RELATÓRIO TÉCNICO DE SELEÇÃO
+                    </h1>
+                    <p className="text-[11px] text-slate-600 font-bold uppercase mt-1">
+                      Indicação: Roder • Caçamba de tamanho {selectedBucket} m³
+                    </p>
+                  </div>
+                  <img 
+                    src={RODER_LOGO_BASE64} 
+                    alt="Roder Brasil Logo" 
+                    className="h-10 w-auto object-contain brightness-0"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+
+                {/* Subheader / Summary Statement */}
+                <div className="p-3 bg-orange-500/5 rounded-xl border border-orange-500/10">
+                  <p className="text-[11px] text-slate-700 leading-relaxed font-medium">
+                    Este relatório técnico apresenta a análise de viabilidade e dimensionamento ideal para a utilização da 
+                    <span className="font-extrabold text-orange-600"> Caçamba High Tip Roder</span> instalada na pá carregadeira do cliente. 
+                    O estudo baseia-se na densidade específica do material de trabalho e na capacidade de carga nominal de segurança da máquina, garantindo o máximo ganho de produtividade sem sobrecarga estrutural.
                   </p>
                 </div>
-                <img 
-                  src={RODER_LOGO_BASE64} 
-                  alt="Roder Brasil Logo" 
-                  className="h-12 w-auto object-contain"
-                  referrerPolicy="no-referrer"
-                />
-              </div>
 
-              {/* Subheader / Summary Statement */}
-              <div className="p-4 bg-orange-500/5 rounded-xl border border-orange-500/10">
-                <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                  Este relatório técnico apresenta a análise de viabilidade e dimensionamento ideal para a utilização da 
-                  <span className="font-extrabold text-orange-600"> Caçamba High Tip Roder</span> instalada na pá carregadeira do cliente. 
-                  O estudo baseia-se na densidade específica do material de trabalho e na capacidade de carga nominal de segurança da máquina, garantindo o máximo ganho de produtividade sem sobrecarga estrutural.
-                </p>
-              </div>
-
-              {/* Grid for Machine & Material info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Machine Specs */}
-                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
-                  <div className="flex items-center gap-1.5 border-b border-slate-200 pb-1.5">
-                    <Truck className="h-4 w-4 text-orange-500" />
-                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Especificações da Carregadeira</h4>
+                {/* Grid for Machine & Material info */}
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Machine Specs */}
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                    <div className="flex items-center gap-1.5 border-b border-slate-200 pb-1">
+                      <Tractor className="h-3.5 w-3.5 text-orange-500" />
+                      <h4 className="text-[10px] font-black text-slate-800 uppercase tracking-wider">Especificações da Carregadeira</h4>
+                    </div>
+                    <div className="space-y-1 text-xs text-slate-600 font-medium">
+                      <div className="flex justify-between">
+                        <span>Marca/Modelo:</span>
+                        <span translate="no" className="font-bold text-slate-900 notranslate">{reportData.machine.brand} {reportData.machine.model}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Peso Operacional:</span>
+                        <span className="font-bold text-slate-900">{reportData.machine.operatingWeight.toFixed(1)} t</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Classe da Carregadeira:</span>
+                        <span className="font-bold text-slate-900">{reportData.machine.class}</span>
+                      </div>
+                      <div className="flex justify-between border-t border-slate-200 pt-1 mt-1">
+                        <span>Caçamba Original Padrão:</span>
+                        <span className="font-bold text-slate-800">{reportData.machine.originalBucket}</span>
+                      </div>
+                      <div className="flex justify-between text-orange-600 font-bold">
+                        <span>Carga Limite Segura (Payload):</span>
+                        <span>{reportData.payloadLimit.toLocaleString()} kg</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="space-y-1.5 text-xs text-slate-600 font-medium">
-                    <div className="flex justify-between">
-                      <span>Marca/Modelo:</span>
-                      <span translate="no" className="font-bold text-slate-900 notranslate">{reportData.machine.brand} {reportData.machine.model}</span>
+
+                  {/* Material Specs */}
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                    <div className="flex items-center gap-1.5 border-b border-slate-200 pb-1">
+                      <Scale className="h-3.5 w-3.5 text-orange-500" />
+                      <h4 className="text-[10px] font-black text-slate-800 uppercase tracking-wider">Dados do Material e Operação</h4>
                     </div>
-                    <div className="flex justify-between">
-                      <span>Peso Operacional:</span>
-                      <span className="font-bold text-slate-900">{reportData.machine.operatingWeight.toFixed(1)} t</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Classe da Carregadeira:</span>
-                      <span className="font-bold text-slate-900">{reportData.machine.class}</span>
-                    </div>
-                    <div className="flex justify-between border-t border-slate-200 pt-1.5 mt-1.5">
-                      <span>Caçamba Original Padrão:</span>
-                      <span className="font-bold text-slate-800">{reportData.machine.originalBucket}</span>
-                    </div>
-                    <div className="flex justify-between text-orange-600 font-bold">
-                      <span>Carga Limite Segura (Payload):</span>
-                      <span>{reportData.payloadLimit.toLocaleString()} kg</span>
+                    <div className="space-y-1 text-xs text-slate-600 font-medium">
+                      <div className="flex justify-between">
+                        <span>Material Selecionado:</span>
+                        <span className="font-bold text-slate-900">{reportData.materialName}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Densidade Real do Material:</span>
+                        <span className="font-bold text-slate-900">{reportData.density} kg/m³</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Classificação de Peso:</span>
+                        <span className={`font-bold uppercase text-[10px] ${
+                          reportData.density <= 600 ? 'text-emerald-600' : reportData.density <= 1000 ? 'text-sky-600' : 'text-amber-600'
+                        }`}>
+                          {reportData.density <= 600 ? 'Leve' : reportData.density <= 1000 ? 'Médio' : 'Pesado'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between border-t border-slate-200 pt-1 mt-1 text-slate-500">
+                        <span>Recomendação Técnica Roder:</span>
+                        <span className="font-bold text-slate-700">{recommendation.capacity} m³</span>
+                      </div>
+                      <div className="flex justify-between text-orange-600 font-extrabold">
+                        <span>Tamanho Selecionado:</span>
+                        <span>{selectedBucket} m³</span>
+                      </div>
+                      <div className="flex justify-between border-t border-slate-100 pt-1 text-[11px]">
+                        <span>Peso Est. Caçamba High Tip:</span>
+                        <span className="font-bold text-slate-800">{reportData.highTipWeight.toLocaleString('pt-BR')} kg</span>
+                      </div>
+                      <div className="flex justify-between text-[11px]">
+                        <span>Diferencial Estrutural (+20%):</span>
+                        <span className="font-bold text-orange-600">+{reportData.extraWeight.toLocaleString('pt-BR')} kg</span>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Material Specs */}
-                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
-                  <div className="flex items-center gap-1.5 border-b border-slate-200 pb-1.5">
-                    <Scale className="h-4 w-4 text-orange-500" />
-                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Dados do Material e Operação</h4>
+                {/* Justificativa Técnica - POR QUE SELECIONAR ESTE TAMANHO */}
+                <div className="p-4 bg-slate-900 text-white rounded-xl space-y-2">
+                  <h4 className="text-[10px] font-black text-orange-400 uppercase tracking-wider">Justificativa Técnica de Viabilidade</h4>
+                  <div className="text-[11px] leading-normal space-y-2 font-medium text-slate-300">
+                    <p>
+                      1. <span className="text-white font-extrabold">Subutilização com Caçamba Padrão:</span> Ao carregar <span className="text-white">{reportData.materialName}</span> com a caçamba original padrão de {reportData.origBucketCap.toFixed(1)} m³, o peso transportado por ciclo é de apenas <span className="text-white font-bold">{reportData.loadWithOriginalBucket.toLocaleString()} kg</span>. Isso representa <span className="text-orange-400 font-extrabold">{reportData.utilizationWithOriginalBucket}%</span> da capacidade útil da sua carregadeira. A máquina trabalha "vazia" volumetricamente, desperdiçando combustível e ciclos de movimentação.
+                    </p>
+                    <p>
+                      2. <span className="text-white font-extrabold">Otimização com Caçamba High Tip Roder:</span> Com a caçamba Roder selecionada em <span className="text-orange-400 font-extrabold">{selectedBucket} m³</span>, o peso líquido de material por ciclo é de <span className="text-white font-bold">{reportData.loadWithHighTip.toLocaleString()} kg</span>. Considerando o diferencial de peso da caçamba High Tip Roder (+{reportData.extraWeight.toLocaleString()} kg em relação à caçamba original), a carga efetiva total de solicitação passa a ser de <span className="text-white font-bold">{reportData.totalEffectiveLoad.toLocaleString()} kg</span>, correspondendo a <span className="text-emerald-400 font-extrabold">{reportData.utilizationWithHighTip}%</span> do limite de segurança da carregadeira.
+                    </p>
+                    <p>
+                      3. <span className="text-white font-extrabold">Ganho Exponencial de Produtividade:</span> Esta combinação entrega um ganho real de <span className="text-emerald-400 font-extrabold">+{reportData.gainPercentage}% de volume útil por ciclo</span>, acelerando o carregamento de caminhões e silos na mesma proporção, enquanto se mantém na zona operacional recomendada, aproveitando ao máximo a máquina com total segurança estrutural.
+                    </p>
                   </div>
-                  <div className="space-y-1.5 text-xs text-slate-600 font-medium">
-                    <div className="flex justify-between">
-                      <span>Material Selecionado:</span>
-                      <span className="font-bold text-slate-900">{reportData.materialName}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Densidade Real do Material:</span>
-                      <span className="font-bold text-slate-900">{reportData.density} kg/m³</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Classificação de Peso:</span>
-                      <span className={`font-bold uppercase text-[10px] ${
-                        reportData.density <= 600 ? 'text-emerald-600' : reportData.density <= 1000 ? 'text-sky-600' : 'text-amber-600'
-                      }`}>
-                        {reportData.density <= 600 ? 'Leve' : reportData.density <= 1000 ? 'Médio' : 'Pesado'}
+                </div>
+
+                {/* Gráfico de Capacidade de Carga e Limites */}
+                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-[10px] font-black text-slate-800 uppercase tracking-wider">Análise de Carga por Ciclo vs Limite de Segurança</h4>
+                    {reportData.utilizationWithHighTip > 100 ? (
+                      <span className="text-[9px] bg-red-100 text-red-600 font-bold px-2 py-0.5 rounded-full uppercase">
+                        Aviso de Sobrecarga ⚠️
                       </span>
+                    ) : (
+                      <span className="text-[9px] bg-emerald-100 text-emerald-600 font-bold px-2 py-0.5 rounded-full uppercase">
+                        Zona de Operação Segura ✓
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    {/* Bar 1 - Original bucket */}
+                    <div className="space-y-0.5">
+                      <div className="flex justify-between text-xs font-medium">
+                        <span className="text-slate-500">Peso de Carga na Caçamba Original ({reportData.origBucketCap.toFixed(1)} m³)</span>
+                        <span className="font-bold text-slate-700">{reportData.loadWithOriginalBucket.toLocaleString()} kg ({reportData.utilizationWithOriginalBucket}%)</span>
+                      </div>
+                      <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
+                        <div 
+                          className="bg-slate-400 h-full rounded-full" 
+                          style={{ width: `${Math.min(100, reportData.utilizationWithOriginalBucket)}%` }} 
+                        />
+                      </div>
                     </div>
-                    <div className="flex justify-between border-t border-slate-200 pt-1.5 mt-1.5 text-slate-500">
-                      <span>Tipo de Caçamba Indicada:</span>
-                      <span className="font-bold text-slate-700">Alto Volteio (High Tip)</span>
+
+                    {/* Bar 2 - High Tip Bucket */}
+                    <div className="space-y-0.5">
+                      <div className="flex justify-between text-xs font-medium">
+                        <span className="text-orange-600 font-bold">Carga Efetiva na Caçamba High Tip Roder ({selectedBucket} m³)</span>
+                        <span className={reportData.utilizationWithHighTip > 100 ? 'font-extrabold text-red-600' : 'font-extrabold text-orange-600'}>
+                          {reportData.totalEffectiveLoad.toLocaleString()} kg ({reportData.utilizationWithHighTip}%)
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden relative">
+                        <div 
+                          className={`h-full rounded-full ${reportData.utilizationWithHighTip > 100 ? 'bg-red-500' : 'bg-orange-500'}`}
+                          style={{ width: `${Math.min(100, reportData.utilizationWithHighTip)}%` }} 
+                        />
+                      </div>
                     </div>
-                    <div className="flex justify-between text-orange-600 font-bold">
-                      <span>Tamanho Recomendado:</span>
-                      <span>{recommendation.capacity} m³</span>
+
+                    {/* Safety Line Indicator */}
+                    <div className="relative pt-1 border-t border-dashed border-slate-300">
+                      <div className="flex justify-between text-[9px] text-slate-400 uppercase font-black">
+                        <span>0% Início</span>
+                        <span>L. Nominal (Reta): {reportData.payloadLimit.toLocaleString('pt-BR')} kg</span>
+                        <span className="text-red-500 font-bold">100% Limite Seguro Ajustado ({reportData.adjustedPayloadLimit.toLocaleString('pt-BR')} kg) {useTurnSafety ? '(C/ Esterc.)' : '(S/ Esterc.)'}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
+
+                {/* Alturas de descarga */}
+                {heights && (
+                  <div className="p-3 bg-orange-500/5 rounded-xl border border-orange-500/10 space-y-2">
+                    <h4 className="text-[10px] font-black text-orange-600 uppercase tracking-wider">Cálculo Geométrico de Descarga Livre</h4>
+                    <div className="grid grid-cols-4 gap-3 text-center">
+                      <div className="p-2 bg-white rounded-lg border border-slate-200 shadow-sm">
+                        <p className="text-[8px] text-slate-400 font-bold uppercase">Altura Pino Original</p>
+                        <p className="text-sm font-black text-slate-800 mt-0.5">{heights.originalPinHeight.toFixed(2)} m</p>
+                      </div>
+                      <div className="p-2 bg-white rounded-lg border border-slate-200 shadow-sm">
+                        <p className="text-[8px] text-slate-400 font-bold uppercase">Descarga Padrão</p>
+                        <p className="text-sm font-bold text-slate-500 line-through mt-0.5">{heights.standardDischargeHeight.toFixed(2)} m</p>
+                      </div>
+                      <div className="p-2 bg-white rounded-lg border border-slate-200 shadow-sm">
+                        <p className="text-[8px] text-orange-500 font-bold uppercase">Ganho de Altura</p>
+                        <p className="text-sm font-black text-emerald-600 mt-0.5">+{heights.gainHeight.toFixed(2)} m</p>
+                      </div>
+                      <div className="p-2 bg-orange-600 rounded-lg text-white shadow-md">
+                        <p className="text-[8px] text-orange-100 font-bold uppercase">Descarga High Tip</p>
+                        <p className="text-sm font-black mt-0.5">{heights.highTipDischargeHeight.toFixed(2)} m *</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-
-              {/* Justificativa Técnica - POR QUE SELECIONAR ESTE TAMANHO */}
-              <div className="p-5 bg-slate-900 text-white rounded-xl space-y-3">
-                <h4 className="text-xs font-black text-orange-400 uppercase tracking-wider">Justificativa Técnica de Viabilidade</h4>
-                <div className="text-xs leading-relaxed space-y-2.5 font-medium text-slate-300">
-                  <p>
-                    1. <span className="text-white font-extrabold">Subutilização com Caçamba Padrão:</span> Ao carregar <span className="text-white">{reportData.materialName}</span> com a caçamba original padrão de {reportData.origBucketCap.toFixed(1)} m³, o peso transportado por ciclo é de apenas <span className="text-white font-bold">{reportData.loadWithOriginalBucket} kg</span>. Isso representa <span className="text-orange-400 font-extrabold">{reportData.utilizationWithOriginalBucket}%</span> da capacidade útil da sua carregadeira. A máquina trabalha "vazia" volumetricamente, desperdiçando combustível e ciclos de movimentação.
-                  </p>
-                  <p>
-                    2. <span className="text-white font-extrabold">Otimização com Caçamba High Tip Roder:</span> Com a caçamba Roder dimensionada em <span className="text-orange-400 font-extrabold">{recommendation.capacity} m³</span>, o peso transportado por ciclo aumenta para <span className="text-white font-bold">{reportData.loadWithHighTip.toLocaleString()} kg</span>, atingindo <span className="text-emerald-400 font-extrabold">{reportData.utilizationWithHighTip}%</span> da capacidade nominal.
-                  </p>
-                  <p>
-                    3. <span className="text-white font-extrabold">Ganho Exponencial de Produtividade:</span> Esta combinação entrega um ganho real de <span className="text-emerald-400 font-extrabold">+{reportData.gainPercentage}% de volume útil por ciclo</span>, acelerando o carregamento de caminhões e silos na mesma proporção, enquanto se mantém perfeitamente na zona operacional segura de {reportData.payloadLimit.toLocaleString()} kg, evitando desgastes prematuros.
-                  </p>
-                </div>
-              </div>
-
-              {/* Gráfico de Capacidade de Carga e Limites */}
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Análise de Carga por Ciclo vs Limite de Segurança</h4>
-                  <span className="text-[10px] bg-emerald-500/10 text-emerald-600 font-bold px-2 py-0.5 rounded-full uppercase">
-                    Zona de Operação Segura ✓
-                  </span>
-                </div>
-
-                <div className="space-y-4 pt-2">
-                  {/* Bar 1 - Original bucket */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs font-medium">
-                      <span className="text-slate-500">Peso de Carga na Caçamba Original ({reportData.origBucketCap.toFixed(1)} m³)</span>
-                      <span className="font-bold text-slate-700">{reportData.loadWithOriginalBucket.toLocaleString()} kg ({reportData.utilizationWithOriginalBucket}%)</span>
-                    </div>
-                    <div className="w-full bg-slate-200 h-3 rounded-full overflow-hidden">
-                      <div 
-                        className="bg-slate-400 h-full rounded-full" 
-                        style={{ width: `${Math.min(100, reportData.utilizationWithOriginalBucket)}%` }} 
-                      />
-                    </div>
-                  </div>
-
-                  {/* Bar 2 - High Tip Bucket */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs font-medium">
-                      <span className="text-orange-600 font-bold">Peso de Carga na Caçamba High Tip Roder ({recommendation.capacity} m³)</span>
-                      <span className="font-extrabold text-orange-600">{reportData.loadWithHighTip.toLocaleString()} kg ({reportData.utilizationWithHighTip}%)</span>
-                    </div>
-                    <div className="w-full bg-slate-200 h-3 rounded-full overflow-hidden relative">
-                      <div 
-                        className="bg-orange-500 h-full rounded-full" 
-                        style={{ width: `${Math.min(100, reportData.utilizationWithHighTip)}%` }} 
-                      />
-                    </div>
-                  </div>
-
-                  {/* Safety Line Indicator */}
-                  <div className="relative pt-2 border-t border-dashed border-slate-300">
-                    <div className="flex justify-between text-[10px] text-slate-400 uppercase font-black">
-                      <span>0% Início</span>
-                      <span className="text-red-500 font-bold">100% Limite Hidráulico da Máquina ({reportData.payloadLimit.toLocaleString()} kg)</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Alturas de descarga */}
-              {heights && (
-                <div className="p-4 bg-orange-500/5 rounded-xl border border-orange-500/10 space-y-3">
-                  <h4 className="text-xs font-black text-orange-600 uppercase tracking-wider">Cálculo Geométrico de Descarga Livre</h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-                    <div className="p-2.5 bg-white rounded-lg border border-slate-200 shadow-sm">
-                      <p className="text-[10px] text-slate-400 font-bold uppercase">Altura Pino Original</p>
-                      <p className="text-base font-black text-slate-800 mt-0.5">{heights.originalPinHeight.toFixed(2)} m</p>
-                    </div>
-                    <div className="p-2.5 bg-white rounded-lg border border-slate-200 shadow-sm">
-                      <p className="text-[10px] text-slate-400 font-bold uppercase">Descarga Padrão</p>
-                      <p className="text-base font-bold text-slate-500 line-through mt-0.5">{heights.standardDischargeHeight.toFixed(2)} m</p>
-                    </div>
-                    <div className="p-2.5 bg-white rounded-lg border border-slate-200 shadow-sm">
-                      <p className="text-[10px] text-orange-500 font-bold uppercase">Ganho de Altura</p>
-                      <p className="text-base font-black text-emerald-600 mt-0.5">+{heights.gainHeight.toFixed(2)} m</p>
-                    </div>
-                    <div className="p-2.5 bg-orange-600 rounded-lg text-white shadow-md">
-                      <p className="text-[10px] text-orange-100 font-bold uppercase">Descarga High Tip</p>
-                      <p className="text-base font-black mt-0.5">{heights.highTipDischargeHeight.toFixed(2)} m *</p>
-                    </div>
-                  </div>
-                  <p className="text-[9px] text-slate-400 text-right leading-none">* Altura teórica livre de descarga livre calculada a 45° de inclinação sob peso operacional.</p>
-                </div>
-              )}
 
               {/* Assinatura / Contato */}
-              <div className="pt-6 border-t border-slate-200 grid grid-cols-2 gap-8 text-xs font-medium text-slate-600">
-                <div className="space-y-4">
-                  <p className="uppercase text-[9px] text-slate-400 font-black tracking-wider">Roder Brasil S/A</p>
-                  <div className="h-10 border-b border-slate-300" />
+              <div className="pt-4 border-t border-slate-200 grid grid-cols-2 gap-8 text-[11px] font-medium text-slate-600">
+                <div className="space-y-2">
+                  <p className="uppercase text-[8px] text-slate-400 font-black tracking-wider">Roder Brasil S/A</p>
+                  <div className="h-8 border-b border-slate-300" />
                   <p className="font-bold text-slate-800">Assinatura do Consultor Técnico Roder</p>
                 </div>
-                <div className="space-y-4 text-right">
-                  <p className="uppercase text-[9px] text-slate-400 font-black tracking-wider">Aceite e Ciência do Cliente</p>
-                  <div className="h-10 border-b border-slate-300" />
+                <div className="space-y-2 text-right">
+                  <p className="uppercase text-[8px] text-slate-400 font-black tracking-wider">Aceite e Ciência do Cliente</p>
+                  <div className="h-8 border-b border-slate-300" />
                   <p className="font-bold text-slate-800">Responsável Técnico / Operacional do Cliente</p>
                 </div>
               </div>
