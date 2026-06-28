@@ -8,6 +8,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { usePWA } from '../../contexts/PWAContext';
 import { AnimatePresence, motion } from 'motion/react';
 import { cn } from '../../lib/utils';
+import EngineerHelper from './EngineerHelper';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { isImpersonating, profile, stopImpersonation, isQuotaExceeded } = useAuth();
@@ -144,6 +145,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+      <EngineerHelper />
     </div>
   );
 }

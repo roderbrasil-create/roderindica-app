@@ -119,35 +119,63 @@ async function generateContentWithRetry(ai: GoogleGenAI, params: {
   defaultModel?: string;
 }): Promise<any> {
   const modelToUse = params.defaultModel || "gemini-3.5-flash";
-  try {
-    return await ai.models.generateContent({
-      model: modelToUse,
-      contents: params.contents,
-      config: params.config,
-    });
-  } catch (error: any) {
-    console.warn(`Error generating content with model ${modelToUse}:`, error);
-    
-    // Check if it's a 429, Quota, or Resource Exhausted error
-    const errorStr = (error.message || "").toLowerCase();
-    const isRateLimit = 
-      errorStr.includes("429") || 
-      errorStr.includes("quota") || 
-      errorStr.includes("exhausted") || 
-      errorStr.includes("rate limit") || 
-      error.status === 429;
-    
-    if (isRateLimit && modelToUse !== "gemini-flash-latest") {
-      console.log("Gemini quota exhausted. Retrying immediately with alternative model 'gemini-flash-latest'...");
-      // Add a tiny sleep of 1 second before calling the alternative model
-      await new Promise(resolve => setTimeout(resolve, 1000));
+  const maxAttempts = 4;
+  let delay = 1000;
+  
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
       return await ai.models.generateContent({
-        model: "gemini-flash-latest",
+        model: modelToUse,
         contents: params.contents,
         config: params.config,
       });
+    } catch (error: any) {
+      console.warn(`Error on attempt ${attempt}/${maxAttempts} with model ${modelToUse}:`, error);
+      
+      const errorStr = (error.message || "").toLowerCase();
+      const statusCode = error.status || error.statusCode || 0;
+      
+      const isRetryable = 
+        statusCode === 429 || 
+        statusCode === 503 ||
+        statusCode === 500 ||
+        errorStr.includes("429") || 
+        errorStr.includes("503") || 
+        errorStr.includes("500") || 
+        errorStr.includes("quota") || 
+        errorStr.includes("exhausted") || 
+        errorStr.includes("rate limit") || 
+        errorStr.includes("unavailable") || 
+        errorStr.includes("high demand") || 
+        errorStr.includes("overloaded") || 
+        errorStr.includes("temporary") || 
+        errorStr.includes("temp") || 
+        errorStr.includes("busy");
+        
+      if (isRetryable && attempt < maxAttempts) {
+        console.warn(`Retryable error detected. Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay *= 2; // Exponential backoff
+        continue;
+      }
+      
+      // If we exhausted retries on gemini-3.5-flash, try a final fallback with gemini-2.5-flash
+      if (modelToUse !== "gemini-2.5-flash" && modelToUse !== "gemini-1.5-flash") {
+        console.warn(`All attempts failed for ${modelToUse}. Trying fallback model 'gemini-2.5-flash'...`);
+        try {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          return await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: params.contents,
+            config: params.config,
+          });
+        } catch (fallbackErr) {
+          console.error("Fallback model 'gemini-2.5-flash' also failed:", fallbackErr);
+        }
+      }
+      
+      throw error;
     }
-    throw error;
   }
 }
 
@@ -670,8 +698,8 @@ async function startServer() {
 
       switch (action) {
         case "transcribeAudio": {
-          const { audioBase64, mimeType } = args;
-          const prompt = `Você é um assistente da Roder Brasil, focado em ajudar vendedores a estruturar informações.
+          const { audioBase64, mimeType, mode } = args;
+          let prompt = `Você é um assistente da Roder Brasil, focado em ajudar vendedores a estruturar informações.
             Sua tarefa é transcrever e REGISTRAR DE FORMA ESTRUTURADA o áudio deste vendedor.
 
             O áudio contém detalhes sobre uma intenção de compra de garras florestais, trituradores ou acessórios.
@@ -688,14 +716,171 @@ async function startServer() {
             3. Melhore a gramática mantendo o vocabulário técnico (ex: garras, kit hidráulico, rotor).
             4. Retorne APENAS o texto estruturado, pronto para ser lido por um vendedor interno.`;
 
-          const response = await ai.models.generateContent({
-            model: "gemini-3.5-flash",
+          if (mode === 'chat') {
+            prompt = `Você é um transcritor de áudio altamente preciso e profissional especializado no ecossistema Roder Brasil.
+              Sua única tarefa é transcrever verbatim (palavra por palavra) o áudio enviado pelo usuário, que é um parceiro indicador, vendedor ou cliente.
+              Retorne APENAS a transcrição direta e limpa do áudio, sem adicionar comentários, explicações, saudações ou formatação de tópicos desnecessária.`;
+          }
+
+          const response = await generateContentWithRetry(ai, {
             contents: [
               { text: prompt },
               { inlineData: { data: audioBase64, mimeType: mimeType.split(';')[0] } }
             ]
           });
           result = response.text || "Não foi possível transcrever o áudio.";
+          break;
+        }
+
+        case "engineerHelper": {
+          const { question, chatHistory } = args;
+          
+          let productsContext = "";
+          let stockContext = "";
+          try {
+            const colRef = db.collection('products');
+            const snap = await colRef.get();
+            const productsList: any[] = [];
+            
+            snap.forEach(doc => {
+              const data = doc.data();
+              const modelsList = (data.models || []).map((m: any) => {
+                const specs = m.technical_specs || {};
+                const specStr = Object.entries(specs)
+                  .map(([k, v]) => `${k}: ${v}`)
+                  .join(", ");
+                return `- Modelo: ${m.name || 'S/N'} (ID: ${m.id || 'S/I'})${m.productivity_text ? ` | Produtividade: ${m.productivity_text}` : ''} | Specs: [${specStr}]`;
+              }).join("\n  ");
+              
+              productsList.push(`Equipamento: ${data.name}\nCategoria: ${data.category}\nDescrição: ${data.description}\nModelos:\n  ${modelsList || "Nenhum modelo cadastrado"}`);
+            });
+            
+            productsContext = productsList.join("\n\n");
+          } catch (err: any) {
+            console.error("[engineerHelper] Erro ao buscar produtos para o contexto da IA:", err);
+            productsContext = "Não foi possível carregar os produtos do catálogo neste momento.";
+          }
+
+          try {
+            const stockRef = db.collection('stock_items');
+            const stockSnap = await stockRef.get();
+            const stockList: string[] = [];
+            
+            stockSnap.forEach(doc => {
+              const data = doc.data();
+              if (data.quantity > 0) {
+                stockList.push(`- Código: ${data.code || 'S/C'} | ${data.description} | Qtd em Estoque: ${data.quantity} | Filial: ${data.branch || 'Matriz'}`);
+              }
+            });
+            
+            stockContext = stockList.join("\n");
+          } catch (err: any) {
+            console.error("[engineerHelper] Erro ao buscar estoque:", err);
+            stockContext = "Não foi possível carregar os itens em estoque no momento.";
+          }
+
+          const contents: any[] = [];
+          
+          const systemInstruction = `Você é o "Consultor Técnico RODER" (Ajudante de Engenharia), um engenheiro mecânico/florestal especialista da Roder Máquinas e Equipamentos.
+Sua missão é ajudar vendedores, parceiros e indicadores com dúvidas técnicas sobre garras, caçambas, cabeçotes, trituradores e a compatibilidade ideal com máquinas base (escavadeiras, pás carregadeiras, tratores) com base em seu peso operacional (toneladas) ou modelo.
+
+Regras de Negócio e Diretrizes de Engenharia Roder:
+1. PESQUISA E ESTIMATIVA DE MODELOS DE MÁQUINAS BASE:
+   - Se o usuário informar o modelo de uma escavadeira/máquina base mas não souber o peso operacional (ex: "Komatsu PC 220", "Komatsu PC 210", "CAT 320", "Caterpillar 320D", "Hyundai 210", "Hyundai 155"), use seu conhecimento de engenharia para identificar o peso operacional aproximado (em toneladas).
+     - Exemplo: Hyundai 155 possui cerca de 15 a 16 toneladas. Komatsu PC 200 / PC 210 / PC 220 ou Caterpillar 320 possuem cerca de 20 a 24 toneladas. John Deere 130G possui cerca de 13 toneladas.
+     - Forneça brevemente essa especificação ao usuário para mostrar autoridade técnica e prossiga indicando os modelos Roder compatíveis.
+
+2. FLUXO DE RESPOSTA DIRECIONADO E CURTO (PRIMEIRO O EQUIPAMENTO DE INTERESSE):
+   - Se o vendedor iniciou a conversa mencionando um equipamento ou categoria de interesse (ex: "Cabeçote Multifuncional", "Desbastador Florestal", "Garra", "Triturador") ou se há esse contexto nas mensagens anteriores do histórico de chat, e depois inseriu ou perguntou sobre uma máquina base (como "Hyundai 155" ou outra escavadeira):
+     - Sua resposta DEVE focar de forma prioritária em responder especificamente sobre o equipamento em que o vendedor iniciou a conversa!
+     - Exemplo de início: "Perfeito! Para esta escavadeira Hyundai 155 (cerca de 15.5t), nós temos o Cabeçote Multifuncional modelo [modelo], que é o ideal e compatível..." ou "Para a Hyundai 155, o Desbastador Florestal ideal é o [modelo]...".
+     - Diga claramente se temos este equipamento de interesse disponível em estoque hoje (consulte a lista de estoque real) ou se há outra opção compatível para esse mesmo tipo de equipamento.
+     - NÃO liste ou despeje todos os outros equipamentos de outras categorias compatíveis (como garras, caçambas, trituradores, etc.) na primeira resposta para evitar respostas excessivamente longas e poluídas.
+     - No final da resposta, dê a opção ou pergunte educadamente se o usuário gostaria de conhecer outros equipamentos compatíveis para essa máquina base. Exemplo: "Você gostaria de saber quais outros equipamentos compatíveis (como garras ou caçambas) temos para a Hyundai 155? Se sim, me pergunte que eu trago todas as outras linhas disponíveis!"
+
+3. REQUISITO CRÍTICO DE ORÇAMENTO E ACESSÓRIOS (REGRA DE NEGÓCIO):
+   - Sempre mencione claramente ao usuário (mesmo se o equipamento indicado estiver disponível no estoque hoje) que:
+     "É necessário que o vendedor interno realize o orçamento oficial completo, verificando a disponibilidade de acessórios essenciais como ponteiras, dentes, suportes de acoplamento ou kits de instalação (mangueiras, comandos, conexões)."
+   - Explique que normalmente, mesmo havendo o equipamento principal em estoque, é necessário consultar a disponibilidade técnica dos acessórios e kits de instalação para poder realizar o agendamento correto da entrega do produto, a montagem física/instalação do equipamento na máquina do cliente, e a entrega técnica especializada em campo.
+   - Adicione uma observação importante para agilizar o processo caso aplique:
+     "Porém, se o cliente estiver buscando um equipamento que não necessite de instalação física complexa ou se ele mesmo optar por realizar a instalação por conta própria, o equipamento entregue diretamente de fábrica é uma excelente e ágil solução!"
+
+4. VERIFICAÇÃO DE ESTOQUE (MUITO IMPORTANTE):
+   - Sempre verifique a lista de estoque real fornecida abaixo para os modelos recomendados.
+   - Se houver estoque disponível (quantidade > 0), informe explicitamente ao usuário com a seguinte frase exata ou similar:
+     "Este equipamento tem disponível no estoque hoje." ou "Temos este modelo disponível no estoque hoje na filial [Filial]!"
+   - Se não houver, oriente-o sobre a possibilidade de encomendar ou produzir o equipamento sob medida.
+
+5. COMPATIBILIDADE GERAL POR MÁQUINA BASE:
+   - Escavadeiras: Equipamentos como cabeçotes multifuncionais, trituradores FAE (ex: FAE PML/EX, BL0/EX, BL1/EX, UML/EX, UMM/EX) e garras são indicados estritamente pela faixa de peso (toneladas) da escavadeira.
+     • Escavadeiras de 1 a 3 t: FAE PML/EX, BL0/EX
+     • Escavadeiras de 4 a 7.5 t: FAE PML/EX, DML/HY, BL1/EX-VT
+     • Escavadeiras de 8 a 13 t: FAE BL2/EX-VT, UML/EX-VT
+     • Escavadeiras de 14 a 20 t: FAE UML/S/EX-VT, UMM/EX-VT, ou Caçambas/Garras adequadas como R400 e R600
+     • Escavadeiras de 21 a 35 t: FAE UMM/EX-VT, BL3/EX-VT
+   - Carregadores Frontais: Ex CFR-280, CFR-400, CFR-600, CFR-800, CFR-1000, CFR-1200, CFR-1500 são indicados de acordo com o tamanho e capacidade operacional da pá carregadeira.
+   - Caçambas High Tip: É necessário que o vendedor informe o tipo de material carregado (ex: biomassa de cavaco leve, silagem, areia pesada) para dimensionar o modelo correto.
+
+6. CÁLCULO DE PRODUTIVIDADE DE GARRAS (Regra de Ouro da Roder):
+   - Peso por ciclo (kg) = Área da Garra (m²) * Comprimento da Madeira (m) * 800 kg/m³.
+   - Produtividade Horária (t/h) = (3600 / tempo_de_ciclo_em_segundos) * Peso_por_ciclo / 1000.
+     Explique sempre de forma didática e transparente!
+
+7. COMPORTAMENTO GERAL E DIRETRIZES DE FORMATAÇÃO (CRÍTICO):
+   - Responda em português de forma extremamente amigável, técnica e prática.
+   - RESPOSTAS CONCISAS: Seja o mais direto, breve e prático possível. Evite explicações excessivamente longas ou rodeios. Os usuários/vendedores preferem respostas rápidas que possam ser lidas num relance de olho.
+   - ESPAÇAMENTO ENTRE TEXTOS: Sempre adicione uma linha em branco (\n\n) entre parágrafos, seções ou blocos explicativos para que o texto respire e fique legível.
+   - SEPARAÇÃO AO MUDAR DE EQUIPAMENTO: Ao descrever ou citar mais de um equipamento ou modelo, insira obrigatoriamente um espaço duplo (quebra de linha dupla) entre cada equipamento. Nunca deixe informações de equipamentos diferentes grudadas no mesmo parágrafo.
+   - CARACTERÍSTICAS EM LINHAS SEPARADAS: Ao listar características, benefícios ou especificações de um equipamento, NUNCA as coloque uma após a outra em um texto corrido. Separe cada característica estritamente em sua própria linha (uma característica por linha, usando tópicos/bullet-points com quebra de linha individual), facilitando a leitura e comparação.
+   - CONCLUSÃO AMIGÁVEL E CONCISA: Conclua sempre convidando o usuário de forma curta a tirar mais dúvidas ou perguntar sobre outros equipamentos se desejar. Exemplo: "Deseja saber mais sobre algum outro modelo ou equipamento?"
+   - Use tabelas Markdown para comparar modelos e compatibilidades de forma resumida e organizada.
+   - Se o vendedor propor um equipamento inadequado para o tamanho da máquina, advirta-o sobre o risco de instabilidade ou quebra e sugira o modelo ideal.
+   - Use os dados reais do catálogo e estoque abaixo como sua fonte da verdade.
+
+8. PERGUNTAS SOBRE DISPONIBILIDADE DE GARRAS:
+   - Se o usuário perguntar quais garras temos a pronta entrega, filtre a lista real de estoque por itens com "garra" ou "GARRA" na descrição e com quantidade > 0, e liste-os para o usuário de forma amigável.
+   - Se o usuário perguntar se um modelo específico de garra está disponível em estoque (ex: "Temos a garra R600 no estoque?") e ela NÃO estiver em estoque (ou seja, não constar na lista real de estoque com Qtd > 0), você DEVE responder exatamente ou conter: "No momento não temos esse modelo." Logo em seguida, apresente a lista de garras florestais que estão disponíveis no estoque no momento, para dar opções ao vendedor/parceiro, e informe-o que ele pode perguntar sobre qualquer outro tipo de equipamento!
+
+9. DIMENSIONAMENTO DE CABEÇOTE/CAÇAMBA MULTIFUNCIONAL (CMF 500 / CMF 600):
+   - Se perguntarem como determinar o tamanho correto para uma caçamba ou cabeçote multifuncional (CMF) para uma escavadeira:
+     - O cabeçote/caçamba multifuncional CMF 500 (nossa menor opção) é adequado para escavadeiras de 8 a 20 toneladas.
+     - Para escavadeiras acima de 14 toneladas, normalmente recomendamos o CMF 600.
+     - Para escavadeiras de 13 a 22 toneladas, recomendamos consistentemente o CMF 600. Este é o nosso modelo mais vendido (cerca de 98% das vendas de cabeçotes multifuncionais são do modelo CMF 600).
+   - Se perguntarem as principais diferenças entre o cabeçote multifuncional CMF 500 e CMF 600:
+     - Tipo de corrente utilizada: O CMF 500 utiliza corrente .404, idêntica à de harvester convencional usada no corte de árvore a árvore.
+     - O CMF 600 utiliza corrente de bitola 3/4, que é muito mais robusta para trabalhos pesados e para o traçamento de várias árvores (ou feixes de madeira) simultaneamente. A corrente 3/4 oferece maior durabilidade e rendimento operacional.
+     - Robustez geral: O CMF 600 é um cabeçote significativamente mais robusto e durável sob condições severas.
+
+Aqui está o catálogo de produtos e modelos reais cadastrados atualmente na Roder:
+${productsContext}
+
+Aqui está a lista real de equipamentos disponíveis em estoque hoje:
+${stockContext || "Não há itens em estoque hoje."}`;
+
+          if (chatHistory && Array.isArray(chatHistory)) {
+            chatHistory.forEach((msg: any) => {
+              contents.push({
+                role: msg.role === 'user' ? 'user' : 'model',
+                parts: [{ text: msg.content }]
+              });
+            });
+          }
+          
+          contents.push({
+            role: 'user',
+            parts: [{ text: question }]
+          });
+
+          const response = await ai.models.generateContent({
+            model: "gemini-3.5-flash",
+            contents: contents,
+            config: {
+              systemInstruction: systemInstruction,
+              temperature: 0.7
+            }
+          });
+
+          result = response.text || "Desculpe, não consegui calcular ou analisar sua dúvida técnica no momento.";
           break;
         }
 
@@ -774,19 +959,22 @@ async function startServer() {
           const prompt = `Você é um especialista em relatórios de estoque da Roder Máquinas e Roder Brasil.
             Sua tarefa é analisar este relatório de estoque e extrair TODOS os itens contidos nele.
             
-            REGRAS DE CLASSIFICAÇÃO DE REGIONAL (FILIAL):
-            1. Verifique se o cabeçalho do relatório menciona expressamente "Filial Sinop", "RODER - FILIAL SINOP" ou "Sinop". 
-               - Se SIM: Classifique como branch: "sinop" e source: "sinop".
-               - Se NÃO: Significa que pertence ao Estoque Fábrica (Matriz). Classifique obrigatoriamente como branch: "matriz".
+            O relatório de estoque pode conter itens de diferentes filiais na mesma tabela (identificados pela primeira coluna "NOME EMPRESA") ou ser específico de uma filial.
             
-            REGRAS DE CATEGORIA DE ORIGEM (SOURCE):
-            Para relatórios da Matriz (branch: "matriz"), classifique a origem (source) em um dos seguintes tipos conforme os itens lidos:
-            - 'roder': Equipamentos Roder fabricados nacionalmente, garras, pinças etc.
-            - 'fae': Equipamentos florestais importados da marca FAE, trituradores FAE, fresas FAE etc., ou outros equipamentos importados (como rompedores hidráulicos importados Hammer/JSB etc.)
-            - 'accessories': Acessórios Roder, suportes de feller, ponteiras de escavadeira, adaptadores, engates rápidos, parafusos etc.
+            REGRAS DE CLASSIFICAÇÃO DE REGIONAL (FILIAL) E ORIGEM (SOURCE) POR ITEM:
+            Analise cada item/linha do relatório. A primeira coluna indica "NOME EMPRESA" (ou similar):
+            1. Se estiver escrito "Roder - Filial Sinop", "Roder - filial Sinop" ou "Sinop" na linha do item, classifique este item com:
+               - branch: "sinop"
+               - source: "sinop"
+            2. Se estiver escrito "Roder Máquinas", "Roder Maquinas" ou referir-se à fábrica/matriz, classifique este item com:
+               - branch: "matriz"
+               - Classifique a origem (source) do item em um dos seguintes tipos conforme a descrição:
+                 - 'fae': Se o item for da marca FAE (fresas, trituradores, RCU, UML, STC, SFM, etc.) ou rompedor hidráulico (Hammer, JSB, etc.).
+                 - 'accessories': Se for suporte (suporte destocador, feller, rompedor, triturador), ponteira, engate rápido, etc.
+                 - 'roder': Para garras florestais (R400, R600, R800, R1000, R280, R360, etc.), garras traçadoras (GT280, GT800, GT1000, GT600, etc.), pinças, destocadores, cabeçotes, etc.
             
             Sua tarefa técnica:
-            1. Extraia 'code', 'description' e 'quantity' de todos os itens da tabela.
+            1. Extraia 'code', 'description', 'quantity', 'branch' e 'source' de todos os itens da tabela.
             2. Substitua qualquer menção de "CHANFROL" ou "CHANFRO" por "FLORESTAL" na descrição (ex: 'GARRA SHANFROL' vira 'GARRA FLORESTAL').
             3. Apenas retorne itens com quantity > 0 no JSON final.`;
 
@@ -803,11 +991,11 @@ async function startServer() {
                 properties: {
                   source: { 
                     type: Type.STRING,
-                    description: "A origem do estoque: roder | fae | accessories | sinop"
+                    description: "A origem padrão do estoque: roder | fae | accessories | sinop"
                   },
                   branch: { 
                     type: Type.STRING,
-                    description: "A filial correspondente: matriz | sinop"
+                    description: "A filial padrão correspondente: matriz | sinop"
                   },
                   items: {
                     type: Type.ARRAY,
@@ -816,9 +1004,11 @@ async function startServer() {
                       properties: {
                         code: { type: Type.STRING },
                         description: { type: Type.STRING },
-                        quantity: { type: Type.NUMBER }
+                        quantity: { type: Type.NUMBER },
+                        branch: { type: Type.STRING, description: "Filial do item: matriz | sinop" },
+                        source: { type: Type.STRING, description: "Origem do item: roder | fae | accessories | sinop" }
                       },
-                      required: ["code", "description", "quantity"]
+                      required: ["code", "description", "quantity", "branch", "source"]
                     }
                   }
                 },

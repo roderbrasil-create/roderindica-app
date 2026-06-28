@@ -28,12 +28,16 @@ async function executeBackendAI(action: string, args: any = {}): Promise<any> {
   }
 }
 
-export async function transcribeAudio(audioBase64: string, mimeType: string): Promise<string> {
-  return executeBackendAI("transcribeAudio", { audioBase64, mimeType });
+export async function transcribeAudio(audioBase64: string, mimeType: string, mode?: string): Promise<string> {
+  return executeBackendAI("transcribeAudio", { audioBase64, mimeType, mode });
 }
 
 export async function askJefe(question: string, context?: string): Promise<string> {
   return executeBackendAI("askJefe", { question, context });
+}
+
+export async function askEngineerHelper(question: string, chatHistory: { role: 'user' | 'assistant'; content: string }[] = []): Promise<string> {
+  return executeBackendAI("engineerHelper", { question, chatHistory });
 }
 
 export async function analyzeBudget(fileBase64: string, mimeType: string): Promise<any> {

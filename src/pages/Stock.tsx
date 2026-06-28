@@ -692,14 +692,19 @@ export default function Stock() {
         return { items: [], source: result.source || 'unknown', branch: result.branch || 'matriz' };
       }
 
-      const mappedItems = result.items.map((item: any) => ({
-        code: (item.code || '').toString().trim(),
-        description: (item.description || 'Sem descrição').toString(),
-        quantity: Number(item.quantity) || 0,
-        source: result.source === 'sinop' ? 'sinop_pdf' : result.source,
-        branch: result.branch || (result.source === 'sinop' ? 'sinop' : 'matriz'),
-        updated_at: new Date().toISOString()
-      }));
+      const mappedItems = result.items.map((item: any) => {
+        const itemBranch = item.branch || result.branch || 'matriz';
+        const rawSource = item.source || result.source || 'roder';
+        const itemSource = itemBranch === 'sinop' || rawSource === 'sinop' ? 'sinop_pdf' : rawSource;
+        return {
+          code: (item.code || '').toString().trim(),
+          description: (item.description || 'Sem descrição').toString(),
+          quantity: Number(item.quantity) || 0,
+          source: itemSource,
+          branch: itemBranch,
+          updated_at: new Date().toISOString()
+        };
+      });
 
       return {
         items: mappedItems,
@@ -740,7 +745,15 @@ export default function Stock() {
       extractionResults.forEach(res => {
         if (res.items.length > 0) {
           allNewItems = [...allNewItems, ...res.items];
-          updatedCategories.push({ source: res.source, branch: res.branch });
+          // Collect all unique (source, branch) categories represented in the items
+          res.items.forEach((item: any) => {
+            const itemSource = item.source || '';
+            const itemBranch = item.branch || '';
+            const alreadyExists = updatedCategories.some(cat => cat.source === itemSource && cat.branch === itemBranch);
+            if (!alreadyExists) {
+              updatedCategories.push({ source: itemSource, branch: itemBranch });
+            }
+          });
         }
       });
 

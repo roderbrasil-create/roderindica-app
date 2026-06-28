@@ -212,6 +212,7 @@ export interface ProductModel {
   };
   technical_sheet_image?: string;
   image_zoom?: number;
+  productivity_text?: string;
 }
 
 export interface Product {

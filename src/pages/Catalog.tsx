@@ -5109,6 +5109,16 @@ export default function Catalog() {
                   </div>
 
                   <div className="space-y-2">
+                    <Label className="text-[10px] uppercase">Informações e Cálculo de Produtividade do Modelo</Label>
+                    <Textarea 
+                      className="text-xs min-h-[70px] bg-background"
+                      value={editingModelData.productivity_text || ''} 
+                      onChange={(e) => setEditingModelData({ ...editingModelData, productivity_text: e.target.value })}
+                      placeholder="Ex: A produtividade nominal é de X m³/h. Para madeira de 3m, peso por ciclo = Área da Garra * 3 * 800 kg."
+                    />
+                  </div>
+
+                  <div className="space-y-2">
                     <Label className="text-[10px] uppercase">Ficha Técnica como Imagem (Upload ou Cole)</Label>
                     <div className="flex flex-col gap-2">
                       <div className="flex gap-2">
