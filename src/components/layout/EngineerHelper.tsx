@@ -49,6 +49,7 @@ export default function EngineerHelper() {
   const [transcribing, setTranscribing] = useState(false);
   const [recordedMimeType, setRecordedMimeType] = useState<string>('audio/webm');
   const [detailTab, setDetailTab] = useState<'specs' | 'productivity'>('specs');
+  const [explorerMinimized, setExplorerMinimized] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   
@@ -66,8 +67,28 @@ export default function EngineerHelper() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (messages.length === 0) return;
+    const lastMsg = messages[messages.length - 1];
+
+    if (loading) {
+      // While loading, scroll to bottom to show the loading indicator
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
+
+    if (lastMsg.role === 'user') {
+      // User sent a message, scroll to bottom so they see their query and loading status
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    } else if (lastMsg.role === 'assistant') {
+      // Assistant replied. Let's scroll to the user's question (second-to-last message)
+      // so the user's question and the beginning of the assistant's response are visible.
+      const questionIndex = messages.length - 2;
+      const questionElement = document.getElementById(`chat-message-${questionIndex}`);
+      if (questionElement) {
+        questionElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }
     }
   }, [messages, loading]);
 
@@ -123,6 +144,9 @@ export default function EngineerHelper() {
     if (!textToSend) {
       setInputValue('');
     }
+
+    // Auto minimize compatibility explorer when typing/submitting text
+    setExplorerMinimized(true);
 
     // Add user message
     const updatedMessages = [...messages, { role: 'user', content: queryText } as Message];
@@ -327,17 +351,30 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
       {/* Floating Toggle Button */}
       <div className="fixed bottom-6 right-6 z-[100] font-sans">
         <motion.button
-          whileHover={{ scale: 1.1 }}
+          whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => setIsOpen(!isOpen)}
-          className={`flex items-center gap-2 p-3.5 rounded-full shadow-2xl text-white font-extrabold text-xs uppercase tracking-wider ${
+          className={`relative flex items-center gap-2 p-2.5 px-3 sm:p-3.5 sm:px-5 rounded-full shadow-2xl text-white ${
             isOpen ? 'bg-slate-700 hover:bg-slate-800' : 'bg-primary hover:bg-primary/90'
           }`}
           style={{ boxShadow: '0 10px 25px -5px rgba(239, 68, 68, 0.4)' }}
         >
-          {isOpen ? <X className="h-5 w-5" /> : <Wrench className="h-5 w-5 animate-bounce" />}
-          <span className="hidden sm:inline">{isOpen ? 'Fechar' : 'Consultor Técnico Roder'}</span>
-          <div className="absolute -top-1.5 -right-1.5 bg-amber-500 text-slate-950 font-black text-[9px] px-1.5 py-0.5 rounded-full uppercase tracking-widest animate-pulse border border-white">
+          {isOpen ? (
+            <X className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
+          ) : (
+            <Wrench className="h-4.5 w-4.5 sm:h-5 sm:w-5 animate-bounce" />
+          )}
+          
+          <div className="flex flex-col items-start leading-none text-left">
+            <span className="text-[7.5px] sm:text-[9px] opacity-80 font-medium uppercase tracking-wider">
+              {isOpen ? 'Assistente' : 'Consultor Técnico'}
+            </span>
+            <span className="text-[9.5px] sm:text-xs font-black tracking-tight uppercase">
+              {isOpen ? 'Fechar ✕' : 'Roder IA'}
+            </span>
+          </div>
+
+          <div className="absolute -top-1.5 -right-1 bg-amber-500 text-slate-950 font-black text-[8px] px-1.5 py-0.5 rounded-full uppercase tracking-widest animate-pulse border border-white">
             IA
           </div>
         </motion.button>
@@ -351,7 +388,7 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 50, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className="fixed bottom-22 right-4 sm:right-6 w-[94vw] sm:w-[480px] h-[78vh] max-h-[680px] bg-slate-900 border border-slate-800 rounded-2xl shadow-3xl flex flex-col overflow-hidden z-[99] text-white font-sans"
+            className="fixed bottom-22 right-4 sm:right-6 w-[94vw] sm:w-[480px] h-[86vh] sm:h-[80vh] max-h-[820px] sm:max-h-[720px] bg-slate-900 border border-slate-800 rounded-2xl shadow-3xl flex flex-col overflow-hidden z-[99] text-white font-sans"
           >
             {/* Header */}
             <div className="p-4 bg-gradient-to-r from-primary to-slate-850 border-b border-slate-800 flex items-center justify-between shadow-md">
@@ -390,9 +427,10 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                 </Button>
                 <button
                   onClick={() => setIsOpen(false)}
-                  className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-slate-800"
+                  className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-800 transition-colors flex items-center justify-center"
+                  title="Fechar"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-5 w-5" />
                 </button>
               </div>
             </div>
@@ -499,6 +537,7 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
               {messages.map((msg, idx) => (
                 <div
                   key={idx}
+                  id={`chat-message-${idx}`}
                   className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in duration-200`}
                 >
                   <div
@@ -536,34 +575,65 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
 
             {/* Dynamic Interactive Catalog Explorer Panel */}
             <div className="bg-slate-900 border-t border-slate-800 p-4 space-y-3 shadow-inner">
-              <div className="flex items-center justify-between">
-                <p className="text-[10px] font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Layers className="h-3.5 w-3.5" /> Explorador de Compatibilidade
-                </p>
-                {(selectedProduct || selectedWeightBand || selectedModel || cacambaStep) && (
-                  <button 
-                    onClick={() => {
-                      setSelectedProduct(null);
-                      setSelectedWeightBand(null);
-                      setSelectedModel(null);
-                      setCacambaStep(null);
-                      setSelectedMaterial(null);
-                      setSelectedCacambaBrand('');
-                      setSelectedCacambaModel(null);
-                      setRecommendedCacambaCap('');
-                    }}
-                    className="text-[10px] text-slate-400 hover:text-white uppercase font-black tracking-tight"
+              {explorerMinimized ? (
+                <div className="flex items-center justify-between py-1 animate-in fade-in duration-150">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-1.5 bg-amber-500/10 rounded-lg">
+                      <Layers className="h-4 w-4 text-amber-400" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-amber-400 uppercase tracking-wider leading-none">Explorador de Compatibilidade</p>
+                      <p className="text-[9px] text-slate-400 font-mono mt-0.5">Catálogo de equipamentos e modelos compatíveis</p>
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setExplorerMinimized(false)}
+                    className="h-7 px-3 border-amber-500/30 bg-amber-500/5 hover:bg-amber-500 hover:text-slate-950 text-amber-400 font-extrabold text-[9px] uppercase tracking-wider rounded-xl transition duration-150 flex items-center gap-1 shadow"
                   >
-                    Reiniciar Guia ✕
-                  </button>
-                )}
-              </div>
-
-              {loadingExplorer ? (
-                <div className="py-6 flex justify-center items-center gap-2 text-xs text-slate-400">
-                  <RefreshCw className="h-4 w-4 animate-spin text-amber-500" /> Carregando catálogo...
+                    <ChevronRight className="h-3 w-3 rotate-270" /> Abrir Catálogo
+                  </Button>
                 </div>
-              ) : !selectedProduct ? (
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Layers className="h-3.5 w-3.5" /> Explorador de Compatibilidade
+                    </p>
+                    <div className="flex items-center gap-2">
+                      {(selectedProduct || selectedWeightBand || selectedModel || cacambaStep) && (
+                        <button 
+                          onClick={() => {
+                            setSelectedProduct(null);
+                            setSelectedWeightBand(null);
+                            setSelectedModel(null);
+                            setCacambaStep(null);
+                            setSelectedMaterial(null);
+                            setSelectedCacambaBrand('');
+                            setSelectedCacambaModel(null);
+                            setRecommendedCacambaCap('');
+                          }}
+                          className="text-[10px] text-slate-400 hover:text-white uppercase font-black tracking-tight"
+                        >
+                          Reiniciar Guia ✕
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setExplorerMinimized(true)}
+                        className="text-[10px] text-slate-400 hover:text-amber-400 uppercase font-black tracking-tight border border-slate-800 hover:border-slate-750 px-2 py-0.5 rounded transition"
+                        title="Minimizar Explorador"
+                      >
+                        Minimizar ─
+                      </button>
+                    </div>
+                  </div>
+
+                  {loadingExplorer ? (
+                    <div className="py-6 flex justify-center items-center gap-2 text-xs text-slate-400">
+                      <RefreshCw className="h-4 w-4 animate-spin text-amber-500" /> Carregando catálogo...
+                    </div>
+                  ) : !selectedProduct ? (
                 /* Step 1: Show list of all available catalog products */
                 <div className="space-y-2">
                   <div className="text-slate-300 text-xs font-semibold pb-1 font-mono">
@@ -1078,6 +1148,8 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                     </Button>
                   </div>
                 </div>
+              )}
+                </>
               )}
             </div>
 

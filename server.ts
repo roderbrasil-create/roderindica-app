@@ -851,6 +851,13 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
      - O CMF 600 utiliza corrente de bitola 3/4, que é muito mais robusta para trabalhos pesados e para o traçamento de várias árvores (ou feixes de madeira) simultaneamente. A corrente 3/4 oferece maior durabilidade e rendimento operacional.
      - Robustez geral: O CMF 600 é um cabeçote significativamente mais robusto e durável sob condições severas.
 
+10. DIMENSIONAMENTO DE CARREGADOR FRONTAL (PORTA-PALETES / GARFOS ROTATIVOS):
+    - O dimensionamento de Carregadores Frontais (para porta-paletes, garras de forquilha rotativa ou carregadores frontais de pallet) NÃO é feito com base no tipo de material, mas estritamente com base no COMPRIMENTO DA MADEIRA.
+    - Isso ocorre porque esses equipamentos trabalham com comprimentos e diâmetros de circunferência variados (de 2m, 3m, 4m até 6m ou 7m de comprimento).
+    - Para máquinas base comuns de 10 a 12 toneladas de peso operacional:
+      - Se o comprimento máximo da madeira for de até 3 metros (ou tolerando no máximo até 4 metros), indicamos o modelo CFR 800 (Carregador 800).
+      - Para madeiras maiores (acima de 4 metros) ou consideradas madeiras pesadas (comprimentos de 4m a 6m ou 7m), deve-se indicar obrigatoriamente o Carregador Frontal CFR 600. O CFR 600 possui uma garra/garfo menor do que o Carregador Frontal CFR 800, o que garante excelente estabilidade para a máquina base e evita sobrecarga perigosa sobre o porta-paletes/carregador.
+
 Aqui está o catálogo de produtos e modelos reais cadastrados atualmente na Roder:
 ${productsContext}
 

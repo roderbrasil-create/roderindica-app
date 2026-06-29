@@ -10,6 +10,33 @@ import { AnimatePresence, motion } from 'motion/react';
 import { cn } from '../../lib/utils';
 import EngineerHelper from './EngineerHelper';
 
+const getPageTitle = (path: string): string => {
+  if (path === '/') return 'Painel de Controle';
+  if (path === '/indicacoes/nova') return 'Nova Indicação';
+  if (path === '/indicacoes') return 'Central de Negócios';
+  if (path === '/perfil') return 'Meu Perfil';
+  if (path === '/catalogo') return 'Catálogo de Equipamentos';
+  if (path === '/comissoes') return 'Central de Comissões';
+  if (path === '/triagem') return 'Triagem de Leads';
+  if (path === '/financeiro/kpis') return 'KPIs Financeiros';
+  if (path === '/financeiro') return 'Financeiro';
+  if (path === '/consulta-financeira') return 'Consulta de Crédito';
+  if (path === '/acessorios') return 'Acessórios';
+  if (path === '/estoque') return 'Controle de Estoque';
+  if (path === '/produtos-cadastrados') return 'Produtos Cadastrados';
+  if (path === '/feiras/triagem') return 'Triagem de Feira';
+  if (path.startsWith('/feiras/')) return 'Detalhes da Feira';
+  if (path === '/feiras') return 'Feiras & Eventos';
+  if (path === '/comercial/clientes') return 'Gestão de Clientes';
+  if (path === '/comercial/avaliacoes') return 'Avaliações';
+  if (path === '/endomarketing') return 'Endomarketing';
+  if (path === '/admin') return 'Configurações';
+  if (path === '/usuarios') return 'Gestão de Usuários';
+  if (path === '/lixeira') return 'Lixeira';
+  if (path === '/relatorios') return 'Relatórios';
+  return 'Roder Indica';
+};
+
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { isImpersonating, profile, stopImpersonation, isQuotaExceeded } = useAuth();
   const { isOffline } = usePWA();
@@ -77,51 +104,62 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
       
       <div className="md:pl-56 flex flex-col min-h-screen">
-        {/* Mobile Header */}
-        <header className="md:hidden flex items-center justify-between p-1.5 px-3 border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-30 shadow-sm h-14">
-          <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="icon"
-              className="h-10 w-10 bg-primary text-white hover:bg-primary/90 border-none rounded-lg shadow-sm" 
-              onClick={() => setSidebarOpen(true)}
-            >
-              <Menu className="h-5 w-5" />
-            </Button>
-
-            {!isHome && (
+        {/* Mobile Fixed Header & Page Title Sub-header Container */}
+        <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-md border-b border-border shadow-sm flex flex-col">
+          <header className="flex items-center justify-between p-1.5 px-3 h-14">
+            <div className="flex items-center gap-2">
               <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-8 w-8 text-muted-foreground"
-                onClick={() => navigate(-1)}
+                variant="outline" 
+                size="icon"
+                className="h-10 w-10 bg-primary text-white hover:bg-primary/90 border-none rounded-lg shadow-sm" 
+                onClick={() => setSidebarOpen(true)}
               >
-                <ChevronLeft className="h-6 w-6" />
+                <Menu className="h-5 w-5" />
               </Button>
-            )}
+
+              {!isHome && (
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-8 w-8 text-muted-foreground"
+                  onClick={() => navigate(-1)}
+                >
+                  <ChevronLeft className="h-6 w-6" />
+                </Button>
+              )}
+              
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 bg-white rounded-full flex items-center justify-center p-1 shadow-sm overflow-hidden">
+                  <img 
+                    src="https://roderbrasil.com.br/wp-content/uploads/2024/05/favicon.png" 
+                    alt="Logo" 
+                    className="w-full h-full object-contain"
+                    referrerPolicy="no-referrer" 
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      const parent = e.currentTarget.parentElement;
+                      if (parent) parent.innerHTML = '<span class="text-[9px] font-black text-white tracking-tighter">RODER</span>';
+                    }}
+                  />
+                </div>
+                <span className="font-extrabold text-sm tracking-tight text-slate-855">Roder Indica</span>
+              </div>
+            </div>
             
             <div className="flex items-center gap-2">
-              <div className="w-9 h-9 bg-white rounded-full flex items-center justify-center p-1 shadow-sm overflow-hidden">
-                <img 
-                  src="https://roderbrasil.com.br/wp-content/uploads/2024/05/favicon.png" 
-                  alt="Logo" 
-                  className="w-full h-full object-contain"
-                  referrerPolicy="no-referrer" 
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                    const parent = e.currentTarget.parentElement;
-                    if (parent) parent.innerHTML = '<span class="text-[9px] font-black text-white tracking-tighter">RODER</span>';
-                  }}
-                />
-              </div>
-              <span className="font-extrabold text-sm tracking-tight text-slate-805">Roder Indica</span>
+               <NotificationBell />
             </div>
+          </header>
+
+          {/* Sub-header with current page name - fixed below the main bar */}
+          <div className="flex items-center justify-between px-4 h-8 bg-muted/40 border-t border-border/40 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            <div className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+              <span>{getPageTitle(location.pathname)}</span>
+            </div>
+            <span className="text-[9px] font-mono text-muted-foreground/50">RODER INDICA V2</span>
           </div>
-          
-          <div className="flex items-center gap-2">
-             <NotificationBell />
-          </div>
-        </header>
+        </div>
 
         {/* Desktop Header (optional, but good for notifications) */}
         <header className="hidden md:flex items-center justify-between p-4 border-b border-border bg-background/50 backdrop-blur-sm sticky top-0 z-30">
@@ -137,11 +175,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <span className="text-xs font-bold uppercase tracking-wider">Voltar</span>
               </Button>
             )}
+            
+            {/* Added current page title on Desktop for symmetry and clarity */}
+            <div className="flex items-center gap-2 border-l border-border pl-4">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+              <span className="text-xs font-black uppercase tracking-wider text-muted-foreground">{getPageTitle(location.pathname)}</span>
+            </div>
           </div>
           <NotificationBell />
         </header>
 
-        <main className="flex-1 p-4 md:p-8 max-w-full">
+        <main className="flex-1 p-4 md:p-8 pt-28 md:pt-8 max-w-full">
           {children}
         </main>
       </div>
