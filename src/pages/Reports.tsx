@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { collection, query, getDocs, where, orderBy } from 'firebase/firestore';
@@ -35,7 +36,8 @@ import {
   ArrowDownRight,
   Share2,
   Info,
-  HelpCircle
+  HelpCircle,
+  ArrowLeft
 } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -60,6 +62,7 @@ interface ReservationAudit {
 
 export default function Reports() {
   const { profile, isAdmin, isManager, isFinancial } = useAuth();
+  const navigate = useNavigate();
   const [indications, setIndications] = useState<Indication[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [standardSellers, setStandardSellers] = useState<UserProfile[]>([]);
@@ -352,7 +355,7 @@ export default function Reports() {
     <Layout>
       <div className="space-y-8 pb-12">
         {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-border/60 pb-5">
           <div className="space-y-1">
             <h1 className="text-3xl font-black uppercase tracking-tighter text-foreground flex items-center gap-3">
               <BarChart3 className="h-8 w-8 text-primary" />
@@ -360,11 +363,18 @@ export default function Reports() {
             </h1>
             <p className="text-muted-foreground font-medium">Relatórios consolidados para diretoria, comercial e estoque.</p>
           </div>
-          <div className="flex items-center gap-3">
-             <Button variant="outline" className="gap-2 border-primary/30 text-primary hover:bg-primary/5" onClick={() => window.print()}>
+          <div className="flex flex-wrap items-center gap-3">
+             <Button 
+               variant="outline" 
+               className="gap-2 text-slate-600 border-slate-200 hover:bg-slate-50 font-bold uppercase text-[10px] tracking-widest h-10"
+               onClick={() => navigate('/')}
+             >
+               <ArrowLeft className="h-4 w-4" /> Voltar ao Início
+             </Button>
+             <Button variant="outline" className="gap-2 border-primary/30 text-primary hover:bg-primary/5 h-10 font-bold uppercase text-[10px] tracking-widest" onClick={() => window.print()}>
                <FileText className="h-4 w-4" /> PDF / Impresso
              </Button>
-             <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold uppercase text-[10px] tracking-widest gap-2 shadow-lg shadow-primary/20" onClick={handleGenerateSummary}>
+             <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold uppercase text-[10px] tracking-widest gap-2 shadow-lg shadow-primary/20 h-10" onClick={handleGenerateSummary}>
                <Share2 className="h-4 w-4" /> Enviar p/ WhatsApp
              </Button>
           </div>
