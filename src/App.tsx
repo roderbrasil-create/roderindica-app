@@ -39,6 +39,8 @@ import ComercialAvaliacoes from './pages/ComercialAvaliacoes';
 import Clientes from './pages/Clientes';
 import Endomarketing from './pages/Endomarketing';
 import PublicTechnicalDelivery from './pages/PublicTechnicalDelivery';
+import ProductDossier from './pages/ProductDossier';
+import RoderIAReports from './pages/RoderIAReports';
 
 function PrivateRoute({ children, roles }: { children: React.ReactNode, roles?: string[] }) {
   const { user, profile, loading, isImpersonating, isAdmin, isManager, isMarketing, isTriagem, isFinancial, isInternalSeller, isExternalSeller, isRegionalSeller } = useAuth();
@@ -273,6 +275,18 @@ function AppContent() {
                 <Route path="/produtos-cadastrados" element={
                   <PrivateRoute roles={['admin', 'manager', 'internal_seller']}>
                     <RegisteredProducts />
+                  </PrivateRoute>
+                } />
+
+                <Route path="/dossie" element={
+                  <PrivateRoute roles={['admin', 'manager', 'internal_seller']}>
+                    <ProductDossier />
+                  </PrivateRoute>
+                } />
+
+                <Route path="/relatorios-ia" element={
+                  <PrivateRoute roles={['admin', 'manager']}>
+                    <RoderIAReports />
                   </PrivateRoute>
                 } />
 

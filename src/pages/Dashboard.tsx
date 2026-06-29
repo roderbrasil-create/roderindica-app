@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 import Layout from '../components/layout/Layout';
 import FinanceDashboard from '../components/FinanceDashboard';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, query, where, onSnapshot, orderBy, limit, getDocs, getDocsFromCache, updateDoc, doc, serverTimestamp, or } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, limit, getDocs, getDoc, getDocsFromCache, updateDoc, doc, serverTimestamp, or } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Indication, Commission, Product, Fair } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
@@ -73,6 +74,7 @@ export default function Dashboard() {
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [conversionRanking, setConversionRanking] = useState<any[]>([]);
+  const [dailySummary, setDailySummary] = useState<any>(null);
   const [coldLeadsCount, setColdLeadsCount] = useState(0);
   const [missingCommValueCount, setMissingCommValueCount] = useState(0);
   const [fairAnomaliesCount, setFairAnomaliesCount] = useState(0);
@@ -202,6 +204,24 @@ export default function Dashboard() {
       setHighlightedProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
     }, (error) => console.error("Snapshot error (products_banners):", error));
     return () => unsubscribeProducts();
+  }, [profile?.uid]);
+
+  // Fetch Roder IA Daily Summary for Admin/Manager Dashboard
+  useEffect(() => {
+    if (!profile?.uid) return;
+    const fetchDailySummary = async () => {
+      try {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const docRef = doc(db, 'roder_ai_daily_summaries', todayStr);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setDailySummary(docSnap.data());
+        }
+      } catch (err) {
+        console.warn("Could not fetch daily summary for dashboard:", err);
+      }
+    };
+    fetchDailySummary();
   }, [profile?.uid]);
 
   // 2. Fetch Alerts and specific data
@@ -1882,6 +1902,30 @@ export default function Dashboard() {
         </>
         ) : (isAdmin || isManager) ? (
           <div className="space-y-6">
+            {/* Resumo Diário Roder IA (6 PM) */}
+            {dailySummary && (
+              <div className="bg-slate-900 text-slate-100 rounded-xl p-5 shadow-md border border-slate-800">
+                <div className="flex items-center justify-between gap-4 mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-500 text-white font-mono uppercase">Resumo Diário (18:00)</span>
+                    <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
+                      <Zap className="h-4 w-4 text-blue-400" />
+                      Panorama Roder IA do Dia
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => navigate('/relatorios-ia')}
+                    className="text-xs font-semibold text-slate-400 hover:text-white transition-colors underline"
+                  >
+                    Ver Relatório Completo
+                  </button>
+                </div>
+                <div className="prose prose-invert max-w-none text-xs text-slate-300 leading-relaxed max-h-36 overflow-y-auto pr-2">
+                  <ReactMarkdown>{dailySummary.summary}</ReactMarkdown>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
               {/* Conversion Funnel & Fast Access */}
               <Card className="bg-card border-border shadow-sm overflow-hidden flex flex-col">

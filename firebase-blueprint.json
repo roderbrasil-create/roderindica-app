@@ -193,9 +193,34 @@
         "updated_at": { "type": "string", "format": "date-time" }
       },
       "required": ["monthId", "year", "month", "created_at"]
+    },
+    "equipment_dossiers": {
+      "title": "Equipment Dossier",
+      "description": "Rich technical dossier containing structured reports, compatibilities, choice reasons, audios, and uploaded files for a specific machine model.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "The unique ID (productId_modelId)." },
+        "productId": { "type": "string" },
+        "productName": { "type": "string" },
+        "modelId": { "type": "string" },
+        "modelName": { "type": "string" },
+        "dossier_text": { "type": "string", "description": "The main technical dossier or report text." },
+        "compatibility_notes": { "type": "string", "description": "Organized compatibility notes with machine bases." },
+        "choice_reason": { "type": "string", "description": "The reason for selecting this choice and model details." },
+        "productivity_info": { "type": "string", "description": "Data and statistics on machine productivity." },
+        "attachments": { "type": "array", "description": "Supporting documents and technical PDFs." },
+        "audios": { "type": "array", "description": "Recorded oral dossiers or audio notes." },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "productId", "modelId"]
     }
   },
   "firestore": {
+    "/equipment_dossiers/{dossierId}": {
+      "schema": "equipment_dossiers",
+      "description": "Rich technical dossiers containing structured reports, compatibilities, audios, and PDF manuals for specific machine models."
+    },
     "/endomarketing_actions/{actionId}": {
       "schema": "endomarketing_actions",
       "description": "Primary records for all endomarketing initiatives."

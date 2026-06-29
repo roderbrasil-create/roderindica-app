@@ -34,6 +34,8 @@ const getPageTitle = (path: string): string => {
   if (path === '/usuarios') return 'Gestão de Usuários';
   if (path === '/lixeira') return 'Lixeira';
   if (path === '/relatorios') return 'Relatórios';
+  if (path === '/dossie') return 'Consultor / Dossiê Técnico';
+  if (path === '/relatorios-ia') return 'Relatórios e Métricas Roder IA';
   return 'Roder Indica';
 };
 

@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { askEngineerHelper, transcribeAudio } from '../../services/geminiService';
+import { useAuth } from '../../contexts/AuthContext';
 import ReactMarkdown from 'react-markdown';
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
@@ -18,6 +19,7 @@ interface Message {
 
 export default function EngineerHelper() {
   const navigate = useNavigate();
+  const { user, profile } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
@@ -155,7 +157,16 @@ export default function EngineerHelper() {
 
     try {
       // Ask backend Gemini
-      const response = await askEngineerHelper(queryText, updatedMessages.slice(1, -1));
+      const response = await askEngineerHelper(
+        queryText,
+        updatedMessages.slice(1, -1),
+        {
+          uid: user?.uid,
+          name: profile?.name || user?.displayName || user?.email || 'Anônimo',
+          email: profile?.email || user?.email || '',
+          role: profile?.role || ''
+        }
+      );
       setMessages(prev => [...prev, { role: 'assistant', content: response }]);
     } catch (err: any) {
       console.error('Error in Engineer Helper:', err);

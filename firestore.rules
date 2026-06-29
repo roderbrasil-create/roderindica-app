@@ -340,5 +340,9 @@ service cloud.firestore {
     match /financial_dashboard_months/{monthId} {
       allow read, write: if isAuthenticated();
     }
+
+    match /equipment_dossiers/{dossierId} {
+      allow read, write: if isAuthenticated() && (isAdmin() || isManager() || request.auth.token.email.lower() == "roderbrasil@gmail.com");
+    }
   }
 }

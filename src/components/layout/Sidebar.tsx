@@ -33,7 +33,8 @@ import {
   RefreshCw,
   HeartHandshake,
   Briefcase,
-  Star
+  Star,
+  FileText
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
@@ -269,6 +270,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
   const [fairsMenuOpen, setFairsMenuOpen] = React.useState(false);
   const [financialMenuOpen, setFinancialMenuOpen] = React.useState(false);
   const [comercialMenuOpen, setComercialMenuOpen] = React.useState(false);
+  const [technicalMenuOpen, setTechnicalMenuOpen] = React.useState(false);
 
   // Exclusive toggle wrappers (Accordion style) so only one parent menu is open at a time
   const handleSetFairsMenuOpen = React.useCallback((open: boolean) => {
@@ -276,6 +278,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     if (open) {
       setFinancialMenuOpen(false);
       setComercialMenuOpen(false);
+      setTechnicalMenuOpen(false);
     }
   }, []);
 
@@ -284,6 +287,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     if (open) {
       setFairsMenuOpen(false);
       setComercialMenuOpen(false);
+      setTechnicalMenuOpen(false);
     }
   }, []);
 
@@ -292,6 +296,16 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     if (open) {
       setFairsMenuOpen(false);
       setFinancialMenuOpen(false);
+      setTechnicalMenuOpen(false);
+    }
+  }, []);
+
+  const handleSetTechnicalMenuOpen = React.useCallback((open: boolean) => {
+    setTechnicalMenuOpen(open);
+    if (open) {
+      setFairsMenuOpen(false);
+      setFinancialMenuOpen(false);
+      setComercialMenuOpen(false);
     }
   }, []);
   
@@ -301,24 +315,34 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     const isFairsPath = path.startsWith('/feiras') || path === '/cadastro-rapido';
     const isFinancialPath = path === '/comissoes' || path === '/consulta-financeira' || path.startsWith('/financeiro');
     const isComercialPath = path.startsWith('/comercial');
+    const isTechnicalPath = path === '/dossie' || path === '/relatorios-ia';
 
     if (isFairsPath) {
       setFairsMenuOpen(true);
       setFinancialMenuOpen(false);
       setComercialMenuOpen(false);
+      setTechnicalMenuOpen(false);
     } else if (isFinancialPath) {
       setFinancialMenuOpen(true);
       setFairsMenuOpen(false);
       setComercialMenuOpen(false);
+      setTechnicalMenuOpen(false);
     } else if (isComercialPath) {
       setComercialMenuOpen(true);
       setFairsMenuOpen(false);
       setFinancialMenuOpen(false);
+      setTechnicalMenuOpen(false);
+    } else if (isTechnicalPath) {
+      setTechnicalMenuOpen(true);
+      setFairsMenuOpen(false);
+      setFinancialMenuOpen(false);
+      setComercialMenuOpen(false);
     } else {
       // Direct paths (e.g., dashboard, stock, configs) collapse parent submenus
       setFairsMenuOpen(false);
       setFinancialMenuOpen(false);
       setComercialMenuOpen(false);
+      setTechnicalMenuOpen(false);
     }
   }, [location.pathname]);
   
@@ -397,6 +421,19 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     },
     { id: 'products_registered', name: 'Produtos Cadastrados', path: '/produtos-cadastrados', icon: BookOpen, roles: ['admin', 'manager', 'internal_seller', 'triagem', 'financial', 'marketing'] },
     { id: 'accessories', name: 'Acessórios', path: '/acessorios', icon: Settings, roles: ['admin', 'manager', 'internal_seller', 'triagem', 'financial', 'marketing'] },
+    { 
+      id: 'technical_consultant_parent',
+      name: 'Consultor Roder IA', 
+      icon: BrainCircuit, 
+      roles: ['admin', 'manager'],
+      isParent: true,
+      isOpenState: technicalMenuOpen,
+      setIsOpenState: handleSetTechnicalMenuOpen,
+      subItems: [
+        { name: 'Dossiê Técnico', path: '/dossie', icon: FileText, roles: ['admin', 'manager'] },
+        { name: 'Relatórios Roder IA', path: '/relatorios-ia', icon: BarChart3, roles: ['admin', 'manager'] },
+      ]
+    },
     { id: 'users', name: 'Usuários', path: '/usuarios', icon: Users, roles: ['admin', 'manager', 'triagem'] },
     { 
       id: 'finance',
@@ -418,7 +455,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     { id: 'comissoes_ext', name: 'Comissões', path: '/comissoes', icon: DollarSign, roles: ['external_seller', 'vendedor_padrao'] },
     { id: 'reports', name: 'Relatórios', path: '/relatorios', icon: BarChart3, roles: ['admin', 'manager', 'financial'] },
     { id: 'profile', name: 'Minha Conta', path: '/perfil', icon: User, roles: ['admin', 'manager', 'internal_seller', 'triagem', 'external_seller', 'vendedor_padrao', 'financial', 'marketing'] },
-  ], [pendingTriageCount, fairsMenuOpen, financialMenuOpen, comercialMenuOpen, isExternalSeller, isRegionalSeller]);
+  ], [pendingTriageCount, fairsMenuOpen, financialMenuOpen, comercialMenuOpen, technicalMenuOpen, isExternalSeller, isRegionalSeller]);
 
   const filteredItems = React.useMemo(() => {
     // If we have an auth user but no role yet, show basic items to prevent total flickering

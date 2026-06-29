@@ -179,6 +179,38 @@ async function generateContentWithRetry(ai: GoogleGenAI, params: {
   }
 }
 
+async function classifyQuestionTopic(ai: GoogleGenAI, question: string): Promise<string> {
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: [
+        { text: `Classifique a seguinte pergunta de um vendedor da Roder Máquinas em EXATAMENTE um dos seguintes assuntos/tópicos (retorne apenas o nome do tópico, sem mais nenhum texto):
+- "Compatibilidade" (faixas de peso, escavadeiras compatíveis)
+- "Produtividade de Garra" (cálculos de ciclo, carga, m³, produtividade horária)
+- "Estoque/Disponibilidade" (se há item a pronta entrega, o que tem no estoque)
+- "Caçamba High Tip" (caçambas para pá carregadeira, altura de descarga, biomassa)
+- "Dúvida Geral" (outras dúvidas, funcionamento do sistema, etc)
+
+Pergunta: "${question}"` }
+      ]
+    });
+    const topic = (response.text || "").trim().replace(/["']/g, "");
+    const validTopics = ["Compatibilidade", "Produtividade de Garra", "Estoque/Disponibilidade", "Caçamba High Tip", "Dúvida Geral"];
+    if (validTopics.includes(topic)) return topic;
+    
+    const lower = question.toLowerCase();
+    if (lower.includes("compativ") || lower.includes("compatíb") || lower.includes("peso") || lower.includes("tonelada") || lower.includes("escavadeira") || lower.includes("trator")) return "Compatibilidade";
+    if (lower.includes("produtiv") || lower.includes("ciclo") || lower.includes("t/h") || lower.includes("fórmula") || lower.includes("madeira")) return "Produtividade de Garra";
+    if (lower.includes("estoque") || lower.includes("pronta entrega") || lower.includes("disponiv") || lower.includes("temos")) return "Estoque/Disponibilidade";
+    if (lower.includes("caçamba") || lower.includes("high tip") || lower.includes("pá carregadeira") || lower.includes("descarga")) return "Caçamba High Tip";
+    
+    return "Dúvida Geral";
+  } catch (err) {
+    console.error("Topic classification failed, falling back:", err);
+    return "Dúvida Geral";
+  }
+}
+
 async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
@@ -732,8 +764,99 @@ async function startServer() {
           break;
         }
 
+        case "structureDossierAudio": {
+          const { audioBase64, mimeType, currentDossierText, currentCompatibilityNotes, currentChoiceReason, currentProductivityInfo, productName, modelName } = args;
+          
+          const prompt = `Você é um engenheiro de inteligência artificial especializado na Roder Brasil.
+            Sua missão é ouvir o áudio enviado pelo consultor técnico referente ao equipamento "${productName}" - Modelo "${modelName}".
+            
+            Sua tarefa consiste em:
+            1. Transcrever detalhadamente e com extrema precisão técnica o áudio gravado em português brasileiro.
+            2. Analisar o conteúdo da fala e classificar/distribuir os trechos para as 4 categorias do Dossiê Técnico:
+               - Relatório do Dossiê Geral (dossier_text)
+               - Compatibilidade com máquina base e acoplamento (compatibility_notes)
+               - Motivo da Escolha e diferenciais (choice_reason)
+               - Dados de Produtividade e rendimento (productivity_info)
+            3. ENRIQUECER os textos atuais que estão abaixo. Ao enriquecer, NUNCA apague ou remova especificações técnicas, compatibilidades ou medidas que já estão presentes nos textos originais! Preserve integralmente a riqueza dos dados técnicos originais, integrando e anexando o novo conhecimento do áudio de forma coerente e profissional no final do parágrafo correspondente ou em um novo parágrafo.
+            4. Se o áudio não mencionar novos detalhes sobre uma categoria específica, mantenha o texto original correspondente intacto.
+
+            --- TEXTOS ORIGINAIS ATUAIS DO EQUIPAMENTO ---
+            - Relatório Atual (dossier_text): "${currentDossierText || ''}"
+            - Compatibilidade Atual (compatibility_notes): "${currentCompatibilityNotes || ''}"
+            - Motivo da Escolha Atual (choice_reason): "${currentChoiceReason || ''}"
+            - Produtividade Atual (productivity_info): "${currentProductivityInfo || ''}"
+            -------------------------------------------------
+
+            Retorne a resposta estruturada estritamente no formato JSON definido no schema.`;
+
+          const response = await generateContentWithRetry(ai, {
+            defaultModel: "gemini-3.5-flash",
+            contents: [
+              { text: prompt },
+              { inlineData: { data: audioBase64, mimeType: mimeType.split(';')[0] } }
+            ],
+            config: {
+              responseMimeType: "application/json",
+              responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                  transcription: { 
+                    type: Type.STRING, 
+                    description: "Transcrição fiel e completa do áudio técnico gravado." 
+                  },
+                  dossier_text: { 
+                    type: Type.STRING, 
+                    description: "Relatório técnico geral enriquecido ou o texto original mantido intacto se sem alterações." 
+                  },
+                  compatibility_notes: { 
+                    type: Type.STRING, 
+                    description: "Especificações de compatibilidade enriquecidas ou o texto original mantido intacto." 
+                  },
+                  choice_reason: { 
+                    type: Type.STRING, 
+                    description: "Motivos da escolha e diferenciais enriquecidos ou o texto original mantido intacto." 
+                  },
+                  productivity_info: { 
+                    type: Type.STRING, 
+                    description: "Métricas de produtividade enriquecidas ou o texto original mantido intacto." 
+                  }
+                },
+                required: ["transcription", "dossier_text", "compatibility_notes", "choice_reason", "productivity_info"]
+              }
+            }
+          });
+
+          const rawText = response.text || "{}";
+          try {
+            result = JSON.parse(rawText);
+          } catch (e) {
+            console.error("Failed to parse dossier structuring JSON response", rawText);
+            throw new Error("Resposta da IA retornou um JSON inválido para a estruturação do dossiê.");
+          }
+          break;
+        }
+
         case "engineerHelper": {
           const { question, chatHistory } = args;
+          
+          // Load approved corrections/improved questions to serve as a custom knowledge base
+          let improvedKnowledgeContext = "";
+          try {
+            const improvedSnap = await db.collection('roder_ai_questions')
+              .where('isImproved', '==', true)
+              .get();
+            
+            if (!improvedSnap.empty) {
+              const items: string[] = [];
+              improvedSnap.forEach(doc => {
+                const qData = doc.data();
+                items.push(`- Pergunta Similar: "${qData.question}"\n  Resposta Correta/Aprimorada a ser usada: "${qData.improvedAnswer}"`);
+              });
+              improvedKnowledgeContext = `\n\n11. BASE DE CONHECIMENTO ADICIONAL (CORREÇÕES APROVADAS PELA GERÊNCIA/ADMINISTRAÇÃO):\nUse as orientações abaixo se a pergunta do usuário for similar a estas dúvidas mapeadas de forma prioritária para dar a resposta correta:\n${items.join("\n")}`;
+            }
+          } catch (err) {
+            console.warn("Could not load improved questions context:", err);
+          }
           
           let productsContext = "";
           let stockContext = "";
@@ -818,6 +941,11 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
      • Escavadeiras de 8 a 13 t: FAE BL2/EX-VT, UML/EX-VT
      • Escavadeiras de 14 a 20 t: FAE UML/S/EX-VT, UMM/EX-VT, ou Caçambas/Garras adequadas como R400 e R600
      • Escavadeiras de 21 a 35 t: FAE UMM/EX-VT, BL3/EX-VT
+   - Garras Florestais por Escavadeira (REGRAS CRÍTICAS DE PORTFÓLIO E ESTABILIDADE):
+     • NUNCA indique garras inexistentes como R200 (ela NÃO faz parte do catálogo Roder e não existe!). Só indique garras do catálogo oficial Roder.
+     • Para escavadeira de 8 toneladas para ALIMENTAÇÃO DE PICADOR: Recomendamos a Garra R280. Ela oferece o melhor dimensionamento e estabilidade para esta aplicação.
+     • Para escavadeira de 8 toneladas para CARREGAMENTO OU DESCARREGAMENTO com madeiras de até 3 metros de comprimento: Pode ser indicada a Garra R360, porém a mais compatível continua sendo a Garra R280 para garantir a melhor estabilidade da máquina.
+     • Catálogo de Garras Florestais Roder Oficiais: R250 (5-8t), R280 (6-10t), R360 (8-12t), R400 (12-18t), R600 (14-22t), R800 (18-25t), R1000 (22-30t), R1200 (24-35t), R1400 (25-35t).
    - Carregadores Frontais: Ex CFR-280, CFR-400, CFR-600, CFR-800, CFR-1000, CFR-1200, CFR-1500 são indicados de acordo com o tamanho e capacidade operacional da pá carregadeira.
    - Caçambas High Tip: É necessário que o vendedor informe o tipo de material carregado (ex: biomassa de cavaco leve, silagem, areia pesada) para dimensionar o modelo correto.
 
@@ -862,7 +990,7 @@ Aqui está o catálogo de produtos e modelos reais cadastrados atualmente na Rod
 ${productsContext}
 
 Aqui está a lista real de equipamentos disponíveis em estoque hoje:
-${stockContext || "Não há itens em estoque hoje."}`;
+${stockContext || "Não há itens em estoque hoje."}${improvedKnowledgeContext}`;
 
           if (chatHistory && Array.isArray(chatHistory)) {
             chatHistory.forEach((msg: any) => {
@@ -888,6 +1016,29 @@ ${stockContext || "Não há itens em estoque hoje."}`;
           });
 
           result = response.text || "Desculpe, não consegui calcular ou analisar sua dúvida técnica no momento.";
+
+          // Save interaction to Firestore for metrics & reporting!
+          try {
+            const userInfo = args.userInfo || {};
+            const topic = await classifyQuestionTopic(ai, question);
+            
+            await db.collection('roder_ai_questions').add({
+              question: question,
+              answer: result,
+              timestamp: new Date().toISOString(),
+              userUid: userInfo.uid || 'unauthenticated',
+              userName: userInfo.name || 'Anônimo',
+              userEmail: userInfo.email || 'anonimo@roderbrasil.com',
+              userRole: userInfo.role || 'external_seller',
+              topic: topic,
+              isImproved: false,
+              improvedAnswer: "",
+              ledToIndication: false
+            });
+          } catch (err) {
+            console.error("Failed to log Roder AI question to Firestore:", err);
+          }
+
           break;
         }
 
@@ -906,6 +1057,110 @@ ${stockContext || "Não há itens em estoque hoje."}`;
             contents: prompt
           });
           result = response.text || "O Jefe está ocupado no momento. Tente novamente mais tarde.";
+          break;
+        }
+
+        case "generateRoderAIDailySummary": {
+          const { dateStr } = args;
+          const targetDate = dateStr || new Date().toISOString().split('T')[0];
+          
+          const startOfDay = `${targetDate}T00:00:00.000Z`;
+          const endOfDay = `${targetDate}T23:59:59.999Z`;
+          
+          let questionsList: any[] = [];
+          try {
+            const qSnap = await db.collection('roder_ai_questions')
+              .where('timestamp', '>=', startOfDay)
+              .where('timestamp', '<=', endOfDay)
+              .get();
+            
+            qSnap.forEach(doc => {
+              const data = doc.data();
+              questionsList.push({
+                userName: data.userName,
+                userEmail: data.userEmail,
+                question: data.question,
+                answer: data.answer,
+                topic: data.topic
+              });
+            });
+          } catch (err) {
+            console.error("Error loading today's questions for summary:", err);
+          }
+          
+          if (questionsList.length === 0) {
+            result = {
+              date: targetDate,
+              summary: "Nenhuma pergunta foi realizada ao consultor Roder IA no dia de hoje.",
+              totalQuestions: 0,
+              bestQuestions: []
+            };
+            break;
+          }
+          
+          const prompt = `Você é um analista de dados técnico especializado na Roder Brasil.
+            Abaixo está a lista de todas as perguntas feitas hoje pelos vendedores e parceiros ao Consultor Técnico Roder IA.
+            Sua tarefa é ler estas interações e produzir um RESUMO DIÁRIO executivo e motivador em formato Markdown estruturado.
+            O resumo deve ser focado na gerência comercial (Gislene e Luana).
+            
+            DIRETRIZES DO RESUMO:
+            1. Traga um panorama geral de usabilidade (ex: quantidade total de perguntas, perfil dos usuários).
+            2. Selecione e cite as MELHORES perguntas técnicas (com maiores dúvidas, ou as mais inteligentes/relevantes). Cite o nome do vendedor que a realizou e o resultado/especificação do produto indicada.
+            3. Analise se as respostas da IA estão sendo precisas ou se há pontos de melhoria técnica a sugerir à gerência.
+            
+            INTERAÇÕES DO DIA (${targetDate}):
+            ${JSON.stringify(questionsList, null, 2)}
+            
+            Retorne a resposta estruturada estritamente no formato JSON definido no schema.`;
+            
+          const response = await generateContentWithRetry(ai, {
+            defaultModel: "gemini-3.5-flash",
+            contents: [{ text: prompt }],
+            config: {
+              responseMimeType: "application/json",
+              responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                  summary: { 
+                    type: Type.STRING, 
+                    description: "Texto consolidado em Markdown profissional com o resumo do dia." 
+                  },
+                  bestQuestions: {
+                    type: Type.ARRAY,
+                    description: "Lista das 3-5 melhores perguntas/dúvidas do dia.",
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        userName: { type: Type.STRING },
+                        question: { type: Type.STRING },
+                        outcome: { type: Type.STRING, description: "O desfecho, equipamento indicado ou resultado." }
+                      },
+                      required: ["userName", "question", "outcome"]
+                    }
+                  }
+                },
+                required: ["summary", "bestQuestions"]
+              }
+            }
+          });
+          
+          const rawText = response.text || "{}";
+          try {
+            const parsed = JSON.parse(rawText);
+            const summaryDoc = {
+              date: targetDate,
+              summary: parsed.summary,
+              bestQuestions: parsed.bestQuestions,
+              totalQuestions: questionsList.length,
+              generatedAt: new Date().toISOString()
+            };
+            
+            await db.collection('roder_ai_daily_summaries').doc(targetDate).set(summaryDoc);
+            result = summaryDoc;
+          } catch (e) {
+            console.error("Failed to generate daily summary JSON response", rawText);
+            throw new Error("Erro ao parsear o resumo diário estruturado da Roder IA.");
+          }
           break;
         }
 

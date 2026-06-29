@@ -36,8 +36,12 @@ export async function askJefe(question: string, context?: string): Promise<strin
   return executeBackendAI("askJefe", { question, context });
 }
 
-export async function askEngineerHelper(question: string, chatHistory: { role: 'user' | 'assistant'; content: string }[] = []): Promise<string> {
-  return executeBackendAI("engineerHelper", { question, chatHistory });
+export async function askEngineerHelper(question: string, chatHistory: { role: 'user' | 'assistant'; content: string }[] = [], userInfo?: any): Promise<string> {
+  return executeBackendAI("engineerHelper", { question, chatHistory, userInfo });
+}
+
+export async function generateRoderAIDailySummary(dateStr?: string): Promise<any> {
+  return executeBackendAI("generateRoderAIDailySummary", { dateStr });
 }
 
 export async function analyzeBudget(fileBase64: string, mimeType: string): Promise<any> {
@@ -78,4 +82,25 @@ export async function refineTranscription(text: string): Promise<string> {
 
 export async function generateAIInsight(context: any): Promise<string> {
   return executeBackendAI("generateAIInsight", { context });
+}
+
+export interface DossierAudioStructuringResult {
+  transcription: string;
+  dossier_text: string;
+  compatibility_notes: string;
+  choice_reason: string;
+  productivity_info: string;
+}
+
+export async function structureDossierAudio(args: {
+  audioBase64: string;
+  mimeType: string;
+  currentDossierText: string;
+  currentCompatibilityNotes: string;
+  currentChoiceReason: string;
+  currentProductivityInfo: string;
+  productName: string;
+  modelName: string;
+}): Promise<DossierAudioStructuringResult> {
+  return executeBackendAI("structureDossierAudio", args);
 }
