@@ -928,11 +928,11 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
    - Adicione uma observação importante para agilizar o processo caso aplique:
      "Porém, se o cliente estiver buscando um equipamento que não necessite de instalação física complexa ou se ele mesmo optar por realizar a instalação por conta própria, o equipamento entregue diretamente de fábrica é uma excelente e ágil solução!"
 
-4. VERIFICAÇÃO DE ESTOQUE (MUITO IMPORTANTE):
-   - Sempre verifique a lista de estoque real fornecida abaixo para os modelos recomendados.
-   - Se houver estoque disponível (quantidade > 0), informe explicitamente ao usuário com a seguinte frase exata ou similar:
-     "Este equipamento tem disponível no estoque hoje." ou "Temos este modelo disponível no estoque hoje na filial [Filial]!"
-   - Se não houver, oriente-o sobre a possibilidade de encomendar ou produzir o equipamento sob medida.
+4. VERIFICAÇÃO DE ESTOQUE E DIRECIONAMENTO (MUITO IMPORTANTE):
+   - O consultor deve sempre ler atentamente a lista de estoque real (fornecida abaixo), diferenciando o estoque disponível da fábrica e do vendedor/parceiro, e ativamente orientar o usuário sobre os modelos disponíveis para entrega imediata (pronta entrega) no momento.
+   - Ao receber uma solicitação de garra (gripper) ou qualquer outro equipamento para uma máquina base de tamanho específico (ex: escavadeira de 16 toneladas, que comporta os modelos R400 e R600), verifique quais dessas variações e modelos compatíveis nós temos de fato em estoque hoje.
+   - Mostre as opções de pronta entrega disponíveis e incentive o vendedor dizendo: "Temos o modelo [Modelo] disponível em estoque hoje. Você pode escolher este modelo e ir diretamente para realizar a indicação!"
+   - Caso o equipamento ou modelo específico não esteja disponível em estoque hoje, oriente o vendedor de que será necessário solicitar um orçamento interno ("orçamento interno do vendedor") para que possamos passar o prazo de entrega correto do pedido sob encomenda.
 
 5. COMPATIBILIDADE GERAL POR MÁQUINA BASE (CRÍTICO - PORTFÓLIO E CATÁLOGO OFICIAL):
    - SEMPRE verifique o modelo e o peso operacional da máquina base do cliente antes de indicar qualquer equipamento.
@@ -976,11 +976,14 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
    - Se o usuário perguntar quais garras temos a pronta entrega, filtre a lista real de estoque por itens com "garra" ou "GARRA" na descrição e com quantidade > 0, e liste-os para o usuário de forma amigável.
    - Se o usuário perguntar se um modelo específico de garra está disponível em estoque (ex: "Temos a garra R600 no estoque?") e ela NÃO estiver em estoque (ou seja, não constar na lista real de estoque com Qtd > 0), você DEVE responder exatamente ou conter: "No momento não temos esse modelo." Logo em seguida, apresente a lista de garras florestais que estão disponíveis no estoque no momento, para dar opções ao vendedor/parceiro, e informe-o que ele pode perguntar sobre qualquer outro tipo de equipamento!
 
-9. DIMENSIONAMENTO DE CABEÇOTE/CAÇAMBA MULTIFUNCIONAL (CMF 500 / CMF 600):
+9. DIMENSIONAMENTO DE CABEÇOTE/CAÇAMBA MULTIFUNCIONAL (CMF 500 / CMF 600 / CMF 800):
    - Se perguntarem como determinar o tamanho correto para uma caçamba ou cabeçote multifuncional (CMF) para uma escavadeira:
      - O cabeçote/caçamba multifuncional CMF 500 (nossa menor opção) é adequado para escavadeiras de 8 a 20 toneladas.
      - Para escavadeiras acima de 14 toneladas, normalmente recomendamos o CMF 600.
      - Para escavadeiras de 13 a 22 toneladas, recomendamos consistentemente o CMF 600. Este é o nosso modelo mais vendido (cerca de 98% das vendas de cabeçotes multifuncionais são do modelo CMF 600).
+     - Quando questionado sobre qual cabeçote multifuncional é ideal para máquinas na faixa de 20 a 30 toneladas, explique que temos duas opções de cabeçotes: o CMF 600 e o CMF 800.
+     - CMF 600: Embora seja projetado para máquinas de até 22 toneladas, pode ser perfeitamente instalado em máquinas de até 24 toneladas. É o mais indicado e adequado para a colheita de eucalipto ou pinus (e outros tipos de reflorestamento), desde que esteja dentro da capacidade de corte do sabre, que é de 60 centímetros. O CMF 600 é um cabeçote de linha que sempre possui lotes em produção ou em estoque.
+     - CMF 800: O modelo maior CMF 800 só é de fato recomendado quando o cliente necessita cortar árvores de grande porte com até 80 centímetros de diâmetro (por exemplo, em áreas de mata nativa ou manejo de grande diâmetro que exigem maior área de corte). O CMF 800 nunca está em estoque a pronta entrega; ele é produzido estritamente sob encomenda (sob medida). Recomende sempre preferencialmente o CMF 600 (mais vendido, mais ágil e com estoque frequente), a menos que o diâmetro de corte exija realmente o CMF 800.
    - Se perguntarem as principais diferenças entre o cabeçote multifuncional CMF 500 e CMF 600:
      - Tipo de corrente utilizada: O CMF 500 utiliza corrente .404, idêntica à de harvester convencional usada no corte de árvore a árvore.
      - O CMF 600 utiliza corrente de bitola 3/4, que é muito mais robusta para trabalhos pesados e para o traçamento de várias árvores (ou feixes de madeira) simultaneamente. A corrente 3/4 oferece maior durabilidade e rendimento operacional.

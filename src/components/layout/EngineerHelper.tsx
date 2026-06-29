@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, MessageSquare, X, Send, Calculator, Wrench, HelpCircle, AlertTriangle, Play, RefreshCw, Trash2, ChevronLeft, ChevronRight, CheckCircle, Package, Layers, Tractor, FileText, Mic, Square, Loader2 } from 'lucide-react';
+import { Sparkles, MessageSquare, X, Minus, Send, Calculator, Wrench, HelpCircle, AlertTriangle, Play, RefreshCw, Trash2, ChevronLeft, ChevronRight, CheckCircle, Package, Layers, Tractor, FileText, Mic, Square, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
@@ -11,6 +11,8 @@ import { Button } from '../ui/button';
 import { toast } from 'sonner';
 import { Product, ProductModel, StockItem } from '../../types';
 import { MACHINES, MATERIALS, getRecommendedBucket, calculateDischargeHeights, getHighTipBucketWeight } from '../catalog/HighTipData';
+import { RODER_LOGO_BASE64 } from '../catalog/RoderLogo';
+import { toPng } from 'html-to-image';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -20,29 +22,111 @@ interface Message {
 export default function EngineerHelper() {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
-  const [isOpen, setIsOpen] = useState(false);
+  
+  // Persistent state loaded from sessionStorage on mount
+  const [isOpen, setIsOpen] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('roder_helper_isOpen');
+      return saved ? JSON.parse(saved) : false;
+    } catch {
+      return false;
+    }
+  });
+  
   const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [loadingExplorer, setLoadingExplorer] = useState(false);
 
   // Explorer states for interactive navigation
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [selectedWeightBand, setSelectedWeightBand] = useState<string | null>(null);
-  const [selectedModel, setSelectedModel] = useState<ProductModel | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(() => {
+    try {
+      const saved = sessionStorage.getItem('roder_helper_selectedProduct');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  
+  const [selectedWeightBand, setSelectedWeightBand] = useState<string | null>(() => {
+    try {
+      const saved = sessionStorage.getItem('roder_helper_selectedWeightBand');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  
+  const [selectedModel, setSelectedModel] = useState<ProductModel | null>(() => {
+    try {
+      const saved = sessionStorage.getItem('roder_helper_selectedModel');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
 
   // States for Caçamba guided steps
-  const [cacambaStep, setCacambaStep] = useState<'material' | 'brand' | 'model' | 'result' | null>(null);
-  const [selectedMaterial, setSelectedMaterial] = useState<any>(null);
-  const [selectedCacambaBrand, setSelectedCacambaBrand] = useState<string>('');
-  const [selectedCacambaModel, setSelectedCacambaModel] = useState<any>(null);
-  const [recommendedCacambaCap, setRecommendedCacambaCap] = useState<string>('');
-
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: 'assistant',
-      content: 'Olá! Sou o **Consultor Técnico RODER** 🛠️. Estou aqui para ajudar você a dimensionar e indicar o equipamento Roder ideal para a sua máquina base (escavadeira, pá carregadeira ou trator), além de realizar cálculos de produtividade de garras florestais. Como posso te ajudar hoje?'
+  const [cacambaStep, setCacambaStep] = useState<'material' | 'brand' | 'model' | 'result' | null>(() => {
+    try {
+      const saved = sessionStorage.getItem('roder_helper_cacambaStep');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
     }
-  ]);
+  });
+  
+  const [selectedMaterial, setSelectedMaterial] = useState<any>(() => {
+    try {
+      const saved = sessionStorage.getItem('roder_helper_selectedMaterial');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  
+  const [selectedCacambaBrand, setSelectedCacambaBrand] = useState<string>(() => {
+    try {
+      const saved = sessionStorage.getItem('roder_helper_selectedCacambaBrand');
+      return saved ? JSON.parse(saved) : '';
+    } catch {
+      return '';
+    }
+  });
+  
+  const [selectedCacambaModel, setSelectedCacambaModel] = useState<any>(() => {
+    try {
+      const saved = sessionStorage.getItem('roder_helper_selectedCacambaModel');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  
+  const [recommendedCacambaCap, setRecommendedCacambaCap] = useState<string>(() => {
+    try {
+      const saved = sessionStorage.getItem('roder_helper_recommendedCacambaCap');
+      return saved ? JSON.parse(saved) : '';
+    } catch {
+      return '';
+    }
+  });
+
+  const [messages, setMessages] = useState<Message[]>(() => {
+    try {
+      const saved = sessionStorage.getItem('roder_helper_messages');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [
+      {
+        role: 'assistant',
+        content: 'Olá! Sou o **Consultor Técnico RODER** 🛠️. Estou aqui para ajudar você a dimensionar e indicar o equipamento Roder ideal para a sua máquina base (escavadeira, pá carregadeira ou trator), além de realizar cálculos de produtividade de garras florestais. Como posso te ajudar hoje?'
+      }
+    ];
+  });
+  
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -66,7 +150,120 @@ export default function EngineerHelper() {
     hourlyProductivity: number;
   } | null>(null);
 
+  // States for report modal
+  const [isReportOpen, setIsReportOpen] = useState(false);
+  const [reportContent, setReportContent] = useState('');
+  const [reportTitle, setReportTitle] = useState('Relatório de Dimensionamento Técnico');
+  const reportRef = useRef<HTMLDivElement>(null);
+
+  const handleOpenReport = (content?: string, title?: string) => {
+    let finalContent = content;
+    if (!finalContent) {
+      // Find the last assistant message in the list
+      const assistantMsgs = messages.filter(m => m.role === 'assistant');
+      if (assistantMsgs.length > 0) {
+        finalContent = assistantMsgs[assistantMsgs.length - 1].content;
+      } else {
+        finalContent = "Olá! Realize uma consulta com o Consultor Técnico RODER acima para gerar um relatório completo de compatibilidade e dimensionamento de equipamentos.";
+      }
+    }
+    setReportContent(finalContent);
+    setReportTitle(title || 'Relatório de Dimensionamento Técnico');
+    setIsReportOpen(true);
+  };
+
+  const handleDownloadReportPng = async () => {
+    const element = reportRef.current;
+    if (!element) return;
+
+    const toastId = toast.loading("Gerando imagem do relatório técnico de alta definição...");
+
+    try {
+      const options = {
+        quality: 1.0,
+        pixelRatio: 2, // Enhances text clarity
+        backgroundColor: '#ffffff',
+        style: {
+          transform: 'scale(1)',
+          transformOrigin: 'top left',
+        }
+      };
+
+      const dataUrl = await toPng(element, options);
+      const link = document.createElement('a');
+      link.download = `Relatorio_Tecnico_Roder_${new Date().toISOString().slice(0, 10)}.png`;
+      link.href = dataUrl;
+      link.click();
+
+      toast.success("Imagem do relatório salva com sucesso na sua galeria!", { id: toastId });
+    } catch (error) {
+      console.error("Error generating report image:", error);
+      toast.error("Erro ao gerar imagem. Por favor, tente novamente.", { id: toastId });
+    }
+  };
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Synchronize state changes to sessionStorage
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('roder_helper_isOpen', JSON.stringify(isOpen));
+    } catch (e) {}
+  }, [isOpen]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('roder_helper_messages', JSON.stringify(messages));
+    } catch (e) {}
+  }, [messages]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('roder_helper_selectedProduct', JSON.stringify(selectedProduct));
+    } catch (e) {}
+  }, [selectedProduct]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('roder_helper_selectedWeightBand', JSON.stringify(selectedWeightBand));
+    } catch (e) {}
+  }, [selectedWeightBand]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('roder_helper_selectedModel', JSON.stringify(selectedModel));
+    } catch (e) {}
+  }, [selectedModel]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('roder_helper_cacambaStep', JSON.stringify(cacambaStep));
+    } catch (e) {}
+  }, [cacambaStep]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('roder_helper_selectedMaterial', JSON.stringify(selectedMaterial));
+    } catch (e) {}
+  }, [selectedMaterial]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('roder_helper_selectedCacambaBrand', JSON.stringify(selectedCacambaBrand));
+    } catch (e) {}
+  }, [selectedCacambaBrand]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('roder_helper_selectedCacambaModel', JSON.stringify(selectedCacambaModel));
+    } catch (e) {}
+  }, [selectedCacambaModel]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('roder_helper_recommendedCacambaCap', JSON.stringify(recommendedCacambaCap));
+    } catch (e) {}
+  }, [recommendedCacambaCap]);
 
   useEffect(() => {
     if (messages.length === 0) return;
@@ -122,10 +319,55 @@ export default function EngineerHelper() {
   }, [isOpen]);
 
   const handleClearConversation = () => {
-    setMessages([
+    const defaultMsg: Message[] = [
       {
         role: 'assistant',
         content: 'Olá! Conversa limpa. Sou o **Consultor Técnico RODER** 🛠️. Como posso te ajudar hoje?'
+      }
+    ];
+    setMessages(defaultMsg);
+    setSelectedProduct(null);
+    setSelectedWeightBand(null);
+    setSelectedModel(null);
+    setCalcResult(null);
+    setCacambaStep(null);
+    setSelectedMaterial(null);
+    setSelectedCacambaBrand('');
+    setSelectedCacambaModel(null);
+    setRecommendedCacambaCap('');
+    try {
+      sessionStorage.setItem('roder_helper_messages', JSON.stringify(defaultMsg));
+      sessionStorage.removeItem('roder_helper_selectedProduct');
+      sessionStorage.removeItem('roder_helper_selectedWeightBand');
+      sessionStorage.removeItem('roder_helper_selectedModel');
+      sessionStorage.removeItem('roder_helper_cacambaStep');
+      sessionStorage.removeItem('roder_helper_selectedMaterial');
+      sessionStorage.removeItem('roder_helper_selectedCacambaBrand');
+      sessionStorage.removeItem('roder_helper_selectedCacambaModel');
+      sessionStorage.removeItem('roder_helper_recommendedCacambaCap');
+    } catch (e) {}
+  };
+
+  const handleEndConversation = () => {
+    try {
+      sessionStorage.removeItem('roder_helper_isOpen');
+      sessionStorage.removeItem('roder_helper_messages');
+      sessionStorage.removeItem('roder_helper_selectedProduct');
+      sessionStorage.removeItem('roder_helper_selectedWeightBand');
+      sessionStorage.removeItem('roder_helper_selectedModel');
+      sessionStorage.removeItem('roder_helper_cacambaStep');
+      sessionStorage.removeItem('roder_helper_selectedMaterial');
+      sessionStorage.removeItem('roder_helper_selectedCacambaBrand');
+      sessionStorage.removeItem('roder_helper_selectedCacambaModel');
+      sessionStorage.removeItem('roder_helper_recommendedCacambaCap');
+    } catch (e) {
+      console.warn("Could not clear sessionStorage:", e);
+    }
+
+    setMessages([
+      {
+        role: 'assistant',
+        content: 'Olá! Sou o **Consultor Técnico RODER** 🛠️. Estou aqui para ajudar você a dimensionar e indicar o equipamento Roder ideal para a sua máquina base (escavadeira, pá carregadeira ou trator), além de realizar cálculos de produtividade de garras florestais. Como posso te ajudar hoje?'
       }
     ]);
     setSelectedProduct(null);
@@ -137,6 +379,8 @@ export default function EngineerHelper() {
     setSelectedCacambaBrand('');
     setSelectedCacambaModel(null);
     setRecommendedCacambaCap('');
+    setIsOpen(false);
+    toast.success('Conversa encerrada e limpa.');
   };
 
   const handleSend = async (textToSend?: string) => {
@@ -357,10 +601,38 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
     navigate('/indicacoes/nova', { state: { product_name: productFullName } });
   };
 
+  // Parse assistant text to find matched catalog products & models
+  const detectEquipmentInMessage = (content: string) => {
+    const detected: { prod: Product; model: ProductModel }[] = [];
+    if (!content || !catalogProducts || catalogProducts.length === 0) return detected;
+    
+    // To prevent duplicate detections of the same model in a single message
+    const matchedModelIds = new Set<string>();
+
+    catalogProducts.forEach(prod => {
+      if (prod.models && Array.isArray(prod.models)) {
+        prod.models.forEach(model => {
+          if (!model.name) return;
+          
+          // Use word boundary regex to avoid partial matches
+          const escapedName = model.name.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+          const regex = new RegExp(`\\b${escapedName}\\b`, 'i');
+          
+          if (regex.test(content) && !matchedModelIds.has(model.id)) {
+            matchedModelIds.add(model.id);
+            detected.push({ prod, model });
+          }
+        });
+      }
+    });
+
+    return detected;
+  };
+
   return (
     <>
       {/* Floating Toggle Button */}
-      <div className="fixed bottom-6 right-6 z-[100] font-sans">
+      <div className="fixed bottom-6 right-6 z-[45] font-sans">
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
@@ -385,9 +657,18 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
             </span>
           </div>
 
-          <div className="absolute -top-1.5 -right-1 bg-amber-500 text-slate-950 font-black text-[8px] px-1.5 py-0.5 rounded-full uppercase tracking-widest animate-pulse border border-white">
-            IA
-          </div>
+          {messages.length > 1 && !isOpen && (
+            <span className="absolute -top-1 -right-1 flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500 border border-white"></span>
+            </span>
+          )}
+
+          {messages.length <= 1 && (
+            <div className="absolute -top-1.5 -right-1 bg-amber-500 text-slate-950 font-black text-[8px] px-1.5 py-0.5 rounded-full uppercase tracking-widest animate-pulse border border-white">
+              IA
+            </div>
+          )}
         </motion.button>
       </div>
 
@@ -399,7 +680,7 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 50, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className="fixed bottom-22 right-4 sm:right-6 w-[94vw] sm:w-[480px] h-[86vh] sm:h-[80vh] max-h-[820px] sm:max-h-[720px] bg-slate-900 border border-slate-800 rounded-2xl shadow-3xl flex flex-col overflow-hidden z-[99] text-white font-sans"
+            className="fixed bottom-22 right-4 sm:right-6 w-[94vw] sm:w-[480px] h-[86vh] sm:h-[80vh] max-h-[820px] sm:max-h-[720px] bg-slate-900 border border-slate-800 rounded-2xl shadow-3xl flex flex-col overflow-hidden z-[45] text-white font-sans"
           >
             {/* Header */}
             <div className="p-4 bg-gradient-to-r from-primary to-slate-850 border-b border-slate-800 flex items-center justify-between shadow-md">
@@ -415,11 +696,33 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                   <p className="text-[10px] text-slate-300 font-medium font-mono">DIMENSIONAMENTO E COMPATIBILIDADE</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-8 px-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 text-xs gap-1.5"
+                  className="h-8 px-1.5 sm:px-2 text-slate-300 hover:text-white text-xs gap-1 hover:bg-white/15"
+                  onClick={() => setCalcOpen(!calcOpen)}
+                  title="Calculadora"
+                >
+                  <Calculator className="h-3.5 w-3.5" />
+                  <span className="hidden xs:inline">Calculadora</span>
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 px-1.5 sm:px-2 text-green-400 hover:text-green-300 hover:bg-green-500/10 text-xs gap-1"
+                  onClick={() => handleOpenReport()}
+                  title="Gerar Relatório em Imagem"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  <span className="hidden xs:inline">Relatório</span>
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 px-1.5 sm:px-2 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 text-xs gap-1"
                   onClick={handleClearConversation}
                   title="Limpar Conversa"
                 >
@@ -427,21 +730,22 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                   <span className="hidden xs:inline">Limpar</span>
                 </Button>
 
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-8 px-2 text-slate-300 hover:text-white text-xs gap-1 hover:bg-white/15"
-                  onClick={() => setCalcOpen(!calcOpen)}
-                >
-                  <Calculator className="h-4 w-4" />
-                  <span className="hidden xs:inline">Calculadora</span>
-                </Button>
+                {/* Minimize Button - hides the container but persists conversation */}
                 <button
                   onClick={() => setIsOpen(false)}
-                  className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-800 transition-colors flex items-center justify-center"
-                  title="Fechar"
+                  className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-800 transition-colors flex items-center justify-center h-8 w-8"
+                  title="Minimizar (Mantém Conversa)"
                 >
-                  <X className="h-5 w-5" />
+                  <Minus className="h-4 w-4" />
+                </button>
+
+                {/* Close/End Button - triggers handleEndConversation (clears conversation and closes) */}
+                <button
+                  onClick={handleEndConversation}
+                  className="p-1.5 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-red-500/20 transition-colors flex items-center justify-center h-8 w-8"
+                  title="Encerrar Conversa"
+                >
+                  <X className="h-4 w-4" />
                 </button>
               </div>
             </div>
@@ -503,25 +807,24 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                     </div>
                   </div>
 
-                  <div className="flex gap-2 pt-1">
-                    <Button
-                      size="sm"
-                      className="flex-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold uppercase text-[10px]"
-                      onClick={runCalculation}
-                    >
-                      Calcular Produtividade
-                    </Button>
-                    {calcResult && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-slate-700 hover:bg-white/10 text-white font-extrabold uppercase text-[10px]"
-                        onClick={applyCalcToChat}
-                      >
-                        Enviar p/ Consultar IA
-                      </Button>
-                    )}
-                  </div>
+                      <div className="flex gap-2 pt-1">
+                        <Button
+                          size="sm"
+                          className="flex-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold uppercase text-[10px]"
+                          onClick={runCalculation}
+                        >
+                          Calcular Produtividade
+                        </Button>
+                        {calcResult && (
+                          <button
+                            onClick={applyCalcToChat}
+                            className="flex-1 flex items-center justify-center gap-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-extrabold uppercase text-[10px] py-1.5 px-3 rounded-lg transition"
+                            title="Enviar este cálculo para análise técnica detalhada no chat da IA"
+                          >
+                            Enviar p/ Consultar IA
+                          </button>
+                        )}
+                      </div>
 
                   {calcResult && (
                     <div className="p-2.5 bg-slate-900 border border-slate-850 rounded-lg grid grid-cols-3 gap-2 text-center">
@@ -559,8 +862,52 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                     }`}
                   >
                     {msg.role === 'assistant' ? (
-                      <div className="prose prose-invert max-w-none text-xs text-slate-200 space-y-2 markdown-body">
-                        <ReactMarkdown>{msg.content}</ReactMarkdown>
+                      <div className="space-y-3">
+                        <div className="prose prose-invert max-w-none text-xs text-slate-200 space-y-2 markdown-body">
+                          <ReactMarkdown>{msg.content}</ReactMarkdown>
+                        </div>
+                        
+                        {/* Dynamic Quick Action Buttons */}
+                        {(() => {
+                          const matchedEquip = detectEquipmentInMessage(msg.content);
+                          if (matchedEquip.length > 0 || idx > 0) {
+                            return (
+                              <div className="mt-3.5 pt-2.5 border-t border-slate-800 flex flex-col gap-2">
+                                {matchedEquip.length > 0 && (
+                                  <div className="flex flex-col gap-1.5">
+                                    <p className="text-[10px] text-amber-400 font-extrabold uppercase tracking-wider flex items-center gap-1">
+                                      <Sparkles className="h-3 w-3 text-amber-400" /> Indicações Rápidas Disponíveis:
+                                    </p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {matchedEquip.map(({ prod, model }) => (
+                                        <button
+                                          key={`${prod.id}-${model.id}`}
+                                          onClick={() => handleMakeIndication(prod, model)}
+                                          className="flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black uppercase text-[9px] py-1 px-2.5 rounded transition shadow-sm cursor-pointer"
+                                          title={`Clique para realizar indicação/orçamento oficial de ${prod.name} ${model.name}`}
+                                        >
+                                          <CheckCircle className="h-2.5 w-2.5" />
+                                          Indicar {prod.name} {model.name}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                <div className="flex items-center justify-between mt-1">
+                                  <button
+                                    onClick={() => handleOpenReport(msg.content, `Relatório de Análise Técnica - ${matchedEquip.length > 0 ? matchedEquip[0].model.name : 'Dimensionamento'}`)}
+                                    className="flex items-center gap-1 text-green-400 hover:text-green-300 font-extrabold text-[9.5px] uppercase tracking-wide transition hover:underline cursor-pointer"
+                                    title="Gerar e salvar imagem do relatório técnico oficial"
+                                  >
+                                    <FileText className="h-3 w-3" /> Gerar Relatório em Imagem
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
                     ) : (
                       <p className="whitespace-pre-wrap">{msg.content}</p>
@@ -857,8 +1204,7 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                       </div>
 
                       <div className="flex gap-2">
-                        <Button
-                          size="sm"
+                        <button
                           onClick={() => {
                             // Find matching model inside selectedProduct.models
                             const matchedModel = ((selectedProduct.models || []).find(m => {
@@ -871,13 +1217,12 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                             }) as ProductModel;
                             handleMakeIndication(selectedProduct, matchedModel);
                           }}
-                          className="flex-1 bg-primary hover:bg-primary/95 text-white font-extrabold text-[10px] uppercase py-2 rounded-xl"
+                          className="flex-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-[10px] uppercase py-2 px-3 rounded-xl transition duration-150 flex items-center justify-center gap-1 cursor-pointer border-0 shadow"
+                          title="Realizar orçamento e preencher automaticamente os dados do equipamento no formulário de Nova Indicação"
                         >
-                          Realizar Indicação / Orçamento
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
+                          <CheckCircle className="h-3 w-3" /> Indicar Equipamento
+                        </button>
+                        <button
                           onClick={() => {
                             // Send beautiful Technical Report text to the chat
                             const heights = calculateDischargeHeights(selectedCacambaModel, recommendedCacambaCap);
@@ -909,10 +1254,11 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
 *   **Instalação**: Se houver necessidade de montagem especializada pela fábrica, agende previamente com o setor técnico. Caso o cliente instale por conta própria, a entrega é faturada e despachada de imediato!`;
                             setMessages(prev => [...prev, { role: 'user', content: `Gerar Relatório de Dimensionamento da Caçamba para ${selectedCacambaBrand} ${selectedCacambaModel.model}` }, { role: 'assistant', content: reportText }]);
                           }}
-                          className="border-slate-700 hover:bg-white/10 text-white font-extrabold text-[10px] uppercase py-2 rounded-xl flex items-center gap-1"
+                          className="flex-1 bg-slate-800 hover:bg-slate-750 text-slate-100 hover:text-white border border-slate-700 font-extrabold text-[10px] uppercase py-2 rounded-xl transition duration-150 flex items-center justify-center gap-1.5 cursor-pointer"
+                          title="Clique para gerar e enviar o relatório técnico completo de dimensionamento e ganho de altura de descarga para o chat da IA"
                         >
-                          <FileText className="h-3 w-3" /> Relatório
-                        </Button>
+                          <FileText className="h-3.5 w-3.5 text-amber-500" /> Gerar Relatório
+                        </button>
                       </div>
                     </div>
                   )}
@@ -1229,6 +1575,116 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
               )}
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Real Roder Image Report Modal */}
+      <AnimatePresence>
+        {isReportOpen && (
+          <div className="fixed inset-0 z-[99999] overflow-y-auto bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-6 no-print-backdrop">
+            <div className="bg-slate-900 border border-slate-880 text-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] animate-in fade-in zoom-in-95 duration-200">
+              
+              {/* Header Controls */}
+              <div className="bg-slate-950 px-6 py-4 flex items-center justify-between border-b border-slate-800 shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="p-1 rounded-lg bg-primary/10 text-primary">
+                    <FileText className="h-5 w-5" />
+                  </span>
+                  <span className="font-extrabold text-sm tracking-tight text-white uppercase">{reportTitle}</span>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleDownloadReportPng}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-green-650 hover:bg-green-700 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-lg transition shadow cursor-pointer border-0"
+                    title="Baixar imagem em formato PNG para a galeria de fotos do celular"
+                  >
+                    <CheckCircle className="h-3.5 w-3.5" /> Salvar em Fotos (PNG)
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(reportContent.replace(/[*#]/g, ''));
+                      toast.success("Texto do relatório copiado para a área de transferência!");
+                    }}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-extrabold uppercase text-[10px] tracking-wider rounded-lg transition cursor-pointer"
+                    title="Copiar texto limpo para colar no WhatsApp"
+                  >
+                    Copiar Texto
+                  </button>
+
+                  <button 
+                    onClick={() => setIsReportOpen(false)}
+                    className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer border-0"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body with Preview */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-950/40 flex items-center justify-center">
+                
+                {/* Visual Report Container - This DOM element is converted to an image */}
+                <div 
+                  ref={reportRef}
+                  className="bg-white text-slate-900 w-full max-w-[800px] p-8 rounded-xl shadow-lg border border-slate-200 flex flex-col font-sans"
+                  style={{ width: '800px', minHeight: '500px' }}
+                >
+                  {/* Roder Logo Section */}
+                  <div className="flex items-center justify-between border-b-2 border-amber-500 pb-5 mb-6">
+                    <div className="flex items-center gap-4">
+                      <img 
+                        src={RODER_LOGO_BASE64} 
+                        alt="Roder Logo" 
+                        className="h-10 object-contain brightness-95" 
+                        referrerPolicy="no-referrer"
+                      />
+                      <div className="border-l-2 border-slate-300 pl-4">
+                        <h1 className="text-base font-black tracking-tight text-slate-900 uppercase">Consultoria Técnica Roder</h1>
+                        <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest font-mono">Relatório de Dimensionamento e Compatibilidade</p>
+                      </div>
+                    </div>
+                    <div className="text-right text-[10px] font-mono text-slate-500 font-semibold space-y-0.5">
+                      <p className="uppercase">Data: {new Date().toLocaleDateString('pt-BR')}</p>
+                      <p className="uppercase text-amber-600">Sistema: Roder Indica V2</p>
+                      <p className="uppercase">Validade Proposta: 60 Dias</p>
+                    </div>
+                  </div>
+
+                  {/* Report Main Content Area */}
+                  <div className="flex-1 min-h-[300px]">
+                    <h2 className="text-sm font-black text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-100 pb-1 flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-amber-500"></span>
+                      Especificações Técnicas & Recomendações
+                    </h2>
+                    
+                    <div className="prose prose-slate text-xs max-w-none text-slate-800 leading-relaxed space-y-3 font-medium">
+                      <ReactMarkdown>{reportContent}</ReactMarkdown>
+                    </div>
+                  </div>
+
+                  {/* Decorative stamp watermark and formal footer */}
+                  <div className="mt-8 pt-5 border-t border-slate-200 flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-[9px] font-mono text-slate-400 font-semibold">
+                      <span>© {new Date().getFullYear()} Roder Brasil</span>
+                      <span className="h-1 w-1 rounded-full bg-slate-300"></span>
+                      <span>Equipamentos Florestais e Industriais</span>
+                    </div>
+                    <div className="bg-amber-500/10 border border-amber-500/30 text-amber-700 text-[9px] font-black px-3 py-1 rounded uppercase tracking-wider font-mono">
+                      Equipamento Oficial Roder ✅
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Informative Help Footer inside Modal */}
+              <div className="bg-slate-950 p-4 border-t border-slate-800 text-center text-xs text-slate-400 shrink-0">
+                Pressione o botão <span className="text-green-400 font-bold">Salvar em Fotos</span> para fazer o download direto da imagem de alta definição. Você também pode copiar o texto limpo para colá-lo diretamente no WhatsApp do cliente.
+              </div>
+            </div>
+          </div>
         )}
       </AnimatePresence>
     </>
