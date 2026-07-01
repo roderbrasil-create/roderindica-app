@@ -332,6 +332,19 @@ export default function Commissions() {
       setLoading(false);
     });
 
+    // Real-time subscription to Mecânica Dias / Odair de Oliveira's custom persistent statement
+    const unsubscribeMecanica = onSnapshot(doc(db, 'monthly_statements', 'mecanica_dias_id'), (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        if (data.status) {
+          setMecanicaNfStatus(data.status);
+        }
+        if (data.paid_at !== undefined) {
+          setMecanicaPaidDate(data.paid_at);
+        }
+      }
+    });
+
     // Forecast data
     const qAll = profile.role === 'external_seller' 
       ? query(collection(db, 'commissions'), where('external_seller_uid', '==', profile.uid), orderBy('year', 'desc'), orderBy('month', 'desc'))
@@ -357,6 +370,7 @@ export default function Commissions() {
     return () => {
       unsubscribeComms();
       unsubscribeStatements();
+      unsubscribeMecanica();
     };
   }, [profile, selectedMonth, selectedYear]);
 
@@ -603,6 +617,16 @@ export default function Commissions() {
       // Sync the simulation of Maio/2026 for Mecânica Dias
       if (selectedPartnerPeriod.month === 5 && selectedPartnerPeriod.year === 2026) {
         setMecanicaNfStatus('waiting_payment');
+        await setDoc(doc(db, 'monthly_statements', 'mecanica_dias_id'), {
+          id: 'mecanica_dias_id',
+          seller_name: mecanicaProfile?.name || 'Mecânica Dias',
+          seller_uid: mecanicaProfile?.uid || 'mecanica_dias_uid',
+          total_value: 2267.07,
+          status: 'waiting_payment',
+          month: 5,
+          year: 2026,
+          updated_at: new Date().toISOString()
+        }, { merge: true });
       }
 
       toast.success('Nota fiscal confirmada com sucesso!');
@@ -1161,11 +1185,26 @@ export default function Commissions() {
                                       title: 'Comprovar Pagamento PIX (Simulado)',
                                       description: confirmMsg,
                                       confirmText: 'Sim, Confirmar Pagamento',
-                                      onConfirm: () => {
-                                        setMecanicaNfStatus('paid');
+                                      onConfirm: async () => {
                                         const today = format(new Date(), 'dd/MM/yyyy');
+                                        setMecanicaNfStatus('paid');
                                         setMecanicaPaidDate(`Pago em ${today}`);
-                                        toast.success("Pagamento de Mecânica Dias concluído com sucesso!");
+                                        try {
+                                          await setDoc(doc(db, 'monthly_statements', 'mecanica_dias_id'), {
+                                            id: 'mecanica_dias_id',
+                                            seller_name: mecanicaProfile?.name || 'Mecânica Dias',
+                                            seller_uid: mecanicaProfile?.uid || 'mecanica_dias_uid',
+                                            total_value: 2267.07,
+                                            status: 'paid',
+                                            paid_at: `Pago em ${today}`,
+                                            month: 5,
+                                            year: 2026,
+                                            updated_at: new Date().toISOString()
+                                          }, { merge: true });
+                                          toast.success("Pagamento de Mecânica Dias concluído com sucesso!");
+                                        } catch (err: any) {
+                                          toast.error("Erro ao salvar pagamento: " + err.message);
+                                        }
                                       }
                                     });
                                   }}
@@ -1181,9 +1220,24 @@ export default function Commissions() {
                                       title: 'Reverter Nota Fiscal (Simulado)',
                                       description: "Deseja realmente cancelar o recebimento desta Nota Fiscal para reverter o status de volta para 'Aguardando NF'?",
                                       confirmText: 'Reverter',
-                                      onConfirm: () => {
+                                      onConfirm: async () => {
                                         setMecanicaNfStatus('waiting_nf');
-                                        toast.info("Status de Mecânica Dias revertido para Aguardando NF!");
+                                        try {
+                                          await setDoc(doc(db, 'monthly_statements', 'mecanica_dias_id'), {
+                                            id: 'mecanica_dias_id',
+                                            seller_name: mecanicaProfile?.name || 'Mecânica Dias',
+                                            seller_uid: mecanicaProfile?.uid || 'mecanica_dias_uid',
+                                            total_value: 2267.07,
+                                            status: 'waiting_nf',
+                                            paid_at: null,
+                                            month: 5,
+                                            year: 2026,
+                                            updated_at: new Date().toISOString()
+                                          }, { merge: true });
+                                          toast.info("Status de Mecânica Dias revertido para Aguardando NF!");
+                                        } catch (err: any) {
+                                          toast.error("Erro ao reverter status: " + err.message);
+                                        }
                                       }
                                     });
                                   }}
@@ -1195,8 +1249,8 @@ export default function Commissions() {
                                 </Button>
                               </div>
                             )}
-
-                            {mecanicaNfStatus === 'paid' && (
+ 
+                             {mecanicaNfStatus === 'paid' && (
                               <div className="flex gap-1.5 items-center justify-center">
                                 <span className="text-[10px] text-green-500 font-extrabold flex items-center gap-1 italic">
                                   <CheckCircle2 className="h-3.5 w-3.5 text-green-500" /> Liquidado
@@ -1208,10 +1262,25 @@ export default function Commissions() {
                                       title: 'Reverter Pagamento PIX (Simulado)',
                                       description: "Deseja cancelar o pagamento que foi marcado por engano (fazer um teste) e reverter de volta para 'Pendente Pagamento'?",
                                       confirmText: 'Reverter',
-                                      onConfirm: () => {
+                                      onConfirm: async () => {
                                         setMecanicaNfStatus('waiting_payment');
                                         setMecanicaPaidDate(null);
-                                        toast.info("Pagamento cancelado e status revertido!");
+                                        try {
+                                          await setDoc(doc(db, 'monthly_statements', 'mecanica_dias_id'), {
+                                            id: 'mecanica_dias_id',
+                                            seller_name: mecanicaProfile?.name || 'Mecânica Dias',
+                                            seller_uid: mecanicaProfile?.uid || 'mecanica_dias_uid',
+                                            total_value: 2267.07,
+                                            status: 'waiting_payment',
+                                            paid_at: null,
+                                            month: 5,
+                                            year: 2026,
+                                            updated_at: new Date().toISOString()
+                                          }, { merge: true });
+                                          toast.info("Pagamento cancelado e status revertido!");
+                                        } catch (err: any) {
+                                          toast.error("Erro ao reverter pagamento: " + err.message);
+                                        }
                                       }
                                     });
                                   }}
@@ -2324,6 +2393,16 @@ export default function Commissions() {
                       try {
                         if (selectedStatement?.id === 'mecanica_dias_id' || selectedStatement?.seller_name === 'Mecânica Dias') {
                           setMecanicaNfStatus('waiting_payment');
+                          await setDoc(doc(db, 'monthly_statements', 'mecanica_dias_id'), {
+                            id: 'mecanica_dias_id',
+                            seller_name: mecanicaProfile?.name || 'Mecânica Dias',
+                            seller_uid: mecanicaProfile?.uid || 'mecanica_dias_uid',
+                            total_value: 2267.07,
+                            status: 'waiting_payment',
+                            month: 5,
+                            year: 2026,
+                            updated_at: new Date().toISOString()
+                          }, { merge: true });
                           toast.success("Nota Fiscal consolidada de Mecânica Dias dada como recebida!");
                         } else if (selectedStatement) {
                           const statementRef = doc(db, 'monthly_statements', selectedStatement.id);
@@ -2403,7 +2482,17 @@ export default function Commissions() {
                         }
                         if (selectedStatement?.id === 'mecanica_dias_id' || selectedStatement?.seller_name === 'Mecânica Dias') {
                           setMecanicaNfStatus('waiting_payment');
-                          toast.success("Nota Fiscal consolidada de Mecânica Dias anexada simuladamente!");
+                          await setDoc(doc(db, 'monthly_statements', 'mecanica_dias_id'), {
+                            id: 'mecanica_dias_id',
+                            seller_name: mecanicaProfile?.name || 'Mecânica Dias',
+                            seller_uid: mecanicaProfile?.uid || 'mecanica_dias_uid',
+                            total_value: 2267.07,
+                            status: 'waiting_payment',
+                            month: 5,
+                            year: 2026,
+                            updated_at: new Date().toISOString()
+                          }, { merge: true });
+                          toast.success("Nota Fiscal consolidada de Mecânica Dias anexada!");
                           setIsNFDialogOpen(false);
                         } else {
                           await submitNF();

@@ -15,6 +15,7 @@ import { RODER_LOGO_BASE64 } from '../catalog/RoderLogo';
 import { toPng } from 'html-to-image';
 
 interface Message {
+  id?: string;
   role: 'user' | 'assistant';
   content: string;
 }
@@ -117,11 +118,17 @@ export default function EngineerHelper() {
       const saved = sessionStorage.getItem('roder_helper_messages');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((m: any, idx: number) => ({
+            ...m,
+            id: m.id || `restored-${idx}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`
+          }));
+        }
       }
     } catch {}
     return [
       {
+        id: 'initial-welcome',
         role: 'assistant',
         content: 'Olá! Sou o **Consultor Técnico RODER** 🛠️. Estou aqui para ajudar você a dimensionar e indicar o equipamento Roder ideal para a sua máquina base (escavadeira, pá carregadeira ou trator), além de realizar cálculos de produtividade de garras florestais. Como posso te ajudar hoje?'
       }
@@ -494,6 +501,7 @@ export default function EngineerHelper() {
   const handleClearConversation = () => {
     const defaultMsg: Message[] = [
       {
+        id: `clear-${Date.now()}`,
         role: 'assistant',
         content: 'Olá! Conversa limpa. Sou o **Consultor Técnico RODER** 🛠️. Como posso te ajudar hoje?'
       }
@@ -539,6 +547,7 @@ export default function EngineerHelper() {
 
     setMessages([
       {
+        id: `end-${Date.now()}`,
         role: 'assistant',
         content: 'Olá! Sou o **Consultor Técnico RODER** 🛠️. Estou aqui para ajudar você a dimensionar e indicar o equipamento Roder ideal para a sua máquina base (escavadeira, pá carregadeira ou trator), além de realizar cálculos de produtividade de garras florestais. Como posso te ajudar hoje?'
       }
@@ -568,7 +577,8 @@ export default function EngineerHelper() {
     setExplorerMinimized(true);
 
     // Add user message
-    const updatedMessages = [...messages, { role: 'user', content: queryText } as Message];
+    const userMsgId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+    const updatedMessages = [...messages, { id: userMsgId, role: 'user', content: queryText } as Message];
     setMessages(updatedMessages);
     setLoading(true);
 
@@ -576,7 +586,7 @@ export default function EngineerHelper() {
       // Ask backend Gemini
       const response = await askEngineerHelper(
         queryText,
-        updatedMessages.slice(1, -1),
+        updatedMessages.slice(1, -1).map(({ role, content }) => ({ role, content })),
         {
           uid: user?.uid,
           name: profile?.name || user?.displayName || user?.email || 'Anônimo',
@@ -584,12 +594,15 @@ export default function EngineerHelper() {
           role: profile?.role || ''
         }
       );
-      setMessages(prev => [...prev, { role: 'assistant', content: response }]);
+      const assistantMsgId = `assistant-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+      setMessages(prev => [...prev, { id: assistantMsgId, role: 'assistant', content: response }]);
     } catch (err: any) {
       console.error('Error in Engineer Helper:', err);
+      const errMsgId = `err-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
       setMessages(prev => [
         ...prev,
         {
+          id: errMsgId,
           role: 'assistant',
           content: `⚠️ **Ops, ocorreu um erro ao conectar com o consultor técnico:** ${err.message || 'Por favor, tente novamente.'}`
         }
@@ -617,7 +630,7 @@ export default function EngineerHelper() {
     const queryText = messages[userMsgIdx].content;
     
     // O histórico é composto por todas as mensagens anteriores à pergunta do usuário (pulando o primeiro item se for saudação)
-    const history = messages.slice(1, userMsgIdx);
+    const history = messages.slice(1, userMsgIdx).map(({ role, content }) => ({ role, content }));
 
     // Remove a mensagem de erro e as mensagens seguintes do chat para manter a interface limpa
     const cleanedMessages = messages.slice(0, errorMsgIndex);
@@ -636,12 +649,15 @@ export default function EngineerHelper() {
           role: profile?.role || ''
         }
       );
-      setMessages(prev => [...prev, { role: 'assistant', content: response }]);
+      const assistantMsgId = `assistant-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+      setMessages(prev => [...prev, { id: assistantMsgId, role: 'assistant', content: response }]);
     } catch (err: any) {
       console.error('Error in Engineer Helper Retry:', err);
+      const errMsgId = `err-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
       setMessages(prev => [
         ...prev,
         {
+          id: errMsgId,
           role: 'assistant',
           content: `⚠️ **Ops, ocorreu um erro ao conectar com o consultor técnico:** ${err.message || 'Por favor, tente novamente.'}`
         }
@@ -871,7 +887,7 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
   return (
     <>
       {/* Floating Toggle Button */}
-      <div className="fixed bottom-6 right-6 z-[45] font-sans">
+      <div className="fixed bottom-6 right-6 z-[45] font-sans notranslate" translate="no">
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
@@ -919,7 +935,8 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 50, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className="fixed bottom-22 right-4 sm:right-6 w-[94vw] sm:w-[480px] h-[86vh] sm:h-[80vh] max-h-[820px] sm:max-h-[720px] bg-slate-900 border border-slate-800 rounded-2xl shadow-3xl flex flex-col overflow-hidden z-[45] text-white font-sans"
+            className="fixed bottom-22 right-4 sm:right-6 w-[94vw] sm:w-[480px] h-[86vh] sm:h-[80vh] max-h-[820px] sm:max-h-[720px] bg-slate-900 border border-slate-800 rounded-2xl shadow-3xl flex flex-col overflow-hidden z-[45] text-white font-sans notranslate"
+            translate="no"
           >
             {/* Header */}
             <div className="p-4 bg-gradient-to-r from-primary to-slate-850 border-b border-slate-800 flex items-center justify-between shadow-md">
@@ -1108,7 +1125,7 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
             <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-950/50 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
               {messages.map((msg, idx) => (
                 <div
-                  key={idx}
+                  key={msg.id || `msg-${idx}`}
                   id={`chat-message-${idx}`}
                   className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in duration-200`}
                 >
@@ -1549,7 +1566,13 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
 *   **Validação de Acessórios**: Sempre consulte o vendedor interno para verificar e precificar dentes, suportes ou ponteiras.
 *   **Kits de Instalação**: Verifique a necessidade de mangueiras adicionais, comandos ou conexões dedicadas na máquina base.
 *   **Instalação**: Se houver necessidade de montagem especializada pela fábrica, agende previamente com o setor técnico. Caso o cliente instale por conta própria, a entrega é faturada e despachada de imediato!`;
-                            setMessages(prev => [...prev, { role: 'user', content: `Gerar Relatório de Dimensionamento da Caçamba para ${selectedCacambaBrand} ${selectedCacambaModel.model}` }, { role: 'assistant', content: reportText }]);
+                            const userMsgId = `report-user-${Date.now()}`;
+                            const assistantMsgId = `report-assistant-${Date.now()}`;
+                            setMessages(prev => [
+                              ...prev,
+                              { id: userMsgId, role: 'user', content: `Gerar Relatório de Dimensionamento da Caçamba para ${selectedCacambaBrand} ${selectedCacambaModel.model}` },
+                              { id: assistantMsgId, role: 'assistant', content: reportText }
+                            ]);
                           }}
                           className="flex-1 bg-slate-800 hover:bg-slate-750 text-slate-100 hover:text-white border border-slate-700 font-extrabold text-[10px] uppercase py-2 rounded-xl transition duration-150 flex items-center justify-center gap-1.5 cursor-pointer"
                           title="Clique para gerar e enviar o relatório técnico completo de dimensionamento e ganho de altura de descarga para o chat da IA"

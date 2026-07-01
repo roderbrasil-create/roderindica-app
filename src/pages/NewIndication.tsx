@@ -560,9 +560,14 @@ export default function NewIndication() {
   const [isRecording, setIsRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [recordedMimeType, setRecordedMimeType] = useState<string>('audio/webm');
+  const [recordingType, setRecordingType] = useState<'click' | 'hold' | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const pressStartTimeRef = useRef<number>(0);
+  const isPressingRef = useRef<boolean>(false);
+  const isRecordingRef = useRef<boolean>(false);
+  const recordingTypeRef = useRef<'click' | 'hold' | null>(null);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -620,12 +625,15 @@ export default function NewIndication() {
     setFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const startRecording = async () => {
+  const startRecording = async (type: 'click' | 'hold' = 'click') => {
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         toast.error('Seu navegador não suporta gravação de áudio ou a conexão não é segura (HTTPS).');
         return;
       }
+
+      recordingTypeRef.current = type;
+      setRecordingType(type);
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
@@ -702,18 +710,105 @@ export default function NewIndication() {
       };
 
       mediaRecorder.start(1000);
+      isRecordingRef.current = true;
       setIsRecording(true);
+      
+      // If handleMouseUp changed the type to 'click' during the await of getUserMedia, keep it as 'click'
+      if (recordingTypeRef.current !== 'click') {
+        recordingTypeRef.current = type;
+        setRecordingType(type);
+      }
     } catch (err: any) {
       console.error("Error accessing microphone:", err);
       toast.error('Permissão de microfone negada ou erro ao iniciar áudio.');
+      recordingTypeRef.current = null;
+      setRecordingType(null);
+      isRecordingRef.current = false;
+      setIsRecording(false);
     }
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
+    if (mediaRecorderRef.current && isRecordingRef.current) {
       mediaRecorderRef.current.stop();
+      isRecordingRef.current = false;
       setIsRecording(false);
+      recordingTypeRef.current = null;
+      setRecordingType(null);
       mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+    }
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (transcribing) return;
+
+    if (isRecordingRef.current) {
+      if (recordingTypeRef.current === 'click') {
+        stopRecording();
+      }
+      return;
+    }
+
+    pressStartTimeRef.current = Date.now();
+    isPressingRef.current = true;
+    startRecording('hold');
+  };
+
+  const handleMouseUp = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!isPressingRef.current) return;
+    
+    isPressingRef.current = false;
+    const duration = Date.now() - pressStartTimeRef.current;
+    
+    if (duration > 500) {
+      stopRecording();
+    } else {
+      recordingTypeRef.current = 'click';
+      setRecordingType('click');
+    }
+  };
+
+  const handleMouseLeave = (e: React.MouseEvent) => {
+    if (isPressingRef.current) {
+      isPressingRef.current = false;
+      const duration = Date.now() - pressStartTimeRef.current;
+      if (duration > 500) {
+        stopRecording();
+      } else {
+        recordingTypeRef.current = 'click';
+        setRecordingType('click');
+      }
+    }
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (transcribing) return;
+
+    if (isRecordingRef.current) {
+      if (recordingTypeRef.current === 'click') {
+        stopRecording();
+      }
+      return;
+    }
+
+    pressStartTimeRef.current = Date.now();
+    isPressingRef.current = true;
+    startRecording('hold');
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!isPressingRef.current) return;
+    
+    isPressingRef.current = false;
+    const duration = Date.now() - pressStartTimeRef.current;
+    
+    if (duration > 500) {
+      stopRecording();
+    } else {
+      recordingTypeRef.current = 'click';
+      setRecordingType('click');
     }
   };
 
@@ -1722,21 +1817,30 @@ export default function NewIndication() {
                 </div>
                 
                 {/* Microfone recording with AI Speech-To-Text transcription */}
-                <div className="self-start sm:self-center">
+                <div className="flex flex-col items-center gap-1.5 self-start sm:self-center select-none">
                   <Button 
                     type="button"
                     variant={isRecording ? "destructive" : "outline"}
                     size="sm"
-                    onClick={isRecording ? stopRecording : startRecording}
+                    onMouseDown={handleMouseDown}
+                    onMouseUp={handleMouseUp}
+                    onMouseLeave={handleMouseLeave}
+                    onTouchStart={handleTouchStart}
+                    onTouchEnd={handleTouchEnd}
                     disabled={transcribing}
                     className={cn(
-                      "h-9 font-black uppercase text-[10px] tracking-wide gap-2 border-2 bg-white dark:bg-zinc-950 text-foreground",
-                      isRecording && "animate-pulse bg-red-650 hover:bg-red-700 text-white"
+                      "h-10 font-black uppercase text-[10px] tracking-wide gap-2 border-2 transition-all duration-200 cursor-pointer shadow-xs px-4 rounded-xl",
+                      isRecording 
+                        ? "animate-pulse bg-red-600 hover:bg-red-700 text-white border-red-600 shadow-red-500/20 shadow-md" 
+                        : "bg-white dark:bg-zinc-950 text-foreground border-border hover:bg-muted/10"
                     )}
                   >
                     {isRecording ? <Square className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5 text-primary" />}
-                    {isRecording ? 'Parar Gravação' : 'Gravar Áudio (IA Transcreve)'}
+                    {isRecording ? 'Gravando Áudio...' : 'Gravar Áudio'}
                   </Button>
+                  <span className="text-[10px] font-bold text-muted-foreground/80 tracking-wide select-none">
+                    {isRecording ? 'Clique para encerrar' : 'Clique para gravar'}
+                  </span>
                 </div>
               </div>
             </CardHeader>
@@ -1752,20 +1856,12 @@ export default function NewIndication() {
                 />
 
                 {/* Loading state indicator for speech to text */}
-                {(transcribing || isRecording) && (
+                {transcribing && (
                   <div className="absolute inset-0 pointer-events-none z-10 rounded-md">
-                    {transcribing && (
-                      <div className="absolute inset-0 bg-background/80 backdrop-blur-xs flex flex-col items-center justify-center rounded-md border border-primary/20 pointer-events-auto">
-                        <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
-                        <span className="text-xs font-black text-primary uppercase tracking-widest">IA Roder Transcrevendo...</span>
-                      </div>
-                    )}
-                    {isRecording && !transcribing && (
-                      <div className="absolute bottom-3 left-3 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-red-600 text-white text-[9px] font-black uppercase tracking-widest animate-pulse pointer-events-auto border-2 border-white/20 shadow-lg">
-                        <Mic className="h-3.5 w-3.5" />
-                        Capturando Voz...
-                      </div>
-                    )}
+                    <div className="absolute inset-0 bg-background/80 backdrop-blur-xs flex flex-col items-center justify-center rounded-md border border-primary/20 pointer-events-auto">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
+                      <span className="text-xs font-black text-primary uppercase tracking-widest">IA Roder Transcrevendo...</span>
+                    </div>
                   </div>
                 )}
               </div>
