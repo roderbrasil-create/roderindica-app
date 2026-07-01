@@ -482,24 +482,14 @@ export default function Commissions() {
         setSubmitting(true);
         try {
           const statementRef = doc(db, 'monthly_statements', statement.id);
-          
-          const sSnap = await getDocs(query(collection(db, 'monthly_statements'), where('__name__', '==', statement.id)));
-          
-          if (sSnap.empty) {
-            const { id, ...data } = statement;
-            await setDoc(statementRef, {
-              ...data,
-              status: 'paid',
-              paid_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            });
-          } else {
-            await updateDoc(statementRef, {
-              status: 'paid',
-              paid_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            });
-          }
+          const { id, ...data } = statement;
+          await setDoc(statementRef, {
+            ...data,
+            id: statement.id,
+            status: 'paid',
+            paid_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }, { merge: true });
 
           if (statement.commission_ids && statement.commission_ids.length > 0) {
             for (const commId of statement.commission_ids) {
@@ -794,20 +784,14 @@ export default function Commissions() {
       const url = await getDownloadURL(storageRef);
 
       const statementRef = doc(db, 'monthly_statements', selectedStatement.id);
-      await updateDoc(statementRef, {
+      const { id, ...data } = selectedStatement;
+      await setDoc(statementRef, {
+        ...data,
+        id: selectedStatement.id,
         nf_url: url,
         status: 'waiting_payment',
         updated_at: new Date().toISOString()
-      }).catch(async () => {
-        // Create if doesn't exist (first upload)
-        const { id, ...data } = selectedStatement;
-        await updateDoc(statementRef, {
-          ...data,
-          nf_url: url,
-          status: 'waiting_payment',
-          updated_at: new Date().toISOString()
-        });
-      });
+      }, { merge: true });
 
       toast.success('Nota Fiscal consolidada enviada com sucesso!');
       setIsNFDialogOpen(false);
@@ -828,12 +812,16 @@ export default function Commissions() {
       await uploadBytes(storageRef, paymentFile);
       const url = await getDownloadURL(storageRef);
 
-      await updateDoc(doc(db, 'monthly_statements', selectedStatement.id), {
+      const statementRef = doc(db, 'monthly_statements', selectedStatement.id);
+      const { id, ...data } = selectedStatement;
+      await setDoc(statementRef, {
+        ...data,
+        id: selectedStatement.id,
         payment_receipt_url: url,
         status: 'paid',
         paid_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
-      });
+      }, { merge: true });
 
       // Cascade status update to individual commissions
       if (selectedStatement.commission_ids && selectedStatement.commission_ids.length > 0) {
@@ -2406,17 +2394,13 @@ export default function Commissions() {
                           toast.success("Nota Fiscal consolidada de Mecânica Dias dada como recebida!");
                         } else if (selectedStatement) {
                           const statementRef = doc(db, 'monthly_statements', selectedStatement.id);
-                          await updateDoc(statementRef, {
+                          const { id, ...data } = selectedStatement;
+                          await setDoc(statementRef, {
+                            ...data,
+                            id: selectedStatement.id,
                             status: 'waiting_payment',
                             updated_at: new Date().toISOString()
-                          }).catch(async () => {
-                            const { id, ...data } = selectedStatement;
-                            await updateDoc(statementRef, {
-                              ...data,
-                              status: 'waiting_payment',
-                              updated_at: new Date().toISOString()
-                            });
-                          });
+                          }, { merge: true });
                           toast.success('Nota Fiscal consolidada marcada como recebida com sucesso!');
                         }
                         setIsNFDialogOpen(false);

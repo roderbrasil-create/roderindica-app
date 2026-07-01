@@ -31,6 +31,16 @@ import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
 
+const BUCKET_DIMENSIONS: Record<string, { a: string, b: string, c: string }> = {
+  '2.0': { a: '900', b: '2.400', c: '1.600' },
+  '2.5': { a: '1.125', b: '2.780', c: '1.800' },
+  '2.8': { a: '1.210', b: '2.786', c: '1.800' },
+  '3.0': { a: '1.295', b: '2.786', c: '1.800' },
+  '4.0': { a: '1.350', b: '2.800', c: '2.300' },
+  '5.0': { a: '1.360', b: '2.950', c: '2.700' },
+  '7.0': { a: '1.500', b: '2.950', c: '2.800' },
+};
+
 interface HighTipSelectorProps {
   onSelectModel?: (modelCapacity: string) => void;
   onViewFicha?: (modelCapacity: string) => void;
@@ -694,6 +704,25 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
                   <div className="flex justify-between border-b border-dashed border-border/20 pb-1">
                     <span className="text-muted-foreground font-semibold">Caçamba Original:</span>
                     <span className="font-extrabold text-foreground">{recommendation.machine.originalBucket}</span>
+                  </div>
+                </div>
+
+                {/* Bucket Dimensions Panel */}
+                <div className="mt-2.5 p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl antialiased">
+                  <p className="text-[9.5px] uppercase font-black text-slate-700 dark:text-slate-300 tracking-wider mb-1.5 px-1 border-b border-slate-200/60 dark:border-slate-800 pb-1">Dimensões da Caçamba Selecionada ({selectedBucket} m³)</p>
+                  <div className="grid grid-cols-3 gap-2 text-center text-[11px]">
+                    <div className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/60 shadow-sm">
+                      <p className="text-[8px] font-black text-muted-foreground uppercase leading-tight">Altura (A)</p>
+                      <p className="font-extrabold text-primary dark:text-orange-500 font-mono mt-0.5">{BUCKET_DIMENSIONS[selectedBucket]?.a || '-'} mm</p>
+                    </div>
+                    <div className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/60 shadow-sm">
+                      <p className="text-[8px] font-black text-muted-foreground uppercase leading-tight">Largura (B)</p>
+                      <p className="font-extrabold text-primary dark:text-orange-500 font-mono mt-0.5">{BUCKET_DIMENSIONS[selectedBucket]?.b || '-'} mm</p>
+                    </div>
+                    <div className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/60 shadow-sm">
+                      <p className="text-[8px] font-black text-muted-foreground uppercase leading-tight">Comprimento (C)</p>
+                      <p className="font-extrabold text-primary dark:text-orange-500 font-mono mt-0.5">{BUCKET_DIMENSIONS[selectedBucket]?.c || '-'} mm</p>
+                    </div>
                   </div>
                 </div>
 

@@ -808,7 +808,10 @@ export default function Catalog() {
             updateDoc(doc(db, 'products', cacambaHighTip.id), { is_blocked: false });
           }
           const hasCht70 = cacambaHighTip.models?.some((m: any) => m.id === 'cht-70');
-          if (!hasCht70 && data.length > 0) {
+          const hasChtMedidas = cacambaHighTip.models?.some((m: any) => m.technical_specs?.medida_a !== undefined);
+          const hasOldPeso = cacambaHighTip.models?.some((m: any) => m.technical_specs?.peso === 'A definir');
+          
+          if ((!hasCht70 || !hasChtMedidas || hasOldPeso) && data.length > 0) {
             addCacambaHighTip();
           }
         }
@@ -1466,9 +1469,12 @@ export default function Catalog() {
             images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp'],
             technical_specs: {
               capacidade: '2,0 m³',
-              peso: 'A definir',
+              peso: '1.000 kg',
               maquina_base: '8 a 10 Ton.',
-              tipo_material: 'Material leve e volumoso ou pesado em compactas'
+              tipo_material: 'Material leve e volumoso ou pesado em compactas',
+              medida_a: '900 mm',
+              medida_b: '2.400 mm',
+              medida_c: '1.600 mm'
             }
           },
           {
@@ -1478,9 +1484,12 @@ export default function Catalog() {
             images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp'],
             technical_specs: {
               capacidade: '2,5 m³',
-              peso: 'A definir',
+              peso: '1.800 kg',
               maquina_base: '10 a 12 Ton.',
-              tipo_material: 'Pesado / Médio em máquinas pequenas'
+              tipo_material: 'Pesado / Médio em máquinas pequenas',
+              medida_a: '1.125 mm',
+              medida_b: '2.780 mm',
+              medida_c: '1.800 mm'
             }
           },
           {
@@ -1490,9 +1499,12 @@ export default function Catalog() {
             images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp'],
             technical_specs: {
               capacidade: '2,8 m³',
-              peso: 'A definir',
+              peso: '1.800 kg',
               maquina_base: '12 a 14 Ton.',
-              tipo_material: 'Pesado / Médio em máquinas médias'
+              tipo_material: 'Pesado / Médio em máquinas médias',
+              medida_a: '1.210 mm',
+              medida_b: '2.786 mm',
+              medida_c: '1.800 mm'
             }
           },
           {
@@ -1502,9 +1514,12 @@ export default function Catalog() {
             images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp'],
             technical_specs: {
               capacidade: '3,0 m³',
-              peso: 'A definir',
+              peso: '1.800 kg',
               maquina_base: '10 a 12 Ton. (Leve) / 14 a 18 Ton. (Pesado)',
-              tipo_material: 'Leve (máf. pequenas) ou Pesado (máf. médias)'
+              tipo_material: 'Leve (máq. pequenas) ou Pesado (máq. médias)',
+              medida_a: '1.295 mm',
+              medida_b: '2.786 mm',
+              medida_c: '1.800 mm'
             }
           },
           {
@@ -1514,9 +1529,12 @@ export default function Catalog() {
             images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp'],
             technical_specs: {
               capacidade: '4,0 m³',
-              peso: 'A definir',
+              peso: '2.000 kg',
               maquina_base: '12 a 14 Ton. (Leve)',
-              tipo_material: 'Leve / Volumoso em máquinas médias'
+              tipo_material: 'Leve / Volumoso em máquinas médias',
+              medida_a: '1.350 mm',
+              medida_b: '2.800 mm',
+              medida_c: '2.300 mm'
             }
           },
           {
@@ -1526,9 +1544,12 @@ export default function Catalog() {
             images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp'],
             technical_specs: {
               capacidade: '5,0 m³',
-              peso: 'A definir',
+              peso: '2.200 kg',
               maquina_base: '14 a 18 Ton. (Leve)',
-              tipo_material: 'Leve / Altamente volumoso'
+              tipo_material: 'Leve / Altamente volumoso',
+              medida_a: '1.360 mm',
+              medida_b: '2.950 mm',
+              medida_c: '2.700 mm'
             }
           },
           {
@@ -1538,9 +1559,12 @@ export default function Catalog() {
             images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp'],
             technical_specs: {
               capacidade: '7,0 m³',
-              peso: 'A definir',
+              peso: '2.500 kg',
               maquina_base: '16 a 18 Ton. (Leve / Volumoso)',
-              tipo_material: 'Materiais extremamente leves (cavacos, serragem, casca de pinus)'
+              tipo_material: 'Materiais extremamente leves (cavacos, serragem, casca de pinus)',
+              medida_a: '1.500 mm',
+              medida_b: '2.950 mm',
+              medida_c: '2.800 mm'
             }
           }
         ]

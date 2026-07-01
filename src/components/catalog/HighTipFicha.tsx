@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { 
   X, 
   CheckCircle, 
@@ -7,13 +7,17 @@ import {
   TrendingUp, 
   AlertTriangle,
   Info,
-  Download
+  Download,
+  Upload,
+  RotateCcw
 } from 'lucide-react';
-import { MACHINES, MATERIALS, calculateDischargeHeights } from './HighTipData';
+import { MACHINES, MATERIALS, calculateDischargeHeights, getRecommendedBucket } from './HighTipData';
 import { RODER_LOGO_BASE64 } from './RoderLogo';
 import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
+import { db } from '../../lib/firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 interface HighTipFichaProps {
   onClose: () => void;
@@ -21,6 +25,81 @@ interface HighTipFichaProps {
 
 export function HighTipFicha({ onClose }: HighTipFichaProps) {
   const printRef = useRef<HTMLDivElement>(null);
+  const [customDrawingUrl, setCustomDrawingUrl] = useState<string | null>(null);
+  const [loadingDrawing, setLoadingDrawing] = useState(false);
+
+  useEffect(() => {
+    const fetchCustomDrawing = async () => {
+      try {
+        const docRef = doc(db, 'settings', 'high_tip_drawing');
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setCustomDrawingUrl(docSnap.data().image_data || null);
+        }
+      } catch (err) {
+        console.error('Erro ao buscar desenho técnico customizado:', err);
+      }
+    };
+    fetchCustomDrawing();
+  }, []);
+
+  const handleDrawingUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("O arquivo deve ter no máximo 2MB.");
+      return;
+    }
+
+    setLoadingDrawing(true);
+    const toastId = toast.loading("Enviando e processando desenho técnico...");
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64Data = reader.result as string;
+        
+        const docRef = doc(db, 'settings', 'high_tip_drawing');
+        await setDoc(docRef, {
+          image_data: base64Data,
+          created_at: new Date().toISOString()
+        });
+
+        setCustomDrawingUrl(base64Data);
+        toast.success("Desenho técnico atualizado com sucesso!", { id: toastId });
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao fazer upload do desenho técnico.", { id: toastId });
+    } finally {
+      setLoadingDrawing(false);
+    }
+  };
+
+  const handleResetDrawing = async () => {
+    if (!window.confirm("Deseja realmente restaurar o desenho técnico padrão?")) return;
+
+    setLoadingDrawing(true);
+    const toastId = toast.loading("Restaurando desenho padrão...");
+
+    try {
+      const docRef = doc(db, 'settings', 'high_tip_drawing');
+      await setDoc(docRef, {
+        image_data: null,
+        created_at: new Date().toISOString()
+      });
+
+      setCustomDrawingUrl(null);
+      toast.success("Desenho padrão restaurado com sucesso!", { id: toastId });
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao restaurar o desenho padrão.", { id: toastId });
+    } finally {
+      setLoadingDrawing(false);
+    }
+  };
 
   const handleDownloadPdf = async () => {
     const element = printRef.current;
@@ -128,7 +207,7 @@ export function HighTipFicha({ onClose }: HighTipFichaProps) {
                   <img 
                     src={RODER_LOGO_BASE64} 
                     alt="Roder" 
-                    className="h-11 object-contain brightness-100"
+                    className="h-11 object-contain brightness-0"
                     referrerPolicy="no-referrer"
                   />
                   <div>
@@ -225,6 +304,191 @@ export function HighTipFicha({ onClose }: HighTipFichaProps) {
                 </div>
               </div>
 
+              {/* Dimensionamento Técnico com Desenho */}
+              <div className="space-y-2">
+                <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-wider">Dimensionamento Técnico e Medidas</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center bg-slate-50 border border-slate-200 rounded-xl p-3">
+                  {/* Col 1: Desenho Técnico */}
+                  <div className="flex flex-col items-center justify-center bg-white border border-slate-100 rounded-lg p-2 h-[220px] relative group overflow-hidden shadow-sm">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Esquema de Dimensões (CAD)</span>
+                    
+                    {customDrawingUrl ? (
+                      <div className="w-full h-[180px] flex items-center justify-center bg-white rounded overflow-hidden">
+                        <img 
+                          src={customDrawingUrl} 
+                          alt="Dimensionamento Técnico High Tip" 
+                          className="max-w-full max-h-[175px] object-contain select-none"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+                    ) : (
+                      <svg viewBox="0 0 320 180" className="w-full h-[180px] max-w-[280px]">
+                        {/* Grid lines background */}
+                        <g stroke="#f1f5f9" strokeWidth="0.8">
+                          <line x1="10" y1="20" x2="310" y2="20" />
+                          <line x1="10" y1="50" x2="310" y2="50" />
+                          <line x1="10" y1="80" x2="310" y2="80" />
+                          <line x1="10" y1="110" x2="310" y2="110" />
+                          <line x1="10" y1="140" x2="310" y2="140" />
+                          <line x1="10" y1="170" x2="310" y2="170" />
+                          <line x1="40" y1="10" x2="40" y2="170" />
+                          <line x1="100" y1="10" x2="100" y2="170" />
+                          <line x1="160" y1="10" x2="160" y2="170" />
+                          <line x1="220" y1="10" x2="220" y2="170" />
+                          <line x1="280" y1="10" x2="280" y2="170" />
+                        </g>
+                        
+                        {/* Bucket outline */}
+                        <path d="M 60 40 L 70 120 L 160 120 Q 200 120 220 80 L 160 30 Q 150 25 140 30 L 110 40 Z" fill="#cbd5e1" stroke="#334155" strokeWidth="2" strokeLinejoin="round" />
+                        {/* Pivot points / arm attachment */}
+                        <circle cx="60" cy="50" r="6" fill="#64748b" stroke="#1e293b" strokeWidth="1.5" />
+                        <circle cx="65" cy="100" r="6" fill="#64748b" stroke="#1e293b" strokeWidth="1.5" />
+                        <path d="M 60 50 L 35 55 M 65 100 L 35 95" stroke="#475569" strokeWidth="2" strokeDasharray="2,2" />
+                        {/* High Tip Cylinders / mechanism */}
+                        <path d="M 70 120 L 100 130" stroke="#334155" strokeWidth="3" />
+                        <path d="M 160 120 L 220 75" fill="none" stroke="#1e293b" strokeWidth="1" strokeDasharray="2,2" />
+                        
+                        {/* Roder Embossed Logo */}
+                        <text x="120" y="80" fill="#475569" fontSize="12" fontWeight="900" letterSpacing="1" fontFamily="sans-serif">RODER</text>
+                        
+                        {/* DIMENSION LINES */}
+                        {/* Height A (Vertical arrow) */}
+                        <g stroke="#2563eb" strokeWidth="1.2">
+                          {/* Upper helper line */}
+                          <line x1="160" y1="30" x2="260" y2="30" stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="2,2" />
+                          {/* Lower helper line */}
+                          <line x1="160" y1="120" x2="260" y2="120" stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="2,2" />
+                          {/* Dimension line */}
+                          <line x1="250" y1="35" x2="250" y2="115" />
+                          {/* Arrowheads */}
+                          <polygon points="250,30 247,38 253,38" fill="#2563eb" stroke="none" />
+                          <polygon points="250,120 247,112 253,112" fill="#2563eb" stroke="none" />
+                        </g>
+                        <text x="260" y="80" fill="#2563eb" fontSize="11" fontWeight="bold">A</text>
+                        
+                        {/* Width B (Indicated on 3D or separately represented) */}
+                        {/* Front width B representation */}
+                        <g transform="translate(190, 120)">
+                          {/* Front view outline of bucket mouth */}
+                          <rect x="0" y="10" width="60" height="25" fill="#e2e8f0" stroke="#475569" strokeWidth="1.5" rx="3" />
+                          <line x1="0" y1="43" x2="60" y2="43" stroke="#2563eb" strokeWidth="1.2" />
+                          <polygon points="0,43 7,40 7,46" fill="#2563eb" stroke="none" />
+                          <polygon points="60,43 53,40 53,46" fill="#2563eb" stroke="none" />
+                          <text x="26" y="53" fill="#2563eb" fontSize="9" fontWeight="bold">B</text>
+                          <text x="14" y="25" fill="#64748b" fontSize="7" fontWeight="bold">VISTA FRONTAL</text>
+                        </g>
+
+                        {/* Length C (Pino até a faca/lâmina) */}
+                        <g stroke="#2563eb" strokeWidth="1.2">
+                          {/* Vertical helper line at pin */}
+                          <line x1="60" y1="50" x2="60" y2="160" stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="2,2" />
+                          {/* Vertical helper line at blade tip */}
+                          <line x1="220" y1="80" x2="220" y2="160" stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="2,2" />
+                          {/* Horizontal dimension line */}
+                          <line x1="65" y1="150" x2="215" y2="150" />
+                          {/* Arrowheads */}
+                          <polygon points="60,150 68,147 68,153" fill="#2563eb" stroke="none" />
+                          <polygon points="220,150 212,147 212,153" fill="#2563eb" stroke="none" />
+                        </g>
+                        <text x="135" y="145" fill="#2563eb" fontSize="11" fontWeight="bold">C</text>
+                      </svg>
+                    )}
+
+                    {/* Controles de upload flutuantes (no-print) */}
+                    <div className="absolute bottom-2 right-2 flex items-center gap-1.5 no-print opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200 bg-slate-900/90 backdrop-blur-sm p-1.5 rounded-lg border border-slate-700/50 shadow-md">
+                      <label className="cursor-pointer text-[10px] font-extrabold text-white hover:text-orange-400 flex items-center gap-1 px-2 py-1 rounded transition-colors" title="Substituir por seu desenho CAD real">
+                        <Upload className="h-3.5 w-3.5" />
+                        <span>Substituir Desenho</span>
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          className="hidden" 
+                          onChange={handleDrawingUpload}
+                          disabled={loadingDrawing}
+                        />
+                      </label>
+                      {customDrawingUrl && (
+                        <button 
+                          onClick={handleResetDrawing}
+                          disabled={loadingDrawing}
+                          className="text-[10px] font-extrabold text-slate-300 hover:text-red-400 flex items-center gap-1 px-2 py-1 rounded transition-colors border-l border-slate-700/60"
+                          title="Restaurar desenho vetorial padrão"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          <span>Padrão</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Col 2: Tabela de Medidas */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-[11px] border-collapse bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
+                      <thead>
+                        <tr className="bg-slate-100 text-slate-700 font-extrabold uppercase text-[9px] tracking-wider border-b border-slate-200">
+                          <th className="p-2 pl-3">Modelo</th>
+                          <th className="p-2 text-center">Altura A</th>
+                          <th className="p-2 text-center">Largura B</th>
+                          <th className="p-2 text-center">Comprimento C</th>
+                          <th className="p-2 pr-3 text-right">Peso Est.</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-slate-800 font-medium">
+                        <tr className="hover:bg-slate-50 transition-colors">
+                          <td className="p-1.5 pl-3 font-bold">2.0 m³</td>
+                          <td className="p-1.5 text-center font-mono">900 mm</td>
+                          <td className="p-1.5 text-center font-mono">2.400 mm</td>
+                          <td className="p-1.5 text-center font-mono">1.600 mm</td>
+                          <td className="p-1.5 pr-3 text-right font-bold text-slate-600">1.000 kg</td>
+                        </tr>
+                        <tr className="hover:bg-slate-50 transition-colors">
+                          <td className="p-1.5 pl-3 font-bold">2.5 m³</td>
+                          <td className="p-1.5 text-center font-mono">1.125 mm</td>
+                          <td className="p-1.5 text-center font-mono">2.780 mm</td>
+                          <td className="p-1.5 text-center font-mono">1.800 mm</td>
+                          <td className="p-1.5 pr-3 text-right font-bold text-slate-600">1.800 kg</td>
+                        </tr>
+                        <tr className="hover:bg-slate-50 transition-colors">
+                          <td className="p-1.5 pl-3 font-bold">2.8 m³</td>
+                          <td className="p-1.5 text-center font-mono">1.210 mm</td>
+                          <td className="p-1.5 text-center font-mono">2.786 mm</td>
+                          <td className="p-1.5 text-center font-mono">1.800 mm</td>
+                          <td className="p-1.5 pr-3 text-right font-bold text-slate-600">1.800 kg</td>
+                        </tr>
+                        <tr className="hover:bg-slate-50 transition-colors">
+                          <td className="p-1.5 pl-3 font-bold">3.0 m³</td>
+                          <td className="p-1.5 text-center font-mono">1.295 mm</td>
+                          <td className="p-1.5 text-center font-mono">2.786 mm</td>
+                          <td className="p-1.5 text-center font-mono">1.800 mm</td>
+                          <td className="p-1.5 pr-3 text-right font-bold text-slate-600">1.800 kg</td>
+                        </tr>
+                        <tr className="hover:bg-slate-50 transition-colors">
+                          <td className="p-1.5 pl-3 font-bold">4.0 m³</td>
+                          <td className="p-1.5 text-center font-mono">1.350 mm</td>
+                          <td className="p-1.5 text-center font-mono">2.800 mm</td>
+                          <td className="p-1.5 text-center font-mono">2.300 mm</td>
+                          <td className="p-1.5 pr-3 text-right font-bold text-slate-600">2.000 kg</td>
+                        </tr>
+                        <tr className="hover:bg-slate-50 transition-colors">
+                          <td className="p-1.5 pl-3 font-bold">5.0 m³</td>
+                          <td className="p-1.5 text-center font-mono">1.360 mm</td>
+                          <td className="p-1.5 text-center font-mono">2.950 mm</td>
+                          <td className="p-1.5 text-center font-mono">2.700 mm</td>
+                          <td className="p-1.5 pr-3 text-right font-bold text-slate-600">2.200 kg</td>
+                        </tr>
+                        <tr className="hover:bg-slate-50 transition-colors">
+                          <td className="p-1.5 pl-3 font-bold">7.0 m³</td>
+                          <td className="p-1.5 text-center font-mono">1.500 mm</td>
+                          <td className="p-1.5 text-center font-mono">2.950 mm</td>
+                          <td className="p-1.5 text-center font-mono">2.800 mm</td>
+                          <td className="p-1.5 pr-3 text-right font-bold text-slate-600">2.500 kg</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
               {/* Critical selection disclaimer */}
               <div className="p-4 bg-amber-500/5 border-l-4 border-amber-500 rounded-r-lg space-y-1.5">
                 <h4 className="font-extrabold text-xs text-slate-900 uppercase flex items-center gap-1">
@@ -294,7 +558,18 @@ export function HighTipFicha({ onClose }: HighTipFichaProps) {
               {/* Loader Compatibility Table */}
               <div className="space-y-2">
                 <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-wider">Tabela Oficial de Compatibilidade por Pás Carregadeiras</h3>
-                <p className="text-xs text-slate-500">Mapeamento comercial com base na capacidade volumétrica original e peso operacional.</p>
+                
+                <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-3 text-[11px] text-amber-950 leading-relaxed space-y-1">
+                  <p className="font-bold flex items-center gap-1.5 text-amber-800">
+                    <ShieldCheck className="h-4 w-4 text-amber-600 shrink-0" /> Nota de Segurança e Estabilidade Comercial (Cálculo de Esterço Ativo)
+                  </p>
+                  <p>
+                    Esta tabela oficial contempla o cálculo rigoroso de <strong>esterçamento ativo (segurança de manobra com redução de 15%)</strong>, capacidade limite de carga e limite de tombamento da máquina. Por conta disso, as recomendações abaixo representam a configuração <strong>mais segura e estável</strong> para cada modelo de pá carregadeira operando com cada classe de material.
+                  </p>
+                  <p className="text-slate-600 font-medium text-[10px]">
+                    * Para realizar simulações flexíveis ou cálculos de alta performance sem a restrição automática de esterço de segurança, utilize o <strong>Guia de Seleção Digital</strong> no painel interativo do aplicativo.
+                  </p>
+                </div>
                 
                 <div className="overflow-x-auto border border-slate-200 rounded-lg">
                   <table className="w-full text-left text-[11px] border-collapse">
@@ -312,9 +587,13 @@ export function HighTipFicha({ onClose }: HighTipFichaProps) {
                     </thead>
                     <tbody className="divide-y divide-slate-200 font-medium">
                       {MACHINES.map((m, idx) => {
-                        const lightH = calculateDischargeHeights(m, m.recommendedLight);
-                        const mediumH = calculateDischargeHeights(m, m.recommendedMedium);
-                        const heavyH = calculateDischargeHeights(m, m.recommendedHeavy);
+                        const recLight = getRecommendedBucket(m, 375, true);
+                        const recMedium = getRecommendedBucket(m, 800, true);
+                        const recHeavy = getRecommendedBucket(m, 1400, true);
+
+                        const lightH = calculateDischargeHeights(m, recLight);
+                        const mediumH = calculateDischargeHeights(m, recMedium);
+                        const heavyH = calculateDischargeHeights(m, recHeavy);
                         return (
                           <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
                             <td translate="no" className="p-1 pl-1.5 font-bold border-r border-slate-100 text-[10.5px] notranslate">{m.brand}</td>
@@ -326,17 +605,17 @@ export function HighTipFicha({ onClose }: HighTipFichaProps) {
                               <div className="text-[8px] text-slate-400 font-normal">Pino: {lightH.originalPinHeight.toFixed(2)}m</div>
                             </td>
                             <td className="p-1 text-center border-r border-slate-100 bg-emerald-500/5 text-[9.5px]">
-                              <div className="font-black text-emerald-700">{m.recommendedLight} m³</div>
+                              <div className="font-black text-emerald-700">{recLight.replace('.', ',')} m³</div>
                               <div className="text-[9px] text-emerald-600 font-black">Des.: {lightH.highTipDischargeHeight.toFixed(2)}m</div>
                               <div className="text-[7.5px] text-emerald-600 font-semibold">Ganho: +{lightH.gainHeight.toFixed(2)}m</div>
                             </td>
                             <td className="p-1 text-center border-r border-slate-100 bg-sky-500/5 text-[9.5px]">
-                              <div className="font-black text-sky-700">{m.recommendedMedium} m³</div>
+                              <div className="font-black text-sky-700">{recMedium.replace('.', ',')} m³</div>
                               <div className="text-[9px] text-sky-600 font-black">Des.: {mediumH.highTipDischargeHeight.toFixed(2)}m</div>
                               <div className="text-[7.5px] text-sky-600 font-semibold">Ganho: +{mediumH.gainHeight.toFixed(2)}m</div>
                             </td>
                             <td className="p-1 text-center bg-amber-500/5 text-[9.5px]">
-                              <div className="font-black text-amber-700">{m.recommendedHeavy} m³</div>
+                              <div className="font-black text-amber-700">{recHeavy.replace('.', ',')} m³</div>
                               <div className="text-[9px] text-amber-600 font-black">Des.: {heavyH.highTipDischargeHeight.toFixed(2)}m</div>
                               <div className="text-[7.5px] text-amber-600 font-semibold">Ganho: +{heavyH.gainHeight.toFixed(2)}m</div>
                             </td>

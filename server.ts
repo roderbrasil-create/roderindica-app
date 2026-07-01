@@ -241,10 +241,43 @@ async function startServer() {
   app.use("/uploads", express.static(uploadsDir));
 
   // API routes
-  app.get("/api/health", (req, res) => {
-    res.json({ 
-      status: "ok"
-    });
+  app.get("/api/health", async (req, res) => {
+    const hasGeminiKey = !!process.env.GEMINI_API_KEY;
+    const hasServiceAccount = !!(process.env.FIREBASE_SERVICE_ACCOUNT || fs.existsSync(path.join(process.cwd(), 'firebase-service-account.json')));
+    
+    if (!hasGeminiKey || !hasServiceAccount) {
+      console.warn(`[HEALTHCHECK] Server is not fully credentialed! hasGeminiKey: ${hasGeminiKey}, hasServiceAccount: ${hasServiceAccount}`);
+      return res.status(500).json({ 
+        status: "error", 
+        message: "Missing environment variables or credentials.",
+        hasGeminiKey,
+        hasServiceAccount
+      });
+    }
+
+    try {
+      // Query Firestore settings with a tight 3-second timeout to prevent server hanging
+      const testPromise = db.collection('settings').doc('email').get();
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Firestore check timed out")), 3000)
+      );
+      
+      await Promise.race([testPromise, timeoutPromise]);
+      
+      res.json({ 
+        status: "ok",
+        hasGeminiKey: true,
+        hasServiceAccount: true
+      });
+    } catch (dbErr: any) {
+      console.error("[HEALTHCHECK] Firestore connectivity check failed:", dbErr.message);
+      return res.status(500).json({ 
+        status: "error", 
+        message: "Firestore check failed: " + dbErr.message,
+        hasGeminiKey,
+        hasServiceAccount
+      });
+    }
   });
 
   app.get("/api/admin/dump-history", async (req, res) => {
@@ -1063,136 +1096,155 @@ async function startServer() {
         case "engineerHelper": {
           const { question, chatHistory } = args;
           
-          // Load approved corrections/improved questions to serve as a custom knowledge base
+          // Initialize contexts
           let improvedKnowledgeContext = "";
-          try {
-            const improvedSnap = await db.collection('roder_ai_questions')
-              .where('isImproved', '==', true)
-              .get();
-            
-            if (!improvedSnap.empty) {
-              const items: string[] = [];
-              improvedSnap.forEach(doc => {
-                const qData = doc.data();
-                items.push(`- Pergunta Similar: "${qData.question}"\n  Resposta Correta/Aprimorada a ser usada: "${qData.improvedAnswer}"`);
-              });
-              improvedKnowledgeContext = `\n\n11. BASE DE CONHECIMENTO ADICIONAL (CORREÇÕES APROVADAS PELA GERÊNCIA/ADMINISTRAÇÃO):\nUse as orientações abaixo se a pergunta do usuário for similar a estas dúvidas mapeadas de forma prioritária para dar a resposta correta:\n${items.join("\n")}`;
-            }
-          } catch (err) {
-            console.warn("Could not load improved questions context:", err);
-          }
-          
           let productsContext = "";
           let stockContext = "";
-          try {
-            const colRef = db.collection('products');
-            const snap = await colRef.get();
-            const productsList: any[] = [];
-            
-            const FALLBACK_PRODUCT_IMAGES: Record<string, string> = {
-              "Cabeçote Multifuncional": "https://roderbrasil.com.br/wp-content/uploads/2021/06/Cabecote-Multifuncional-Roder.jpg",
-              "CMF 600": "https://roderbrasil.com.br/wp-content/uploads/2021/06/Cabecote-Multifuncional-Roder.jpg",
-              "CMF 500": "https://roderbrasil.com.br/wp-content/uploads/2021/06/Cabecote-Multifuncional-Roder.jpg",
-              "CMF 800": "https://roderbrasil.com.br/wp-content/uploads/2021/06/Cabecote-Multifuncional-Roder.jpg",
-              "Garra Florestal": "https://roderbrasil.com.br/wp-content/uploads/2021/05/garra-florestal-roder.jpg",
-              "Garras Florestais": "https://roderbrasil.com.br/wp-content/uploads/2021/05/garra-florestal-roder.jpg",
-              "Feller de Disco": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-feller-de-disco.jpg.webp",
-              "Destocador Tipo Broca": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/destocador.jpg.webp",
-              "Feller Tesoura": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Feller-Tesoura.jpg.webp",
-              "Garra Traçadora": "https://roderbrasil.com.br/wp-content/uploads/2021/05/garra-florestal-roder.jpg",
-              "Mini Skidder": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-mini-skidder.jpg.webp",
-              "Carregador frontal": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-carregador-frontal.jpg.webp",
-              "Caçamba High Tip": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp",
-              "Garra Frontal": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Garra-Frontal.jpg.webp",
-              "Garra para Estufagem": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Garra-para-Estufagem-giratoria.jpg.webp",
-              "Desbastador Florestal": "https://roderbrasil.com.br/wp-content/uploads/2021/05/triturador-florestal-fae.jpg"
-            };
-
-            snap.forEach(doc => {
-              const data = doc.data();
-              const productImg = data.image_url || FALLBACK_PRODUCT_IMAGES[data.name] || "";
-              const modelsList = (data.models || []).map((m: any) => {
-                const specs = m.technical_specs || {};
-                const specStr = Object.entries(specs)
-                  .map(([k, v]) => `${k}: ${v}`)
-                  .join(", ");
-                const modelImg = (m.images && m.images.length > 0) ? m.images[0] : (productImg || FALLBACK_PRODUCT_IMAGES[m.name] || "");
-                return `- Modelo: ${m.name || 'S/N'} (ID: ${m.id || 'S/I'})${m.productivity_text ? ` | Produtividade: ${m.productivity_text}` : ''}${modelImg ? ` | Imagem: ${modelImg}` : ''} | Specs: [${specStr}]`;
-              }).join("\n  ");
-              
-              productsList.push(`Equipamento: ${data.name}\nCategoria: ${data.category}\nDescrição: ${data.description}${productImg ? `\nImagem Principal do Equipamento: ${productImg}` : ''}\nModelos:\n  ${modelsList || "Nenhum modelo cadastrado"}`);
-            });
-            
-            productsContext = productsList.join("\n\n");
-          } catch (err: any) {
-            console.error("[engineerHelper] Erro ao buscar produtos para o contexto da IA:", err);
-            productsContext = "Não foi possível carregar os produtos do catálogo neste momento.";
-          }
-
-          try {
-            const stockRef = db.collection('stock_items');
-            const stockSnap = await stockRef.get();
-            const stockList: string[] = [];
-            
-            stockSnap.forEach(doc => {
-              const data = doc.data();
-              if (data.quantity > 0) {
-                stockList.push(`- Código: ${data.code || 'S/C'} | ${data.description} | Qtd em Estoque: ${data.quantity} | Filial: ${data.branch || 'Matriz'}`);
-              }
-            });
-            
-            stockContext = stockList.join("\n");
-          } catch (err: any) {
-            console.error("[engineerHelper] Erro ao buscar estoque:", err);
-            stockContext = "Não foi possível carregar os itens em estoque no momento.";
-          }
-
           let accessoriesContext = "";
-          try {
-            const accSnap = await db.collection('accessories').get();
-            const accList: any[] = [];
-            if (!accSnap.empty) {
-              accSnap.forEach(doc => {
-                const d = doc.data();
-                accList.push(d);
-              });
-            } else {
-              accList.push(...ACCESSORIES_DATA);
-            }
-            
-            accessoriesContext = accList.map(item => {
-              return `Marca: ${item.brand} | Modelo: ${item.model} | Pino: ${item.pin || 'S/N'} | Ponteira Biela 4": ${item.ponteira_biela_4 || 'Não possui'} | Ponteira Biela 6": ${item.ponteira_biela_6 || 'Não possui'} | Suporte Destocador: ${item.suporte_destocador || 'Não possui'} | Suporte Triturador: ${item.suporte_triturador || 'Não possui'} | Link Garra Biela 6": ${item.link_garra_biela_6 || 'Não possui'} | Link Garra Biela 4": ${item.link_garra_biela_4 || 'Não possui'}`;
-            }).join("\n");
-          } catch (err: any) {
-            console.error("[engineerHelper] Erro ao buscar acessórios:", err);
-            accessoriesContext = ACCESSORIES_DATA.map(item => {
-              return `Marca: ${item.brand} | Modelo: ${item.model} | Pino: ${item.pin || 'S/N'} | Ponteira Biela 4": ${item.ponteira_biela_4 || 'Não possui'} | Ponteira Biela 6": ${item.ponteira_biela_6 || 'Não possui'} | Suporte Destocador: ${item.suporte_destocador || 'Não possui'} | Suporte Triturador: ${item.suporte_triturador || 'Não possui'} | Link Garra Biela 6": ${item.link_garra_biela_6 || 'Não possui'} | Link Garra Biela 4": ${item.link_garra_biela_4 || 'Não possui'}`;
-            }).join("\n");
-          }
-
           let kitsContext = "";
+
           try {
-            const kitsSnap = await db.collection('installation_kits').get();
-            const kitsList: any[] = [];
-            if (!kitsSnap.empty) {
-              kitsSnap.forEach(doc => {
-                const d = doc.data();
-                kitsList.push(d);
-              });
+            const [
+              improvedSnapResult,
+              productsSnapResult,
+              stockSnapResult,
+              accessoriesSnapResult,
+              kitsSnapResult
+            ] = await Promise.allSettled([
+              db.collection('roder_ai_questions').where('isImproved', '==', true).get(),
+              db.collection('products').get(),
+              db.collection('stock_items').get(),
+              db.collection('accessories').get(),
+              db.collection('installation_kits').get()
+            ]);
+
+            // 1. Process improved questions
+            if (improvedSnapResult.status === 'fulfilled') {
+              const improvedSnap = improvedSnapResult.value;
+              if (!improvedSnap.empty) {
+                const items: string[] = [];
+                improvedSnap.forEach((doc: any) => {
+                  const qData = doc.data();
+                  items.push(`- Pergunta Similar: "${qData.question}"\n  Resposta Correta/Aprimorada a ser usada: "${qData.improvedAnswer}"`);
+                });
+                improvedKnowledgeContext = `\n\n11. BASE DE CONHECIMENTO ADICIONAL (CORREÇÕES APROVADAS PELA GERÊNCIA/ADMINISTRAÇÃO):\nUse as orientações abaixo se a pergunta do usuário for similar a estas dúvidas mapeadas de forma prioritária para dar a resposta correta:\n${items.join("\n")}`;
+              }
             } else {
-              kitsList.push(...INSTALLATION_KITS);
+              console.warn("Could not load improved questions context:", improvedSnapResult.reason);
             }
-            
-            kitsContext = kitsList.map(kit => {
-              const itemLines = (kit.items || []).map((it: any) => `  - Código Item: ${it.code} | Descrição: ${it.description} | Qtd: ${it.quantity}`).join("\n");
-              return `Kit Código: ${kit.code} | Descrição: ${kit.description}\nItens:\n${itemLines || "  (Nenhum item)"}`;
-            }).join("\n\n");
-          } catch (err: any) {
-            console.error("[engineerHelper] Erro ao buscar kits de instalação:", err);
-            kitsContext = INSTALLATION_KITS.map(kit => {
-              const itemLines = (kit.items || []).map((it: any) => `  - Código Item: ${it.code} | Descrição: ${it.description} | Qtd: ${it.quantity}`).join("\n");
-              return `Kit Código: ${kit.code} | Descrição: ${kit.description}\nItens:\n${itemLines || "  (Nenhum item)"}`;
-            }).join("\n\n");
+
+            // 2. Process products
+            if (productsSnapResult.status === 'fulfilled') {
+              const snap = productsSnapResult.value;
+              const productsList: any[] = [];
+              
+              const FALLBACK_PRODUCT_IMAGES: Record<string, string> = {
+                "Cabeçote Multifuncional": "https://roderbrasil.com.br/wp-content/uploads/2021/06/Cabecote-Multifuncional-Roder.jpg",
+                "CMF 600": "https://roderbrasil.com.br/wp-content/uploads/2021/06/Cabecote-Multifuncional-Roder.jpg",
+                "CMF 500": "https://roderbrasil.com.br/wp-content/uploads/2021/06/Cabecote-Multifuncional-Roder.jpg",
+                "CMF 800": "https://roderbrasil.com.br/wp-content/uploads/2021/06/Cabecote-Multifuncional-Roder.jpg",
+                "Garra Florestal": "https://roderbrasil.com.br/wp-content/uploads/2021/05/garra-florestal-roder.jpg",
+                "Garras Florestais": "https://roderbrasil.com.br/wp-content/uploads/2021/05/garra-florestal-roder.jpg",
+                "Feller de Disco": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-feller-de-disco.jpg.webp",
+                "Destocador Tipo Broca": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/destocador.jpg.webp",
+                "Feller Tesoura": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Feller-Tesoura.jpg.webp",
+                "Garra Traçadora": "https://roderbrasil.com.br/wp-content/uploads/2021/05/garra-florestal-roder.jpg",
+                "Mini Skidder": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-mini-skidder.jpg.webp",
+                "Carregador frontal": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-carregador-frontal.jpg.webp",
+                "Caçamba High Tip": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp",
+                "Garra Frontal": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Garra-Frontal.jpg.webp",
+                "Garra para Estufagem": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Garra-para-Estufagem-giratoria.jpg.webp",
+                "Desbastador Florestal": "https://roderbrasil.com.br/wp-content/uploads/2021/05/triturador-florestal-fae.jpg"
+              };
+
+              snap.forEach((doc: any) => {
+                const data = doc.data();
+                const productImg = data.image_url || FALLBACK_PRODUCT_IMAGES[data.name] || "";
+                const modelsList = (data.models || []).map((m: any) => {
+                  const specs = m.technical_specs || {};
+                  const specStr = Object.entries(specs)
+                    .map(([k, v]) => `${k}: ${v}`)
+                    .join(", ");
+                  const modelImg = (m.images && m.images.length > 0) ? m.images[0] : (productImg || FALLBACK_PRODUCT_IMAGES[m.name] || "");
+                  return `- Modelo: ${m.name || 'S/N'} (ID: ${m.id || 'S/I'})${m.productivity_text ? ` | Produtividade: ${m.productivity_text}` : ''}${modelImg ? ` | Imagem: ${modelImg}` : ''} | Specs: [${specStr}]`;
+                }).join("\n  ");
+                
+                productsList.push(`Equipamento: ${data.name}\nCategoria: ${data.category}\nDescrição: ${data.description}${productImg ? `\nImagem Principal do Equipamento: ${productImg}` : ''}\nModelos:\n  ${modelsList || "Nenhum modelo cadastrado"}`);
+              });
+              
+              productsContext = productsList.join("\n\n");
+            } else {
+              console.error("[engineerHelper] Erro ao buscar produtos para o contexto da IA:", productsSnapResult.reason);
+              productsContext = "Não foi possível carregar os produtos do catálogo neste momento.";
+            }
+
+            // 3. Process stock items
+            if (stockSnapResult.status === 'fulfilled') {
+              const stockSnap = stockSnapResult.value;
+              const stockList: string[] = [];
+              
+              stockSnap.forEach((doc: any) => {
+                const data = doc.data();
+                if (data.quantity > 0) {
+                  stockList.push(`- Código: ${data.code || 'S/C'} | ${data.description} | Qtd em Estoque: ${data.quantity} | Filial: ${data.branch || 'Matriz'}`);
+                }
+              });
+              
+              stockContext = stockList.join("\n");
+            } else {
+              console.error("[engineerHelper] Erro ao buscar estoque:", stockSnapResult.reason);
+              stockContext = "Não foi possível carregar os itens em estoque no momento.";
+            }
+
+            // 4. Process accessories
+            if (accessoriesSnapResult.status === 'fulfilled') {
+              const accSnap = accessoriesSnapResult.value;
+              const accList: any[] = [];
+              if (!accSnap.empty) {
+                accSnap.forEach((doc: any) => {
+                  const d = doc.data();
+                  accList.push(d);
+                });
+              } else {
+                accList.push(...ACCESSORIES_DATA);
+              }
+              
+              accessoriesContext = accList.map(item => {
+                return `Marca: ${item.brand} | Modelo: ${item.model} | Pino: ${item.pin || 'S/N'} | Ponteira Biela 4": ${item.ponteira_biela_4 || 'Não possui'} | Ponteira Biela 6": ${item.ponteira_biela_6 || 'Não possui'} | Suporte Destocador: ${item.suporte_destocador || 'Não possui'} | Suporte Triturador: ${item.suporte_triturador || 'Não possui'} | Link Garra Biela 6": ${item.link_garra_biela_6 || 'Não possui'} | Link Garra Biela 4": ${item.link_garra_biela_4 || 'Não possui'}`;
+              }).join("\n");
+            } else {
+              console.error("[engineerHelper] Erro ao buscar acessórios:", accessoriesSnapResult.reason);
+              accessoriesContext = ACCESSORIES_DATA.map(item => {
+                return `Marca: ${item.brand} | Modelo: ${item.model} | Pino: ${item.pin || 'S/N'} | Ponteira Biela 4": ${item.ponteira_biela_4 || 'Não possui'} | Ponteira Biela 6": ${item.ponteira_biela_6 || 'Não possui'} | Suporte Destocador: ${item.suporte_destocador || 'Não possui'} | Suporte Triturador: ${item.suporte_triturador || 'Não possui'} | Link Garra Biela 6": ${item.link_garra_biela_6 || 'Não possui'} | Link Garra Biela 4": ${item.link_garra_biela_4 || 'Não possui'}`;
+              }).join("\n");
+            }
+
+            // 5. Process installation kits
+            if (kitsSnapResult.status === 'fulfilled') {
+              const kitsSnap = kitsSnapResult.value;
+              const kitsList: any[] = [];
+              if (!kitsSnap.empty) {
+                kitsSnap.forEach((doc: any) => {
+                  const d = doc.data();
+                  kitsList.push(d);
+                });
+              } else {
+                kitsList.push(...INSTALLATION_KITS);
+              }
+              
+              kitsContext = kitsList.map(kit => {
+                const itemLines = (kit.items || []).map((it: any) => `  - Código Item: ${it.code} | Descrição: ${it.description} | Qtd: ${it.quantity}`).join("\n");
+                return `Kit Código: ${kit.code} | Descrição: ${kit.description}\nItens:\n${itemLines || "  (Nenhum item)"}`;
+              }).join("\n\n");
+            } else {
+              console.error("[engineerHelper] Erro ao buscar kits de instalação:", kitsSnapResult.reason);
+              kitsContext = INSTALLATION_KITS.map(kit => {
+                const itemLines = (kit.items || []).map((it: any) => `  - Código Item: ${it.code} | Descrição: ${it.description} | Qtd: ${it.quantity}`).join("\n");
+                return `Kit Código: ${kit.code} | Descrição: ${kit.description}\nItens:\n${itemLines || "  (Nenhum item)"}`;
+              }).join("\n\n");
+            }
+          } catch (promiseAllErr) {
+            console.error("[engineerHelper] Ocorreu um erro no Promise.all de carregamento:", promiseAllErr);
           }
 
           const contents: any[] = [];
@@ -1252,6 +1304,18 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
      • Para escavadeira de 8 toneladas para ALIMENTAÇÃO DE PICADOR: Recomendamos a Garra R280. Ela oferece o melhor dimensionamento e estabilidade para esta aplicação.
      • Para escavadeira de 8 toneladas para CARREGAMENTO OU DESCARREGAMENTO com madeiras de até 3 metros de comprimento: Pode ser indicada a Garra R360, porém a mais compatível continua sendo a Garra R280 para garantir a melhor estabilidade da máquina.
      • Catálogo de Garras Florestais Roder Oficiais: R250 (5-8t), R280 (6-10t), R360 (8-12t), R400 (12-18t), R600 (14-22t), R800 (18-25t), R1000 (22-30t), R1200 (24-35t), R1400 (25-35t).
+      • DIRETRIZ CRÍTICA DE DIMENSIONAMENTO PARA ESCAVADEIRAS DE 16 TONELADAS (como John Deere 160) - RECOMENDE GARRAS R400, R600 E R800:
+        Se a máquina base for uma escavadeira de cerca de 16 toneladas (por exemplo, John Deere 160 LC ou similar), siga rigorosamente as seguintes indicações técnicas estabelecidas por Jeff Roder:
+        - Apresente e compare detalhadamente a Garra R400 e a Garra R600 como os modelos principais compatíveis para esta máquina base, e explique que a Garra R800 também é viável sob condições de operação específicas.
+        - Quando citar qualquer uma dessas garras (R400, R600, R800) em suas respostas ou relatórios, você é OBRIGADO a exibir as especificações técnicas completas de cada modelo presentes no catálogo (especificando peso, abertura máxima, área de carga, diâmetro mínimo de tora e pressão de trabalho).
+        - Você DEVE obrigatoriamente incluir a imagem correspondente da garra florestal Roder no texto e no relatório usando a sintaxe Markdown:
+          
+          ![Garra Florestal Roder](https://roderbrasil.com.br/wp-content/uploads/2021/05/garra-florestal-roder.jpg)
+          
+          (Insira a imagem em sua própria linha, com uma quebra de linha antes e depois, para renderizar perfeitamente no chat e no relatório).
+        - **Indicação da Garra R800**: Explique que para este porte de máquina (16 toneladas), também é possível colocar a Garra R800. Destaque que alguns clientes utilizam a Garra R800 especificamente para realizar o carregamento de madeira curta de no máximo 3 metros de comprimento.
+        - **Indicação da Garra R600**: Destaque que para madeiras mais longas, como por exemplo madeira de 6 metros de comprimento, a Garra R600 é uma excelente escolha técnica para a operação de carregamento, pois garante melhor equilíbrio da carga e ótima estabilidade para a máquina base de 16t.
+        - **Indicação da Garra R400**: Destaque que a Garra R400, por ser um pouco menor e mais leve, é a mais indicada para realizar o abastecimento e alimentação de picadores de biomassa/madeira. Explique que o volume de madeira não pode ser excessivo para a boca de alimentação do picador, e a garra R400 por não ser tão grande trabalha de forma mais ágil e versátil, evitando bater ou colidir fisicamente com a boca/calha de alimentação do picador durante as manobras.
    - DIRETRIZ CRÍTICA DE ROTATOR HIDRÁULICO PARA GARRAS FLORESTAIS:
      • Quando falar ou indicar garras florestais, você deve sempre lembrar e destacar no texto que a Roder indica e dimensiona o **Rotator hidráulico** (o mecanismo que realiza o giro de 360° da garra) de acordo com o tamanho/peso operacional da MÁQUINA BASE que será utilizada, e NÃO somente verificando a compatibilidade da garra!
      • Explique didaticamente ao vendedor: "Tão importante quanto o tamanho da garra é o tamanho/peso operacional da máquina base para o cálculo correto da recomendação do Rotator hidráulico."
