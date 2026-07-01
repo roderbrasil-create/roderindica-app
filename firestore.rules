@@ -341,6 +341,10 @@ service cloud.firestore {
       allow read, write: if isAuthenticated();
     }
 
+    match /monthly_statements/{statementId} {
+      allow read, write: if isAuthenticated();
+    }
+
     match /equipment_dossiers/{dossierId} {
       allow read, write: if isAuthenticated() && (isAdmin() || isManager() || request.auth.token.email.lower() == "roderbrasil@gmail.com");
     }

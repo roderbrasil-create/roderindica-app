@@ -292,6 +292,10 @@
     "/financial_dashboard_months/{monthId}": {
       "schema": "financial_dashboard_months",
       "description": "Monthly compiled financial KPIs and uploaded files status for Matriz, Filial Sinop, and Consolidado."
+    },
+    "/monthly_statements/{statementId}": {
+      "schema": "object",
+      "description": "Store for monthly consolidated statements/reports for partners/sellers commissions."
     }
   }
 }

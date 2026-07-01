@@ -388,7 +388,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     { id: 'dashboard', name: 'Dashboard', path: '/', icon: LayoutDashboard, roles: ['admin', 'manager', 'internal_seller', 'triagem', 'external_seller', 'vendedor_padrao', 'financial', 'marketing'] },
     { id: 'new_indication', name: 'Nova Indicação', path: '/indicacoes/nova', icon: PlusCircle, roles: ['external_seller', 'vendedor_padrao', 'admin', 'manager', 'internal_seller'] },
     { id: 'catalog', name: 'Catálogo de Equipamentos', path: '/catalogo', icon: BookOpen, roles: ['admin', 'manager', 'internal_seller', 'triagem', 'external_seller', 'vendedor_padrao', 'marketing'] },
-    { id: 'products_stock', name: 'Estoque Roder', path: '/estoque', icon: Package, roles: ['admin', 'manager', 'internal_seller', 'triagem', 'financial', 'marketing'] },
+    { id: 'products_stock', name: 'Estoque Roder', path: '/estoque', icon: Package, roles: ['admin', 'manager', 'internal_seller', 'triagem', 'financial', 'marketing', 'external_seller', 'vendedor_padrao'] },
     { id: 'my_sales', name: 'Minhas Indicações', path: '/indicacoes', icon: Filter, roles: ['external_seller', 'vendedor_padrao'] },
     { 
       id: 'fairs',
@@ -452,7 +452,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     },
     { id: 'configurations', name: 'Configurações', path: '/admin', icon: Settings, roles: ['admin', 'manager', 'triagem', 'marketing'] },
     { id: 'trash', name: 'Lixeira Segura', path: '/lixeira', icon: Trash2, roles: ['admin', 'manager'] },
-    { id: 'comissoes_ext', name: 'Comissões', path: '/comissoes', icon: DollarSign, roles: ['external_seller', 'vendedor_padrao'] },
+    { id: 'comissoes_ext', name: 'Comissões', path: '/comissoes', icon: DollarSign, roles: ['external_seller'] },
     { id: 'reports', name: 'Relatórios', path: '/relatorios', icon: BarChart3, roles: ['admin', 'manager', 'financial'] },
     { id: 'profile', name: 'Minha Conta', path: '/perfil', icon: User, roles: ['admin', 'manager', 'internal_seller', 'triagem', 'external_seller', 'vendedor_padrao', 'financial', 'marketing'] },
   ], [pendingTriageCount, fairsMenuOpen, financialMenuOpen, comercialMenuOpen, technicalMenuOpen, isExternalSeller, isRegionalSeller]);
@@ -498,7 +498,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
         if (role === 'manager') return isManager;
         if (role === 'triagem') return isTriagem;
         if (role === 'internal_seller') return isInternalSeller;
-        if (role === 'external_seller') return isExternalSeller || isRegionalSeller;
+        if (role === 'external_seller') return isExternalSeller;
         if (role === 'vendedor_padrao') return isRegionalSeller;
         if (role === 'financial' || role === 'finance') return isFinancial;
         if (role === 'marketing') return isMarketing;

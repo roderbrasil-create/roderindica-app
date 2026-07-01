@@ -1835,10 +1835,18 @@ export default function NewIndication() {
                         : "bg-white dark:bg-zinc-950 text-foreground border-border hover:bg-muted/10"
                     )}
                   >
-                    {isRecording ? <Square className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5 text-primary" />}
-                    {isRecording ? 'Gravando Áudio...' : 'Gravar Áudio'}
+                    <span key={isRecording ? "rec-active" : "rec-inactive"} className="flex items-center gap-2 pointer-events-none">
+                      {isRecording ? (
+                        <Square className="h-3.5 w-3.5 shrink-0" />
+                      ) : (
+                        <Mic className="h-3.5 w-3.5 text-primary shrink-0" />
+                      )}
+                      <span>
+                        {isRecording ? 'Gravando Áudio...' : 'Gravar Áudio'}
+                      </span>
+                    </span>
                   </Button>
-                  <span className="text-[10px] font-bold text-muted-foreground/80 tracking-wide select-none">
+                  <span key={isRecording ? "hint-active" : "hint-inactive"} className="text-[10px] font-bold text-muted-foreground/80 tracking-wide select-none">
                     {isRecording ? 'Clique para encerrar' : 'Clique para gravar'}
                   </span>
                 </div>

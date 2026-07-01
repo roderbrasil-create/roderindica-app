@@ -292,38 +292,40 @@ export default function EngineerHelper() {
       return;
     }
 
+    const savedTitle = knowledgeTitle.trim();
+    const savedText = knowledgeText.trim();
+
     const toastId = toast.loading('Salvando e ensinando o Consultor Roder IA...');
     try {
-      // 1. Add to roder_ai_questions
+      // 1. Add to roder_ai_questions (Immediate saving)
       await addDoc(collection(db, 'roder_ai_questions'), {
-        question: knowledgeTitle.trim(),
-        improvedAnswer: knowledgeText.trim(),
+        question: savedTitle,
+        improvedAnswer: savedText,
         isImproved: true,
         timestamp: new Date().toISOString(),
         source: 'Base de Conhecimento Direta',
         author: user?.email || 'Consultor Técnico'
       });
 
-      // 2. Perform intelligent auto-enrichment of product dossiers
-      try {
-        const enrichResult = await analyzeAndEnrichProductDossier(
-          knowledgeTitle.trim(),
-          knowledgeText.trim()
-        );
-        
-        if (enrichResult && enrichResult.matched) {
-          toast.success(`Incrível! Detectei que este ensino refere-se ao equipamento "${enrichResult.productName}" (Modelo ${enrichResult.modelName}) e atualizei automaticamente o dossiê técnico na categoria "${enrichResult.classifiedField === 'compatibility_notes' ? 'Compatibilidade' : enrichResult.classifiedField === 'choice_reason' ? 'Motivos de Escolha' : enrichResult.classifiedField === 'productivity_info' ? 'Produtividade' : 'Descrição do Dossiê'}"!`, {
-            duration: 10000
-          });
-        }
-      } catch (enrichErr) {
-        console.error("Auto-enrichment error (non-blocking):", enrichErr);
-      }
-
+      // Show success toast and clear fields immediately
       toast.success('Conhecimento salvo com sucesso! O Consultor Roder IA já aprendeu essa instrução.', { id: toastId });
       setKnowledgeTitle('');
       setKnowledgeText('');
       fetchRecentTeachings();
+
+      // 2. Perform intelligent auto-enrichment of product dossiers (Asynchronously in background to avoid any blocking/hanging on mobile)
+      analyzeAndEnrichProductDossier(savedTitle, savedText)
+        .then((enrichResult) => {
+          if (enrichResult && enrichResult.matched) {
+            toast.success(`Incrível! Detectei que este ensino refere-se ao equipamento "${enrichResult.productName}" (Modelo ${enrichResult.modelName}) e atualizei automaticamente o dossiê técnico na categoria "${enrichResult.classifiedField === 'compatibility_notes' ? 'Compatibilidade' : enrichResult.classifiedField === 'choice_reason' ? 'Motivos de Escolha' : enrichResult.classifiedField === 'productivity_info' ? 'Produtividade' : 'Descrição do Dossiê'}"!`, {
+              duration: 10000
+            });
+          }
+        })
+        .catch((enrichErr) => {
+          console.error("Auto-enrichment background error (non-blocking):", enrichErr);
+        });
+
     } catch (error) {
       console.error("Error saving knowledge to Firebase:", error);
       toast.error('Erro ao salvar no banco de dados. Verifique a conexão.', { id: toastId });

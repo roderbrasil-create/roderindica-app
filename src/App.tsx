@@ -284,7 +284,7 @@ function AppContent() {
                 } />
 
                 <Route path="/estoque" element={
-                  <PrivateRoute roles={['admin', 'manager', 'internal_seller', 'triagem', 'financial', 'marketing']}>
+                  <PrivateRoute roles={['admin', 'manager', 'internal_seller', 'triagem', 'financial', 'marketing', 'external_seller', 'vendedor_padrao']}>
                     <Stock />
                   </PrivateRoute>
                 } />

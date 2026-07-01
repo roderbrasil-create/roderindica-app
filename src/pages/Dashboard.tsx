@@ -1090,7 +1090,7 @@ export default function Dashboard() {
 
             {/* Quick Actions - Top Priority for External */}
             {showQuickActions && (
-              <div className="grid grid-cols-5 gap-1 md:gap-4 pb-2 overflow-hidden px-0.5">
+              <div className={cn("grid gap-1 md:gap-4 pb-2 overflow-hidden px-0.5", isRegionalSeller ? "grid-cols-4" : "grid-cols-5")}>
                 <QuickActionCard 
                   title="Nova Indicação" 
                   icon={PlusCircle} 
@@ -1102,7 +1102,7 @@ export default function Dashboard() {
                   title="Estoque" 
                   icon={Share2} 
                   color="bg-orange-600" 
-                  link="/estoque-publico" 
+                  link="/estoque" 
                 />
                 <QuickActionCard 
                   title="Catálogo" 
@@ -1116,20 +1116,22 @@ export default function Dashboard() {
                   color="bg-orange-500" 
                   link="/indicacoes" 
                 />
-                {isInternalSeller ? (
-                  <QuickActionCard 
-                    title="Central de Negócios" 
-                    icon={Briefcase} 
-                    color="bg-yellow-500" 
-                    link="/indicacoes" 
-                  />
-                ) : (
-                  <QuickActionCard 
-                    title="Comissões" 
-                    icon={DollarSign} 
-                    color="bg-yellow-500" 
-                    link="/comissoes" 
-                  />
+                {!isRegionalSeller && (
+                  isInternalSeller ? (
+                    <QuickActionCard 
+                      title="Central de Negócios" 
+                      icon={Briefcase} 
+                      color="bg-yellow-500" 
+                      link="/indicacoes" 
+                    />
+                  ) : (
+                    <QuickActionCard 
+                      title="Comissões" 
+                      icon={DollarSign} 
+                      color="bg-yellow-500" 
+                      link="/comissoes" 
+                    />
+                  )
                 )}
               </div>
             )}
@@ -1183,7 +1185,7 @@ export default function Dashboard() {
               )}
 
               {/* Goals Card - Motivation */}
-              {showGoals && (
+              {showGoals && !isRegionalSeller && (
                 <Card className="bg-card border-border shadow-sm flex flex-col h-full overflow-hidden border-l-4 border-l-yellow-500">
                 <CardHeader className="p-3 pb-1 border-b border-border/30 bg-muted/20">
                   <CardTitle className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5">
@@ -1352,7 +1354,7 @@ export default function Dashboard() {
                   title="Estoque Roder" 
                   icon={Share2} 
                   color="bg-orange-600" 
-                  link="/estoque-publico" 
+                  link="/estoque" 
                 />
                 <QuickActionCard 
                   title="Catálogo de Equipamentos" 
@@ -2445,7 +2447,7 @@ export default function Dashboard() {
               </Card>
             )}
 
-            {(!profile?.permissions?.dashboard_cards || profile.permissions.dashboard_cards.commissions_summary !== false) && (
+            {(!profile?.permissions?.dashboard_cards || profile.permissions.dashboard_cards.commissions_summary !== false) && !isRegionalSeller && (
               <Card className="bg-card border-border shadow-sm">
                 <CardHeader className="p-4 md:p-6">
                   <CardTitle className="text-lg font-bold">Resumo Financeiro</CardTitle>
