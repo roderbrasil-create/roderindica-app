@@ -19,6 +19,54 @@
     <meta name="theme-color" content="#f97316" />
     <script>
       (function() {
+        // Polyfill localStorage & sessionStorage in iframe/sandbox environments where third-party access is blocked
+        function checkAndPolyfillStorage(type) {
+          try {
+            var storage = window[type];
+            var testKey = '__storage_test__';
+            storage.setItem(testKey, testKey);
+            storage.removeItem(testKey);
+          } catch (e) {
+            console.warn('[StoragePolyfill] Redefining ' + type + ' because native access threw an error:', e);
+            var mockData = {};
+            var mockStorage = {
+              setItem: function(key, val) {
+                mockData[key] = String(val);
+              },
+              getItem: function(key) {
+                return mockData.hasOwnProperty(key) ? mockData[key] : null;
+              },
+              removeItem: function(key) {
+                delete mockData[key];
+              },
+              clear: function() {
+                mockData = {};
+              },
+              key: function(index) {
+                var keys = Object.keys(mockData);
+                return keys[index] || null;
+              }
+            };
+            Object.defineProperty(mockStorage, 'length', {
+              get: function() {
+                return Object.keys(mockData).length;
+              },
+              configurable: true
+            });
+            try {
+              Object.defineProperty(window, type, {
+                value: mockStorage,
+                writable: true,
+                configurable: true
+              });
+            } catch (err) {
+              console.error('[StoragePolyfill] Failed to define custom property on window.' + type + ':', err);
+            }
+          }
+        }
+        checkAndPolyfillStorage('localStorage');
+        checkAndPolyfillStorage('sessionStorage');
+
         // Unregister service workers immediately in development to prevent caching issues/blank screens
         // We keep it disabled on localhost and active dev sandbox, but allow it on preview/production (ais-pre and cloud run urls)
         var isDev = window.location.hostname.includes('ais-dev') || 
@@ -40,14 +88,18 @@
         }
 
         // Force refresh if version mismatch (simple versioning)
-        var CURRENT_VERSION = '2.4.0'; // Match APP_VERSION in App.tsx
-        var savedVersion = localStorage.getItem('app_version');
-        if (savedVersion !== CURRENT_VERSION) {
-          localStorage.setItem('app_version', CURRENT_VERSION);
-          // Only reload if it was already loaded once to avoid loops
-          if (savedVersion) {
-            window.location.reload(true);
+        try {
+          var CURRENT_VERSION = '2.4.0'; // Match APP_VERSION in App.tsx
+          var savedVersion = localStorage.getItem('app_version');
+          if (savedVersion !== CURRENT_VERSION) {
+            localStorage.setItem('app_version', CURRENT_VERSION);
+            // Only reload if it was already loaded once to avoid loops
+            if (savedVersion) {
+              window.location.reload(true);
+            }
           }
+        } catch (e) {
+          console.warn('[DevHelper] Version check ignored:', e);
         }
 
         try {

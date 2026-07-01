@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, MessageSquare, X, Minus, Send, Calculator, Wrench, HelpCircle, AlertTriangle, Play, RefreshCw, Trash2, ChevronLeft, ChevronRight, CheckCircle, Package, Layers, Tractor, FileText, Mic, Square, Loader2 } from 'lucide-react';
+import { Sparkles, MessageSquare, X, Minus, Send, Calculator, Wrench, HelpCircle, AlertTriangle, Play, RefreshCw, Trash2, ChevronLeft, ChevronRight, CheckCircle, Package, Layers, Tractor, FileText, Mic, Square, Loader2, Brain, BookOpen } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, addDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { askEngineerHelper, transcribeAudio } from '../../services/geminiService';
+import { askEngineerHelper, transcribeAudio, analyzeAndEnrichProductDossier } from '../../services/geminiService';
 import { useAuth } from '../../contexts/AuthContext';
 import ReactMarkdown from 'react-markdown';
 import { Button } from '../ui/button';
@@ -21,7 +21,8 @@ interface Message {
 
 export default function EngineerHelper() {
   const navigate = useNavigate();
-  const { user, profile } = useAuth();
+  const { user, profile, isAdmin, isManager } = useAuth();
+  const canTeach = isAdmin || isManager || user?.email === 'roderbrasil@gmail.com';
   
   // Persistent state loaded from sessionStorage on mount
   const [isOpen, setIsOpen] = useState(() => {
@@ -155,6 +156,172 @@ export default function EngineerHelper() {
   const [reportContent, setReportContent] = useState('');
   const [reportTitle, setReportTitle] = useState('Relatório de Dimensionamento Técnico');
   const reportRef = useRef<HTMLDivElement>(null);
+
+  // States and Handlers for Knowledge Base ("Ensinar Roder IA")
+  const [knowledgeOpen, setKnowledgeOpen] = useState(false);
+  const [knowledgeTitle, setKnowledgeTitle] = useState('');
+  const [knowledgeText, setKnowledgeText] = useState('');
+  const [recentTeachings, setRecentTeachings] = useState<any[]>([]);
+  const [loadingTeachings, setLoadingTeachings] = useState(false);
+  const [isTeachingRecording, setIsTeachingRecording] = useState(false);
+  const [isTeachingTranscribing, setIsTeachingTranscribing] = useState(false);
+  const teachingMediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const teachingAudioChunksRef = useRef<Blob[]>([]);
+
+  const fetchRecentTeachings = async () => {
+    setLoadingTeachings(true);
+    try {
+      const qSnap = await getDocs(
+        query(collection(db, 'roder_ai_questions'), orderBy('timestamp', 'desc'))
+      );
+      const items: any[] = [];
+      qSnap.forEach(doc => {
+        const data = doc.data();
+        if (data.isImproved) {
+          items.push({ id: doc.id, ...data });
+        }
+      });
+      setRecentTeachings(items.slice(0, 5));
+    } catch (err) {
+      console.error("Error fetching teachings:", err);
+    } finally {
+      setLoadingTeachings(false);
+    }
+  };
+
+  const startTeachingRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const types = [
+        'audio/webm', 
+        'audio/mp4', 
+        'audio/mpeg', 
+        'audio/ogg;codecs=opus', 
+        'audio/ogg', 
+        'audio/wav', 
+        'audio/aac'
+      ];
+      let mimeType = '';
+      for (const type of types) {
+        if (MediaRecorder.isTypeSupported(type)) {
+          mimeType = type;
+          break;
+        }
+      }
+      
+      const typeToUse = mimeType || '';
+      const options = typeToUse ? { mimeType: typeToUse } : {};
+      const mediaRecorder = new MediaRecorder(stream, options);
+      teachingMediaRecorderRef.current = mediaRecorder;
+      teachingAudioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) teachingAudioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        if (teachingAudioChunksRef.current.length === 0) {
+          toast.error('Nenhum áudio capturado.');
+          setIsTeachingTranscribing(false);
+          return;
+        }
+
+        const finalType = typeToUse || teachingAudioChunksRef.current[0].type || 'audio/webm';
+        const audioBlob = new Blob(teachingAudioChunksRef.current, { type: finalType });
+        setIsTeachingTranscribing(true);
+        
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = async () => {
+          const resultStr = reader.result?.toString() || '';
+          const base64data = resultStr.split(',')[1];
+          
+          if (base64data) {
+            try {
+              toast.loading('Convertendo sua fala em conhecimento escrito...', { id: 'teaching-transcribe' });
+              const transcription = await transcribeAudio(base64data, finalType, 'chat');
+              toast.dismiss('teaching-transcribe');
+              
+              if (transcription && !transcription.startsWith("Erro na transcrição")) {
+                toast.success('Fala convertida com sucesso!');
+                setKnowledgeText(prev => prev ? prev + '\n' + transcription : transcription);
+              } else {
+                toast.error(transcription || 'A IA não conseguiu entender a fala.');
+              }
+            } catch (error: any) {
+              toast.dismiss('teaching-transcribe');
+              console.error("Transcription error:", error);
+              toast.error('Erro de rede na transcrição.');
+            }
+          }
+          setIsTeachingTranscribing(false);
+        };
+      };
+
+      mediaRecorder.start(1000);
+      setIsTeachingRecording(true);
+      toast.success('Gravando sua voz para ensinar a IA...');
+    } catch (err: any) {
+      console.error("Error accessing microphone for teaching:", err);
+      toast.error('Permissão de microfone negada ou erro ao iniciar áudio.');
+    }
+  };
+
+  const stopTeachingRecording = () => {
+    if (teachingMediaRecorderRef.current && isTeachingRecording) {
+      teachingMediaRecorderRef.current.stop();
+      setIsTeachingRecording(false);
+      teachingMediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+    }
+  };
+
+  const handleSaveKnowledge = async () => {
+    if (!knowledgeTitle.trim()) {
+      toast.error('Por favor, informe o título do tópico ou pergunta relacionada.');
+      return;
+    }
+    if (!knowledgeText.trim()) {
+      toast.error('Por favor, digite ou grave a explicação técnica correspondente.');
+      return;
+    }
+
+    const toastId = toast.loading('Salvando e ensinando o Consultor Roder IA...');
+    try {
+      // 1. Add to roder_ai_questions
+      await addDoc(collection(db, 'roder_ai_questions'), {
+        question: knowledgeTitle.trim(),
+        improvedAnswer: knowledgeText.trim(),
+        isImproved: true,
+        timestamp: new Date().toISOString(),
+        source: 'Base de Conhecimento Direta',
+        author: user?.email || 'Consultor Técnico'
+      });
+
+      // 2. Perform intelligent auto-enrichment of product dossiers
+      try {
+        const enrichResult = await analyzeAndEnrichProductDossier(
+          knowledgeTitle.trim(),
+          knowledgeText.trim()
+        );
+        
+        if (enrichResult && enrichResult.matched) {
+          toast.success(`Incrível! Detectei que este ensino refere-se ao equipamento "${enrichResult.productName}" (Modelo ${enrichResult.modelName}) e atualizei automaticamente o dossiê técnico na categoria "${enrichResult.classifiedField === 'compatibility_notes' ? 'Compatibilidade' : enrichResult.classifiedField === 'choice_reason' ? 'Motivos de Escolha' : enrichResult.classifiedField === 'productivity_info' ? 'Produtividade' : 'Descrição do Dossiê'}"!`, {
+            duration: 10000
+          });
+        }
+      } catch (enrichErr) {
+        console.error("Auto-enrichment error (non-blocking):", enrichErr);
+      }
+
+      toast.success('Conhecimento salvo com sucesso! O Consultor Roder IA já aprendeu essa instrução.', { id: toastId });
+      setKnowledgeTitle('');
+      setKnowledgeText('');
+      fetchRecentTeachings();
+    } catch (error) {
+      console.error("Error saving knowledge to Firebase:", error);
+      toast.error('Erro ao salvar no banco de dados. Verifique a conexão.', { id: toastId });
+    }
+  };
 
   const handleOpenReport = (content?: string, title?: string) => {
     let finalContent = content;
@@ -318,6 +485,12 @@ export default function EngineerHelper() {
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    if (knowledgeOpen) {
+      fetchRecentTeachings();
+    }
+  }, [knowledgeOpen]);
+
   const handleClearConversation = () => {
     const defaultMsg: Message[] = [
       {
@@ -414,6 +587,58 @@ export default function EngineerHelper() {
       setMessages(prev => [...prev, { role: 'assistant', content: response }]);
     } catch (err: any) {
       console.error('Error in Engineer Helper:', err);
+      setMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: `⚠️ **Ops, ocorreu um erro ao conectar com o consultor técnico:** ${err.message || 'Por favor, tente novamente.'}`
+        }
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRetry = async (errorMsgIndex: number) => {
+    // Encontra a mensagem do usuário anterior ao erro
+    let userMsgIdx = -1;
+    for (let i = errorMsgIndex - 1; i >= 0; i--) {
+      if (messages[i].role === 'user') {
+        userMsgIdx = i;
+        break;
+      }
+    }
+
+    if (userMsgIdx === -1) {
+      toast.error("Não foi possível identificar a pergunta para retransmitir.");
+      return;
+    }
+
+    const queryText = messages[userMsgIdx].content;
+    
+    // O histórico é composto por todas as mensagens anteriores à pergunta do usuário (pulando o primeiro item se for saudação)
+    const history = messages.slice(1, userMsgIdx);
+
+    // Remove a mensagem de erro e as mensagens seguintes do chat para manter a interface limpa
+    const cleanedMessages = messages.slice(0, errorMsgIndex);
+    setMessages(cleanedMessages);
+    setLoading(true);
+    setExplorerMinimized(true);
+
+    try {
+      const response = await askEngineerHelper(
+        queryText,
+        history,
+        {
+          uid: user?.uid,
+          name: profile?.name || user?.displayName || user?.email || 'Anônimo',
+          email: profile?.email || user?.email || '',
+          role: profile?.role || ''
+        }
+      );
+      setMessages(prev => [...prev, { role: 'assistant', content: response }]);
+    } catch (err: any) {
+      console.error('Error in Engineer Helper Retry:', err);
       setMessages(prev => [
         ...prev,
         {
@@ -626,6 +851,20 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
       }
     });
 
+    // Filtering logic to respect user intent:
+    // If the message is specifically about Cabeçote/Caçamba Multifuncional (CMF),
+    // and CMF 600 is matched, we only show CMF 600 to prevent user confusion.
+    const hasCmf600 = detected.some(item => (item.model.name || '').toUpperCase().includes('CMF 600'));
+    if (hasCmf600) {
+      return detected.filter(item => {
+        const nameUpper = (item.model.name || '').toUpperCase();
+        if (nameUpper.includes('CMF') && !nameUpper.includes('CMF 600')) {
+          return false;
+        }
+        return true;
+      });
+    }
+
     return detected;
   };
 
@@ -708,6 +947,23 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                   <span className="hidden xs:inline">Calculadora</span>
                 </Button>
 
+                {canTeach && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className={`h-8 px-1.5 sm:px-2 text-xs gap-1 ${
+                      knowledgeOpen 
+                        ? 'text-amber-400 bg-amber-500/10 hover:bg-amber-500/20' 
+                        : 'text-purple-400 hover:text-purple-300 hover:bg-purple-500/10'
+                    }`}
+                    onClick={() => setKnowledgeOpen(!knowledgeOpen)}
+                    title="Ensinar Roder IA (Adicionar Conhecimento por Voz ou Texto)"
+                  >
+                    <Brain className="h-3.5 w-3.5" />
+                    <span className="hidden xs:inline">{knowledgeOpen ? 'Ver Chat' : 'Ensinar IA'}</span>
+                  </Button>
+                )}
+
                 <Button
                   size="sm"
                   variant="ghost"
@@ -750,7 +1006,9 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
               </div>
             </div>
 
-            {/* Quick Timber Grab Calculator Panel overlay */}
+            {!knowledgeOpen ? (
+              <>
+                {/* Quick Timber Grab Calculator Panel overlay */}
             <AnimatePresence>
               {calcOpen && (
                 <motion.div
@@ -864,11 +1122,50 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                     {msg.role === 'assistant' ? (
                       <div className="space-y-3">
                         <div className="prose prose-invert max-w-none text-xs text-slate-200 space-y-2 markdown-body">
-                          <ReactMarkdown>{msg.content}</ReactMarkdown>
+                          <ReactMarkdown
+                            components={{
+                              img: ({ node, ...props }) => {
+                                const proxiedSrc = props.src && (props.src.startsWith('http://') || props.src.startsWith('https://'))
+                                  ? `/api/proxy-image?url=${encodeURIComponent(props.src)}`
+                                  : props.src;
+                                return (
+                                  <img
+                                    {...props}
+                                    src={proxiedSrc}
+                                    referrerPolicy="no-referrer"
+                                    className="max-w-[100%] sm:max-w-[320px] rounded-xl border border-slate-800 shadow-xl my-3 block max-h-48 object-contain bg-slate-900/40 p-1.5 transition-transform hover:scale-105 duration-200"
+                                  />
+                                );
+                              }
+                            }}
+                          >
+                            {msg.content}
+                          </ReactMarkdown>
                         </div>
                         
                         {/* Dynamic Quick Action Buttons */}
                         {(() => {
+                          const isErrorMsg = msg.content.includes('Ops, ocorreu um erro');
+                          if (isErrorMsg) {
+                            return (
+                              <div className="mt-3.5 pt-2.5 border-t border-slate-800 flex flex-col gap-2">
+                                <p className="text-[10px] text-rose-400 font-extrabold uppercase tracking-wider flex items-center gap-1">
+                                  <AlertTriangle className="h-3 w-3 text-rose-400" /> Falha de Conexão com a IA
+                                </p>
+                                <div className="flex flex-wrap gap-2 mt-1">
+                                  <button
+                                    onClick={() => handleRetry(idx)}
+                                    className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-slate-950 font-black uppercase text-[10px] py-2 px-4 rounded-lg transition shadow-md cursor-pointer duration-150 animate-pulse hover:animate-none"
+                                    title="Clique aqui para tentar novamente. O consultor lerá sua última pergunta e gerará uma nova resposta automaticamente."
+                                  >
+                                    <RefreshCw className="h-3.5 w-3.5" />
+                                    Tentar Novamente (Reenviar Pergunta)
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          }
+
                           const matchedEquip = detectEquipmentInMessage(msg.content);
                           if (matchedEquip.length > 0 || idx > 0) {
                             return (
@@ -1199,7 +1496,7 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                           <strong>Atenção:</strong> É necessário que o vendedor interno realize o orçamento oficial completo, verificando a disponibilidade de acessórios essenciais como ponteiras, dentes, suportes de acoplamento ou kits de instalação (mangueiras, comandos, conexões).
                         </p>
                         <p>
-                          Mesmo havendo o equipamento principal em estoque, é necessário consultar a disponibilidade técnica dos acessórios e kits de instalação para agendamento correto da entrega do produto, montagem física na máquina do cliente e entrega técnica em campo. Se o cliente mesmo optar por realizar a instalação por conta própria, o equipamento entregue diretamente de fábrica é uma excelente solução!
+                          Mesmo havendo o equipamento principal em estoque, é necessário consultar a disponibilidade técnica dos acessórios e kits de instalação para agendamento correto da entrega do produto, montagem física na máquina do cliente e entrega técnica em campo. Recomendamos sempre que os produtos Roder tenham a montagem física e entrega técnica contratadas diretamente com técnicos da própria Roder ou técnicos autorizados, assegurando o perfeito funcionamento, máxima durabilidade e cobertura de garantia do equipamento.
                         </p>
                       </div>
 
@@ -1574,7 +1871,135 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                 </Button>
               )}
             </div>
-          </motion.div>
+          </>
+        ) : (
+          <div className="flex-1 flex flex-col bg-slate-950 overflow-hidden animate-in fade-in duration-200">
+            {/* Scrollable container for the form and recent list */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
+              <div className="p-3.5 bg-gradient-to-r from-purple-950/25 to-slate-900 border border-purple-500/20 rounded-xl space-y-1">
+                <h4 className="text-xs font-black text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Brain className="h-4 w-4 animate-pulse text-purple-400" /> Central de Conhecimento do Consultor IA
+                </h4>
+                <p className="text-[10px] text-slate-300 leading-normal font-medium">
+                  Ensine novos dados de produtos, medidas, ponteiras ou regras específicas diretamente para a IA por voz ou colando textos.
+                </p>
+              </div>
+
+              {/* Form Section */}
+              <div className="space-y-3 bg-slate-900/60 p-3.5 rounded-xl border border-slate-800">
+                <div className="space-y-1">
+                  <label className="text-[9px] uppercase font-black text-slate-400 tracking-wider block">
+                    Título do Tópico / Pergunta Relacionada
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Qual a ponteira para John Deere 180 com CMF?"
+                    value={knowledgeTitle}
+                    onChange={(e) => setKnowledgeTitle(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[9px] uppercase font-black text-slate-400 tracking-wider flex items-center justify-between">
+                    <span>Explicação Técnica / Conhecimento</span>
+                    <span className="text-[8px] font-mono text-purple-400 lowercase">use termos corretos: rotator / rotatores</span>
+                  </label>
+                  <textarea
+                    rows={4}
+                    placeholder="Escreva ou grave aqui a sua explicação detalhada para este assunto. O correto para CMF é utilizar biela de 4 polegadas com o pino correspondente..."
+                    value={knowledgeText}
+                    onChange={(e) => setKnowledgeText(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 font-sans resize-none"
+                  />
+                </div>
+
+                {/* Microphone Section for Knowledge Base */}
+                <div className="pt-1">
+                  {isTeachingRecording ? (
+                    <div className="flex items-center justify-between bg-red-950/40 border border-red-500/30 rounded-xl p-2.5 text-xs text-red-200">
+                      <div className="flex items-center gap-2">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                        </span>
+                        <span className="font-bold animate-pulse uppercase text-[10px] tracking-wider">Gravando sua explicação por voz...</span>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={stopTeachingRecording}
+                        className="h-8 px-3 bg-red-600 hover:bg-red-700 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-lg flex items-center gap-1 border-0"
+                      >
+                        <Square className="h-3 w-3 fill-white" /> Concluir e Transcrever
+                      </Button>
+                    </div>
+                  ) : isTeachingTranscribing ? (
+                    <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-400">
+                      <Loader2 className="h-4 w-4 animate-spin text-purple-400" />
+                      <span className="font-medium">Processando áudio e gerando texto técnico de alta fidelidade...</span>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={startTeachingRecording}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 px-3 bg-purple-500/10 hover:bg-purple-500/25 border border-purple-500/20 hover:border-purple-500/40 text-purple-300 font-extrabold uppercase text-[10px] tracking-wider rounded-lg transition duration-150 cursor-pointer border-0"
+                    >
+                      <Mic className="h-4 w-4 text-purple-400" />
+                      Falar por Áudio (Gravar Voz)
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Save Button */}
+              <Button
+                onClick={handleSaveKnowledge}
+                disabled={isTeachingRecording || isTeachingTranscribing}
+                className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider py-3 rounded-xl shadow-lg flex items-center justify-center gap-2 transition cursor-pointer border-0"
+              >
+                <CheckCircle className="h-4 w-4" /> Ensinar ao Consultor Roder IA
+              </Button>
+
+              {/* Recent List */}
+              <div className="space-y-2 pt-2">
+                <h5 className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
+                  <BookOpen className="h-3.5 w-3.5 text-slate-400" /> Conhecimentos Adicionados Recentemente
+                </h5>
+
+                {loadingTeachings ? (
+                  <div className="flex items-center gap-2 py-4 justify-center text-xs text-slate-500">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Carregando ensinamentos...</span>
+                  </div>
+                ) : recentTeachings.length === 0 ? (
+                  <p className="text-[10px] text-slate-500 font-medium italic text-center py-3 bg-slate-900/20 border border-slate-850 rounded-lg">
+                    Nenhum ensinamento personalizado cadastrado ainda.
+                  </p>
+                ) : (
+                  <div className="space-y-2 max-h-[180px] overflow-y-auto">
+                    {recentTeachings.map((item, idx) => (
+                      <div key={item.id || idx} className="p-2.5 bg-slate-900/40 border border-slate-850 rounded-lg space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-purple-400 truncate max-w-[280px]">
+                            {item.question}
+                          </span>
+                          <span className="text-[8px] text-slate-500 font-mono">
+                            {item.timestamp ? new Date(item.timestamp).toLocaleDateString('pt-BR') : 'Data n/d'}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-300 leading-normal line-clamp-2">
+                          {item.improvedAnswer}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </motion.div>
         )}
       </AnimatePresence>
 
@@ -1660,7 +2085,25 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                     </h2>
                     
                     <div className="prose prose-slate text-xs max-w-none text-slate-800 leading-relaxed space-y-3 font-medium">
-                      <ReactMarkdown>{reportContent}</ReactMarkdown>
+                      <ReactMarkdown
+                        components={{
+                          img: ({ node, ...props }) => {
+                            const proxiedSrc = props.src && (props.src.startsWith('http://') || props.src.startsWith('https://'))
+                              ? `/api/proxy-image?url=${encodeURIComponent(props.src)}`
+                              : props.src;
+                            return (
+                              <img
+                                {...props}
+                                src={proxiedSrc}
+                                referrerPolicy="no-referrer"
+                                className="max-w-[100%] sm:max-w-[340px] rounded-xl border border-slate-200 shadow-lg my-4 block max-h-56 object-contain bg-slate-50 p-1.5 mx-auto"
+                              />
+                            );
+                          }
+                        }}
+                      >
+                        {reportContent}
+                      </ReactMarkdown>
                     </div>
                   </div>
 

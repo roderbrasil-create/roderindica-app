@@ -1154,7 +1154,7 @@ export default function NewIndication() {
 
         <div className="space-y-6">
           {/* Card 1: Compact Chosen Roder Equipment List */}
-          <Card className="bg-slate-300 dark:bg-zinc-900 border-slate-450 dark:border-zinc-800 shadow-sm text-slate-900 dark:text-zinc-100">
+          <Card className="bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 shadow-md text-slate-900 dark:text-zinc-100 rounded-2xl overflow-hidden">
             <CardHeader className="py-3 px-4 flex flex-row items-center justify-between gap-4 border-b border-border/50 bg-muted/20">
               <div className="flex items-center gap-2">
                 <Package className="h-4 w-4 text-primary" />
@@ -1202,20 +1202,20 @@ export default function NewIndication() {
                                   }
                                 }}
                               className={cn(
-                                "h-9 w-9 rounded-lg overflow-hidden border shrink-0 flex items-center justify-center bg-background select-none",
-                                productPhoto ? "cursor-pointer hover:scale-110 active:scale-95 transition-transform" : "",
-                                isCustom ? "text-amber-500 border-amber-200 dark:border-amber-950/40" : "text-primary border-primary/20 dark:border-primary/10"
+                                "h-20 w-20 rounded-xl overflow-hidden border-2 shrink-0 flex items-center justify-center bg-background select-none shadow-sm",
+                                productPhoto ? "cursor-pointer hover:scale-105 active:scale-95 transition-transform" : "",
+                                isCustom ? "text-amber-500 border-amber-200 dark:border-amber-950/40" : "text-primary border-primary/30 dark:border-primary/20"
                               )}
                               title={productPhoto ? "Clique para expandir a foto" : ""}
                             >
                               {productPhoto ? (
                                 <SmartImage src={productPhoto} alt="" className="h-full w-full object-cover" />
                               ) : (
-                                <Package className="h-4 w-4 opacity-60" />
+                                <Package className="h-8 w-8 opacity-60" />
                               )}
                             </div>
                             <div className="min-w-0">
-                              <p className="font-extrabold text-xs text-foreground truncate">{item.product_name}</p>
+                              <p className="font-black text-sm sm:text-base text-foreground leading-snug">{item.product_name}</p>
                               {item.code ? (
                                 <p className="text-[9px] font-mono uppercase text-muted-foreground tracking-tight mt-0.5">{item.code}</p>
                               ) : (
@@ -1312,7 +1312,7 @@ export default function NewIndication() {
           </Card>
 
           {/* Card 2: Customer Details */}
-          <Card className="bg-slate-300 dark:bg-zinc-900 border-slate-450 dark:border-zinc-800 shadow-sm text-slate-900 dark:text-zinc-100">
+          <Card className="bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 shadow-md text-slate-900 dark:text-zinc-100 rounded-2xl overflow-hidden">
             <CardHeader className="pb-4">
               <CardTitle className="text-lg font-bold flex items-center gap-2">
                 <User className="h-5 w-5 text-primary" />
@@ -1587,7 +1587,7 @@ export default function NewIndication() {
           {/* Card 3: proposal parameters & host machine */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Options of Proposal */}
-            <Card className="bg-slate-300 dark:bg-zinc-900 border-slate-450 dark:border-zinc-800 shadow-sm text-slate-900 dark:text-zinc-100 flex flex-col justify-between">
+            <Card className="bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 shadow-md text-slate-900 dark:text-zinc-100 rounded-2xl overflow-hidden flex flex-col justify-between">
               <CardHeader className="pb-4">
                 <CardTitle className="text-lg font-bold">Opcionais da Indicação</CardTitle>
                 <CardDescription className="text-xs text-muted-foreground">Marque o que está incluso no interesse comercial.</CardDescription>
@@ -1652,7 +1652,7 @@ export default function NewIndication() {
             </Card>
 
             {/* Base Machine details */}
-            <Card className="bg-slate-300 dark:bg-zinc-900 border-slate-450 dark:border-zinc-800 shadow-sm text-slate-900 dark:text-zinc-100 flex flex-col justify-between">
+            <Card className="bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 shadow-md text-slate-900 dark:text-zinc-100 rounded-2xl overflow-hidden flex flex-col justify-between">
               <CardHeader className="pb-4">
                 <CardTitle className="text-lg font-bold">Máquina Base Acoplamento</CardTitle>
                 <CardDescription className="text-xs text-muted-foreground">Informe dados da máquina que receberá o equipamento Roder.</CardDescription>
@@ -1710,7 +1710,7 @@ export default function NewIndication() {
           </div>
 
           {/* Card 4: Audio recording, detailed descriptions and media attachments */}
-          <Card className="bg-slate-300 dark:bg-zinc-900 border-slate-450 dark:border-zinc-800 shadow-sm text-slate-900 dark:text-zinc-100">
+          <Card className="bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 shadow-md text-slate-900 dark:text-zinc-100 rounded-2xl overflow-hidden">
             <CardHeader className="pb-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>

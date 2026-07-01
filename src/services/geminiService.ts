@@ -104,3 +104,8 @@ export async function structureDossierAudio(args: {
 }): Promise<DossierAudioStructuringResult> {
   return executeBackendAI("structureDossierAudio", args);
 }
+
+export async function analyzeAndEnrichProductDossier(question: string, improvedAnswer: string): Promise<any> {
+  return executeBackendAI("analyzeAndEnrichProductDossier", { question, improvedAnswer });
+}
+

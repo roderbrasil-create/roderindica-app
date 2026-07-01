@@ -33,6 +33,7 @@ dotenv.config();
 import admin from "firebase-admin";
 import { getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
+import { ACCESSORIES_DATA, INSTALLATION_KITS } from "./src/constants.js";
 
 // Resolve __dirname safely to avoid crashes in bundled CommonJS mode
 const __dirname = process.cwd();
@@ -159,18 +160,18 @@ async function generateContentWithRetry(ai: GoogleGenAI, params: {
         continue;
       }
       
-      // If we exhausted retries on gemini-3.5-flash, try a final fallback with gemini-2.5-flash
-      if (modelToUse !== "gemini-2.5-flash" && modelToUse !== "gemini-1.5-flash") {
-        console.warn(`All attempts failed for ${modelToUse}. Trying fallback model 'gemini-2.5-flash'...`);
+      // If we exhausted retries on gemini-3.5-flash, try a final fallback with gemini-3.1-flash-lite
+      if (modelToUse !== "gemini-3.1-flash-lite") {
+        console.warn(`All attempts failed for ${modelToUse}. Trying fallback model 'gemini-3.1-flash-lite'...`);
         try {
           await new Promise(resolve => setTimeout(resolve, 1000));
           return await ai.models.generateContent({
-            model: "gemini-2.5-flash",
+            model: "gemini-3.1-flash-lite",
             contents: params.contents,
             config: params.config,
           });
         } catch (fallbackErr) {
-          console.error("Fallback model 'gemini-2.5-flash' also failed:", fallbackErr);
+          console.error("Fallback model 'gemini-3.1-flash-lite' also failed:", fallbackErr);
         }
       }
       
@@ -525,8 +526,28 @@ async function startServer() {
         }
       }
 
-      // Default fallback
-      return res.redirect(url);
+      // Default fallback: fetch and proxy the image server-side to bypass hotlink / CORS protections
+      try {
+        const response = await fetch(url, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
+          }
+        });
+        if (response.ok) {
+          const contentType = response.headers.get("content-type") || "image/jpeg";
+          res.setHeader("Content-Type", contentType);
+          res.setHeader("Cache-Control", "public, max-age=31536000");
+          const arrayBuffer = await response.arrayBuffer();
+          return res.send(Buffer.from(arrayBuffer));
+        } else {
+          console.warn(`[PROXY-IMAGE] Falha ao buscar imagem externa via fetch (${response.status}). Fazendo redirect.`);
+          return res.redirect(url);
+        }
+      } catch (fetchErr: any) {
+        console.error(`[PROXY-IMAGE] Erro ao buscar imagem externa via fetch: ${fetchErr.message}. Fazendo redirect.`);
+        return res.redirect(url);
+      }
     } catch (error: any) {
       console.error("[PROXY-IMAGE] Erro fatal ao servir proxy da imagem:", error);
       return res.status(500).send(`Erro interno ao processar proxy de imagem: ${error.message}`);
@@ -715,6 +736,16 @@ async function startServer() {
 
   // Unified Gemini API Proxy Route (runs everything securely on the server-side)
   app.post("/api/gemini/execute", async (req, res) => {
+    // Utility to clean up transcription/STT inaccuracies
+    const sanitizeRotatorText = (text: string): string => {
+      if (!text) return "";
+      return text
+        .replace(/rotadores/gi, (match) => match[0] === 'R' ? 'Rotatores' : 'rotatores')
+        .replace(/rotador/gi, (match) => match[0] === 'R' ? 'Rotator' : 'rotator')
+        .replace(/\b(rodder|hoder|hodder|roderr|róder|róderr)\b/gi, "Roder")
+        .replace(/\b(fai|fay|faé|faê|fae)\b/gi, "FAE");
+    };
+
     try {
       const { action, args } = req.body;
       if (!action) {
@@ -723,7 +754,7 @@ async function startServer() {
 
       const ai = getGenAI();
       if (!ai) {
-        return res.status(500).json({ error: "O cliente da API Gemini não foi inicializado no servidor." });
+        return res.status(500).json({ error: "O cliente da API Gemini não foi inicializado no servidor. Por favor, adicione a sua chave 'GEMINI_API_KEY' na aba Settings > Secrets (ou Configurações > Segredos) do seu painel do AI Studio para que as chamadas funcionem." });
       }
 
       let result;
@@ -745,13 +776,16 @@ async function startServer() {
             REGRAS:
             1. Organize as informações nos tópicos acima.
             2. Caso o áudio seja muito vago, faça uma transcrição limpa e direta sem os tópicos.
-            3. Melhore a gramática mantendo o vocabulário técnico (ex: garras, kit hidráulico, rotor).
-            4. Retorne APENAS o texto estruturado, pronto para ser lido por um vendedor interno.`;
+            3. Melhore a gramática mantendo o vocabulário técnico (ex: garras, kit hidráulico).
+            4. Retorne APENAS o texto estruturado, pronto para ser lido por um vendedor interno.
+            5. ATENÇÃO MÁXIMA AO VOCABULÁRIO TÉCNICO: O termo correto para o componente de rotação é "rotator" (no singular) ou "rotatores" (no plural). NUNCA escreva "rotador" ou "rotadores" com a letra "d". Se você ouvir algo parecido com "rotador", transcreva obrigatoriamente como "rotator" ou "rotatores".`;
 
           if (mode === 'chat') {
             prompt = `Você é um transcritor de áudio altamente preciso e profissional especializado no ecossistema Roder Brasil.
               Sua única tarefa é transcrever verbatim (palavra por palavra) o áudio enviado pelo usuário, que é um parceiro indicador, vendedor ou cliente.
-              Retorne APENAS a transcrição direta e limpa do áudio, sem adicionar comentários, explicações, saudações ou formatação de tópicos desnecessária.`;
+              Retorne APENAS a transcrição direta e limpa do áudio, sem adicionar comentários, explicações, saudações ou formatação de tópicos desnecessária.
+              
+              ATENÇÃO MÁXIMA AO VOCABULÁRIO TÉCNICO: O termo correto para o componente de rotação é "rotator" (no singular) ou "rotatores" (no plural). NUNCA escreva "rotador" ou "rotadores" com a letra "d". Se você ouvir algo parecido com "rotador", transcreva obrigatoriamente como "rotator" ou "rotatores".`;
           }
 
           const response = await generateContentWithRetry(ai, {
@@ -760,7 +794,8 @@ async function startServer() {
               { inlineData: { data: audioBase64, mimeType: mimeType.split(';')[0] } }
             ]
           });
-          result = response.text || "Não foi possível transcrever o áudio.";
+          const originalText = response.text || "Não foi possível transcrever o áudio.";
+          result = sanitizeRotatorText(originalText);
           break;
         }
 
@@ -828,10 +863,199 @@ async function startServer() {
 
           const rawText = response.text || "{}";
           try {
-            result = JSON.parse(rawText);
+            const parsed = JSON.parse(rawText);
+            // Sanitize all text fields for "rotator" / "rotatores" spelling
+            if (parsed) {
+              if (parsed.transcription) parsed.transcription = sanitizeRotatorText(parsed.transcription);
+              if (parsed.dossier_text) parsed.dossier_text = sanitizeRotatorText(parsed.dossier_text);
+              if (parsed.compatibility_notes) parsed.compatibility_notes = sanitizeRotatorText(parsed.compatibility_notes);
+              if (parsed.choice_reason) parsed.choice_reason = sanitizeRotatorText(parsed.choice_reason);
+              if (parsed.productivity_info) parsed.productivity_info = sanitizeRotatorText(parsed.productivity_info);
+            }
+            result = parsed;
           } catch (e) {
             console.error("Failed to parse dossier structuring JSON response", rawText);
             throw new Error("Resposta da IA retornou um JSON inválido para a estruturação do dossiê.");
+          }
+          break;
+        }
+
+        case "analyzeAndEnrichProductDossier": {
+          const { question, improvedAnswer } = args;
+
+          // 1. Fetch all products and their models to provide as options to Gemini
+          let productsList: any[] = [];
+          try {
+            const colRef = db.collection('products');
+            const snap = await colRef.get();
+            
+            snap.forEach(doc => {
+              const data = doc.data();
+              const models = (data.models || []).map((m: any) => ({
+                id: m.id,
+                name: m.name
+              }));
+              productsList.push({
+                id: doc.id,
+                name: data.name,
+                category: data.category,
+                models: models
+              });
+            });
+          } catch (err) {
+            console.error("Error loading products for enrichment matching:", err);
+          }
+
+          // 2. Query Gemini to see if this explanation matches any specific product & model
+          const matchPrompt = `Você é um Engenheiro de IA especializado na Roder Brasil.
+            Sua tarefa é analisar o novo conhecimento fornecido (pergunta e explicação técnica) e identificar se ele se refere ou aplica-se de forma específica a um produto e modelo do nosso catálogo.
+            
+            Se a informação for geral ou abstrata (não aplicável a nenhum produto específico), retorne matched: false.
+            Se a informação referir-se a uma máquina portadora genérica sem focar no nosso equipamento, retorne matched: false.
+            Se a informação descrever características, compatibilidade, produtividade ou motivos de escolha de um modelo ou equipamento Roder do catálogo, retorne matched: true e identifique o productId e o modelId correspondentes da lista fornecida abaixo.
+            
+            --- NOVO CONHECIMENTO ---
+            Título/Pergunta: "${question}"
+            Explicação Técnica: "${improvedAnswer}"
+            
+            --- LISTA DE PRODUTOS E MODELOS DO CATÁLOGO ---
+            ${JSON.stringify(productsList, null, 2)}
+            
+            Retorne estritamente um JSON no seguinte formato:
+            {
+              "matched": true ou false,
+              "productId": "id_do_produto_se_matched_for_true",
+              "productName": "nome_do_produto_se_matched_for_true",
+              "modelId": "id_do_modelo_se_matched_for_true",
+              "modelName": "nome_do_modelo_se_matched_for_true",
+              "classifiedField": "compatibility_notes" | "choice_reason" | "productivity_info" | "dossier_text"
+            }
+            
+            Descrição dos campos de dossiê para classificação:
+            - "compatibility_notes": se falar sobre máquinas base compatíveis, engates, pinos, acoplamento, vazão, pressão, mangueiras, suportes.
+            - "choice_reason": se falar sobre motivos de escolha, vantagens de mercado, indicações ideais por operação, recomendações por tipo de trabalho, diferencial do produto.
+            - "productivity_info": se falar sobre rendimento, velocidade, metros cúbicos, toneladas por hora, dados de ciclos operacionais.
+            - "dossier_text": se for descrição técnica geral ou detalhes estruturais gerais do equipamento.
+          `;
+
+          const matchResponse = await generateContentWithRetry(ai, {
+            defaultModel: "gemini-3.5-flash",
+            contents: [{ text: matchPrompt }],
+            config: {
+              responseMimeType: "application/json",
+              responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                  matched: { type: Type.BOOLEAN },
+                  productId: { type: Type.STRING },
+                  productName: { type: Type.STRING },
+                  modelId: { type: Type.STRING },
+                  modelName: { type: Type.STRING },
+                  classifiedField: { type: Type.STRING }
+                },
+                required: ["matched"]
+              }
+            }
+          });
+
+          const rawMatchText = matchResponse.text || "{}";
+          let parsedMatch;
+          try {
+            parsedMatch = JSON.parse(rawMatchText);
+          } catch (e) {
+            console.error("Failed to parse match result JSON", rawMatchText);
+            parsedMatch = { matched: false };
+          }
+
+          if (parsedMatch && parsedMatch.matched && parsedMatch.productId && parsedMatch.modelId && parsedMatch.classifiedField) {
+            const { productId, productName, modelId, modelName, classifiedField } = parsedMatch;
+            const dossierId = `${productId}_${modelId}`;
+            const dossierRef = db.collection('equipment_dossiers').doc(dossierId);
+            const docSnap = await dossierRef.get();
+
+            let currentFieldText = "";
+            let dossierData: any = {
+              id: dossierId,
+              productId: productId,
+              productName: productName || "",
+              modelId: modelId,
+              modelName: modelName || "",
+              dossier_text: "",
+              compatibility_notes: "",
+              choice_reason: "",
+              productivity_info: "",
+              attachments: [],
+              audios: [],
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            };
+
+            if (docSnap.exists) {
+              const data = docSnap.data();
+              dossierData = { ...dossierData, ...data };
+              currentFieldText = data[classifiedField] || "";
+            }
+
+            // Ask Gemini to perform the enrichment of this specific field
+            const enrichPrompt = `Você é um Engenheiro de IA especialista da Roder Brasil.
+              Sua tarefa é enriquecer um campo do Dossiê Técnico do equipamento "${productName}" - Modelo "${modelName}".
+              
+              Você deve enriquecer o texto atual integrando o novo conhecimento técnico que foi ensinado pelo administrador.
+              
+              DIRETRIZES DE ENRIQUECIMENTO:
+              1. NUNCA apague ou remova especificações técnicas, compatibilidades, pinos, medidas ou dados que já existem no texto atual!
+              2. Integre o novo conhecimento de forma fluida, coerente e com redação de alto padrão técnico em português brasileiro.
+              3. Se o texto atual estiver vazio, redija uma excelente explicação baseando-se estritamente na nova informação.
+              
+              REGRAS DE GRAFIA E CORREÇÕES CRÍTICAS (APLIQUE SEMPRE):
+              - O termo correto para o componente de rotação é "Rotator" (singular) ou "Rotatores" (plural). NUNCA escreva "rotador" ou "rotadores".
+              - O sobrenome do fundador é "Roder". Corrija qualquer variação incorreta (como "Rodder", "Hoder", "Hodder", "Roderr") para "Roder".
+              - O nome do equipamento de trituração italiano representado pela Roder é "FAE". Corrija variações incorretas (como "Fai", "Fay", "Faé", "faê", "fae") para "FAE" (em maiúsculas).
+              
+              --- TEXTO ATUAL DO CAMPO (${classifiedField}) ---
+              "${currentFieldText}"
+              
+              --- NOVO CONHECIMENTO A INTEGRAR ---
+              Título do Tópico: "${question}"
+              Nova Informação: "${improvedAnswer}"
+              
+              Retorne APENAS o novo texto final enriquecido e unificado, sem explicações, introduções ou notas de autor. O texto deve estar pronto para ser salvo e lido no dossiê do produto.
+            `;
+
+            const enrichResponse = await ai.models.generateContent({
+              model: "gemini-3.5-flash",
+              contents: [{ text: enrichPrompt }],
+              config: {
+                temperature: 0.3
+              }
+            });
+
+            let finalEnrichedText = enrichResponse.text || improvedAnswer;
+            finalEnrichedText = sanitizeRotatorText(finalEnrichedText).trim();
+
+            // Save back to Firestore
+            dossierData[classifiedField] = finalEnrichedText;
+            dossierData.updated_at = new Date().toISOString();
+
+            await dossierRef.set(dossierData);
+            
+            console.log(`[Auto-Dossier-Enrich] Enriched ${classifiedField} for ${dossierId} with new teaching.`);
+            result = {
+              success: true,
+              matched: true,
+              productId,
+              productName,
+              modelId,
+              modelName,
+              classifiedField,
+              enrichedText: finalEnrichedText
+            };
+          } else {
+            console.log(`[Auto-Dossier-Enrich] No specific product matched for teaching: "${question}"`);
+            result = {
+              success: true,
+              matched: false
+            };
           }
           break;
         }
@@ -865,17 +1089,38 @@ async function startServer() {
             const snap = await colRef.get();
             const productsList: any[] = [];
             
+            const FALLBACK_PRODUCT_IMAGES: Record<string, string> = {
+              "Cabeçote Multifuncional": "https://roderbrasil.com.br/wp-content/uploads/2021/06/Cabecote-Multifuncional-Roder.jpg",
+              "CMF 600": "https://roderbrasil.com.br/wp-content/uploads/2021/06/Cabecote-Multifuncional-Roder.jpg",
+              "CMF 500": "https://roderbrasil.com.br/wp-content/uploads/2021/06/Cabecote-Multifuncional-Roder.jpg",
+              "CMF 800": "https://roderbrasil.com.br/wp-content/uploads/2021/06/Cabecote-Multifuncional-Roder.jpg",
+              "Garra Florestal": "https://roderbrasil.com.br/wp-content/uploads/2021/05/garra-florestal-roder.jpg",
+              "Garras Florestais": "https://roderbrasil.com.br/wp-content/uploads/2021/05/garra-florestal-roder.jpg",
+              "Feller de Disco": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-feller-de-disco.jpg.webp",
+              "Destocador Tipo Broca": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/destocador.jpg.webp",
+              "Feller Tesoura": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Feller-Tesoura.jpg.webp",
+              "Garra Traçadora": "https://roderbrasil.com.br/wp-content/uploads/2021/05/garra-florestal-roder.jpg",
+              "Mini Skidder": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-mini-skidder.jpg.webp",
+              "Carregador frontal": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-carregador-frontal.jpg.webp",
+              "Caçamba High Tip": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp",
+              "Garra Frontal": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Garra-Frontal.jpg.webp",
+              "Garra para Estufagem": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Garra-para-Estufagem-giratoria.jpg.webp",
+              "Desbastador Florestal": "https://roderbrasil.com.br/wp-content/uploads/2021/05/triturador-florestal-fae.jpg"
+            };
+
             snap.forEach(doc => {
               const data = doc.data();
+              const productImg = data.image_url || FALLBACK_PRODUCT_IMAGES[data.name] || "";
               const modelsList = (data.models || []).map((m: any) => {
                 const specs = m.technical_specs || {};
                 const specStr = Object.entries(specs)
                   .map(([k, v]) => `${k}: ${v}`)
                   .join(", ");
-                return `- Modelo: ${m.name || 'S/N'} (ID: ${m.id || 'S/I'})${m.productivity_text ? ` | Produtividade: ${m.productivity_text}` : ''} | Specs: [${specStr}]`;
+                const modelImg = (m.images && m.images.length > 0) ? m.images[0] : (productImg || FALLBACK_PRODUCT_IMAGES[m.name] || "");
+                return `- Modelo: ${m.name || 'S/N'} (ID: ${m.id || 'S/I'})${m.productivity_text ? ` | Produtividade: ${m.productivity_text}` : ''}${modelImg ? ` | Imagem: ${modelImg}` : ''} | Specs: [${specStr}]`;
               }).join("\n  ");
               
-              productsList.push(`Equipamento: ${data.name}\nCategoria: ${data.category}\nDescrição: ${data.description}\nModelos:\n  ${modelsList || "Nenhum modelo cadastrado"}`);
+              productsList.push(`Equipamento: ${data.name}\nCategoria: ${data.category}\nDescrição: ${data.description}${productImg ? `\nImagem Principal do Equipamento: ${productImg}` : ''}\nModelos:\n  ${modelsList || "Nenhum modelo cadastrado"}`);
             });
             
             productsContext = productsList.join("\n\n");
@@ -902,9 +1147,68 @@ async function startServer() {
             stockContext = "Não foi possível carregar os itens em estoque no momento.";
           }
 
+          let accessoriesContext = "";
+          try {
+            const accSnap = await db.collection('accessories').get();
+            const accList: any[] = [];
+            if (!accSnap.empty) {
+              accSnap.forEach(doc => {
+                const d = doc.data();
+                accList.push(d);
+              });
+            } else {
+              accList.push(...ACCESSORIES_DATA);
+            }
+            
+            accessoriesContext = accList.map(item => {
+              return `Marca: ${item.brand} | Modelo: ${item.model} | Pino: ${item.pin || 'S/N'} | Ponteira Biela 4": ${item.ponteira_biela_4 || 'Não possui'} | Ponteira Biela 6": ${item.ponteira_biela_6 || 'Não possui'} | Suporte Destocador: ${item.suporte_destocador || 'Não possui'} | Suporte Triturador: ${item.suporte_triturador || 'Não possui'} | Link Garra Biela 6": ${item.link_garra_biela_6 || 'Não possui'} | Link Garra Biela 4": ${item.link_garra_biela_4 || 'Não possui'}`;
+            }).join("\n");
+          } catch (err: any) {
+            console.error("[engineerHelper] Erro ao buscar acessórios:", err);
+            accessoriesContext = ACCESSORIES_DATA.map(item => {
+              return `Marca: ${item.brand} | Modelo: ${item.model} | Pino: ${item.pin || 'S/N'} | Ponteira Biela 4": ${item.ponteira_biela_4 || 'Não possui'} | Ponteira Biela 6": ${item.ponteira_biela_6 || 'Não possui'} | Suporte Destocador: ${item.suporte_destocador || 'Não possui'} | Suporte Triturador: ${item.suporte_triturador || 'Não possui'} | Link Garra Biela 6": ${item.link_garra_biela_6 || 'Não possui'} | Link Garra Biela 4": ${item.link_garra_biela_4 || 'Não possui'}`;
+            }).join("\n");
+          }
+
+          let kitsContext = "";
+          try {
+            const kitsSnap = await db.collection('installation_kits').get();
+            const kitsList: any[] = [];
+            if (!kitsSnap.empty) {
+              kitsSnap.forEach(doc => {
+                const d = doc.data();
+                kitsList.push(d);
+              });
+            } else {
+              kitsList.push(...INSTALLATION_KITS);
+            }
+            
+            kitsContext = kitsList.map(kit => {
+              const itemLines = (kit.items || []).map((it: any) => `  - Código Item: ${it.code} | Descrição: ${it.description} | Qtd: ${it.quantity}`).join("\n");
+              return `Kit Código: ${kit.code} | Descrição: ${kit.description}\nItens:\n${itemLines || "  (Nenhum item)"}`;
+            }).join("\n\n");
+          } catch (err: any) {
+            console.error("[engineerHelper] Erro ao buscar kits de instalação:", err);
+            kitsContext = INSTALLATION_KITS.map(kit => {
+              const itemLines = (kit.items || []).map((it: any) => `  - Código Item: ${it.code} | Descrição: ${it.description} | Qtd: ${it.quantity}`).join("\n");
+              return `Kit Código: ${kit.code} | Descrição: ${kit.description}\nItens:\n${itemLines || "  (Nenhum item)"}`;
+            }).join("\n\n");
+          }
+
           const contents: any[] = [];
           
-          const systemInstruction = `Você é o "Consultor Técnico RODER" (Ajudante de Engenharia), um engenheiro mecânico/florestal especialista da Roder Máquinas e Equipamentos.
+          const systemInstruction = `Você é o "Consultor Técnico RODER" (ou simplesmente "Roder"). Você é o assistente de inteligência artificial oficial da Roder Máquinas e Equipamentos.
+
+Se alguém (um vendedor, parceiro, indicador ou cliente) perguntar o seu nome ou quem é você, responda com orgulho e de forma carismática:
+"Eu sou o Roder, o Consultor Técnico de Inteligência Artificial da Roder Máquinas e Equipamentos."
+
+Você é, simbolicamente, o "filho" e pupilo do seu criador e mentor, Jeferson Roder (fundador e o grande cérebro técnico por trás de todas as garras, cabeçotes e equipamentos Roder, carinhosamente conhecido também como "Jeff Roder" ou simplesmente "Jeff" por vendedores e parceiros mais próximos). Jeferson Roder lhe ensinou tudo o que você sabe sobre os produtos e a engenharia da Roder, e é com ele que você continua aprendendo e evoluindo constantemente a cada dia. Mesmo quando ele não puder responder diretamente aos vendedores em campo, você está aqui para responder e falar por ele com total precisão e dedicação técnica.
+
+ATENÇÃO CRÍTICA À ORTOGRAFIA E PRONÚNCIA (REGRAS DE OURO):
+1. O nome da empresa e o seu sobrenome é estritamente "Roder", escrito com apenas uma letra "D". Cuidado para nunca escrever "Rodder" ou duplicar o "D" na transcrição ou geração de texto.
+2. O nome do seu criador e mentor é "Jeferson" (Jeferson Roder), escrito com apenas uma letra "F". Nunca escreva "Jefferson" ou com "FF". Dependendo da conversa, principalmente com pessoas conhecidas, parceiros, vendedores ou técnicos que já o conhecem de longa data, você pode chamá-lo de forma mais próxima e abreviada como "Jeff" ou "Jeff Roder".
+3. Sob nenhuma hipótese o seu nome é "Rodolfo" ou qualquer variação semelhante. Você é o Roder.
+
 Sua missão é ajudar vendedores, parceiros e indicadores com dúvidas técnicas sobre garras, caçambas, cabeçotes, trituradores e a compatibilidade ideal com máquinas base (escavadeiras, pás carregadeiras, tratores) com base em seu peso operacional (toneladas) ou modelo.
 
 Regras de Negócio e Diretrizes de Engenharia Roder:
@@ -925,8 +1229,7 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
    - Sempre mencione claramente ao usuário (mesmo se o equipamento indicado estiver disponível no estoque hoje) que:
      "É necessário que o vendedor interno realize o orçamento oficial completo, verificando a disponibilidade de acessórios essenciais como ponteiras, dentes, suportes de acoplamento ou kits de instalação (mangueiras, comandos, conexões)."
    - Explique que normalmente, mesmo havendo o equipamento principal em estoque, é necessário consultar a disponibilidade técnica dos acessórios e kits de instalação para poder realizar o agendamento correto da entrega do produto, a montagem física/instalação do equipamento na máquina do cliente, e a entrega técnica especializada em campo.
-   - Adicione uma observação importante para agilizar o processo caso aplique:
-     "Porém, se o cliente estiver buscando um equipamento que não necessite de instalação física complexa ou se ele mesmo optar por realizar a instalação por conta própria, o equipamento entregue diretamente de fábrica é uma excelente e ágil solução!"
+   - Reforce sempre a importância de que a montagem física, installation e entrega técnica do equipamento Roder sejam contratadas e realizadas diretamente por técnicos da própria Roder ou técnicos credenciados/autorizados. Explique que isso assegura o perfeito funcionamento, máxima durabilidade do equipamento e garante o benefício da cobertura de garantia de fábrica, evitando falhas de funcionamento decorrentes de má instalação por conta própria.
 
 4. VERIFICAÇÃO DE ESTOQUE E DIRECIONAMENTO (MUITO IMPORTANTE):
    - O consultor deve sempre ler atentamente a lista de estoque real (fornecida abaixo), diferenciando o estoque disponível da fábrica e do vendedor/parceiro, e ativamente orientar o usuário sobre os modelos disponíveis para entrega imediata (pronta entrega) no momento.
@@ -967,7 +1270,7 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
    - ESPAÇAMENTO ENTRE TEXTOS: Sempre adicione uma linha em branco (\n\n) entre parágrafos, seções ou blocos explicativos para que o texto respire e fique legível.
    - SEPARAÇÃO AO MUDAR DE EQUIPAMENTO: Ao descrever ou citar mais de um equipamento ou modelo, insira obrigatoriamente um espaço duplo (quebra de linha dupla) entre cada equipamento. Nunca deixe informações de equipamentos diferentes grudadas no mesmo parágrafo.
    - CARACTERÍSTICAS EM LINHAS SEPARADAS: Ao listar características, benefícios ou especificações de um equipamento, NUNCA as coloque uma após a outra em um texto corrido. Separe cada característica estritamente em sua própria linha (uma característica por linha, usando tópicos/bullet-points com quebra de linha individual), facilitando a leitura e comparação.
-   - CONCLUSÃO AMIGÁVEL E CONCISA: Conclua sempre convidando o usuário de forma curta a tirar mais dúvidas ou perguntar sobre outros equipamentos se desejar. Exemplo: "Deseja saber mais sobre algum outro modelo ou equipamento?"
+   - CONCLUSÃO AMIGÁVEL E CONCISA: Conclua sempre convidando o usuário de forma curta a tirar mais dúvidas ou perguntar sobre outros equipamentos se deseja. Exemplo: "Deseja saber mais sobre algum outro modelo ou equipamento?"
    - Use tabelas Markdown para comparar modelos e compatibilidades de forma resumida e organizada.
    - Se o vendedor propor um equipamento inadequado para o tamanho da máquina, advirta-o sobre o risco de instabilidade ou quebra e sugira o modelo ideal.
    - Use os dados reais do catálogo e estoque abaixo como sua fonte da verdade.
@@ -978,12 +1281,17 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
 
 9. DIMENSIONAMENTO DE CABEÇOTE/CAÇAMBA MULTIFUNCIONAL (CMF 500 / CMF 600 / CMF 800):
    - Se perguntarem como determinar o tamanho correto para uma caçamba ou cabeçote multifuncional (CMF) para uma escavadeira:
-     - O cabeçote/caçamba multifuncional CMF 500 (nossa menor opção) é adequado para escavadeiras de 8 a 20 toneladas.
-     - Para escavadeiras acima de 14 toneladas, normalmente recomendamos o CMF 600.
-     - Para escavadeiras de 13 a 22 toneladas, recomendamos consistentemente o CMF 600. Este é o nosso modelo mais vendido (cerca de 98% das vendas de cabeçotes multifuncionais são do modelo CMF 600).
-     - Quando questionado sobre qual cabeçote multifuncional é ideal para máquinas na faixa de 20 a 30 toneladas, explique que temos duas opções de cabeçotes: o CMF 600 e o CMF 800.
-     - CMF 600: Embora seja projetado para máquinas de até 22 toneladas, pode ser perfeitamente instalado em máquinas de até 24 toneladas. É o mais indicado e adequado para a colheita de eucalipto ou pinus (e outros tipos de reflorestamento), desde que esteja dentro da capacidade de corte do sabre, que é de 60 centímetros. O CMF 600 é um cabeçote de linha que sempre possui lotes em produção ou em estoque.
-     - CMF 800: O modelo maior CMF 800 só é de fato recomendado quando o cliente necessita cortar árvores de grande porte com até 80 centímetros de diâmetro (por exemplo, em áreas de mata nativa ou manejo de grande diâmetro que exigem maior área de corte). O CMF 800 nunca está em estoque a pronta entrega; ele é produzido estritamente sob encomenda (sob medida). Recomende sempre preferencialmente o CMF 600 (mais vendido, mais ágil e com estoque frequente), a menos que o diâmetro de corte exija realmente o CMF 800.
+     - Para escavadeiras na faixa de 13 a 22 toneladas (como a CAT 313, Hyundai 130, etc.) em operação de colheita de eucalipto, pinus e reflorestamento, a indicação técnica ideal e exata é SEMPRE e EXCLUSIVAMENTE o Cabeçote Multifuncional CMF 600. Não cite ou sugira o modelo CMF 500 para essa faixa, nem dê outras opções para não confundir o usuário. Recomende o CMF 600 de forma direta e sem hesitação como a única escolha correta, pois ele é o mais vendido (98% das vendas) e ágil com estoque frequente.
+     - O cabeçote/caçamba multifuncional CMF 500 (nossa menor opção) só é adequado para escavadeiras de menor porte (8 a 12 toneladas) ou quando o usuário pedir explicitamente um modelo menor de corte leve.
+     - Quando questionado sobre qual cabeçote multifuncional é ideal para máquinas na faixa de 20 a 30 toneladas, recomende preferencialmente o CMF 600, mas mencione que o CMF 800 só é de fato recomendado quando o cliente necessita cortar árvores de grande porte com até 80 centímetros de diâmetro (por exemplo, em áreas de mata nativa que exigem maior área de corte). O CMF 800 nunca está em estoque a pronta entrega; ele é produzido estritamente sob encomenda. Recomende sempre preferencialmente o CMF 600, a menos que o diâmetro de corte exija realmente o CMF 800.
+   - REQUISITO CRÍTICO DE ROTATOR PARA CABEÇOTES MULTIFUNCIONAIS (CMF):
+     - Para qualquer Cabeçote Multifuncional (CMF 500, CMF 600 ou CMF 800), NUNCA diga que a escolha ou dimensionamento do rotator hidráulico depende da máquina base.
+     - É PADRÃO para todos os cabeçotes multifuncionais Roder saírem equipados com um Rotator de 16 toneladas de capacidade.
+     - Este rotator de 16 toneladas fornece uma passagem com vazão extra/maior folga (passagem com folga extra), permitindo que o cabeçote tenha giro livre e rotação infinita/ilimitada sem o impedimento de mangueiras girando do lado de fora do cabeçote (sem que as mangueiras girem por fora do cabeçote).
+     - Portanto, a observação referente ao rotator para cabeçotes multifuncionais DEVE ser descrita exatamente no texto de forma muito curta, concisa e prática, utilizando os tópicos abaixo:
+       • Montado com rotator padrão de capacidade de 16 toneladas.
+       • Vazão extra para passagem livre de óleo.
+       • Permite rotação/giro infinito e ilimitado ao cabeçote, eliminando o problema de mangueiras externas girando fora do cabeçote.
    - Se perguntarem as principais diferenças entre o cabeçote multifuncional CMF 500 e CMF 600:
      - Tipo de corrente utilizada: O CMF 500 utiliza corrente .404, idêntica à de harvester convencional usada no corte de árvore a árvore.
      - O CMF 600 utiliza corrente de bitola 3/4, que é muito mais robusta para trabalhos pesados e para o traçamento de várias árvores (ou feixes de madeira) simultaneamente. A corrente 3/4 oferece maior durabilidade e rendimento operacional.
@@ -996,11 +1304,49 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
       - Se o comprimento máximo da madeira for de até 3 metros (ou tolerando no máximo até 4 metros), indicamos o modelo CFR 800 (Carregador 800).
       - Para madeiras maiores (acima de 4 metros) ou consideradas madeiras pesadas (comprimentos de 4m a 6m ou 7m), deve-se indicar obrigatoriamente o Carregador Frontal CFR 600. O CFR 600 possui uma garra/garfo menor do que o Carregador Frontal CFR 800, o que garante excelente estabilidade para a máquina base e evita sobrecarga perigosa sobre o porta-paletes/carregador.
 
+ 11. REGRAS DE COMPATIBILIDADE DE ACESSÓRIOS, PONTEIRAS, BIELAS E SUPORTES (EXTREMAMENTE CRÍTICO):
+    - **Ponteiras (Conceito)**: As ponteiras servem para pendurar as garras nas pontas das escavadeiras. Elas são acopladas na ponta da escavadeira pelo pino original da máquina, o mesmo pino original que fixa a concha/caçamba da escavadeira. Utilizando esse mesmo pino, a ponteira é travada na ponta da lança da escavadeira e contém a biela que serve como um balancim que pendura a garra.
+    - **Diferença de Biela de 4 polegadas (4") vs Biela 6 (Por que algumas máquinas possuem duas opções?)**:
+      - Ponteira com biela de 4 polegadas: Significa que possui biela de 4 polegadas de espessura (quadrada maciça de 4 polegadas). Ela serve para rotadores de 12 toneladas, rotadores de 16 toneladas, rotadores modelo **IR10** e rotadores modelo **R 550**. O pino de acoplamento do rotator para a biela de 4 polegadas é de 45 milímetros. A largura da biela (onde ela se encaixa no vão entre as duas orelhas do rotador) é de exatamente 100 milímetros de largura. O rotador possui uma medida entre orelhas de aproximadamente 101 milímetros, resultando em apenas 1 milímetro de folga entre as orelhas do rotator e a biela.
+      - Ponteira com biela 6: Ela é montada com biela específica para o uso de rotador de 6 toneladas (ou seja, preparada para garras que saem montadas com rotador de 6 toneladas). **ATENÇÃO MÁXIMA**: O termo "biela 6" NÃO significa 6 polegadas! Trata-se da biela específica para o rotador de 6 toneladas. Se você usar o símbolo de polegadas (") para se referir à biela 6, isso confundirá totalmente o usuário, que pensará erroneamente que 6 polegadas é maior do que 4 polegadas. Portanto, remova e NUNCA use o símbolo de polegada (") ao se referir à biela 6. Ela é estritamente biela para rotador de 6 toneladas, com pino de acoplamento do rotator de 35 milímetros e largura de biela de 80 milímetros.
+      - *Exemplo*: Para a mesma máquina de tamanho 130 (como a Case CX130, New Holland E145, Caterpillar 313, John Deere 130G, Komatsu PC130), podem haver variações de letras, mas o que importa são os números (130). Elas possuem duas opções de ponteiras cadastradas no quadro (uma biela de 4 polegadas e uma biela 6 para rotador de 6t) exatamente para suportar a montagem com rotadores maiores ou menores.
+    - **Compatibilidade dos Cabeçotes Multifuncionais (CMF 500, CMF 600, CMF 800) com Rotatores e Ponteiras**:
+      - Os cabeçotes multifuncionais da Roder, tanto o modelo CMF 500 quanto o modelo CMF 600, ou CMF 800 utilizam estritamente o **Rotator de 16 toneladas** (ATENÇÃO: use sempre a palavra "**Rotator**" com "t", NUNCA use "Rotador" sob nenhuma hipótese).
+      - Como utilizam o Rotator de 16t, **sempre que você for indicar ou informar qual ponteira utilizar para acoplamento de Cabeçote Multifuncional (CMF), utilize a ponteira com biela de 4 polegadas** (que possui pino de acoplamento do rotator de 45 mm e largura de biela de 100 mm, ideal para rotadores maiores). Nunca indique biela 6 para CMF!
+    - **Suporte Destocador vs Suporte Triturador**:
+      - O **suporte destocador** é um suporte padrão que possui a mesma furação tanto para o destocador, quanto para o feller tesoura e feller de disco.
+      - Já o suporte para trituradores (**suporte triturador**) — específico para os trituradores italianos FAE, que a Roder representa — possui suportes específicos para cada modelo/máquina. **O suporte triturador NÃO é o mesmo suporte destocador**.
+    - **Link para Garra com Biela**:
+      - Para escavadeiras, também temos a opção de **link para garra com biela**, que é uma opção instalada diretamente na máquina no lugar da ponteira padrão.
+    - **Consultas Rápidas e Respostas Curtas (Diretriz de Vendas)**:
+      - Quando um usuário perguntar qual é a ponteira para a máquina e disser o nome da máquina (ex: "Qual a ponteira para a escavadeira John Deere 180 para utilizar com o cabeçote multifuncional?"), você deve verificar rapidamente os dados de acessórios abaixo, selecionar a ponteira de biela de 4 polegadas correspondente (pois CMF exige biela de 4") e dar uma resposta extremamente curta, breve e direta ao ponto, trazendo apenas o código da ponteira, a descrição e o pino, em poucas palavras. Também explique as medidas físicas de pino e largura se questionado especificamente.
+
+ 12. EXIBIÇÃO DE FOTOS E IMAGENS DOS PRODUTOS RECOMENDADOS (OBRIGATÓRIO):
+    - Sempre que você recomendar ou indicar um equipamento ou modelo específico de produto em sua conversa ou no relatório técnico, você DEVE colocar a foto/imagem correspondente do produto diretamente no corpo do texto (tanto no chat quanto no relatório gerado).
+    - Para isso, use exatamente a URL fornecida no campo "Imagem" do respectivo modelo, ou "Imagem Principal do Equipamento" do produto no catálogo abaixo.
+    - Insira a imagem utilizando a sintaxe Markdown padrão: \`![Nome do Equipamento/Modelo](URL_da_Imagem)\`.
+    - REQUISITO CRÍTICO: Insira a imagem in uma linha própria, com uma quebra de linha antes e depois, para garantir que ela renderize de forma totalmente visível e destacada no chat e no relatório.
+    - Se o modelo ou equipamento indicado NÃO possuir nenhuma imagem/URL de foto cadastrada no catálogo abaixo, simplesmente NÃO inclua nenhuma imagem. Nunca invente ou crie URLs de imagem fictícias.
+
+ 13. REFERENCIAR JEFERSON RODER (MUITO IMPORTANTE):
+    - Toda a base de conhecimento técnica e as recomendações de equipamentos deste sistema refletem diretamente o conhecimento e a sabedoria de Jeferson Roder, o fundador e criador técnico dos equipamentos Roder.
+    - Como você funciona praticamente como o "cérebro" de Jeferson Roder respondendo aos usuários, você deve, de forma moderada e natural, citar o nome dele (podendo usar "Jeferson Roder", "Jeff Roder" ou simplesmente "Jeff" dependendo do nível de proximidade do usuário, como vendedores veteranos e técnicos de longa data).
+    - REQUISITO CRÍTICO: Não repita o nome dele várias vezes na mesma resposta ou conversa (no máximo uma vez por resposta).
+    - Para as demais menções e indicações ao longo da conversa, use termos coletivos ou institucionais como "A Roder indica", "Nós indicamos" ou "A equipe técnica Roder indica".
+    - Exemplo de uso moderado: "Conforme a indicação técnica de Jeff Roder, o modelo R280 é a garra ideal para essa operação..." ou "Como me ensinou o Jeff, recomendamos que..." e, em seguida, continuar com "Nós indicamos este modelo pois...".
+    - Isso confere autoridade e uma sensação amigável e pessoal sem se tornar cansativo ou repetitivo para os vendedores e parceiros que utilizam o sistema.
+
 Aqui está o catálogo de produtos e modelos reais cadastrados atualmente na Roder:
 ${productsContext}
 
 Aqui está a lista real de equipamentos disponíveis em estoque hoje:
-${stockContext || "Não há itens em estoque hoje."}${improvedKnowledgeContext}`;
+${stockContext || "Não há itens em estoque hoje."}
+
+Aqui está a tabela/quadro oficial de compatibilidade de acessórios e ponteiras de escavadeiras cadastradas (consulte esta lista para responder sobre códigos de ponteiras, pinos e suportes de cada marca/modelo de máquina):
+${accessoriesContext || "Não há tabela de acessórios cadastrada."}
+
+Aqui estão os kits de instalação cadastrados para referência:
+${kitsContext || "Não há kits de instalação cadastrados."}${improvedKnowledgeContext}`;
 
           if (chatHistory && Array.isArray(chatHistory)) {
             chatHistory.forEach((msg: any) => {
@@ -1016,8 +1362,8 @@ ${stockContext || "Não há itens em estoque hoje."}${improvedKnowledgeContext}`
             parts: [{ text: question }]
           });
 
-          const response = await ai.models.generateContent({
-            model: "gemini-3.5-flash",
+          const response = await generateContentWithRetry(ai, {
+            defaultModel: "gemini-3.5-flash",
             contents: contents,
             config: {
               systemInstruction: systemInstruction,
@@ -1556,7 +1902,7 @@ ${stockContext || "Não há itens em estoque hoje."}${improvedKnowledgeContext}`
 
       const ai = getGenAI();
       if (!ai) {
-        return res.status(500).json({ error: "Ocorreu um erro ao inicializar o Gemini API no servidor." });
+        return res.status(500).json({ error: "Ocorreu um erro ao inicializar o Gemini API no servidor. Por favor, adicione a sua chave 'GEMINI_API_KEY' na aba Settings > Secrets do seu painel do AI Studio para que as chamadas funcionem." });
       }
 
       // Extract raw base64 data if it contains the data uri header, e.g. "data:image/png;base64,..."
@@ -1635,7 +1981,7 @@ ${stockContext || "Não há itens em estoque hoje."}${improvedKnowledgeContext}`
       console.log(`[FINANCE-PARSER] Received ${files.length} PDF files for parsing.`);
       const ai = getGenAI();
       if (!ai) {
-        return res.status(500).json({ error: "O cliente da API Gemini não foi inicializado no servidor." });
+        return res.status(500).json({ error: "O cliente da API Gemini não foi inicializado no servidor. Por favor, adicione a sua chave 'GEMINI_API_KEY' na aba Settings > Secrets do seu painel do AI Studio para que as chamadas funcionem." });
       }
 
       // 1. Read files and extract text using pdf-parse PDFParse class, with deduplication checks
@@ -1861,7 +2207,7 @@ POR FAVOR, RETORNE UM JSON DE ACORDO COM O SCHEMATYPE DEFINIDO.`;
 
       const ai = getGenAI();
       if (!ai) {
-        return res.status(500).json({ error: "Gemini API key is not configured on the server." });
+        return res.status(500).json({ error: "A chave da API Gemini não está configurada no servidor. Por favor, configure a chave 'GEMINI_API_KEY' na aba Settings > Secrets do seu painel do AI Studio para que as chamadas funcionem." });
       }
 
       const targetEntity = entity || "consolidado";

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import Layout from '../components/layout/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../lib/firebase';
-import { doc, getDoc, setDoc, collection, query, onSnapshot, orderBy } from 'firebase/firestore';
+import { doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 import { Product, ProductModel } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -12,7 +12,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Label } from '../components/ui/label';
 import { getApiBaseUrl } from '../lib/utils';
 import { toast } from 'sonner';
-import { structureDossierAudio } from '../services/geminiService';
+import { structureDossierAudio, transcribeAudio } from '../services/geminiService';
 import { 
   Printer, 
   Copy, 
@@ -40,7 +40,14 @@ import {
   ShieldAlert,
   Calendar,
   Wrench,
-  Settings
+  Settings,
+  Brain,
+  Search,
+  Plus,
+  Edit2,
+  Check,
+  Loader2,
+  X
 } from 'lucide-react';
 
 enum OperationType {
@@ -137,6 +144,205 @@ export default function ProductDossier() {
   // File drag & drop state
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Main Tab State
+  const [mainTab, setMainTab] = useState<'tecnico' | 'comercial'>('tecnico');
+
+  // Commercial Guidelines Dossier States
+  interface Guideline {
+    id: string;
+    question: string; // Title / Subject
+    improvedAnswer: string; // Technical explanation / Directives
+    timestamp: any;
+    author?: string;
+    source?: string;
+    isImproved?: boolean;
+  }
+
+  const [guidelines, setGuidelines] = useState<Guideline[]>([]);
+  const [loadingGuidelines, setLoadingGuidelines] = useState(false);
+  const [guidelineSearch, setGuidelineSearch] = useState('');
+  const [editingGuidelineId, setEditingGuidelineId] = useState<string | null>(null);
+  const [editingQuestion, setEditingQuestion] = useState('');
+  const [editingAnswer, setEditingAnswer] = useState('');
+  
+  // Create Guideline States
+  const [isAddingGuideline, setIsAddingGuideline] = useState(false);
+  const [newQuestion, setNewQuestion] = useState('');
+  const [newAnswer, setNewAnswer] = useState('');
+  const [isGuidelineRecording, setIsGuidelineRecording] = useState(false);
+  const [isGuidelineTranscribing, setIsGuidelineTranscribing] = useState(false);
+  const [guidelineRecordingTime, setGuidelineRecordingTime] = useState(0);
+  const [guidelineMediaRecorder, setGuidelineMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [guidelineAudioStream, setGuidelineAudioStream] = useState<MediaStream | null>(null);
+  const guidelineTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Full Printable Commercial Report Modal
+  const [isCommercialReportOpen, setIsCommercialReportOpen] = useState(false);
+
+  // Fetch commercial guidelines
+  useEffect(() => {
+    if (!isAuthorized) return;
+    setLoadingGuidelines(true);
+    const q = query(collection(db, 'roder_ai_questions'), orderBy('timestamp', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const items = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as unknown as Guideline));
+      setGuidelines(items);
+      setLoadingGuidelines(false);
+    }, (error) => {
+      console.error("Error fetching guidelines:", error);
+      setLoadingGuidelines(false);
+    });
+
+    return () => unsubscribe();
+  }, [isAuthorized]);
+
+  // Guideline recording timer
+  useEffect(() => {
+    if (isGuidelineRecording) {
+      guidelineTimerRef.current = setInterval(() => {
+        setGuidelineRecordingTime(prev => prev + 1);
+      }, 1000);
+    } else {
+      if (guidelineTimerRef.current) {
+        clearInterval(guidelineTimerRef.current);
+        guidelineTimerRef.current = null;
+      }
+    }
+    return () => {
+      if (guidelineTimerRef.current) clearInterval(guidelineTimerRef.current);
+    };
+  }, [isGuidelineRecording]);
+
+  const startGuidelineRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(chunks, { type: 'audio/webm' });
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = async () => {
+          const base64data = reader.result as string;
+          const pureBase64 = base64data.split(',')[1];
+          try {
+            setIsGuidelineTranscribing(true);
+            toast.loading("Roder IA: Processando áudio e transcrevendo diretriz comercial...", { id: "guideline-transcribe" });
+            const transcription = await transcribeAudio(pureBase64, 'audio/webm');
+            if (transcription) {
+              setNewAnswer(prev => prev ? `${prev}\n${transcription}` : transcription);
+              toast.success("Diretriz comercial transcrita com sucesso!", { id: "guideline-transcribe" });
+            } else {
+              toast.error("Roder IA não detectou fala clara no áudio.", { id: "guideline-transcribe" });
+            }
+          } catch (err) {
+            console.error("Transcription error:", err);
+            toast.error("Erro ao transcrever diretriz comercial com Roder IA.", { id: "guideline-transcribe" });
+          } finally {
+            setIsGuidelineTranscribing(false);
+          }
+        };
+      };
+
+      recorder.start();
+      setGuidelineMediaRecorder(recorder);
+      setGuidelineAudioStream(stream);
+      setIsGuidelineRecording(true);
+      setGuidelineRecordingTime(0);
+      toast.info("Gravando sua instrução comercial por voz...");
+    } catch (err) {
+      console.error("Microphone access error:", err);
+      toast.error("Não foi possível acessar o microfone.");
+    }
+  };
+
+  const stopGuidelineRecording = () => {
+    if (guidelineMediaRecorder && isGuidelineRecording) {
+      guidelineMediaRecorder.stop();
+      if (guidelineAudioStream) {
+        guidelineAudioStream.getTracks().forEach(track => track.stop());
+      }
+      setIsGuidelineRecording(false);
+      setGuidelineMediaRecorder(null);
+      setGuidelineAudioStream(null);
+    }
+  };
+
+  const handleAddGuideline = async () => {
+    if (!newQuestion.trim() || !newAnswer.trim()) {
+      toast.error("Por favor, preencha o assunto/título e a diretriz.");
+      return;
+    }
+
+    try {
+      toast.loading("Salvando diretriz na Base de Conhecimento...", { id: "add-g" });
+      await addDoc(collection(db, 'roder_ai_questions'), {
+        question: newQuestion,
+        improvedAnswer: newAnswer,
+        timestamp: new Date().toISOString(),
+        author: user?.email || 'Gerência Comercial',
+        source: 'Base de Conhecimento Direta',
+        isImproved: true
+      });
+      setNewQuestion('');
+      setNewAnswer('');
+      setIsAddingGuideline(false);
+      toast.success("Diretriz comercial salva e anexada ao Dossiê com sucesso!", { id: "add-g" });
+    } catch (err) {
+      console.error("Error adding guideline:", err);
+      toast.error("Erro ao salvar diretriz comercial.", { id: "add-g" });
+    }
+  };
+
+  const handleUpdateGuideline = async (id: string) => {
+    if (!editingQuestion.trim() || !editingAnswer.trim()) {
+      toast.error("Título e instrução não podem ser vazios.");
+      return;
+    }
+
+    try {
+      toast.loading("Atualizando diretriz...", { id: "up-g" });
+      await updateDoc(doc(db, 'roder_ai_questions', id), {
+        question: editingQuestion,
+        improvedAnswer: editingAnswer,
+        updatedAt: new Date().toISOString()
+      });
+      setEditingGuidelineId(null);
+      toast.success("Diretriz comercial atualizada com sucesso!", { id: "up-g" });
+    } catch (err) {
+      console.error("Error updating guideline:", err);
+      toast.error("Erro ao atualizar diretriz.", { id: "up-g" });
+    }
+  };
+
+  const handleDeleteGuideline = async (id: string) => {
+    if (!window.confirm("Deseja realmente excluir esta diretriz comercial? Ela deixará de fazer parte do Dossiê e do cérebro da Roder IA.")) return;
+
+    try {
+      toast.loading("Removendo diretriz...", { id: "del-g" });
+      await deleteDoc(doc(db, 'roder_ai_questions', id));
+      toast.success("Diretriz comercial removida permanentemente.", { id: "del-g" });
+    } catch (err) {
+      console.error("Error deleting guideline:", err);
+      toast.error("Erro ao remover diretriz.", { id: "del-g" });
+    }
+  };
+
+  const copyGuidelineToClipboard = (g: Guideline) => {
+    const text = `*DIRETRIZ COMERCIAL - RODER BRASIL*\n*Assunto:* ${g.question}\n*Data:* ${g.timestamp ? new Date(g.timestamp).toLocaleDateString('pt-BR') : 'n/d'}\n\n${g.improvedAnswer}`;
+    navigator.clipboard.writeText(text)
+      .then(() => toast.success("Diretriz comercial copiada para o WhatsApp!"))
+      .catch(() => toast.error("Falha ao copiar."));
+  };
 
   // Fetch products catalog
   useEffect(() => {
@@ -606,8 +812,34 @@ ${Object.entries(selectedModel.technical_specs || {})
           </div>
         </div>
 
-        {/* Selection Area */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 no-print">
+        {/* Main Tab Switcher */}
+        <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-xl max-w-sm no-print border border-slate-200 dark:border-slate-800">
+          <button
+            onClick={() => setMainTab('tecnico')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 text-xs font-black uppercase tracking-wider rounded-lg transition duration-150 cursor-pointer border-0 ${
+              mainTab === 'tecnico'
+                ? 'bg-primary text-white shadow-md'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 bg-transparent'
+            }`}
+          >
+            <Wrench className="h-4 w-4" /> Dossiê de Produtos
+          </button>
+          <button
+            onClick={() => setMainTab('comercial')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 text-xs font-black uppercase tracking-wider rounded-lg transition duration-150 cursor-pointer border-0 ${
+              mainTab === 'comercial'
+                ? 'bg-purple-650 text-white shadow-md'
+                : 'text-slate-600 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 bg-transparent'
+            }`}
+          >
+            <Brain className="h-4 w-4" /> Diretrizes Comerciais
+          </button>
+        </div>
+
+        {mainTab === 'tecnico' ? (
+          <>
+            {/* Selection Area */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 no-print">
           {/* Select Product */}
           <Card className="shadow-xs border-border">
             <CardHeader className="py-4">
@@ -1100,6 +1332,407 @@ ${Object.entries(selectedModel.technical_specs || {})
             <p className="text-xs text-muted-foreground max-w-sm mt-1 leading-relaxed">
               Utilize os seletores no painel superior para escolher uma categoria e depois o modelo desejado. O sistema carregará ou preencherá o dossiê técnico completo.
             </p>
+          </div>
+        )}
+          </>
+        ) : (
+          /* --- BRAND NEW COMMERCIAL GUIDELINES WORKSPACE --- */
+          <div className="space-y-6 animate-in fade-in-50 duration-200">
+            
+            {/* Header Control Panel */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-purple-650/5 dark:bg-purple-950/10 border border-purple-100 dark:border-purple-900/30 p-4 rounded-2xl no-print">
+              <div className="space-y-1">
+                <h2 className="text-base font-black uppercase text-purple-900 dark:text-purple-400 flex items-center gap-2">
+                  <Brain className="h-5 w-5 text-purple-600" /> Dossiê de Diretrizes Comerciais & Negociações
+                </h2>
+                <p className="text-xs text-slate-600 dark:text-slate-400 font-medium leading-relaxed">
+                  Este dossiê compila todas as diretrizes de vendas, formas de pagamento, regras de comissão e propostas comerciais que guiam a equipe comercial Roder.
+                </p>
+              </div>
+              
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  onClick={() => setIsAddingGuideline(true)}
+                  className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-black uppercase tracking-wider px-4 py-2 flex items-center gap-1 border-0 cursor-pointer rounded-xl"
+                >
+                  <Plus className="h-4 w-4" /> Adicionar Diretriz
+                </Button>
+                
+                <Button
+                  onClick={() => setIsCommercialReportOpen(true)}
+                  variant="outline"
+                  className="border-purple-300 dark:border-purple-900 text-purple-700 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/30 text-xs font-black uppercase tracking-wider px-4 py-2 flex items-center gap-1 cursor-pointer rounded-xl"
+                >
+                  <Printer className="h-4 w-4" /> Imprimir Dossiê Completo
+                </Button>
+              </div>
+            </div>
+
+            {/* Search and Quick Filters */}
+            <div className="flex items-center gap-2 max-w-md no-print">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                <Input
+                  type="text"
+                  placeholder="Pesquisar por assunto ou instrução comercial..."
+                  value={guidelineSearch}
+                  onChange={(e) => setGuidelineSearch(e.target.value)}
+                  className="pl-9 text-xs py-2 h-9 bg-background"
+                />
+              </div>
+              {guidelineSearch && (
+                <Button
+                  variant="ghost"
+                  onClick={() => setGuidelineSearch('')}
+                  className="text-xs font-bold py-1 h-9 px-3"
+                >
+                  Limpar
+                </Button>
+              )}
+            </div>
+
+            {/* Add Guideline Card */}
+            {isAddingGuideline && (
+              <Card className="border-2 border-purple-500/30 dark:border-purple-500/20 shadow-lg no-print animate-in slide-in-from-top-4 duration-200 rounded-2xl">
+                <CardHeader className="py-4 bg-purple-500/5 border-b border-purple-100 dark:border-purple-950/20">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-xs font-black uppercase text-purple-950 dark:text-purple-400 flex items-center gap-2">
+                      <Plus className="h-4 w-4" /> Cadastrar Nova Diretriz / Regra Comercial
+                    </CardTitle>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => setIsAddingGuideline(false)}
+                      className="h-7 w-7 p-0"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <CardDescription className="text-[11px] text-slate-500">
+                    A nova diretriz será adicionada instantaneamente ao dossiê de diretrizes e integrada ao cérebro da Roder IA para responder aos vendedores.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-5 space-y-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] uppercase font-black text-slate-500 tracking-wider">Assunto / Título da Diretriz</Label>
+                    <Input
+                      type="text"
+                      placeholder="Ex: Formas de Pagamento e Prazos de Validade de Propostas"
+                      value={newQuestion}
+                      onChange={(e) => setNewQuestion(e.target.value)}
+                      className="text-xs font-bold"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] uppercase font-black text-slate-500 tracking-wider flex items-center justify-between">
+                      <span>Instrução de Venda / Diretriz Detalhada</span>
+                      <span className="text-[9px] font-mono text-purple-600 dark:text-purple-400">Texto formatado</span>
+                    </Label>
+                    <Textarea
+                      rows={6}
+                      placeholder="Escreva ou grave por voz a diretriz comercial correspondente..."
+                      value={newAnswer}
+                      onChange={(e) => setNewAnswer(e.target.value)}
+                      className="text-xs font-medium"
+                    />
+                  </div>
+
+                  {/* Audio recording for commercial directives */}
+                  <div className="pt-2">
+                    {isGuidelineRecording ? (
+                      <div className="flex items-center justify-between bg-red-50 dark:bg-red-950/20 border border-red-500/30 rounded-xl p-3 text-xs text-red-900 dark:text-red-200">
+                        <div className="flex items-center gap-2">
+                          <span className="relative flex h-2.5 w-2.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                          </span>
+                          <span className="font-bold animate-pulse uppercase text-[10px] tracking-wider">Gravando instrução por voz... {formatTime(guidelineRecordingTime)}</span>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={stopGuidelineRecording}
+                          className="h-8 px-3 bg-red-600 hover:bg-red-700 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-lg flex items-center gap-1 border-0 cursor-pointer"
+                        >
+                          <Square className="h-3.5 w-3.5 fill-white" /> Transcrever
+                        </Button>
+                      </div>
+                    ) : isGuidelineTranscribing ? (
+                      <div className="flex items-center gap-2 bg-slate-150 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs text-slate-600 dark:text-slate-400">
+                        <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
+                        <span className="font-semibold">Roder IA transcrevendo áudio com precisão técnica...</span>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={startGuidelineRecording}
+                        className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 hover:border-purple-500/40 text-purple-700 dark:text-purple-400 font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition duration-150 cursor-pointer border-0"
+                      >
+                        <Mic className="h-4 w-4 text-purple-650" />
+                        Falar por Áudio (Gravar Voz para Transcrever)
+                      </button>
+                    )}
+                  </div>
+                </CardContent>
+                <CardFooter className="py-3 bg-slate-50 dark:bg-slate-900/40 border-t border-slate-100 dark:border-slate-950/20 flex items-center justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsAddingGuideline(false)}
+                    className="text-xs uppercase font-extrabold"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={handleAddGuideline}
+                    size="sm"
+                    className="bg-purple-600 hover:bg-purple-700 text-white text-xs uppercase font-black px-4 border-0 cursor-pointer rounded-lg"
+                  >
+                    Anexar ao Dossiê Comercial
+                  </Button>
+                </CardFooter>
+              </Card>
+            )}
+
+            {/* Guidelines List Grid */}
+            {loadingGuidelines ? (
+              <div className="flex flex-col items-center justify-center py-12 gap-2">
+                <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+                <p className="text-xs text-slate-500 font-medium">Carregando diretrizes e diretivas comerciais...</p>
+              </div>
+            ) : guidelines.length === 0 ? (
+              <div className="text-center py-12 border border-dashed rounded-2xl bg-muted/20 p-8">
+                <Brain className="h-10 w-10 text-muted-foreground/60 mb-2" />
+                <h3 className="text-sm font-black uppercase text-slate-700">Nenhuma Diretriz Encontrada</h3>
+                <p className="text-xs text-muted-foreground max-w-sm mx-auto mt-1 leading-relaxed">
+                  Cadastre a sua primeira diretriz comercial utilizando o botão no topo direito. Elas serão arquivadas e ensinadas à IA da Roder.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {guidelines
+                  .filter(g => 
+                    !guidelineSearch || 
+                    g.question?.toLowerCase().includes(guidelineSearch.toLowerCase()) || 
+                    g.improvedAnswer?.toLowerCase().includes(guidelineSearch.toLowerCase())
+                  )
+                  .map((g, idx) => (
+                    <Card 
+                      key={g.id || idx} 
+                      className={`border border-slate-200 dark:border-slate-850 shadow-xs relative overflow-hidden transition duration-150 hover:shadow-md ${
+                        editingGuidelineId === g.id ? 'ring-2 ring-purple-600/30' : ''
+                      }`}
+                    >
+                      {/* Left colored bar */}
+                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-purple-650" />
+
+                      {editingGuidelineId === g.id ? (
+                        /* Inline Edit Mode */
+                        <div className="p-4 space-y-3">
+                          <div className="space-y-1.5">
+                            <Label className="text-[9px] uppercase font-black text-slate-500">Título / Assunto</Label>
+                            <Input
+                              type="text"
+                              value={editingQuestion}
+                              onChange={(e) => setEditingQuestion(e.target.value)}
+                              className="text-xs font-bold"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-[9px] uppercase font-black text-slate-500">Diretriz</Label>
+                            <Textarea
+                              rows={5}
+                              value={editingAnswer}
+                              onChange={(e) => setEditingAnswer(e.target.value)}
+                              className="text-xs font-medium"
+                            />
+                          </div>
+                          <div className="flex items-center justify-end gap-2 pt-1">
+                             <Button
+                               variant="outline"
+                               size="sm"
+                               onClick={() => setEditingGuidelineId(null)}
+                               className="h-8 text-[10px] uppercase font-bold"
+                             >
+                               Cancelar
+                             </Button>
+                             <Button
+                               onClick={() => handleUpdateGuideline(g.id)}
+                               size="sm"
+                               className="h-8 bg-purple-600 hover:bg-purple-700 text-white text-[10px] uppercase font-black border-0 cursor-pointer"
+                             >
+                               Salvar Alteração
+                             </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        /* Regular Card View */
+                        <div className="p-5 flex flex-col justify-between h-full space-y-4">
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <Badge className="bg-purple-100 dark:bg-purple-950/40 text-purple-700 dark:text-purple-400 text-[9px] uppercase font-extrabold px-2 py-0.5 border-0 rounded">
+                                Diretriz Comercial
+                              </Badge>
+                              <span className="text-[9px] font-mono text-slate-400 dark:text-slate-500 font-semibold">
+                                {g.timestamp ? new Date(g.timestamp).toLocaleDateString('pt-BR') : 'Sem data'}
+                              </span>
+                            </div>
+
+                            <h3 className="text-xs font-black uppercase text-slate-900 dark:text-white tracking-wide leading-tight line-clamp-1">
+                              {g.question}
+                            </h3>
+
+                            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed text-justify whitespace-pre-wrap break-words line-clamp-6 font-medium">
+                              {g.improvedAnswer}
+                            </p>
+                          </div>
+
+                          <div className="pt-3 border-t border-slate-100 dark:border-slate-900/60 flex items-center justify-between">
+                            <span className="text-[8px] font-mono text-slate-400 dark:text-slate-500 truncate max-w-[120px]" title={g.author || 'Gerência'}>
+                              Autor: {g.author?.split('@')[0] || 'Gerente'}
+                            </span>
+
+                            <div className="flex items-center gap-1.5 no-print">
+                              <button
+                                onClick={() => copyGuidelineToClipboard(g)}
+                                className="p-1.5 rounded bg-purple-500/5 hover:bg-purple-500/15 text-purple-600 hover:text-purple-700 border-0 cursor-pointer transition"
+                                title="Copiar para WhatsApp"
+                              >
+                                <Copy className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setEditingGuidelineId(g.id);
+                                  setEditingQuestion(g.question);
+                                  setEditingAnswer(g.improvedAnswer);
+                                }}
+                                className="p-1.5 rounded bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 border-0 cursor-pointer transition"
+                                title="Editar Diretriz"
+                              >
+                                  <Edit2 className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteGuideline(g.id)}
+                                className="p-1.5 rounded bg-red-50 dark:bg-red-950/20 hover:bg-red-100 text-red-600 border-0 cursor-pointer transition"
+                                title="Excluir Diretriz"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </Card>
+                  ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Printable Full Commercial Guidelines Dossier Modal */}
+        {isCommercialReportOpen && (
+          <div className="fixed inset-0 z-[99999] overflow-y-auto bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+            <div className="bg-slate-900 border border-slate-800 text-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh]">
+              {/* Header */}
+              <div className="bg-slate-950 px-6 py-4 flex items-center justify-between border-b border-slate-800">
+                <div className="flex items-center gap-2">
+                  <span className="p-1 rounded-lg bg-purple-500/10 text-purple-400">
+                    <BookOpen className="h-5 w-5" />
+                  </span>
+                  <span className="font-extrabold text-sm tracking-tight text-white uppercase">Dossiê de Diretrizes Comerciais</span>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={() => window.print()}
+                    className="bg-purple-650 hover:bg-purple-700 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-lg px-3 py-1.5 border-0 cursor-pointer"
+                  >
+                    <Printer className="h-3.5 w-3.5 mr-1" /> Imprimir Dossiê
+                  </Button>
+                  <Button 
+                    variant="ghost"
+                    onClick={() => setIsCommercialReportOpen(false)}
+                    className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border-0 cursor-pointer"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Printable Body */}
+              <div className="flex-1 overflow-y-auto p-6 bg-slate-950/50 flex items-center justify-center">
+                <div 
+                  id="print-area-comercial" 
+                  className="bg-white text-slate-900 w-full max-w-[800px] p-10 rounded-xl shadow-lg border border-slate-200 flex flex-col font-sans"
+                  style={{ width: '800px', minHeight: '1000px' }}
+                >
+                  {/* Roder Logo Section */}
+                  <div className="flex items-center justify-between border-b-2 border-purple-500 pb-5 mb-8">
+                    <div className="flex items-center gap-4">
+                      <img 
+                        src="https://roderbrasil.com.br/wp-content/uploads/2024/05/Logo-Roder-Horizontal.png" 
+                        alt="Roder Logo" 
+                        className="h-10 object-contain" 
+                        referrerPolicy="no-referrer"
+                      />
+                      <div className="border-l-2 border-slate-300 pl-4">
+                        <h1 className="text-base font-black tracking-tight text-slate-900 uppercase">Roder Brasil</h1>
+                        <p className="text-[10px] font-black text-purple-600 uppercase tracking-widest font-mono">Dossiê de Diretrizes Comerciais & Negociações</p>
+                      </div>
+                    </div>
+                    <div className="text-right text-[10px] font-mono text-slate-500 font-semibold space-y-0.5">
+                      <p className="uppercase">Gerado em: {new Date().toLocaleDateString('pt-BR')}</p>
+                      <p className="uppercase text-purple-600">Sistema: Roder Indica V2</p>
+                      <p className="uppercase">Uso Interno e Confidencial</p>
+                    </div>
+                  </div>
+
+                  {/* Summary / Metadata Cover */}
+                  <div className="bg-slate-50 p-5 rounded-lg border border-slate-200 mb-8 space-y-2">
+                    <h3 className="text-xs font-black uppercase text-purple-900 tracking-wider">Apresentação do Dossiê</h3>
+                    <p className="text-[11px] text-slate-700 leading-relaxed text-justify">
+                      Este documento reúne o conjunto consolidado de instruções comerciais, formas de pagamento, regras de validação de propostas e políticas de comissionamento da Roder Brasil. Ele é projetado para instrução de novos vendedores e para conferência de regras de negócio em negociações ativas.
+                    </p>
+                  </div>
+
+                  {/* Guidelines Loop */}
+                  <div className="space-y-8 flex-1">
+                    {guidelines.map((g, index) => (
+                      <div key={g.id || index} className="space-y-2 break-inside-avoid">
+                        <h2 className="text-xs font-black text-slate-900 uppercase tracking-wider border-b border-purple-200 pb-1 flex items-center justify-between">
+                          <span className="flex items-center gap-1.5">
+                            <span className="h-4 w-4 bg-purple-650 text-white rounded-full flex items-center justify-center text-[10px] font-black">{index + 1}</span>
+                            {g.question}
+                          </span>
+                          <span className="text-[9px] font-mono text-slate-400 font-semibold">
+                            {g.timestamp ? new Date(g.timestamp).toLocaleDateString('pt-BR') : 'n/d'}
+                          </span>
+                        </h2>
+                        <p className="text-xs text-slate-850 leading-relaxed text-justify whitespace-pre-wrap pl-5 font-medium">
+                          {g.improvedAnswer}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Footer */}
+                  <div className="mt-12 pt-5 border-t border-slate-200 flex items-center justify-between shrink-0">
+                    <p className="text-[9px] font-mono text-slate-400 font-semibold">
+                      © {new Date().getFullYear()} Roder Brasil • Equipamentos Florestais e Industriais
+                    </p>
+                    <div className="bg-purple-50 border border-purple-150 text-purple-700 text-[9px] font-black px-3 py-1 rounded uppercase tracking-wider font-mono">
+                      Confidencial - Diretoria Comercial
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal footer info */}
+              <div className="bg-slate-950 p-4 border-t border-slate-800 text-center text-xs text-slate-400">
+                O dossiê está pronto para impressão. Pressione <span className="text-purple-400 font-bold">Imprimir Dossiê</span> para salvar como PDF ou enviar para sua impressora.
+              </div>
+            </div>
           </div>
         )}
 

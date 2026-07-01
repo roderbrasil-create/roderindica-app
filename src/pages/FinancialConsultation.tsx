@@ -778,7 +778,7 @@ export default function FinancialConsultation() {
     }
 
     if (rawDoc === '18011786660') {
-      // RODOLFO AUGUSTO OLIVEIRA COELHO (CPF com baixo score)
+      // CARLOS AUGUSTO OLIVEIRA COELHO (CPF com baixo score)
       let status: 'APROVADO' | 'APROVAÇÃO CONDICIONAL' | 'SÓ À VISTA / NEGADO' = 'SÓ À VISTA / NEGADO';
       let entrada = '100% à vista';
       let parcelas = 'Negado venda parcelada ou a prazo. Apenas pagamento 100% à vista no fechamento.';
@@ -803,7 +803,7 @@ export default function FinancialConsultation() {
       return {
         documentoStr: docFormatted,
         documentoType: 'CPF',
-        name: 'RODOLFO AUGUSTO OLIVEIRA COELHO',
+        name: 'CARLOS AUGUSTO OLIVEIRA COELHO',
         score: 237,
         is_active: true,
         status_receita: 'REGULAR',
@@ -815,7 +815,7 @@ export default function FinancialConsultation() {
         pontualidade_pagamento: 'Baixo índice de pontualidade. Pendências ativas registradas no cartão corporativo.',
         gasto_estimado: 'Consumidor Final Individual',
         market_practice: 'Venda Exclusivamente à Vista (Negado a Prazo)',
-        recommendation: 'Inadimplência estimada muito alta. Registros comerciais vigentes em cartório de cobrança (Pefin). Não se recomenda nenhum tipo de parcelamento faturado por boleto ou crediário próprio.',
+        recommendation: 'Inadimplência estimada muito alta. Registros comerciais vigentes in cartório de cobrança (Pefin). Não se recomenda nenhum tipo de parcelamento faturado por boleto ou crediário próprio.',
         parcela_mensal_segura: 'R$ 0,00 (Somente condições 100% à vista no pedido)',
         relationship_context: relContext,
         fluxo_sugerido_sob_encomenda: status === 'SÓ À VISTA / NEGADO' ? fluxoSug : undefined,
@@ -830,7 +830,7 @@ export default function FinancialConsultation() {
         ],
         socios: [
           {
-            nome: 'RODOLFO AUGUSTO O. COELHO (Autônomo)',
+            nome: 'CARLOS AUGUSTO O. COELHO (Autônomo)',
             documento: '180.117.866-60',
             relacionamento: 'Titular',
             capital_percentual: '100.0%',

@@ -88,30 +88,47 @@ export default function App() {
   const APP_VERSION = "2.4.4"; // Security fix for permission leak and Yury access
 
   useEffect(() => {
-    // Detect if we need to force update
-    const lastVersion = localStorage.getItem('roder_app_version');
-    
-    if (lastVersion && lastVersion !== APP_VERSION) {
-      console.log(`New version detected: ${APP_VERSION}. Synchronizing...`);
+    try {
+      // Detect if we need to force update
+      const lastVersion = localStorage.getItem('roder_app_version');
       
-      // Clear key storage areas to force fresh data fetching
-      const keysToClear = [
-        'roder_app_version',
-        'firebase-cache',
-        'stock_cache',
-        'last_sync_timestamp'
-      ];
+      if (lastVersion && lastVersion !== APP_VERSION) {
+        console.log(`New version detected: ${APP_VERSION}. Synchronizing...`);
+        
+        // Clear key storage areas to force fresh data fetching
+        const keysToClear = [
+          'roder_app_version',
+          'firebase-cache',
+          'stock_cache',
+          'last_sync_timestamp'
+        ];
+        
+        keysToClear.forEach(k => {
+          try {
+            localStorage.removeItem(k);
+          } catch (_) {}
+        });
+        
+        try {
+          localStorage.setItem('roder_app_version', APP_VERSION);
+        } catch (_) {}
+        
+        // Force hard reload avoiding browser cache by using a unique timestamp
+        try {
+          window.location.replace(window.location.origin + window.location.pathname + '?refresh=' + Date.now());
+          return;
+        } catch (e) {
+          console.warn("Could not reload page inside iframe:", e);
+        }
+      }
       
-      keysToClear.forEach(k => localStorage.removeItem(k));
-      localStorage.setItem('roder_app_version', APP_VERSION);
-      
-      // Force hard reload avoiding browser cache by using a unique timestamp
-      window.location.replace(window.location.origin + window.location.pathname + '?refresh=' + Date.now());
-      return;
-    }
-    
-    if (!lastVersion) {
-      localStorage.setItem('roder_app_version', APP_VERSION);
+      if (!lastVersion) {
+        try {
+          localStorage.setItem('roder_app_version', APP_VERSION);
+        } catch (_) {}
+      }
+    } catch (err) {
+      console.error("Error in App initial mount version checks:", err);
     }
 
     setMounted(true);
@@ -279,7 +296,7 @@ function AppContent() {
                 } />
 
                 <Route path="/dossie" element={
-                  <PrivateRoute roles={['admin', 'manager', 'internal_seller']}>
+                  <PrivateRoute roles={['admin', 'manager']}>
                     <ProductDossier />
                   </PrivateRoute>
                 } />

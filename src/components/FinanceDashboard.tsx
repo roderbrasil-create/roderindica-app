@@ -117,19 +117,18 @@ const KPI_METADATA: {
   faturamento: { label: 'Faturamento', suffix: 'R$', isPercent: false, isDays: false, description: 'Receita Operacional Bruta total', color: '#3b82f6' },
   receita_liquida: { label: 'Receita Líquida', suffix: 'R$', isPercent: false, isDays: false, description: 'Faturamento líquido de tributos e deduções', color: '#10b981' },
   margem_liquida: { label: 'Margem Líquida', suffix: '%', isPercent: true, isDays: false, description: 'Lucro líquido dividido pelo faturamento bruto', color: '#8b5cf6' },
-  resultado_liquido: { label: 'Resultado Líquido', suffix: 'R$', isPercent: false, isDays: false, description: 'Resultado financeiro após todas as despesas e receitas', color: '#ec4899' },
+  resultado_liquido: { label: 'Resultado Líquido (Depois dos Impostos e Despesas Finais)', suffix: 'R$', isPercent: false, isDays: false, description: 'Resultado financeiro absoluto e final do período, após deduzir todos os impostos, despesas e receitas', color: '#ec4899' },
   lucro_bruto: { label: 'Lucro Bruto', suffix: 'R$', isPercent: false, isDays: false, description: 'Diferença entre receita líquida e custo dos produtos vendidos', color: '#f59e0b' },
   rentabilidade: { label: 'Rentabilidade', suffix: '%', isPercent: true, isDays: false, description: 'Capacidade do negócio de gerar retorno no investimento', color: '#14b8a6' },
   ponto_equilibrio: { label: 'Ponto de Equilíbrio', suffix: 'R$', isPercent: false, isDays: false, description: 'Nível de faturamento mínimo para cobrir todos os custos', color: '#ef4444' },
-  ebitda: { label: 'EBITDA', suffix: 'R$', isPercent: false, isDays: false, description: 'Lucro antes de juros, impostos, depreciação e amortização', color: '#06b6d4' },
+  ebitda: { label: 'EBITDA (Lucro Operacional)', suffix: 'R$', isPercent: false, isDays: false, description: 'Lucro antes de juros, impostos, depreciação e amortização (Equivalente ao Lucro Operacional)', color: '#06b6d4' },
   margem_ebitda: { label: 'Margem EBITDA', suffix: '%', isPercent: true, isDays: false, description: 'EBITDA dividido pela Receita Líquida', color: '#3b82f6' },
-  lucro_liquido: { label: 'Lucro Líquido', suffix: 'R$', isPercent: false, isDays: false, description: 'Resultado final positivo líquido do período', color: '#22c55e' },
+  lucro_liquido: { label: 'Lucro Líquido (Antes de Impostos e Ajustes Finais)', suffix: 'R$', isPercent: false, isDays: false, description: 'Resultado líquido do período antes das deduções de impostos finais corporativos', color: '#22c55e' },
   margem_bruta: { label: 'Margem Bruta', suffix: '%', isPercent: true, isDays: false, description: 'Lucro bruto dividido pela Receita Líquida', color: '#a855f7' },
   fluxo_caixa_operacional: { label: 'Fluxo de Caixa Operacional', suffix: 'R$', isPercent: false, isDays: false, description: 'Recursos gerados apenas pelas atividades principais', color: '#6366f1' },
   saldo_caixa: { label: 'Saldo de Caixa', suffix: 'R$', isPercent: false, isDays: false, description: 'Recursos em caixa disponíveis no encerramento', color: '#0ea5e9' },
   geracao_caixa_ncc: { label: 'Geração de Caixa - NCC', suffix: 'R$', isPercent: false, isDays: false, description: 'Geração com ajuste da Necessidade de Capital de Giro', color: '#f43f5e' },
   capacidade_gerar_lucro: { label: 'Capacidade de Gerar Lucro', suffix: '%', isPercent: true, isDays: false, description: 'Percentual do faturamento convertido em lucro', color: '#eab308' },
-  lucro_operacional: { label: 'Lucro Operacional', suffix: 'R$', isPercent: false, isDays: false, description: 'Lucro decorrente puramente das atividades operacionais', color: '#16a34a' },
   margem_contribuicao: { label: 'Margem de Contribuição', suffix: '%', isPercent: true, isDays: false, description: 'Percentual que sobra das vendas para pagar custos fixos', color: '#ea580c' },
   capital_giro: { label: 'Capital de Giro', suffix: 'R$', isPercent: false, isDays: false, description: 'Ativo circulante menos passivo circulante disponível', color: '#0284c7' },
   pmr: { label: 'PMR (Prazo Médio Recebimento)', suffix: ' dias', isPercent: false, isDays: true, description: 'Tempo médio para receber as vendas realizadas', color: '#4f46e5' },
@@ -473,7 +472,7 @@ export default function FinanceDashboard() {
   // Preset Filters
   const setPreset = (presetType: 'operational' | 'profitability' | 'efficiency' | 'all') => {
     if (presetType === 'operational') {
-      setActiveKPIs(['faturamento', 'receita_liquida', 'lucro_bruto', 'ebitda', 'lucro_operacional']);
+      setActiveKPIs(['faturamento', 'receita_liquida', 'lucro_bruto', 'ebitda']);
     } else if (presetType === 'profitability') {
       setActiveKPIs(['margem_liquida', 'margem_ebitda', 'margem_bruta', 'rentabilidade', 'capacidade_gerar_lucro']);
     } else if (presetType === 'efficiency') {
@@ -1331,7 +1330,8 @@ export default function FinanceDashboard() {
               <thead>
                 <tr className="border-b border-border bg-muted/40 font-bold text-muted-foreground uppercase tracking-widest text-[10px] md:text-[11px] select-none">
                   <th className="py-2.5 px-4">Indicador / KPI</th>
-                  <th className="py-2.5 px-4 text-right">Valor Alcançado</th>
+                  <th className="py-2.5 px-4 text-right">Valor (R$ / Outros)</th>
+                  <th className="py-2.5 px-4 text-right">Porcentagem (%)</th>
                   <th className="py-2.5 px-4 hidden md:table-cell">Significado & Descrição</th>
                   <th className="py-2.5 px-4 text-center w-24">Ativo no Gráfico</th>
                 </tr>
@@ -1341,6 +1341,7 @@ export default function FinanceDashboard() {
                   const meta = KPI_METADATA[key];
                   const entityValues = currentMonthData[selectedEntity] || {};
                   const rawVal = (entityValues as any)[key];
+                  const faturamentoVal = (entityValues as any)['faturamento'] || 0;
                   const isActive = activeKPIs.includes(key);
                   
                   // Style value based on absolute value (colored green/emerald if positive, rose if negative for lucros/resultados/margens)
@@ -1370,9 +1371,22 @@ export default function FinanceDashboard() {
                         </div>
                       </td>
 
-                      {/* KPI Value */}
-                      <td className={`py-2 px-4 text-right font-mono ${valueColorClass}`}>
-                        {formatValue(rawVal, key)}
+                      {/* KPI Value (R$ / Outros) */}
+                      <td className={`py-2 px-4 text-right font-mono ${!meta.isPercent ? valueColorClass : 'text-muted-foreground/30'}`}>
+                        {!meta.isPercent ? formatValue(rawVal, key) : '—'}
+                      </td>
+
+                      {/* KPI Percentage (%) */}
+                      <td className={`py-2 px-4 text-right font-mono ${meta.isPercent || meta.suffix === 'R$' ? valueColorClass : 'text-muted-foreground/30'}`}>
+                        {meta.isPercent ? (
+                          formatValue(rawVal, key)
+                        ) : meta.suffix === 'R$' ? (
+                          typeof rawVal === 'number' && faturamentoVal > 0 ? (
+                            `${(rawVal / faturamentoVal * 100).toFixed(2)}%`
+                          ) : '0.00%'
+                        ) : (
+                          '—'
+                        )}
                       </td>
 
                       {/* Description */}
@@ -1403,28 +1417,63 @@ export default function FinanceDashboard() {
                     <span className="h-2 w-2 bg-emerald-500 rounded-full animate-pulse" />
                     Totais Consolidados do Período
                   </td>
-                  <td className="py-3 px-4 text-right font-mono" colSpan={1}>
+                  <td className="py-3 px-4 text-right font-mono" colSpan={2}>
                     {/* Compact display of key period aggregates */}
-                    <div className="flex flex-col text-right items-end gap-1 select-none">
-                      <div className="flex justify-between w-full max-w-[280px] gap-4 text-[10px] md:text-xs">
-                        <span className="text-muted-foreground font-semibold">FATURAMENTO BRUTO:</span>
-                        <span className="text-foreground tracking-tight font-bold">{formatValue((currentMonthData[selectedEntity] || {}).faturamento, 'faturamento')}</span>
-                      </div>
-                      <div className="flex justify-between w-full max-w-[280px] gap-4 text-[10px] md:text-xs">
-                        <span className="text-muted-foreground font-semibold">RECEITA LÍQUIDA:</span>
-                        <span className="text-emerald-600 dark:text-emerald-400 font-bold tracking-tight">{formatValue((currentMonthData[selectedEntity] || {}).receita_liquida, 'receita_liquida')}</span>
-                      </div>
-                      <div className="flex justify-between w-full max-w-[280px] gap-4 text-[10px] md:text-xs border-t border-border/30 pt-1">
-                        <span className="text-muted-foreground font-black">RESULTADO LÍQUIDO:</span>
-                        <span className={`font-black tracking-tight ${((currentMonthData[selectedEntity] || {}).resultado_liquido || 0) < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                          {formatValue((currentMonthData[selectedEntity] || {}).resultado_liquido, 'resultado_liquido')}
-                        </span>
-                      </div>
-                    </div>
+                    {(() => {
+                      const entityValues = (currentMonthData[selectedEntity] || {}) as any;
+                      const faturamentoVal = entityValues.faturamento || 0;
+                      const receitaLiquidaVal = entityValues.receita_liquida || 0;
+                      const resultadoLiquidoVal = entityValues.resultado_liquido || 0;
+                      const despesaTotalVal = faturamentoVal - resultadoLiquidoVal;
+                      
+                      const pctReceita = 100;
+                      const pctReceitaLiquida = faturamentoVal > 0 ? (receitaLiquidaVal / faturamentoVal) * 100 : 0;
+                      const pctDespesa = faturamentoVal > 0 ? (despesaTotalVal / faturamentoVal) * 100 : 0;
+                      const pctResultado = faturamentoVal > 0 ? (resultadoLiquidoVal / faturamentoVal) * 100 : 0;
+
+                      return (
+                        <div className="flex flex-col text-right items-end gap-1.5 select-none">
+                          <div className="flex justify-between w-full max-w-[340px] gap-4 text-[10px] md:text-xs">
+                            <span className="text-muted-foreground font-semibold">RECEITA TOTAL (FATURAMENTO BRUTO):</span>
+                            <div className="flex gap-2">
+                              <span className="text-foreground font-bold">{formatValue(faturamentoVal, 'faturamento')}</span>
+                              <span className="text-muted-foreground text-[10px] font-normal">({pctReceita.toFixed(2)}%)</span>
+                            </div>
+                          </div>
+                          <div className="flex justify-between w-full max-w-[340px] gap-4 text-[10px] md:text-xs">
+                            <span className="text-muted-foreground font-semibold">RECEITA LÍQUIDA (DE TRIBUTOS):</span>
+                            <div className="flex gap-2">
+                              <span className="text-emerald-600 dark:text-emerald-400 font-bold">{formatValue(receitaLiquidaVal, 'receita_liquida')}</span>
+                              <span className="text-emerald-600/70 text-[10px] font-normal">({pctReceitaLiquida.toFixed(2)}%)</span>
+                            </div>
+                          </div>
+                          <div className="flex justify-between w-full max-w-[340px] gap-4 text-[10px] md:text-xs border-t border-border/30 pt-1">
+                            <span className="text-rose-500 font-semibold">DESPESA TOTAL (CUSTOS/DESPESAS):</span>
+                            <div className="flex gap-2">
+                              <span className="text-rose-500 font-bold">
+                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(despesaTotalVal)}
+                              </span>
+                              <span className="text-rose-500/70 text-[10px] font-normal">({pctDespesa.toFixed(2)}%)</span>
+                            </div>
+                          </div>
+                          <div className="flex justify-between w-full max-w-[340px] gap-4 text-[10px] md:text-xs border-t border-border/30 pt-1">
+                            <span className="text-muted-foreground font-black">RESULTADO LÍQUIDO FINAL:</span>
+                            <div className="flex gap-2">
+                              <span className={`font-black tracking-tight ${resultadoLiquidoVal < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                {formatValue(resultadoLiquidoVal, 'resultado_liquido')}
+                              </span>
+                              <span className={`text-[10px] font-normal ${resultadoLiquidoVal < 0 ? 'text-rose-600/70' : 'text-emerald-600/70'}`}>
+                                ({pctResultado.toFixed(2)}%)
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </td>
                   {/* Fill empty cells for desktop layout */}
                   <td className="py-3 px-4 hidden md:table-cell text-muted-foreground text-xs font-normal leading-relaxed">
-                    Resumo analítico dos indicadores chave da Roder para a unidade e competência selecionadas no painel.
+                    Resumo analítico com Receita Total (Faturamento Bruto), Receita Líquida, Despesa Total (Custos/Despesas) e o Resultado Líquido com suas respectivas proporções relativas.
                   </td>
                   <td className="py-3 px-4"></td>
                 </tr>

@@ -40,7 +40,7 @@ const getPageTitle = (path: string): string => {
 };
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const { isImpersonating, profile, stopImpersonation, isQuotaExceeded } = useAuth();
+  const { isImpersonating, profile, stopImpersonation, isQuotaExceeded, isAdmin, isManager, user } = useAuth();
   const { isOffline } = usePWA();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
