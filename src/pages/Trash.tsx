@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import { Trash2, RotateCcw, Shield, Calendar, User, Search, History, Eye, Activity } from 'lucide-react';
+import { Trash2, RotateCcw, Shield, Calendar, User, Search, History, Eye, Activity, X } from 'lucide-react';
 import { Input } from '../components/ui/input';
 import { CryptoService } from '../lib/CryptoService';
 import { AuditService, AuditAction } from '../lib/AuditService';
@@ -188,10 +188,19 @@ export default function Trash() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input 
             placeholder="Buscar por nome ou tipo de entidade..." 
-            className="pl-10 h-11"
+            className="pl-10 pr-10 h-11"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={() => setSearchTerm('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1 rounded-full hover:bg-muted"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
 
         <div className="grid grid-cols-1 gap-4">

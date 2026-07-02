@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Sparkles, MessageSquare, X, Minus, Send, Calculator, Wrench, HelpCircle, AlertTriangle, Play, RefreshCw, Trash2, ChevronLeft, ChevronRight, CheckCircle, Package, Layers, Tractor, FileText, Mic, Square, Loader2, Brain, BookOpen } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { cn } from '../../lib/utils';
+import { cn, getApiBaseUrl } from '../../lib/utils';
 import { collection, getDocs, query, orderBy, addDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { askEngineerHelper, transcribeAudio, analyzeAndEnrichProductDossier } from '../../services/geminiService';
@@ -1159,7 +1159,7 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                             components={{
                               img: ({ node, ...props }) => {
                                 const proxiedSrc = props.src && (props.src.startsWith('http://') || props.src.startsWith('https://'))
-                                  ? `/api/proxy-image?url=${encodeURIComponent(props.src)}`
+                                  ? `${getApiBaseUrl()}/api/proxy-image?url=${encodeURIComponent(props.src)}`
                                   : props.src;
                                 return (
                                   <img
@@ -2128,7 +2128,7 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                         components={{
                           img: ({ node, ...props }) => {
                             const proxiedSrc = props.src && (props.src.startsWith('http://') || props.src.startsWith('https://'))
-                              ? `/api/proxy-image?url=${encodeURIComponent(props.src)}`
+                              ? `${getApiBaseUrl()}/api/proxy-image?url=${encodeURIComponent(props.src)}`
                               : props.src;
                             return (
                               <img

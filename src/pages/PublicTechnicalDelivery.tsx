@@ -25,6 +25,7 @@ import { RODER_LOGO_BASE64 } from '../components/catalog/RoderLogo';
 import { toast } from 'sonner';
 import { db } from '../lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { getApiBaseUrl } from '../lib/utils';
 
 interface SignaturePadProps {
   onSave: (dataUrl: string) => void;
@@ -428,7 +429,7 @@ export default function PublicTechnicalDelivery() {
       setSendStatusMsg('Transmitindo ficha de conformidade para a Roder...');
 
       // Post to the backend send-email endpoint
-      const response = await fetch('/api/send-email', {
+      const response = await fetch(`${getApiBaseUrl()}/api/send-email`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

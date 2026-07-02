@@ -24,26 +24,36 @@ export function safeFormatDate(date: any, options: Intl.DateTimeFormatOptions = 
 }
 
 export function getApiBaseUrl(): string {
-  if ((import.meta as any).env?.VITE_API_BASE_URL) {
-    return (import.meta as any).env.VITE_API_BASE_URL;
-  }
   if (typeof window !== 'undefined') {
-    const hostname = window.location.hostname;
-    
-    // Check if we have previously cached the working API base URL
+    // 1. Explicit environment variable overrides everything else
+    if ((import.meta as any).env?.VITE_API_BASE_URL) {
+      return (import.meta as any).env.VITE_API_BASE_URL;
+    }
+
+    // 2. Local storage cache override (mainly for hybrid wrappers or advanced settings)
     const cached = window.localStorage.getItem('RODER_API_BASE_URL');
     if (cached !== null) {
       return cached;
     }
 
+    // 3. Auto-detect environment based on hostname
+    const hostname = window.location.hostname;
     const isDevOrCloudRun = 
       hostname === 'localhost' || 
       hostname === '127.0.0.1' || 
       hostname.endsWith('run.app');
 
-    if (!isDevOrCloudRun) {
-      return 'https://roder-indica-v2-142737915053.us-west1.run.app';
+    // If we are in dev (localhost) or in AI Studio preview (*.run.app), we use relative/same-origin paths
+    if (isDevOrCloudRun) {
+      return '';
     }
+
+    // For production deployed on custom domains (like Hostinger on roderindica.com), point to the production backend
+    return 'https://roder-indica-v2-142737915053.us-west1.run.app';
+  }
+
+  if ((import.meta as any).env?.VITE_API_BASE_URL) {
+    return (import.meta as any).env.VITE_API_BASE_URL;
   }
   return '';
 }
@@ -56,30 +66,11 @@ if (typeof window !== 'undefined') {
     hostname === '127.0.0.1' || 
     hostname.endsWith('run.app');
 
-  if (!isDevOrCloudRun) {
-    // Ping local health endpoint and verify it is fully functional and credentialed
-    fetch('/api/health')
-      .then(res => {
-        if (res.ok) {
-          return res.json();
-        } else {
-          throw new Error('Local API health check returned non-200 status');
-        }
-      })
-      .then(data => {
-        if (data && data.status === 'ok' && data.hasGeminiKey && data.hasServiceAccount) {
-          console.log('[API-DETECTION] Local backend is fully credentialed and healthy! Setting API Base to same-origin.');
-          window.localStorage.setItem('RODER_API_BASE_URL', '');
-        } else {
-          throw new Error('Local backend is missing required credentials or key configurations');
-        }
-      })
-      .catch((err) => {
-        console.warn('[API-DETECTION] Local backend verification failed:', err.message, '- Falling back to Google Cloud Run.');
-        window.localStorage.setItem('RODER_API_BASE_URL', 'https://roder-indica-v2-142737915053.us-west1.run.app');
-      });
-  } else {
-    // Clear cache for localhost / dev sandbox environments to use local port 3000
+  if (isDevOrCloudRun) {
+    // Dev/Preview environments should always use same-origin relative requests
     window.localStorage.removeItem('RODER_API_BASE_URL');
+  } else {
+    // Custom domain production environments (like roderindica.com) must use the Cloud Run URL
+    window.localStorage.setItem('RODER_API_BASE_URL', 'https://roder-indica-v2-142737915053.us-west1.run.app');
   }
 }

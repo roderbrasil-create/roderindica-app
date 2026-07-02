@@ -26,6 +26,7 @@ import {
   Loader2,
   Upload,
   Search,
+  X,
   ChevronRight,
   ChevronLeft,
   FileDown,
@@ -631,7 +632,9 @@ export default function Catalog() {
   const [announcementMessage, setAnnouncementMessage] = useState(
     'Ficamos muito felizes em anunciar que possuímos novos equipamentos cadastrados e atualizados em nosso catálogo oficial Roder, prontos para serem compartilhados e enviados para os seus clientes!'
   );
-  const [announcementLink, setAnnouncementLink] = useState('https://roder-indica-v2-142737915053.us-west1.run.app');
+  const [announcementLink, setAnnouncementLink] = useState(() => {
+    return typeof window !== 'undefined' ? window.location.origin : 'https://roder-indica-v2-142737915053.us-west1.run.app';
+  });
   const [announcementSending, setAnnouncementSending] = useState(false);
   const [announcementProgress, setAnnouncementProgress] = useState({ current: 0, total: 0 });
 
@@ -3190,7 +3193,7 @@ export default function Catalog() {
         toast.loading('Convertendo PDF para imagem leve...', { id: 'model-file-upload' });
 
         // Use our server-side proxy to avoid CORS issues
-        const proxyUrl = `/api/proxy-thumbnail?fileId=${fileId}`;
+        const proxyUrl = `${getApiBaseUrl()}/api/proxy-thumbnail?fileId=${fileId}`;
         
         const response = await fetch(proxyUrl);
         if (!response.ok) {
@@ -3219,7 +3222,7 @@ export default function Catalog() {
         // For Manual de Peças, we want the FULL PDF imported to our cloud
         toast.loading('Importando Manual de Peças completo para a Nuvem RODER...', { id: 'model-file-upload' });
 
-        const proxyUrl = `/api/proxy-drive?fileId=${fileId}`;
+        const proxyUrl = `${getApiBaseUrl()}/api/proxy-drive?fileId=${fileId}`;
         const response = await fetch(proxyUrl);
         if (!response.ok) {
           throw new Error('Não foi possível baixar o manual completo. Verifique se o link está aberto para "Qualquer pessoa com o link".');
@@ -3848,10 +3851,19 @@ export default function Catalog() {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input 
                     placeholder="Buscar equipamento ou modelo..." 
-                    className="pl-10 h-9 md:h-11 bg-background border-border"
+                    className="pl-10 pr-10 h-9 md:h-11 bg-background border-border"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
+                  {searchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchTerm('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1 rounded-full hover:bg-muted"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
 
                 {/* Seletor de Modo de Visualização (Apenas Computador) */}

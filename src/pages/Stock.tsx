@@ -1703,10 +1703,19 @@ export default function Stock() {
                     <Search className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
                     <Input 
                       placeholder={activeTab === 'importacao_fae' ? 'Buscar na Importação FAE...' : activeTab === 'sinop' ? 'Buscar no Estoque Sinop...' : 'Buscar no Estoque Fábrica...'}
-                      className="pl-8 sm:pl-10 h-8 sm:h-10 text-xs sm:text-sm bg-white border-2 border-slate-300 focus:border-orange-500 rounded-lg sm:rounded-xl shadow-sm transition-all font-medium w-full"
+                      className="pl-8 pr-8 sm:pl-10 sm:pr-10 h-8 sm:h-10 text-xs sm:text-sm bg-white border-2 border-slate-300 focus:border-orange-500 rounded-lg sm:rounded-xl shadow-sm transition-all font-medium w-full"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
+                    {searchTerm && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchTerm('')}
+                        className="absolute right-2.5 sm:right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1 rounded-full hover:bg-muted"
+                      >
+                        <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

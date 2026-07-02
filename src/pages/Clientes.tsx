@@ -281,8 +281,17 @@ export default function Clientes() {
                 placeholder="BUSCAR POR NOME, CNPJ, OU CÓDIGO DO CLIENTE..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 font-bold text-xs h-10 uppercase bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
+                className="pl-9 pr-9 font-bold text-xs h-10 uppercase bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1 rounded-full hover:bg-muted"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-2 pr-1">

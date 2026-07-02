@@ -68,13 +68,13 @@ const getDisplayImageUrl = (url: string | undefined): string => {
   
   if (cleanUrl.includes('/uploads/')) {
     const parts = cleanUrl.split('/uploads/');
-    cleanUrl = `/uploads/${parts[parts.length - 1]}`;
+    cleanUrl = `${getApiBaseUrl()}/uploads/${parts[parts.length - 1]}`;
   } else if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://') && !cleanUrl.startsWith('/')) {
-    cleanUrl = `/uploads/${cleanUrl}`;
+    cleanUrl = `${getApiBaseUrl()}/uploads/${cleanUrl}`;
   }
   
   if (cleanUrl.startsWith('https://firebasestorage.googleapis.com')) {
-    return `/api/proxy-image?url=${encodeURIComponent(cleanUrl)}`;
+    return `${getApiBaseUrl()}/api/proxy-image?url=${encodeURIComponent(cleanUrl)}`;
   }
   return cleanUrl;
 };
@@ -83,7 +83,8 @@ const getAbsoluteImageUrl = (url: string | undefined): string => {
   if (!url) return '';
   const cleanUrl = getDisplayImageUrl(url);
   if (cleanUrl.startsWith('/')) {
-    return window.location.origin + cleanUrl;
+    const baseUrl = getApiBaseUrl();
+    return (baseUrl || window.location.origin) + cleanUrl;
   }
   return cleanUrl;
 };

@@ -2190,7 +2190,8 @@ export default function Dashboard() {
                           size="sm" 
                           className="h-9 border-primary/30 text-primary hover:bg-primary/10 px-2 font-black uppercase text-[11px] tracking-widest"
                           onClick={() => {
-                            const url = `https://roder-indica-v2-142737915053.us-west1.run.app/estoque-publico`;
+                            const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://roder-indica-v2-142737915053.us-west1.run.app';
+                            const url = `${currentOrigin}/estoque-publico`;
                             const text = `Olá! Segue o link para consulta em tempo real dos equipamentos e acessórios em estoque na Roder Brasil:\n\n${url}\n\n_Este link é atualizado automaticamente._`;
                             window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
                           }}

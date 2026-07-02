@@ -348,5 +348,18 @@ service cloud.firestore {
     match /equipment_dossiers/{dossierId} {
       allow read, write: if isAuthenticated() && (isAdmin() || isManager() || request.auth.token.email.lower() == "roderbrasil@gmail.com");
     }
+
+    match /roder_ai_questions/{questionId} {
+      allow read, create, update: if isAuthenticated();
+      allow delete: if isAuthenticated() && (isManager() || isAdmin());
+    }
+
+    match /roder_ai_daily_summaries/{summaryId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    match /approval_queue/{approvalId} {
+      allow read, write: if isAuthenticated();
+    }
   }
 }

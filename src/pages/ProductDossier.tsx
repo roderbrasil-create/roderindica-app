@@ -1377,18 +1377,18 @@ ${Object.entries(selectedModel.technical_specs || {})
                   placeholder="Pesquisar por assunto ou instrução comercial..."
                   value={guidelineSearch}
                   onChange={(e) => setGuidelineSearch(e.target.value)}
-                  className="pl-9 text-xs py-2 h-9 bg-background"
+                  className="pl-9 pr-9 text-xs py-2 h-9 bg-background"
                 />
+                {guidelineSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setGuidelineSearch('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1 rounded-full hover:bg-muted"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
               </div>
-              {guidelineSearch && (
-                <Button
-                  variant="ghost"
-                  onClick={() => setGuidelineSearch('')}
-                  className="text-xs font-bold py-1 h-9 px-3"
-                >
-                  Limpar
-                </Button>
-              )}
             </div>
 
             {/* Add Guideline Card */}

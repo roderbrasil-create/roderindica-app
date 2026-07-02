@@ -232,7 +232,7 @@ const NavItemComponent = React.memo(({
               : item.id === 'new_indication'
                 ? "bg-green-100/80 text-green-700 hover:bg-green-200/80 border border-green-200/50"
                 : item.id === 'catalog'
-                  ? "bg-yellow-100/80 text-yellow-700 hover:bg-yellow-200/80 border border-yellow-200/50"
+                  ? "bg-blue-100/80 text-blue-700 hover:bg-blue-200/80 border border-blue-200/50"
                   : item.id === 'products_stock'
                     ? "bg-blue-100/80 text-blue-700 hover:bg-blue-200/80 border border-blue-200/50"
                     : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
@@ -244,7 +244,7 @@ const NavItemComponent = React.memo(({
             item.alert ? "text-yellow-600" : 
             item.id === 'dashboard' ? "text-yellow-600" :
             item.id === 'new_indication' ? "text-green-600" :
-            item.id === 'catalog' ? "text-yellow-600" :
+            item.id === 'catalog' ? "text-blue-600" :
             item.id === 'products_stock' ? "text-blue-600" :
             "text-sidebar-foreground/50"
           )} />

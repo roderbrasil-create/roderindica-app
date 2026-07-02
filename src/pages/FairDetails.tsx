@@ -967,14 +967,16 @@ export default function FairDetails() {
   };
 
   const copyQuickRegLink = () => {
-    const url = `https://roder-indica-v2-142737915053.us-west1.run.app/cadastro-rapido?fairId=${id}`;
+    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://roder-indica-v2-142737915053.us-west1.run.app';
+    const url = `${currentOrigin}/cadastro-rapido?fairId=${id}`;
     navigator.clipboard.writeText(url);
     toast.success('Link de Cadastro Rápido copiado!');
   };
 
   const shareQuickRegWhatsApp = () => {
     if (!fair) return;
-    const url = `https://roder-indica-v2-142737915053.us-west1.run.app/cadastro-rapido?fairId=${id}`;
+    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://roder-indica-v2-142737915053.us-west1.run.app';
+    const url = `${currentOrigin}/cadastro-rapido?fairId=${id}`;
     const message = `🚀 *RODER Indica - Cadastro Rápido de Leads*\n\nOlá equipe! Este é o link oficial para cadastro de novos clientes durante a feira *${fair.name}*.\n\n📲 *Link de Cadastro:* ${url}\n\n💡 *Passo a Passo:*\n1. *Apague o ícone antigo* da tela inicial se você já salvou algum de outra feira.\n2. Abra o link acima e escolha "Adicionar à Tela de Início".\n3. O nome do ícone será *${fair.name.toUpperCase()} LEADS*.\n4. Ao abrir pela 1ª vez, coloque seu nome para seus atendimentos ficarem salvos.\n\nBoas vendas! 💪🌲`;
     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
   };

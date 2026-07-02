@@ -193,24 +193,16 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
-  // Set up custom, robust CORS middleware before ANY other middleware (including JSON parser)
-  app.use((req, res, next) => {
-    const origin = req.headers.origin;
-    if (origin) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-    } else {
-      res.setHeader('Access-Control-Allow-Origin', '*');
-    }
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, Pragma');
-    
-    // Immediately respond to preflight OPTIONS requests
-    if (req.method === 'OPTIONS') {
-      return res.status(204).end();
-    }
-    next();
-  });
+  // Set up standard and highly compatible CORS middleware using the 'cors' library
+  app.use(cors({
+    origin: function (origin, callback) {
+      // Allow all origins (including localhost, roderindica.com, and other custom domains)
+      callback(null, true);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'Cache-Control', 'Pragma']
+  }));
 
   app.use(express.json({ limit: '50mb' }));
 

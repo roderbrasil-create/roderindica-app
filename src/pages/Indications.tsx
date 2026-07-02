@@ -1213,10 +1213,19 @@ export default function Indications() {
               <Input 
                 id="financial-search-input"
                 placeholder="Buscar por cliente, máquina ou indicador..." 
-                className="pl-10 bg-card border-border text-xs"
+                className="pl-10 pr-10 bg-card border-border text-xs"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1 rounded-full hover:bg-muted"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
             </div>
           </div>
 
@@ -1573,10 +1582,19 @@ export default function Indications() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input 
               placeholder="Buscar por cliente, máquina ou indicador..." 
-              className="pl-10 bg-card border-border"
+              className="pl-10 pr-10 bg-card border-border"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1 rounded-full hover:bg-muted"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
           
           <div className="flex flex-wrap items-center gap-3">

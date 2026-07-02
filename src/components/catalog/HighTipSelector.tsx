@@ -695,12 +695,12 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
                         {reportData.utilizationWithHighTip > 100 && (
                           <div className="text-[8.5px] text-red-500 font-bold leading-tight mt-1.5 space-y-0.5 animate-pulse">
                             <p>⚠️ ALERTA DE TOMBAMENTO E SEGURANÇA:</p>
-                            <p>A carga efetiva ultrapassa o limite seguro de {reportData.adjustedPayloadLimit.toLocaleString('pt-BR')} kg para operação {useTurnSafety ? 'articulada (esterçada) ' : ''}com deslocamento frontal do centro de carga (+50 cm).</p>
+                            <p>A carga efetiva ultrapassa o limite seguro de {reportData.adjustedPayloadLimit.toLocaleString('pt-BR')} kg para operação <span>{useTurnSafety ? 'articulada (esterçada) ' : ''}</span>com deslocamento frontal do centro de carga (+50 cm).</p>
                           </div>
                         )}
                         {reportData.utilizationWithHighTip <= 100 && (
                           <p className="text-[8px] text-slate-500 mt-1 leading-normal">
-                            🛡️ Limite ajustado considerando {useTurnSafety ? 'esterçamento (curva) e ' : ''}projeção frontal do centro de carga (+50 cm).
+                            🛡️ Limite ajustado considerando <span>{useTurnSafety ? 'esterçamento (curva) e ' : ''}</span>projeção frontal do centro de carga (+50 cm).
                           </p>
                         )}
                         {reportData.utilizationWithHighTip < 60 && (
@@ -1269,7 +1269,7 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
                       <div className="flex justify-between text-[9px] text-slate-400 uppercase font-black">
                         <span>0% Início</span>
                         <span>L. Nominal (Reta): {reportData.payloadLimit.toLocaleString('pt-BR')} kg</span>
-                        <span className="text-red-500 font-bold">100% Limite Seguro Ajustado ({reportData.adjustedPayloadLimit.toLocaleString('pt-BR')} kg) {useTurnSafety ? '(C/ Esterc.)' : '(S/ Esterc.)'}</span>
+                        <span className="text-red-500 font-bold">100% Limite Seguro Ajustado ({reportData.adjustedPayloadLimit.toLocaleString('pt-BR')} kg) <span>{useTurnSafety ? '(C/ Esterc.)' : '(S/ Esterc.)'}</span></span>
                       </div>
                     </div>
                   </div>

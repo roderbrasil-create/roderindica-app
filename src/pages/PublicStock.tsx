@@ -1264,10 +1264,19 @@ export default function PublicStock() {
                   <Input 
                     ref={searchInputRef}
                     placeholder="Buscar por código ou descrição..." 
-                    className="pl-8 sm:pl-10 h-8 sm:h-10 text-xs sm:text-sm bg-zinc-905 rounded-lg sm:rounded-xl border-zinc-800 focus:ring-orange-500 text-white placeholder:text-zinc-500 shadow-sm"
+                    className="pl-8 pr-8 sm:pl-10 sm:pr-10 h-8 sm:h-10 text-xs sm:text-sm bg-zinc-905 rounded-lg sm:rounded-xl border-zinc-800 focus:ring-orange-500 text-white placeholder:text-zinc-500 shadow-sm"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
+                  {searchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchTerm('')}
+                      className="absolute right-2.5 sm:right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white transition-colors p-1 rounded-full hover:bg-zinc-800"
+                    >
+                      <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

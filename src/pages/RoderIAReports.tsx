@@ -14,6 +14,7 @@ import {
   Check, 
   Edit3, 
   Search, 
+  X, 
   Award, 
   Info, 
   FileText,
@@ -678,8 +679,17 @@ export default function RoderIAReports() {
                   placeholder="Pesquisar perguntas ou vendedores..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 pr-4 py-2 text-xs w-full bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400"
+                  className="pl-9 pr-9 py-2 text-xs w-full bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400"
                 />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1 rounded-full hover:bg-muted"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
               </div>
 
               <div className="flex flex-wrap gap-2.5 items-center w-full md:w-auto">

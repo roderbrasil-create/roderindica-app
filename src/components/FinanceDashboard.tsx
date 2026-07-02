@@ -214,7 +214,7 @@ export default function FinanceDashboard() {
     
     setIsDiagnosing(true);
     try {
-      const res = await fetch("/api/financeiro/diagnose", {
+      const res = await fetch(`${getApiBaseUrl()}/api/financeiro/diagnose`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
