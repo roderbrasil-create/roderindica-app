@@ -34,6 +34,7 @@ import {
   Info,
   Package,
   List,
+  LayoutGrid,
   CloudDownload,
   ArrowLeft,
   GripVertical,
@@ -269,7 +270,8 @@ function SortableProductCard({
   isExternalSeller,
   openPdf,
   user,
-  animationType = 'tilt'
+  animationType = 'tilt',
+  viewMode = 'card'
 }: any) {
   const {
     attributes,
@@ -313,7 +315,8 @@ function SortableProductCard({
       style={style}
       className={cn(
         "bg-card border-border overflow-hidden flex flex-col shadow-sm rounded-xl border transition-all duration-200 cursor-pointer active:scale-[0.98]",
-        product.is_blocked && "opacity-50 grayscale"
+        product.is_blocked && "opacity-50 grayscale",
+        viewMode === 'list' && "md:flex-row md:w-full"
       )}
       onClick={(e) => {
         const target = e.target as HTMLElement;
@@ -322,9 +325,12 @@ function SortableProductCard({
         }
       }}
     >
-      <div className="flex flex-row md:flex-col h-full min-h-[140px] md:min-h-0"> 
+      <div className={cn("flex w-full", viewMode === 'list' ? "flex-row" : "flex-row md:flex-col")}> 
         {/* Image Section */}
-        <div className="w-32 sm:w-40 md:w-full md:aspect-video relative overflow-hidden bg-muted flex-shrink-0 md:rounded-none">
+        <div className={cn(
+          "w-32 sm:w-40 relative overflow-hidden bg-muted flex-shrink-0 flex items-center justify-center",
+          viewMode === 'list' ? "md:w-60 md:h-auto md:aspect-[4/3] md:rounded-none" : "md:w-full md:aspect-video md:rounded-none"
+        )}>
           {(isManager || isAdmin || isMarketing) && !searchTerm && (
             <div 
               {...attributes} 
@@ -365,58 +371,70 @@ function SortableProductCard({
           )}
         </div>
 
-          {/* Content Section */}
-        <div className="flex flex-col flex-1 min-w-0 p-2 md:p-0">
-          <CardHeader className="p-0 md:p-4 pb-1 md:pb-2">
-            <div className="flex items-start justify-between gap-1 relative w-full">
-              <div className="min-w-0 flex-1 pr-[100px] sm:pr-[115px]">
-                <Badge variant="secondary" className="mb-0.5 md:mb-1 text-[13px] md:text-[15px] uppercase bg-muted text-muted-foreground px-1 h-3.5 md:h-4">{product.category}</Badge>
-                <CardTitle className="text-base md:text-2xl font-bold text-foreground line-clamp-1 sm:line-clamp-2 leading-tight break-words whitespace-normal" title={product.name}>{product.name}</CardTitle>
-                {canSeePrices && minPrice > 0 && minPrice !== Infinity && (
-                  <p className="text-[12px] md:text-sm font-bold text-primary mt-0.5">
-                    A partir de {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(minPrice)}
-                  </p>
+        {/* Content Section */}
+        <div className={cn(
+          "flex flex-col flex-1 min-w-0 p-2 md:p-0",
+          viewMode === 'list' && "md:flex-row md:items-stretch md:gap-6 md:p-5"
+        )}>
+          {/* Text and Info Area */}
+          <div className="flex-1 min-w-0 flex flex-col justify-between">
+            <CardHeader className="p-0 md:p-4 pb-1 md:pb-2 md:px-0">
+              <div className="flex items-start justify-between gap-1 relative w-full">
+                <div className="min-w-0 flex-1 pr-[100px] sm:pr-[115px] md:pr-0">
+                  <Badge variant="secondary" className="mb-0.5 md:mb-1 text-[13px] md:text-xs uppercase bg-muted text-muted-foreground px-1 h-3.5 md:h-4">{product.category}</Badge>
+                  <CardTitle className="text-base md:text-xl font-bold text-foreground line-clamp-1 sm:line-clamp-2 leading-tight break-words whitespace-normal" title={product.name}>{product.name}</CardTitle>
+                  {canSeePrices && minPrice > 0 && minPrice !== Infinity && (
+                    <p className="text-[12px] md:text-xs font-bold text-primary mt-0.5">
+                      A partir de {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(minPrice)}
+                    </p>
+                  )}
+                </div>
+                {(isAdmin || isManager || isMarketing) && (
+                  <div className="absolute top-0 right-0 flex gap-1 flex-shrink-0 bg-muted/90 p-0.5 rounded-lg border border-border/40 shadow-xs" onClick={(e) => e.stopPropagation()}>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground hover:text-foreground hover:bg-background/80" onClick={() => onEdit(product)} title="Editar Produto">
+                      <Edit className="h-3 w-3 md:h-4 md:w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground hover:text-foreground hover:bg-background/80" onClick={() => onToggleBlock(product)} title={product.is_blocked ? "Ativar Produto" : "Bloquear Produto"}>
+                      {product.is_blocked ? <Eye className="h-3 w-3 md:h-4 md:w-4" /> : <EyeOff className="h-3 w-3 md:h-4 md:w-4" />}
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className={cn(
+                        "h-6 w-6 md:h-8 md:w-8 hover:bg-background/80", 
+                        product.show_banner ? "text-primary shadow-[0_0_10px_rgba(59,130,246,0.3)] bg-primary/10 hover:bg-primary/20" : "text-muted-foreground hover:text-foreground"
+                      )} 
+                      onClick={() => onToggleBanner(product)}
+                      title={product.show_banner ? "Remover Propaganda do Dashboard" : "Ativar como Propaganda no Dashboard"}
+                    >
+                      <Megaphone className={cn("h-3 w-3 md:h-4 md:w-4", product.show_banner && "animate-pulse")} />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground hover:text-red-500 hover:bg-red-50" 
+                      onClick={() => onDelete(product.id, product.name)}
+                      title="Excluir Produto Permanentemente"
+                    >
+                      <Trash2 className="h-3 w-3 md:h-4 md:w-4" />
+                    </Button>
+                  </div>
                 )}
               </div>
-              {(isAdmin || isManager || isMarketing) && (
-                <div className="absolute top-0 right-0 flex gap-1 flex-shrink-0 bg-muted/90 p-0.5 rounded-lg border border-border/40 shadow-xs" onClick={(e) => e.stopPropagation()}>
-                  <Button variant="ghost" size="icon" className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground hover:text-foreground hover:bg-background/80" onClick={() => onEdit(product)} title="Editar Produto">
-                    <Edit className="h-3 w-3 md:h-4 md:w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground hover:text-foreground hover:bg-background/80" onClick={() => onToggleBlock(product)} title={product.is_blocked ? "Ativar Produto" : "Bloquear Produto"}>
-                    {product.is_blocked ? <Eye className="h-3 w-3 md:h-4 md:w-4" /> : <EyeOff className="h-3 w-3 md:h-4 md:w-4" />}
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className={cn(
-                      "h-6 w-6 md:h-8 md:w-8 hover:bg-background/80", 
-                      product.show_banner ? "text-primary shadow-[0_0_10px_rgba(59,130,246,0.3)] bg-primary/10 hover:bg-primary/20" : "text-muted-foreground hover:text-foreground"
-                    )} 
-                    onClick={() => onToggleBanner(product)}
-                    title={product.show_banner ? "Remover Propaganda do Dashboard" : "Ativar como Propaganda no Dashboard"}
-                  >
-                    <Megaphone className={cn("h-3 w-3 md:h-4 md:w-4", product.show_banner && "animate-pulse")} />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground hover:text-red-500 hover:bg-red-50" 
-                    onClick={() => onDelete(product.id, product.name)}
-                    title="Excluir Produto Permanentemente"
-                  >
-                    <Trash2 className="h-3 w-3 md:h-4 md:w-4" />
-                  </Button>
-                </div>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="p-0 md:p-4 pt-0 md:pt-0 flex-1">
-            <p className="text-[12px] md:text-base text-muted-foreground line-clamp-2 md:line-clamp-3 leading-snug">{product.description}</p>
-          </CardContent>
-          
+            </CardHeader>
+            <CardContent className="p-0 md:p-4 pt-0 md:pt-0 md:px-0 flex-1">
+              <p className={cn(
+                "text-[12px] md:text-sm text-muted-foreground leading-snug",
+                viewMode === 'list' ? "md:line-clamp-4" : "line-clamp-2 md:line-clamp-3"
+              )}>{product.description}</p>
+            </CardContent>
+          </div>
+
           {/* Action Row - Responsive */}
-          <div className="mt-auto">
+          <div className={cn(
+            "mt-auto",
+            viewMode === 'list' ? "md:mt-0 md:w-60 md:shrink-0 md:border-l md:border-border/60 md:pl-6 md:flex md:flex-col md:justify-center" : "w-full"
+          )}>
             {/* Mobile Actions: Compact in bottom right */}
             <div className="md:hidden flex items-center justify-end gap-1.5 px-2 pb-2.5 pt-1" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center">
@@ -488,11 +506,14 @@ function SortableProductCard({
               )}
             </div>
 
-            {/* Desktop Footer */}
-            <div className="hidden md:flex p-4 border-t border-border flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+            {/* Desktop Actions */}
+            <div className={cn(
+              "hidden md:flex flex-col gap-2",
+              viewMode === 'list' ? "w-full" : "p-4 border-t border-border mt-2"
+            )} onClick={(e) => e.stopPropagation()}>
               {product.name === 'Caçamba High Tip' && (
                 <Button 
-                  className="w-full bg-slate-950 hover:bg-slate-900 text-slate-100 text-xs h-10 font-bold border border-slate-800 shadow-sm flex items-center justify-center gap-1.5" 
+                  className="w-full bg-slate-950 hover:bg-slate-900 text-slate-100 text-xs h-9 font-bold border border-slate-800 shadow-sm flex items-center justify-center gap-1.5" 
                   onClick={() => onOpenDigitalSelection && onOpenDigitalSelection(product)}
                 >
                   <Calculator className="h-4 w-4 text-amber-500 animate-pulse" /> Guia de Seleção Digital
@@ -501,44 +522,44 @@ function SortableProductCard({
 
               {product.models && product.models.length > 0 ? (
                 <Button 
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs h-10" 
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs h-9" 
                   onClick={() => onSelectModels(product)}
                 >
                   <List className="h-4 w-4 mr-2" /> Modelos ({product.models.length})
                 </Button>
               ) : (
                 isExternalSeller && (
-                  <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-xs h-10" onClick={() => onIndicate(product)}>
+                  <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-xs h-9" onClick={() => onIndicate(product)}>
                     Indicar
                   </Button>
                 )
               )}
 
               {!isExternalSeller && product.video_url && (
-                <Button variant="ghost" className="w-full text-xs text-muted-foreground bg-muted/30 hover:bg-muted/50 h-10" asChild>
+                <Button variant="ghost" className="w-full text-xs text-muted-foreground bg-muted/30 hover:bg-muted/50 h-9" asChild>
                   <a href={product.video_url} target="_blank" rel="noreferrer">
-                    <Video className="h-4 w-4 mr-2 text-red-500" /> Vídeo
+                    <Video className="h-4 w-4 mr-2 text-red-500" /> Vídeo Demonstrativo
                   </a>
                 </Button>
               )}
 
               <div className="flex gap-2 w-full">
                 <Button 
-                  className="flex-1 bg-[#25D366] hover:bg-[#128C7E] text-white text-xs h-10" 
+                  className="flex-1 bg-[#25D366] hover:bg-[#128C7E] text-white text-xs h-9" 
                   onClick={handleWhatsAppShare}
                 >
-                  <MessageCircle className="h-4 w-4 mr-2" /> WhatsApp
+                  <MessageCircle className="h-4 w-4 mr-1.5" /> WhatsApp
                 </Button>
                 <Button 
                   variant="outline" 
                   className={cn(
-                    "flex-1 border-border text-xs h-10",
+                    "flex-1 border-border text-xs h-9",
                     product.pdf_url ? "text-foreground" : "text-muted-foreground opacity-20"
                   )}
                   onClick={() => openPdf(product.pdf_url || '')}
                   disabled={!product.pdf_url}
                 >
-                  <FileText className="h-4 w-4 mr-2" /> Ficha
+                  <FileText className="h-4 w-4 mr-1.5" /> Ficha
                 </Button>
               </div>
             </div>
@@ -562,6 +583,14 @@ export default function Catalog() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProductModels, setSelectedProductModels] = useState<Product | null>(null);
   const [selectedModel, setSelectedModel] = useState<any>(null);
+  const [viewMode, setViewMode] = useState<'card' | 'list'>(() => {
+    return (localStorage.getItem('catalog_view_mode') as 'card' | 'list') || 'card';
+  });
+
+  const changeViewMode = (mode: 'card' | 'list') => {
+    setViewMode(mode);
+    localStorage.setItem('catalog_view_mode', mode);
+  };
   const [animationType, setAnimationType] = useState<'tilt' | 'rotate'>('rotate'); // Default to rotate as requested
   const [isHighTipFichaOpen, setIsHighTipFichaOpen] = useState(false);
   const [isHighTipSelectorOpen, setIsHighTipSelectorOpen] = useState(false);
@@ -3804,6 +3833,34 @@ export default function Catalog() {
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
+
+                {/* Seletor de Modo de Visualização (Apenas Computador) */}
+                <div className="hidden md:flex items-center bg-muted/60 rounded-xl p-1 border border-border/80 md:ml-2 flex-shrink-0">
+                  <Button
+                    variant={viewMode === 'card' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => changeViewMode('card')}
+                    className={cn(
+                      "h-8 text-xs px-3 gap-1.5 font-bold rounded-lg transition-all",
+                      viewMode === 'card' ? "shadow-xs bg-background text-foreground border border-border/50" : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <LayoutGrid className="h-3.5 w-3.5 text-primary" />
+                    <span>Card</span>
+                  </Button>
+                  <Button
+                    variant={viewMode === 'list' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => changeViewMode('list')}
+                    className={cn(
+                      "h-8 text-xs px-3 gap-1.5 font-bold rounded-lg transition-all",
+                      viewMode === 'list' ? "shadow-xs bg-background text-foreground border border-border/50" : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <List className="h-3.5 w-3.5 text-primary" />
+                    <span>Lista</span>
+                  </Button>
+                </div>
                 <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
                   {(isAdmin || isManager) && (
                     <Button 
@@ -3864,7 +3921,11 @@ export default function Catalog() {
               items={products.map(p => p.id)}
               strategy={rectSortingStrategy}
             >
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
+              <div className={cn(
+                viewMode === 'list' 
+                  ? "flex flex-col gap-4 w-full" 
+                  : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6"
+              )}>
                 {products
                   .filter(p => !p.is_blocked || isManager || isAdmin || isMarketing)
                   .filter(p => 
@@ -3884,6 +3945,7 @@ export default function Catalog() {
                       openPdf={openPdf}
                       user={user}
                       animationType={animationType}
+                      viewMode={viewMode}
                       onEdit={handleEdit}
                       onToggleBlock={toggleBlock}
                       onToggleBanner={toggleBanner}

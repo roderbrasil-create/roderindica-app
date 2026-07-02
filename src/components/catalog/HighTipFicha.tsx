@@ -207,7 +207,7 @@ export function HighTipFicha({ onClose }: HighTipFichaProps) {
                   <img 
                     src={RODER_LOGO_BASE64} 
                     alt="Roder" 
-                    className="h-11 object-contain brightness-0"
+                    className="h-11 object-contain"
                     referrerPolicy="no-referrer"
                   />
                   <div>
