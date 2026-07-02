@@ -583,6 +583,26 @@ export default function Catalog() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProductModels, setSelectedProductModels] = useState<Product | null>(null);
   const [selectedModel, setSelectedModel] = useState<any>(null);
+
+  const [isHelperOpen, setIsHelperOpen] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('roder_helper_isOpen');
+      return saved ? JSON.parse(saved) : false;
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    const handleHelperChange = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      setIsHelperOpen(customEvent.detail);
+    };
+    window.addEventListener('roder_helper_isOpen_changed', handleHelperChange);
+    return () => {
+      window.removeEventListener('roder_helper_isOpen_changed', handleHelperChange);
+    };
+  }, []);
   const [viewMode, setViewMode] = useState<'card' | 'list'>(() => {
     return (localStorage.getItem('catalog_view_mode') as 'card' | 'list') || 'card';
   });
@@ -3924,7 +3944,10 @@ export default function Catalog() {
               <div className={cn(
                 viewMode === 'list' 
                   ? "flex flex-col gap-4 w-full" 
-                  : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6"
+                  : cn(
+                      "grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-6",
+                      isHelperOpen ? "lg:grid-cols-2 xl:grid-cols-2" : "lg:grid-cols-3"
+                    )
               )}>
                 {products
                   .filter(p => !p.is_blocked || isManager || isAdmin || isMarketing)

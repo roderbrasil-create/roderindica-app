@@ -30,6 +30,8 @@ import { RODER_LOGO_BASE64 } from './RoderLogo';
 import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
+import { db } from '../../lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 const BUCKET_DIMENSIONS: Record<string, { a: string, b: string, c: string }> = {
   '2.0': { a: '900', b: '2.400', c: '1.600' },
@@ -66,6 +68,23 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
   const [copied, setCopied] = useState(false);
   const [useTurnSafety, setUseTurnSafety] = useState<boolean>(false);
   const reportRef = useRef<HTMLDivElement>(null);
+  const [customDrawingUrl, setCustomDrawingUrl] = useState<string | null>(null);
+
+  // Fetch custom drawing from settings
+  useEffect(() => {
+    const fetchCustomDrawing = async () => {
+      try {
+        const docRef = doc(db, 'settings', 'high_tip_drawing');
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setCustomDrawingUrl(docSnap.data().image_data || null);
+        }
+      } catch (err) {
+        console.error('Erro ao buscar desenho técnico customizado:', err);
+      }
+    };
+    fetchCustomDrawing();
+  }, []);
 
   // Synchronize selectedBucket when recommendation is recalculated
   useEffect(() => {
@@ -493,6 +512,41 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
               )}
             </motion.div>
           )}
+
+          {/* Technical Drawing with Cotas (A, B, C) */}
+          {selectedModelName && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+              className="mt-4 p-3 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl shadow-xs antialiased"
+            >
+              <div className="flex items-center gap-1.5 mb-2 pb-1 border-b border-slate-100 dark:border-slate-800/80">
+                <span className="text-[10px] font-black text-slate-850 dark:text-slate-200 uppercase tracking-wider">
+                  Diagrama Técnico de Dimensões (Cotas A, B, C)
+                </span>
+              </div>
+              
+              <div className="w-full bg-white dark:bg-slate-950 rounded-lg p-2 flex items-center justify-center border border-slate-100 dark:border-slate-800/40 relative h-[185px] overflow-hidden select-none">
+                {customDrawingUrl ? (
+                  <img 
+                    src={customDrawingUrl} 
+                    alt="Cotas Técnicas Caçamba High Tip" 
+                    className="max-w-full max-h-[175px] object-contain"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="text-[11px] text-muted-foreground text-center">
+                    Carregando diagrama de dimensões...
+                  </div>
+                )}
+              </div>
+              
+              <p className="text-[10px] text-muted-foreground leading-tight mt-2.5 text-center">
+                Consulte as cotas <span className="font-extrabold text-slate-800 dark:text-slate-200">A (Altura)</span>, <span className="font-extrabold text-slate-800 dark:text-slate-200">B (Largura)</span> e <span className="font-extrabold text-slate-800 dark:text-slate-200">C (Comprimento)</span> no diagrama acima para identificar as referências de medidas indicadas na tabela ao lado.
+              </p>
+            </motion.div>
+          )}
         </div>
 
         {/* Output Recommendation Card */}
@@ -582,7 +636,11 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
                         <span className="text-[8px] font-extrabold bg-red-100 dark:bg-red-950 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded uppercase">
                           ⚠️ Sobrecarga!
                         </span>
-                      ) : reportData.utilizationWithHighTip >= 60 && reportData.utilizationWithHighTip <= 85 ? (
+                      ) : reportData.utilizationWithHighTip > 85 ? (
+                        <span className="text-[8px] font-extrabold bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded uppercase">
+                          ⚠️ Próximo ao limite operacional
+                        </span>
+                      ) : reportData.utilizationWithHighTip >= 60 ? (
                         <span className="text-[8px] font-extrabold bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded uppercase">
                           ✓ Zona Ideal
                         </span>
@@ -1068,6 +1126,58 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
                   </div>
                 </div>
 
+                {/* Technical Drawing & Selected Bucket Dimensions Side-by-Side Card */}
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Left: Technical Drawing with Cotas (A, B, C) */}
+                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex flex-col justify-between">
+                    <div className="flex items-center gap-1.5 border-b border-slate-200 pb-1 mb-1.5">
+                      <span className="text-[10px] font-black text-slate-800 uppercase tracking-wider">Diagrama Técnico de Referência (Cotas A, B, C)</span>
+                    </div>
+                    <div className="w-full bg-white rounded-lg p-1.5 flex items-center justify-center border border-slate-100 h-[115px] overflow-hidden select-none">
+                      {customDrawingUrl ? (
+                        <img 
+                          src={customDrawingUrl} 
+                          alt="Cotas Técnicas Caçamba High Tip" 
+                          className="max-w-full max-h-[105px] object-contain"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <div className="text-[10px] text-muted-foreground text-center">
+                          Carregando diagrama de dimensões...
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-[8.5px] text-slate-500 text-center mt-1 leading-tight">
+                      Consulte as cotas <span className="font-extrabold text-slate-800">A</span>, <span className="font-extrabold text-slate-800">B</span> e <span className="font-extrabold text-slate-800">C</span> no diagrama para correlacionar as medidas.
+                    </p>
+                  </div>
+
+                  {/* Right: Selected Bucket Dimensions Grid */}
+                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5 flex flex-col justify-between">
+                    <div className="flex items-center gap-1.5 border-b border-slate-200 pb-1">
+                      <Scale className="h-3.5 w-3.5 text-orange-500" />
+                      <h4 className="text-[10px] font-black text-slate-800 uppercase tracking-wider">Dimensões da Caçamba Selecionada ({selectedBucket} m³)</h4>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center text-[11px] my-auto">
+                      <div className="p-1.5 bg-white rounded-lg border border-slate-200 shadow-xs">
+                        <p className="text-[8px] font-black text-slate-500 uppercase leading-tight">Altura (A)</p>
+                        <p className="text-[11px] font-black text-orange-600 font-mono mt-0.5">{BUCKET_DIMENSIONS[selectedBucket]?.a || '-'} mm</p>
+                      </div>
+                      <div className="p-1.5 bg-white rounded-lg border border-slate-200 shadow-xs">
+                        <p className="text-[8px] font-black text-slate-500 uppercase leading-tight">Largura (B)</p>
+                        <p className="text-[11px] font-black text-orange-600 font-mono mt-0.5">{BUCKET_DIMENSIONS[selectedBucket]?.b || '-'} mm</p>
+                      </div>
+                      <div className="p-1.5 bg-white rounded-lg border border-slate-200 shadow-xs">
+                        <p className="text-[8px] font-black text-slate-500 uppercase leading-tight">Comprimento (C)</p>
+                        <p className="text-[11px] font-black text-orange-600 font-mono mt-0.5">{BUCKET_DIMENSIONS[selectedBucket]?.c || '-'} mm</p>
+                      </div>
+                    </div>
+                    <div className="text-[8.5px] text-slate-500 leading-tight border-t border-slate-100 pt-1 text-center">
+                      Medidas técnicas oficiais recomendadas pela engenharia Roder para o modelo de {selectedBucket} m³.
+                    </div>
+                  </div>
+                </div>
+
                 {/* Justificativa Técnica - POR QUE SELECIONAR ESTE TAMANHO */}
                 <div className="p-4 bg-slate-900 text-white rounded-xl space-y-2">
                   <h4 className="text-[10px] font-black text-orange-400 uppercase tracking-wider">Justificativa Técnica de Viabilidade</h4>
@@ -1092,8 +1202,16 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
                       <span className="text-[9px] bg-red-100 text-red-600 font-bold px-2 py-0.5 rounded-full uppercase">
                         Aviso de Sobrecarga ⚠️
                       </span>
-                    ) : (
+                    ) : reportData.utilizationWithHighTip > 85 ? (
+                      <span className="text-[9px] bg-amber-100 text-amber-600 font-bold px-2 py-0.5 rounded-full uppercase">
+                        Próximo ao Limite Operacional ⚠️
+                      </span>
+                    ) : reportData.utilizationWithHighTip >= 60 ? (
                       <span className="text-[9px] bg-emerald-100 text-emerald-600 font-bold px-2 py-0.5 rounded-full uppercase">
+                        Zona de Operação Ideal ✓
+                      </span>
+                    ) : (
+                      <span className="text-[9px] bg-blue-100 text-blue-600 font-bold px-2 py-0.5 rounded-full uppercase">
                         Zona de Operação Segura ✓
                       </span>
                     )}
@@ -1117,14 +1235,30 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
                     {/* Bar 2 - High Tip Bucket */}
                     <div className="space-y-0.5">
                       <div className="flex justify-between text-xs font-medium">
-                        <span className="text-orange-600 font-bold">Carga Efetiva na Caçamba High Tip Roder ({selectedBucket} m³)</span>
-                        <span className={reportData.utilizationWithHighTip > 100 ? 'font-extrabold text-red-600' : 'font-extrabold text-orange-600'}>
+                        <span className="text-slate-800 font-bold">Carga Efetiva na Caçamba High Tip Roder ({selectedBucket} m³)</span>
+                        <span className={
+                          reportData.utilizationWithHighTip > 100 
+                            ? 'font-extrabold text-red-600' 
+                            : reportData.utilizationWithHighTip > 85
+                              ? 'font-extrabold text-amber-600'
+                              : reportData.utilizationWithHighTip >= 60
+                                ? 'font-extrabold text-emerald-600'
+                                : 'font-extrabold text-sky-600'
+                        }>
                           {reportData.totalEffectiveLoad.toLocaleString()} kg ({reportData.utilizationWithHighTip}%)
                         </span>
                       </div>
                       <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden relative">
                         <div 
-                          className={`h-full rounded-full ${reportData.utilizationWithHighTip > 100 ? 'bg-red-500' : 'bg-orange-500'}`}
+                          className={`h-full rounded-full ${
+                            reportData.utilizationWithHighTip > 100 
+                              ? 'bg-red-500' 
+                              : reportData.utilizationWithHighTip > 85 
+                                ? 'bg-amber-500' 
+                                : reportData.utilizationWithHighTip >= 60 
+                                  ? 'bg-emerald-500' 
+                                  : 'bg-sky-500'
+                          }`}
                           style={{ width: `${Math.min(100, reportData.utilizationWithHighTip)}%` }} 
                         />
                       </div>

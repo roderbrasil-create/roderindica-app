@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Sparkles, MessageSquare, X, Minus, Send, Calculator, Wrench, HelpCircle, AlertTriangle, Play, RefreshCw, Trash2, ChevronLeft, ChevronRight, CheckCircle, Package, Layers, Tractor, FileText, Mic, Square, Loader2, Brain, BookOpen } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { cn } from '../../lib/utils';
 import { collection, getDocs, query, orderBy, addDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { askEngineerHelper, transcribeAudio, analyzeAndEnrichProductDossier } from '../../services/geminiService';
@@ -22,6 +23,7 @@ interface Message {
 
 export default function EngineerHelper() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, profile, isAdmin, isManager } = useAuth();
   const canTeach = isAdmin || isManager || user?.email === 'roderbrasil@gmail.com';
   
@@ -130,7 +132,7 @@ export default function EngineerHelper() {
       {
         id: 'initial-welcome',
         role: 'assistant',
-        content: 'Olá! Sou o **Consultor Técnico RODER** 🛠️. Estou aqui para ajudar você a dimensionar e indicar o equipamento Roder ideal para a sua máquina base (escavadeira, pá carregadeira ou trator), além de realizar cálculos de produtividade de garras florestais. Como posso te ajudar hoje?'
+        content: 'Olá! Sou o **Consultor Técnico RODER** 🛠️. Estou aqui para ajudar você a dimensionar e indicar o equipamento ideal para a sua escavadeira ou pá carregadeira, além de calcular produtividade. Como posso ajudar hoje?'
       }
     ];
   });
@@ -384,6 +386,7 @@ export default function EngineerHelper() {
   useEffect(() => {
     try {
       sessionStorage.setItem('roder_helper_isOpen', JSON.stringify(isOpen));
+      window.dispatchEvent(new CustomEvent('roder_helper_isOpen_changed', { detail: isOpen }));
     } catch (e) {}
   }, [isOpen]);
 
@@ -551,7 +554,7 @@ export default function EngineerHelper() {
       {
         id: `end-${Date.now()}`,
         role: 'assistant',
-        content: 'Olá! Sou o **Consultor Técnico RODER** 🛠️. Estou aqui para ajudar você a dimensionar e indicar o equipamento Roder ideal para a sua máquina base (escavadeira, pá carregadeira ou trator), além de realizar cálculos de produtividade de garras florestais. Como posso te ajudar hoje?'
+        content: 'Olá! Sou o **Consultor Técnico RODER** 🛠️. Estou aqui para ajudar você a dimensionar e indicar o equipamento ideal para a sua escavadeira ou pá carregadeira, além de calcular produtividade. Como posso ajudar hoje?'
       }
     ]);
     setSelectedProduct(null);
@@ -886,10 +889,16 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
     return detected;
   };
 
+  const isCatalog = location.pathname === '/catalogo';
+  const hasRightDock = isCatalog && isOpen;
+
   return (
     <>
       {/* Floating Toggle Button */}
-      <div className="fixed bottom-6 right-6 z-[45] font-sans notranslate" translate="no">
+      <div className={cn(
+        "fixed bottom-6 right-6 z-[45] font-sans notranslate transition-all duration-300",
+        hasRightDock && "lg:hidden"
+      )} translate="no">
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
@@ -933,11 +942,16 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 50, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 50, scale: 0.95 }}
-            transition={{ duration: 0.2 }}
-            className="fixed bottom-22 right-4 sm:right-6 w-[94vw] sm:w-[480px] h-[86vh] sm:h-[80vh] max-h-[820px] sm:max-h-[720px] bg-slate-900 border border-slate-800 rounded-2xl shadow-3xl flex flex-col overflow-hidden z-[45] text-white font-sans notranslate"
+            initial={hasRightDock ? { opacity: 0, x: 50 } : { opacity: 0, y: 50, scale: 0.95 }}
+            animate={hasRightDock ? { opacity: 1, x: 0 } : { opacity: 1, y: 0, scale: 1 }}
+            exit={hasRightDock ? { opacity: 0, x: 50 } : { opacity: 0, y: 50, scale: 0.95 }}
+            transition={{ duration: 0.25 }}
+            className={cn(
+              "fixed bg-slate-900 border-slate-800 flex flex-col overflow-hidden z-[45] text-white font-sans notranslate transition-all duration-300",
+              hasRightDock
+                ? "bottom-22 right-4 sm:right-6 w-[94vw] sm:w-[480px] h-[86vh] sm:h-[80vh] max-h-[820px] sm:max-h-[720px] border rounded-2xl shadow-3xl lg:top-[65px] lg:bottom-0 lg:right-0 lg:w-[480px] lg:h-[calc(100vh-65px)] lg:max-h-none lg:rounded-none lg:border-t-0 lg:border-b-0 lg:border-r-0 lg:border-l lg:shadow-none"
+                : "bottom-22 right-4 sm:right-6 w-[94vw] sm:w-[480px] h-[86vh] sm:h-[80vh] max-h-[820px] sm:max-h-[720px] border rounded-2xl shadow-3xl"
+            )}
             translate="no"
           >
             {/* Header */}

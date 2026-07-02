@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import { Button } from '../ui/button';
 import { Menu, ChevronLeft, X, Eye, EyeOff, WifiOff } from 'lucide-react';
@@ -45,6 +45,29 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+
+  const [isHelperOpen, setIsHelperOpen] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('roder_helper_isOpen');
+      return saved ? JSON.parse(saved) : false;
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    const handleHelperChange = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      setIsHelperOpen(customEvent.detail);
+    };
+    window.addEventListener('roder_helper_isOpen_changed', handleHelperChange);
+    return () => {
+      window.removeEventListener('roder_helper_isOpen_changed', handleHelperChange);
+    };
+  }, []);
+
+  const isCatalog = location.pathname === '/catalogo';
+  const hasRightDock = isCatalog && isHelperOpen;
 
   const isHome = location.pathname === '/';
 
@@ -105,7 +128,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       )}
       <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
       
-      <div className="md:pl-56 flex flex-col min-h-screen">
+      <div className={cn(
+        "md:pl-56 flex flex-col min-h-screen transition-all duration-300",
+        hasRightDock && "lg:pr-[480px]"
+      )}>
         {/* Mobile Fixed Header & Page Title Sub-header Container */}
         <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-md border-b border-border shadow-sm flex flex-col">
           <header className="flex items-center justify-between p-1.5 px-3 h-14">
