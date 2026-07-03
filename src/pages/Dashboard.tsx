@@ -1904,8 +1904,8 @@ export default function Dashboard() {
         </>
         ) : (isAdmin || isManager) ? (
           <div className="space-y-6">
-            {/* Resumo Diário Roder IA (6 PM) */}
-            {dailySummary && (
+            {/* Resumo Diário Roder IA (6 PM) - Oculto temporariamente para outros gerentes, visível apenas para o e-mail roderbrasil@gmail.com */}
+            {dailySummary && profile?.email === 'roderbrasil@gmail.com' && (
               <div className="bg-slate-900 text-slate-100 rounded-xl p-5 shadow-md border border-slate-800">
                 <div className="flex items-center justify-between gap-4 mb-3">
                   <div className="flex items-center gap-2">

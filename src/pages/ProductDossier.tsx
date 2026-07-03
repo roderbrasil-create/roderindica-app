@@ -184,7 +184,7 @@ export default function ProductDossier() {
   useEffect(() => {
     if (!isAuthorized) return;
     setLoadingGuidelines(true);
-    const q = query(collection(db, 'roder_ai_questions'), orderBy('timestamp', 'desc'));
+    const q = query(collection(db, 'roder_comercial_guidelines'), orderBy('timestamp', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const items = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -285,7 +285,7 @@ export default function ProductDossier() {
 
     try {
       toast.loading("Salvando diretriz na Base de Conhecimento...", { id: "add-g" });
-      await addDoc(collection(db, 'roder_ai_questions'), {
+      await addDoc(collection(db, 'roder_comercial_guidelines'), {
         question: newQuestion,
         improvedAnswer: newAnswer,
         timestamp: new Date().toISOString(),
@@ -311,7 +311,7 @@ export default function ProductDossier() {
 
     try {
       toast.loading("Atualizando diretriz...", { id: "up-g" });
-      await updateDoc(doc(db, 'roder_ai_questions', id), {
+      await updateDoc(doc(db, 'roder_comercial_guidelines', id), {
         question: editingQuestion,
         improvedAnswer: editingAnswer,
         updatedAt: new Date().toISOString()
@@ -329,7 +329,7 @@ export default function ProductDossier() {
 
     try {
       toast.loading("Removendo diretriz...", { id: "del-g" });
-      await deleteDoc(doc(db, 'roder_ai_questions', id));
+      await deleteDoc(doc(db, 'roder_comercial_guidelines', id));
       toast.success("Diretriz comercial removida permanentemente.", { id: "del-g" });
     } catch (err) {
       console.error("Error deleting guideline:", err);

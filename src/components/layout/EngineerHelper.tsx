@@ -3,7 +3,7 @@ import { Sparkles, MessageSquare, X, Minus, Send, Calculator, Wrench, HelpCircle
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { cn, getApiBaseUrl } from '../../lib/utils';
-import { collection, getDocs, query, orderBy, addDoc } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, addDoc, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { askEngineerHelper, transcribeAudio, analyzeAndEnrichProductDossier } from '../../services/geminiService';
 import { useAuth } from '../../contexts/AuthContext';
@@ -15,6 +15,204 @@ import { MACHINES, MATERIALS, getRecommendedBucket, calculateDischargeHeights, g
 import { RODER_LOGO_BASE64 } from '../catalog/RoderLogo';
 import { toPng } from 'html-to-image';
 
+const DEFAULT_PRODUCTIVITIES: Record<string, string> = {
+  "CMF 600": `DERRUBADA (COLHEITA FLORESTAL):
+- Produtividade Média: 4 a 5 árvores por minuto.
+- Rendimento por Hora: Cerca de 40 m³ por hora (em floresta de 400 m³ por hectare).
+- Rendimento por Hectare: Cerca de 10 horas de trabalho para derrubar 1 hectare completo.
+- Consumo de Combustível: Média de 16 L/h.
+- Custo de Derrubada: Cerca de R$ 4,50 por m³ (incluindo operador, alimentação e carro de apoio).
+
+TRAÇAMENTO DE FEIXES PARA "METRINHO":
+- Produtividade Média: 15 a 18 m³ por hora (média de 90 a 120 metros estéreos por turno de 8h).
+- Consumo de Combustível: Cerca de 20 L/h (em escavadeira de 20 toneladas - PC 200).
+- Custo de Traçamento: Cerca de R$ 5,15 por m³ (madeira já empilhada).
+
+Vazão e Máquina Base:
+- Compatível com escavadeiras de 13 a 22 toneladas (ideal em escavadeiras de 16 a 18 toneladas).
+
+SISTEMA INTEGRADO (COMBO RODER):
+Operando em conjunto (1 Cabeçote CMF 600 na derrubada + 1 Mini Skidder no arraste + 1 Garra Traçadora no traçamento de metrinho), a produção média combinada é de 165 a 170 metros estéreos por turno de 8h, totalmente traçado e empilhado.`,
+
+  "CMF 500": `Derrubada/Colheita de Eucalipto (Felling):
+- Média Geral: 150 a 180 árvores por hora.
+- Indicado para escavadeiras menores de 8 a 12 toneladas ou cortes leves de menor diâmetro.
+
+Traçamento de Feixes para "Metrinho":
+- Produtividade Média: 15 a 20 m³ por hora.`,
+
+  "CMF 800": `Derrubada/Colheita de Eucalipto/Mata Nativa:
+- Média Geral (Corte de grande porte de até 80cm de diâmetro): 100 a 120 árvores por hora.
+- Indicado para escavadeiras de 20 a 30 toneladas em operações pesadas. Produzido estritamente sob encomenda.
+
+Traçamento de Grandes Volumes:
+- Produtividade Média: 30 a 45 m³ por hora.`,
+
+  "MSR 600": `DESEMPENHO & ARRASTE (MINI SKIDDER):
+- Capacidade de Arraste: Arrasta de 1.000 a 1.500 árvores por turno (em distâncias curtas).
+- Rendimento por Hora: Cerca de 20 m³ por hora (leva cerca de 20 horas de trabalho para arrastar todo o volume de 1 hectare de 400 m³).
+- Trator Recomendado: Tratores de 110 a 160 HP (~150 CV).
+- Consumo Médio de Combustível: Cerca de 8 L/h.
+- Custo de Arraste: Cerca de R$ 3,15 por m³.
+
+SISTEMA INTEGRADO (COMBO RODER):
+Operando em conjunto (1 Cabeçote CMF 600 na derrubada + 1 Mini Skidder MSR 600 no arraste + 1 Garra Traçadora no traçamento de metrinho), a produção média combinada é de 165 a 170 metros estéreos por turno de 8h, totalmente traçado e empilhado.`,
+
+  "MSR 1000": `DESEMPENHO & ARRASTE (MINI SKIDDER):
+- Capacidade de Arraste: Arrasta de 1.000 a 1.500 árvores por turno (em distâncias curtas, com maior capacidade de volume por ciclo comparado ao MSR 600).
+- Rendimento por Hora: Cerca de 25 m³ por hora.
+- Trator Recomendado: Tratores de 145 a 200 CV.
+- Consumo Médio de Combustível: Cerca de 10 L/h.
+- Custo Estimado: R$ 3,15 por m³.
+
+SISTEMA INTEGRADO (COMBO RODER):
+Operando em conjunto (1 Cabeçote CMF 600 na derrubada + 1 Mini Skidder MSR 1000 no arraste + 1 Garra Traçadora no traçamento de metrinho), a produção média combinada é de 165 a 170 metros estéreos por turno de 8h, totalmente traçado e empilhado.`,
+
+  "GT 600x": `TRAÇAMENTO & PRODUTIVIDADE (GARRA TRAÇADORA):
+- Rendimento para Metrinho: De 150 a 180 metros estéreos por turno de 8h.
+- Máquina Base Recomendada: Escavadeira hidráulica de 20 toneladas.
+- Rendimento com Madeira de 6 metros: Até 12.000 m³ por mês (trabalhando em turno de 10 horas por dia).
+- Operador qualificado e boa qualidade da madeira garantem máxima performance.
+
+SISTEMA INTEGRADO (COMBO RODER):
+Operando em conjunto (1 Cabeçote CMF 600 na derrubada + 1 Mini Skidder no arraste + 1 Garra Traçadora GT 600x no traçamento de metrinho), a produção média combinada é de 165 a 170 metros estéreos por turno de 8h, totalmente traçado e empilhado.`,
+
+  "GT 360": `TRAÇAMENTO & PRODUTIVIDADE (GARRA TRAÇADORA):
+- Rendimento para Metrinho: De 100 a 130 metros estéreos por turno de 8h.
+- Máquina Base Recomendada: Escavadeiras de 8 a 16 toneladas.
+- Ideal para operações de médio porte, garantindo excelente agilidade no traçamento.`,
+
+  "GT 800x": `TRAÇAMENTO & PRODUTIVIDADE (GARRA TRAÇADORA):
+- Rendimento para Metrinho: De 180 a 220 metros estéreos por turno de 8h.
+- Máquina Base Recomendada: Escavadeiras de 20 a 30 toneladas.
+- Projetada para alta produção e troncos de maior diâmetro.`,
+
+  "GT 1000x": `TRAÇAMENTO & PRODUTIVIDADE (GARRA TRAÇADORA):
+- Rendimento para Metrinho: De 220 a 260 metros estéreos por turno de 8h.
+- Máquina Base Recomendada: Escavadeiras pesadas de 25 a 35 toneladas.
+- Equipamento de altíssima performance para grandes volumes florestais.`,
+
+  "R250": `Produtividade Estimada com base em ciclo de 20 segundos e madeira de 3m:
+- Produtividade Horária: Cerca de 108 toneladas por hora.
+- Indicada para escavadeiras de 5 a 8 toneladas.`,
+  
+  "R280": `Produtividade Estimada com base em ciclo de 20 segundos e madeira de 3m:
+- Produtividade Horária: Cerca de 121 toneladas por hora.
+- Recomendada para escavadeiras de 6 a 10 toneladas. Modelo ideal para alimentação de picador em máquinas de 8t, oferecendo máxima estabilidade e dimensionamento.`,
+
+  "R360": `Produtividade Estimada com base em ciclo de 20 segundos e madeira de 3m:
+- Produtividade Horária: Cerca de 155 toneladas por hora.
+- Indicada para escavadeiras de 8 a 12 toneladas.`,
+
+  "R400": `Produtividade Estimada com base em ciclo de 20 segundos e madeira de 3m:
+- Produtividade Horária: Cerca de 172 toneladas por hora.
+- Indicada para escavadeiras de 12 a 18 toneladas (excelente para John Deere 160).
+- Aplicação recomendada: Abastecimento e alimentação de picadores de biomassa/madeira devido à agilidade e tamanho ideal, evitando colisões físicas.`,
+
+  "R600": `Produtividade Estimada com base em ciclo de 20 segundos e madeira de 3m:
+- Produtividade Horária: Cerca de 259 toneladas por hora.
+- Indicada para escavadeiras de 14 a 22 toneladas (excelente para John Deere 160).
+- Aplicação recomendada: Carregamento de madeiras longas (ex: 6 metros de comprimento), garantindo excelente equilíbrio de carga e estabilidade.`,
+
+  "R800": `Produtividade Estimada com base em ciclo de 20 segundos e madeira de 3m:
+- Produtividade Horária: Cerca de 345 toneladas por hora.
+- Indicada para escavadeiras de 18 a 25 toneladas (também viável para 16t).
+- Aplicação recomendada: Carregamento de madeira curta (no máximo 3 metros de comprimento).`,
+
+  "R1000": `Produtividade Estimada com base em ciclo de 20 segundos e madeira de 3m:
+- Produtividade Horária: Cerca de 432 toneladas por hora.
+- Indicada para escavadeiras de 22 a 30 toneladas in operações de alta densidade.`,
+
+  "R1200": `Produtividade Estimada com base em ciclo de 20 segundos e madeira de 3m:
+- Produtividade Horária: Cerca de 518 toneladas por hora.
+- Indicada para escavadeiras de 24 a 35 toneladas.`,
+
+  "R1400": `Produtividade Estimada com base em ciclo de 20 segundos e madeira de 3m:
+- Produtividade Horária: Cerca de 604 toneladas por hora.
+- Indicada para escavadeiras de 25 a 35 toneladas.`
+};
+
+export const getGTProductivityData = (modelName: string, length: number) => {
+  let area = 0.60; // default (GT 600)
+  let machineBase = 'Escavadeira de 20 toneladas (PC 200)';
+  let chainSpec = '3/4" 11H (Pesada/Reforçada)';
+  
+  const cleanName = (modelName || '').toUpperCase();
+  if (cleanName.includes('280')) {
+    area = 0.28;
+    machineBase = 'Escavadeira de 6 a 10 toneladas';
+    chainSpec = 'Harvester 0.404"';
+  } else if (cleanName.includes('360')) {
+    area = 0.36;
+    machineBase = 'Escavadeira de 8 a 16 toneladas';
+    chainSpec = 'Harvester 0.404"';
+  } else if (cleanName.includes('400')) {
+    area = 0.40;
+    machineBase = 'Escavadeira de 14 a 18 toneladas';
+    chainSpec = '3/4" 11H (Pesada/Reforçada)';
+  } else if (cleanName.includes('600')) {
+    area = 0.60;
+    machineBase = 'Escavadeira de 20 toneladas (PC 200)';
+    chainSpec = '3/4" 11H (Pesada/Reforçada)';
+  } else if (cleanName.includes('800')) {
+    area = 0.80;
+    machineBase = 'Escavadeira de 20 a 30 toneladas';
+    chainSpec = '3/4" 11H (Pesada/Reforçada)';
+  } else if (cleanName.includes('1000')) {
+    area = 1.00;
+    machineBase = 'Escavadeira de 25 a 35 toneladas';
+    chainSpec = '3/4" 11H (Pesada/Reforçada)';
+  }
+
+  // Load factor: 85% average capacity due to tapering/copa loss, offset by pulling extra trees
+  const loadFactor = 0.85; 
+  
+  // Volume per cycle = Area * Length * Load Factor
+  const volPerCycle = area * length * loadFactor;
+
+  // Operational efficiency factor (fator de aproveitamento de pátio):
+  // 1.0m (metrinho) allows more continuous feeding/piling (30% efficiency)
+  // 2.4m and 3.0m require more handling (25% and 22%)
+  // 6.0m requires careful positioning and is highly limited by felling/skidder flow (15% efficiency)
+  let opEfficiency = 0.30;
+  if (length === 6.0) {
+    opEfficiency = 0.15;
+  } else if (length === 3.0) {
+    opEfficiency = 0.22;
+  } else if (length === 2.4) {
+    opEfficiency = 0.25;
+  }
+
+  // Active cycles per hour:
+  // - Fast: 20 seconds per cycle = 180 cycles/hour (expert operator, perfect sharpening)
+  // - Slow: 30 seconds per cycle = 120 cycles/hour (beginner operator, low sharpening maintenance)
+  const hourlyMin = parseFloat((120 * volPerCycle * opEfficiency).toFixed(1));
+  const hourlyMax = parseFloat((180 * volPerCycle * opEfficiency).toFixed(1));
+
+  // 10-hour standard forest shift
+  const shiftMin = Math.round(hourlyMin * 10);
+  const shiftMax = Math.round(hourlyMax * 10);
+
+  // Monthly estimate (22 working days, 10 hours per day)
+  const monthlyMin = Math.round(hourlyMin * 10 * 22);
+  const monthlyMax = Math.round(hourlyMax * 10 * 22);
+
+  return {
+    area,
+    loadFactor,
+    chainSpec,
+    hourlyMin,
+    hourlyMax,
+    shiftMin,
+    shiftMax,
+    monthlyMin,
+    monthlyMax,
+    machineBase,
+    cycleRange: '20s a 30s',
+    opEfficiency: Math.round(opEfficiency * 100)
+  };
+};
+
 interface Message {
   id?: string;
   role: 'user' | 'assistant';
@@ -24,8 +222,14 @@ interface Message {
 export default function EngineerHelper() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, profile, isAdmin, isManager } = useAuth();
-  const canTeach = isAdmin || isManager || user?.email === 'roderbrasil@gmail.com';
+  const { user, profile } = useAuth();
+  
+  // Only accessible to the main owner (roderbrasil@gmail.com) and Gislene (the commercial manager)
+  const userEmail = user?.email?.toLowerCase() || '';
+  const userName = profile?.name?.toLowerCase() || '';
+  const canTeach = userEmail === 'roderbrasil@gmail.com' || 
+                   userEmail.includes('gislene') || 
+                   userName.includes('gislene');
   
   // Persistent state loaded from sessionStorage on mount
   const [isOpen, setIsOpen] = useState(() => {
@@ -138,6 +342,9 @@ export default function EngineerHelper() {
   });
   
   const [inputValue, setInputValue] = useState('');
+  const [arrasteCalcDiameter, setArrasteCalcDiameter] = useState<number>(20);
+  const [arrasteCalcEquip, setArrasteCalcEquip] = useState<'msr600' | 'msr1000' | 'clambunk10' | 'clambunk15'>('msr1000');
+  const [isArrasteCalcOpen, setIsArrasteCalcOpen] = useState<boolean>(false);
   const [loading, setLoading] = useState(false);
 
   // Audio recording state
@@ -145,6 +352,62 @@ export default function EngineerHelper() {
   const [transcribing, setTranscribing] = useState(false);
   const [recordedMimeType, setRecordedMimeType] = useState<string>('audio/webm');
   const [detailTab, setDetailTab] = useState<'specs' | 'productivity'>('specs');
+  const [effectiveProductivityText, setEffectiveProductivityText] = useState<string>('');
+  const [gtLength, setGtLength] = useState<number>(1.0);
+
+  useEffect(() => {
+    if (selectedModel && selectedProduct) {
+      if (selectedModel.productivity_text && selectedModel.productivity_text.trim() !== '') {
+        setEffectiveProductivityText(selectedModel.productivity_text);
+      } else {
+        const defaultText = DEFAULT_PRODUCTIVITIES[selectedModel.name];
+        if (defaultText) {
+          setEffectiveProductivityText(defaultText);
+          // Update in local catalog list to display instantly
+          setCatalogProducts(prev => prev.map(p => {
+            if (p.id === selectedProduct.id) {
+              const updatedModels = (p.models || []).map(m => {
+                if (m.id === selectedModel.id) {
+                  return { ...m, productivity_text: defaultText };
+                }
+                return m;
+              });
+              return { ...p, models: updatedModels };
+            }
+            return p;
+          }));
+          // Background update in Firestore to save permanently
+          const updateFirestore = async () => {
+            try {
+              const productRef = doc(db, 'products', selectedProduct.id);
+              const prodSnap = await getDocs(query(collection(db, 'products')));
+              // Find the correct product document by checking id matching or doc id
+              const matchingDoc = prodSnap.docs.find(d => d.id === selectedProduct.id);
+              if (matchingDoc) {
+                const prodData = matchingDoc.data() as Product;
+                const updatedModels = (prodData.models || []).map(m => {
+                  if (m.id === selectedModel.id) {
+                    return { ...m, productivity_text: defaultText };
+                  }
+                  return m;
+                });
+                await updateDoc(matchingDoc.ref, { models: updatedModels });
+                console.log(`[FIRESTORE] Auto-saved productivity text for model ${selectedModel.id}`);
+              }
+            } catch (err) {
+              console.error("[FIRESTORE] Failed to auto-save productivity:", err);
+            }
+          };
+          updateFirestore();
+        } else {
+          setEffectiveProductivityText('');
+        }
+      }
+    } else {
+      setEffectiveProductivityText('');
+    }
+  }, [selectedModel, selectedProduct]);
+
   const [explorerMinimized, setExplorerMinimized] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -847,6 +1110,104 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
     navigate('/indicacoes/nova', { state: { product_name: productFullName } });
   };
 
+  // Download technical sheet document as .txt / .md
+  const handleDownloadTechnicalSheet = () => {
+    if (!selectedModel || !selectedProduct) return;
+    
+    const specsStr = Object.entries(selectedModel.technical_specs || {})
+      .filter(([_, val]) => val !== null && val !== undefined && String(val).trim() !== '' && String(val).trim() !== '-')
+      .map(([key, val]) => `- ${key.replace(/_/g, ' ').toUpperCase()}: ${val}`)
+      .join('\n');
+
+    const imageUrl = selectedModel.images?.[0] || selectedProduct.image_url || '';
+
+    const isGT = selectedModel.name.toUpperCase().includes('GT') || 
+                 selectedProduct.category.toUpperCase().includes('TRAÇADORA') || 
+                 selectedProduct.name.toUpperCase().includes('TRAÇADORA');
+
+    let prodSection = effectiveProductivityText;
+    if (isGT) {
+      const gtData = getGTProductivityData(selectedModel.name, gtLength);
+      prodSection = `PRODUTIVIDADE CALCULADA PARA MADEIRA DE ${gtLength.toFixed(1)} METROS:
+- Rendimento por Hora: ${gtData.hourlyMin} a ${gtData.hourlyMax} m³ estéreo / hora
+- Rendimento por Turno (10h): ${gtData.shiftMin} a ${gtData.shiftMax} m³ estéreo / turno
+- Estimativa Mensal (Turno 10h/dia, 22 dias/mês): ${(gtData.monthlyMin / 1000).toFixed(1)}k a ${(gtData.monthlyMax / 1000).toFixed(1)}k m³ / mês
+
+PARÂMETROS UTILIZADOS NO CÁLCULO:
+• Área de Abertura Útil da Garra: ${gtData.area.toFixed(2)} m²
+• Fator de Capacidade Útil (Carga Média): 85% (considera 15% a 20% de perda devido ao afunilamento das árvores em direção à copa, compensada pela habilidade do operador de agarrar troncos adicionais)
+• Tempo de Ciclo de Corte: 20s (Operador de alto rendimento, corte super afiado) a 30s (Operador iniciante, falta de afiação correta)
+• Fator de Aproveitamento de Pátio / Espera: ${gtData.opEfficiency}% (varia de 15% para toras de 6.0m devido à complexidade de manobras de pátio e abastecimento, até 30% para metrinho de 1.0m de fluxo contínuo)
+• Máquina Escavadeira Base Recomendada: ${gtData.machineBase}
+• Especificação de Corrente: Passo ${gtData.chainSpec}
+
+------------------------------------------------------------
+RECOMENDAÇÕES IMPORTANTES DE ENGENHARIA (SABRES & CORRENTES):
+------------------------------------------------------------
+1. Manutenção do Conjunto de Corte:
+   • É fundamental que o operador trabalhe sempre com a corrente super afiada e bem regulada.
+   • Recomendamos a troca preventiva da corrente a cada 2 horas (ou no máximo 2,5 horas). Isso garante menor desgaste mecânico geral e exige apenas uma afiação muito leve (com pouca remoção de material), elevando significativamente a vida útil do conjunto de corte.
+   • Sugerimos disponibilizar 5 correntes afiadas para cada turno de trabalho de 10h. Ao término do dia, o operador leva as 5 correntes e o sabre para manutenção/afiação para o dia seguinte.
+
+2. Durabilidade e Vida Útil Estimada:
+   • Consumo de Insumos: Em média, uma operação com boa afiação e manutenção consome de 4 a 5 correntes e 1 sabre por mês (baseado em turno de 8 a 10h diárias, 20 a 25 dias por mês).
+   • Coroa / Pinhão de Arraste: Durabilidade média de 20 a 30 dias (equivalente a 100 a 400 horas). Em terrenos muito arenosos, onde a poeira e terra acumulam entre as cascas das madeiras, o desgaste do pinhão pode ocorrer mais rapidamente.
+
+3. Sistema de Lubrificação Automática:
+   • Vital para a operação. A falta de óleo gera atrito excessivo e aquecimento imediato da corrente e do sabre. O calor excessivo destempera o aço do sabre, causa desalinhamento, empenamento e reduz drasticamente a vida útil de todos os componentes de corte.
+
+4. Especificações de Correntes por Modelo:
+   • Modelos GT 280 e GT 360: Utilizam corrente com passo 0.404" (mesmo modelo usado em cabeçotes Harvester).
+   • Modelos GT 400X, GT 600X, GT 800X e GT 1000X: Utilizam corrente com passo 3/4" 11H (corrente extremamente robusta e reforçada para trabalho super pesado de traçamento florestal contínuo).
+
+------------------------------------------------------------
+TEXTO DE REFERÊNCIA GERAL DO EQUIPAMENTO:
+------------------------------------------------------------
+${effectiveProductivityText}`;
+    }
+
+    const docContent = `============================================================
+FICHA TÉCNICA OFICIAL - RODER MÁQUINAS E EQUIPAMENTOS
+============================================================
+
+EQUIPAMENTO: ${selectedProduct.name}
+MODELO: ${selectedModel.name}
+CATEGORIA: ${selectedProduct.category}
+
+------------------------------------------------------------
+CARACTERÍSTICAS & ESPECIFICAÇÕES TÉCNICAS
+------------------------------------------------------------
+${specsStr || 'Nenhuma especificação técnica cadastrada.'}
+
+------------------------------------------------------------
+PRODUTIVIDADE ESTIMADA & PERFORMANCE
+------------------------------------------------------------
+${prodSection || 'Texto de produtividade em processo de homologação técnica.'}
+
+------------------------------------------------------------
+SOBRE O EQUIPAMENTO & INDICAÇÕES
+------------------------------------------------------------
+- Para que serve: ${selectedProduct.description || 'Equipamento de alta robustez e precisão para colheita, traçamento ou movimentação florestal.'}
+- Imagem de Referência: ${imageUrl || 'Consulte o catálogo online'}
+
+============================================================
+Consultor Técnico Digital RODER - Dimensionamento e Compatibilidade
+Engenharia e Criação: Jeferson Roder
+Gerado em: ${new Date().toLocaleDateString('pt-BR')}
+============================================================`;
+
+    const blob = new Blob([docContent], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Ficha_Tecnica_Roder_${selectedModel.name.replace(/\s+/g, '_')}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success(`Ficha técnica de ${selectedModel.name} baixada com sucesso!`);
+  };
+
   // Parse assistant text to find matched catalog products & models
   const detectEquipmentInMessage = (content: string) => {
     const detected: { prod: Product; model: ProductModel }[] = [];
@@ -1200,31 +1561,227 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                           }
 
                           const matchedEquip = detectEquipmentInMessage(msg.content);
-                          if (matchedEquip.length > 0 || idx > 0) {
-                            return (
-                              <div className="mt-3.5 pt-2.5 border-t border-slate-800 flex flex-col gap-2">
-                                {matchedEquip.length > 0 && (
-                                  <div className="flex flex-col gap-1.5">
-                                    <p className="text-[10px] text-amber-400 font-extrabold uppercase tracking-wider flex items-center gap-1">
-                                      <Sparkles className="h-3 w-3 text-amber-400" /> Indicações Rápidas Disponíveis:
-                                    </p>
-                                    <div className="flex flex-wrap gap-1.5">
-                                      {matchedEquip.map(({ prod, model }) => (
+                          const isArraste = 
+                            msg.content.toLowerCase().includes('arraste') ||
+                            msg.content.toLowerCase().includes('pinça') ||
+                            msg.content.toLowerCase().includes('pinca') ||
+                            msg.content.toLowerCase().includes('miniskid') ||
+                            msg.content.toLowerCase().includes('msr ') ||
+                            msg.content.toLowerCase().includes('clambunk') ||
+                            msg.content.toLowerCase().includes('clambank') ||
+                            msg.content.toLowerCase().includes('clamp');
+
+                          const hasActions = matchedEquip.length > 0 || isArraste || idx > 0;
+                          if (!hasActions) return null;
+
+                          return (
+                            <div className="mt-3.5 pt-2.5 border-t border-slate-800 flex flex-col gap-2">
+                              {/* 1. Normal Equipment Matches */}
+                              {matchedEquip.length > 0 && (
+                                <div className="flex flex-col gap-1.5">
+                                  <p className="text-[10px] text-amber-400 font-extrabold uppercase tracking-wider flex items-center gap-1">
+                                    <Sparkles className="h-3 w-3 text-amber-400" /> Indicações Rápidas Disponíveis:
+                                  </p>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {matchedEquip.map(({ prod, model }) => (
+                                      <button
+                                        key={`${prod.id}-${model.id}`}
+                                        onClick={() => handleMakeIndication(prod, model)}
+                                        className="flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black uppercase text-[9px] py-1 px-2.5 rounded transition shadow-sm cursor-pointer"
+                                        title={`Clique para realizar indicação/orçamento oficial de ${prod.name} ${model.name}`}
+                                      >
+                                        <CheckCircle className="h-2.5 w-2.5" />
+                                        Indicar {prod.name} {model.name}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* 2. Arraste / Clambunk Panel */}
+                              {(() => {
+                                if (!isArraste) return null;
+
+                                const getEquipDetails = (eq: string) => {
+                                  switch (eq) {
+                                    case 'msr600':
+                                      return { name: 'Mini Skidder MSR 600', area: 0.60, factor: 0.42, maxD: 60 };
+                                    case 'msr1000':
+                                      return { name: 'Mini Skidder MSR 1000', area: 1.00, factor: 0.45, maxD: 100 };
+                                    case 'clambunk10':
+                                      return { name: 'Carreta Clambunk 1.0', area: 1.00, factor: 0.62, maxD: 100 };
+                                    case 'clambunk15':
+                                      return { name: 'Carreta Clambunk 1.5', area: 1.50, factor: 0.72, maxD: 100 };
+                                    default:
+                                      return { name: 'Mini Skidder MSR 1000', area: 1.00, factor: 0.45, maxD: 100 };
+                                  }
+                                };
+
+                                const eqDetails = getEquipDetails(arrasteCalcEquip);
+                                const dMeters = arrasteCalcDiameter / 100;
+                                const treeArea = Math.PI * Math.pow(dMeters / 2, 2);
+                                const totalWoodArea = eqDetails.area * eqDetails.factor;
+                                let treeCount = Math.floor(totalWoodArea / treeArea);
+                                if (treeCount === 0 && arrasteCalcDiameter <= eqDetails.maxD) {
+                                  treeCount = 1;
+                                }
+                                if (arrasteCalcDiameter > eqDetails.maxD) {
+                                  treeCount = 0;
+                                }
+
+                                const handleSendSimulation = () => {
+                                  const calcText = `Gostaria de analisar este dimensionamento de arraste:
+- Equipamento: **${eqDetails.name} (Capacidade física: ${eqDetails.maxD} cm)**
+- Diâmetro Médio das Árvores: **${arrasteCalcDiameter} cm**
+- Capacidade Estimada: **~${treeCount} árvores inteiras** por feixe (compatível com a área física da garra)
+- Fator de Empilhamento Aplicado: **${(eqDetails.factor * 100).toFixed(0)}%**
+
+Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamento operacional dessa solução?`;
+                                  setIsArrasteCalcOpen(false);
+                                  handleSend(calcText);
+                                };
+
+                                return (
+                                  <div className="space-y-3 pt-2 border-t border-slate-800/60 mt-1">
+                                    <div className="space-y-2">
+                                      <p className="text-[10px] text-amber-400 font-extrabold uppercase tracking-wider flex items-center gap-1.5">
+                                        <Tractor className="h-3.5 w-3.5 text-amber-400" /> Triagem e Dimensionamento de Arraste:
+                                      </p>
+                                      <div className="flex flex-col gap-1.5">
+                                        <p className="text-[9.5px] text-slate-400 leading-normal">Escolha o tipo de equipamento de arraste para direcionar a conversa técnica de forma rápida e prática:</p>
+                                        <div className="flex flex-wrap gap-2">
+                                          <button
+                                            onClick={() => handleSend("Me fale sobre as Garras de Arraste (Mini Skids) Roder de acoplamento nos 3 pontos, modelos MSR 600 e MSR 1000")}
+                                            className="flex-1 min-w-[130px] flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-750 border border-slate-700 hover:border-slate-600 text-slate-200 text-[10px] font-black uppercase py-2 px-3 rounded-xl transition cursor-pointer shadow-sm"
+                                          >
+                                            🚜 Mini Skids (MSR 600/1000)
+                                          </button>
+                                          <button
+                                            onClick={() => handleSend("Me fale sobre as Carretas de Arraste Clambunk Roder de engate traseiro, modelos Clambunk 1.0 e Clambunk 1.5")}
+                                            className="flex-1 min-w-[130px] flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-750 border border-slate-700 hover:border-slate-600 text-slate-200 text-[10px] font-black uppercase py-2 px-3 rounded-xl transition cursor-pointer shadow-sm"
+                                          >
+                                            🚛 Carretas Clambunk
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div className="bg-slate-900/60 border border-slate-800/60 rounded-xl p-3 space-y-2.5">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-[10px] font-bold text-amber-400/90 flex items-center gap-1">
+                                          <Calculator className="h-3 w-3" />
+                                          Calculadora de Capacidade de Feixes
+                                        </span>
                                         <button
-                                          key={`${prod.id}-${model.id}`}
-                                          onClick={() => handleMakeIndication(prod, model)}
-                                          className="flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black uppercase text-[9px] py-1 px-2.5 rounded transition shadow-sm cursor-pointer"
-                                          title={`Clique para realizar indicação/orçamento oficial de ${prod.name} ${model.name}`}
+                                          onClick={() => setIsArrasteCalcOpen(!isArrasteCalcOpen)}
+                                          className="text-[9.5px] font-black uppercase tracking-tight text-slate-300 hover:text-white px-2 py-0.5 bg-slate-800 hover:bg-slate-700 rounded-lg transition"
                                         >
-                                          <CheckCircle className="h-2.5 w-2.5" />
-                                          Indicar {prod.name} {model.name}
+                                          {isArrasteCalcOpen ? 'Fechar ✕' : 'Calcular Capacidade ⚙️'}
                                         </button>
-                                      ))}
+                                      </div>
+
+                                      {isArrasteCalcOpen && (
+                                        <div className="space-y-3.5 pt-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                                          <div className="space-y-1">
+                                            <label className="text-[9px] uppercase font-bold text-slate-400">Selecione o Modelo:</label>
+                                            <div className="grid grid-cols-2 gap-1.5">
+                                              {(['msr600', 'msr1000', 'clambunk10', 'clambunk15'] as const).map(opt => {
+                                                const nameMap = {
+                                                  msr600: 'MSR 600 (Garra 60 cm)',
+                                                  msr1000: 'MSR 1000 (Garra 1.0 m)',
+                                                  clambunk10: 'Clambunk 1.0 (Carreta 1.0m²)',
+                                                  clambunk15: 'Clambunk 1.5 (Carreta 1.5m²)'
+                                                };
+                                                return (
+                                                  <button
+                                                    key={opt}
+                                                    onClick={() => setArrasteCalcEquip(opt)}
+                                                    className={`py-1.5 px-2 rounded-lg text-[9px] font-bold border text-center transition ${
+                                                      arrasteCalcEquip === opt
+                                                        ? 'bg-amber-500 border-amber-500 text-slate-950 font-black'
+                                                        : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700'
+                                                    }`}
+                                                  >
+                                                    {nameMap[opt]}
+                                                  </button>
+                                                );
+                                              })}
+                                            </div>
+                                          </div>
+
+                                          <div className="space-y-1.5">
+                                            <div className="flex justify-between items-center">
+                                              <label className="text-[9px] uppercase font-bold text-slate-400">Diâmetro Médio das Árvores:</label>
+                                              <span className="text-xs font-mono font-black text-amber-400">{arrasteCalcDiameter} cm</span>
+                                            </div>
+                                            <input
+                                              type="range"
+                                              min={8}
+                                              max={45}
+                                              value={arrasteCalcDiameter}
+                                              onChange={(e) => setArrasteCalcDiameter(Number(e.target.value))}
+                                              className="w-full accent-amber-500 cursor-pointer"
+                                            />
+                                            <div className="flex gap-1.5 pt-0.5 justify-between">
+                                              {[12, 15, 20, 25].map(val => (
+                                                <button
+                                                  key={val}
+                                                  onClick={() => setArrasteCalcDiameter(val)}
+                                                  className={`flex-1 py-1 rounded text-[8.5px] font-bold border transition ${
+                                                    arrasteCalcDiameter === val
+                                                      ? 'bg-amber-500 border-amber-500 text-slate-950 font-black'
+                                                      : 'bg-slate-950/40 border-slate-850 text-slate-400 hover:border-slate-800'
+                                                  }`}
+                                                >
+                                                  {val} cm
+                                                </button>
+                                              ))}
+                                            </div>
+                                          </div>
+
+                                          <div className="bg-slate-950/80 rounded-xl p-3 border border-slate-800 space-y-2">
+                                            <div className="flex justify-between items-baseline border-b border-slate-800/60 pb-1.5">
+                                              <span className="text-[9.5px] font-bold text-slate-400 uppercase">Capacidade do Feixe:</span>
+                                              <span className="text-sm font-black text-emerald-400 animate-pulse">
+                                                {treeCount > 0 ? `~${treeCount} Árvores` : 'Excede o limite único'}
+                                              </span>
+                                            </div>
+
+                                            <div className="text-[9px] text-slate-300 space-y-1 leading-normal font-medium">
+                                              <p>• **Capacidade Máxima**: {eqDetails.maxD === 60 ? 'Tora de até 60 cm de diâmetro' : 'Tora de até 1,0 metro de diâmetro'}</p>
+                                              <p>• **Área Útil da Garra**: {eqDetails.area.toFixed(2)} m² (Fator empilhamento: {(eqDetails.factor*100).toFixed(0)}%)</p>
+                                              {arrasteCalcEquip.startsWith('msr') ? (
+                                                <>
+                                                  <p>• **Acoplamento**: 3 pontos do hidráulico traseiro do trator.</p>
+                                                  <p>• **Kit Hidráulico**: Cilindro hidráulico do terceiro ponto incluso.</p>
+                                                  <p>• **Requisito do Trator**: <strong className="text-amber-400 font-semibold">2 comandos duplos extras</strong> (4 vias de engate rápido) para abrir/fechar e inclinar.</p>
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <p>• **Acoplamento**: Reboque via pino de tração.</p>
+                                                  <p>• **Rodado**: {arrasteCalcEquip === 'clambunk15' ? 'Eixo Tandem (4 pneus 1000x20 ultra resistentes)' : 'Eixo simples (2 pneus de alta resistência)'}</p>
+                                                  <p>• **Operação**: Garras invertidas abertas para cima no chassi (tipo clambunk) para carregar de forma super prática.</p>
+                                                </>
+                                              )}
+                                            </div>
+                                          </div>
+
+                                          <button
+                                            onClick={handleSendSimulation}
+                                            className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black uppercase text-[10px] tracking-wider rounded-lg transition shadow flex items-center justify-center gap-1 cursor-pointer border-0"
+                                          >
+                                            <Send className="h-3 w-3" /> Enviar Dimensionamento no Chat
+                                          </button>
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
-                                )}
-                                
-                                <div className="flex items-center justify-between mt-1">
+                                );
+                              })()}
+
+                              {/* 3. Generate Report button */}
+                              {idx > 0 && (
+                                <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-800/40">
                                   <button
                                     onClick={() => handleOpenReport(msg.content, `Relatório de Análise Técnica - ${matchedEquip.length > 0 ? matchedEquip[0].model.name : 'Dimensionamento'}`)}
                                     className="flex items-center gap-1 text-green-400 hover:text-green-300 font-extrabold text-[9.5px] uppercase tracking-wide transition hover:underline cursor-pointer"
@@ -1233,9 +1790,9 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                                     <FileText className="h-3 w-3" /> Gerar Relatório em Imagem
                                   </button>
                                 </div>
-                              </div>
-                            );
-                          }
+                              )}
+                            </div>
+                          );
                           return null;
                         })()}
                       </div>
@@ -1309,10 +1866,10 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                       )}
                       <button
                         onClick={() => setExplorerMinimized(true)}
-                        className="text-[10px] text-slate-400 hover:text-amber-400 uppercase font-black tracking-tight border border-slate-800 hover:border-slate-750 px-2 py-0.5 rounded transition"
+                        className="text-[10px] text-amber-400 hover:text-slate-950 bg-amber-500/10 hover:bg-amber-400 border border-amber-500/30 px-2.5 py-1 rounded transition font-black tracking-wider shadow"
                         title="Minimizar Explorador"
                       >
-                        Minimizar ─
+                        MINIMIZAR ─
                       </button>
                     </div>
                   </div>
@@ -1785,7 +2342,7 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                   </div>
 
                   {/* Content based on Tab */}
-                  <div className="text-xs font-sans text-slate-300 max-h-[140px] overflow-y-auto pr-1">
+                  <div className="text-xs font-sans text-slate-300 max-h-[260px] overflow-y-auto pr-1">
                     {detailTab === 'specs' ? (
                       <div className="space-y-1.5 font-mono">
                         {selectedModel.technical_specs && Object.entries(selectedModel.technical_specs)
@@ -1807,10 +2364,131 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        {selectedModel.productivity_text ? (
-                          <div className="p-2.5 bg-primary/5 border border-primary/10 rounded-xl leading-relaxed text-slate-300">
-                            <p className="text-[10px] font-black text-primary uppercase tracking-wider mb-1">Produtividade Estimada</p>
-                            <p className="text-[11px] font-medium whitespace-pre-line">{selectedModel.productivity_text}</p>
+                        {effectiveProductivityText ? (
+                          <div className="space-y-2">
+                            {(() => {
+                              const isGT = selectedModel.name.toUpperCase().includes('GT') || 
+                                           selectedProduct.category.toUpperCase().includes('TRAÇADORA') || 
+                                           selectedProduct.name.toUpperCase().includes('TRAÇADORA');
+                              if (!isGT) return null;
+
+                              const gtData = getGTProductivityData(selectedModel.name, gtLength);
+                              return (
+                                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl space-y-2 mb-1.5 leading-relaxed text-slate-300">
+                                  <p className="text-[10px] font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                                    <Sparkles className="h-3.5 w-3.5 text-amber-400 animate-pulse" /> Calculador por Comprimento (GT)
+                                  </p>
+                                  <p className="text-[9.5px] text-slate-400 leading-normal">
+                                    A produtividade da Garra Traçadora depende diretamente do comprimento da madeira. Selecione o comprimento abaixo para recalcular com base física:
+                                  </p>
+
+                                  {/* Selector */}
+                                  <div className="grid grid-cols-4 gap-1 pt-1">
+                                    {[
+                                      { label: '1.0m (Metrinho)', val: 1.0 },
+                                      { label: '2.4m', val: 2.4 },
+                                      { label: '3.0m', val: 3.0 },
+                                      { label: '6.0m', val: 6.0 },
+                                    ].map((opt) => (
+                                      <button
+                                        key={opt.val}
+                                        type="button"
+                                        onClick={() => setGtLength(opt.val)}
+                                        className={`py-1.5 text-[9px] font-bold rounded transition text-center border ${
+                                          gtLength === opt.val
+                                            ? 'bg-amber-400 text-slate-950 border-amber-400 shadow font-black'
+                                            : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
+                                        }`}
+                                      >
+                                        {opt.label}
+                                      </button>
+                                    ))}
+                                  </div>
+
+                                  {/* Math formula explanation */}
+                                  <div className="text-[9px] bg-slate-950/60 p-2 rounded border border-slate-800/40 text-slate-350 font-mono space-y-1">
+                                    <span className="text-amber-400/90 font-black block text-[8.5px] uppercase tracking-wider">Parâmetros de Cálculo Utilizados:</span>
+                                    <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[8.5px]">
+                                      <div>• Área Útil da Garra: <strong className="text-slate-200">{gtData.area.toFixed(2)} m²</strong></div>
+                                      <div>• Fator de Capacidade: <strong className="text-slate-200">{gtData.loadFactor * 100}%</strong></div>
+                                      <div>• Tempo de Ciclo: <strong className="text-slate-200">{gtData.cycleRange}</strong></div>
+                                      <div>• Fator Aproveit.: <strong className="text-slate-200">{gtData.opEfficiency}%</strong></div>
+                                    </div>
+                                    <p className="text-[8px] text-slate-450 italic leading-snug mt-1">
+                                      * Fator de Capacidade (85%) compensa o afunilamento das copas das árvores. Fator de Aproveitamento (15%-30%) reflete a logística de pátio/esperas por arraste.
+                                    </p>
+                                  </div>
+
+                                  {/* Result display */}
+                                  <div className="grid grid-cols-3 gap-1 pt-1 text-center">
+                                    <div className="p-1.5 bg-slate-950/80 rounded border border-slate-850">
+                                      <span className="text-[7px] uppercase font-bold text-slate-500 block">Por Hora</span>
+                                      <span className="text-[10px] font-black text-amber-300 font-mono">{gtData.hourlyMin} - {gtData.hourlyMax} m³st</span>
+                                    </div>
+                                    <div className="p-1.5 bg-slate-950/80 rounded border border-slate-850">
+                                      <span className="text-[7px] uppercase font-bold text-slate-500 block">Turno (10h)</span>
+                                      <span className="text-[10px] font-black text-amber-300 font-mono">{gtData.shiftMin} - {gtData.shiftMax} m³st</span>
+                                    </div>
+                                    <div className="p-1.5 bg-slate-950/80 rounded border border-slate-850">
+                                      <span className="text-[7px] uppercase font-bold text-slate-500 block">Mês (22d/10h)</span>
+                                      <span className="text-[10px] font-black text-amber-300 font-mono">{(gtData.monthlyMin / 1000).toFixed(1)}k - {(gtData.monthlyMax / 1000).toFixed(1)}k m³</span>
+                                    </div>
+                                  </div>
+
+                                  {/* Chain Specification Badge */}
+                                  <div className="bg-slate-900/60 p-2 rounded-lg border border-slate-850 text-[9px] space-y-1">
+                                    <div className="flex justify-between items-center text-[8.5px] uppercase font-bold tracking-wider border-b border-slate-800 pb-1">
+                                      <span className="text-slate-400">Especificação da Corrente:</span>
+                                      <span className="text-amber-300 font-mono">{gtData.chainSpec}</span>
+                                    </div>
+                                    <div className="text-[8.5px] text-slate-400 leading-relaxed space-y-1 pt-1">
+                                      <p className="font-semibold text-slate-300">💡 Instruções de Engenharia para Sabres & Correntes:</p>
+                                      <ul className="list-disc list-inside space-y-0.5 text-[8px]">
+                                        <li><strong className="text-slate-300">Troca Preventiva:</strong> Substituir a corrente a cada <strong className="text-amber-400">2 a 2.5 horas</strong> de trabalho. Mantém a corrente super afiada, exige apenas afiação leve e eleva muito a vida útil do sabre.</li>
+                                        <li><strong className="text-slate-300">Turno de 10h:</strong> Disponibilizar <strong className="text-amber-400">5 correntes afiadas</strong> por turno. No fim do turno, realizam a afiação do lote.</li>
+                                        <li><strong className="text-slate-300">Vida Útil Estimada:</strong> Cerca de <strong className="text-slate-300">4 a 5 correntes</strong> e <strong className="text-slate-300">1 sabre</strong> por mês (trabalho de 10h/dia, 20-25 dias).</li>
+                                        <li><strong className="text-slate-300">Coroa de Arraste (Pinhão):</strong> Dura de <strong className="text-slate-300">100 a 400 horas</strong> (20-30 dias). Desgasta mais rápido em terrenos arenosos/madeira com terra.</li>
+                                        <li><strong className="text-slate-300">Lubrificação Automática:</strong> Fundamental! A falta de óleo destempera o sabre, causa desalinhamento e desgaste prematuro de todos os componentes de corte.</li>
+                                      </ul>
+                                    </div>
+                                  </div>
+
+                                  {gtLength === 6.0 && selectedModel.name.includes('600') && (
+                                    <div className="text-[8.5px] text-amber-300 font-medium bg-amber-500/5 p-1.5 rounded border border-amber-500/10 mt-1">
+                                      💡 Validado operacionalmente por especialistas: Cerca de <strong>12.000 m³ mensais</strong> em turno de 10 horas diárias de trabalho!
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
+
+                            <div className="p-2.5 bg-primary/5 border border-primary/10 rounded-xl leading-relaxed text-slate-300">
+                              <p className="text-[10px] font-black text-primary uppercase tracking-wider mb-1">Referência Operacional</p>
+                              <p className="text-[11px] font-medium whitespace-pre-line">{effectiveProductivityText}</p>
+                            </div>
+
+                            {['CMF 600', 'MSR 600', 'MSR 1000', 'GT 600x'].includes(selectedModel.name) && (
+                              <div className="p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl leading-relaxed text-slate-300">
+                                <p className="text-[10px] font-black text-amber-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                                  <Sparkles className="h-3 w-3 text-amber-400 animate-pulse" /> Operação Conjunta (Combo Roder)
+                                </p>
+                                <p className="text-[10.5px] leading-normal text-slate-300 font-semibold">
+                                  Como funciona a sinergia dos 3 equipamentos juntos:
+                                </p>
+                                <p className="text-[10px] text-slate-400 mt-1">
+                                  O <strong className="text-slate-300">Cabeçote CMF 600</strong> realiza a derrubada florestal, organizando os feixes de árvores perfeitamente alinhados.
+                                </p>
+                                <p className="text-[10px] text-slate-400 mt-1">
+                                  Em seguida, o <strong className="text-slate-300">Mini Skidder</strong> faz o arraste rápido desses feixes para as margens/pátio (rendimento de 1.000 a 1.500 árvores por turno).
+                                </p>
+                                <p className="text-[10px] text-slate-400 mt-1">
+                                  Por fim, a <strong className="text-slate-300">Garra Traçadora GT 600x</strong> realiza o traçamento (metrinho) e empilhamento contínuo.
+                                </p>
+                                <div className="mt-2 p-1.5 bg-amber-500/5 rounded border border-amber-500/10 text-[10px] font-bold text-amber-300 text-center">
+                                  📊 Produção Estimada do Combo: 165 a 170 metros estéreos por turno de 8h (traçado e empilhado)!
+                                </div>
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <div className="text-center py-4 space-y-1">
@@ -1826,13 +2504,14 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                     )}
                   </div>
 
-                  {/* Info helper tip for finding the folder/database location */}
-                  <div className="p-2 bg-slate-900/60 border border-slate-850 rounded-xl text-[9px] text-slate-400 leading-normal">
-                    <span className="font-bold text-slate-300 block mb-0.5">📂 Onde estas informações ficam salvas?</span>
-                    Estes textos e especificações ficam salvos na coleção <code className="text-amber-500 font-mono text-[9px]">products</code> do banco de dados Firestore. Elas são vinculadas diretamente a cada modelo de equipamento na chave <code className="text-primary font-mono text-[9px]">productivity_text</code> e <code className="text-primary font-mono text-[9px]">technical_specs</code>.
-                  </div>
+                  <div className="pt-1 space-y-2">
+                    <Button
+                      onClick={handleDownloadTechnicalSheet}
+                      className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs uppercase tracking-wider py-2 rounded-xl shadow flex items-center justify-center gap-2 border border-amber-400"
+                    >
+                      <FileText className="h-4 w-4" /> Baixar Ficha Técnica (Documento)
+                    </Button>
 
-                  <div className="pt-1">
                     <Button
                       onClick={() => handleMakeIndication(selectedProduct, selectedModel)}
                       className="w-full bg-primary hover:bg-primary/90 text-white font-extrabold text-xs uppercase tracking-wider py-2.5 rounded-xl shadow-lg flex items-center justify-center gap-2"
@@ -1877,11 +2556,13 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                   placeholder="Ou pergunte ao Consultor sobre modelos, escavadeiras..."
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
+                  onFocus={() => setExplorerMinimized(true)}
+                  onClick={() => setExplorerMinimized(true)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleSend();
                   }}
                   disabled={loading}
-                  className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-primary disabled:opacity-50"
+                  className="flex-1 bg-white border-2 border-slate-300 rounded-lg px-4 text-xs text-slate-950 placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-50 h-11 font-semibold transition duration-150 shadow-sm"
                 />
               )}
 
@@ -2101,7 +2782,7 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                       <img 
                         src={RODER_LOGO_BASE64} 
                         alt="Roder Logo" 
-                        className="h-10 object-contain brightness-95" 
+                        className="h-10 object-contain brightness-0 opacity-85" 
                         referrerPolicy="no-referrer"
                       />
                       <div className="border-l-2 border-slate-300 pl-4">

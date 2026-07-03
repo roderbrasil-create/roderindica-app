@@ -191,7 +191,7 @@ async function classifyQuestionTopic(ai: GoogleGenAI, question: string): Promise
 
 async function startServer() {
   const app = express();
-  const PORT = Number(process.env.PORT) || 3000;
+  const PORT = 3000;
 
   // Set up standard and highly compatible CORS middleware using the 'cors' library
   app.use(cors({
@@ -1401,9 +1401,9 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
 
 14. BASE DE CONHECIMENTO ADICIONAL: GARRA CA vs CB E CONFIGURAÇÃO DE ROTATOR (CONHECIMENTO VALIOSO):
     - **Diferença entre Garras CA e CB de qualquer tamanho**:
-      • As garras CA possuem engate alto (high yoke/chuck) adequado e projetado para trabalhar acoplado com o Rotator modelo IR10.
-      • As garras CB possuem engate baixo (low yoke/chuck) fabricadas especificamente para trabalhar com rotadores normais de 12 toneladas ou 16 toneladas, e NÃO podem ser montadas em um rotator IR10.
-      • Esta diferença se dá puramente pela estrutura física de fixação e formato de cada tipo de rotator.
+      • O modelo CA significa cabeçote alto, feito e fabricado especificamente para montagem com o rotator modelo IR10, da marca Indexer.
+      • As garras cabeçote baixo, modelo CB, são para montagem com rotators de 12 e 16 toneladas, podendo ser da marca Indexer ou Baltrotters, que são as duas marcas parceiras com as quais a Roder trabalha.
+      • Essa marca do rotator CB vai depender do que a Roder tiver disponível no estoque no momento. Não é uma escolha que o cliente faz por marca, mas sim o que a Roder tem de melhor e mais adequado disponível no momento da venda.
       • **REGRA DE COMUNICAÇÃO**: Você não precisa e NÃO deve ficar explicando isso sobre a altura CA ou CB nos textos de forma espontânea. Apenas use e explique este conhecimento detalhadamente de forma direta se algum usuário perguntar explicitamente qual é o porquê ou qual a diferença entre garras CA e CB.
     - **Preferência e Configurações de Rotator**:
       • Para as garras de tamanho R800 para cima (R800, R1000, R1200, R1400) acopladas em escavadeiras, normalmente o padrão preferido e ideal de mercado é o uso do Rotator IR10.
@@ -1411,13 +1411,52 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
       • Essa escolha varia por conveniência do cliente, portanto, não fique trazendo essa discussão espontaneamente. Deixe isso a cargo do vendedor interno, que fará o orçamento correto de acordo com a máquina ou disponibilidade do estoque no momento.
       • Por exemplo: se tivermos a garra R800 CA em estoque, vamos oferecê-la para venda com o rotator IR10. Mas se não tivermos a garra CA no estoque no momento, para não perder a venda, podemos perfeitamente vender e oferecer a garra R800 CB com o rotator de 16 toneladas, que pode ser montada normalmente e funcionará perfeitamente.
 
-15. EQUIPAMENTOS PARA TRATORES (APENAS SOB DEMANDA - REGRA DE COMUNICAÇÃO CRÍTICA):
+15. EQUIPAMENTOS PARA TRATORES, MINI SKIDDERS E CARRETAS DE ARRASTE CLAMBUNK (REGRAS CRÍTICAS DE ENGENHARIA E COMUNICAÇÃO):
     - **Atenção Máxima**: Nossos equipamentos para tratores são muito reduzidos. Não crie uma expectativa de que temos uma ampla linha de produtos para tratores.
-    - **REGRA DE COMUNICAÇÃO**: Nunca mencione ou sugira opções para trator voluntariamente. O assunto de soluções para trator SÓ SERÁ ABORDADO se o usuário perguntar explicitamente sobre algum equipamento para trator.
-    - Se perguntado sobre tratores, você deve explicar que oferecemos apenas soluções complementares aos equipamentos que trabalham nas escavadeiras e pás carregadeiras:
-      • **Mini Skidder**: É um equipamento complementar que vai acoplado atrás do trator (no engate de 3 pontos/suporte engatado). Ele possui uma garra florestal pendurada que serve estritamente para arrastar feixes de toras derrubadas. Explique o processo: após a colheita/derrubada realizada pelo cabeçote multifuncional (ou cabeçotes feller) - onde as árvores foram fatiadas/felling com os pés alinhados - o operador do trator aproxima o Mini Skidder de ré, fecha a garra para segurar o feixe completo e o arrasta até a borda do talhão para posterior traçamento nas pilhas de madeira.
-      • **Trituradores FAIE para Trator**: Equipamentos de trituração florestal acoplados à tomada de força do trator.
-      • **Fresas FAIE para Trator**: Equipamentos acoplados ao trator utilizados especificamente para rebaixamento e fresagem de tocos dentro da terra (destoca em linha).
+    - **REGRA DE COMUNICAÇÃO**: Nunca mencione ou sugira opções para trator voluntariamente. O assunto de soluções para trator SÓ SERÁ ABORDADO se o usuário perguntar explicitamente sobre algum equipamento para trator, garra de arraste ou pinça de arraste.
+    - **REGRA DE TRIAGEM DE CONTATO**: Sempre que um usuário ou vendedor perguntar sobre "garra de arraste", "pinça de arraste" ou similares, você DEVE perguntar se ele está se referindo a:
+      1) **Mini Skids** que são acoplados nos braços hidráulicos traseiros do trator, ou
+      2) **Carreta de Arraste Clambunk** (reboque/trailer com pinça montada no chassi e abertura voltada para cima).
+      Se for no chat interativo, convide-o a clicar nas opções oferecidas ou responder diretamente para que a conversa seja extremamente rápida e prática.
+    - **Mini Skidder / Mini Skid / Garra de Arraste de Trator (MSR 600 / MSR 1000)**:
+      • São garras acopladas atrás do trator nos braços do sistema de três pontos.
+      • Possuem um cilindro hidráulico fornecido pela Roder que é montado no lugar do braço mecânico do terceiro ponto. Esse cilindro permite a inclinação/basculamento do suporte da garra para facilitar o carregamento e suspensão das toras durante o arraste.
+      • **REQUISITO HIDRÁULICO DO TRATOR**: É obrigatório que o trator possua **dois comandos duplos extras (4 vias hidráulicas rápidas)**. Um comando serve para abrir e fechar as mandíbulas da garra, e o outro serve para inclinar/bascular o terceiro ponto hidráulico.
+      • **MSR 600 (ou Mini Skidder 60 / Mini Skidder 060)**:
+        - Abertura máxima/diâmetro máximo de tronco único: **60 cm** (0,6 metros). É o limite físico de diâmetro para uma tora única.
+        - Capacidades estimadas de árvores inteiras por feixe (calculadas de forma compatível com a capacidade física real da garra):
+          * Diâmetro de 12 cm: **~22 árvores**
+          * Diâmetro de 15 cm: **~14 árvores**
+          * Diâmetro de 20 cm: **~8 árvores**
+          * Diâmetro de 25 cm: **~5 árvores**
+      • **MSR 1000**:
+        - Abertura máxima/diâmetro máximo de tronco único: **1,0 metro** (100 cm). É o limite físico para uma tora única.
+        - Capacidades estimadas de árvores inteiras por feixe (calculadas de forma compatível com a capacidade física real da garra):
+          * Diâmetro de 12 cm: **~40 árvores**
+          * Diâmetro de 15 cm: **~25 árvores**
+          * Diâmetro de 20 cm: **~14 árvores**
+          * Diâmetro de 25 cm: **~9 árvores**
+    - **Carreta de Arraste Clambunk / Clambunks (Pinças de Arraste Acopladas em Carreta)**:
+      • Não estão cadastradas formalmente no catálogo geral ativo da Roder ainda, mas serão lançadas em breve. Trata-se de carretas (reboques) rebocadas pelo pino de engate do trator.
+      • Possuem garras instaladas de cabeça para baixo (invertidas), com as mandíbulas abertas para cima no chassi (tipo clambunk). O operador deposita as toras de árvores inteiras na carreta com a pinça aberta para cima, fecha a pinça de forma super firme para segurar todo o feixe e arrasta as árvores inteiras até o pátio ou pilha de madeira.
+      • **Clambunk 1.0 (ou Clambunk simples)**:
+        - Chassi de engate por pino de tração simples com apenas 1 eixo e 1 roda de cada lado (2 rodas no total).
+        - Área de carga da pinça: **1,0 m²**.
+        - Capacidades estimadas de árvores inteiras:
+          * Diâmetro de 15 cm: **~35 árvores**
+          * Diâmetro de 20 cm: **~20 árvores**
+          * Diâmetro de 25 cm: **12 a 13 árvores** (parâmetro oficial de campo)
+      • **Clambunk 1.5**:
+        - Chassi reforçado de engate por pino de tração com eixo tandem (dois pneus de cada lado, total de 4 rodas).
+        - Equipado de fábrica com pneus de carga extremamente robustos modelo **1000x20**.
+        - Área de carga da pinça: **1,5 m²**.
+        - Capacidades estimadas de árvores inteiras:
+          * Diâmetro de 15 cm: **~61 árvores**
+          * Diâmetro de 20 cm: **~34 árvores**
+          * Diâmetro de 25 cm: **~22 árvores** (parâmetro oficial de campo)
+      • Se perguntado sobre trator, trituradores ou fresas:
+        • **Trituradores FAE para Trator**: Equipamentos de trituração florestal acoplados à tomada de força do trator.
+        • **Fresas FAE para Trator**: Equipamentos acoplados ao trator utilizados especificamente para rebaixamento e fresagem de tocos dentro da terra (destoca em linha).
 
 Aqui está o catálogo de produtos e modelos reais cadastrados atualmente na Roder:
 ${productsContext}
@@ -1445,6 +1484,7 @@ ${kitsContext || "Não há kits de instalação cadastrados."}${improvedKnowledg
             parts: [{ text: question }]
           });
 
+          const startTime = Date.now();
           const response = await generateContentWithRetry(ai, {
             defaultModel: "gemini-3.5-flash",
             contents: contents,
@@ -1454,6 +1494,7 @@ ${kitsContext || "Não há kits de instalação cadastrados."}${improvedKnowledg
             }
           });
 
+          const responseTimeMs = Date.now() - startTime;
           result = response.text || "Desculpe, não consegui calcular ou analisar sua dúvida técnica no momento.";
 
           // Save interaction to Firestore for metrics & reporting!
@@ -1472,7 +1513,8 @@ ${kitsContext || "Não há kits de instalação cadastrados."}${improvedKnowledg
               topic: topic,
               isImproved: false,
               improvedAnswer: "",
-              ledToIndication: false
+              ledToIndication: false,
+              responseTimeMs: responseTimeMs
             });
           } catch (err) {
             console.error("Failed to log Roder AI question to Firestore:", err);
