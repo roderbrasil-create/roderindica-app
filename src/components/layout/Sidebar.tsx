@@ -647,7 +647,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                 {profile?.name?.charAt(0) || user?.email?.charAt(0) || '?'}
               </div>
               <div className="flex-1 min-w-0 text-left">
-                <p className="text-xs font-semibold text-sidebar-foreground truncate">{profile?.name || user?.email?.split('@')[0] || 'Usuário'}</p>
+                <p className="text-xs font-semibold text-sidebar-foreground truncate">{(profile?.name || user?.email?.split('@')[0] || 'Usuário').replace('Jefferson', 'Jeferson')}</p>
                 <p className="text-[9px] text-sidebar-foreground/50 truncate uppercase tracking-wider font-bold">
                   {isAdmin ? 'Administrador' : 
                    isManager ? 'Gerente' : 

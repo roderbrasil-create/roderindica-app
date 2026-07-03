@@ -948,7 +948,7 @@ export default function Dashboard() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-4">
           <div>
             <h1 className="text-4xl font-bold tracking-tight text-foreground">
-              Olá, {profile?.name || (user?.email === 'comercial@ff.ind.br' ? 'Fábio' : user?.displayName || 'Equipe Roder')}!
+              Olá, {(profile?.name || (user?.email === 'comercial@ff.ind.br' ? 'Fábio' : user?.displayName || 'Equipe Roder')).replace('Jefferson', 'Jeferson')}!
             </h1>
             <p className="text-lg text-muted-foreground">Bem-vindo à sua central de comando do RODER Indica V2.</p>
           </div>

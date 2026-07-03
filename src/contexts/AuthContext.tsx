@@ -6,7 +6,7 @@ import {
   GoogleAuthProvider, 
   signInWithPopup
 } from 'firebase/auth';
-import { doc, onSnapshot, collection, query, where, writeBatch, getDocs, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, where, writeBatch, getDocs, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { UserProfile, UserRole } from '../types';
 import { AuditService, AuditAction } from '../lib/AuditService';
@@ -106,7 +106,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const cachedProfile = localStorage.getItem('roder_profile_cache');
       if (cachedProfile && !impersonatedProfile) {
         try {
-          setProfile(JSON.parse(cachedProfile));
+          const parsed = JSON.parse(cachedProfile);
+          if (parsed && parsed.name && parsed.name.includes('Jefferson')) {
+            const userEmail = parsed.email?.toLowerCase() || '';
+            if (userEmail === 'roderbrasil@gmail.com' || userEmail === 'roderindica@gmail.com' || userEmail === 'jefferson@roderbrasil.com.br' || userEmail === 'jeferson@roderbrasil.com.br') {
+              console.log("Self-healing Jeferson's name spelling in local cache...");
+              parsed.name = parsed.name.replace('Jefferson', 'Jeferson');
+              localStorage.setItem('roder_profile_cache', JSON.stringify(parsed));
+            }
+          }
+          setProfile(parsed);
         } catch (e) {
           localStorage.removeItem('roder_profile_cache');
         }
@@ -293,12 +302,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 profileData.name && (profileData.name.includes('Jefferson') || profileData.name === 'Admin')) {
               console.log("Self-healing Jeferson's name spelling in Firestore user profile...");
               const correctedName = profileData.name.replace('Jefferson', 'Jeferson');
-              const { updateDoc } = await import('firebase/firestore');
-              await updateDoc(doc(db, 'users', user.uid), {
+              profileData.name = correctedName;
+              localStorage.setItem('roder_profile_cache', JSON.stringify(profileData));
+              updateDoc(doc(db, 'users', user.uid), {
                 name: correctedName,
                 updated_at: new Date().toISOString()
+              }).catch(err => {
+                console.error("Failed to update Jeferson's name in Firestore:", err);
               });
-              profileData.name = correctedName;
             }
 
             // Self-healing for Vanessa Camargo if her role got corrupted/incorrectly-guessed as internal_seller or anything else

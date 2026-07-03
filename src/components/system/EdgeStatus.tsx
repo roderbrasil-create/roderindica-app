@@ -28,7 +28,7 @@ export default function EdgeStatus() {
           last_seen: serverTimestamp(),
           uid: user.uid,
           email: user.email,
-          name: profile?.name || user.displayName || user.email?.split('@')[0] || 'Node Anonimo',
+          name: (profile?.name || user.displayName || user.email?.split('@')[0] || 'Node Anonimo').replace('Jefferson', 'Jeferson'),
           app_version: '2.8.5',
           role: profile?.role || 'user',
           is_pwa: window.matchMedia('(display-mode: standalone)').matches,
@@ -120,9 +120,9 @@ export default function EdgeStatus() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between border-t border-sidebar-border/30 pt-2.5 mt-1.5 text-[11px] text-sidebar-foreground/70 font-sans">
-        <span className="font-bold tracking-tight uppercase">Versão do Sistema:</span>
-        <span className="text-white font-mono font-black bg-primary px-2 py-0.5 rounded shadow-sm text-[11px] tracking-wider border border-primary/10 select-all">
+      <div className="flex items-center justify-between border-t border-sidebar-border/30 pt-2.5 mt-1.5 text-xs text-sidebar-foreground/80 font-sans antialiased">
+        <span className="font-semibold tracking-tight uppercase">Versão:</span>
+        <span className="text-[11px] font-mono font-bold bg-zinc-950 text-white border border-zinc-800 px-2 py-0.5 rounded shadow-sm tracking-widest select-all antialiased">
           v2.8.5-RELEASE
         </span>
       </div>

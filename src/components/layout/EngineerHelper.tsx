@@ -594,7 +594,7 @@ export default function EngineerHelper() {
         updatedMessages.slice(1, -1).map(({ role, content }) => ({ role, content })),
         {
           uid: user?.uid,
-          name: profile?.name || user?.displayName || user?.email || 'Anônimo',
+          name: (profile?.name || user?.displayName || user?.email || 'Anônimo').replace('Jefferson', 'Jeferson'),
           email: profile?.email || user?.email || '',
           role: profile?.role || ''
         }
@@ -649,7 +649,7 @@ export default function EngineerHelper() {
         history,
         {
           uid: user?.uid,
-          name: profile?.name || user?.displayName || user?.email || 'Anônimo',
+          name: (profile?.name || user?.displayName || user?.email || 'Anônimo').replace('Jefferson', 'Jeferson'),
           email: profile?.email || user?.email || '',
           role: profile?.role || ''
         }
