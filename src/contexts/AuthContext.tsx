@@ -288,6 +288,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const userEmail = user.email?.toLowerCase() || '';
             const displayName = (user.displayName || profileData.name || '').toLowerCase();
 
+            // Correct name spelling for Jeferson Roder (only one F)
+            if ((userEmail === 'roderbrasil@gmail.com' || userEmail === 'roderindica@gmail.com' || userEmail === 'jefferson@roderbrasil.com.br' || userEmail === 'jeferson@roderbrasil.com.br') && 
+                profileData.name && (profileData.name.includes('Jefferson') || profileData.name === 'Admin')) {
+              console.log("Self-healing Jeferson's name spelling in Firestore user profile...");
+              const correctedName = profileData.name.replace('Jefferson', 'Jeferson');
+              const { updateDoc } = await import('firebase/firestore');
+              await updateDoc(doc(db, 'users', user.uid), {
+                name: correctedName,
+                updated_at: new Date().toISOString()
+              });
+              profileData.name = correctedName;
+            }
+
             // Self-healing for Vanessa Camargo if her role got corrupted/incorrectly-guessed as internal_seller or anything else
             const isVanessaOrFinance = userEmail.includes('vanessa') || displayName.includes('vanessa') || userEmail.includes('finance');
             

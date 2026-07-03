@@ -29,7 +29,7 @@ export default function EdgeStatus() {
           uid: user.uid,
           email: user.email,
           name: profile?.name || user.displayName || user.email?.split('@')[0] || 'Node Anonimo',
-          app_version: '2.5.0',
+          app_version: '2.8.5',
           role: profile?.role || 'user',
           is_pwa: window.matchMedia('(display-mode: standalone)').matches,
           device_info: navigator.userAgent.substring(0, 50) + '...'
@@ -118,6 +118,13 @@ export default function EdgeStatus() {
           <Wifi className="h-2.5 w-2.5 text-emerald-500 shrink-0" />
           <Badge className="bg-emerald-500/10 text-emerald-650 dark:text-emerald-400 text-[8px] h-3.5 px-1 border-emerald-500/20 font-black uppercase tracking-tighter">Sync P2P</Badge>
         </div>
+      </div>
+
+      <div className="flex items-center justify-between border-t border-sidebar-border/30 pt-2.5 mt-1.5 text-[11px] text-sidebar-foreground/70 font-sans">
+        <span className="font-bold tracking-tight uppercase">Versão do Sistema:</span>
+        <span className="text-white font-mono font-black bg-primary px-2 py-0.5 rounded shadow-sm text-[11px] tracking-wider border border-primary/10 select-all">
+          v2.8.5-RELEASE
+        </span>
       </div>
     </div>
   );

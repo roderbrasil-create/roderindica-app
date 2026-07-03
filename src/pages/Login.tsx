@@ -138,7 +138,12 @@ export default function Login() {
           
           toast.success(`Olá, ${mergedData.name || 'Usuário'}!`);
         } else if (user.email === 'roderbrasil@gmail.com' || user.email === 'roderindica@gmail.com') {
-          const adminName = user.displayName || 'Admin';
+          let adminName = user.displayName || 'Admin';
+          if (adminName.includes('Jefferson')) {
+            adminName = adminName.replace('Jefferson', 'Jeferson');
+          } else if (adminName === 'Admin') {
+            adminName = 'Jeferson Roder';
+          }
           await setDoc(doc(db, 'users', user.uid), {
             uid: user.uid,
             name: adminName,
