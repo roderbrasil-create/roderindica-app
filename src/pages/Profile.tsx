@@ -21,7 +21,7 @@ export default function Profile() {
   const [savingEmail, setSavingEmail] = useState(false);
   
   const [formData, setFormData] = useState({
-    name: profile?.name || '',
+    name: (profile?.name || '').replace('Jefferson', 'Jeferson'),
     email: profile?.email || '',
     phone: maskPhone(profile?.phone || ''),
     company_name: profile?.company_name || '',
@@ -31,6 +31,22 @@ export default function Profile() {
     pix_key: profile?.pix_key || '',
     bank_info: profile?.bank_info || { bank: '', agency: '', account: '' }
   });
+
+  React.useEffect(() => {
+    if (profile) {
+      setFormData({
+        name: (profile.name || '').replace('Jefferson', 'Jeferson'),
+        email: profile.email || '',
+        phone: maskPhone(profile.phone || ''),
+        company_name: profile.company_name || '',
+        cpf_cnpj: maskCpfCnpj(profile.cpf_cnpj || ''),
+        city: profile.city || '',
+        state: profile.state || '',
+        pix_key: profile.pix_key || '',
+        bank_info: profile.bank_info || { bank: '', agency: '', account: '' }
+      });
+    }
+  }, [profile]);
 
   const [emailSettings, setEmailSettings] = useState({
     provider: 'resend',

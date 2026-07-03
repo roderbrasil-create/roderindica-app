@@ -29,7 +29,7 @@ export default function EdgeStatus() {
           uid: user.uid,
           email: user.email,
           name: (profile?.name || user.displayName || user.email?.split('@')[0] || 'Node Anonimo').replace('Jefferson', 'Jeferson'),
-          app_version: '2.8.5',
+          app_version: '2.8.6',
           role: profile?.role || 'user',
           is_pwa: window.matchMedia('(display-mode: standalone)').matches,
           device_info: navigator.userAgent.substring(0, 50) + '...'
@@ -120,10 +120,10 @@ export default function EdgeStatus() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between border-t border-sidebar-border/30 pt-2.5 mt-1.5 text-xs text-sidebar-foreground/80 font-sans antialiased">
+      <div className="flex items-center justify-between border-t border-sidebar-border/30 pt-2.5 mt-1.5 text-xs text-sidebar-foreground/80 font-sans antialiased" translate="no">
         <span className="font-semibold tracking-tight uppercase">Versão:</span>
-        <span className="text-[11px] font-mono font-bold bg-zinc-950 text-white border border-zinc-800 px-2 py-0.5 rounded shadow-sm tracking-widest select-all antialiased">
-          v2.8.5-RELEASE
+        <span className="text-[11px] font-mono font-bold bg-gradient-to-r from-orange-600 to-amber-500 text-white border border-orange-500/20 px-2.5 py-0.5 rounded-full shadow-md tracking-wider select-all antialiased notranslate" translate="no">
+          v2.8.6-PROD
         </span>
       </div>
     </div>
