@@ -237,70 +237,118 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshF
 
   const selectedModel = models.find(m => m.id === selectedModelId) || models[0];
 
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     const element = printRef.current;
     if (!element) return;
 
-    const toastId = toast.loading("Preparando impressão da Ficha Técnica...");
+    const toastId = toast.loading("Gerando arquivo PDF da Ficha Técnica...");
 
     try {
-      // Create a temporary top-level div as a child of body
-      const printDiv = document.createElement('div');
-      printDiv.id = "print-temp-div";
-      printDiv.className = "bg-white text-black p-6 sm:p-10";
-      printDiv.innerHTML = element.innerHTML;
-
-      // Create a custom style block to override styles for printing
-      const style = document.createElement('style');
-      style.id = "print-temp-style";
-      style.innerHTML = `
-        @media print {
-          body > *:not(#print-temp-div) {
-            display: none !important;
-          }
-          #print-temp-div {
-            display: block !important;
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
-            height: auto !important;
-            background: white !important;
-            color: black !important;
-            padding: 20px !important;
-            margin: 0 !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-          .no-print, [class*="no-print"] {
-            display: none !important;
-          }
+      // Use html-to-image to generate PNG
+      const options = {
+        quality: 0.98,
+        pixelRatio: 2, // Keeps text crisp
+        backgroundColor: '#ffffff',
+        style: {
+          transform: 'scale(1)',
+          transformOrigin: 'top left',
         }
-        @media screen {
-          #print-temp-div {
-            display: none !important;
-          }
-        }
-      `;
+      };
 
-      document.head.appendChild(style);
-      document.body.appendChild(printDiv);
+      const dataUrl = await toPng(element, options);
 
-      // Wait slightly for layout/image rendering, then call print
-      setTimeout(() => {
-        toast.dismiss(toastId);
-        window.print();
+      // Create an image object to get exact natural dimensions
+      const img = new Image();
+      img.src = dataUrl;
+      
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("Failed to load generated image"));
+      });
 
-        // Clean up after print dialog is closed
-        setTimeout(() => {
-          document.getElementById('print-temp-div')?.remove();
-          document.getElementById('print-temp-style')?.remove();
-        }, 1000);
-      }, 500);
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgWidth = 210; // A4 width in mm
+      const pageHeight = 295; // Slightly less than 297 to leave a tiny safe margin
+      const imgHeight = (img.height * imgWidth) / img.width;
+      
+      let heightLeft = imgHeight;
+      let position = 0;
 
+      // Add first page
+      pdf.addImage(dataUrl, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+      heightLeft -= pageHeight;
+
+      // Add remaining pages if they overflow
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(dataUrl, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+        heightLeft -= pageHeight;
+      }
+
+      const docName = `Ficha_Tecnica_FAE_SSH_${selectedModel.name.replace(/\s+/g, '_')}.pdf`;
+      pdf.save(docName);
+      toast.success("PDF gerado e baixado com sucesso!", { id: toastId });
     } catch (error) {
-      console.error("Error generating PDF:", error);
-      toast.error("Erro ao gerar a ficha técnica. Por favor, tente novamente.", { id: toastId });
+      console.error("Error generating PDF with html-to-image:", error);
+      
+      // Fallback to traditional browser print if html-to-image fails (e.g. CORS)
+      toast.loading("Iniciando método de impressão alternativo...", { id: toastId });
+      
+      try {
+        const printDiv = document.createElement('div');
+        printDiv.id = "print-temp-div";
+        printDiv.className = "bg-white text-black p-6 sm:p-10";
+        printDiv.innerHTML = element.innerHTML;
+
+        const style = document.createElement('style');
+        style.id = "print-temp-style";
+        style.innerHTML = `
+          @media print {
+            body > *:not(#print-temp-div) {
+              display: none !important;
+            }
+            #print-temp-div {
+              display: block !important;
+              position: absolute !important;
+              left: 0 !important;
+              top: 0 !important;
+              width: 100% !important;
+              height: auto !important;
+              background: white !important;
+              color: black !important;
+              padding: 20px !important;
+              margin: 0 !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            .no-print, [class*="no-print"] {
+              display: none !important;
+            }
+          }
+          @media screen {
+            #print-temp-div {
+              display: none !important;
+            }
+          }
+        `;
+
+        document.head.appendChild(style);
+        document.body.appendChild(printDiv);
+
+        setTimeout(() => {
+          toast.dismiss(toastId);
+          window.print();
+
+          setTimeout(() => {
+            document.getElementById('print-temp-div')?.remove();
+            document.getElementById('print-temp-style')?.remove();
+          }, 1000);
+        }, 500);
+      } catch (printErr) {
+        console.error("Print fallback failed:", printErr);
+        toast.error("Erro ao gerar PDF. Por favor, tente novamente ou use um navegador moderno.", { id: toastId });
+      }
     }
   };
 
