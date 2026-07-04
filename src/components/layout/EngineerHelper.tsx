@@ -222,14 +222,10 @@ interface Message {
 export default function EngineerHelper() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, profile } = useAuth();
+  const { user, profile, isAdmin, isManager } = useAuth();
   
-  // Only accessible to the main owner (roderbrasil@gmail.com) and Gislene (the commercial manager)
-  const userEmail = user?.email?.toLowerCase() || '';
-  const userName = profile?.name?.toLowerCase() || '';
-  const canTeach = userEmail === 'roderbrasil@gmail.com' || 
-                   userEmail.includes('gislene') || 
-                   userName.includes('gislene');
+  // Only accessible to administrators and commercial managers
+  const canTeach = isAdmin || isManager;
   
   // Persistent state loaded from sessionStorage on mount
   const [isOpen, setIsOpen] = useState(() => {

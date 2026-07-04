@@ -18,12 +18,14 @@ import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
 import { db } from '../../lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface HighTipFichaProps {
   onClose: () => void;
 }
 
 export function HighTipFicha({ onClose }: HighTipFichaProps) {
+  const { isAdmin } = useAuth();
   const printRef = useRef<HTMLDivElement>(null);
   const [customDrawingUrl, setCustomDrawingUrl] = useState<string | null>(null);
   const [loadingDrawing, setLoadingDrawing] = useState(false);
@@ -101,68 +103,70 @@ export function HighTipFicha({ onClose }: HighTipFichaProps) {
     }
   };
 
-  const handleDownloadPdf = async () => {
+  const handleDownloadPdf = () => {
     const element = printRef.current;
     if (!element) return;
 
-    const toastId = toast.loading("Gerando ficha técnica em PDF de alta definição...");
+    const toastId = toast.loading("Preparando impressão da Ficha Técnica...");
 
     try {
-      const options = {
-        quality: 1.0,
-        pixelRatio: 2, // Enhances text clarity
-        backgroundColor: '#ffffff',
-        style: {
-          transform: 'scale(1)',
-          transformOrigin: 'top left',
-          width: '850px', // Standard width for high-fidelity export
+      // Create a temporary top-level div as a child of body
+      const printDiv = document.createElement('div');
+      printDiv.id = "print-temp-div";
+      printDiv.className = "bg-white text-black p-6 sm:p-10";
+      printDiv.innerHTML = element.innerHTML;
+
+      // Create a custom style block to override styles for printing
+      const style = document.createElement('style');
+      style.id = "print-temp-style";
+      style.innerHTML = `
+        @media print {
+          body > *:not(#print-temp-div) {
+            display: none !important;
+          }
+          #print-temp-div {
+            display: block !important;
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            height: auto !important;
+            background: white !important;
+            color: black !important;
+            padding: 20px !important;
+            margin: 0 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .no-print, [class*="no-print"] {
+            display: none !important;
+          }
         }
-      };
+        @media screen {
+          #print-temp-div {
+            display: none !important;
+          }
+        }
+      `;
 
-      const dataUrl = await toPng(element, options);
+      document.head.appendChild(style);
+      document.body.appendChild(printDiv);
 
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      });
+      // Wait slightly for layout/image rendering, then call print
+      setTimeout(() => {
+        toast.dismiss(toastId);
+        window.print();
 
-      const imgWidth = 210;
-      const pageHeight = 297;
-      
-      const elementWidth = element.scrollWidth || element.clientWidth || 850;
-      const elementHeight = element.scrollHeight || element.clientHeight;
-      const imgHeight = (elementHeight * imgWidth) / elementWidth;
+        // Clean up after print dialog is closed
+        setTimeout(() => {
+          document.getElementById('print-temp-div')?.remove();
+          document.getElementById('print-temp-style')?.remove();
+        }, 1000);
+      }, 500);
 
-      let heightLeft = imgHeight;
-      let position = 0;
-
-      // Add first page
-      pdf.addImage(dataUrl, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
-      heightLeft -= pageHeight;
-
-      // Multi-page export handling
-      while (heightLeft >= 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(dataUrl, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
-        heightLeft -= pageHeight;
-      }
-
-      pdf.save('Ficha_Tecnica_Roder_High_Tip.pdf');
-
-      try {
-        const blob = pdf.output('blob');
-        const blobURL = URL.createObjectURL(blob);
-        window.open(blobURL, '_blank');
-      } catch (e) {
-        console.warn("Could not open PDF in new tab, but download started.", e);
-      }
-
-      toast.success("Ficha técnica salva com sucesso!", { id: toastId });
     } catch (error) {
       console.error("Error generating PDF:", error);
-      toast.error("Erro ao gerar PDF. Por favor, tente novamente.", { id: toastId });
+      toast.error("Erro ao gerar a ficha técnica. Por favor, tente novamente.", { id: toastId });
     }
   };
 
@@ -202,22 +206,26 @@ export function HighTipFicha({ onClose }: HighTipFichaProps) {
             <div className="space-y-6">
               
               {/* Logo & Header */}
-              <div className="flex justify-between items-start border-b-2 border-amber-500 pb-4">
-                <div className="flex items-center gap-3">
+              <div className="flex justify-between items-start border-b-2 border-amber-500 pb-4" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #f59e0b', paddingBottom: '16px' }}>
+                <div className="flex items-center gap-3" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <img 
                     src={RODER_LOGO_BASE64} 
+                    onError={(e) => {
+                      e.currentTarget.src = "https://roderbrasil.com.br/wp-content/uploads/2024/05/favicon.png";
+                    }}
                     alt="Roder" 
+                    style={{ height: '44px', width: 'auto', display: 'block', maxHeight: '44px' }}
                     className="h-11 object-contain"
                     referrerPolicy="no-referrer"
                   />
                   <div>
-                    <h1 className="text-2xl font-black text-slate-950 tracking-tight leading-none">Roder</h1>
-                    <p className="text-[9px] font-black tracking-widest uppercase text-amber-600 mt-1">Equipamentos Florestais</p>
+                    <h1 className="text-2xl font-black text-slate-950 tracking-tight leading-none" style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a', margin: 0, lineHeight: '1' }}>Roder</h1>
+                    <p className="text-[9px] font-black tracking-widest uppercase text-amber-600 mt-1" style={{ fontSize: '9px', fontWeight: '900', color: '#d97706', letterSpacing: '0.1em', textTransform: 'uppercase', margin: '4px 0 0 0' }}>Equipamentos Florestais</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-xs bg-slate-900 text-white px-2 py-0.5 rounded-md font-bold">Ficha de Equipamento</span>
-                  <p className="text-[10px] text-muted-foreground font-semibold mt-1">CATÁLOGO DE CONCHAS V2</p>
+                <div className="text-right" style={{ textAlign: 'right' }}>
+                  <span className="text-xs bg-slate-900 text-white px-2 py-0.5 rounded-md font-bold" style={{ fontSize: '12px', backgroundColor: '#0f172a', color: '#ffffff', padding: '2px 8px', borderRadius: '6px', fontWeight: 'bold' }}>Ficha de Equipamento</span>
+                  <p className="text-[10px] text-muted-foreground font-semibold mt-1" style={{ fontSize: '10px', color: '#64748b', fontWeight: '600', margin: '4px 0 0 0' }}>CATÁLOGO DE CONCHAS V2</p>
                 </div>
               </div>
 
@@ -394,31 +402,33 @@ export function HighTipFicha({ onClose }: HighTipFichaProps) {
                       </svg>
                     )}
 
-                    {/* Controles de upload flutuantes (no-print) */}
-                    <div className="absolute bottom-2 right-2 flex items-center gap-1.5 no-print opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200 bg-slate-900/90 backdrop-blur-sm p-1.5 rounded-lg border border-slate-700/50 shadow-md">
-                      <label className="cursor-pointer text-[10px] font-extrabold text-white hover:text-orange-400 flex items-center gap-1 px-2 py-1 rounded transition-colors" title="Substituir por seu desenho CAD real">
-                        <Upload className="h-3.5 w-3.5" />
-                        <span>Substituir Desenho</span>
-                        <input 
-                          type="file" 
-                          accept="image/*" 
-                          className="hidden" 
-                          onChange={handleDrawingUpload}
-                          disabled={loadingDrawing}
-                        />
-                      </label>
-                      {customDrawingUrl && (
-                        <button 
-                          onClick={handleResetDrawing}
-                          disabled={loadingDrawing}
-                          className="text-[10px] font-extrabold text-slate-300 hover:text-red-400 flex items-center gap-1 px-2 py-1 rounded transition-colors border-l border-slate-700/60"
-                          title="Restaurar desenho vetorial padrão"
-                        >
-                          <RotateCcw className="h-3.5 w-3.5" />
-                          <span>Padrão</span>
-                        </button>
-                      )}
-                    </div>
+                     {/* Controles de upload flutuantes (no-print) */}
+                    {isAdmin && (
+                      <div className="absolute bottom-2 right-2 flex items-center gap-1.5 no-print opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200 bg-slate-900/90 backdrop-blur-sm p-1.5 rounded-lg border border-slate-700/50 shadow-md">
+                        <label className="cursor-pointer text-[10px] font-extrabold text-white hover:text-orange-400 flex items-center gap-1 px-2 py-1 rounded transition-colors" title="Substituir por seu desenho CAD real">
+                          <Upload className="h-3.5 w-3.5" />
+                          <span>Substituir Desenho</span>
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            className="hidden" 
+                            onChange={handleDrawingUpload}
+                            disabled={loadingDrawing}
+                          />
+                        </label>
+                        {customDrawingUrl && (
+                          <button 
+                            onClick={handleResetDrawing}
+                            disabled={loadingDrawing}
+                            className="text-[10px] font-extrabold text-slate-300 hover:text-red-400 flex items-center gap-1 px-2 py-1 rounded transition-colors border-l border-slate-700/60"
+                            title="Restaurar desenho vetorial padrão"
+                          >
+                            <RotateCcw className="h-3.5 w-3.5" />
+                            <span>Padrão</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                   
                   {/* Col 2: Tabela de Medidas */}

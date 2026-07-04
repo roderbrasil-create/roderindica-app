@@ -484,7 +484,7 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
                 <div className="flex items-center gap-3">
                   <div className="w-[180px] h-[65px] flex items-center justify-center">
                     <EditableImage 
-                      src={headerLogo} 
+                      src={headerLogo || RODER_LOGO_BASE64} 
                       onChange={(base64) => handleImageChange('fae_header_logo', base64, setHeaderLogo, headerLogoZoom)} 
                       zoom={headerLogoZoom}
                       onZoomChange={(zoom) => handleZoomChange('fae_header_logo', zoom, setHeaderLogoZoom)}

@@ -439,3 +439,13 @@ export interface Customer {
   updated_at: string;
 }
 
+export interface AITeaching {
+  id: string;
+  question: string;
+  improvedAnswer: string;
+  isImproved: boolean;
+  timestamp: string;
+  source: string;
+  author: string;
+}
+

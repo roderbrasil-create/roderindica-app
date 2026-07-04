@@ -775,7 +775,7 @@ export default function PublicTechnicalDelivery() {
                 <div className="flex items-center gap-3">
                   <div className="w-[180px] h-[65px] flex items-center justify-center">
                     <img 
-                      src={headerLogo} 
+                      src={headerLogo || RODER_LOGO_BASE64} 
                       alt="Roder Logo"
                       style={{ transform: `scale(${headerLogoZoom / 100})`, transformOrigin: 'center' }}
                       className="max-h-[55px] max-w-full object-contain"

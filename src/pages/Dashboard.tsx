@@ -49,6 +49,46 @@ import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import { HelpTooltip } from '../components/base/HelpTooltip';
 
+function DashboardBannerImage({ src, alt, className }: { src: string; alt: string; className?: string }) {
+  const [resolvedSrc, setResolvedSrc] = useState('');
+
+  useEffect(() => {
+    if (!src) {
+      setResolvedSrc('');
+      return;
+    }
+    if (src.startsWith('db-file://')) {
+      const fileId = src.replace('db-file://', '');
+      getDoc(doc(db, 'app_files', fileId)).then(docSnap => {
+        if (docSnap.exists()) {
+          setResolvedSrc(docSnap.data().data || '');
+        } else {
+          setResolvedSrc('');
+        }
+      }).catch(() => {
+        setResolvedSrc('');
+      });
+    } else {
+      setResolvedSrc(src);
+    }
+  }, [src]);
+
+  if (!resolvedSrc) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-white/5 rounded-full blur-2xl transform scale-75 animate-pulse" />
+    );
+  }
+
+  return (
+    <img
+      src={resolvedSrc}
+      alt={alt}
+      className={className}
+      referrerPolicy="no-referrer"
+    />
+  );
+}
+
 export default function Dashboard() {
   const { 
     user, 
@@ -959,7 +999,7 @@ export default function Dashboard() {
         {/* Product Banners */}
         {highlightedProducts.length > 0 && (isAdmin || isManager || isInternalSeller || isExternalSeller) && 
         (!profile?.permissions?.dashboard_cards || profile.permissions.dashboard_cards.equipment_banner !== false) && (
-          <div className="relative overflow-hidden w-full h-[180px] md:h-[220px] rounded-3xl shadow-xl border border-border group bg-slate-900">
+          <div className="relative overflow-hidden w-full h-[180px] sm:h-[220px] rounded-3xl shadow-xl border border-border group bg-slate-900">
             <AnimatePresence mode="wait">
               <motion.div
                 key={highlightedProducts[currentBannerIndex].id}
@@ -973,23 +1013,23 @@ export default function Dashboard() {
                 <div className="absolute top-0 right-0 w-[40%] h-full bg-primary/20 blur-[100px] pointer-events-none" />
                 <div className="absolute bottom-0 left-0 w-[30%] h-full bg-blue-500/10 blur-[80px] pointer-events-none" />
 
-                <div className="relative flex-1 flex items-center justify-between p-6 px-8 md:px-12 gap-8">
-                  <div className="flex-1 space-y-3 z-10">
+                <div className="relative flex-1 flex items-center justify-between p-4 xs:p-6 sm:p-8 md:p-12 gap-3 xs:gap-6 md:gap-8">
+                  <div className="flex-1 space-y-2 xs:space-y-3 z-10">
                     <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.2 }}
-                      className="flex items-center gap-2"
+                      className="flex items-center gap-1.5 xs:gap-2"
                     >
-                      <span className="flex h-2 w-2 rounded-full bg-primary animate-pulse" />
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-primary/80">Equipamento em Destaque</span>
+                      <span className="flex h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                      <span className="text-[8px] xs:text-[10px] font-bold uppercase tracking-widest text-primary/80">Equipamento em Destaque</span>
                     </motion.div>
                     
                     <motion.h2 
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.3 }}
-                      className="text-2xl md:text-4xl font-bold uppercase tracking-tighter text-white leading-tight"
+                      className="text-base xs:text-lg sm:text-2xl md:text-3xl lg:text-4xl font-bold uppercase tracking-tighter text-white leading-tight line-clamp-2"
                     >
                       {highlightedProducts[currentBannerIndex].name}
                     </motion.h2>
@@ -999,7 +1039,7 @@ export default function Dashboard() {
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.4 }}
-                        className="text-slate-400 text-sm md:text-base font-medium max-w-lg line-clamp-2"
+                        className="text-slate-400 text-[10px] xs:text-xs sm:text-sm md:text-base font-medium max-w-lg line-clamp-1 xs:line-clamp-2"
                       >
                         {highlightedProducts[currentBannerIndex].banner_message}
                       </motion.p>
@@ -1009,14 +1049,15 @@ export default function Dashboard() {
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.5 }}
-                      className="pt-4"
+                      className="pt-1.5 xs:pt-3 md:pt-4"
                     >
-                      <Link to="/catalogo">
-                        <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold uppercase text-[10px] tracking-widest h-10 px-8 gap-2 group-hover:scale-105 transition-transform">
-                          Ver no Catálogo
-                          <ArrowRight className="h-4 w-4" />
-                        </Button>
-                      </Link>
+                      <Button 
+                        onClick={() => navigate('/catalogo', { state: { openProductId: highlightedProducts[currentBannerIndex].id } })}
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold uppercase text-[9px] xs:text-[10px] tracking-widest h-8 xs:h-9 md:h-10 px-3 xs:px-4 md:px-8 gap-1.5 xs:gap-2 group-hover:scale-105 transition-transform"
+                      >
+                        Ver no Catálogo
+                        <ArrowRight className="h-3.5 w-3.5 xs:h-4 xs:w-4" />
+                      </Button>
                     </motion.div>
                   </div>
 
@@ -1024,14 +1065,13 @@ export default function Dashboard() {
                     initial={{ opacity: 0, scale: 0.8, rotate: 5 }}
                     animate={{ opacity: 1, scale: 1, rotate: 0 }}
                     transition={{ delay: 0.3, duration: 0.6 }}
-                    className="hidden sm:block relative w-48 h-48 md:w-64 md:h-64 shrink-0"
+                    className="relative w-[100px] h-[100px] xs:w-[120px] xs:h-[120px] sm:w-[140px] sm:h-[140px] md:w-[180px] md:h-[180px] shrink-0 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center p-2 overflow-hidden shadow-2xl backdrop-blur-sm"
                   >
-                    <div className="absolute inset-0 bg-white/5 rounded-full blur-2xl transform scale-75" />
-                    <img 
+                    <div className="absolute inset-0 bg-primary/10 rounded-full blur-xl transform scale-75 pointer-events-none" />
+                    <DashboardBannerImage 
                       src={highlightedProducts[currentBannerIndex].image_url} 
                       alt={highlightedProducts[currentBannerIndex].name}
-                      className="w-full h-full object-contain relative z-10 drop-shadow-[0_20px_30px_rgba(0,0,0,0.5)]"
-                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-contain relative z-10 drop-shadow-[0_8px_16px_rgba(0,0,0,0.4)] transition-transform duration-500 group-hover:scale-105"
                     />
                   </motion.div>
                 </div>

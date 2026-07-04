@@ -77,13 +77,14 @@ import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Checkbox } from '../components/ui/checkbox';
 import { ref, uploadBytes, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { compressImage } from '../lib/imageUtils';
 import { cn, getApiBaseUrl } from '../lib/utils';
 import { ImageLightbox } from '../components/ui/ImageLightbox';
 import { HighTipSelector } from '../components/catalog/HighTipSelector';
 import { HighTipFicha } from '../components/catalog/HighTipFicha';
 import { MulcherTechnicalDelivery } from '../components/catalog/MulcherTechnicalDelivery';
+import { FresaSshFicha } from '../components/catalog/FresaSshFicha';
 
 function SmartImage({ src, alt, className, zoom = 1, ...props }: any) {
   const [resolvedSrc, setResolvedSrc] = useState('');
@@ -575,6 +576,7 @@ function SortableProductCard({
 export default function Catalog() {
   const { user, profile, realProfile, isManager, isAdmin, isExternalSeller, isMarketing, auth } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -614,6 +616,8 @@ export default function Catalog() {
   };
   const [animationType, setAnimationType] = useState<'tilt' | 'rotate'>('rotate'); // Default to rotate as requested
   const [isHighTipFichaOpen, setIsHighTipFichaOpen] = useState(false);
+  const [isFresaSshFichaOpen, setIsFresaSshFichaOpen] = useState(false);
+  const [fresaSshDefaultModel, setFresaSshDefaultModel] = useState<string>('ssh-150');
   const [isHighTipSelectorOpen, setIsHighTipSelectorOpen] = useState(false);
   const [isTechnicalDeliveryOpen, setIsTechnicalDeliveryOpen] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
@@ -768,7 +772,18 @@ export default function Catalog() {
   });
 
   useEffect(() => {
-    setSelectedModel(null);
+    if (selectedProductModels) {
+      const modelExistsInCurrent = selectedProductModels.models?.some(m => m.id === selectedModel?.id);
+      if (!modelExistsInCurrent) {
+        if (selectedProductModels.models && selectedProductModels.models.length > 0) {
+          setSelectedModel(selectedProductModels.models[0]);
+        } else {
+          setSelectedModel(null);
+        }
+      }
+    } else {
+      setSelectedModel(null);
+    }
   }, [selectedProductModels]);
 
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -852,6 +867,13 @@ export default function Catalog() {
           updateDoc(doc(db, 'products', desbastadorFae.id), { is_blocked: false });
         }
 
+        const fresaSsh = data.find(p => p.name === 'FRESA FAE SSH');
+        if (!fresaSsh && data.length > 0) {
+          addFresaFAESSH();
+        } else if (fresaSsh?.is_blocked) {
+          updateDoc(doc(db, 'products', fresaSsh.id), { is_blocked: false });
+        }
+
         const cacambaHighTip = data.find(p => p.name === 'Caçamba High Tip');
         if (!cacambaHighTip && data.length > 0) {
           addCacambaHighTip();
@@ -882,6 +904,18 @@ export default function Catalog() {
     });
     return () => unsubscribe();
   }, [user]);
+
+  useEffect(() => {
+    if (location.state && (location.state as any).openProductId && products.length > 0) {
+      const productId = (location.state as any).openProductId;
+      const foundProduct = products.find(p => p.id === productId);
+      if (foundProduct) {
+        setViewingGallery(foundProduct);
+        // Clean up state so it doesn't open again on page refresh
+        window.history.replaceState({}, document.title);
+      }
+    }
+  }, [location.state, products]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -2018,6 +2052,121 @@ export default function Catalog() {
       }
     };
 
+    const addFresaFAESSH = async () => {
+      try {
+        setLoading(true);
+        const q = query(collection(db, 'products'), where('name', '==', 'FRESA FAE SSH'));
+        const snap = await getDocs(q);
+        
+        const fresaSshData = {
+          name: 'FRESA FAE SSH',
+          description: 'A Fresa FAE SSH é um triturador de tocos e pedras de alta performance, desenvolvido, testado e homologado exclusivamente para operar com tratores de alta potência equipados com transmissão CVT (Continuously Variable Transmission). Garante máxima eficiência na destoca em linha, limpeza de áreas florestais, e preparação de solo.',
+          category: 'Triturador Florestal',
+          image_url: 'https://roderbrasil.com.br/wp-content/uploads/2024/07/img-fresa-ssh-trituradora-tocos-02.jpg',
+          video_url: 'https://youtu.be/1nEPwzt8K4k',
+          pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/09/CATALOGO-TRATORES-compactado.pdf',
+          is_blocked: false,
+          created_at: snap.empty ? new Date().toISOString() : (snap.docs[0].data() as any).created_at,
+          models: [
+            {
+              id: 'fae-ssh-150',
+              name: 'SSH 150',
+              base_value: 0,
+              pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/09/CATALOGO-TRATORES-compactado.pdf',
+              video_url: 'https://youtu.be/1nEPwzt8K4k',
+              images: [
+                'https://roderbrasil.com.br/wp-content/uploads/2024/07/img-fresa-ssh-trituradora-tocos-02.jpg'
+              ],
+              technical_specs: {
+                trator_hp: '160 - 280 hp',
+                pto_rpm: '1000 rpm',
+                largura_de_trabalho_mm: '1600 mm',
+                largura_total_mm: '1980 mm',
+                peso_kg: '3690 kg',
+                diametro_do_rotor_mm: '900 mm',
+                diametro_max_de_trituracao_mm: '700 mm (70 cm)',
+                profundidade_max_de_trabalho_mm: '500 mm (50 cm)',
+                numero_de_dentes: '58 + 4'
+              }
+            },
+            {
+              id: 'fae-ssh-200',
+              name: 'SSH 200',
+              base_value: 0,
+              pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/09/CATALOGO-TRATORES-compactado.pdf',
+              images: [
+                'https://roderbrasil.com.br/wp-content/uploads/2024/07/img-fresa-ssh-trituradora-tocos-02.jpg'
+              ],
+              technical_specs: {
+                trator_hp: '200 - 360 (400) hp',
+                pto_rpm: '1000 rpm',
+                largura_de_trabalho_mm: '2080 mm',
+                largura_total_mm: '2472 mm',
+                peso_kg: '4850 kg',
+                diametro_do_rotor_mm: '900 mm',
+                diametro_max_de_trituracao_mm: '700 mm (70 cm)',
+                profundidade_max_de_trabalho_mm: '500 mm (50 cm)',
+                numero_de_dentes: '78 + 4'
+              }
+            },
+            {
+              id: 'fae-ssh-225',
+              name: 'SSH 225',
+              base_value: 0,
+              pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/09/CATALOGO-TRATORES-compactado.pdf',
+              images: [
+                'https://roderbrasil.com.br/wp-content/uploads/2024/07/img-fresa-ssh-trituradora-tocos-02.jpg'
+              ],
+              technical_specs: {
+                trator_hp: '200 - 360 (400) hp',
+                pto_rpm: '1000 rpm',
+                largura_de_trabalho_mm: '2320 mm',
+                largura_total_mm: '2712 mm',
+                peso_kg: '5200 kg',
+                diametro_do_rotor_mm: '900 mm',
+                diametro_max_de_trituracao_mm: '700 mm (70 cm)',
+                profundidade_max_de_trabalho_mm: '500 mm (50 cm)',
+                numero_de_dentes: '88 + 4'
+              }
+            },
+            {
+              id: 'fae-ssh-250',
+              name: 'SSH 250',
+              base_value: 0,
+              pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/09/CATALOGO-TRATORES-compactado.pdf',
+              video_url: 'https://www.youtube.com/watch?v=na5Z2tLWMgA',
+              images: [
+                'https://roderbrasil.com.br/wp-content/uploads/2024/07/img-fresa-ssh-trituradora-tocos-02.jpg'
+              ],
+              technical_specs: {
+                trator_hp: '240 - 360 (400) hp',
+                pto_rpm: '1000 rpm',
+                largura_de_trabalho_mm: '2560 mm',
+                largura_total_mm: '2950 mm',
+                peso_kg: '5600 kg',
+                diametro_do_rotor_mm: '900 mm',
+                diametro_max_de_trituracao_mm: '700 mm (70 cm)',
+                profundidade_max_de_trabalho_mm: '500 mm (50 cm)',
+                numero_de_dentes: '98 + 4'
+              }
+            }
+          ]
+        };
+
+        if (snap.docs.length > 0) {
+          await updateDoc(doc(db, 'products', snap.docs[0].id), fresaSshData);
+        } else {
+          await addDoc(collection(db, 'products'), fresaSshData);
+        }
+        
+        toast.success('Fresa FAE SSH sincronizada com sucesso!');
+      } catch (err) {
+        console.error('Error adding Fresa FAE SSH:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
   const seedInitialProducts = async () => {
     const initialProducts = [
       {
@@ -2880,11 +3029,33 @@ export default function Catalog() {
     }
   };
 
-  const openPdf = (url: string) => {
+  const openPdf = (url: string, modelName?: string) => {
     if (!url) return;
     
     if (url === 'https://roderbrasil.com.br/maquinas-florestais/cacamba-high-tip/' || url.includes('cacamba-high-tip')) {
       setIsHighTipFichaOpen(true);
+      return;
+    }
+
+    if (url.includes('CATALOGO-TRATORES') || url.includes('fresa-ssh') || url.includes('fresa-trituradora')) {
+      const targetModelName = modelName || selectedModel?.name || '';
+      if (targetModelName) {
+        const lower = targetModelName.toLowerCase();
+        if (lower.includes('150')) {
+          setFresaSshDefaultModel('ssh-150');
+        } else if (lower.includes('200')) {
+          setFresaSshDefaultModel('ssh-200');
+        } else if (lower.includes('225')) {
+          setFresaSshDefaultModel('ssh-225');
+        } else if (lower.includes('250')) {
+          setFresaSshDefaultModel('ssh-250');
+        } else {
+          setFresaSshDefaultModel('ssh-150');
+        }
+      } else {
+        setFresaSshDefaultModel('ssh-150');
+      }
+      setIsFresaSshFichaOpen(true);
       return;
     }
     
@@ -3548,11 +3719,11 @@ export default function Catalog() {
                           {model.name}
                         </h3>
                       </div>
-                      {!isExternalSeller && model.base_value && (
+                      {!isExternalSeller && typeof model.base_value === 'number' && model.base_value > 0 ? (
                         <p className="font-bold text-primary !text-[11px] md:!text-xl mt-0.5">
                           {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(model.base_value)}
                         </p>
-                      )}
+                      ) : null}
                     </div>
 
                     {(isManager || isAdmin) && (
@@ -3634,7 +3805,16 @@ export default function Catalog() {
                           comprimento_giro: 'Comprimento Giro',
                           diametro_max_trituracao: 'Ø Máx. Trituração',
                           tipo_dente: 'Tipo de Dente',
-                          tipo_material: 'Tipo de Material'
+                          tipo_material: 'Tipo de Material',
+                          trator_hp: 'Potência do Trator',
+                          pto_rpm: 'Rotação da TDP',
+                          largura_de_trabalho_mm: 'Largura de Trabalho',
+                          largura_total_mm: 'Largura Total',
+                          peso_kg: 'Peso',
+                          diametro_do_rotor_mm: 'Diâmetro do Rotor',
+                          diametro_max_de_trituracao_mm: 'Ø Máx. Trituração',
+                          profundidade_max_de_trabalho_mm: 'Profundidade Máx.',
+                          numero_de_dentes: 'Número de Dentes'
                         };
                         const label = specLabels[kMapping] || key.replace(/_/g, ' ');
                         const isGiro360 = kMapping === 'giro_360';
@@ -4029,6 +4209,12 @@ export default function Catalog() {
                 selectedModel && "hidden md:block"
               )}>
                 <div className="p-3 space-y-2">
+                  <div className="bg-primary/5 border border-primary/15 rounded-lg p-3 mb-3 no-print">
+                    <p className="text-xs font-bold text-primary flex items-start gap-2 leading-snug">
+                      <Info className="h-4 w-4 shrink-0 text-primary mt-0.5" />
+                      <span>Por favor, selecione qual modelo você deseja para visualizar a ficha técnica e detalhes.</span>
+                    </p>
+                  </div>
                   {selectedProductModels?.models?.map((model, idx) => (
                     <div
                       key={model.id || `sel-model-${idx}`}
@@ -4061,11 +4247,11 @@ export default function Catalog() {
                             "font-bold",
                             selectedModel?.id === model.id ? "text-primary" : "text-foreground"
                           )}>{model.name}</span>
-                          {!isExternalSeller && model.base_value && (
+                          {!isExternalSeller && typeof model.base_value === 'number' && model.base_value > 0 ? (
                             <span className="text-[10px] text-muted-foreground">
                               Valor Base: {formatCurrency(model.base_value)}
                             </span>
-                          )}
+                          ) : null}
                         </div>
                         <div className="flex items-center gap-1">
                           {(isManager || isAdmin) && (
@@ -4113,12 +4299,12 @@ export default function Catalog() {
 
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <h3 className="text-3xl font-black text-foreground tracking-tight">Modelo {selectedModel.name}</h3>
-                      {!isExternalSeller && selectedModel.base_value && (
+                      {!isExternalSeller && typeof selectedModel.base_value === 'number' && selectedModel.base_value > 0 ? (
                         <div className="flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-full border border-primary/20">
                           <DollarSign className="h-5 w-5" />
                           <span className="font-bold text-lg">{formatCurrency(selectedModel.base_value)}</span>
                         </div>
-                      )}
+                      ) : null}
                     </div>
 
                     {selectedModel.technical_specs && (
@@ -5462,6 +5648,10 @@ export default function Catalog() {
 
         {isHighTipFichaOpen && (
           <HighTipFicha onClose={() => setIsHighTipFichaOpen(false)} />
+        )}
+
+        {isFresaSshFichaOpen && (
+          <FresaSshFicha onClose={() => setIsFresaSshFichaOpen(false)} defaultModelId={fresaSshDefaultModel} />
         )}
 
         {isTechnicalDeliveryOpen && selectedModel && (

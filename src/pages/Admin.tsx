@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { collection, query, onSnapshot, orderBy, doc, updateDoc, setDoc, deleteDoc, where, getDocs, writeBatch, Timestamp, addDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { UserProfile, UserRole, UserStatus } from '../types';
+import { UserProfile, UserRole, UserStatus, AITeaching } from '../types';
 import { AuditService, AuditLogEntry, AuditAction } from '../lib/AuditService';
 import { CryptoService } from '../lib/CryptoService';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -48,7 +48,8 @@ import {
   Trophy,
   Laptop,
   Smartphone,
-  Award
+  Award,
+  Brain
 } from 'lucide-react';
 import { HelpTooltip } from '../components/base/HelpTooltip';
 import { 
@@ -89,7 +90,58 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
     setActiveTab(isUsersView ? 'users' : defaultTab);
   }, [isUsersView, defaultTab]);
 
+  useEffect(() => {
+    if (activeTab === 'ai_monitoring') {
+      setLoadingTeachings(true);
+      const q = query(collection(db, 'roder_ai_questions'), orderBy('timestamp', 'desc'));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const data = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as AITeaching[];
+        setTeachings(data);
+        setLoadingTeachings(false);
+      }, (error) => {
+        console.error("Error fetching teachings:", error);
+        toast.error("Erro ao carregar ensinamentos da IA.");
+        setLoadingTeachings(false);
+      });
+      return () => unsubscribe();
+    }
+  }, [activeTab]);
+
   const canManageAll = isAdmin || isManager || realProfile?.email === 'roderbrasil@gmail.com';
+
+  const handleUpdateTeaching = async () => {
+    if (!editingTeaching) return;
+    
+    try {
+      const docRef = doc(db, 'roder_ai_questions', editingTeaching.id);
+      await updateDoc(docRef, {
+        question: editingTeaching.question,
+        improvedAnswer: editingTeaching.improvedAnswer,
+        updated_at: new Date().toISOString()
+      });
+      toast.success("Ensinamento atualizado com sucesso!");
+      setIsTeachingDialogOpen(false);
+      setEditingTeaching(null);
+    } catch (error) {
+      console.error("Error updating teaching:", error);
+      toast.error("Erro ao atualizar ensinamento.");
+    }
+  };
+
+  const handleDeleteTeaching = async (id: string) => {
+    if (!window.confirm("Tem certeza que deseja apagar este ensinamento? Isso removerá o conhecimento do Cérebro da IA.")) return;
+    
+    try {
+      await deleteDoc(doc(db, 'roder_ai_questions', id));
+      toast.success("Ensinamento removido com sucesso.");
+    } catch (error) {
+      console.error("Error deleting teaching:", error);
+      toast.error("Erro ao remover ensinamento.");
+    }
+  };
   const hasEditAccess = canManageAll || isTriagem || isMarketing;
 
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -128,6 +180,23 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
   const [showPassword, setShowPassword] = useState(false);
   const [approvalQueue, setApprovalQueue] = useState<any[]>([]);
   const [approvingId, setApprovingId] = useState<string | null>(null);
+
+  // AI Training Monitoring State
+  const [teachings, setTeachings] = useState<AITeaching[]>([]);
+  const [loadingTeachings, setLoadingTeachings] = useState(false);
+  const [editingTeaching, setEditingTeaching] = useState<AITeaching | null>(null);
+  const [isTeachingDialogOpen, setIsTeachingDialogOpen] = useState(false);
+  const [teachingSearchTerm, setTeachingSearchTerm] = useState('');
+
+  const [isReportOpen, setIsReportOpen] = useState(false);
+  const [reportContent, setReportContent] = useState('');
+  const [reportTitle, setReportTitle] = useState('');
+
+  const handleOpenReport = (content: string, title: string) => {
+    setReportContent(content);
+    setReportTitle(title);
+    setIsReportOpen(true);
+  };
 
   // Sidebar items for permissions management
   const sidebarItems = [
@@ -1588,6 +1657,19 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
               >
                 <Wifi className="h-4 w-4 shrink-0" /> <span>Conectividade</span>
               </TabsTrigger>
+              {(isAdmin || isManager || realProfile?.email === 'roderbrasil@gmail.com') && (
+                <TabsTrigger 
+                  value="ai_monitoring" 
+                  className={cn(
+                    "flex-1 flex items-center justify-center gap-2 py-3 px-4 text-[11px] md:text-xs font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer h-11",
+                    activeTab === 'ai_monitoring' 
+                      ? "bg-purple-600 text-white shadow-[0_4px_12px_rgba(147,51,234,0.3)] border border-purple-600 scale-[1.02] z-10" 
+                      : "bg-transparent text-muted-foreground hover:text-foreground border border-transparent hover:bg-muted/30"
+                  )}
+                >
+                  <Brain className="h-4 w-4 shrink-0" /> <span>Cérebro IA</span>
+                </TabsTrigger>
+              )}
             </TabsList>
           )}
           
@@ -2885,7 +2967,217 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
               </div>
             </Card>
           </TabsContent>
+
+          <TabsContent value="ai_monitoring" className="space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
+              <div className="space-y-1">
+                <h2 className="text-xl font-black uppercase tracking-tight text-foreground flex items-center gap-2">
+                  <Brain className="h-6 w-6 text-purple-600" /> Monitoramento do Cérebro RODER
+                </h2>
+                <p className="text-xs text-muted-foreground">Monitore, edite ou remova ensinamentos técnicos passados à IA.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button 
+                  onClick={() => {
+                    const today = new Date().toISOString().split('T')[0];
+                    const todayTeachings = teachings.filter(t => t.timestamp?.startsWith(today));
+                    if (todayTeachings.length === 0) {
+                      toast.info("Nenhum ensinamento novo registrado hoje.");
+                      return;
+                    }
+                    const report = todayTeachings.map(t => `### ${t.question}\n**Autor:** ${t.author}\n**Hora:** ${new Date(t.timestamp).toLocaleTimeString()}\n\n${t.improvedAnswer}`).join('\n\n---\n\n');
+                    handleOpenReport(report, `Relatório Diário de Ensinamentos - ${new Date().toLocaleDateString()}`);
+                  }}
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-bold uppercase text-xs rounded-xl h-10 px-4"
+                >
+                  <FileText className="mr-2 h-4 w-4" /> Relatório de Hoje
+                </Button>
+              </div>
+            </div>
+
+            <Card className="bg-card border-border shadow-sm">
+              <CardHeader className="pb-3">
+                <div className="relative w-full max-w-md">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    placeholder="Filtrar por título, autor ou conteúdo..." 
+                    className="pl-10 bg-muted/30 border-border h-10 text-sm"
+                    value={teachingSearchTerm}
+                    onChange={(e) => setTeachingSearchTerm(e.target.value)}
+                  />
+                </div>
+              </CardHeader>
+              <CardContent>
+                {loadingTeachings ? (
+                  <div className="flex flex-col items-center justify-center py-12 gap-4">
+                    <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+                    <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest animate-pulse">Carregando conhecimento...</p>
+                  </div>
+                ) : teachings.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                      <Brain className="h-8 w-8 text-muted-foreground opacity-20" />
+                    </div>
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Nenhum ensinamento encontrado</h3>
+                    <p className="text-xs text-muted-foreground max-w-xs mt-1">
+                      Ensine novos conhecimentos à IA através do menu "Ensinar IA" no canto inferior da tela.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {teachings
+                      .filter(t => 
+                        t.question?.toLowerCase().includes(teachingSearchTerm.toLowerCase()) ||
+                        t.improvedAnswer?.toLowerCase().includes(teachingSearchTerm.toLowerCase()) ||
+                        t.author?.toLowerCase().includes(teachingSearchTerm.toLowerCase())
+                      )
+                      .map((teaching) => (
+                      <div key={teaching.id} className="group p-4 rounded-xl border border-border bg-muted/10 hover:bg-muted/20 transition-all">
+                        <div className="flex flex-col md:flex-row justify-between gap-4">
+                          <div className="space-y-2 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Badge variant="outline" className="bg-purple-100 text-purple-700 border-purple-200 text-[9px] font-black uppercase">
+                                ID: {teaching.id.slice(-6)}
+                              </Badge>
+                              <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                <User className="h-3 w-3" /> {teaching.author}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                <Clock className="h-3 w-3" /> {new Date(teaching.timestamp).toLocaleString()}
+                              </span>
+                            </div>
+                            <h4 className="text-sm font-black uppercase tracking-tight text-foreground">{teaching.question}</h4>
+                            <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed whitespace-pre-wrap">
+                              {teaching.improvedAnswer}
+                            </p>
+                          </div>
+                          <div className="flex md:flex-col items-center justify-end gap-2 shrink-0">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => {
+                                setEditingTeaching(teaching);
+                                setIsTeachingDialogOpen(true);
+                              }}
+                              className="h-8 w-8 p-0 rounded-lg hover:bg-blue-100 hover:text-blue-600 transition-colors"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => handleDeleteTeaching(teaching.id)}
+                              className="h-8 w-8 p-0 rounded-lg hover:bg-red-100 hover:text-red-600 transition-colors"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
+
+        {/* Edit Teaching Dialog */}
+        <Dialog open={isTeachingDialogOpen} onOpenChange={setIsTeachingDialogOpen}>
+          <DialogContent className="max-w-2xl bg-card border-border shadow-2xl rounded-2xl p-0 overflow-hidden">
+            <DialogHeader className="p-6 bg-purple-600 text-white">
+              <DialogTitle className="text-xl font-black uppercase tracking-tight flex items-center gap-2">
+                <Edit className="h-5 w-5" /> Editar Ensinamento da IA
+              </DialogTitle>
+              <DialogDescription className="text-purple-100 text-xs opacity-90 font-medium uppercase tracking-widest">
+                Corrija o título ou o conteúdo técnico para melhorar o aprendizado do Cérebro RODER.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="p-6 space-y-6">
+              <div className="space-y-2">
+                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Pergunta ou Tópico Principal</Label>
+                <Input 
+                  value={editingTeaching?.question || ''}
+                  onChange={(e) => setEditingTeaching(prev => prev ? { ...prev, question: e.target.value } : null)}
+                  className="bg-background border-border h-12 text-sm font-bold"
+                  placeholder="Ex: Como configurar a Garra Roder G30?"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Resposta ou Explicação Técnica</Label>
+                <textarea 
+                  value={editingTeaching?.improvedAnswer || ''}
+                  onChange={(e) => setEditingTeaching(prev => prev ? { ...prev, improvedAnswer: e.target.value } : null)}
+                  className="w-full min-h-[250px] p-4 rounded-xl bg-background border border-border text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                  placeholder="Digite a explicação detalhada aqui..."
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="p-6 bg-muted/30 border-t border-border flex flex-col-reverse sm:flex-row gap-3">
+              <Button 
+                variant="outline" 
+                onClick={() => setIsTeachingDialogOpen(false)}
+                className="font-black uppercase text-[10px] h-12 px-8 rounded-xl border-border"
+              >
+                Cancelar
+              </Button>
+              <Button 
+                onClick={handleUpdateTeaching}
+                className="bg-purple-600 hover:bg-purple-700 text-white font-black uppercase text-[10px] h-12 px-8 rounded-xl shadow-lg shadow-purple-500/20"
+              >
+                Salvar Alterações
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Report Dialog */}
+        <Dialog open={isReportOpen} onOpenChange={setIsReportOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-0 bg-card border-border shadow-2xl rounded-2xl">
+            <DialogHeader className="p-6 bg-slate-900 text-white shrink-0">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <DialogTitle className="text-xl font-black uppercase tracking-tight flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-orange-500" /> {reportTitle}
+                  </DialogTitle>
+                  <DialogDescription className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.2em]">
+                    Compilação de conhecimentos técnicos processados
+                  </DialogDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => window.print()}
+                    className="bg-white/10 border-white/20 text-white hover:bg-white/20 h-9 px-4 text-[10px] font-black uppercase rounded-lg"
+                  >
+                    Imprimir / PDF
+                  </Button>
+                </div>
+              </div>
+            </DialogHeader>
+            
+            <div className="flex-1 overflow-y-auto p-8 bg-white dark:bg-slate-950">
+              <div className="prose prose-slate dark:prose-invert max-w-none prose-sm">
+                <div className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-foreground">
+                  {reportContent}
+                </div>
+              </div>
+            </div>
+            
+            <DialogFooter className="p-4 bg-muted/30 border-t border-border shrink-0">
+              <Button 
+                onClick={() => setIsReportOpen(false)}
+                className="bg-slate-900 hover:bg-slate-800 text-white font-black uppercase text-[10px] h-10 px-8 rounded-xl"
+              >
+                Fechar Relatório
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* User Dialog */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

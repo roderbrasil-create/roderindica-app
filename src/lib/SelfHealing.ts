@@ -165,6 +165,100 @@ export async function runSelfHealing(data: any[], db: any) {
         await updateDoc(doc(db, 'products', desbastadorDoc.id), { models: updatedModels });
       }
     }
+
+    // 9. FRESA FAE SSH (HEALING TECHNICAL SPECS)
+    const fresaSshDoc = data.find(p => p.name === 'FRESA FAE SSH');
+    if (fresaSshDoc && fresaSshDoc.models) {
+      const ssh150 = fresaSshDoc.models.find((m: any) => m.id === 'fae-ssh-150' || m.id === 'ssh-150');
+      if (ssh150 && (!ssh150.technical_specs || !ssh150.technical_specs.trator_hp)) {
+        console.log('[Healing] Restoring FRESA FAE SSH technical_specs...');
+        const updatedModels = [
+          {
+            id: 'fae-ssh-150',
+            name: 'SSH 150',
+            base_value: 0,
+            pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/09/CATALOGO-TRATORES-compactado.pdf',
+            video_url: 'https://youtu.be/1nEPwzt8K4k',
+            images: [
+              'https://roderbrasil.com.br/wp-content/uploads/2024/07/img-fresa-ssh-trituradora-tocos-02.jpg'
+            ],
+            technical_specs: {
+              trator_hp: '160 - 280 HP (CVT)',
+              pto_rpm: '1000 rpm',
+              largura_de_trabalho_mm: '1600 mm',
+              largura_total_mm: '1980 mm',
+              peso_kg: '3690 kg',
+              diametro_do_rotor_mm: '900 mm',
+              diametro_max_de_trituracao_mm: '700 mm (70 cm)',
+              profundidade_max_de_trabalho_mm: '500 mm (50 cm)',
+              numero_de_dentes: '58 + 4'
+            }
+          },
+          {
+            id: 'fae-ssh-200',
+            name: 'SSH 200',
+            base_value: 0,
+            pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/09/CATALOGO-TRATORES-compactado.pdf',
+            images: [
+              'https://roderbrasil.com.br/wp-content/uploads/2024/07/img-fresa-ssh-trituradora-tocos-02.jpg'
+            ],
+            technical_specs: {
+              trator_hp: '200 - 360 (400) HP (CVT)',
+              pto_rpm: '1000 rpm',
+              largura_de_trabalho_mm: '2080 mm',
+              largura_total_mm: '2472 mm',
+              peso_kg: '4850 kg',
+              diametro_do_rotor_mm: '900 mm',
+              diametro_max_de_trituracao_mm: '700 mm (70 cm)',
+              profundidade_max_de_trabalho_mm: '500 mm (50 cm)',
+              numero_de_dentes: '78 + 4'
+            }
+          },
+          {
+            id: 'fae-ssh-225',
+            name: 'SSH 225',
+            base_value: 0,
+            pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/09/CATALOGO-TRATORES-compactado.pdf',
+            images: [
+              'https://roderbrasil.com.br/wp-content/uploads/2024/07/img-fresa-ssh-trituradora-tocos-02.jpg'
+            ],
+            technical_specs: {
+              trator_hp: '200 - 360 (400) HP (CVT)',
+              pto_rpm: '1000 rpm',
+              largura_de_trabalho_mm: '2320 mm',
+              largura_total_mm: '2712 mm',
+              peso_kg: '5200 kg',
+              diametro_do_rotor_mm: '900 mm',
+              diametro_max_de_trituracao_mm: '700 mm (70 cm)',
+              profundidade_max_de_trabalho_mm: '500 mm (50 cm)',
+              numero_de_dentes: '88 + 4'
+            }
+          },
+          {
+            id: 'fae-ssh-250',
+            name: 'SSH 250',
+            base_value: 0,
+            pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/09/CATALOGO-TRATORES-compactado.pdf',
+            video_url: 'https://www.youtube.com/watch?v=na5Z2tLWMgA',
+            images: [
+              'https://roderbrasil.com.br/wp-content/uploads/2024/07/img-fresa-ssh-trituradora-tocos-02.jpg'
+            ],
+            technical_specs: {
+              trator_hp: '240 - 360 (400) HP (CVT)',
+              pto_rpm: '1000 rpm',
+              largura_de_trabalho_mm: '2560 mm',
+              largura_total_mm: '2950 mm',
+              peso_kg: '5600 kg',
+              diametro_do_rotor_mm: '900 mm',
+              diametro_max_de_trituracao_mm: '700 mm (70 cm)',
+              profundidade_max_de_trabalho_mm: '500 mm (50 cm)',
+              numero_de_dentes: '98 + 4'
+            }
+          }
+        ];
+        await updateDoc(doc(db, 'products', fresaSshDoc.id), { models: updatedModels });
+      }
+    }
   } catch (err) {
     console.error('Self healing failed:', err);
   }
