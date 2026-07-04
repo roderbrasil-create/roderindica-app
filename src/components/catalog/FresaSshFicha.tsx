@@ -406,7 +406,7 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshF
                   )}
                   <div className="text-right" style={{ textAlign: 'right' }}>
                     <span className="text-xs bg-orange-500 text-white px-2 py-0.5 rounded-md font-bold" style={{ fontSize: '12px', backgroundColor: '#f97316', color: '#ffffff', padding: '2px 8px', borderRadius: '6px', fontWeight: 'bold' }}>Ficha Técnica Oficial</span>
-                    <p className="text-[9px] text-muted-foreground font-semibold mt-1" style={{ fontSize: '9px', color: '#64748b', fontWeight: '600', margin: '4px 0 0 0' }}>TRITURADORES FLORESTAIS FAE</p>
+                    <p className="text-[9px] text-muted-foreground font-semibold mt-1" style={{ fontSize: '9px', color: '#64748b', fontWeight: '600', margin: '4px 0 0 0' }}>FRESAS FLORESTAIS FAE</p>
                   </div>
                 </div>
               </div>
@@ -414,13 +414,9 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshF
               {/* Title Section */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
                 <div className="md:col-span-2 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-orange-500/10 text-orange-600 border border-orange-500/20">LANÇAMENTO</span>
-                    <span className="text-xs text-neutral-500 font-bold">• 60 Dias de Validade de Negociação</span>
-                  </div>
-                  <h2 className="text-3xl font-black text-slate-950 tracking-tight">FRESA FAE SSH</h2>
+                  <h2 className="text-3xl font-black text-slate-950 tracking-tight">FRESA FAE SSH - {selectedModel.name}</h2>
                   <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                    A <strong className="text-slate-900">Fresa FAE SSH</strong> é um triturador florestal profissional de alto rendimento projetado especificamente para a destoca em linha profunda, trituração de tocos, raízes subterrâneas e pedras em solos agrícolas e florestais. 
+                    A <strong className="text-slate-900">Fresa FAE SSH - {selectedModel.name}</strong> é uma fresa florestal profissional de alto rendimento projetada especificamente para a destoca em linha profunda, fresagem de tocos, raízes subterrâneas e pedras em solos agrícolas e florestais. 
                   </p>
                   <p className="text-xs text-slate-700 leading-relaxed font-medium">
                     A Roder, como distribuidora oficial da FAE no Brasil, garante o fornecimento deste implemento líder mundial, acompanhado de <strong>entrega técnica especializada</strong>, suporte de engenharia no campo e estoque completo de ferramentas de reposição de altíssima durabilidade.

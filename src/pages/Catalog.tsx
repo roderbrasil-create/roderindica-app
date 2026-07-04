@@ -3871,7 +3871,7 @@ export default function Catalog() {
                           variant="outline"
                           size="sm"
                           className="w-full h-5 md:h-12 uppercase px-0 border-slate-200 text-foreground shadow-sm leading-none"
-                          onClick={() => openPdf(model.pdf_url || viewingGallery?.pdf_url || '')}
+                          onClick={() => openPdf(model.pdf_url || viewingGallery?.pdf_url || '', model.name)}
                           disabled={!(model.pdf_url || viewingGallery?.pdf_url)}
                         >
                           <FileText className="!h-2.5 !w-2.5 md:!h-4 md:!w-4 mb-0.5 md:mb-0 md:mr-0.5 text-red-500" />
@@ -4233,7 +4233,7 @@ export default function Catalog() {
                           (model.pdf_url || selectedProductModels?.pdf_url) ? "text-red-500 hover:text-red-600 hover:bg-red-500/10" : "text-muted-foreground opacity-20"
                         )}
                         disabled={!(model.pdf_url || selectedProductModels?.pdf_url)}
-                        onClick={() => openPdf(model.pdf_url || selectedProductModels?.pdf_url || '')}
+                        onClick={() => openPdf(model.pdf_url || selectedProductModels?.pdf_url || '', model.name)}
                       >
                         <FileText className="h-4 w-4" />
                       </Button>
@@ -4566,7 +4566,7 @@ export default function Catalog() {
                           <Button 
                             variant="outline" 
                             className="flex-1 justify-start gap-2 border-border h-11"
-                            onClick={() => openPdf(selectedModel.pdf_url || selectedProductModels?.pdf_url || '')}
+                            onClick={() => openPdf(selectedModel.pdf_url || selectedProductModels?.pdf_url || '', selectedModel.name)}
                             disabled={!(selectedModel.pdf_url || selectedProductModels?.pdf_url)}
                           >
                             <FileText className="h-4 w-4 text-red-500" /> Ficha Técnica (PDF)
