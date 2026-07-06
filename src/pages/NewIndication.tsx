@@ -230,6 +230,7 @@ export default function NewIndication() {
   const [isAddEquipOpen, setIsAddEquipOpen] = useState(false);
   const [newEquipName, setNewEquipName] = useState('');
   const [newEquipCode, setNewEquipCode] = useState('');
+  const [customEquipName, setCustomEquipName] = useState('');
 
   // Lightbox State
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
@@ -507,6 +508,28 @@ export default function NewIndication() {
         return item;
       })
     );
+  };
+
+  const handleAddCustomEquipment = (name: string) => {
+    if (!name.trim()) return;
+    
+    const exists = selectedItems.some(item => item.product_name.toLowerCase() === name.trim().toLowerCase());
+    if (exists) {
+      toast.error("Este equipamento já está adicionado!");
+      return;
+    }
+
+    setSelectedItems(prev => [
+      ...prev,
+      {
+        id: 'custom-item-' + Date.now(),
+        product_name: name.trim(),
+        quantity: 1,
+        code: 'PERSONALIZADO'
+      }
+    ]);
+    
+    toast.success(`"${name.trim()}" adicionado à sua indicação com sucesso!`);
   };
 
   const handleAddEquipment = async () => {
@@ -1403,6 +1426,37 @@ export default function NewIndication() {
                   </Button>
                 )}
               </div>
+
+              {/* Opção de equipamento personalizado / não listado no catálogo */}
+              <div className="mt-4 pt-4 border-t border-dashed border-border/80 space-y-2.5">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="h-4 w-4 text-amber-500" />
+                  <span className="text-xs font-extrabold text-foreground">Equipamento não listado no catálogo?</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground font-medium">Se você sabe que a Roder fabrica este equipamento mas ele não está no catálogo, digite o nome/descrição dele abaixo para adicioná-lo sem bloqueios:</p>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Ex: Garra Traçadora Reforçada GTR-30"
+                    value={customEquipName}
+                    onChange={(e) => setCustomEquipName(e.target.value)}
+                    className="flex-1 bg-white dark:bg-zinc-950 border-input h-10 text-xs font-semibold rounded-xl"
+                  />
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      if (!customEquipName.trim()) {
+                        toast.error("Por favor, digite o nome do equipamento!");
+                        return;
+                      }
+                      handleAddCustomEquipment(customEquipName);
+                      setCustomEquipName('');
+                    }}
+                    className="bg-amber-500 hover:bg-amber-600 text-white font-black text-xs uppercase px-4 h-10 rounded-xl shrink-0 cursor-pointer"
+                  >
+                    <Plus className="h-4 w-4 mr-1.5 shrink-0" /> Adicionar
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
@@ -2078,8 +2132,39 @@ export default function NewIndication() {
 
                 if (filtered.length === 0) {
                   return (
-                    <div className="text-center py-8 border border-dashed rounded-xl bg-muted/10">
+                    <div className="text-center py-6 border border-dashed rounded-xl bg-muted/10 px-4 space-y-4">
                       <p className="text-xs text-muted-foreground">Nenhum equipamento corresponde aos filtros selecionados.</p>
+                      
+                      <div className="max-w-md mx-auto p-4 bg-amber-500/5 rounded-xl border border-amber-500/20 text-left space-y-2">
+                        <div className="flex items-center gap-1.5">
+                          <Sparkles className="h-4 w-4 text-amber-500 shrink-0" />
+                          <span className="text-[11px] font-bold text-amber-800 dark:text-amber-500 uppercase tracking-wide">Adicionar Item Customizado Roder</span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground font-medium leading-relaxed">Se o equipamento procurado é fabricado pela Roder mas não está no catálogo, digite o nome dele abaixo para adicioná-lo à indicação:</p>
+                        <div className="flex gap-2 pt-1">
+                          <Input
+                            placeholder="Ex: Garra Traçadora GTR-30"
+                            value={customEquipName}
+                            onChange={(e) => setCustomEquipName(e.target.value)}
+                            className="bg-white dark:bg-zinc-950 h-9 text-xs rounded-lg"
+                          />
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              if (!customEquipName.trim()) {
+                                toast.error("Por favor, digite o nome do equipamento!");
+                                return;
+                              }
+                              handleAddCustomEquipment(customEquipName);
+                              setCustomEquipName('');
+                              setIsEquipSelectorOpen(false);
+                            }}
+                            className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs uppercase h-9 px-3 rounded-lg shrink-0 cursor-pointer"
+                          >
+                            Adicionar
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   );
                 }
@@ -2199,6 +2284,37 @@ export default function NewIndication() {
                   );
                 });
               })()}
+            </div>
+
+            {/* Quick add custom equipment at the bottom of the list */}
+            <div className="mt-6 p-4 bg-amber-500/5 rounded-xl border border-amber-500/20 space-y-2 text-left">
+              <div className="flex items-center gap-1.5">
+                <Sparkles className="h-4 w-4 text-amber-500 shrink-0" />
+                <span className="text-xs font-bold text-foreground">Equipamento não listado no catálogo?</span>
+              </div>
+              <p className="text-[10px] text-muted-foreground font-medium">Se você sabe que a Roder fabrica este equipamento mas não o encontrou acima, digite o nome dele abaixo para adicioná-lo diretamente à indicação:</p>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Ex: Garra Traçadora GTR-30"
+                  value={customEquipName}
+                  onChange={(e) => setCustomEquipName(e.target.value)}
+                  className="flex-1 bg-white dark:bg-zinc-950 border-input h-10 text-xs font-semibold rounded-xl"
+                />
+                <Button
+                  type="button"
+                  onClick={() => {
+                    if (!customEquipName.trim()) {
+                      toast.error("Por favor, digite o nome do equipamento!");
+                      return;
+                    }
+                    handleAddCustomEquipment(customEquipName);
+                    setCustomEquipName('');
+                  }}
+                  className="bg-amber-500 hover:bg-amber-600 text-white font-black text-xs uppercase px-4 h-10 rounded-xl cursor-pointer shrink-0"
+                >
+                  Adicionar
+                </Button>
+              </div>
             </div>
           </div>
 

@@ -14,6 +14,8 @@ import { Product, ProductModel, StockItem } from '../../types';
 import { MACHINES, MATERIALS, getRecommendedBucket, calculateDischargeHeights, getHighTipBucketWeight } from '../catalog/HighTipData';
 import { RODER_LOGO_BASE64 } from '../catalog/RoderLogo';
 import { toPng } from 'html-to-image';
+import { HighTipFicha } from '../catalog/HighTipFicha';
+import { FresaSshFicha } from '../catalog/FresaSshFicha';
 
 const DEFAULT_PRODUCTIVITIES: Record<string, string> = {
   "CMF 600": `DERRUBADA (COLHEITA FLORESTAL):
@@ -224,6 +226,54 @@ export default function EngineerHelper() {
   const location = useLocation();
   const { user, profile, isAdmin, isManager } = useAuth();
   
+  // Technical sheet interactive states
+  const [isHighTipFichaOpen, setIsHighTipFichaOpen] = useState(false);
+  const [isFresaSshFichaOpen, setIsFresaSshFichaOpen] = useState(false);
+  const [fresaSshDefaultModel, setFresaSshDefaultModel] = useState<'ssh-150' | 'ssh-200' | 'ssh-225' | 'ssh-250'>('ssh-150');
+
+  const openTechnicalSheet = (url: string, modelName?: string) => {
+    if (!url) return;
+    
+    const lowerUrl = url.toLowerCase();
+    
+    // Check if the link is related to Caçamba High Tip or High Tip
+    if (lowerUrl.includes('cacamba-high-tip') || lowerUrl.includes('high-tip')) {
+      setIsHighTipFichaOpen(true);
+      return;
+    }
+
+    // Check if the link is related to Fresa FAE SSH
+    if (
+      lowerUrl.includes('catalogo-tratores') || 
+      lowerUrl.includes('fresa-ssh') || 
+      lowerUrl.includes('fresa-trituradora') || 
+      lowerUrl.includes('ssh-') ||
+      lowerUrl === 'fresa-ssh'
+    ) {
+      const targetModelName = modelName || '';
+      const modelHint = targetModelName ? targetModelName.toLowerCase() : lowerUrl;
+      
+      if (modelHint.includes('150')) {
+        setFresaSshDefaultModel('ssh-150');
+      } else if (modelHint.includes('200')) {
+        setFresaSshDefaultModel('ssh-200');
+      } else if (modelHint.includes('225')) {
+        setFresaSshDefaultModel('ssh-225');
+      } else if (modelHint.includes('250')) {
+        setFresaSshDefaultModel('ssh-250');
+      } else {
+        setFresaSshDefaultModel('ssh-150');
+      }
+      setIsFresaSshFichaOpen(true);
+      return;
+    }
+
+    // Fallback: If it's a standard URL, open in a new tab safely
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  };
+
   // Only accessible to administrators and commercial managers
   const canTeach = isAdmin || isManager;
   
@@ -1526,6 +1576,19 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
                                     className="max-w-[100%] sm:max-w-[320px] rounded-xl border border-slate-800 shadow-xl my-3 block max-h-48 object-contain bg-slate-900/40 p-1.5 transition-transform hover:scale-105 duration-200"
                                   />
                                 );
+                              },
+                              a: ({ node, children, href, ...props }) => {
+                                if (!href) return <span className="text-slate-200 underline">{children}</span>;
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => openTechnicalSheet(href)}
+                                    className="text-amber-400 hover:text-amber-300 underline font-extrabold cursor-pointer inline-flex items-center gap-1 bg-amber-500/10 hover:bg-amber-500/20 px-1.5 py-0.5 rounded transition my-0.5"
+                                  >
+                                    <FileText className="h-3 w-3 inline text-amber-400" />
+                                    {children}
+                                  </button>
+                                );
                               }
                             }}
                           >
@@ -2501,6 +2564,20 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                   </div>
 
                   <div className="pt-1 space-y-2">
+                    {(selectedModel?.pdf_url || selectedProduct?.pdf_url || 
+                      selectedProduct?.name?.toLowerCase().includes('ssh') || 
+                      selectedProduct?.name?.toLowerCase().includes('caçamba') ||
+                      selectedProduct?.name?.toLowerCase().includes('high tip') ||
+                      selectedModel?.name?.toLowerCase().includes('ssh') ||
+                      selectedModel?.name?.toLowerCase().includes('high tip')) && (
+                      <Button
+                        onClick={() => openTechnicalSheet(selectedModel?.pdf_url || selectedProduct?.pdf_url || 'fresa-ssh', selectedModel?.name)}
+                        className="w-full bg-rose-600 hover:bg-rose-700 text-white font-black text-xs uppercase tracking-wider py-2 rounded-xl shadow flex items-center justify-center gap-2 border border-rose-500"
+                      >
+                        <FileText className="h-4 w-4 text-white animate-pulse" /> Visualizar Ficha Técnica Oficial
+                      </Button>
+                    )}
+
                     <Button
                       onClick={handleDownloadTechnicalSheet}
                       className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs uppercase tracking-wider py-2 rounded-xl shadow flex items-center justify-center gap-2 border border-amber-400"
@@ -2815,6 +2892,19 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                                 className="max-w-[100%] sm:max-w-[340px] rounded-xl border border-slate-200 shadow-lg my-4 block max-h-56 object-contain bg-slate-50 p-1.5 mx-auto"
                               />
                             );
+                          },
+                          a: ({ node, children, href, ...props }) => {
+                            if (!href) return <span className="text-slate-700 underline font-semibold">{children}</span>;
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => openTechnicalSheet(href)}
+                                className="text-amber-600 hover:text-amber-700 underline font-extrabold cursor-pointer inline-flex items-center gap-1 bg-amber-500/10 hover:bg-amber-500/20 px-1.5 py-0.5 rounded transition my-0.5"
+                              >
+                                <FileText className="h-3 w-3 inline text-amber-600" />
+                                {children}
+                              </button>
+                            );
                           }
                         }}
                       >
@@ -2846,6 +2936,14 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
           </div>
         )}
       </AnimatePresence>
+
+      {isHighTipFichaOpen && (
+        <HighTipFicha onClose={() => setIsHighTipFichaOpen(false)} />
+      )}
+
+      {isFresaSshFichaOpen && (
+        <FresaSshFicha onClose={() => setIsFresaSshFichaOpen(false)} defaultModelId={fresaSshDefaultModel} />
+      )}
     </>
   );
 }

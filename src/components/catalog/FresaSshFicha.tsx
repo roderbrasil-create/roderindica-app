@@ -46,14 +46,70 @@ interface ModelSpec {
 export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshFichaProps) {
   const { isAdmin } = useAuth();
   const printRef = useRef<HTMLDivElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const [selectedModelId, setSelectedModelId] = useState<string>(defaultModelId);
   const [faeLogo, setFaeLogo] = useState<string | null>(null);
+  
+  const [scale, setScale] = useState<number>(1);
+  const [cardHeight, setCardHeight] = useState<number>(0);
+  const [isPrinting, setIsPrinting] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (wrapperRef.current && printRef.current) {
+        if (isPrinting) {
+          setScale(1);
+          setCardHeight(printRef.current.offsetHeight);
+          return;
+        }
+
+        const parentWidth = wrapperRef.current.clientWidth;
+        const targetWidth = 840; // Perfect standard A4 proportional desktop width
+        
+        // On mobile we want some padding (e.g., 16px on each side)
+        const padding = window.innerWidth < 640 ? 16 : 32;
+        const availableWidth = parentWidth - padding;
+
+        const currentScale = availableWidth < targetWidth ? availableWidth / targetWidth : 1;
+        setScale(currentScale);
+        
+        // Keep the scaled height in sync to prevent extra blank vertical scroll area
+        setCardHeight(printRef.current.offsetHeight * currentScale);
+      }
+    };
+
+    handleResize();
+
+    const observer = new ResizeObserver(handleResize);
+    if (printRef.current) observer.observe(printRef.current);
+    if (wrapperRef.current) observer.observe(wrapperRef.current);
+    window.addEventListener('resize', handleResize);
+
+    // Dynamic scheduling to ensure height calculations are completely accurate as dynamic content & images finish loading
+    const timers = [100, 300, 600, 1200, 2500].map(delay => 
+      setTimeout(handleResize, delay)
+    );
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', handleResize);
+      timers.forEach(clearTimeout);
+    };
+  }, [selectedModelId, isPrinting]);
 
   useEffect(() => {
     if (defaultModelId) {
       setSelectedModelId(defaultModelId);
     }
   }, [defaultModelId]);
+
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);
 
   useEffect(() => {
     const fetchFaeLogo = async () => {
@@ -244,20 +300,53 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshF
     const toastId = toast.loading("Gerando arquivo PDF da Ficha Técnica...");
 
     try {
-      // Use html-to-image to generate PNG
+      // 1. Scroll the container to the top to avoid scrolled-related clipping in html-to-image
+      if (wrapperRef.current) {
+        wrapperRef.current.scrollTop = 0;
+      }
+
+      // 2. Force scale = 1 temporarily by setting isPrinting to true so that it renders fully and unscaled
+      setIsPrinting(true);
+      
+      // 3. Wait for React to apply state change and browser to repaint
+      await new Promise((resolve) => setTimeout(resolve, 400));
+
+      // 4. Explicitly wait for all image components inside the element to decode and load
+      const images = Array.from(element.getElementsByTagName('img'));
+      await Promise.all(
+        images.map(img => {
+          if (img.complete) return Promise.resolve();
+          return new Promise<void>((resolve) => {
+            img.onload = () => resolve();
+            img.onerror = () => resolve(); // continue even if there is an error
+          });
+        })
+      );
+
+      // Get precise unscaled height of the element
+      const unscaledHeight = element.offsetHeight || element.scrollHeight;
+
+      // 5. Use html-to-image to generate the PNG of the perfectly rendered live element
       const options = {
         quality: 0.98,
-        pixelRatio: 2, // Keeps text crisp
+        pixelRatio: 2.0, // High quality, crisp text
         backgroundColor: '#ffffff',
+        width: 840,
+        height: unscaledHeight,
         style: {
-          transform: 'scale(1)',
-          transformOrigin: 'top left',
+          transform: 'none',
+          transformOrigin: 'top center',
+          width: '840px',
+          height: `${unscaledHeight}px`,
         }
       };
 
       const dataUrl = await toPng(element, options);
 
-      // Create an image object to get exact natural dimensions
+      // Restore printing state immediately
+      setIsPrinting(false);
+
+      // Create image object to get natural dimensions
       const img = new Image();
       img.src = dataUrl;
       
@@ -292,6 +381,9 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshF
     } catch (error) {
       console.error("Error generating PDF with html-to-image:", error);
       
+      // Make sure we reset printing state
+      setIsPrinting(false);
+
       // Fallback to traditional browser print if html-to-image fails (e.g. CORS)
       toast.loading("Iniciando método de impressão alternativo...", { id: toastId });
       
@@ -349,12 +441,14 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshF
         console.error("Print fallback failed:", printErr);
         toast.error("Erro ao gerar PDF. Por favor, tente novamente ou use um navegador moderno.", { id: toastId });
       }
+    } finally {
+      setIsPrinting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-[99999] overflow-y-auto bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-6 no-print-backdrop">
-      <div className="bg-card text-card-foreground w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden border border-border flex flex-col max-h-[96vh]">
+    <div className="fixed inset-0 z-[99999] overflow-hidden bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-6 no-print-backdrop">
+      <div className="bg-card text-card-foreground w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden border border-border flex flex-col h-[96vh]">
         
         {/* Header Controls */}
         <div className="bg-muted px-6 py-4 flex items-center justify-between border-b border-border no-print shrink-0">
@@ -381,10 +475,10 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshF
         </div>
 
         {/* Scrollable Printable Area */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-neutral-100">
+        <div ref={wrapperRef} className="flex-1 min-h-0 overflow-y-auto p-2 sm:p-8 bg-neutral-100 flex flex-col items-center">
           
           {/* Tabs inside app but hidden in print */}
-          <div className="max-w-4xl mx-auto mb-4 flex flex-wrap items-center justify-between gap-2 bg-white p-1.5 rounded-xl border border-neutral-200 no-print">
+          <div className="w-full max-w-4xl mx-auto mb-4 flex flex-wrap items-center justify-between gap-2 bg-white p-1.5 rounded-xl border border-neutral-200 no-print shrink-0">
             <div className="flex flex-wrap gap-1 flex-1">
               {models.map(m => (
                 <button
@@ -414,9 +508,22 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshF
           </div>
 
           <div 
-            className="bg-white text-neutral-900 mx-auto max-w-4xl p-6 sm:p-10 shadow-md border border-neutral-200 rounded-lg print-container font-sans leading-relaxed text-sm" 
-            ref={printRef}
+            className="w-full flex justify-center"
+            style={{
+              height: isPrinting ? 'auto' : (cardHeight ? `${cardHeight}px` : 'auto'),
+              overflow: 'visible',
+            }}
           >
+            <div 
+              className="bg-white text-neutral-900 p-6 sm:p-10 shadow-md border border-neutral-200 rounded-lg print-container font-sans leading-relaxed text-sm origin-top" 
+              style={{
+                width: '840px',
+                minWidth: '840px',
+                transform: isPrinting ? 'none' : `scale(${scale})`,
+                transformOrigin: 'top center',
+              }}
+              ref={printRef}
+            >
             {/* SHEET PAGE 1: INTRODUCTION & REINFORCEMENTS */}
             <div className="space-y-6">
               
@@ -426,11 +533,12 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshF
                   <img 
                     src={RODER_LOGO_BASE64} 
                     onError={(e) => {
-                      e.currentTarget.src = "https://roderbrasil.com.br/wp-content/uploads/2024/05/favicon.png";
+                      e.currentTarget.src = "/api/proxy-image?url=" + encodeURIComponent("https://roderbrasil.com.br/wp-content/uploads/2024/05/favicon.png");
                     }}
                     alt="Roder" 
                     style={{ height: '44px', width: 'auto', display: 'block', maxHeight: '44px' }}
                     className="h-11 object-contain"
+                    crossOrigin="anonymous"
                     referrerPolicy="no-referrer"
                   />
                   <div>
@@ -443,10 +551,11 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshF
                 <div className="flex items-center gap-4" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                   {faeLogo ? (
                     <img 
-                      src={faeLogo} 
+                      src={faeLogo && faeLogo.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(faeLogo)}` : faeLogo} 
                       alt="FAE Logo" 
                       style={{ height: '36px', width: 'auto', display: 'block', maxHeight: '36px' }}
                       className="h-9 object-contain"
+                      crossOrigin="anonymous"
                       referrerPolicy="no-referrer"
                     />
                   ) : (
@@ -703,6 +812,31 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshF
                 </p>
               </div>
 
+              {/* OBSERVATION ON WORKING DEPTH & SOIL RESISTANCE */}
+              <div className="bg-amber-50/70 p-4 rounded-xl border border-amber-200/80 space-y-2 text-xs">
+                <h4 className="font-extrabold text-amber-950 flex items-center gap-1.5 uppercase text-[11px] tracking-wider">
+                  <Info className="h-4 w-4 text-amber-700 shrink-0" /> Observações sobre Profundidade de Trabalho & Potência
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-[11px] leading-relaxed text-slate-800 font-medium">
+                  <div className="space-y-1.5">
+                    <p>
+                      • <strong>Dependência da Resistência do Solo:</strong> A profundidade máxima de trabalho de até 50 cm e a profundidade total alcançada em uma única passada dependem diretamente da resistência e compactação do solo.
+                    </p>
+                    <p>
+                      • <strong>Múltiplas Passadas:</strong> Em solos muito compactos, pode ser necessário realizar mais de uma passada para atingir a profundidade máxima de 50 cm. O equipamento não garante atingir os 50 cm em uma única passada.
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <p>
+                      • <strong>Dependência da Potência do Trator:</strong> Para alcançar a profundidade máxima, o trator deve operar em sua máxima potência exigida pelo equipamento, e não na potência mínima especificada.
+                    </p>
+                    <p>
+                      • <strong>Compactação Extrema:</strong> Solos de altíssima compactação podem limitar fisicamente a profundidade máxima alcançável, mesmo realizando passadas consecutivas, devido aos limites de resistência física do terreno.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {/* PAGE BREAK FOR PDF EXPORT GENTLY HANDLED */}
               <div className="pt-4 border-t border-dashed border-neutral-300"></div>
 
@@ -795,6 +929,7 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshF
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

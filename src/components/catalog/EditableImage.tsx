@@ -218,10 +218,11 @@ export function EditableImage({
       <div className={`relative w-full h-full flex items-center justify-center bg-white overflow-hidden ${innerMinHeightClass}`}>
         {src ? (
           <img 
-            src={src} 
+            src={src && src.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(src)}` : src} 
             alt={alt} 
             className={`${maxHeightClass} w-auto object-contain transition-transform duration-100 ease-out`}
             style={{ transform: `scale(${zoom / 100})` }}
+            crossOrigin="anonymous"
             referrerPolicy="no-referrer"
           />
         ) : (

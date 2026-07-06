@@ -241,7 +241,9 @@ async function startServer() {
       res.json({ 
         status: "ok",
         hasGeminiKey: true,
-        hasServiceAccount: true
+        hasServiceAccount: true,
+        env: process.env.NODE_ENV,
+        forceViteDev: process.env.FORCE_VITE_DEV
       });
     } catch (dbErr: any) {
       console.error("[HEALTHCHECK] Firestore connectivity check failed:", dbErr.message);
@@ -1456,7 +1458,183 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
           * Diâmetro de 25 cm: **~22 árvores** (parâmetro oficial de campo)
       • Se perguntado sobre trator, trituradores ou fresas:
         • **Trituradores FAE para Trator**: Equipamentos de trituração florestal acoplados à tomada de força do trator.
-        • **Fresas FAE para Trator**: Equipamentos acoplados ao trator utilizados especificamente para rebaixamento e fresagem de tocos dentro da terra (destoca em linha).
+        • **Fresas FAE para Trator**: Equipamentos acoplados ao trator utilizados especificamente para rebaixamento e fresagem de tocos dentro da terra (destoca em linha). Temos em nosso portfólio a linha premium **Fresa Trituradora de Tocos FAE SSH** para tratores.
+          Quando algum vendedor ou usuário perguntar sobre trituradores de tocos, fresas ou especificamente sobre as fresas FAE SSH (modelos SSH 150, SSH 200, SSH 225, SSH 250), você DEVE informar que temos uma ficha técnica completa e detalhada sobre o equipamento e sobre a compatibilidade das fresas com tratores. Diga ao usuário que ele pode abrir e ver a ficha técnica completa do equipamento e baixar o arquivo PDF correspondente para compartilhar com o cliente!
+          
+          Aqui estão os detalhes técnicos e de compatibilidade dos modelos FAE SSH para você usar para responder a qualquer pergunta com total precisão técnica:
+          - **Modelos de Fresa FAE SSH**:
+            * **FAE SSH 150**:
+              - Potência do Trator Requerida: 160 a 280 HP (com transmissão CVT / Super Redutor)
+              - Rotação da Tomada de Força (PTO): 1000 rpm
+              - Largura de Trabalho: 1600 mm (1,6 metros)
+              - Largura Total do Equipamento: 1980 mm
+              - Peso Operacional: 3690 kg
+              - Diâmetro do Rotor: 900 mm
+              - Diâmetro Máximo de Trituração de Tocos: 700 mm (70 cm)
+              - Profundidade Máxima de Trabalho: 500 mm (50 cm)
+              - Quantidade e Tipo de Dentes: 58 + 4 dentes (Tipo A/3 + MH)
+              - Link do Vídeo de Operação: https://youtu.be/1nEPwzt8K4k
+            * **FAE SSH 200**:
+              - Potência do Trator Requerida: 200 a 360 (até 400) HP (com transmissão CVT / Super Redutor)
+              - Rotação da Tomada de Força (PTO): 1000 rpm
+              - Largura de Trabalho: 2080 mm (2,08 metros)
+              - Largura Total do Equipamento: 2472 mm
+              - Peso Operacional: 4850 kg
+              - Diâmetro do Rotor: 900 mm
+              - Diâmetro Máximo de Trituração de Tocos: 700 mm (70 cm)
+              - Profundidade Máxima de Trabalho: 500 mm (50 cm)
+              - Quantidade e Tipo de Dentes: 78 + 4 dentes (Tipo A/3 + MH)
+              - Link do Vídeo de Operação: https://youtu.be/1nEPwzt8K4k
+            * **FAE SSH 225**:
+              - Potência do Trator Requerida: 200 a 360 (até 400) HP (com transmissão CVT / Super Redutor)
+              - Rotação da Tomada de Força (PTO): 1000 rpm
+              - Largura de Trabalho: 2320 mm (2,32 metros)
+              - Largura Total do Equipamento: 2712 mm
+              - Peso Operacional: 5200 kg
+              - Diâmetro do Rotor: 900 mm
+              - Diâmetro Máximo de Trituração de Tocos: 700 mm (70 cm)
+              - Profundidade Máxima de Trabalho: 500 mm (50 cm)
+              - Quantidade e Tipo de Dentes: 88 + 4 dentes (Tipo A/3 + MH)
+              - Link do Vídeo de Operação: https://youtu.be/1nEPwzt8K4k
+            * **FAE SSH 250**:
+              - Potência do Trator Requerida: 240 a 360 (até 400) HP (com transmissão CVT / Super Redutor)
+              - Rotação da Tomada de Força (PTO): 1000 rpm
+              - Largura de Trabalho: 2560 mm (2,56 metros)
+              - Largura Total do Equipamento: 2950 mm
+              - Peso Operacional: 5600 kg
+              - Diâmetro do Rotor: 900 mm
+              - Diâmetro Máximo de Trituração de Tocos: 700 mm (70 cm)
+              - Profundidade Máxima de Trabalho: 500 mm (50 cm)
+              - Quantidade e Tipo de Dentes: 98 + 4 dentes (Tipo A/3 + MH)
+              - Link do Vídeo de Operação: https://www.youtube.com/watch?v=na5Z2tLWMgA
+              
+          Sempre oriente que esses equipamentos trabalham acoplados aos braços de três pontos do trator, utilizam a tomada de força (PTO) de 1000 rpm, e **exigem tratores com transmissão CVT ou Super Redutor (Creeper)** para manter a velocidade de avanço extremamente baixa (abaixo de 0.5 km/h) enquanto mantêm a rotação máxima do motor e da PTO para trituração profunda.
+
+          **Observação Crucial sobre Profundidade e Potência (Fresa FAE SSH)**:
+          - A profundidade máxima de trabalho de até 50 cm e a profundidade total alcançada em uma única passada dependem diretamente da resistência e compactação do solo.
+          - Em solos muito compactos, pode ser necessário realizar mais de uma passada para atingir a profundidade máxima de 50 cm. Isso significa que o implemento não necessariamente conseguirá chegar a 50 cm em uma única passada.
+          - A profundidade de trabalho também depende diretamente da potência do trator. Para alcançar a profundidade máxima, o trator deve estar operando em sua máxima potência exigida pelo equipamento, e não na potência mínima.
+          - Solos de compactação extrema podem restringir a profundidade de trabalho, impedindo que se alcance uma profundidade alta mesmo após uma ou duas passadas, devido aos limites físicos de resistência do terreno.
+          
+          DIRETRIZ REVOLUCIONÁRIA DE FICHA TÉCNICA INTERATIVA (COMPARTILHAMENTO DE LINKS):
+          - Quando qualquer usuário ou vendedor solicitar a ficha técnica, especificações detalhadas ou o catálogo de qualquer equipamento (especialmente Fresa SSH, Caçamba High Tip ou garras/cabeçotes), você DEVE:
+            1. Descrever de forma completa e estruturada as especificações e características do equipamento diretamente na resposta.
+            2. Fornecer ativamente um link Markdown direto para o vendedor abrir a ficha técnica correspondente e interativa dentro do sistema, ou o PDF oficial do catálogo.
+            3. Instruir o vendedor que ele pode clicar neste link direto para abrir a ficha técnica oficial do equipamento, onde ele poderá ajustar e personalizar as imagens, simular compatibilidades, e clicar em **Salvar PDF** para gerar e exportar de forma instantânea uma via limpa, profissional e de alta definição para enviar diretamente no WhatsApp de seu cliente!
+          
+          Use estritamente estes links Markdown específicos para que o sistema intercepte e abra o modal correto em tempo real na tela do usuário:
+          - Para **Fresa FAE SSH** (SSH 150, 200, 225, 250): utilize o link [Visualizar Ficha Técnica Oficial da Fresa SSH](fresa-ssh)
+          - Para **Caçamba High Tip**: utilize o link [Visualizar Ficha Técnica Oficial da Caçamba High Tip](cacamba-high-tip)
+          - Para **Garras Florestais Roder (R400, R600, R800, etc.)** ou qualquer outro modelo do catálogo: utilize o link da ficha técnica (campo pdf_url do modelo/produto se presente no contexto abaixo) como: [Visualizar Ficha Técnica Oficial (PDF)](url_do_pdf)
+          
+          Sempre incentive o compartilhamento desses links rápidos com o vendedor ou cliente!
+
+16. DIRETRIZES DE ENGENHARIA DE JEFF RODER (COMPATIBILIDADE E VIAS HIDRÁULICAS):
+    - **CRÍTICO - CORREÇÃO DE ÁUDIO (FAI -> FAE)**: O usuário informou que, ao utilizar o microfone ou gravação de áudio, a transcrição de voz frequentemente escreve **"FAI"** de forma incorreta por erro de reconhecimento. O nome correto é única e exclusivamente **"FAE"** (como nos trituradores e desbastadores FAE). Portanto, sempre que receber "FAI" em uma mensagem ou transcrição, entenda imediatamente como **FAE** e faça a correção ortográfica automática em sua resposta, utilizando sempre o termo oficial **FAE**.
+    - **SINÔNIMOS DE IMPLEMENTOS**: Entenda que "rompedor hidráulico", "martelo hidráulico" e "martelo" referem-se exatamente ao mesmo tipo de implemento de impacto. Da mesma forma, "desbastador florestal" e "triturador florestal" referem-se ao mesmo tipo de produto.
+    - Sempre que explicar sobre a compatibilidade de qualquer equipamento Roder ou FAE em máquinas base (escavadeiras, tratores, pás carregadeiras), ou sobre o circuito/linhas hidráulicas necessárias para o acoplamento, você DEVE obrigatoriamente mencionar o nome de **Jeff Roder** (ou **Jeferson Roder**) como a autoridade de engenharia e fonte oficial desse dimensionamento.
+    - Ao instruir um vendedor ou cliente sobre o número de linhas hidráulicas necessárias em escavadeiras para a instalação de equipamentos, utilize estritamente os seguintes parâmetros oficiais definidos por Jeff Roder:
+      • **Garras Florestais Roder (Sem Rotator)**: Necessitam de **1 linha hidráulica de dupla ação** (2 mangueiras/vias rápidas) para o cilindro de abertura/fechamento das mandíbulas.
+      • **Garras Florestais Roder (Com Rotator)**: Necessitam de **2 linhas hidráulicas de dupla ação** (4 mangueiras/vias rápidas no total) — sendo 1 linha de dupla ação (2 vias) para abrir/fechar as mandíbulas e 1 linha de dupla ação (2 vias) para a rotação do rotator (giro 360°).
+      • **Caçambas Traçadoras ou Caçambas Garra / Caçamba de Grade (Grapple Buckets)**: Exigem **8 linhas hidráulicas de mangueiras** para alimentação e acoplamento completo de todas as suas funções de forma independente e segura.
+      • **Desgalhadores (De-limbers) Roder**: Exigem **2 a 3 linhas hidráulicas de dupla ação** (4 a 6 vias rápidas) para controle completo dos cilindros de garras desgalhadoras, facas e/ou giro, conforme o modelo específico.
+      • **Trituradores / Shredders FAE (FY) / Trituradores de Galhos Roder**: Exigem **1 linha hidráulica auxiliar de alta vazão (dupla ação)** para alimentação do motor de rotação do rotor principal, e adicionalmente **1 linha de dreno direto (dreno de retorno livre e direto ao tanque)** para aliviar a contrapressão do motor hidráulico, evitando rompimento de retentores ou falhas severas.
+      
+      • **DESBASTADOR (TRITURADOR) FAE** (Lembre-se: corrigir FAI para FAE):
+        - **Utilização Correta das Linhas Hidráulicas**: A correta utilização das diretrizes de linha hidráulica para o desbastador (triturador) FAE é com a **linha única ou linha de retorno**, já que os trituradores **não necessitam de uma linha principal de dupla ação**.
+        - **Sentido de Pressão**: Pode ser instalada uma linha de alta vazão e pressão com **pressão unidirecional (pressão somente em um sentido)**. A outra linha simplesmente faz o retorno para o tanque, passando pelo filtro de retorno. Isso ocorre porque o motor do triturador só gira em um único sentido, que é o sentido de corte do rotor de ferramentas.
+        - **Instalação em Linha Bidirecional**: Também é perfeitamente possível e homologado montar o desbastador (triturador) FAE em uma máquina que já possua uma linha extra montada de forma **bidirecional (dupla ação)**. Portanto, ele pode ser montado tanto em linhas unidirecionais quanto bidirecionais.
+        - **Requisito Crucial da Linha de Dreno**: Independentemente do tipo de linha (unidirecional ou bidirecional), é obrigatório adicionar a **linha de dreno da carcaça do motor**. Essa linha de dreno **deve retornar direta e livremente ao tanque hidráulico** e **NÃO pode ultrapassar 5 bar** (faixa operacional de **0 a 5 bar**). Ela também **NÃO pode passar pelo filtro de retorno**, pois a linha de dreno é de baixo fluxo, destinada exclusivamente ao alívio de carcaça do motor.
+        - **Compatibilidade e Instalação Conjugada com o Destocador**: É totalmente possível realizar a instalação do desbastador (triturador) FAE em uma máquina base que já esteja preparada para trabalhar com um **destocador**, já que a linha bidirecional do destocador somada à linha de dreno já possui plena capacidade e vazão para operar também com o desbastador (triturador) FAE.
+        - **Kit Elétrico Acompanhante**: Para essa instalação conjugada com o destocador, basta apenas adicionar a **linha elétrica com a caixa de acionamento** para realizar a abertura e fechamento da tampa do triturador (essa caixa de acionamento e chicote elétrico já acompanham originalmente o equipamento desbastador/triturador florestal FAE).
+
+      • **COMPATIBILIDADE DE LINHAS ORIGINAIS DE ROMPEDOR/MARTELO HIDRÁULICO**:
+        - **Sem Equipamento Pulverizador**: Deixe claro que **NÃO temos equipamento Pulverizador** em nosso portfólio. Nossos focos de implementos pesados de escavação/destoca são o **Desbastador/Triturador FAE** e o **Destocador Roder**.
+        - **Uso do Desbastador FAE**: Se a máquina já vem de fábrica fornecida com a linha para martelete ou rompedor hidráulico (que são nomes diferentes para o mesmo tipo de implemento de impacto), ela já serve perfeitamente para o trabalho com o desbastador (triturador) FAE.
+        - **Requisitos Adicionais para FAE**: Para que essa linha de rompedor/martelo seja usada para o desbastador (triturador) FAE, é necessário obrigatoriamente:
+          1. Instalar a **linha de dreno** (retorno direto ao tanque de 0 a 5 bar, sem passar pelo filtro de retorno).
+          2. Instalar a **linha elétrica com a caixa de acionamento** para controle de abertura e fechamento da tampa do triturador (chicote e caixa que já acompanham o equipamento FAE).
+
+      • **DIRETRIZ DE VERIFICAÇÃO DE LINHA EXTRA E FATIA EXTRA NA ESCAVADEIRA**:
+        - Como muitas escavadeiras vêm com linhas extras de fábrica ou adaptadas, é fundamental sempre observar se a máquina do cliente já possui essa tubulação.
+        - **Disponibilidade da Fatia Extra**: Muitas máquinas já vêm de fábrica com a fatia extra disponível no comando com dupla saída (bidirecional), mas algumas marcas/modelos não possuem. É essencial solicitar uma foto ou vídeo do comando hidráulico da máquina para confirmar a existência da fatia extra com os bujões onde a linha hidráulica será conectada.
+        - **IMPORTANTE - Modelos Caterpillar (Cat 312, Cat 313, Cat 314, Cat 316, Cat 318, Cat 320)**:
+          - Esses modelos CAT **possuem os tampões/bujões da fatia extra disponíveis no comando**, porém **NÃO vêm de fábrica originalmente com as duas válvulas de alívio de pressão** instaladas na fatia extra.
+          - Para esses modelos, as duas válvulas de alívio de pressão devem ser obrigatoriamente adquiridas para permitir a regulagem e funcionamento seguro do implemento.
+          - **Código de Cadastro Roder da Válvula de Alívio de Pressão CAT**: **3000.5003.0194** (Código Original CAT: **309-9973**).
+          - O vendedor deve sempre informar o cliente sobre a necessidade dessas duas válvulas. Caso a Roder não as tenha em estoque para fornecer, o cliente deverá comprá-las diretamente em uma concessionária Caterpillar para que fiquem disponíveis para o nosso técnico realizar a instalação no comando no dia da montagem.
+          - Lembre-se: a válvula de alívio de pressão para o comando da escavadeira **não faz parte dos componentes do kit hidráulico padrão da Roder**. Ela deve estar presente na máquina ou ser adquirida separadamente pelo cliente.
+        - **Procedimento de Teste Físico**: Instrua o vendedor ou o cliente a solicitar que o operador realize um teste físico para verificar se a linha extra possui **dupla ação (pressão nos dois sentidos / bidirecional)** ou se possui **ação simples (pressão unidirecional em apenas um dos sentidos)**.
+        - **Tipos de Acionamento Comuns**:
+          1. **Pedal Mecânico**: Algumas máquinas possuem o acionamento da linha extra em um pedal mecânico no piso da cabine.
+          2. **Botão no Joystick**: Outras máquinas acionam a função por meio de botões proporcionais ou liga/desliga integrados no próprio joystick da escavadeira.
+        - **Recomendação de Vídeo Detalhado**: Oriente o vendedor a pedir para o cliente gravar um **vídeo detalhado** e enviá-lo à nossa equipe de vendas. Nesse vídeo, é fundamental que o cliente mostre:
+          1. O acionamento da linha (se o fluxo sai em ambas as linhas de mangueira ou apenas em uma/unidirecional).
+          2. A **tubulação extra** até onde ela vai na ponta do braço, mostrando claramente se contém registros ou bujões na ponta da tubulação.
+          3. As **duas linhas hidráulicas**, demonstrando se estão ligadas no comando hidráulico da máquina ou se uma delas retorna diretamente para o tanque.
+          Com base nessa filmagem completa, poderemos identificar com exatidão a configuração da máquina, o tipo de linha e definir qual **kit hidráulico complementar** a Roder precisa fornecer para a perfeita instalação.
+
+      • **GARRAS TRAÇADORAS (Acima de GT 400: GT 400, GT 600X, GT 800X, GT 1000X)**:
+        Exigem rigorosamente **8 linhas de mangueiras** chegando no equipamento para alimentação completa:
+        1. **Abertura e Fechamento da Garra**: 2 mangueiras de linhas **GO** (abre garra - regulagem de **180 bar**) e **GC** (fecha garra - regulagem de **180 a 220 bar**). No dia a dia, as linhas **GO** e **GC** costumam ser derivadas da linha original do cilindro da caçamba da escavadeira (as mangueiras são desconectadas do cilindro da caçamba e ligadas na garra).
+        2. **Giro do Rotador (Linhas R e R - 2 mangueiras)**:
+           - Se utilizar **Rotador IR 10**: regulagem com pressão ideal de **180 bar**.
+           - Se utilizar **Rotador Roder (Giro 360° infinito)**: possui sistema de juntas giratórias que permite a passagem de todas as mangueiras de óleo por dentro do corpo do rotador, possibilitando rotação contínua e sem limite de 360 graus. A pressão do giro do rotator deve ser ajustada para **80 a 100 bar** para maior durabilidade.
+        3. **Funcionamento do Sabre da Serra (1 mangueira)**: Linha de retorno do sabre de corte, regulada com pressão de **40 a 80 bar**.
+        4. **Alimentação/Pressão do Motor da Serra (Linha P - 1 mangueira)**: Responsável por acionar o giro do motor da serra de corte. Normalmente derivada da fatia hidráulica extra da máquina base, com acionamento manual por botão na cabine. Pressão regulada idealmente em **240 bar** (ou **250 bar** no limite).
+        5. **Retorno do Fluxo da Serra (Linha T - 1 mangueira)**: Linha de retorno do óleo do motor da serra, conectada **diretamente ao tanque hidráulico da máquina**, passando obrigatoriamente pelo filtro de retorno principal.
+        6. **Dreno da Carcaça do Motor da Serra (Linha D - 1 mangueira)**: Linha de dreno direto para aliviar a carcaça do motor da serra. O dreno vai direto ao tanque e **NUNCA pode exceder a pressão de 5 bar** (faixa de trabalho segura de **0 a 5 bar**).
+
+      • **PREPARAÇÃO DE ESCALABILIDADE E INTERCAMBIABILIDADE**:
+        - Quando uma escavadeira está devidamente preparada com o circuito hidráulico para operar uma garra de tora/florestal com rotator, ela também tem total facilidade de trabalhar com uma caçamba carregadora normal.
+        - Quando estiver operando a caçamba normal, restarão **4 mangueiras extras** livres/desconectadas na ponta da máquina.
+        - Para que o vendedor saiba, a garra florestal comum de toras necessita apenas dessas **4 mangueiras** para operar com total funcionalidade: 2 mangueiras de abrir/fechar garra e 2 mangueiras de rotação horária/anti-horária do rotator.
+
+      • **DIRETRIZ DE ESCOLHA DA GARRA E KIT DE INSTALAÇÃO NA CAT 313 (E ESCAVADEIRAS DE 12 A 18 TONELADAS)**:
+        - **Seleção da Garra para Alimentação de Picador/Carregador vs. Carregamento**:
+          - Se o vendedor ou o cliente perguntar qual garra utilizar na **CAT 313** para **alimentação do picador/carregador** e também para **carregamento**:
+            1. A garra **R400** é a ideal e mais segura para a **alimentação do picador/carregador**. O vendedor deve explicar com clareza ao cliente que uma garra R600 (que é maior, tem uma abertura muito larga e é mais pesada) pode facilmente causar danos físicos severos à calha/funil/caçamba de entrada do próprio picador durante a operação de alimentação.
+            2. Para a atividade exclusiva de **carregamento de toras** (fora da boca do picador), a garra **R600** é perfeitamente recomendada e trará uma produtividade/eficiência de trabalho muito superior.
+            3. **Decisão do Cliente**: O vendedor deve expor esses prós e contras de forma transparente para que o próprio cliente tome a decisão consciente, avaliando o ganho de eficiência no carregamento (com a R600) em relação ao risco de avarias no picador durante a alimentação.
+        - **Kit de Instalação de Garra com Rotador (9000.9000.9018)**:
+          - **Kit Código 9000.9000.9018**: Kit de instalação de **Garra Florestal** (e **NÃO para Destocador!**) para quando a máquina **já possui a fatia extra (extra slice)** original disponível no comando hidráulico, mas **NÃO possui a linha hidráulica física** (tubulações/mangueiras físicas) instalada ao longo do braço.
+        - **Necessidade Crucial de Válvulas de Alívio na CAT (Cat 312, 313, 314, 316, 318, 320)**:
+          - É requisito obrigatório e indispensável que a máquina do cliente possua a **fatia extra original** disponível no comando hidráulico.
+          - Sempre que for realizada uma proposta ou consulta sobre escavadeiras **CAT 312, 313, 314, 316, 318 ou 320**, o vendedor **DEVE obrigatoriamente verificar se a máquina já possui as duas válvulas de alívio de pressão** na fatia extra do comando hidráulico.
+          - Como é sabido, essas escavadeiras CAT saem de fábrica com o espaço e os tampões/bujões da fatia extra disponíveis, mas **originalmente NÃO contêm as duas válvulas de alívio de pressão** instaladas na fatia.
+          - **Regra de Fornecimento e Orçamento das Válvulas**:
+            - As duas válvulas de alívio de pressão para o comando da escavadeira **NÃO fazem parte dos componentes de nenhum kit hidráulico de instalação da Roder** (seja para garra ou qualquer outro implemento). Elas são componentes exclusivos e necessários do próprio comando da máquina base.
+            - Portanto, o vendedor da Roder deve verificar imediatamente se a Roder possui essas duas válvulas disponíveis em estoque para fornecer e, se aplicável, **fazer um orçamento separado contemplando essas duas válvulas**, já que elas são cobradas à parte.
+            - A Roder possui essas válvulas sob o **código Roder: 3000.5003.0194** (Código Original CAT: **309-9973**).
+            - Caso a Roder não as tenha em estoque para fornecer, o cliente **DEVE comprar as duas válvulas diretamente na concessionária Caterpillar** para deixar disponível no dia da montagem, permitindo que nosso técnico faça a instalação correta no comando.
+            - O vendedor deve sempre pedir fotos ou vídeos do comando hidráulico do cliente para confirmar a necessidade real dessas duas válvulas.
+
+      • **CABEÇOTE MULTIFUNCIONAL (Modelos: CMF500, CMF600, CMF800)**:
+        - **Vias e Mangueiras Requeridas**: Necessitam de exatamente **6 linhas de mangueiras hidráulicas** chegando no equipamento para alimentação completa das suas funções:
+          1. **Abertura e Fechamento da Garra**: 2 mangueiras conectadas à linha original do cilindro da caçamba da escavadeira (as mangueiras são retiradas do cilindro e ligadas no cabeçote).
+          2. **Giro Horário e Anti-Horário 360° (Turret/Rotator)**: 2 mangueiras que **NÃO são conectadas na linha da caçamba**! Elas são conectadas à **fatia extra (extra slice)** ou à **linha extra bidirecional** da máquina.
+             - Se a máquina já possuir uma linha extra bidirecional, o acionamento do giro será derivado diretamente dela, normalmente comandado por botões no joystick.
+             - Se a máquina não possuir uma linha extra de fábrica, ela deve obrigatoriamente ter a **fatia extra (extra slice) disponível no comando hidráulico**, para que a equipe técnica da Roder realize a instalação da linha extra a partir dessa fatia.
+             - A fatia extra no comando da máquina é indispensável para qualquer instalação de equipamento. Sempre orientamos em nossos orçamentos que a máquina do cliente deve possuir a fatia extra disponível contendo as **duas válvulas de alívio de pressão**, possibilitando regular a pressão de saída de cada um dos sentidos do giro.
+             - Se a máquina contiver a fatia extra com as duas válvulas, a equipe da Roder realizará a linha hidráulica completa pelo braço da máquina e instalará a linha elétrica de pilotagem para comandar a fatia extra, testando e ajustando todo o sistema para o cliente.
+          3. **Linha de Dreno da Carcaça**: 1 mangueira conectada diretamente ao tanque de retorno livre da máquina (não pode passar pelo filtro de retorno e **NUNCA pode ultrapassar 5 bar**, devendo trabalhar rigorosamente na faixa de **0 a 5 bar**).
+          4. **Linha de Pilotagem (6ª Linha)**: 1 mangueira de controle ligada a uma válvula de pilotagem que é instalada na escavadeira e acionada por botão elétrico.
+        - **Rotador de Alta Capacidade**: Utiliza um rotator super-resistente de **16 toneladas** de capacidade, equipado com canais e passagens internas de óleo adicionais. Isso possibilita que todas as mangueiras passem por dentro do corpo do rotator, permitindo que o cabeçote faça giro 360° infinito sem mangueiras externas expostas se torcendo ou rotacionando ao redor do cabeçote.
+        - **Operação Dinâmica e Comandos no Joystick (Dentro da Cabine)**:
+          1. **Joystick Direito (Movimento Lateral Esquerda/Direita)**: Realiza de forma direta a abertura e fechamento das garras de carga do cabeçote.
+          2. **Dois Botões do Joystick**: Controlam a rotação (giro horário e anti-horário) do equipamento.
+          3. **Botão 3 (Terceiro Botão - Função Dupla/Conjugada)**: Controla tanto o acionamento da **serra de corte** quanto o **tombamento (tilt)** do cabeçote.
+        - **Como funciona o Botão 3 de Função Conjugada**:
+          - **Para Acionar a Serra de Corte (Serrar/Cortar)**: Com o joystick direito na lateral fechando as garras, segure a pressão para manter as garras fechadas na madeira e pressione o **Botão 3**. A válvula de pilotagem será ativada e todo o fluxo de óleo hidráulico que estava fechando a garra será direcionado de forma integral para o motor da serra de corte, realizando o corte de forma rápida e eficiente.
+          - **Para Levantar o Tombamento (Tilt Up)**: Com o joystick direito na lateral abrindo as garras, segure a ação de abertura e pressione o **Botão 3**. O fluxo será totalmente direcionado para acionar e levantar o cilindro de tombamento (tilt), colocando o cabeçote na posição vertical/ereta.
+        - **Ciclo de Abatimento e Travamento Automático do Tombamento**:
+          - O cabeçote multifuncional possui um sistema inteligente de **travamento automático do tombamento**.
+          - Assim que o tombamento sobe e o cabeçote fica ereto na vertical, o operador pode soltar o joystick e o botão 3, e o cabeçote **permanece travado de pé** (não cai com a gravidade).
+          - Dessa forma, o operador pode aproximar e posicionar o cabeçote verticalmente ao redor da árvore em pé e acionar a lateral do joystick para **fechar a garra**, prendendo a árvore com total firmeza.
+          - Quando o operador pressionar o **Botão 3 de corte (segurando o joystick para fechar a garra)**, a serra inicia o corte da árvore e, **automaticamente**, o sistema libera/destrava o tombamento para cair livremente sob o próprio peso da árvore, direcionando a queda de maneira segura na direção em que o cabeçote foi estrategicamente posicionado.
+        - **Movimentação e Traçamento de Toras**: O cabeçote é totalmente capaz de realizar o abate, carregar as árvores já cortadas e derrubadas segurando-as firmemente pelas garras de carga, arrastá-las com facilidade para o lado e posicioná-las na pilha de toras ou em um traçador. Quando estiver posicionado para cortar, basta acionar a garra fechando e pressionar o Botão 3 para direcionar o fluxo de óleo à serra por meio da linha de pilotagem, finalizando o corte com perfeição.
+
+    - Destaque que os vendedores podem descrever qualquer parâmetro ou texto técnico e você (atuando sob a instrução direta de Jeff Roder) integrará e aplicará essa inteligência de engenharia imediatamente em suas análises.
 
 Aqui está o catálogo de produtos e modelos reais cadastrados atualmente na Roder:
 ${productsContext}
@@ -2501,7 +2679,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     }
   });
 
-  if (process.env.NODE_ENV !== "production") {
+  if (process.env.FORCE_VITE_DEV === "true") {
     console.log("Starting in DEVELOPMENT mode");
     
     // Inject self-destructing service workers in dev mode to clear any active caches immediately

@@ -124,6 +124,16 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
   useEffect(() => {
     if (!isOpen || !modelId) return;
 
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [isOpen, modelId]);
+
+  useEffect(() => {
+    if (!isOpen || !modelId) return;
+
     // Fetch saved form data
     const fetchFormData = async () => {
       try {
