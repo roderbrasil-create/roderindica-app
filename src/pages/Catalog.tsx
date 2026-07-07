@@ -85,6 +85,8 @@ import { HighTipSelector } from '../components/catalog/HighTipSelector';
 import { HighTipFicha } from '../components/catalog/HighTipFicha';
 import { MulcherTechnicalDelivery } from '../components/catalog/MulcherTechnicalDelivery';
 import { FresaSshFicha } from '../components/catalog/FresaSshFicha';
+import { EngateRapidoFicha } from '../components/catalog/EngateRapidoFicha';
+import { RODER_LOGO_BASE64 } from '../components/catalog/RoderLogo';
 
 function SmartImage({ src, alt, className, zoom = 1, ...props }: any) {
   const [resolvedSrc, setResolvedSrc] = useState('');
@@ -255,6 +257,47 @@ function ImageCarousel({ images, zoom = 1, onClick }: { images: string[], zoom?:
     </div>
   );
 }
+
+const isEngateProduct = (nameOrUrl?: string) => {
+  if (!nameOrUrl) return false;
+  const lower = nameOrUrl.toLowerCase();
+  return lower.includes('engate') || 
+         lower.includes('enganche') || 
+         lower.includes('acople') || 
+         lower.includes('acoplamento') || 
+         lower.includes('hitch') || 
+         lower.includes('coupler');
+};
+
+const isHighTipProduct = (nameOrUrl?: string) => {
+  if (!nameOrUrl) return false;
+  const lower = nameOrUrl.toLowerCase();
+  return lower.includes('high tip') || 
+         lower.includes('high-tip') || 
+         lower.includes('cacamba-high-tip') || 
+         lower.includes('concha-high-tip') ||
+         lower.includes('caçamba de alto despejo') ||
+         lower.includes('alto despejo') ||
+         lower.includes('vuelco alto');
+};
+
+const isFresaProduct = (nameOrUrl?: string) => {
+  if (!nameOrUrl) return false;
+  const lower = nameOrUrl.toLowerCase();
+  return lower.includes('fresa') || 
+         lower.includes('ssh') || 
+         lower.includes('trituradora');
+};
+
+const isAnyFichaSupported = (product: any) => {
+  if (!product) return false;
+  const url = product.pdf_url || '';
+  const name = product.name || '';
+  return !!product.pdf_url || 
+         isEngateProduct(url) || isEngateProduct(name) || 
+         isHighTipProduct(url) || isHighTipProduct(name) || 
+         isFresaProduct(url) || isFresaProduct(name);
+};
 
 function SortableProductCard({ 
   product, 
@@ -427,7 +470,7 @@ function SortableProductCard({
             <CardContent className="p-0 md:p-4 pt-0 md:pt-0 md:px-0 flex-1">
               <p className={cn(
                 "text-[12px] md:text-sm text-muted-foreground leading-snug",
-                viewMode === 'list' ? "md:line-clamp-4" : "line-clamp-2 md:line-clamp-3"
+                viewMode === 'list' ? "line-clamp-3 md:line-clamp-4" : "line-clamp-2 md:line-clamp-3"
               )}>{product.description}</p>
             </CardContent>
           </div>
@@ -455,10 +498,10 @@ function SortableProductCard({
                   size="sm" 
                   className={cn(
                     "h-8 border-border px-1 text-[7px] font-bold flex-col gap-0.5 justify-center leading-none min-w-[42px]",
-                    !product.pdf_url && "opacity-20"
+                    !isAnyFichaSupported(product) && "opacity-20"
                   )} 
-                  onClick={() => openPdf(product.pdf_url || '')}
-                  disabled={!product.pdf_url}
+                  onClick={() => openPdf(product.pdf_url || '', product.name)}
+                  disabled={!isAnyFichaSupported(product)}
                 >
                   <FileText className="h-3 w-3 text-red-500" /> <span>Ficha</span>
                 </Button>
@@ -552,14 +595,14 @@ function SortableProductCard({
                 >
                   <MessageCircle className="h-4 w-4 mr-1.5" /> WhatsApp
                 </Button>
-                <Button 
+                 <Button 
                   variant="outline" 
                   className={cn(
                     "flex-1 border-border text-xs h-9",
-                    product.pdf_url ? "text-foreground" : "text-muted-foreground opacity-20"
+                    isAnyFichaSupported(product) ? "text-foreground" : "text-muted-foreground opacity-20"
                   )}
-                  onClick={() => openPdf(product.pdf_url || '')}
-                  disabled={!product.pdf_url}
+                  onClick={() => openPdf(product.pdf_url || '', product.name)}
+                  disabled={!isAnyFichaSupported(product)}
                 >
                   <FileText className="h-4 w-4 mr-1.5" /> Ficha
                 </Button>
@@ -617,6 +660,9 @@ export default function Catalog() {
   const [animationType, setAnimationType] = useState<'tilt' | 'rotate'>('rotate'); // Default to rotate as requested
   const [isHighTipFichaOpen, setIsHighTipFichaOpen] = useState(false);
   const [isFresaSshFichaOpen, setIsFresaSshFichaOpen] = useState(false);
+  const [isEngateRapidoFichaOpen, setIsEngateRapidoFichaOpen] = useState(false);
+  const [suspendedProductModels, setSuspendedProductModels] = useState<Product | null>(null);
+  const [suspendedViewingGallery, setSuspendedViewingGallery] = useState<Product | null>(null);
   const [fresaSshDefaultModel, setFresaSshDefaultModel] = useState<string>('ssh-150');
   const [isHighTipSelectorOpen, setIsHighTipSelectorOpen] = useState(false);
   const [isTechnicalDeliveryOpen, setIsTechnicalDeliveryOpen] = useState(false);
@@ -804,6 +850,14 @@ export default function Catalog() {
       const garraTracadora = data.find(p => p.name === 'Garra Traçadora');
       const miniSkidder = data.find(p => p.name === 'Mini Skidder');
 
+      // Make Engate Rápido completely permanent for all users!
+      const engateRapido = data.find(p => p.name?.toLowerCase().includes('engate'));
+      if (!engateRapido && data.length > 0) {
+        addEngateRapido();
+      } else if (engateRapido?.is_blocked) {
+        updateDoc(doc(db, 'products', engateRapido.id), { is_blocked: false });
+      }
+
       if (user?.email === 'roderbrasil@gmail.com' || user?.email === 'roderindica@gmail.com') {
         runSelfHealing(data, db);
         const fellerTesoura = data.find(p => p.name === 'Feller Tesoura');
@@ -873,6 +927,8 @@ export default function Catalog() {
         } else if (fresaSsh?.is_blocked) {
           updateDoc(doc(db, 'products', fresaSsh.id), { is_blocked: false });
         }
+
+
 
         const cacambaHighTip = data.find(p => p.name === 'Caçamba High Tip');
         if (!cacambaHighTip && data.length > 0) {
@@ -1664,6 +1720,51 @@ export default function Catalog() {
       toast.success('Caçamba High Tip sincronizada com sucesso!');
     } catch (err) {
       console.error('Error adding Caçamba High Tip:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addEngateRapido = async () => {
+    try {
+      setLoading(true);
+      const q = query(collection(db, 'products'), where('name', '==', 'Engate Rápido para Pá Carregadeiras'));
+      const snap = await getDocs(q);
+      
+      const engateData = {
+        name: 'Engate Rápido para Pá Carregadeiras',
+        description: 'O Engate Rápido Hidráulico Roder para pás carregadeiras é um equipamento de alta performance projetado exclusivamente sob medida para cada marca e modelo de máquina. Com sistema acionado de dentro da cabine via botão, o operador realiza o engate e desengate de implementos (como caçamba original e garfo pallet) sem a necessidade de sair da cabine, garantindo máxima eficiência operacional e segurança física. A Roder fornece junto ao orçamento a instalação completa da linha hidráulica extra na pá carregadeira. O sistema pode ser configurado em 3ª função padrão (2 vias, ideal para engate rápido e implementos fixos como a Garra Frontal ou garras de estufagem AF) ou em 3ª e 4ª funções extras (4 vias, necessária para equipamentos rotativos com rotador, como o Carregador Frontal ou garras de estufagem AFG com giro, permitindo giro e fechamento simultâneo).',
+        category: 'Carregadores e Garras',
+        image_url: 'https://images.unsplash.com/photo-1579684389782-64d84b5e901a?q=80&w=800',
+        video_url: '',
+        pdf_url: 'https://roderbrasil.com.br/maquinas-florestais/engate-rapido/',
+        is_blocked: false,
+        created_at: snap.empty ? new Date().toISOString() : (snap.docs[0].data() as any).created_at,
+        models: [
+          {
+            id: 'er-sob-medida',
+            name: 'Engate Rápido Sob Medida',
+            base_value: 0,
+            images: ['https://images.unsplash.com/photo-1579684389782-64d84b5e901a?q=80&w=800'],
+            technical_specs: {
+              maquina_base: 'Dimensionado sob medida para cada marca/modelo',
+              instalacao_hidraulica: '3ª Função (2 vias) ou 3ª+4ª Função (4 vias)',
+              acionamento: 'Eletro-hidráulico de dentro da cabine',
+              tempo_de_ciclo: 'Troca de implementos em menos de 30 segundos',
+              compatibilidade: 'Caçamba original, garfo pallet, concha High Tip, garras'
+            }
+          }
+        ]
+      };
+
+      if (!snap.empty) {
+        await updateDoc(doc(db, 'products', snap.docs[0].id), engateData);
+      } else {
+        await addDoc(collection(db, 'products'), engateData);
+      }
+      toast.success('Engate Rápido sincronizado com sucesso!');
+    } catch (err) {
+      console.error('Error adding Engate Rápido:', err);
     } finally {
       setLoading(false);
     }
@@ -3029,15 +3130,73 @@ export default function Catalog() {
     }
   };
 
+  const cleanTextForEngate = (text: string, isEngateProduct: boolean) => {
+    if (!text) return text;
+    let cleaned = text;
+    if (isEngateProduct) {
+      cleaned = cleaned.replace(/escavadeira\s+recomendada/gi, 'Pá Carregadeira');
+      cleaned = cleaned.replace(/engate\s+rápido\s+recomendada/gi, 'Pá Carregadeira');
+    }
+    cleaned = cleaned.replace(/segurança,?\s*bloqueio\s+mecânico\s+secundário\s+com\s+trava\.?/gi, '');
+    cleaned = cleaned.replace(/bloqueio\s+mecânico\s+secundário\s+com\s+trava\.?/gi, '');
+    cleaned = cleaned.replace(/bloqueio\s+mecânico\s+secundário\.?/gi, '');
+    cleaned = cleaned.replace(/segurança,?\s*bloqueio\s+mecânico\s+secundário\.?/gi, '');
+    return cleaned.trim();
+  };
+
   const openPdf = (url: string, modelName?: string) => {
-    if (!url) return;
-    
-    if (url === 'https://roderbrasil.com.br/maquinas-florestais/cacamba-high-tip/' || url.includes('cacamba-high-tip')) {
+    const lowerUrl = (url || '').toLowerCase();
+    const lowerModelName = (modelName || '').toLowerCase();
+    const lowerViewingName = (viewingGallery?.name || '').toLowerCase();
+    const lowerSelectedName = (selectedProductModels?.name || '').toLowerCase();
+
+    const isHighTip = isHighTipProduct(lowerUrl) || 
+                      isHighTipProduct(lowerModelName) || 
+                      isHighTipProduct(lowerViewingName) || 
+                      isHighTipProduct(lowerSelectedName);
+                      
+    const isEngate = isEngateProduct(lowerUrl) || 
+                     isEngateProduct(lowerModelName) || 
+                     isEngateProduct(lowerViewingName) || 
+                     isEngateProduct(lowerSelectedName);
+
+    if (isHighTip) {
+      if (selectedProductModels) {
+        setSuspendedProductModels(selectedProductModels);
+        setSelectedProductModels(null);
+      }
+      if (viewingGallery) {
+        setSuspendedViewingGallery(viewingGallery);
+        setViewingGallery(null);
+      }
       setIsHighTipFichaOpen(true);
       return;
     }
 
-    if (url.includes('CATALOGO-TRATORES') || url.includes('fresa-ssh') || url.includes('fresa-trituradora')) {
+    if (isEngate) {
+      if (selectedProductModels) {
+        setSuspendedProductModels(selectedProductModels);
+        setSelectedProductModels(null);
+      }
+      if (viewingGallery) {
+        setSuspendedViewingGallery(viewingGallery);
+        setViewingGallery(null);
+      }
+      setIsEngateRapidoFichaOpen(true);
+      return;
+    }
+
+    if (!url) return;
+
+    if (isFresaProduct(url) || isFresaProduct(modelName) || isFresaProduct(viewingGallery?.name) || isFresaProduct(selectedProductModels?.name)) {
+      if (selectedProductModels) {
+        setSuspendedProductModels(selectedProductModels);
+        setSelectedProductModels(null);
+      }
+      if (viewingGallery) {
+        setSuspendedViewingGallery(viewingGallery);
+        setViewingGallery(null);
+      }
       const targetModelName = modelName || selectedModel?.name || '';
       if (targetModelName) {
         const lower = targetModelName.toLowerCase();
@@ -3183,11 +3342,21 @@ export default function Catalog() {
       return `${value}${units[keyLower] || ''}`;
     };
 
+    const productId = viewingGallery?.id || selectedProductModels?.id || model.productId;
+    const finalProductName = productName || viewingGallery?.name || selectedProductModels?.name || 'Equipamento Roder';
+
     const labelMapping: Record<string, string> = {
-      trator: 'Pá Carregadeira',
+      instalacao_hidraulica: 'Instalação Hidráulica',
+                           acionamento: 'Acionamento',
+                           tempo_de_ciclo: 'Tempo de Ciclo',
+                           compatibilidade: 'Compatibilidade',
+                           seguranca: 'Segurança',
+                           trator: 'Pá Carregadeira',
       abertura_total: 'Abertura total da garra',
       potencia_do_trator: 'Potência requerida',
-      maquina_base: 'Escavadeira recomendada',
+      maquina_base: (finalProductName.toLowerCase().includes('engate') || model.name.toLowerCase().includes('engate') || finalProductName.toLowerCase().includes('carregadeira') || model.name.toLowerCase().includes('carregadeira')) 
+        ? 'Pá Carregadeira' 
+        : 'Escavadeira recomendada',
       diametro_corte: 'Ø Máx. Corte',
       area_carga: 'Área Carga',
       peso: 'Peso Equipamento',
@@ -3199,16 +3368,25 @@ export default function Catalog() {
       acumulador: 'Acumulador'
     };
 
+    const isEngateProduct = finalProductName.toLowerCase().includes('engate') || model.name.toLowerCase().includes('engate');
+
     const specs = Object.entries(model.technical_specs || {})
-      .filter(([_, v]) => v && String(v).trim() !== '' && String(v).trim() !== '-')
+      .filter(([k, v]) => {
+        if (!v) return false;
+        const valStr = String(v).toLowerCase();
+        const keyStr = k.toLowerCase();
+        if (keyStr === 'seguranca' || valStr.includes('bloqueio mecânico') || valStr.includes('bloqueio mecanico')) {
+          return false;
+        }
+        return String(v).trim() !== '' && String(v).trim() !== '-';
+      })
       .map(([k, v]) => {
         const label = labelMapping[k.toLowerCase()] || k.replace(/_/g, ' ').toUpperCase();
-        return `• *${label}:* ${getUnitValue(k, v)}`;
+        const cleanedValue = cleanTextForEngate(getUnitValue(k, v), isEngateProduct);
+        return `• *${label}:* ${cleanedValue}`;
       })
+      .filter(line => line && !line.endsWith(':* ') && !line.endsWith(':*'))
       .join('\n');
-
-    const productId = viewingGallery?.id || selectedProductModels?.id || model.productId;
-    const finalProductName = productName || viewingGallery?.name || selectedProductModels?.name || 'Equipamento Roder';
     
     // Minimal params for WhatsApp sharing
     const budgetUrl = `${window.location.origin}/pedido-orcamento?uid=${profile?.uid || user?.uid || ''}&pid=${productId || ''}&mid=${model.id || ''}`;
@@ -3222,9 +3400,18 @@ export default function Catalog() {
 
     const productVideo = viewingGallery?.video_url || selectedProductModels?.video_url;
 
+    let extraIntro = '';
+    if (finalProductName.toLowerCase().includes('engate') || model.name.toLowerCase().includes('engate')) {
+      extraIntro = `*Apresentação:* O Engate Rápido Hidráulico Roder para pás carregadeiras é fabricado 100% sob medida para cada marca/modelo de máquina. Permite a troca rápida de implementos (caçamba original, garfo pallet, conchas e garras) de dentro da cabine em menos de 30 segundos, com segurança máxima.\n\n` +
+                   `*Instalações Hidráulicas Extras:*\n` +
+                   `• *3ª Função (2 vias):* Para acionamento do cilindro do engate rápido, ideal para caçamba ou garfo pallet.\n` +
+                   `• *3ª e 4ª Função (4 vias):* Necessária para equipamentos rotativos com giro hidráulico (como Garras AFG com giro), permitindo acionar o engate, giro e fechamento simultâneos com total agilidade operacional.\n\n`;
+    }
+
     const text = `*RODER BRASIL - Especificações Técnicas*\n\n` +
       `*Equipamento:* ${finalProductName}\n` +
       `*Modelo:* ${model.name}\n\n` +
+      (extraIntro ? extraIntro : '') +
       `*DADOS TÉCNICOS:*\n${specs || 'Consulte o manual para mais detalhes.'}\n\n` +
       (galleryLinks ? `*Fotos do Modelo:*\n${galleryLinks}\n\n` : '') +
       (model.video_url ? `*Vídeo do Modelo:* ${model.video_url}\n` : '') +
@@ -3758,7 +3945,7 @@ export default function Catalog() {
                       })
                       .sort(([a], [b]) => {
                         const order = [
-                          'maquina_base', 'peso_operacional', 'giro_360',
+                          'maquina_base', 'instalacao_hidraulica', 'acionamento', 'tempo_de_ciclo', 'compatibilidade', 'seguranca', 'peso_operacional', 'giro_360',
                           'diametro_max_corte', 'diametro_corte', 'peso', 'peso_do_equipamento', 
                           'n_facas', 'acumulador', 'area_carga', 'area_da_garra', 
                           'abertura_maxima', 'diametro_minimo', 'carregadeira',
@@ -3872,7 +4059,7 @@ export default function Catalog() {
                           size="sm"
                           className="w-full h-5 md:h-12 uppercase px-0 border-slate-200 text-foreground shadow-sm leading-none"
                           onClick={() => openPdf(model.pdf_url || viewingGallery?.pdf_url || '', model.name)}
-                          disabled={!(model.pdf_url || viewingGallery?.pdf_url)}
+                          disabled={!(model.pdf_url || viewingGallery?.pdf_url || isEngateProduct(model.name) || isEngateProduct(viewingGallery?.name) || isHighTipProduct(model.name) || isHighTipProduct(viewingGallery?.name) || isFresaProduct(model.name) || isFresaProduct(viewingGallery?.name))}
                         >
                           <FileText className="!h-2.5 !w-2.5 md:!h-4 md:!w-4 mb-0.5 md:mb-0 md:mr-0.5 text-red-500" />
                           <span className="hidden sm:inline">Ficha</span>
@@ -3947,6 +4134,113 @@ export default function Catalog() {
                 </div>
               </motion.div>
             ))}
+
+            {/* Seção Informativa de Engate Rápido */}
+            {isEngateProduct(viewingGallery.name) && (
+              <div className="bg-white border border-slate-200 rounded-xl p-4 md:p-8 mt-6 shadow-sm space-y-6">
+                <div className="flex flex-col md:flex-row items-center justify-between border-b border-slate-100 pb-5 gap-4">
+                  <div className="flex items-center gap-3">
+                    <img 
+                      src={RODER_LOGO_BASE64} 
+                      alt="Logo Roder" 
+                      className="h-10 object-contain" 
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="border-l border-slate-200 pl-3">
+                      <h3 className="text-md font-extrabold text-slate-900 tracking-tight uppercase leading-none">
+                        Engate Rápido Hidráulico
+                      </h3>
+                      <span className="text-[10px] text-slate-400 font-mono uppercase tracking-wider block mt-1">Tecnologia e Performance Sob Medida</span>
+                    </div>
+                  </div>
+                  <div className="bg-orange-500/10 border border-orange-500/20 px-3 py-1 rounded-full text-[10px] md:text-xs font-bold text-orange-600 uppercase tracking-wide">
+                    Produto 100% Personalizado
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
+                  <div className="lg:col-span-7 space-y-4 text-slate-700 text-xs md:text-sm leading-relaxed">
+                    <p className="text-justify">
+                      O <strong>Engate Rápido Hidráulico Roder para pás carregadeiras</strong> é um equipamento de alta performance e robustez projetado e fabricado exclusivamente sob medida para cada marca e modelo de máquina. Como cada pá carregadeira possui dimensões únicas de pinos de acoplamento e largura interna de braço de elevação, o dimensionamento personalizado é fundamental para garantir a perfeita compatibilidade mecânica e segurança física absoluta.
+                    </p>
+                    <p className="text-justify">
+                      Com o engate rápido Roder, o operador realiza o engate e desengate de implementos (como a caçamba original de terra, garfo pallet de carregamento, conchas High Tip, garras e outros) em menos de 30 segundos, sem a necessidade de sair de dentro da cabine, otimizando os tempos de ciclo e aumentando drasticamente a produtividade logística da sua operação.
+                    </p>
+                  </div>
+
+                  <div className="lg:col-span-5 bg-slate-50 rounded-xl p-4 md:p-6 border border-slate-150 space-y-4">
+                    <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-200 pb-2">
+                      <span className="w-2 h-2 bg-orange-500 rounded-full"></span> Vantagens de Operação
+                    </h4>
+                    <ul className="space-y-3 text-xs text-slate-600">
+                      <li className="flex items-start gap-2.5">
+                        <span className="text-emerald-500 font-extrabold">✓</span>
+                        <span><strong>Segurança Física:</strong> Acoplamento rígido de alta resistência projetado sob medida para garantir estabilidade total da operação.</span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <span className="text-emerald-500 font-extrabold">✓</span>
+                        <span><strong>Agilidade na Troca:</strong> Substituição rápida de acessórios sem esforço físico do operador.</span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <span className="text-emerald-500 font-extrabold">✓</span>
+                        <span><strong>Instalação Roder:</strong> A Roder fornece junto ao orçamento a instalação completa da linha hidráulica extra na pá carregadeira do cliente.</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Highlight Panel: Hydraulic Variations */}
+                <div className="bg-slate-900 text-white rounded-xl p-4 md:p-6 border border-slate-800 shadow-md">
+                  <div className="flex items-center gap-2 mb-4 border-b border-slate-800 pb-3">
+                    <div className="bg-orange-500 p-1.5 rounded-lg shrink-0">
+                      <span className="block w-4 h-4 border-2 border-white rounded-full" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs md:text-sm font-black text-white uppercase tracking-tight leading-none">
+                        Destaque Importante: Instalações Hidráulicas Extras
+                      </h4>
+                      <p className="text-[10px] text-slate-400 mt-1">Configure o fluxo hidráulico ideal para o seu conjunto de implementos</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 text-xs leading-relaxed">
+                    <div className="bg-slate-950 p-4 rounded-lg border border-slate-800 space-y-2">
+                      <span className="text-[10px] font-bold text-orange-400 uppercase tracking-widest block">Variação de 3ª Função</span>
+                      <h5 className="text-sm font-black text-white uppercase">3ª Função Padrão (2 Vias)</h5>
+                      <p className="text-slate-300">
+                        Indicada para o acoplamento do cilindro hidráulico do próprio engate rápido. É a configuração padrão recomendada para operações que utilizam implementos fixos (ou sem cilindro próprio de abre/fecha), tais como:
+                      </p>
+                      <ul className="list-disc list-inside text-[11px] text-slate-400 space-y-1 pl-1">
+                        <li>Caçamba original de terra</li>
+                        <li>Garfo pallet para carregamento</li>
+                        <li>Garras e garras de estufagem fixas (AF)</li>
+                      </ul>
+                    </div>
+
+                    <div className="bg-slate-950 p-4 rounded-lg border border-orange-500/20 space-y-2">
+                      <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest block">Variação de 3ª e 4ª Funções</span>
+                      <h5 className="text-sm font-black text-white uppercase">3ª e 4ª Funções Extras (4 Vias)</h5>
+                      <p className="text-slate-300">
+                        Necessária para equipamentos rotativos com giro hidráulico ou com múltiplos acionamentos mecânicos paralelos. Essa configuração permite realizar o giro do implemento e, simultaneamente, o movimento de abertura/fechamento das garras:
+                      </p>
+                      <ul className="list-disc list-inside text-[11px] text-slate-400 space-y-1 pl-1">
+                        <li>Garras de estufagem com giro hidráulico (AFG)</li>
+                        <li>Carregadores frontais rotativos</li>
+                        <li>Implementos ativos com acionamentos extras</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Orientação para Gislene e Luana */}
+                <div className="bg-orange-500/10 border border-orange-500/20 text-orange-800 dark:text-orange-200 p-5 rounded-xl text-xs leading-relaxed flex items-start gap-3 mt-4">
+                  <span className="text-lg shrink-0">⚠️</span>
+                  <div>
+                    <strong>ORIENTAÇÃO PARA GISLENE E LUANA (ADMIN/TRIAGEM):</strong> Identifique sempre qual é a marca, modelo e ano exato da pá carregadeira do cliente. Se o cliente for adquirir um implemento Roder que possua giro (como o Carregador Frontal ou Garras AFG), o orçamento comercial deve contemplar a instalação de <strong>3ª e 4ª funções extras</strong> na máquina para permitir o perfeito acionamento do sistema.
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Footer indicator */}
@@ -4230,9 +4524,9 @@ export default function Catalog() {
                         size="icon"
                         className={cn(
                           "h-8 w-8 mr-1 shrink-0",
-                          (model.pdf_url || selectedProductModels?.pdf_url) ? "text-red-500 hover:text-red-600 hover:bg-red-500/10" : "text-muted-foreground opacity-20"
+                          (model.pdf_url || selectedProductModels?.pdf_url || isEngateProduct(model.name) || isEngateProduct(selectedProductModels?.name) || isHighTipProduct(model.name) || isHighTipProduct(selectedProductModels?.name) || isFresaProduct(model.name) || isFresaProduct(selectedProductModels?.name)) ? "text-red-500 hover:text-red-600 hover:bg-red-500/10" : "text-muted-foreground opacity-20"
                         )}
-                        disabled={!(model.pdf_url || selectedProductModels?.pdf_url)}
+                        disabled={!(model.pdf_url || selectedProductModels?.pdf_url || isEngateProduct(model.name) || isEngateProduct(selectedProductModels?.name) || isHighTipProduct(model.name) || isHighTipProduct(selectedProductModels?.name) || isFresaProduct(model.name) || isFresaProduct(selectedProductModels?.name))}
                         onClick={() => openPdf(model.pdf_url || selectedProductModels?.pdf_url || '', model.name)}
                       >
                         <FileText className="h-4 w-4" />
@@ -4513,6 +4807,46 @@ export default function Catalog() {
                       </div>
                     )}
 
+                    {/* Informações completas do Engate Rápido */}
+                    {selectedProductModels?.name?.toLowerCase().includes('engate') && (
+                      <div className="mt-6 border border-orange-500/20 bg-orange-500/5 rounded-xl p-5 space-y-4 shadow-sm border-l-4 border-l-orange-500">
+                        <div className="flex items-center gap-2 text-orange-600 font-extrabold uppercase text-xs tracking-wider">
+                          <Info className="h-5 w-5 text-orange-500" />
+                          <span>Instalações Hidráulicas & Requisitos Operacionais</span>
+                        </div>
+                        
+                        <p className="text-xs text-muted-foreground leading-relaxed text-justify">
+                          O <strong>Engate Rápido Hidráulico Roder para Pás Carregadeiras</strong> é fabricado sob encomenda e dimensionado sob medida para cada marca e modelo específico de máquina. Como cada carregadeira possui dimensões exclusivas de pinos de acoplamento e largura de braço, a personalização de engenharia garante perfeito acoplamento, durabilidade e segurança física total. Ele permite alternar de forma extremamente rápida e dinâmica entre a caçamba original de terra, garfo pallet, concha High Tip, garras, etc., diretamente da cabine via botão eletrônico.
+                        </p>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                          <div className="bg-card border border-border rounded-lg p-3.5 space-y-2">
+                            <div className="flex items-center gap-1.5">
+                              <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" />
+                              <span className="font-bold text-xs text-foreground uppercase">3ª Função Extra (2 Vias / 1 Par de Engates)</span>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground leading-relaxed">
+                              Opção de instalação padrão de terceira função extra (2 vias) na pá carregadeira, inclusa no orçamento comercial padrão da Roder. É utilizada para realizar o acionamento (abrir/fechar) dos pinos de travamento do engate rápido. Ideal para implementos que não giram, como a Garra Frontal ou garras de estufagem simples AF.
+                            </p>
+                          </div>
+
+                          <div className="bg-card border border-border rounded-lg p-3.5 space-y-2">
+                            <div className="flex items-center gap-1.5">
+                              <span className="h-2 w-2 rounded-full bg-purple-500" />
+                              <span className="font-bold text-xs text-foreground uppercase">3ª e 4ª Funções Extras (4 Vias / 2 Pares de Engates)</span>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground leading-relaxed">
+                              Necessária quando o cliente utilizará implementos rotativos (como o Carregador Frontal ou garras de estufagem com giro AFG). Nesse caso, a 3ª função faz o acionamento de abertura/fechamento das pinças do equipamento e a 4ª função aciona o giro horário/anti-horário do rotador hidráulico pendurado.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="bg-orange-500/10 border border-orange-500/20 text-orange-800 dark:text-orange-200 p-3.5 rounded-lg text-xs leading-relaxed">
+                          <strong>⚠️ ORIENTAÇÃO PARA GISLENE E LUANA (ADMIN/TRIAGEM):</strong> Identifique sempre qual é a marca, modelo e ano exato da pá carregadeira do cliente. Se o cliente for adquirir um implemento Roder que possua giro (como o Carregador Frontal ou Garras AFG), o orçamento comercial deve contemplar a instalação de <strong>3ª e 4ª funções extras</strong> na máquina para permitir o perfeito acionamento do sistema.
+                        </div>
+                      </div>
+                    )}
+
                     {/* Embedded Video Player */}
                     {selectedModel.video_url && (
                       <div className="space-y-2">
@@ -4567,7 +4901,7 @@ export default function Catalog() {
                             variant="outline" 
                             className="flex-1 justify-start gap-2 border-border h-11"
                             onClick={() => openPdf(selectedModel.pdf_url || selectedProductModels?.pdf_url || '', selectedModel.name)}
-                            disabled={!(selectedModel.pdf_url || selectedProductModels?.pdf_url)}
+                            disabled={!(selectedModel.pdf_url || selectedProductModels?.pdf_url || isEngateProduct(selectedModel.name) || isEngateProduct(selectedProductModels?.name) || isHighTipProduct(selectedModel.name) || isHighTipProduct(selectedProductModels?.name) || isFresaProduct(selectedModel.name) || isFresaProduct(selectedProductModels?.name))}
                           >
                             <FileText className="h-4 w-4 text-red-500" /> Ficha Técnica (PDF)
                           </Button>
@@ -4576,7 +4910,7 @@ export default function Catalog() {
                             size="icon"
                             className="h-11 w-11 shrink-0 border-border"
                             onClick={() => shareFile(selectedModel.pdf_url || selectedProductModels?.pdf_url || '', `Ficha Técnica - ${selectedModel.name}`)}
-                            disabled={!(selectedModel.pdf_url || selectedProductModels?.pdf_url)}
+                            disabled={!(selectedModel.pdf_url || selectedProductModels?.pdf_url || isEngateProduct(selectedModel.name) || isEngateProduct(selectedProductModels?.name) || isHighTipProduct(selectedModel.name) || isHighTipProduct(selectedProductModels?.name) || isFresaProduct(selectedModel.name) || isFresaProduct(selectedProductModels?.name))}
                           >
                             <Share2 className="h-4 w-4 text-primary" />
                           </Button>
@@ -5647,11 +5981,52 @@ export default function Catalog() {
         />
 
         {isHighTipFichaOpen && (
-          <HighTipFicha onClose={() => setIsHighTipFichaOpen(false)} />
+          <HighTipFicha 
+            onClose={() => {
+              setIsHighTipFichaOpen(false);
+              if (suspendedProductModels) {
+                setSelectedProductModels(suspendedProductModels);
+                setSuspendedProductModels(null);
+              }
+              if (suspendedViewingGallery) {
+                setViewingGallery(suspendedViewingGallery);
+                setSuspendedViewingGallery(null);
+              }
+            }} 
+          />
         )}
 
         {isFresaSshFichaOpen && (
-          <FresaSshFicha onClose={() => setIsFresaSshFichaOpen(false)} defaultModelId={fresaSshDefaultModel} />
+          <FresaSshFicha 
+            onClose={() => {
+              setIsFresaSshFichaOpen(false);
+              if (suspendedProductModels) {
+                setSelectedProductModels(suspendedProductModels);
+                setSuspendedProductModels(null);
+              }
+              if (suspendedViewingGallery) {
+                setViewingGallery(suspendedViewingGallery);
+                setSuspendedViewingGallery(null);
+              }
+            }} 
+            defaultModelId={fresaSshDefaultModel} 
+          />
+        )}
+
+        {isEngateRapidoFichaOpen && (
+          <EngateRapidoFicha 
+            onClose={() => {
+              setIsEngateRapidoFichaOpen(false);
+              if (suspendedProductModels) {
+                setSelectedProductModels(suspendedProductModels);
+                setSuspendedProductModels(null);
+              }
+              if (suspendedViewingGallery) {
+                setViewingGallery(suspendedViewingGallery);
+                setSuspendedViewingGallery(null);
+              }
+            }} 
+          />
         )}
 
         {isTechnicalDeliveryOpen && selectedModel && (
