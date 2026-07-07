@@ -86,6 +86,7 @@ import { HighTipFicha } from '../components/catalog/HighTipFicha';
 import { MulcherTechnicalDelivery } from '../components/catalog/MulcherTechnicalDelivery';
 import { FresaSshFicha } from '../components/catalog/FresaSshFicha';
 import { EngateRapidoFicha } from '../components/catalog/EngateRapidoFicha';
+import { GarraEstufagemFicha } from '../components/catalog/GarraEstufagemFicha';
 import { RODER_LOGO_BASE64 } from '../components/catalog/RoderLogo';
 
 function SmartImage({ src, alt, className, zoom = 1, ...props }: any) {
@@ -261,12 +262,20 @@ function ImageCarousel({ images, zoom = 1, onClick }: { images: string[], zoom?:
 const isEngateProduct = (nameOrUrl?: string) => {
   if (!nameOrUrl) return false;
   const lower = nameOrUrl.toLowerCase();
-  return lower.includes('engate') || 
-         lower.includes('enganche') || 
+  return lower.includes('engat') || 
+         lower.includes('engan') || 
+         lower.includes('acopl') || 
          lower.includes('acople') || 
-         lower.includes('acoplamento') || 
          lower.includes('hitch') || 
-         lower.includes('coupler');
+         lower.includes('coupler') || 
+         lower.includes('quick') || 
+         lower.includes('attach') ||
+         lower.includes('troca') ||
+         lower.includes('rápida') ||
+         lower.includes('rapida') ||
+         lower.includes('carregadeira') ||
+         lower.includes('carregadeiras') ||
+         lower.includes('loader');
 };
 
 const isHighTipProduct = (nameOrUrl?: string) => {
@@ -278,7 +287,9 @@ const isHighTipProduct = (nameOrUrl?: string) => {
          lower.includes('concha-high-tip') ||
          lower.includes('caçamba de alto despejo') ||
          lower.includes('alto despejo') ||
-         lower.includes('vuelco alto');
+         lower.includes('vuelco alto') ||
+         lower.includes('despejo') ||
+         lower.includes('high_tip');
 };
 
 const isFresaProduct = (nameOrUrl?: string) => {
@@ -286,18 +297,57 @@ const isFresaProduct = (nameOrUrl?: string) => {
   const lower = nameOrUrl.toLowerCase();
   return lower.includes('fresa') || 
          lower.includes('ssh') || 
-         lower.includes('trituradora');
+         lower.includes('trituradora') ||
+         lower.includes('triturador');
+};
+
+const isEstufagemProduct = (nameOrUrl?: string) => {
+  if (!nameOrUrl) return false;
+  const lower = nameOrUrl.toLowerCase();
+  return lower.includes('estufagem') || 
+         lower.includes('af-360') || 
+         lower.includes('af-400') || 
+         lower.includes('af-600') || 
+         lower.includes('af-800') || 
+         lower.includes('afg-600') || 
+         lower.includes('afg-800') ||
+         lower.includes('empilhadeira') ||
+         lower.includes('forklift');
 };
 
 const isAnyFichaSupported = (product: any) => {
   if (!product) return false;
-  const url = product.pdf_url || '';
-  const name = product.name || '';
-  return !!product.pdf_url || 
-         isEngateProduct(url) || isEngateProduct(name) || 
-         isHighTipProduct(url) || isHighTipProduct(name) || 
-         isFresaProduct(url) || isFresaProduct(name);
+  const url = (product.pdf_url || '').toLowerCase();
+  const name = (product.name || '').toLowerCase();
+  const desc = (product.description || '').toLowerCase();
+  const cat = (product.category || '').toLowerCase();
+  
+  const containsEngateKeyword = (str: string) => {
+    const s = (str || '').toLowerCase();
+    return s.includes('engat') || s.includes('rapido') || s.includes('rápido') || s.includes('acopl') || s.includes('acople') || s.includes('hitch');
+  };
+  const isEngate = containsEngateKeyword(url) || containsEngateKeyword(name) || containsEngateKeyword(desc) || containsEngateKeyword(cat) ||
+                    !!(product.id && (product.id.toLowerCase().includes('engate') || product.id.toLowerCase().includes('er-')));
+
+  const containsHighTipKeyword = (str: string) => {
+    const s = (str || '').toLowerCase();
+    return s.includes('high') || s.includes('tip') || s.includes('despejo') || s.includes('concha') || s.includes('caçamba de alto') || s.includes('cacamba de alto');
+  };
+  const isHighTip = containsHighTipKeyword(url) || containsHighTipKeyword(name) || containsHighTipKeyword(desc) || containsHighTipKeyword(cat);
+
+  const containsFresaKeyword = (str: string) => {
+    const s = (str || '').toLowerCase();
+    return s.includes('fresa') || s.includes('ssh') || s.includes('triturador') || s.includes('trituradora');
+  };
+  const isFresa = containsFresaKeyword(url) || containsFresaKeyword(name) || containsFresaKeyword(desc) || containsFresaKeyword(cat);
+
+  const isEstufagem = isEstufagemProduct(url) || isEstufagemProduct(name) || isEstufagemProduct(desc) || isEstufagemProduct(cat) ||
+                      !!(product.id && (product.id.toLowerCase().includes('estufagem') || product.id.toLowerCase().includes('af-360')));
+
+  return !!product.pdf_url || isEngate || isHighTip || isFresa || isEstufagem;
 };
+
+
 
 function SortableProductCard({ 
   product, 
@@ -500,7 +550,7 @@ function SortableProductCard({
                     "h-8 border-border px-1 text-[7px] font-bold flex-col gap-0.5 justify-center leading-none min-w-[42px]",
                     !isAnyFichaSupported(product) && "opacity-20"
                   )} 
-                  onClick={() => openPdf(product.pdf_url || '', product.name)}
+                  onClick={() => openPdf(product.pdf_url || '', product.name, product)}
                   disabled={!isAnyFichaSupported(product)}
                 >
                   <FileText className="h-3 w-3 text-red-500" /> <span>Ficha</span>
@@ -601,7 +651,7 @@ function SortableProductCard({
                     "flex-1 border-border text-xs h-9",
                     isAnyFichaSupported(product) ? "text-foreground" : "text-muted-foreground opacity-20"
                   )}
-                  onClick={() => openPdf(product.pdf_url || '', product.name)}
+                  onClick={() => openPdf(product.pdf_url || '', product.name, product)}
                   disabled={!isAnyFichaSupported(product)}
                 >
                   <FileText className="h-4 w-4 mr-1.5" /> Ficha
@@ -661,6 +711,8 @@ export default function Catalog() {
   const [isHighTipFichaOpen, setIsHighTipFichaOpen] = useState(false);
   const [isFresaSshFichaOpen, setIsFresaSshFichaOpen] = useState(false);
   const [isEngateRapidoFichaOpen, setIsEngateRapidoFichaOpen] = useState(false);
+  const [isGarraEstufagemFichaOpen, setIsGarraEstufagemFichaOpen] = useState(false);
+  const [garraEstufagemDefaultModel, setGarraEstufagemDefaultModel] = useState<string>('af-360');
   const [suspendedProductModels, setSuspendedProductModels] = useState<Product | null>(null);
   const [suspendedViewingGallery, setSuspendedViewingGallery] = useState<Product | null>(null);
   const [fresaSshDefaultModel, setFresaSshDefaultModel] = useState<string>('ssh-150');
@@ -3144,21 +3196,65 @@ export default function Catalog() {
     return cleaned.trim();
   };
 
-  const openPdf = (url: string, modelName?: string) => {
+  const openPdf = (url: string, modelName?: string, productContext?: any) => {
     const lowerUrl = (url || '').toLowerCase();
     const lowerModelName = (modelName || '').toLowerCase();
     const lowerViewingName = (viewingGallery?.name || '').toLowerCase();
     const lowerSelectedName = (selectedProductModels?.name || '').toLowerCase();
+    
+    // Context fields if present
+    const lowerContextName = (productContext?.name || '').toLowerCase();
+    const lowerContextCategory = (productContext?.category || '').toLowerCase();
+    const lowerContextDesc = (productContext?.description || '').toLowerCase();
+    const lowerContextPdfUrl = (productContext?.pdf_url || '').toLowerCase();
 
-    const isHighTip = isHighTipProduct(lowerUrl) || 
-                      isHighTipProduct(lowerModelName) || 
-                      isHighTipProduct(lowerViewingName) || 
-                      isHighTipProduct(lowerSelectedName);
+    const containsHighTipKeyword = (str: string) => {
+      const s = (str || '').toLowerCase();
+      return s.includes('high') || s.includes('tip') || s.includes('despejo') || s.includes('concha') || s.includes('caçamba de alto') || s.includes('cacamba de alto');
+    };
+    const isHighTip = containsHighTipKeyword(lowerUrl) || 
+                      containsHighTipKeyword(lowerModelName) || 
+                      containsHighTipKeyword(lowerViewingName) || 
+                      containsHighTipKeyword(lowerSelectedName) ||
+                      containsHighTipKeyword(lowerContextName) ||
+                      containsHighTipKeyword(lowerContextCategory) ||
+                      containsHighTipKeyword(lowerContextDesc) ||
+                      containsHighTipKeyword(lowerContextPdfUrl);
                       
-    const isEngate = isEngateProduct(lowerUrl) || 
-                     isEngateProduct(lowerModelName) || 
-                     isEngateProduct(lowerViewingName) || 
-                     isEngateProduct(lowerSelectedName);
+    const containsEngateKeyword = (str: string) => {
+      const s = (str || '').toLowerCase();
+      return s.includes('engat') || s.includes('rapido') || s.includes('rápido') || s.includes('acopl') || s.includes('acople') || s.includes('hitch') || s.includes('medida');
+    };
+    const isEngate = containsEngateKeyword(lowerUrl) || 
+                     containsEngateKeyword(lowerModelName) || 
+                     containsEngateKeyword(lowerViewingName) || 
+                     containsEngateKeyword(lowerSelectedName) ||
+                     containsEngateKeyword(lowerContextName) ||
+                     containsEngateKeyword(lowerContextCategory) ||
+                     containsEngateKeyword(lowerContextDesc) ||
+                     containsEngateKeyword(lowerContextPdfUrl) ||
+                     !!(productContext?.id && (productContext.id.toLowerCase().includes('engate') || productContext.id.toLowerCase().includes('er-')));
+
+    const isEstufagem = isEstufagemProduct(lowerUrl) || 
+                        isEstufagemProduct(lowerModelName) || 
+                        isEstufagemProduct(lowerViewingName) || 
+                        isEstufagemProduct(lowerSelectedName) ||
+                        isEstufagemProduct(lowerContextName) ||
+                        isEstufagemProduct(lowerContextCategory) ||
+                        isEstufagemProduct(lowerContextDesc) ||
+                        isEstufagemProduct(lowerContextPdfUrl) ||
+                        !!(productContext?.id && (productContext.id.toLowerCase().includes('estufagem') || productContext.id.toLowerCase().includes('af-360')));
+
+    console.log('[DEBUG] openPdf routing check:', { 
+      isEngate, 
+      isHighTip, 
+      isEstufagem,
+      lowerUrl, 
+      lowerModelName, 
+      lowerSelectedName, 
+      lowerContextName, 
+      contextId: productContext?.id 
+    });
 
     if (isHighTip) {
       if (selectedProductModels) {
@@ -3186,9 +3282,44 @@ export default function Catalog() {
       return;
     }
 
+    if (isEstufagem) {
+      if (selectedProductModels) {
+        setSuspendedProductModels(selectedProductModels);
+        setSelectedProductModels(null);
+      }
+      if (viewingGallery) {
+        setSuspendedViewingGallery(viewingGallery);
+        setViewingGallery(null);
+      }
+      // Determine default model to view
+      const targetModelName = modelName || selectedModel?.name || '';
+      if (targetModelName) {
+        const lower = targetModelName.toLowerCase();
+        if (lower.includes('360')) {
+          setGarraEstufagemDefaultModel('af-360');
+        } else if (lower.includes('400')) {
+          setGarraEstufagemDefaultModel('af-400');
+        } else if (lower.includes('af-600') || (lower.includes('600') && !lower.includes('giro') && !lower.includes('afg'))) {
+          setGarraEstufagemDefaultModel('af-600');
+        } else if (lower.includes('af-800') || (lower.includes('800') && !lower.includes('giro') && !lower.includes('afg'))) {
+          setGarraEstufagemDefaultModel('af-800');
+        } else if (lower.includes('afg-600') || (lower.includes('600') && (lower.includes('giro') || lower.includes('afg')))) {
+          setGarraEstufagemDefaultModel('afg-600');
+        } else if (lower.includes('afg-800') || (lower.includes('800') && (lower.includes('giro') || lower.includes('afg')))) {
+          setGarraEstufagemDefaultModel('afg-800');
+        } else {
+          setGarraEstufagemDefaultModel('af-360');
+        }
+      } else {
+        setGarraEstufagemDefaultModel('af-360');
+      }
+      setIsGarraEstufagemFichaOpen(true);
+      return;
+    }
+
     if (!url) return;
 
-    if (isFresaProduct(url) || isFresaProduct(modelName) || isFresaProduct(viewingGallery?.name) || isFresaProduct(selectedProductModels?.name)) {
+    if (isFresaProduct(url) || isFresaProduct(modelName) || isFresaProduct(viewingGallery?.name) || isFresaProduct(selectedProductModels?.name) || isFresaProduct(lowerContextName) || isFresaProduct(lowerContextCategory) || isFresaProduct(lowerContextDesc) || isFresaProduct(lowerContextPdfUrl)) {
       if (selectedProductModels) {
         setSuspendedProductModels(selectedProductModels);
         setSelectedProductModels(null);
@@ -4058,7 +4189,7 @@ export default function Catalog() {
                           variant="outline"
                           size="sm"
                           className="w-full h-5 md:h-12 uppercase px-0 border-slate-200 text-foreground shadow-sm leading-none"
-                          onClick={() => openPdf(model.pdf_url || viewingGallery?.pdf_url || '', model.name)}
+                          onClick={() => openPdf(model.pdf_url || viewingGallery?.pdf_url || '', model.name, viewingGallery)}
                           disabled={!(model.pdf_url || viewingGallery?.pdf_url || isEngateProduct(model.name) || isEngateProduct(viewingGallery?.name) || isHighTipProduct(model.name) || isHighTipProduct(viewingGallery?.name) || isFresaProduct(model.name) || isFresaProduct(viewingGallery?.name))}
                         >
                           <FileText className="!h-2.5 !w-2.5 md:!h-4 md:!w-4 mb-0.5 md:mb-0 md:mr-0.5 text-red-500" />
@@ -4232,11 +4363,11 @@ export default function Catalog() {
                   </div>
                 </div>
 
-                {/* Orientação para Gislene e Luana */}
+                {/* Orientação para os Vendedores */}
                 <div className="bg-orange-500/10 border border-orange-500/20 text-orange-800 dark:text-orange-200 p-5 rounded-xl text-xs leading-relaxed flex items-start gap-3 mt-4">
                   <span className="text-lg shrink-0">⚠️</span>
                   <div>
-                    <strong>ORIENTAÇÃO PARA GISLENE E LUANA (ADMIN/TRIAGEM):</strong> Identifique sempre qual é a marca, modelo e ano exato da pá carregadeira do cliente. Se o cliente for adquirir um implemento Roder que possua giro (como o Carregador Frontal ou Garras AFG), o orçamento comercial deve contemplar a instalação de <strong>3ª e 4ª funções extras</strong> na máquina para permitir o perfeito acionamento do sistema.
+                    <strong>ORIENTAÇÃO PARA OS VENDEDORES:</strong> É de responsabilidade dos vendedores buscar com o cliente as informações completas da máquina (marca, modelo e ano exato), além de solicitar fotos e vídeos para enviar ao setor técnico da Roder. Se o cliente for adquirir um implemento Roder que possua giro (como o Carregador Frontal ou Garras AFG), o orçamento comercial deve contemplar a instalação de <strong>3ª e 4ª funções extras</strong> na máquina para permitir o perfeito acionamento do sistema.
                   </div>
                 </div>
               </div>
@@ -4524,10 +4655,10 @@ export default function Catalog() {
                         size="icon"
                         className={cn(
                           "h-8 w-8 mr-1 shrink-0",
-                          (model.pdf_url || selectedProductModels?.pdf_url || isEngateProduct(model.name) || isEngateProduct(selectedProductModels?.name) || isHighTipProduct(model.name) || isHighTipProduct(selectedProductModels?.name) || isFresaProduct(model.name) || isFresaProduct(selectedProductModels?.name)) ? "text-red-500 hover:text-red-600 hover:bg-red-500/10" : "text-muted-foreground opacity-20"
+                          (model.pdf_url || selectedProductModels?.pdf_url || isAnyFichaSupported(selectedProductModels) || isEngateProduct(model.name) || isHighTipProduct(model.name) || isFresaProduct(model.name)) ? "text-red-500 hover:text-red-600 hover:bg-red-500/10" : "text-muted-foreground opacity-20"
                         )}
-                        disabled={!(model.pdf_url || selectedProductModels?.pdf_url || isEngateProduct(model.name) || isEngateProduct(selectedProductModels?.name) || isHighTipProduct(model.name) || isHighTipProduct(selectedProductModels?.name) || isFresaProduct(model.name) || isFresaProduct(selectedProductModels?.name))}
-                        onClick={() => openPdf(model.pdf_url || selectedProductModels?.pdf_url || '', model.name)}
+                        disabled={!(model.pdf_url || selectedProductModels?.pdf_url || isAnyFichaSupported(selectedProductModels) || isEngateProduct(model.name) || isHighTipProduct(model.name) || isFresaProduct(model.name))}
+                        onClick={() => openPdf(model.pdf_url || selectedProductModels?.pdf_url || '', model.name, selectedProductModels)}
                       >
                         <FileText className="h-4 w-4" />
                       </Button>
@@ -4842,7 +4973,7 @@ export default function Catalog() {
                         </div>
 
                         <div className="bg-orange-500/10 border border-orange-500/20 text-orange-800 dark:text-orange-200 p-3.5 rounded-lg text-xs leading-relaxed">
-                          <strong>⚠️ ORIENTAÇÃO PARA GISLENE E LUANA (ADMIN/TRIAGEM):</strong> Identifique sempre qual é a marca, modelo e ano exato da pá carregadeira do cliente. Se o cliente for adquirir um implemento Roder que possua giro (como o Carregador Frontal ou Garras AFG), o orçamento comercial deve contemplar a instalação de <strong>3ª e 4ª funções extras</strong> na máquina para permitir o perfeito acionamento do sistema.
+                          <strong>⚠️ ORIENTAÇÃO PARA OS VENDEDORES:</strong> É de responsabilidade dos vendedores buscar com o cliente as informações completas da máquina (marca, modelo e ano exato), além de solicitar fotos e vídeos para enviar ao setor técnico da Roder. Se o cliente for adquirir um implemento Roder que possua giro (como o Carregador Frontal ou Garras AFG), o orçamento comercial deve contemplar a instalação de <strong>3ª e 4ª funções extras</strong> na máquina para permitir o perfeito acionamento do sistema.
                         </div>
                       </div>
                     )}
@@ -4900,8 +5031,8 @@ export default function Catalog() {
                           <Button 
                             variant="outline" 
                             className="flex-1 justify-start gap-2 border-border h-11"
-                            onClick={() => openPdf(selectedModel.pdf_url || selectedProductModels?.pdf_url || '', selectedModel.name)}
-                            disabled={!(selectedModel.pdf_url || selectedProductModels?.pdf_url || isEngateProduct(selectedModel.name) || isEngateProduct(selectedProductModels?.name) || isHighTipProduct(selectedModel.name) || isHighTipProduct(selectedProductModels?.name) || isFresaProduct(selectedModel.name) || isFresaProduct(selectedProductModels?.name))}
+                            onClick={() => openPdf(selectedModel.pdf_url || selectedProductModels?.pdf_url || '', selectedModel.name, selectedProductModels)}
+                            disabled={!(selectedModel.pdf_url || selectedProductModels?.pdf_url || isAnyFichaSupported(selectedProductModels) || isEngateProduct(selectedModel.name) || isHighTipProduct(selectedModel.name) || isFresaProduct(selectedModel.name))}
                           >
                             <FileText className="h-4 w-4 text-red-500" /> Ficha Técnica (PDF)
                           </Button>
@@ -4910,7 +5041,7 @@ export default function Catalog() {
                             size="icon"
                             className="h-11 w-11 shrink-0 border-border"
                             onClick={() => shareFile(selectedModel.pdf_url || selectedProductModels?.pdf_url || '', `Ficha Técnica - ${selectedModel.name}`)}
-                            disabled={!(selectedModel.pdf_url || selectedProductModels?.pdf_url || isEngateProduct(selectedModel.name) || isEngateProduct(selectedProductModels?.name) || isHighTipProduct(selectedModel.name) || isHighTipProduct(selectedProductModels?.name) || isFresaProduct(selectedModel.name) || isFresaProduct(selectedProductModels?.name))}
+                            disabled={!(selectedModel.pdf_url || selectedProductModels?.pdf_url || isAnyFichaSupported(selectedProductModels) || isEngateProduct(selectedModel.name) || isHighTipProduct(selectedModel.name) || isFresaProduct(selectedModel.name))}
                           >
                             <Share2 className="h-4 w-4 text-primary" />
                           </Button>
@@ -6026,6 +6157,23 @@ export default function Catalog() {
                 setSuspendedViewingGallery(null);
               }
             }} 
+          />
+        )}
+
+        {isGarraEstufagemFichaOpen && (
+          <GarraEstufagemFicha 
+            onClose={() => {
+              setIsGarraEstufagemFichaOpen(false);
+              if (suspendedProductModels) {
+                setSelectedProductModels(suspendedProductModels);
+                setSuspendedProductModels(null);
+              }
+              if (suspendedViewingGallery) {
+                setViewingGallery(suspendedViewingGallery);
+                setSuspendedViewingGallery(null);
+              }
+            }} 
+            defaultModelId={garraEstufagemDefaultModel}
           />
         )}
 

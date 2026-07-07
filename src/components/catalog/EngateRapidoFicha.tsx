@@ -34,8 +34,12 @@ export function EngateRapidoFicha({ onClose }: EngateRapidoFichaProps) {
   const [customMainImageUrl, setCustomMainImageUrl] = useState<string | null>(null);
   const [customMountedImageUrl, setCustomMountedImageUrl] = useState<string | null>(null);
   const [customDrawingUrl, setCustomDrawingUrl] = useState<string | null>(null);
+  const [customBucketAdapterImageUrl, setCustomBucketAdapterImageUrl] = useState<string | null>(null);
+  const [customRearPrepImageUrl, setCustomRearPrepImageUrl] = useState<string | null>(null);
   const [loadingDrawing, setLoadingDrawing] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
+  const bucketInputRef = useRef<HTMLInputElement>(null);
+  const rearInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const fetchFichaImages = async () => {
@@ -47,6 +51,8 @@ export function EngateRapidoFicha({ onClose }: EngateRapidoFichaProps) {
           setCustomMainImageUrl(data.main_image_url || null);
           setCustomMountedImageUrl(data.mounted_image_url || null);
           setCustomDrawingUrl(data.drawing_url || null);
+          setCustomBucketAdapterImageUrl(data.bucket_adapter_image_url || null);
+          setCustomRearPrepImageUrl(data.rear_prep_image_url || null);
         } else {
           // Fallback to old single doc just in case
           const oldRef = doc(db, 'settings', 'engate_rapido_drawing');
@@ -70,7 +76,7 @@ export function EngateRapidoFicha({ onClose }: EngateRapidoFichaProps) {
     };
   }, []);
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'main' | 'mounted' | 'drawing') => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'main' | 'mounted' | 'drawing' | 'bucket_adapter' | 'rear_prep') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -82,7 +88,9 @@ export function EngateRapidoFicha({ onClose }: EngateRapidoFichaProps) {
     const labels = {
       main: "Foto Principal",
       mounted: "Foto do Equipamento Montado",
-      drawing: "Desenho Técnico 3D"
+      drawing: "Desenho Técnico 3D",
+      bucket_adapter: "Foto do Adaptador da Caçamba",
+      rear_prep: "Foto da Preparação Traseira"
     };
 
     setLoadingDrawing(true);
@@ -107,6 +115,12 @@ export function EngateRapidoFicha({ onClose }: EngateRapidoFichaProps) {
         } else if (type === 'drawing') {
           updateFields = { drawing_url: base64Data };
           setCustomDrawingUrl(base64Data);
+        } else if (type === 'bucket_adapter') {
+          updateFields = { bucket_adapter_image_url: base64Data };
+          setCustomBucketAdapterImageUrl(base64Data);
+        } else if (type === 'rear_prep') {
+          updateFields = { rear_prep_image_url: base64Data };
+          setCustomRearPrepImageUrl(base64Data);
         }
 
         await setDoc(docRef, {
@@ -138,11 +152,15 @@ export function EngateRapidoFicha({ onClose }: EngateRapidoFichaProps) {
         main_image_url: null,
         mounted_image_url: null,
         drawing_url: null,
+        bucket_adapter_image_url: null,
+        rear_prep_image_url: null,
         updated_at: new Date().toISOString()
       });
       setCustomMainImageUrl(null);
       setCustomMountedImageUrl(null);
       setCustomDrawingUrl(null);
+      setCustomBucketAdapterImageUrl(null);
+      setCustomRearPrepImageUrl(null);
       toast.success("Imagens padrão restauradas!", { id: toastId });
     } catch (err) {
       console.error(err);
@@ -293,7 +311,29 @@ export function EngateRapidoFicha({ onClose }: EngateRapidoFichaProps) {
                     />
                   </label>
 
-                  {(customMainImageUrl || customMountedImageUrl || customDrawingUrl) && (
+                  <label className="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold py-2 px-3 rounded-lg text-xs cursor-pointer border border-slate-700 transition">
+                    <Upload className="h-3.5 w-3.5 text-slate-400" />
+                    <span>Upload Adaptador Caçamba</span>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={(e) => handleImageUpload(e, 'bucket_adapter')} 
+                      className="hidden" 
+                    />
+                  </label>
+
+                  <label className="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold py-2 px-3 rounded-lg text-xs cursor-pointer border border-slate-700 transition">
+                    <Upload className="h-3.5 w-3.5 text-slate-400" />
+                    <span>Upload Prep. Traseira Equip.</span>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={(e) => handleImageUpload(e, 'rear_prep')} 
+                      className="hidden" 
+                    />
+                  </label>
+
+                  {(customMainImageUrl || customMountedImageUrl || customDrawingUrl || customBucketAdapterImageUrl || customRearPrepImageUrl) && (
                     <button 
                       onClick={handleResetImages}
                       className="w-full flex items-center justify-center gap-1.5 bg-red-950/40 text-red-400 hover:bg-red-900/40 font-semibold py-1.5 px-3 rounded-lg text-[11px] border border-red-900/30 transition"
@@ -453,33 +493,181 @@ export function EngateRapidoFicha({ onClose }: EngateRapidoFichaProps) {
                 <h3 className="text-xs font-black text-slate-900 uppercase flex items-center gap-1.5 mb-3 border-b border-slate-200 pb-2">
                   <Layers className="h-4 w-4 text-orange-500" /> Compatibilidade & Adaptação de Implementos
                 </h3>
-                <p className="text-[10.5px] text-slate-700 leading-relaxed mb-3">
-                  Ao instalar o Engate Rápido Roder na carregadeira, todos os implementos que serão utilizados na máquina devem ser preparados com o adaptador de engate correspondente.
+                <p className="text-[10.5px] text-slate-700 leading-relaxed mb-4 text-justify">
+                  Ao instalar o Engate Rápido Roder na carregadeira ou retroescavadeira, todos os implementos que serão utilizados na máquina devem ser preparados com o adaptador de engate correspondente. Veja as especificações para a caçamba original e a preparação traseira:
                 </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="bg-white border border-slate-200 rounded-lg p-3">
-                    <span className="text-[10.5px] font-bold text-slate-900 block mb-1.5 flex items-center gap-1">
-                      <div className="h-1.5 w-1.5 rounded-full bg-orange-500" /> Adaptação da Caçamba Original
-                    </span>
-                    <p className="text-[10px] text-slate-600 leading-relaxed">
-                      Junto com o engate rápido, a Roder fornece e instala um adaptador tipo gancho atrás da caçamba original do cliente. Isso transforma a concha original em uma ferramenta de desengate rápido fácil.
-                    </p>
+
+                {/* Hidden Inputs for Direct Upload from Canvas */}
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  ref={bucketInputRef} 
+                  onChange={(e) => handleImageUpload(e, 'bucket_adapter')} 
+                  className="hidden" 
+                />
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  ref={rearInputRef} 
+                  onChange={(e) => handleImageUpload(e, 'rear_prep')} 
+                  className="hidden" 
+                />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+                  {/* Bucket Adapter Section */}
+                  <div className="bg-white border border-slate-200 rounded-lg p-3 flex flex-col justify-between">
+                    <div>
+                      <span className="text-[10.5px] font-bold text-slate-900 block mb-1 flex items-center gap-1">
+                        <div className="h-1.5 w-1.5 rounded-full bg-orange-500" /> Adaptador da Caçamba Original (Obrigatório)
+                      </span>
+                      <p className="text-[10px] text-slate-600 leading-relaxed mb-3 text-justify">
+                        <strong>O adaptador de caçamba sempre será necessário quando um engate rápido for instalado na máquina.</strong> A Roder fornece e instala um adaptador tipo gancho atrás da caçamba original da sua retroescavadeira ou pá carregadeira, transformando-a em uma ferramenta de acoplamento e desengate ágil.
+                      </p>
+                    </div>
+                    <div 
+                      onClick={() => isAdmin && bucketInputRef.current?.click()}
+                      className={`h-[150px] w-full border border-dashed rounded-lg bg-slate-50 flex flex-col items-center justify-center p-2 relative overflow-hidden ${isAdmin ? 'cursor-pointer hover:bg-orange-50/30 hover:border-orange-300 transition-all' : 'border-slate-200'}`}
+                    >
+                      {customBucketAdapterImageUrl ? (
+                        <img 
+                          src={customBucketAdapterImageUrl} 
+                          alt="Adaptador de Caçamba" 
+                          className="max-h-[134px] max-w-full object-contain rounded"
+                        />
+                      ) : (
+                        <div className="flex flex-col items-center text-center p-2">
+                          <Upload className="h-6 w-6 text-slate-400 mb-1" />
+                          <span className="text-[10px] font-bold text-slate-500">Adicionar Foto do Adaptador</span>
+                          <span className="text-[8px] text-slate-400 mt-0.5">Obrigatório para a caçamba da retro/pá carregadeira</span>
+                        </div>
+                      )}
+                      {isAdmin && (
+                        <div className="absolute bottom-1 right-1 bg-slate-900/80 text-white text-[8px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider backdrop-blur-sm">
+                          Alterar
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="bg-white border border-slate-200 rounded-lg p-3">
-                    <span className="text-[10.5px] font-bold text-slate-900 block mb-1.5 flex items-center gap-1">
-                      <div className="h-1.5 w-1.5 rounded-full bg-orange-500" /> Outros Equipamentos Roder Compatíveis
-                    </span>
-                    <p className="text-[10px] text-slate-600 leading-relaxed">
-                      Quaisquer outros implementos Roder adquiridos (<strong>Concha High Tip</strong>, <strong>Carregador Frontal</strong>, <strong>Garra Frontal</strong> ou <strong>Garra para Estufagem</strong>) já podem ser construídos de fábrica preparados com as ganchiras do engate rápido.
-                    </p>
+
+                  {/* Rear Preparation Section */}
+                  <div className="bg-white border border-slate-200 rounded-lg p-3 flex flex-col justify-between">
+                    <div>
+                      <span className="text-[10.5px] font-bold text-slate-900 block mb-1 flex items-center gap-1">
+                        <div className="h-1.5 w-1.5 rounded-full bg-orange-500" /> Preparação Traseira dos Equipamentos
+                      </span>
+                      <p className="text-[10px] text-slate-600 leading-relaxed mb-3 text-justify">
+                        <strong>Qualquer equipamento a ser utilizado com o engate rápido exigirá um adaptador traseiro com ganchiras e engates na medida exata do engate rápido.</strong> Isso viabiliza o acoplamento seguro e o travamento hidráulico direto da cabine.
+                      </p>
+                    </div>
+                    <div 
+                      onClick={() => isAdmin && rearInputRef.current?.click()}
+                      className={`h-[150px] w-full border border-dashed rounded-lg bg-slate-50 flex flex-col items-center justify-center p-2 relative overflow-hidden ${isAdmin ? 'cursor-pointer hover:bg-orange-50/30 hover:border-orange-300 transition-all' : 'border-slate-200'}`}
+                    >
+                      {customRearPrepImageUrl ? (
+                        <img 
+                          src={customRearPrepImageUrl} 
+                          alt="Preparação Traseira" 
+                          className="max-h-[134px] max-w-full object-contain rounded"
+                        />
+                      ) : (
+                        <div className="flex flex-col items-center text-center p-2">
+                          <Upload className="h-6 w-6 text-slate-400 mb-1" />
+                          <span className="text-[10px] font-bold text-slate-500">Adicionar Foto da Preparação</span>
+                          <span className="text-[8px] text-slate-400 mt-0.5">Medida padrão das ganchiras</span>
+                        </div>
+                      )}
+                      {isAdmin && (
+                        <div className="absolute bottom-1 right-1 bg-slate-900/80 text-white text-[8px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider backdrop-blur-sm">
+                          Alterar
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                <div className="mt-3.5 bg-amber-50 border border-amber-200 rounded-lg p-3 flex gap-2.5 items-start">
+                {/* New Segment: Compatible Roder Implements examples and requirements */}
+                <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-wider mb-2.5 flex items-center gap-1 border-t border-slate-200 pt-3">
+                  <Wrench className="h-3.5 w-3.5 text-orange-600" /> Exemplos de Implementos Roder Compatíveis & Requisitos Hidráulicos
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 mb-3">
+                  <div className="bg-white border border-slate-150 rounded-lg p-2.5 flex flex-col justify-between">
+                    <div>
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="text-[9.5px] font-black text-slate-900">Carregador Frontal</span>
+                        <span className="text-[8px] bg-purple-100 text-purple-700 px-1 py-0.5 rounded font-bold uppercase">3ª + 4ª Função</span>
+                      </div>
+                      <p className="text-[9px] text-slate-600 leading-relaxed text-justify">
+                        Equipamento dotado de garra com rotador pendulado. Necessita de 4 vias hidráulicas para acionamento simultâneo do abre/fecha e rotação do cabeçote.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-slate-150 rounded-lg p-2.5 flex flex-col justify-between">
+                    <div>
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="text-[9.5px] font-black text-slate-900">Garfo Pallet</span>
+                        <span className="text-[8px] bg-slate-100 text-slate-600 px-1 py-0.5 rounded font-bold uppercase">Sem Cilindro</span>
+                      </div>
+                      <p className="text-[9px] text-slate-600 leading-relaxed text-justify">
+                        Utilizado para cargas palletizadas. Não consome vias hidráulicas de acionamento em operação, necessitando apenas da 3ª função para travar/destravar o engate.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-slate-150 rounded-lg p-2.5 flex flex-col justify-between">
+                    <div>
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="text-[9.5px] font-black text-slate-900">Garra Frontal / Pinça</span>
+                        <span className="text-[8px] bg-orange-100 text-orange-700 px-1 py-0.5 rounded font-bold uppercase">3ª Função Extra</span>
+                      </div>
+                      <p className="text-[9px] text-slate-600 leading-relaxed text-justify">
+                        Utilizada na movimentação de toras de madeira e fardos. Exige a 3ª função para acionamento de abertura e fechamento da pinça (sistema clamp).
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-slate-150 rounded-lg p-2.5 flex flex-col justify-between">
+                    <div>
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="text-[9.5px] font-black text-slate-900">Caçamba High Tip</span>
+                        <span className="text-[8px] bg-orange-100 text-orange-700 px-1 py-0.5 rounded font-bold uppercase">3ª Função Extra</span>
+                      </div>
+                      <p className="text-[9px] text-slate-600 leading-relaxed text-justify">
+                        Caçamba basculante de alta descarga. Utiliza a 3ª função extra para acionar os cilindros de inclinação hidráulica que elevam a altura de descarregamento.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-slate-150 rounded-lg p-2.5 flex flex-col justify-between">
+                    <div>
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="text-[9.5px] font-black text-slate-900">Prolongador com Caçamba</span>
+                        <span className="text-[8px] bg-slate-100 text-slate-600 px-1 py-0.5 rounded font-bold uppercase">Sem Cilindro / 3ª</span>
+                      </div>
+                      <p className="text-[9px] text-slate-600 leading-relaxed text-justify">
+                        Braço de extensão com concha integrada para maior alcance. Caso seja articulada hidraulicamente, utiliza a 3ª função para basculamento.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-slate-150 rounded-lg p-2.5 flex flex-col justify-between">
+                    <div>
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="text-[9.5px] font-black text-slate-900">Garra para Escavação</span>
+                        <span className="text-[8px] bg-orange-100 text-orange-700 px-1 py-0.5 rounded font-bold uppercase">3ª Função Extra</span>
+                      </div>
+                      <p className="text-[9px] text-slate-600 leading-relaxed text-justify">
+                        Desenvolvida para trabalhos pesados de escavação e limpeza. Utiliza a 3ª função para abertura/fechamento das mandíbulas de escavação e entulho.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3 flex gap-2.5 items-start">
                   <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
                   <div>
                     <span className="text-[10px] font-extrabold text-amber-950 uppercase block">Opção de Encaixe Direto nos Pinos (Sem Engate Rápido)</span>
-                    <p className="text-[9.5px] text-amber-900 leading-relaxed">
+                    <p className="text-[9.5px] text-amber-900 leading-relaxed text-justify">
                       Caso o cliente não tenha a necessidade de ficar alternando equipamentos de forma frequente, os implementos Roder são fabricados originalmente com as orelhas traseiras para fixação direta nos pinos da máquina. Nessa modalidade tradicional, o uso do engate rápido não é possível.
                     </p>
                   </div>
