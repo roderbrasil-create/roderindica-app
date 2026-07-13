@@ -34,7 +34,8 @@ import {
   HeartHandshake,
   Briefcase,
   Star,
-  FileText
+  FileText,
+  ExternalLink
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
@@ -353,7 +354,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     const fetchHealth = async () => {
       try {
         const baseUrl = getApiBaseUrl();
-        const res = await fetch(`${baseUrl}/api/health`);
+        const res = await fetch(`${baseUrl}/api/health`, { credentials: 'include' });
         const data = await res.json();
         if (data.aiHealth) setAiStatus(data.aiHealth);
       } catch (e) {
@@ -591,6 +592,8 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
               <span className="text-xs font-medium">Fechar</span>
             </Button>
           </div>
+
+
 
           {(isAdmin || isManager || isMarketing) && aiStatus && (
             <div className={cn(

@@ -293,7 +293,12 @@ service cloud.firestore {
 
     match /settings/{docId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin() || ((isManager() || isTriagem()) && docId == 'comercial_config');
+      allow write: if isAdmin() || 
+                    ((isManager() || isTriagem() || isMarketing() || isInternalSeller()) && 
+                     (docId == 'comercial_config' || 
+                      docId == 'high_tip_drawing' || 
+                      docId.startsWith('engate_rapido_ficha_') || 
+                      docId.startsWith('garra_estufagem_ficha_')));
     }
 
     match /customer_evaluations/{evaluationId} {

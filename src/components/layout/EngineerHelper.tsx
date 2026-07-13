@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, MessageSquare, X, Minus, Send, Calculator, Wrench, HelpCircle, AlertTriangle, Play, RefreshCw, Trash2, ChevronLeft, ChevronRight, CheckCircle, Package, Layers, Tractor, FileText, Mic, Square, Loader2, Brain, BookOpen } from 'lucide-react';
+import { Sparkles, MessageSquare, X, Minus, Send, Calculator, Wrench, HelpCircle, AlertTriangle, Play, RefreshCw, Trash2, ChevronLeft, ChevronRight, CheckCircle, Package, Layers, Tractor, FileText, Mic, Square, Loader2, Brain, BookOpen, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { cn, getApiBaseUrl } from '../../lib/utils';
@@ -528,7 +528,10 @@ export default function EngineerHelper() {
       }
       
       const typeToUse = mimeType || '';
-      const options = typeToUse ? { mimeType: typeToUse } : {};
+      const options: MediaRecorderOptions = {
+        ...(typeToUse ? { mimeType: typeToUse } : {}),
+        audioBitsPerSecond: 16000 // Compressed 16kbps for tiny, fast network transfers
+      };
       const mediaRecorder = new MediaRecorder(stream, options);
       teachingMediaRecorderRef.current = mediaRecorder;
       teachingAudioChunksRef.current = [];
@@ -913,12 +916,25 @@ export default function EngineerHelper() {
     } catch (err: any) {
       console.error('Error in Engineer Helper:', err);
       const errMsgId = `err-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+      
+      let errorMsgDetail = err.message || 'Por favor, tente novamente.';
+      const isIframe = typeof window !== 'undefined' && window.self !== window.top;
+      const isAIStudioPreview = typeof window !== 'undefined' && (
+        window.location.hostname.endsWith('run.app') ||
+        window.location.hostname.includes('aistudio') ||
+        window.location.hostname.includes('preview') ||
+        window.location.hostname.includes('google')
+      );
+      if (isIframe && isAIStudioPreview) {
+        errorMsgDetail += '\n\n💡 **Nota do AI Studio:** O seu navegador pode estar bloqueando cookies de terceiros para este visualizador embutido. Para resolver isso e utilizar o assistente de IA, por favor **clique no botão "Abrir em Nova Aba"** abaixo ou no topo direito do visualizador!';
+      }
+
       setMessages(prev => [
         ...prev,
         {
           id: errMsgId,
           role: 'assistant',
-          content: `⚠️ **Ops, ocorreu um erro ao conectar com o consultor técnico:** ${err.message || 'Por favor, tente novamente.'}`
+          content: `⚠️ **Ops, ocorreu um erro ao conectar com o consultor técnico:** ${errorMsgDetail}`
         }
       ]);
     } finally {
@@ -968,12 +984,25 @@ export default function EngineerHelper() {
     } catch (err: any) {
       console.error('Error in Engineer Helper Retry:', err);
       const errMsgId = `err-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+      
+      let errorMsgDetail = err.message || 'Por favor, tente novamente.';
+      const isIframe = typeof window !== 'undefined' && window.self !== window.top;
+      const isAIStudioPreview = typeof window !== 'undefined' && (
+        window.location.hostname.endsWith('run.app') ||
+        window.location.hostname.includes('aistudio') ||
+        window.location.hostname.includes('preview') ||
+        window.location.hostname.includes('google')
+      );
+      if (isIframe && isAIStudioPreview) {
+        errorMsgDetail += '\n\n💡 **Nota do AI Studio:** O seu navegador pode estar bloqueando cookies de terceiros para este visualizador embutido. Para resolver isso e utilizar o assistente de IA, por favor **clique no botão "Abrir em Nova Aba"** abaixo ou no topo direito do visualizador!';
+      }
+
       setMessages(prev => [
         ...prev,
         {
           id: errMsgId,
           role: 'assistant',
-          content: `⚠️ **Ops, ocorreu um erro ao conectar com o consultor técnico:** ${err.message || 'Por favor, tente novamente.'}`
+          content: `⚠️ **Ops, ocorreu um erro ao conectar com o consultor técnico:** ${errorMsgDetail}`
         }
       ]);
     } finally {
@@ -1012,7 +1041,10 @@ export default function EngineerHelper() {
       const typeToUse = mimeType || '';
       setRecordedMimeType(typeToUse);
 
-      const options = typeToUse ? { mimeType: typeToUse } : {};
+      const options: MediaRecorderOptions = {
+        ...(typeToUse ? { mimeType: typeToUse } : {}),
+        audioBitsPerSecond: 16000 // Compressed 16kbps for tiny, fast network transfers
+      };
       const mediaRecorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
@@ -1446,6 +1478,8 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
               </div>
             </div>
 
+
+
             {!knowledgeOpen ? (
               <>
                 {/* Quick Timber Grab Calculator Panel overlay */}
@@ -1579,6 +1613,19 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
                               },
                               a: ({ node, children, href, ...props }) => {
                                 if (!href) return <span className="text-slate-200 underline">{children}</span>;
+                                if (href.startsWith('http') || href.includes('run.app') || href.includes('roderindica') || href.includes('localhost')) {
+                                  return (
+                                    <a
+                                      href={href}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-emerald-400 hover:text-emerald-300 underline font-extrabold inline-flex items-center gap-1 bg-emerald-500/10 hover:bg-emerald-500/20 px-1.5 py-0.5 rounded transition my-0.5"
+                                    >
+                                      <ExternalLink className="h-3 w-3 inline text-emerald-400" />
+                                      {children}
+                                    </a>
+                                  );
+                                }
                                 return (
                                   <button
                                     type="button"
@@ -1614,6 +1661,18 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
                                     <RefreshCw className="h-3.5 w-3.5" />
                                     Tentar Novamente (Reenviar Pergunta)
                                   </button>
+                                  {typeof window !== 'undefined' && window.self !== window.top && (
+                                    <a
+                                      href={window.location.href}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center gap-1.5 bg-sky-600 hover:bg-sky-500 text-white font-black uppercase text-[10px] py-2 px-4 rounded-lg transition shadow-md cursor-pointer duration-150"
+                                      title="Abre o aplicativo em uma nova aba para resolver problemas de cookies de terceiros no AI Studio."
+                                    >
+                                      <ExternalLink className="h-3.5 w-3.5" />
+                                      Abrir em Nova Aba (Recomendado)
+                                    </a>
+                                  )}
                                 </div>
                               </div>
                             );

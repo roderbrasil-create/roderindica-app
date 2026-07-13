@@ -101,7 +101,24 @@ export default function RoderIAReports() {
   // Daily Summary States
   const [dailySummary, setDailySummary] = useState<DailySummary | null>(null);
   const [generatingSummary, setGeneratingSummary] = useState(false);
+  const [selectedSummaryDate, setSelectedSummaryDate] = useState<string>(() => {
+    return new Date().toISOString().split('T')[0];
+  });
   
+  const fetchSummaryForDate = async (dateStr: string) => {
+    try {
+      const summaryDocRef = doc(db, 'roder_ai_daily_summaries', dateStr);
+      const summarySnap = await getDoc(summaryDocRef);
+      if (summarySnap.exists()) {
+        setDailySummary(summarySnap.data() as DailySummary);
+      } else {
+        setDailySummary(null);
+      }
+    } catch (err) {
+      console.error('Error fetching daily summary:', err);
+    }
+  };
+
   // Load data
   const fetchData = async () => {
     try {
@@ -150,15 +167,8 @@ export default function RoderIAReports() {
       
       setQuestions(analyzedQuestions);
       
-      // 4. Fetch today's summary if available
-      const todayStr = new Date().toISOString().split('T')[0];
-      const summaryDocRef = doc(db, 'roder_ai_daily_summaries', todayStr);
-      const summarySnap = await getDoc(summaryDocRef);
-      if (summarySnap.exists()) {
-        setDailySummary(summarySnap.data() as DailySummary);
-      } else {
-        setDailySummary(null);
-      }
+      // 4. Fetch daily summary for the selected date
+      await fetchSummaryForDate(selectedSummaryDate);
       
     } catch (err: any) {
       console.error('Error fetching Roder IA reports data:', err);
@@ -171,6 +181,12 @@ export default function RoderIAReports() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (!loading) {
+      fetchSummaryForDate(selectedSummaryDate);
+    }
+  }, [selectedSummaryDate]);
   
   // Handlers
   const handleSaveImprovement = async () => {
@@ -206,12 +222,12 @@ export default function RoderIAReports() {
   const handleGenerateTodaySummary = async () => {
     try {
       setGeneratingSummary(true);
-      const summary = await generateRoderAIDailySummary();
+      const summary = await generateRoderAIDailySummary(selectedSummaryDate);
       setDailySummary(summary);
-      toast.success('Resumo diário gerado e consolidado com sucesso!');
+      toast.success(`Resumo diário de ${selectedSummaryDate} gerado e consolidado com sucesso!`);
     } catch (err: any) {
       console.error('Error generating daily summary:', err);
-      toast.error('Nenhuma pergunta registrada hoje para compilar o resumo.');
+      toast.error(`Nenhuma pergunta registrada em ${selectedSummaryDate} para compilar o resumo.`);
     } finally {
       setGeneratingSummary(false);
     }
@@ -446,7 +462,7 @@ export default function RoderIAReports() {
           <MessageSquare className="h-4 w-4" />
           Relatório de Perguntas
         </button>
-        {profile?.email === 'roderbrasil@gmail.com' && (
+        {(profile?.email === 'roderbrasil@gmail.com' || isAdmin || isManager) && (
           <button
             id="tab-summary-btn"
             onClick={() => setActiveTab('summary')}
@@ -1030,7 +1046,7 @@ export default function RoderIAReports() {
         )}
 
         {/* TAB 3: DAILY SUMMARIES CONSOLIDATION */}
-        {activeTab === 'summary' && profile?.email === 'roderbrasil@gmail.com' && (
+        {activeTab === 'summary' && (profile?.email === 'roderbrasil@gmail.com' || isAdmin || isManager) && (
           <motion.div
             key="summary-tab"
             initial={{ opacity: 0, y: 10 }}
@@ -1040,7 +1056,7 @@ export default function RoderIAReports() {
             id="tab-summary-content"
           >
             <div className="bg-white border border-slate-100 rounded-xl p-6 shadow-sm">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                 <div>
                   <h3 className="text-base font-bold text-slate-950 flex items-center gap-2">
                     <Sparkles className="h-5 w-5 text-indigo-500" />
@@ -1051,15 +1067,27 @@ export default function RoderIAReports() {
                   </p>
                 </div>
                 
-                <button
-                  id="btn-consolidate-summary"
-                  onClick={handleGenerateTodaySummary}
-                  disabled={generatingSummary}
-                  className="px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors text-xs font-semibold flex items-center gap-2 shadow-sm disabled:opacity-50"
-                >
-                  <RefreshCw className={`h-4 w-4 ${generatingSummary ? 'animate-spin' : ''}`} />
-                  Compilar Resumo de Hoje
-                </button>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+                  <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Data do Resumo:</span>
+                    <input
+                      type="date"
+                      value={selectedSummaryDate}
+                      onChange={(e) => setSelectedSummaryDate(e.target.value)}
+                      className="bg-transparent border-none text-xs font-semibold text-slate-800 focus:outline-none focus:ring-0 cursor-pointer"
+                    />
+                  </div>
+                  
+                  <button
+                    id="btn-consolidate-summary"
+                    onClick={handleGenerateTodaySummary}
+                    disabled={generatingSummary}
+                    className="px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors text-xs font-semibold flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${generatingSummary ? 'animate-spin' : ''}`} />
+                    Compilar Resumo do Dia
+                  </button>
+                </div>
               </div>
 
               {dailySummary ? (
@@ -1116,8 +1144,8 @@ export default function RoderIAReports() {
               ) : (
                 <div className="py-12 border border-dashed border-slate-200 rounded-xl text-center bg-slate-50/50">
                   <Info className="h-6 w-6 text-slate-400 mx-auto mb-2" />
-                  <p className="text-sm font-medium text-slate-900">Nenhum resumo compilado para hoje</p>
-                  <p className="text-xs text-slate-500 mt-1">Clique no botão superior para que a Roder IA analise todas as perguntas de hoje e crie o relatório.</p>
+                  <p className="text-sm font-medium text-slate-900">Nenhum resumo compilado para a data de {selectedSummaryDate}</p>
+                  <p className="text-xs text-slate-500 mt-1">Clique no botão superior para que a Roder IA analise todas as perguntas desta data e compile o relatório consolidado.</p>
                 </div>
               )}
             </div>

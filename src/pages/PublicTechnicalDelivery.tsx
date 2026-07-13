@@ -434,6 +434,7 @@ export default function PublicTechnicalDelivery() {
         headers: {
           'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify({
           to: 'suporte@roderbrasil.com.br, jeferson@roderbrasil.com.br',
           subject: `Ficha de Entrega Técnica - FAE - Cliente: ${clientName.toUpperCase()} | Série: ${serialNumber}`,

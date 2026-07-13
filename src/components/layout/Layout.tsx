@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import { Button } from '../ui/button';
-import { Menu, ChevronLeft, X, Eye, EyeOff, WifiOff } from 'lucide-react';
+import { Menu, ChevronLeft, X, Eye, EyeOff, WifiOff, ExternalLink } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import NotificationBell from './NotificationBell';
 import { useAuth } from '../../contexts/AuthContext';
@@ -46,6 +46,23 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const [showIframeNotice, setShowIframeNotice] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const isIframe = window.self !== window.top;
+      const isAIStudioPreview = 
+        window.location.hostname.endsWith('run.app') ||
+        window.location.hostname.includes('aistudio') ||
+        window.location.hostname.includes('preview') ||
+        window.location.hostname.includes('google');
+      
+      if (isIframe && isAIStudioPreview) {
+        setShowIframeNotice(true);
+      }
+    }
+  }, []);
+
   const [isHelperOpen, setIsHelperOpen] = useState(() => {
     try {
       const saved = sessionStorage.getItem('roder_helper_isOpen');
@@ -74,6 +91,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
       <AnimatePresence>
+
+
         {isQuotaExceeded && (
           <motion.div 
             initial={{ height: 0, opacity: 0 }}

@@ -24,6 +24,9 @@ import { toast } from 'sonner';
 import { db } from '../../lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useAuth } from '../../contexts/AuthContext';
+import { compressFileToDataURL } from '../../lib/imageUtils';
+import { getApiBaseUrl } from '../../lib/utils';
+
 
 interface GarraEstufagemFichaProps {
   onClose: () => void;
@@ -125,7 +128,8 @@ const MODELS: ModelData[] = [
 ];
 
 export function GarraEstufagemFicha({ onClose, defaultModelId = 'af-360' }: GarraEstufagemFichaProps) {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isManager, isTriagem, isMarketing, isInternalSeller } = useAuth();
+  const canEdit = isAdmin || isManager || isTriagem || isMarketing || isInternalSeller;
   const printRef = useRef<HTMLDivElement>(null);
   const [selectedModelId, setSelectedModelId] = useState<string>(defaultModelId);
   const [customMainImageUrl, setCustomMainImageUrl] = useState<string | null>(null);
@@ -139,14 +143,32 @@ export function GarraEstufagemFicha({ onClose, defaultModelId = 'af-360' }: Garr
   useEffect(() => {
     const fetchFichaImages = async () => {
       try {
-        const docRef = doc(db, 'settings', 'garra_estufagem_ficha_images');
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setCustomMainImageUrl(data.main_image_url || null);
-          setCustomDrawingUrl(data.drawing_url || null);
-          setCustomMountedImageUrl(data.mounted_image_url || null);
+        // Fetch separate documents for each image type to avoid Firestore document limits
+        const [mainSnap, drawingSnap, mountedSnap] = await Promise.all([
+          getDoc(doc(db, 'settings', 'garra_estufagem_ficha_main')),
+          getDoc(doc(db, 'settings', 'garra_estufagem_ficha_drawing')),
+          getDoc(doc(db, 'settings', 'garra_estufagem_ficha_mounted')),
+        ]);
+
+        let mainImg = mainSnap.exists() ? mainSnap.data().image_url : null;
+        let drawingImg = drawingSnap.exists() ? drawingSnap.data().image_url : null;
+        let mountedImg = mountedSnap.exists() ? mountedSnap.data().image_url : null;
+
+        // Fall back to old monolithic document if any is missing
+        if (!mainImg || !drawingImg || !mountedImg) {
+          const docRef = doc(db, 'settings', 'garra_estufagem_ficha_images');
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (!mainImg) mainImg = data.main_image_url || null;
+            if (!drawingImg) drawingImg = data.drawing_url || null;
+            if (!mountedImg) mountedImg = data.mounted_image_url || null;
+          }
         }
+
+        setCustomMainImageUrl(mainImg);
+        setCustomDrawingUrl(drawingImg);
+        setCustomMountedImageUrl(mountedImg);
       } catch (err) {
         console.error('Erro ao buscar imagens customizadas da ficha de estufagem:', err);
       }
@@ -166,8 +188,8 @@ export function GarraEstufagemFicha({ onClose, defaultModelId = 'af-360' }: Garr
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error("O arquivo de imagem deve ter no máximo 2MB.");
+    if (file.size > 30 * 1024 * 1024) {
+      toast.error("O arquivo de imagem deve ter no máximo 30MB.");
       return;
     }
 
@@ -180,30 +202,61 @@ export function GarraEstufagemFicha({ onClose, defaultModelId = 'af-360' }: Garr
     setLoadingMedia(true);
     const toastId = toast.loading(`Enviando ${labels[type]}...`);
 
+    const docNameMap = {
+      main: 'garra_estufagem_ficha_main',
+      drawing: 'garra_estufagem_ficha_drawing',
+      mounted: 'garra_estufagem_ficha_mounted'
+    };
+    const docName = docNameMap[type];
+
     try {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const base64Data = reader.result as string;
-        
-        const docRef = doc(db, 'settings', 'garra_estufagem_ficha_images');
-        const docSnap = await getDoc(docRef);
-        const currentData = docSnap.exists() ? docSnap.data() : {};
-        
-        const updatedData = {
-          ...currentData,
-          [`${type}_image_url`]: base64Data,
+      // Compress the image before uploading to avoid Firestore 1MB document size limit
+      const base64Data = await compressFileToDataURL(file, 800, 0.7);
+      
+      // Upload via server-side API to store in Firebase Storage or local uploads fallback
+      const baseUrl = getApiBaseUrl();
+      const uploadRes = await fetch(`${baseUrl}/api/upload-image`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileBase64: base64Data,
+          fileName: `garra_estufagem_ficha_${type}_${Date.now()}.jpg`,
+          contentType: "image/jpeg",
+          folder: "garra_estufagem",
+          docName: docName
+        })
+      });
+
+      if (!uploadRes.ok) {
+        throw new Error(`Server returned status ${uploadRes.status}`);
+      }
+
+      const uploadData = await uploadRes.json();
+      if (!uploadData.success || !uploadData.url) {
+        throw new Error(uploadData.error || "Failed to retrieve upload URL");
+      }
+
+      const imageUrlToSave = uploadData.url;
+      
+      if (type === 'main') {
+        setCustomMainImageUrl(imageUrlToSave);
+      } else if (type === 'drawing') {
+        setCustomDrawingUrl(imageUrlToSave);
+      } else if (type === 'mounted') {
+        setCustomMountedImageUrl(imageUrlToSave);
+      }
+
+      if (docName) {
+        const docRef = doc(db, 'settings', docName);
+        setDoc(docRef, {
+          image_url: imageUrlToSave,
           updated_at: new Date().toISOString()
-        };
+        }).catch(err => {
+          console.warn("Erro não bloqueante ao salvar no Firestore (sincronização em segundo plano):", err);
+        });
+      }
 
-        await setDoc(docRef, updatedData);
-
-        if (type === 'main') setCustomMainImageUrl(base64Data);
-        if (type === 'drawing') setCustomDrawingUrl(base64Data);
-        if (type === 'mounted') setCustomMountedImageUrl(base64Data);
-
-        toast.success(`${labels[type]} atualizado com sucesso!`, { id: toastId });
-      };
-      reader.readAsDataURL(file);
+      toast.success(`${labels[type]} atualizado com sucesso!`, { id: toastId });
     } catch (err) {
       console.error(err);
       toast.error(`Erro ao fazer upload da imagem de ${labels[type]}.`, { id: toastId });
@@ -219,13 +272,18 @@ export function GarraEstufagemFicha({ onClose, defaultModelId = 'af-360' }: Garr
     const toastId = toast.loading("Restaurando imagens oficiais...");
 
     try {
-      const docRef = doc(db, 'settings', 'garra_estufagem_ficha_images');
-      await setDoc(docRef, {
-        main_image_url: null,
-        drawing_url: null,
-        mounted_image_url: null,
-        updated_at: new Date().toISOString()
-      });
+      // Clear all separate documents and the old monolithic one in parallel
+      await Promise.all([
+        setDoc(doc(db, 'settings', 'garra_estufagem_ficha_main'), { image_url: null, updated_at: new Date().toISOString() }),
+        setDoc(doc(db, 'settings', 'garra_estufagem_ficha_drawing'), { image_url: null, updated_at: new Date().toISOString() }),
+        setDoc(doc(db, 'settings', 'garra_estufagem_ficha_mounted'), { image_url: null, updated_at: new Date().toISOString() }),
+        setDoc(doc(db, 'settings', 'garra_estufagem_ficha_images'), {
+          main_image_url: null,
+          drawing_url: null,
+          mounted_image_url: null,
+          updated_at: new Date().toISOString()
+        })
+      ]);
 
       setCustomMainImageUrl(null);
       setCustomDrawingUrl(null);
@@ -369,7 +427,7 @@ export function GarraEstufagemFicha({ onClose, defaultModelId = 'af-360' }: Garr
               </button>
             </div>
 
-            {isAdmin && (
+            {canEdit && (
               <div className="mt-6 border-t border-slate-800 pt-5">
                 <span className="text-[10px] uppercase tracking-wider text-red-500 font-extrabold block mb-3">Painel de Administração</span>
                 <div className="space-y-2">

@@ -1018,6 +1018,7 @@ export default function Stock() {
         headers: {
           'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify({
           image: base64Data,
           mimeType: file.type

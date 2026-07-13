@@ -220,7 +220,7 @@ export default function ProductDossier() {
   const startGuidelineRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+      const recorder = new MediaRecorder(stream, { audioBitsPerSecond: 16000 });
       const chunks: Blob[] = [];
 
       recorder.ondataavailable = (e) => {
@@ -453,7 +453,7 @@ export default function ProductDossier() {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+      const recorder = new MediaRecorder(stream, { audioBitsPerSecond: 16000 });
       const chunks: Blob[] = [];
 
       recorder.ondataavailable = (e) => {
@@ -479,6 +479,7 @@ export default function ProductDossier() {
             const res = await fetch(`${baseUrl}/api/upload-image`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
               body: JSON.stringify({
                 fileBase64: base64data,
                 fileName: `audio_${selectedModel?.id || 'model'}_${Date.now()}.webm`,
@@ -592,6 +593,7 @@ export default function ProductDossier() {
         const res = await fetch(`${baseUrl}/api/upload-image`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({
             fileBase64: base64data,
             fileName: file.name,

@@ -219,6 +219,7 @@ export default function FinanceDashboard() {
         headers: {
           "Content-Type": "application/json"
         },
+        credentials: "include",
         body: JSON.stringify({
           current: selectedMonthDoc,
           history: history,
@@ -408,6 +409,7 @@ export default function FinanceDashboard() {
       const baseUrl = getApiBaseUrl();
       const response = await fetch(`${baseUrl}/api/financeiro/parse-pdf`, {
         method: 'POST',
+        credentials: 'include',
         body: formData,
       });
 

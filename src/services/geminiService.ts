@@ -11,6 +11,7 @@ async function executeBackendAI(action: string, args: any = {}): Promise<any> {
     headers: {
       "Content-Type": "application/json",
     },
+    credentials: "include",
     body: JSON.stringify({ action, args }),
   });
 

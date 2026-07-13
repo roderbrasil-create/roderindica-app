@@ -67,29 +67,49 @@
         checkAndPolyfillStorage('localStorage');
         checkAndPolyfillStorage('sessionStorage');
 
-        // Unregister service workers immediately in development to prevent caching issues/blank screens
-        // We keep it disabled on localhost and active dev sandbox, but allow it on preview/production (ais-pre and cloud run urls)
-        var isDev = window.location.hostname.includes('ais-dev') || 
-                     window.location.hostname.includes('localhost') || 
-                     window.location.hostname.includes('127.0.0.1');
-        
-        if (isDev && 'serviceWorker' in navigator) {
+        // Unregister service workers immediately in all environments to prevent caching issues
+        if ('serviceWorker' in navigator) {
           navigator.serviceWorker.getRegistrations().then(function(registrations) {
-            for (var i = 0; i < registrations.length; i++) {
-              registrations[i].unregister().then(function(success) {
-                if (success) {
-                  console.log('[DevHelper] ServiceWorker unregistered successfully');
-                }
-              });
+            if (registrations.length > 0) {
+              console.log('[DevHelper] Found ' + registrations.length + ' ServiceWorkers. Clearing...');
+              for (var i = 0; i < registrations.length; i++) {
+                registrations[i].unregister().then(function(success) {
+                  if (success) {
+                    console.log('[DevHelper] ServiceWorker unregistered successfully');
+                  }
+                });
+              }
+              // If service workers were found, clear caches and reload
+              if (window.caches) {
+                caches.keys().then(function(names) {
+                  for (var name of names) {
+                    caches.delete(name);
+                  }
+                  setTimeout(function() { window.location.reload(true); }, 500);
+                });
+              } else {
+                setTimeout(function() { window.location.reload(true); }, 500);
+              }
             }
           }).catch(function(err) {
             console.error('[DevHelper] Error unregistering ServiceWorker:', err);
           });
         }
 
+        // Also clear standard caches periodically to keep things fresh
+        if (window.caches && !sessionStorage.getItem('roder_cache_cleaned_session')) {
+          caches.keys().then(function(names) {
+            names.forEach(function(name) {
+              caches.delete(name);
+            });
+            sessionStorage.setItem('roder_cache_cleaned_session', 'true');
+            console.log('[DevHelper] Browser Caches cleared for this session.');
+          });
+        }
+
         // Force refresh if version mismatch (simple versioning)
         try {
-          var CURRENT_VERSION = '2.4.0'; // Match APP_VERSION in App.tsx
+          var CURRENT_VERSION = '2.5.0'; // Match APP_VERSION in App.tsx
           var savedVersion = localStorage.getItem('app_version');
           if (savedVersion !== CURRENT_VERSION) {
             localStorage.setItem('app_version', CURRENT_VERSION);

@@ -683,7 +683,10 @@ export default function NewIndication() {
       const typeToUse = mimeType || '';
       setRecordedMimeType(typeToUse);
 
-      const options = typeToUse ? { mimeType: typeToUse } : {};
+      const options: MediaRecorderOptions = {
+        ...(typeToUse ? { mimeType: typeToUse } : {}),
+        audioBitsPerSecond: 16000 // Compressed 16kbps for small payload and robust network transfer
+      };
       const mediaRecorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];

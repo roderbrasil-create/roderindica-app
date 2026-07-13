@@ -85,7 +85,7 @@ import PWAInstallBanner from './components/system/PWAInstallBanner';
 // App Version: 2.1.3 - Sidebar Endomarketing Update Pending
 export default function App() {
   const [mounted, setMounted] = useState(false);
-  const APP_VERSION = "2.4.4"; // Security fix for permission leak and Yury access
+  const APP_VERSION = "2.5.0"; // Consolidating print sheets and cache cleaning update
 
   useEffect(() => {
     try {

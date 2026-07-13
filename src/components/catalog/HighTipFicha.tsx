@@ -19,13 +19,17 @@ import { toast } from 'sonner';
 import { db } from '../../lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useAuth } from '../../contexts/AuthContext';
+import { compressFileToDataURL } from '../../lib/imageUtils';
+import { getApiBaseUrl } from '../../lib/utils';
+
 
 interface HighTipFichaProps {
   onClose: () => void;
 }
 
 export function HighTipFicha({ onClose }: HighTipFichaProps) {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isManager, isTriagem, isMarketing, isInternalSeller } = useAuth();
+  const canEdit = isAdmin || isManager || isTriagem || isMarketing || isInternalSeller;
   const printRef = useRef<HTMLDivElement>(null);
   const [customDrawingUrl, setCustomDrawingUrl] = useState<string | null>(null);
   const [loadingDrawing, setLoadingDrawing] = useState(false);
@@ -57,8 +61,8 @@ export function HighTipFicha({ onClose }: HighTipFichaProps) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error("O arquivo deve ter no máximo 2MB.");
+    if (file.size > 30 * 1024 * 1024) {
+      toast.error("O arquivo deve ter no máximo 30MB.");
       return;
     }
 
@@ -66,20 +70,44 @@ export function HighTipFicha({ onClose }: HighTipFichaProps) {
     const toastId = toast.loading("Enviando e processando desenho técnico...");
 
     try {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const base64Data = reader.result as string;
-        
-        const docRef = doc(db, 'settings', 'high_tip_drawing');
-        await setDoc(docRef, {
-          image_data: base64Data,
-          created_at: new Date().toISOString()
-        });
+      // Compress the image before uploading to avoid Firestore size limit
+      const base64Data = await compressFileToDataURL(file, 800, 0.7);
+      
+      // Upload via server-side API to store in Firebase Storage or local uploads fallback
+      const baseUrl = getApiBaseUrl();
+      const uploadRes = await fetch(`${baseUrl}/api/upload-image`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileBase64: base64Data,
+          fileName: `high_tip_drawing_${Date.now()}.jpg`,
+          contentType: "image/jpeg",
+          folder: "high_tip",
+          docName: "high_tip_drawing"
+        })
+      });
 
-        setCustomDrawingUrl(base64Data);
-        toast.success("Desenho técnico atualizado com sucesso!", { id: toastId });
-      };
-      reader.readAsDataURL(file);
+      if (!uploadRes.ok) {
+        throw new Error(`Server returned status ${uploadRes.status}`);
+      }
+
+      const uploadData = await uploadRes.json();
+      if (!uploadData.success || !uploadData.url) {
+        throw new Error(uploadData.error || "Failed to retrieve upload URL");
+      }
+
+      const imageUrlToSave = uploadData.url;
+
+      const docRef = doc(db, 'settings', 'high_tip_drawing');
+      setDoc(docRef, {
+        image_data: imageUrlToSave,
+        created_at: new Date().toISOString()
+      }).catch(err => {
+        console.warn("Erro não bloqueante ao salvar no Firestore (sincronização em segundo plano):", err);
+      });
+
+      setCustomDrawingUrl(imageUrlToSave);
+      toast.success("Desenho técnico atualizado com sucesso!", { id: toastId });
     } catch (err) {
       console.error(err);
       toast.error("Erro ao fazer upload do desenho técnico.", { id: toastId });
@@ -411,7 +439,7 @@ export function HighTipFicha({ onClose }: HighTipFichaProps) {
                     )}
 
                      {/* Controles de upload flutuantes (no-print) */}
-                    {isAdmin && (
+                    {canEdit && (
                       <div className="absolute bottom-2 right-2 flex items-center gap-1.5 no-print opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200 bg-slate-900/90 backdrop-blur-sm p-1.5 rounded-lg border border-slate-700/50 shadow-md">
                         <label className="cursor-pointer text-[10px] font-extrabold text-white hover:text-orange-400 flex items-center gap-1 px-2 py-1 rounded transition-colors" title="Substituir por seu desenho CAD real">
                           <Upload className="h-3.5 w-3.5" />

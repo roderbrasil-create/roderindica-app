@@ -44,7 +44,8 @@ interface ModelSpec {
 }
 
 export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshFichaProps) {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isManager, isTriagem, isMarketing, isInternalSeller } = useAuth();
+  const canEdit = isAdmin || isManager || isTriagem || isMarketing || isInternalSeller;
   const printRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [selectedModelId, setSelectedModelId] = useState<string>(defaultModelId);
@@ -495,7 +496,7 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshF
               ))}
             </div>
             
-            {isAdmin && (
+            {canEdit && (
               <button
                 onClick={handleResetToDefault}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-200 hover:border-red-200 hover:bg-red-50 text-neutral-600 hover:text-red-600 text-xs font-semibold transition-all"
@@ -655,7 +656,7 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshF
                       aspectRatioClass="w-full h-full border-0 bg-transparent p-0 hover:shadow-none focus:ring-0 rounded-none"
                       outerMinHeightClass="min-h-full"
                       innerMinHeightClass="min-h-full"
-                      disabled={!isAdmin}
+                      disabled={!canEdit}
                     />
                   </div>
                   <div className="bg-slate-900 text-white p-2 text-[10px] text-center font-medium border-t border-neutral-200 z-10">
@@ -690,7 +691,7 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshF
                       aspectRatioClass="w-full h-full border-0 bg-transparent p-0 hover:shadow-none focus:ring-0 rounded-none"
                       outerMinHeightClass="min-h-full"
                       innerMinHeightClass="min-h-full"
-                      disabled={!isAdmin}
+                      disabled={!canEdit}
                     />
                   </div>
                   <div className="bg-slate-900 text-white p-2 text-[10px] text-center font-medium border-t border-neutral-200 z-10">

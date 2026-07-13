@@ -121,7 +121,7 @@ export default function FairDetails() {
     const checkAI = async () => {
         try {
             const baseUrl = getApiBaseUrl();
-            const res = await fetch(`${baseUrl}/api/health`);
+            const res = await fetch(`${baseUrl}/api/health`, { credentials: 'include' });
             const data = await res.json();
             if (data.aiHealth) {
                 setAiHealth(data.aiHealth);

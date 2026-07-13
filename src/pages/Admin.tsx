@@ -693,6 +693,7 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
         const response = await fetch(`${baseUrl}/api/send-email`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({
             to: user.email,
             subject: 'Instruções de Acesso - RODER Indica V2',
@@ -1123,6 +1124,7 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
       const response = await fetch(`${baseUrl}/api/send-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           to: realProfile.email,
           subject: 'Teste de Configuração - RODER Indica V2',
@@ -1275,6 +1277,7 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
       const response = await fetch(`${baseUrl}/api/admin/set-user-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           email: passwordForUser.email,
           password: passwordForUser.password,

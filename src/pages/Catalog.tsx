@@ -89,7 +89,7 @@ import { EngateRapidoFicha } from '../components/catalog/EngateRapidoFicha';
 import { GarraEstufagemFicha } from '../components/catalog/GarraEstufagemFicha';
 import { RODER_LOGO_BASE64 } from '../components/catalog/RoderLogo';
 
-function SmartImage({ src, alt, className, zoom = 1, ...props }: any) {
+function SmartImage({ src, alt, className, zoom = 1, objectFit = 'cover', ...props }: any) {
   const [resolvedSrc, setResolvedSrc] = useState('');
   const [attempts, setAttempts] = useState<string[]>([]);
   const [attemptIndex, setAttemptIndex] = useState(0);
@@ -202,7 +202,10 @@ function SmartImage({ src, alt, className, zoom = 1, ...props }: any) {
               transform: `scale(${zoom})`,
               transformOrigin: 'center center'
             }}
-            className="w-full h-full object-cover transition-transform duration-300 pointer-events-none" 
+            className={cn(
+              "w-full h-full transition-transform duration-300 pointer-events-none",
+              objectFit === 'contain' ? "object-contain p-1 md:p-2 bg-white" : "object-cover"
+            )} 
             onError={handleImageError}
             {...props} 
             referrerPolicy="no-referrer" 
@@ -217,7 +220,7 @@ function SmartImage({ src, alt, className, zoom = 1, ...props }: any) {
   );
 }
 
-function ImageCarousel({ images, zoom = 1, onClick }: { images: string[], zoom?: number, onClick?: () => void }) {
+function ImageCarousel({ images, zoom = 1, objectFit = 'cover', onClick }: { images: string[], zoom?: number, objectFit?: string, onClick?: () => void }) {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   useEffect(() => {
@@ -236,8 +239,9 @@ function ImageCarousel({ images, zoom = 1, onClick }: { images: string[], zoom?:
           src={img}
           alt=""
           zoom={zoom}
+          objectFit={objectFit}
           className={cn(
-            "absolute inset-0 w-full h-full object-cover transition-opacity duration-1000",
+            "absolute inset-0 w-full h-full transition-opacity duration-1000",
             idx === currentIndex ? "opacity-100" : "opacity-0"
           )}
         />
@@ -281,6 +285,7 @@ const isEngateProduct = (nameOrUrl?: string) => {
 const isHighTipProduct = (nameOrUrl?: string) => {
   if (!nameOrUrl) return false;
   const lower = nameOrUrl.toLowerCase();
+  if (lower.includes('prolongador') || lower.includes('pcr')) return false;
   return lower.includes('high tip') || 
          lower.includes('high-tip') || 
          lower.includes('cacamba-high-tip') || 
@@ -322,6 +327,18 @@ const isAnyFichaSupported = (product: any) => {
   const desc = (product.description || '').toLowerCase();
   const cat = (product.category || '').toLowerCase();
   
+  // Guard for Prolongador com Concha / PCR: should not support high tip default fallbacks
+  const isProlongador = url.includes('prolongador') || 
+                        name.includes('prolongador') || 
+                        desc.includes('prolongador') || 
+                        cat.includes('prolongador') || 
+                        name.includes('pcr') || 
+                        (product.id && product.id.toLowerCase().includes('prolongador'));
+  
+  if (isProlongador) {
+    return !!product.pdf_url;
+  }
+  
   const containsEngateKeyword = (str: string) => {
     const s = (str || '').toLowerCase();
     return s.includes('engat') || s.includes('rapido') || s.includes('rápido') || s.includes('acopl') || s.includes('acople') || s.includes('hitch');
@@ -331,9 +348,10 @@ const isAnyFichaSupported = (product: any) => {
 
   const containsHighTipKeyword = (str: string) => {
     const s = (str || '').toLowerCase();
+    if (s.includes('prolongador')) return false;
     return s.includes('high') || s.includes('tip') || s.includes('despejo') || s.includes('concha') || s.includes('caçamba de alto') || s.includes('cacamba de alto');
   };
-  const isHighTip = containsHighTipKeyword(url) || containsHighTipKeyword(name) || containsHighTipKeyword(desc) || containsHighTipKeyword(cat);
+  const isHighTip = !isProlongador && (containsHighTipKeyword(url) || containsHighTipKeyword(name) || containsHighTipKeyword(desc) || containsHighTipKeyword(cat));
 
   const containsFresaKeyword = (str: string) => {
     const s = (str || '').toLowerCase();
@@ -423,8 +441,8 @@ function SortableProductCard({
       <div className={cn("flex w-full", viewMode === 'list' ? "flex-row" : "flex-row md:flex-col")}> 
         {/* Image Section */}
         <div className={cn(
-          "w-32 sm:w-40 relative overflow-hidden bg-muted flex-shrink-0 flex items-center justify-center",
-          viewMode === 'list' ? "md:w-60 md:h-auto md:aspect-[4/3] md:rounded-none" : "md:w-full md:aspect-video md:rounded-none"
+          "w-36 sm:w-44 aspect-square relative overflow-hidden bg-white flex-shrink-0 flex items-center justify-center border-r border-border/30",
+          viewMode === 'list' ? "md:w-72 md:aspect-square md:rounded-none md:border-r" : "md:w-full md:aspect-square md:rounded-none md:border-b"
         )}>
           {(isManager || isAdmin || isMarketing) && !searchTerm && (
             <div 
@@ -453,9 +471,15 @@ function SortableProductCard({
             style={{ perspective: 1000 }}
           >
             {product.image_url ? (
-              <SmartImage src={product.image_url} alt={product.name} zoom={product.image_zoom || 1} className="w-full h-full object-cover" />
+              <SmartImage 
+                src={product.image_url} 
+                alt={product.name} 
+                zoom={product.image_zoom || 1} 
+                objectFit="contain"
+                className="w-full h-full" 
+              />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-muted-foreground text-[12px]">Sem Foto</div>
+              <div className="w-full h-full flex items-center justify-center text-muted-foreground text-[12px] bg-muted/20">Sem Foto</div>
             )}
           </motion.div>
 
@@ -542,20 +566,18 @@ function SortableProductCard({
                 </Button>
               </div>
               
-              <div className="flex items-center">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className={cn(
-                    "h-8 border-border px-1 text-[7px] font-bold flex-col gap-0.5 justify-center leading-none min-w-[42px]",
-                    !isAnyFichaSupported(product) && "opacity-20"
-                  )} 
-                  onClick={() => openPdf(product.pdf_url || '', product.name, product)}
-                  disabled={!isAnyFichaSupported(product)}
-                >
-                  <FileText className="h-3 w-3 text-red-500" /> <span>Ficha</span>
-                </Button>
-              </div>
+              {isAnyFichaSupported(product) && (
+                <div className="flex items-center">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="h-8 border-border px-1 text-[7px] font-bold flex-col gap-0.5 justify-center leading-none min-w-[42px]"
+                    onClick={() => openPdf(product.pdf_url || '', product.name, product)}
+                  >
+                    <FileText className="h-3 w-3 text-red-500" /> <span>Ficha</span>
+                  </Button>
+                </div>
+              )}
 
               {product.name === 'Caçamba High Tip' && (
                 <div className="flex items-center">
@@ -649,7 +671,7 @@ function SortableProductCard({
                   variant="outline" 
                   className={cn(
                     "flex-1 border-border text-xs h-9",
-                    isAnyFichaSupported(product) ? "text-foreground" : "text-muted-foreground opacity-20"
+                    isAnyFichaSupported(product) ? "text-foreground" : "hidden"
                   )}
                   onClick={() => openPdf(product.pdf_url || '', product.name, product)}
                   disabled={!isAnyFichaSupported(product)}
@@ -910,6 +932,51 @@ export default function Catalog() {
         updateDoc(doc(db, 'products', engateRapido.id), { is_blocked: false });
       }
 
+      // Make Garfo Paleteiro completely permanent for all users!
+      const garfoPaleteiro = data.find(p => p.name === 'Garfo Paleteiro');
+      if (!garfoPaleteiro && data.length > 0) {
+        addGarfoPaleteiro();
+      } else if (garfoPaleteiro) {
+        if (garfoPaleteiro.is_blocked) {
+          updateDoc(doc(db, 'products', garfoPaleteiro.id), { is_blocked: false });
+        }
+        const hasGpr4500 = garfoPaleteiro.models?.some((m: any) => m.id === 'gpr-4500');
+        if (!hasGpr4500 && data.length > 0) {
+          addGarfoPaleteiro();
+        }
+      }
+
+      // Make Caçamba High Tip and Prolongador com Concha completely permanent for all users!
+      const cacambaHighTip = data.find(p => p.name === 'Caçamba High Tip');
+      if (!cacambaHighTip && data.length > 0) {
+        addCacambaHighTip();
+      } else if (cacambaHighTip) {
+        if (cacambaHighTip.is_blocked) {
+          updateDoc(doc(db, 'products', cacambaHighTip.id), { is_blocked: false });
+        }
+        const hasCht70 = cacambaHighTip.models?.some((m: any) => m.id === 'cht-70');
+        const hasChtMedidas = cacambaHighTip.models?.some((m: any) => m.technical_specs?.medida_a !== undefined);
+        const hasOldPeso = cacambaHighTip.models?.some((m: any) => m.technical_specs?.peso === 'A definir');
+        
+        if ((!hasCht70 || !hasChtMedidas || hasOldPeso) && data.length > 0) {
+          addCacambaHighTip();
+        }
+      }
+
+      const prolongadorConcha = data.find(p => p.name === 'Prolongador com Concha');
+      if (!prolongadorConcha && data.length > 0) {
+        addProlongadorComConcha();
+      } else if (prolongadorConcha) {
+        if (prolongadorConcha.is_blocked) {
+          updateDoc(doc(db, 'products', prolongadorConcha.id), { is_blocked: false });
+        }
+        const hasPcr1400 = prolongadorConcha.models?.some((m: any) => m.id === 'pcr-1400');
+        const hasConchaVolume = prolongadorConcha.models?.some((m: any) => m.technical_specs?.volume_concha !== undefined);
+        if ((!hasPcr1400 || !hasConchaVolume) && data.length > 0) {
+          addProlongadorComConcha();
+        }
+      }
+
       if (user?.email === 'roderbrasil@gmail.com' || user?.email === 'roderindica@gmail.com') {
         runSelfHealing(data, db);
         const fellerTesoura = data.find(p => p.name === 'Feller Tesoura');
@@ -978,24 +1045,6 @@ export default function Catalog() {
           addFresaFAESSH();
         } else if (fresaSsh?.is_blocked) {
           updateDoc(doc(db, 'products', fresaSsh.id), { is_blocked: false });
-        }
-
-
-
-        const cacambaHighTip = data.find(p => p.name === 'Caçamba High Tip');
-        if (!cacambaHighTip && data.length > 0) {
-          addCacambaHighTip();
-        } else if (cacambaHighTip) {
-          if (cacambaHighTip.is_blocked) {
-            updateDoc(doc(db, 'products', cacambaHighTip.id), { is_blocked: false });
-          }
-          const hasCht70 = cacambaHighTip.models?.some((m: any) => m.id === 'cht-70');
-          const hasChtMedidas = cacambaHighTip.models?.some((m: any) => m.technical_specs?.medida_a !== undefined);
-          const hasOldPeso = cacambaHighTip.models?.some((m: any) => m.technical_specs?.peso === 'A definir');
-          
-          if ((!hasCht70 || !hasChtMedidas || hasOldPeso) && data.length > 0) {
-            addCacambaHighTip();
-          }
         }
       }
       
@@ -1640,6 +1689,80 @@ export default function Catalog() {
     }
   };
 
+  const addProlongadorComConcha = async () => {
+    try {
+      setLoading(true);
+      const q = query(collection(db, 'products'), where('name', '==', 'Prolongador com Concha'));
+      const snap = await getDocs(q);
+
+      const prolongadorData = {
+        name: 'Prolongador com Concha',
+        description: 'O Prolongador com Concha Roder (também conhecido como Prolongador com Caçamba) é um equipamento robusto e de alta produtividade, especially projetado para acoplamento em pás carregadeiras florestais e industriais. Proporciona maior alcance vertical e horizontal na movimentação de materiais a granel, biomassa, cavacos, serragem e resíduos em geral. Fabricado em aço estrutural de alta resistência mecânica, garante máxima estabilidade e segurança nas operações de carregamento de caminhões basculantes e carretas graneleiras de grande porte.',
+        category: 'Carregadores e Garras',
+        image_url: 'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-prolongador-com-concha.jpg.webp',
+        video_url: '',
+        pdf_url: '',
+        is_blocked: false,
+        created_at: snap.empty ? new Date().toISOString() : (snap.docs[0].data() as any).created_at,
+        models: [
+          {
+            id: 'pcr-1400',
+            name: 'PCR 1400',
+            base_value: 0,
+            pdf_url: '',
+            images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-prolongador-com-concha.jpg.webp'],
+            technical_specs: {
+              maquina_base: '6 a 10 Ton.',
+              trator: '6 a 10 Ton.',
+              volume_concha: '1,4 m³',
+              peso: '900',
+              capacidade_de_carga: '800'
+            }
+          },
+          {
+            id: 'pcr-1700',
+            name: 'PCR 1700',
+            base_value: 0,
+            pdf_url: '',
+            images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-prolongador-com-concha.jpg.webp'],
+            technical_specs: {
+              maquina_base: '6 a 10 Ton.',
+              trator: '6 a 10 Ton.',
+              volume_concha: '1,7 m³',
+              peso: '975',
+              capacidade_de_carga: '1350'
+            }
+          },
+          {
+            id: 'pcr-3000',
+            name: 'PCR 3000',
+            base_value: 0,
+            pdf_url: '',
+            images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-prolongador-com-concha.jpg.webp'],
+            technical_specs: {
+              maquina_base: '10 a 17 Ton.',
+              trator: '10 a 17 Ton.',
+              volume_concha: '3,0 m³',
+              peso: '1530',
+              capacidade_de_carga: '1600'
+            }
+          }
+        ]
+      };
+
+      if (!snap.empty) {
+        await updateDoc(doc(db, 'products', snap.docs[0].id), prolongadorData);
+      } else {
+        await addDoc(collection(db, 'products'), prolongadorData);
+      }
+      toast.success('Prolongador com Concha sincronizado com sucesso!');
+    } catch (err) {
+      console.error('Error adding Prolongador com Concha:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const addCacambaHighTip = async () => {
     try {
       setLoading(true);
@@ -1994,6 +2117,69 @@ export default function Catalog() {
        setLoading(false);
      }
    };
+
+    const addGarfoPaleteiro = async () => {
+      try {
+        setLoading(true);
+        const snapAll = await getDocs(collection(db, 'products'));
+        const existingDoc = snapAll.docs.find(d => d.data().name?.toLowerCase() === 'garfo paleteiro');
+        
+        const garfoData = {
+          name: 'Garfo Paleteiro',
+          description: 'O Garfo Paleteiro Roder para pás carregadeiras é um equipamento de alta robustez e excelente capacidade de carga, projetado para otimizar a movimentação de pallets, madeiras e fardos em ambientes industriais, florestais e agrícolas. Fabricado sob medida, garante perfeita compatibilidade mecânica, segurança absoluta e alta durabilidade na operação.',
+          category: 'Carregadores e Garras',
+          image_url: 'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Garfo-Paleteiro.jpg.webp',
+          video_url: '',
+          pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garfo-Paleteiro-Roder.pdf',
+          is_blocked: false,
+          created_at: !existingDoc ? new Date().toISOString() : (existingDoc.data() as any).created_at,
+          models: [
+            {
+              id: 'gpr-4500',
+              name: 'GPR 4500',
+              base_value: 0,
+              pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garfo-Paleteiro-Roder.pdf',
+              images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Garfo-Paleteiro.jpg.webp'],
+              technical_specs: {
+                trator: '6 a 9 Ton.',
+                peso_do_equipamento: '520',
+                capacidade_de_carga: '4500',
+                altura_total: '1500',
+                largura_total: '1380',
+                comprimento_util_garfo: '1200'
+              }
+            },
+            {
+              id: 'gpr-7000',
+              name: 'GPR 7000',
+              base_value: 0,
+              pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garfo-Paleteiro-Roder.pdf',
+              images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Garfo-Paleteiro.jpg.webp'],
+              technical_specs: {
+                trator: '8 a 12 Ton.',
+                peso_do_equipamento: '600',
+                capacidade_de_carga: '7000',
+                altura_total: '1500',
+                largura_total: '1380',
+                comprimento_util_garfo: '1200'
+              }
+            }
+          ]
+        };
+
+        if (existingDoc) {
+          await updateDoc(doc(db, 'products', existingDoc.id), garfoData);
+        } else {
+          await addDoc(collection(db, 'products'), garfoData);
+        }
+        
+        toast.success('Garfo Paleteiro sincronizado com sucesso!');
+      } catch (err) {
+        console.error('Error adding Garfo Paleteiro:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
     const addDesbastadorFlorestalFAE = async () => {
       try {
@@ -2824,6 +3010,7 @@ export default function Catalog() {
           const baseUrl = getApiBaseUrl();
           const proxyRes = await fetch(`${baseUrl}/api/upload-image`, {
             method: 'POST',
+            credentials: 'include',
             body: formDataObj
           });
           
@@ -2889,29 +3076,24 @@ export default function Catalog() {
         }));
 
       // Sanitize models to avoid undefined values which crash Firestore
-      const sanitizedModels = finalModels.map(m => ({
-        ...m,
-        base_value: Number(m.base_value) || 0,
-        pdf_url: m.pdf_url || '',
-        parts_manual_url: m.parts_manual_url || '',
-        video_url: m.video_url || '',
-        images: m.images || [],
-        technical_specs: {
-          area_carga: m.technical_specs?.area_carga || '',
-          diametro_minimo: m.technical_specs?.diametro_minimo || '',
-          abertura_maxima: m.technical_specs?.abertura_maxima || '',
-          peso: m.technical_specs?.peso || '',
-          pressao_trabalho: m.technical_specs?.pressao_trabalho || '',
-          maquina_base: m.technical_specs?.maquina_base || '',
-          diametro_corte: m.technical_specs?.diametro_corte || '',
-          sabre: m.technical_specs?.sabre || '',
-          corrente: m.technical_specs?.corrente || '',
-          vazao: m.technical_specs?.vazao || '',
-          pressao: m.technical_specs?.pressao || '',
-          peso_operacional: m.technical_specs?.peso_operacional || '',
-          motor: m.technical_specs?.motor || '',
+      const sanitizedModels = finalModels.map(m => {
+        const specs: any = {};
+        if (m.technical_specs) {
+          Object.keys(m.technical_specs).forEach(key => {
+            const val = m.technical_specs[key];
+            specs[key] = val !== undefined && val !== null ? String(val) : '';
+          });
         }
-      }));
+        return {
+          ...m,
+          base_value: Number(m.base_value) || 0,
+          pdf_url: m.pdf_url || '',
+          parts_manual_url: m.parts_manual_url || '',
+          video_url: m.video_url || '',
+          images: m.images || [],
+          technical_specs: specs
+        };
+      });
 
       const productData = {
         ...formData,
@@ -3210,16 +3392,34 @@ export default function Catalog() {
 
     const containsHighTipKeyword = (str: string) => {
       const s = (str || '').toLowerCase();
+      if (s.includes('prolongador')) return false;
       return s.includes('high') || s.includes('tip') || s.includes('despejo') || s.includes('concha') || s.includes('caçamba de alto') || s.includes('cacamba de alto');
     };
-    const isHighTip = containsHighTipKeyword(lowerUrl) || 
+    const isProlongador = lowerUrl.includes('prolongador') || 
+                          lowerModelName.includes('prolongador') || 
+                          lowerViewingName.includes('prolongador') || 
+                          lowerSelectedName.includes('prolongador') || 
+                          lowerContextName.includes('prolongador') || 
+                          lowerContextCategory.includes('prolongador') || 
+                          lowerContextDesc.includes('prolongador') || 
+                          lowerContextPdfUrl.includes('prolongador') ||
+                          lowerModelName.includes('pcr') ||
+                          lowerSelectedName.includes('pcr') ||
+                          lowerContextName.includes('pcr') ||
+                          (productContext?.id && productContext.id.toLowerCase().includes('prolongador'));
+
+
+
+    const isHighTip = !isProlongador && (
+                      containsHighTipKeyword(lowerUrl) || 
                       containsHighTipKeyword(lowerModelName) || 
                       containsHighTipKeyword(lowerViewingName) || 
                       containsHighTipKeyword(lowerSelectedName) ||
                       containsHighTipKeyword(lowerContextName) ||
                       containsHighTipKeyword(lowerContextCategory) ||
                       containsHighTipKeyword(lowerContextDesc) ||
-                      containsHighTipKeyword(lowerContextPdfUrl);
+                      containsHighTipKeyword(lowerContextPdfUrl)
+                    );
                       
     const containsEngateKeyword = (str: string) => {
       const s = (str || '').toLowerCase();
@@ -3684,7 +3884,7 @@ export default function Catalog() {
         // Use our server-side proxy to avoid CORS issues
         const proxyUrl = `${getApiBaseUrl()}/api/proxy-thumbnail?fileId=${fileId}`;
         
-        const response = await fetch(proxyUrl);
+        const response = await fetch(proxyUrl, { credentials: 'include' });
         if (!response.ok) {
           throw new Error('Não foi possível converter o arquivo. Verifique se o link está aberto para "Qualquer pessoa com o link".');
         }
@@ -3712,7 +3912,7 @@ export default function Catalog() {
         toast.loading('Importando Manual de Peças completo para a Nuvem RODER...', { id: 'model-file-upload' });
 
         const proxyUrl = `${getApiBaseUrl()}/api/proxy-drive?fileId=${fileId}`;
-        const response = await fetch(proxyUrl);
+        const response = await fetch(proxyUrl, { credentials: 'include' });
         if (!response.ok) {
           throw new Error('Não foi possível baixar o manual completo. Verifique se o link está aberto para "Qualquer pessoa com o link".');
         }
@@ -4081,7 +4281,8 @@ export default function Catalog() {
                           'n_facas', 'acumulador', 'area_carga', 'area_da_garra', 
                           'abertura_maxima', 'diametro_minimo', 'carregadeira',
                           'escavadeira', 'pressao', 'pressao_trabalho', 'potencia_do_trator', 
-                          'capacidade_de_carga', 'capacidade_carga'
+                          'capacidade_de_carga', 'capacidade_carga',
+                          'altura_total', 'largura_total', 'comprimento_util_garfo'
                         ];
                         const idxA = order.indexOf(a.toLowerCase());
                         const idxB = order.indexOf(b.toLowerCase());
@@ -4094,7 +4295,7 @@ export default function Catalog() {
                         let displayValue = String(value);
                         const k = key.toLowerCase();
                         if ((k.includes('peso') || k.includes('capacidade')) && !k.includes('operacional') && !displayValue.toLowerCase().includes('kg') && !displayValue.toLowerCase().includes('ton')) displayValue += ' kg';
-                        if ((k.includes('abertura') || k.includes('diametro')) && !displayValue.toLowerCase().includes('mm')) displayValue += ' mm';
+                        if ((k.includes('abertura') || k.includes('diametro') || k.includes('altura') || k.includes('largura') || k.includes('comprimento')) && !displayValue.toLowerCase().includes('mm')) displayValue += ' mm';
                         if ((k.includes('pressao') || k.includes('pressão')) && !displayValue.toLowerCase().includes('bar')) displayValue += ' bar';
                         
                         const kMapping = key.toLowerCase();
@@ -4132,7 +4333,10 @@ export default function Catalog() {
                           diametro_do_rotor_mm: 'Diâmetro do Rotor',
                           diametro_max_de_trituracao_mm: 'Ø Máx. Trituração',
                           profundidade_max_de_trabalho_mm: 'Profundidade Máx.',
-                          numero_de_dentes: 'Número de Dentes'
+                          numero_de_dentes: 'Número de Dentes',
+                          altura_total: 'Altura Total',
+                          largura_total: 'Largura Total',
+                          comprimento_util_garfo: 'Comprimento Útil do Garfo'
                         };
                         const label = specLabels[kMapping] || key.replace(/_/g, ' ');
                         const isGiro360 = kMapping === 'giro_360';
@@ -4188,7 +4392,10 @@ export default function Catalog() {
                         <Button 
                           variant="outline"
                           size="sm"
-                          className="w-full h-5 md:h-12 uppercase px-0 border-slate-200 text-foreground shadow-sm leading-none"
+                          className={cn(
+                            "w-full h-5 md:h-12 uppercase px-0 border-slate-200 text-foreground shadow-sm leading-none",
+                            !(model.pdf_url || viewingGallery?.pdf_url || isEngateProduct(model.name) || isEngateProduct(viewingGallery?.name) || isHighTipProduct(model.name) || isHighTipProduct(viewingGallery?.name) || isFresaProduct(model.name) || isFresaProduct(viewingGallery?.name)) && "hidden"
+                          )}
                           onClick={() => openPdf(model.pdf_url || viewingGallery?.pdf_url || '', model.name, viewingGallery)}
                           disabled={!(model.pdf_url || viewingGallery?.pdf_url || isEngateProduct(model.name) || isEngateProduct(viewingGallery?.name) || isHighTipProduct(model.name) || isHighTipProduct(viewingGallery?.name) || isFresaProduct(model.name) || isFresaProduct(viewingGallery?.name))}
                         >
@@ -4562,8 +4769,8 @@ export default function Catalog() {
                 viewMode === 'list' 
                   ? "flex flex-col gap-4 w-full" 
                   : cn(
-                      "grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-6",
-                      isHelperOpen ? "lg:grid-cols-2 xl:grid-cols-2" : "lg:grid-cols-3"
+                      "grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4",
+                      isHelperOpen ? "lg:grid-cols-2 xl:grid-cols-3" : "lg:grid-cols-3 xl:grid-cols-4"
                     )
               )}>
                 {products
@@ -4655,7 +4862,7 @@ export default function Catalog() {
                         size="icon"
                         className={cn(
                           "h-8 w-8 mr-1 shrink-0",
-                          (model.pdf_url || selectedProductModels?.pdf_url || isAnyFichaSupported(selectedProductModels) || isEngateProduct(model.name) || isHighTipProduct(model.name) || isFresaProduct(model.name)) ? "text-red-500 hover:text-red-600 hover:bg-red-500/10" : "text-muted-foreground opacity-20"
+                          (model.pdf_url || selectedProductModels?.pdf_url || isAnyFichaSupported(selectedProductModels) || isEngateProduct(model.name) || isHighTipProduct(model.name) || isFresaProduct(model.name)) ? "text-red-500 hover:text-red-600 hover:bg-red-500/10" : "hidden"
                         )}
                         disabled={!(model.pdf_url || selectedProductModels?.pdf_url || isAnyFichaSupported(selectedProductModels) || isEngateProduct(model.name) || isHighTipProduct(model.name) || isFresaProduct(model.name))}
                         onClick={() => openPdf(model.pdf_url || selectedProductModels?.pdf_url || '', model.name, selectedProductModels)}
@@ -4786,6 +4993,12 @@ export default function Catalog() {
                               <p className="text-[9px] md:text-lg font-black text-primary">{selectedModel.technical_specs.trator}</p>
                             </div>
                           )}
+                          {selectedModel.technical_specs.volume_concha && (
+                            <div className="p-3 rounded-xl border border-border bg-muted/20 shadow-sm hover:border-primary/30 transition-colors">
+                              <p className="text-[6px] md:text-[10px] text-muted-foreground uppercase font-black tracking-wider mb-1">Volume da Concha</p>
+                              <p className="text-[9px] md:text-xl font-black text-primary">{selectedModel.technical_specs.volume_concha}</p>
+                            </div>
+                          )}
                           {selectedModel.technical_specs.peso && (
                             <div className="p-3 rounded-xl border border-border bg-muted/20 shadow-sm hover:border-primary/30 transition-colors">
                               <p className="text-[6px] md:text-[10px] text-muted-foreground uppercase font-black tracking-wider mb-1">Peso Equipamento</p>
@@ -4844,14 +5057,32 @@ export default function Catalog() {
                           )}
                           {selectedModel.technical_specs.capacidade_de_carga && (
                             <div className="p-3 rounded-xl border border-border bg-muted/20 shadow-sm hover:border-primary/30 transition-colors">
-                              <p className="text-[10px] text-muted-foreground uppercase font-black tracking-wider mb-1">Capacidade de Carga</p>
-                              <p className="text-xl font-black text-primary">{selectedModel.technical_specs.capacidade_de_carga} <span className="text-xs font-medium text-muted-foreground">kg</span></p>
+                              <p className="text-[6px] md:text-[10px] text-muted-foreground uppercase font-black tracking-wider mb-1">Capacidade de Carga</p>
+                              <p className="text-[9px] md:text-xl font-black text-primary">{selectedModel.technical_specs.capacidade_de_carga} <span className="text-[7.5px] md:text-xs font-medium text-muted-foreground">kg</span></p>
                             </div>
                           )}
                           {selectedModel.technical_specs.peso_do_equipamento && (
                             <div className="p-3 rounded-xl border border-border bg-muted/20 shadow-sm hover:border-primary/30 transition-colors">
-                              <p className="text-[10px] text-muted-foreground uppercase font-black tracking-wider mb-1">Peso</p>
-                              <p className="text-xl font-black text-primary">{selectedModel.technical_specs.peso_do_equipamento} <span className="text-xs font-medium text-muted-foreground">kg</span></p>
+                              <p className="text-[6px] md:text-[10px] text-muted-foreground uppercase font-black tracking-wider mb-1">Peso</p>
+                              <p className="text-[9px] md:text-xl font-black text-primary">{selectedModel.technical_specs.peso_do_equipamento} <span className="text-[7.5px] md:text-xs font-medium text-muted-foreground">kg</span></p>
+                            </div>
+                          )}
+                          {selectedModel.technical_specs.altura_total && (
+                            <div className="p-3 rounded-xl border border-border bg-muted/20 shadow-sm hover:border-primary/30 transition-colors">
+                              <p className="text-[6px] md:text-[10px] text-muted-foreground uppercase font-black tracking-wider mb-1">Altura Total</p>
+                              <p className="text-[9px] md:text-xl font-black text-primary">{selectedModel.technical_specs.altura_total} <span className="text-[7.5px] md:text-xs font-medium text-muted-foreground">mm</span></p>
+                            </div>
+                          )}
+                          {selectedModel.technical_specs.largura_total && (
+                            <div className="p-3 rounded-xl border border-border bg-muted/20 shadow-sm hover:border-primary/30 transition-colors">
+                              <p className="text-[6px] md:text-[10px] text-muted-foreground uppercase font-black tracking-wider mb-1">Largura Total</p>
+                              <p className="text-[9px] md:text-xl font-black text-primary">{selectedModel.technical_specs.largura_total} <span className="text-[7.5px] md:text-xs font-medium text-muted-foreground">mm</span></p>
+                            </div>
+                          )}
+                          {selectedModel.technical_specs.comprimento_util_garfo && (
+                            <div className="p-3 rounded-xl border border-border bg-muted/20 shadow-sm hover:border-primary/30 transition-colors">
+                              <p className="text-[6px] md:text-[10px] text-muted-foreground uppercase font-black tracking-wider mb-1">Comprimento Útil do Garfo</p>
+                              <p className="text-[9px] md:text-xl font-black text-primary">{selectedModel.technical_specs.comprimento_util_garfo} <span className="text-[7.5px] md:text-xs font-medium text-muted-foreground">mm</span></p>
                             </div>
                           )}
 
@@ -5030,7 +5261,10 @@ export default function Catalog() {
                         <div className="flex gap-1 w-full">
                           <Button 
                             variant="outline" 
-                            className="flex-1 justify-start gap-2 border-border h-11"
+                            className={cn(
+                              "flex-1 justify-start gap-2 border-border h-11",
+                              !(selectedModel.pdf_url || selectedProductModels?.pdf_url || isAnyFichaSupported(selectedProductModels) || isEngateProduct(selectedModel.name) || isHighTipProduct(selectedModel.name) || isFresaProduct(selectedModel.name)) && "hidden"
+                            )}
                             onClick={() => openPdf(selectedModel.pdf_url || selectedProductModels?.pdf_url || '', selectedModel.name, selectedProductModels)}
                             disabled={!(selectedModel.pdf_url || selectedProductModels?.pdf_url || isAnyFichaSupported(selectedProductModels) || isEngateProduct(selectedModel.name) || isHighTipProduct(selectedModel.name) || isFresaProduct(selectedModel.name))}
                           >
@@ -5039,7 +5273,10 @@ export default function Catalog() {
                           <Button
                             variant="outline"
                             size="icon"
-                            className="h-11 w-11 shrink-0 border-border"
+                            className={cn(
+                              "h-11 w-11 shrink-0 border-border",
+                              !(selectedModel.pdf_url || selectedProductModels?.pdf_url || isAnyFichaSupported(selectedProductModels) || isEngateProduct(selectedModel.name) || isHighTipProduct(selectedModel.name) || isFresaProduct(selectedModel.name)) && "hidden"
+                            )}
                             onClick={() => shareFile(selectedModel.pdf_url || selectedProductModels?.pdf_url || '', `Ficha Técnica - ${selectedModel.name}`)}
                             disabled={!(selectedModel.pdf_url || selectedProductModels?.pdf_url || isAnyFichaSupported(selectedProductModels) || isEngateProduct(selectedModel.name) || isHighTipProduct(selectedModel.name) || isFresaProduct(selectedModel.name))}
                           >
@@ -5627,6 +5864,18 @@ export default function Catalog() {
                           technical_specs: { ...editingModelData.technical_specs, trator: e.target.value } 
                         })}
                         placeholder="Ex: 4 a 6 Ton."
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase">Volume da Concha</Label>
+                      <Input 
+                        className="h-9 text-xs"
+                        value={editingModelData.technical_specs?.volume_concha} 
+                        onChange={(e) => setEditingModelData({ 
+                          ...editingModelData, 
+                          technical_specs: { ...editingModelData.technical_specs, volume_concha: e.target.value } 
+                        })}
+                        placeholder="Ex: 1,4 m³"
                       />
                     </div>
                     <div className="space-y-1">

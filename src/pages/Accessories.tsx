@@ -441,6 +441,7 @@ export default function Accessories() {
         headers: {
           'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify({
           fileBase64: base64Data,
           fileName: `${type}_${file.name}`,
@@ -493,6 +494,7 @@ export default function Accessories() {
         headers: {
           'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify({
           fileBase64: base64Data,
           fileName: file.name,

@@ -31,6 +31,7 @@ export async function sendEmail(options: EmailOptions) {
     const response = await fetch(`${baseUrl}/api/send-email`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(payload)
     });
     return await response.json();
