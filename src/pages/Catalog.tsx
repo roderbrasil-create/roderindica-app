@@ -946,6 +946,20 @@ export default function Catalog() {
         }
       }
 
+      // Make Garfo Top Clamp completely permanent for all users!
+      const garfoTopClamp = data.find(p => p.name === 'Garfo Top Clamp');
+      if (!garfoTopClamp && data.length > 0) {
+        addGarfoTopClamp();
+      } else if (garfoTopClamp) {
+        if (garfoTopClamp.is_blocked) {
+          updateDoc(doc(db, 'products', garfoTopClamp.id), { is_blocked: false });
+        }
+        const hasTopClamp = garfoTopClamp.models?.some((m: any) => m.id === 'top-clamp');
+        if (!hasTopClamp && data.length > 0) {
+          addGarfoTopClamp();
+        }
+      }
+
       // Make Caçamba High Tip and Prolongador com Concha completely permanent for all users!
       const cacambaHighTip = data.find(p => p.name === 'Caçamba High Tip');
       if (!cacambaHighTip && data.length > 0) {
@@ -2176,6 +2190,55 @@ export default function Catalog() {
         toast.success('Garfo Paleteiro sincronizado com sucesso!');
       } catch (err) {
         console.error('Error adding Garfo Paleteiro:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const addGarfoTopClamp = async () => {
+      try {
+        setLoading(true);
+        const snapAll = await getDocs(collection(db, 'products'));
+        const existingDoc = snapAll.docs.find(d => d.data().name?.toLowerCase() === 'garfo top clamp');
+        
+        const topClampData = {
+          name: 'Garfo Top Clamp',
+          description: 'O Garfo Paleteiro com Top Clamp (prensa superior) Roder é a solução definitiva para o manuseio seguro, ágil e altamente produtivo de toras, madeiras, fardos e paletes. Projetado para pás carregadeiras de 9 a 17 toneladas, o equipamento combina a versatilidade dos garfos paleteiros com o travamento hidráulico superior do Top Clamp, impedindo a queda ou escorregamento dos materiais durante o transporte em terrenos irregulares.',
+          category: 'Carregadores e Garras',
+          image_url: 'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/06/img-garfo-top-clamp.jpg.webp',
+          video_url: '',
+          pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garfo-Paleteiro-Top-Clamp.pdf',
+          is_blocked: false,
+          created_at: !existingDoc ? new Date().toISOString() : (existingDoc.data() as any).created_at,
+          models: [
+            {
+              id: 'top-clamp',
+              name: 'TOP CLAMP',
+              base_value: 0,
+              pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garfo-Paleteiro-Top-Clamp.pdf',
+              images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/06/img-garfo-top-clamp.jpg.webp'],
+              technical_specs: {
+                trator: '9 - 17 Ton.',
+                peso_do_equipamento: '1220',
+                capacidade_de_carga: '7000',
+                medida_a: '1900',
+                medida_b: '1530',
+                medida_c: '1600',
+                medida_d: '1800'
+              }
+            }
+          ]
+        };
+
+        if (existingDoc) {
+          await updateDoc(doc(db, 'products', existingDoc.id), topClampData);
+        } else {
+          await addDoc(collection(db, 'products'), topClampData);
+        }
+        
+        toast.success('Garfo Top Clamp sincronizado com sucesso!');
+      } catch (err) {
+        console.error('Error adding Garfo Top Clamp:', err);
       } finally {
         setLoading(false);
       }
@@ -3694,6 +3757,7 @@ export default function Catalog() {
       medida_a: 'Comprimento "A"',
       medida_b: 'Altura "B"',
       medida_c: 'Largura Total "C"',
+      medida_d: 'Medida "D"',
       giro_360: 'Giro 360 graus ilimitado',
       dentes_disco: 'Dentes do Disco',
       acumulador: 'Acumulador'
@@ -4295,7 +4359,7 @@ export default function Catalog() {
                         let displayValue = String(value);
                         const k = key.toLowerCase();
                         if ((k.includes('peso') || k.includes('capacidade')) && !k.includes('operacional') && !displayValue.toLowerCase().includes('kg') && !displayValue.toLowerCase().includes('ton')) displayValue += ' kg';
-                        if ((k.includes('abertura') || k.includes('diametro') || k.includes('altura') || k.includes('largura') || k.includes('comprimento')) && !displayValue.toLowerCase().includes('mm')) displayValue += ' mm';
+                        if ((k.includes('medida') || k.includes('abertura') || k.includes('diametro') || k.includes('altura') || k.includes('largura') || k.includes('comprimento')) && !displayValue.toLowerCase().includes('mm')) displayValue += ' mm';
                         if ((k.includes('pressao') || k.includes('pressão')) && !displayValue.toLowerCase().includes('bar')) displayValue += ' bar';
                         
                         const kMapping = key.toLowerCase();
@@ -4306,6 +4370,7 @@ export default function Catalog() {
                           medida_a: 'Comprimento "A"',
                           medida_b: 'Altura "B"',
                           medida_c: 'Largura Total "C"',
+                          medida_d: 'Medida "D"',
                           abertura_total: 'Abertura total da garra',
                           peso_do_equipamento: 'Peso Equipamento',
                           area_da_garra: 'Área da Garra',
@@ -5039,6 +5104,12 @@ export default function Catalog() {
                             <div className="p-3 rounded-xl border border-border bg-muted/20 shadow-sm hover:border-primary/30 transition-colors">
                               <p className="text-[6px] md:text-[10px] text-muted-foreground uppercase font-black tracking-wider mb-1">Largura Total "C"</p>
                               <p className="text-[9px] md:text-xl font-black text-primary">{selectedModel.technical_specs.medida_c} <span className="text-[7.5px] md:text-xs font-medium text-muted-foreground">mm</span></p>
+                            </div>
+                          )}
+                          {selectedModel.technical_specs.medida_d && (
+                            <div className="p-3 rounded-xl border border-border bg-muted/20 shadow-sm hover:border-primary/30 transition-colors">
+                              <p className="text-[6px] md:text-[10px] text-muted-foreground uppercase font-black tracking-wider mb-1">Medida "D"</p>
+                              <p className="text-[9px] md:text-xl font-black text-primary">{selectedModel.technical_specs.medida_d} <span className="text-[7.5px] md:text-xs font-medium text-muted-foreground">mm</span></p>
                             </div>
                           )}
                           
@@ -6100,6 +6171,50 @@ export default function Catalog() {
                         onChange={(e) => setEditingModelData({ 
                           ...editingModelData, 
                           technical_specs: { ...editingModelData.technical_specs, tipo_dente: e.target.value } 
+                        })}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase">Comprimento "A" (mm)</Label>
+                      <Input 
+                        className="h-9 text-xs"
+                        value={editingModelData.technical_specs?.medida_a || ''} 
+                        onChange={(e) => setEditingModelData({ 
+                          ...editingModelData, 
+                          technical_specs: { ...editingModelData.technical_specs, medida_a: e.target.value } 
+                        })}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase">Altura "B" (mm)</Label>
+                      <Input 
+                        className="h-9 text-xs"
+                        value={editingModelData.technical_specs?.medida_b || ''} 
+                        onChange={(e) => setEditingModelData({ 
+                          ...editingModelData, 
+                          technical_specs: { ...editingModelData.technical_specs, medida_b: e.target.value } 
+                        })}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase">Largura Total "C" (mm)</Label>
+                      <Input 
+                        className="h-9 text-xs"
+                        value={editingModelData.technical_specs?.medida_c || ''} 
+                        onChange={(e) => setEditingModelData({ 
+                          ...editingModelData, 
+                          technical_specs: { ...editingModelData.technical_specs, medida_c: e.target.value } 
+                        })}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase">Medida "D" (mm)</Label>
+                      <Input 
+                        className="h-9 text-xs"
+                        value={editingModelData.technical_specs?.medida_d || ''} 
+                        onChange={(e) => setEditingModelData({ 
+                          ...editingModelData, 
+                          technical_specs: { ...editingModelData.technical_specs, medida_d: e.target.value } 
                         })}
                       />
                     </div>

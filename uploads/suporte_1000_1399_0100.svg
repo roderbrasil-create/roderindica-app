@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="100%" height="100%">
+  <rect width="100%" height="100%" fill="white"/>
+  <g fill="none" stroke="black" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Back vertical plate -->
+    <path d="M 310,130 L 630,130 C 660,130 680,160 680,200 L 680,560 L 630,560" />
+    <path d="M 310,130 C 280,130 260,160 260,200 L 260,380 L 260,560 L 310,560" />
+    <!-- Top curved edge of the back plate -->
+    <path d="M 310,130 Q 470,210 630,130" />
+
+    <!-- Pin holes on back plate -->
+    <!-- Left hole -->
+    <ellipse cx="360" cy="220" rx="30" ry="20" />
+    <ellipse cx="360" cy="220" rx="20" ry="13" />
+    <!-- Right hole -->
+    <ellipse cx="580" cy="220" rx="30" ry="20" />
+    <ellipse cx="580" cy="220" rx="20" ry="13" />
+
+    <!-- Two front mounting bracket arms -->
+    <!-- Left Arm -->
+    <path d="M 260,330 C 180,330 110,380 110,480 C 110,540 160,580 230,580 L 310,580" />
+    <!-- Right Arm -->
+    <path d="M 520,580 C 580,580 630,540 630,480 C 630,380 560,330 480,330" />
+    <!-- Top inner curve connecting them -->
+    <path d="M 260,330 Q 370,410 480,330" />
+
+    <!-- Pin bosses / bushings on the front of the arms -->
+    <!-- Left bushing collar (3D cylinder look) -->
+    <path d="M 115,480 C 115,445 145,415 180,415 C 215,415 245,445 245,480 C 245,515 215,545 180,545 C 145,545 115,515 115,480 Z" />
+    <!-- Outer face ring of left bushing -->
+    <ellipse cx="170" cy="480" rx="25" ry="32" />
+    <!-- Hole inside left bushing -->
+    <ellipse cx="170" cy="480" rx="12" ry="16" />
+    <line x1="170" y1="448" x2="180" y2="448" />
+    <ellipse cx="175" cy="440" rx="6" ry="6" />
+
+    <!-- Right bushing collar -->
+    <path d="M 335,480 C 335,445 365,415 400,415 C 435,415 465,445 465,480 C 465,515 435,545 400,545 C 365,545 335,515 335,480 Z" />
+    <!-- Outer face ring of right bushing -->
+    <ellipse cx="390" cy="480" rx="25" ry="32" />
+    <!-- Hole inside right bushing -->
+    <ellipse cx="390" cy="480" rx="12" ry="16" />
+    <line x1="390" y1="448" x2="400" y2="448" />
+    <ellipse cx="395" cy="440" rx="6" ry="6" />
+
+    <!-- Lower crossbar and triangular support gussets -->
+    <polygon points="170,580 390,580 390,660 170,660" />
+    <polygon points="210,660 210,730 260,660" />
+    <polygon points="350,660 350,730 300,660" />
+  </g>
+</svg>

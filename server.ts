@@ -259,6 +259,44 @@ async function startServer() {
     }
   });
 
+  app.get("/api/sync-liugong-908", async (req, res) => {
+    try {
+      console.log("[SYNC-LIUGONG] Starting LIUGONG 908 syncing...");
+      const colRef = db.collection('accessories');
+      
+      const snap = await colRef.where('brand', '==', 'LIUGONG').where('model', '==', '908').get();
+      
+      const accessoryData = {
+        brand: 'LIUGONG',
+        model: '908',
+        pin: 'PINO Ø50',
+        ponteira_biela_4: '1000.0000.0144',
+        ponteira_biela_6: '1000.0000.0070',
+        suporte_triturador: '1000.1399.0100',
+        photo_urls: {
+          ponteira: '/uploads/ponteira_1000_0000_0144.svg',
+          suporte: '/uploads/suporte_1000_1399_0100.svg'
+        },
+        created_at: new Date().toISOString()
+      };
+
+      if (!snap.empty) {
+        console.log(`[SYNC-LIUGONG] Found ${snap.size} existing LIUGONG 908 docs, deleting them first to ensure clean sync...`);
+        for (const doc of snap.docs) {
+          await doc.ref.delete();
+        }
+      }
+
+      const docRef = await colRef.add(accessoryData);
+      console.log(`[SYNC-LIUGONG] Successfully synced LIUGONG 908 with doc ID: ${docRef.id}`);
+      
+      res.json({ success: true, docId: docRef.id, data: accessoryData });
+    } catch (err: any) {
+      console.error("[SYNC-LIUGONG] Error syncing LIUGONG 908:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.get("/api/admin/dump-history", async (req, res) => {
     try {
       console.log("[AdminFix] Starting manual database restoration from server side...");
@@ -432,12 +470,12 @@ async function startServer() {
         }
       };
 
-      if (gcsDisabled) {
-        throw new Error("GCS previously timed out or failed. Bypassing directly to local fallback.");
-      }
-
       // 1. Try Firebase Cloud Storage Upload with 1.5s timeout
       try {
+        if (gcsDisabled) {
+          throw new Error("GCS previously timed out or failed. Bypassing directly to local fallback.");
+        }
+
         const bucketName = config.storageBucket || `${config.projectId}.appspot.com`;
         console.log(`[STORAGE-UPLOAD] Tentando enviar para o primeiro bucket GCS: ${bucketName}...`);
         

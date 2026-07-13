@@ -8,6 +8,11 @@ export interface AccessoryData {
   suporte_triturador?: string;
   link_garra_biela_6?: string;
   link_garra_biela_4?: string;
+  photo_urls?: {
+    ponteira?: string;
+    suporte?: string;
+    link?: string;
+  };
 }
 
 export const ACCESSORIES_DATA: AccessoryData[] = [
@@ -32,6 +37,7 @@ export const ACCESSORIES_DATA: AccessoryData[] = [
   { brand: 'KOMATSU', model: 'PC130', pin: 'PINO Ø60', ponteira_biela_4: '1000.0000.0098', ponteira_biela_6: '1000.0000.0063', suporte_destocador: '1000.1263.0000', suporte_triturador: '1000.1420.0000', link_garra_biela_6: '1000.0000.0091', link_garra_biela_4: '1000.0000.0167' },
   { brand: 'LINK BELT', model: '180/210', pin: 'PINO Ø80', ponteira_biela_4: '1000.0000.0019', suporte_destocador: '1000.1191.0000', suporte_triturador: '1000.1295.0000', link_garra_biela_4: '1000.0000.0120' },
   { brand: 'LIUGONG', model: 'LG915', pin: 'PINO Ø60', ponteira_biela_4: '1000.0000.0098', ponteira_biela_6: '1000.0000.0063', suporte_destocador: '1000.1263.0000', suporte_triturador: '1000.1420.0000', link_garra_biela_6: '1000.0000.0091', link_garra_biela_4: '1000.0000.0167' },
+  { brand: 'LIUGONG', model: '908', pin: 'PINO Ø50', ponteira_biela_4: '1000.0000.0144', ponteira_biela_6: '1000.0000.0070', suporte_triturador: '1000.1399.0100', photo_urls: { ponteira: '/uploads/ponteira_1000_0000_0144.svg', suporte: '/uploads/suporte_1000_1399_0100.svg' } },
   { brand: 'LONKING', model: '6225/6235', pin: 'PINO Ø80', ponteira_biela_4: '1000.0000.0060', suporte_destocador: '1000.1191.0000', suporte_triturador: '1000.1295.0000', link_garra_biela_4: '1000.0000.0120' },
   { brand: 'LONKING', model: '6150', pin: 'PINO Ø60', ponteira_biela_4: '1000.0000.0016', suporte_triturador: '1000.1420.0000' },
   { brand: 'NEW HOLLAND', model: 'E210/E215B', pin: 'PINO Ø80', ponteira_biela_4: '1000.0000.0019', suporte_destocador: '1000.1191.0000', suporte_triturador: '1000.1295.0000', link_garra_biela_4: '1000.0000.0120' },
