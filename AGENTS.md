@@ -29,3 +29,12 @@
     - Pás Carregadeiras de **6 a 9 toneladas**: Indique o **GPR 4500**.
     - Pás Carregadeiras de **8 a 12 toneladas**: Indique o **GPR 7000**.
 
+- **Garras R280, R360 e R360G para Escavadeiras Pequenas (7 a 13 Ton.)**:
+  - **Uso Geral (Carregamento)**: Normalmente, para escavadeiras de **7 a 8 toneladas**, é indicada a garra **R280** para a operação de carregamento.
+  - **Alimentação de Picador Florestal**:
+    - Em operações de alimentação de picador, a garra **R360** pode ser utilizada e indicada em escavadeiras de **7 até 13 toneladas**.
+    - **Variações da R360 para Alimentação de Picador**:
+      - **R360 Padrão** (com pinça fechada): Indicada para o manuseio comum de madeira.
+      - **R360G** (com unha tipo garfo, aberta): Especialmente recomendada para pegar com muito mais facilidade resíduos, paletes, madeiras trançadas, galhadas (ex: galhos, restos de pé de laranja) e resíduos florestais em geral para alimentar o picador.
+    - **Árvores Inteiras e Eucalipto**: Para a alimentação de picador utilizando árvores inteiras (como eucalipto), a melhor indicação é a **R280**. Ela foi projetada para conseguir pegar os feixes de árvores e arrastá-las usando a força de giro da escavadeira para guiar os pés das árvores até a boca do picador. Devido a esse grande esforço de arrastar árvores inteiras, a **R280** é a mais recomendada para eucalipto e árvores inteiras.
+

@@ -41,6 +41,7 @@ import Endomarketing from './pages/Endomarketing';
 import PublicTechnicalDelivery from './pages/PublicTechnicalDelivery';
 import ProductDossier from './pages/ProductDossier';
 import RoderIAReports from './pages/RoderIAReports';
+import PublicConsultant from './pages/PublicConsultant';
 
 function PrivateRoute({ children, roles }: { children: React.ReactNode, roles?: string[] }) {
   const { user, profile, loading, isImpersonating, isAdmin, isManager, isMarketing, isTriagem, isFinancial, isInternalSeller, isExternalSeller, isRegionalSeller } = useAuth();
@@ -173,6 +174,8 @@ function AppContent() {
                         location.pathname.startsWith('/pedido-orcamento') ||
                         location.pathname.startsWith('/satisfacao') ||
                         location.pathname.startsWith('/stock_holder') ||
+                        location.pathname.startsWith('/consultor') ||
+                        location.pathname.startsWith('/consultor-tecnico') ||
                         location.pathname.startsWith('/entrega-tecnica-fae');
 
   useEffect(() => {
@@ -334,6 +337,8 @@ function AppContent() {
                 <Route path="/pedido-orcamento" element={<PublicBudgetRequest />} />
                 <Route path="/satisfacao" element={<PublicEvaluation />} />
                 <Route path="/entrega-tecnica-fae" element={<PublicTechnicalDelivery />} />
+                <Route path="/consultor" element={<PublicConsultant />} />
+                <Route path="/consultor-tecnico" element={<PublicConsultant />} />
 
                 <Route path="/comercial/avaliacoes" element={
                   <PrivateRoute roles={['admin', 'manager', 'triagem', 'marketing', 'internal_seller']}>

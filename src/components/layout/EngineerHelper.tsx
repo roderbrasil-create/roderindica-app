@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, MessageSquare, X, Minus, Send, Calculator, Wrench, HelpCircle, AlertTriangle, Play, RefreshCw, Trash2, ChevronLeft, ChevronRight, CheckCircle, Package, Layers, Tractor, FileText, Mic, Square, Loader2, Brain, BookOpen, ExternalLink } from 'lucide-react';
+import { Sparkles, MessageSquare, X, Minus, Send, Calculator, Wrench, HelpCircle, AlertTriangle, Play, RefreshCw, Trash2, ChevronLeft, ChevronRight, CheckCircle, Package, Layers, Tractor, FileText, Mic, Square, Loader2, Brain, BookOpen, ExternalLink, Share2, Video, Phone, QrCode } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { cn, getApiBaseUrl } from '../../lib/utils';
-import { collection, getDocs, query, orderBy, addDoc, doc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, addDoc, doc, getDoc, updateDoc, where } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { askEngineerHelper, transcribeAudio, analyzeAndEnrichProductDossier } from '../../services/geminiService';
 import { useAuth } from '../../contexts/AuthContext';
@@ -16,6 +16,8 @@ import { RODER_LOGO_BASE64 } from '../catalog/RoderLogo';
 import { toPng } from 'html-to-image';
 import { HighTipFicha } from '../catalog/HighTipFicha';
 import { FresaSshFicha } from '../catalog/FresaSshFicha';
+import { EngateRapidoFicha } from '../catalog/EngateRapidoFicha';
+import { GarraEstufagemFicha } from '../catalog/GarraEstufagemFicha';
 
 const DEFAULT_PRODUCTIVITIES: Record<string, string> = {
   "CMF 600": `DERRUBADA (COLHEITA FLORESTAL):
@@ -215,20 +217,79 @@ export const getGTProductivityData = (modelName: string, length: number) => {
   };
 };
 
+const PRODUCT_PDFS: Record<string, string> = {
+  "CMF 600": "https://roderbrasil.com.br/wp-content/uploads/2025/10/Cabecote-Multifuncional-Roder.pdf",
+  "CMF 500": "https://roderbrasil.com.br/wp-content/uploads/2025/10/Cabecote-Multifuncional-Roder.pdf",
+  "CMF 800": "https://roderbrasil.com.br/wp-content/uploads/2025/10/Cabecote-Multifuncional-Roder.pdf",
+  "GPR 4500": "https://roderbrasil.com.br/wp-content/uploads/2025/10/Garfo-Paleteiro-Roder.pdf",
+  "GPR 7000": "https://roderbrasil.com.br/wp-content/uploads/2025/10/Garfo-Paleteiro-Roder.pdf",
+  "R250": "https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-Florestal-Roder.pdf",
+  "R280": "https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-Florestal-Roder.pdf",
+  "R360": "https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-Florestal-Roder.pdf",
+  "R360G": "https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-Florestal-Roder.pdf",
+  "R400": "https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-Florestal-Roder.pdf",
+  "R600": "https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-Florestal-Roder.pdf",
+  "R800": "https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-Florestal-Roder.pdf",
+  "R1000": "https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-Florestal-Roder.pdf",
+  "R1200": "https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-Florestal-Roder.pdf",
+  // Interactive Sheet Indicators (Handled by openTechnicalSheet)
+  "SSH 150": "fresa-ssh",
+  "SSH 200": "fresa-ssh",
+  "SSH 225": "fresa-ssh",
+  "SSH 250": "fresa-ssh",
+  "SSH-150": "fresa-ssh",
+  "SSH-200": "fresa-ssh",
+  "SSH-225": "fresa-ssh",
+  "SSH-250": "fresa-ssh",
+  "Caçamba High Tip": "high-tip",
+  "High Tip": "high-tip",
+  "Engate Rápido": "engate-rapido",
+  "Garra para Estufagem": "estufagem",
+  "Garra Estufagem": "estufagem"
+};
+
+const PRODUCT_VIDEOS: Record<string, string> = {
+  "CMF 600": "https://www.youtube.com/watch?v=0_u6eJ6-YnQ",
+  "CMF 500": "https://www.youtube.com/watch?v=Aof_7Q-fS1s",
+  "CMF 800": "https://www.youtube.com/watch?v=t5A9Tj_C9n4",
+  "GPR 4500": "https://www.youtube.com/watch?v=W0ybyuB9gB0",
+  "GPR 7000": "https://www.youtube.com/watch?v=W0ybyuB9gB0",
+  "R250": "https://www.youtube.com/watch?v=Kzqi_Cn2WG4",
+  "R280": "https://www.youtube.com/watch?v=Kzqi_Cn2WG4",
+  "R360": "https://www.youtube.com/watch?v=Kzqi_Cn2WG4",
+  "R360G": "https://www.youtube.com/watch?v=Kzqi_Cn2WG4",
+  "R400": "https://www.youtube.com/watch?v=Kzqi_Cn2WG4",
+  "R600": "https://www.youtube.com/watch?v=Kzqi_Cn2WG4",
+  "R800": "https://www.youtube.com/watch?v=Kzqi_Cn2WG4",
+  "SSH 150": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
+  "SSH 200": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
+  "SSH 225": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
+  "SSH 250": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
+  "SSH-150": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
+  "SSH-200": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
+  "SSH-225": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
+  "SSH-250": "https://www.youtube.com/watch?v=na5Z2tLWMgA"
+};
+
 interface Message {
   id?: string;
   role: 'user' | 'assistant';
   content: string;
 }
 
-export default function EngineerHelper() {
+export default function EngineerHelper({ isFullPage = false }: { isFullPage?: boolean } = {}) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, profile, isAdmin, isManager } = useAuth();
   
+  // Only registered sellers/partners should have sharing access
+  const isRegisteredUser = user && profile?.role && !['client', 'visitor'].includes(profile.role);
+  
   // Technical sheet interactive states
   const [isHighTipFichaOpen, setIsHighTipFichaOpen] = useState(false);
   const [isFresaSshFichaOpen, setIsFresaSshFichaOpen] = useState(false);
+  const [isEngateRapidoFichaOpen, setIsEngateRapidoFichaOpen] = useState(false);
+  const [isGarraEstufagemFichaOpen, setIsGarraEstufagemFichaOpen] = useState(false);
   const [fresaSshDefaultModel, setFresaSshDefaultModel] = useState<'ssh-150' | 'ssh-200' | 'ssh-225' | 'ssh-250'>('ssh-150');
 
   const openTechnicalSheet = (url: string, modelName?: string) => {
@@ -239,6 +300,18 @@ export default function EngineerHelper() {
     // Check if the link is related to Caçamba High Tip or High Tip
     if (lowerUrl.includes('cacamba-high-tip') || lowerUrl.includes('high-tip')) {
       setIsHighTipFichaOpen(true);
+      return;
+    }
+
+    // Check if the link is related to Engate Rapido
+    if (lowerUrl.includes('engate-rapido') || lowerUrl === 'engate-rapido' || (modelName && modelName.toLowerCase().includes('engate'))) {
+      setIsEngateRapidoFichaOpen(true);
+      return;
+    }
+
+    // Check if the link is related to Garra para Estufagem
+    if (lowerUrl.includes('estufagem') || lowerUrl === 'estufagem' || (modelName && modelName.toLowerCase().includes('estufagem'))) {
+      setIsGarraEstufagemFichaOpen(true);
       return;
     }
 
@@ -278,7 +351,8 @@ export default function EngineerHelper() {
   const canTeach = isAdmin || isManager;
   
   // Persistent state loaded from sessionStorage on mount
-  const [isOpen, setIsOpen] = useState(() => {
+  const [isOpenState, setIsOpenState] = useState(() => {
+    if (isFullPage) return true;
     try {
       const saved = sessionStorage.getItem('roder_helper_isOpen');
       return saved ? JSON.parse(saved) : false;
@@ -286,6 +360,12 @@ export default function EngineerHelper() {
       return false;
     }
   });
+  
+  const isOpen = isFullPage ? true : isOpenState;
+  const setIsOpen = (val: boolean | ((prev: boolean) => boolean)) => {
+    if (isFullPage) return;
+    setIsOpenState(val);
+  };
   
   const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
@@ -387,6 +467,47 @@ export default function EngineerHelper() {
     ];
   });
   
+  // --- SPY PROTECTION, SHARING & LEAD/BUDGET CAPTURE STATES ---
+  const [askedTopics, setAskedTopics] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('roder_consultant_asked_topics');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [isBudgetFormOpen, setIsBudgetFormOpen] = useState(false);
+  const [budgetContactName, setBudgetContactName] = useState('');
+  const [budgetCNPJ, setBudgetCNPJ] = useState('');
+  const [budgetPhone, setBudgetPhone] = useState('');
+  const [budgetMachineBrand, setBudgetMachineBrand] = useState('');
+  const [budgetMachineModel, setBudgetMachineModel] = useState('');
+  const [budgetEquipName, setBudgetEquipName] = useState('');
+  const [budgetSubmitLoading, setBudgetSubmitLoading] = useState(false);
+
+  // Sharing links / Whatsapp dialog states
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [shareClientPhone, setShareClientPhone] = useState('');
+  const [shareRefName, setShareRefName] = useState(() => {
+    return profile?.name || profile?.email || user?.email || '';
+  });
+  const [shareCustomMessage, setShareCustomMessage] = useState(() => {
+    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://roderindica.web.app';
+    const sellerRef = user?.email || profile?.email || '';
+    const shareUrl = `${currentOrigin}/consultor?ref=${encodeURIComponent(sellerRef)}`;
+    return `Olá! Sou da equipe Roder e gostaria de compartilhar com você o nosso *Consultor Técnico Digital com Inteligência Artificial*! 🛠️🤖\n\nCom ele, você pode dimensionar equipamentos, calcular produtividade de garras e cabeçotes em tempo real, e tirar qualquer dúvida técnica sobre nossos produtos diretamente do seu celular.\n\nToque no link abaixo para começar a usar agora mesmo:\n👉 ${shareUrl}`;
+  });
+  const [shareText, setShareText] = useState(() => shareCustomMessage);
+
+  // Keep shareText updated when shareRefName changes
+  useEffect(() => {
+    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://roderindica.web.app';
+    const ref = shareRefName || user?.email || 'direto';
+    const shareUrl = `${currentOrigin}/consultor?ref=${encodeURIComponent(ref)}`;
+    setShareText(`Olá! Sou da equipe Roder e gostaria de compartilhar com você o nosso *Consultor Técnico Digital com Inteligência Artificial*! 🛠️🤖\n\nCom ele, você pode dimensionar equipamentos, calcular produtividade de garras e cabeçotes em tempo real, e tirar qualquer dúvida técnica sobre nossos produtos diretamente do seu celular.\n\nToque no link abaixo para começar a usar agora mesmo:\n👉 ${shareUrl}`);
+  }, [shareRefName, user?.email]);
+
   const [inputValue, setInputValue] = useState('');
   const [arrasteCalcDiameter, setArrasteCalcDiameter] = useState<number>(20);
   const [arrasteCalcEquip, setArrasteCalcEquip] = useState<'msr600' | 'msr1000' | 'clambunk10' | 'clambunk15'>('msr1000');
@@ -847,6 +968,9 @@ export default function EngineerHelper() {
   };
 
   const handleEndConversation = () => {
+    const confirmEnd = window.confirm("Deseja realmente encerrar a conversa atual? Isso limpará todo o histórico.");
+    if (!confirmEnd) return;
+
     try {
       sessionStorage.removeItem('roder_helper_isOpen');
       sessionStorage.removeItem('roder_helper_messages');
@@ -893,6 +1017,55 @@ export default function EngineerHelper() {
     // Auto minimize compatibility explorer when typing/submitting text
     setExplorerMinimized(true);
 
+    // Spy Protection / Usage Limits check
+    const isVisitor = !user || !profile?.role || (profile.role as string) === 'client' || (profile.role as string) === 'visitor';
+    if (isVisitor) {
+      const textUpper = queryText.toUpperCase();
+      const categoriesMatched: string[] = [];
+      if (textUpper.includes('CMF') || textUpper.includes('CABECOTE') || textUpper.includes('HARVESTER') || textUpper.includes('CABEÇOTE')) {
+        categoriesMatched.push('CABECOTE_CMF');
+      }
+      if (textUpper.includes('MSR') || textUpper.includes('SKIDDER') || textUpper.includes('ARRASTE')) {
+        categoriesMatched.push('MINI_SKIDDER');
+      }
+      if (textUpper.includes('GT') || textUpper.includes('TRACADORA') || textUpper.includes('TRAÇADORA')) {
+        categoriesMatched.push('GARRA_TRACADORA');
+      }
+      if (textUpper.includes('R250') || textUpper.includes('R280') || textUpper.includes('R360') || textUpper.includes('R400') || textUpper.includes('R600') || textUpper.includes('R800') || textUpper.includes('R1000') || textUpper.includes('R1200') || textUpper.includes('R1400') || (textUpper.includes('GARRA') && !textUpper.includes('TRACADORA') && !textUpper.includes('TRAÇADORA'))) {
+        categoriesMatched.push('GARRA_FLORESTAL');
+      }
+      if (textUpper.includes('CACAMBA') || textUpper.includes('CAÇAMBA') || textUpper.includes('HIGH') || textUpper.includes('TIP')) {
+        categoriesMatched.push('CACAMBA_HIGH_TIP');
+      }
+      if (textUpper.includes('FRESA') || textUpper.includes('TRITURAD') || textUpper.includes('SSH') || textUpper.includes('FAE')) {
+        categoriesMatched.push('FRESA_TRITURADORA');
+      }
+      if (textUpper.includes('SOPRAD') || textUpper.includes('SOPRO')) {
+        categoriesMatched.push('SOPRADOR');
+      }
+      if (textUpper.includes('ENGATE') || textUpper.includes('ACOPLAM')) {
+        categoriesMatched.push('ENGATE_RAPIDO');
+      }
+
+      const uniqueTopics = Array.from(new Set([...askedTopics, ...categoriesMatched]));
+      if (uniqueTopics.length > 5) {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: `spy-protect-${Date.now()}`,
+            role: 'assistant',
+            content: `⚠️ **Limite de Assuntos Excedido (Proteção de Engenharia)**\n\nOlá! Notamos que as suas consultas abrangem mais de 5 linhas de produtos ou especialidades diferentes da RODER.\n\nPara proteger nossas especificações técnicas e garantir um atendimento seguro, as consultas adicionais estão temporariamente limitadas nesta sessão.\n\nPor favor, **preencha o formulário de identificação/orçamento** para que nossa equipe comercial e o vendedor responsável possam te atender diretamente com todos os detalhes técnicos e preços oficiais! Obrigado pela compreensão.`
+          }
+        ]);
+        setIsBudgetFormOpen(true);
+        toast.error('Limite de assuntos excedido (máximo 5). Identifique-se para continuar.');
+        return;
+      } else if (categoriesMatched.length > 0) {
+        setAskedTopics(uniqueTopics);
+        localStorage.setItem('roder_consultant_asked_topics', JSON.stringify(uniqueTopics));
+      }
+    }
+
     // Add user message
     const userMsgId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
     const updatedMessages = [...messages, { id: userMsgId, role: 'user', content: queryText } as Message];
@@ -908,7 +1081,8 @@ export default function EngineerHelper() {
           uid: user?.uid,
           name: (profile?.name || user?.displayName || user?.email || 'Anônimo').replace('Jefferson', 'Jeferson'),
           email: profile?.email || user?.email || '',
-          role: profile?.role || ''
+          role: profile?.role || 'visitor',
+          referredBy: localStorage.getItem('roder_consultant_ref') || ''
         }
       );
       const assistantMsgId = `assistant-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
@@ -976,7 +1150,8 @@ export default function EngineerHelper() {
           uid: user?.uid,
           name: (profile?.name || user?.displayName || user?.email || 'Anônimo').replace('Jefferson', 'Jeferson'),
           email: profile?.email || user?.email || '',
-          role: profile?.role || ''
+          role: profile?.role || 'visitor',
+          referredBy: localStorage.getItem('roder_consultant_ref') || ''
         }
       );
       const assistantMsgId = `assistant-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
@@ -1011,6 +1186,7 @@ export default function EngineerHelper() {
   };
 
   const startRecording = async () => {
+    setExplorerMinimized(true);
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         toast.error('Seu navegador não suporta gravação de áudio ou a conexão não é segura (HTTPS).');
@@ -1184,8 +1360,113 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
   // Handle equipment redirection
   const handleMakeIndication = (prod: Product, model: ProductModel) => {
     const productFullName = `${prod.name} - ${model.name}`;
-    setIsOpen(false);
-    navigate('/indicacoes/nova', { state: { product_name: productFullName } });
+    const isVisitor = !user || !profile?.role || (profile.role as string) === 'client' || (profile.role as string) === 'visitor';
+    if (isVisitor) {
+      setBudgetEquipName(productFullName);
+      setIsBudgetFormOpen(true);
+    } else {
+      setIsOpen(false);
+      navigate('/indicacoes/nova', { state: { product_name: productFullName } });
+    }
+  };
+
+  const handleBudgetSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!budgetContactName || !budgetPhone) {
+      toast.error('Por favor, preencha o Nome e o WhatsApp/Telefone.');
+      return;
+    }
+
+    setBudgetSubmitLoading(true);
+    try {
+      const sellerRef = localStorage.getItem('roder_consultant_ref') || '';
+      
+      let partnerEmail = '';
+      let partnerNameFound = sellerRef;
+
+      if (sellerRef) {
+        try {
+          // Search by email first in registered users
+          let q = query(collection(db, 'users'), where('email', '==', sellerRef));
+          let snap = await getDocs(q);
+          if (snap.empty) {
+            // Search by name
+            q = query(collection(db, 'users'), where('name', '==', sellerRef));
+            snap = await getDocs(q);
+          }
+          if (!snap.empty) {
+            const userData = snap.docs[0].data();
+            partnerEmail = userData.email || '';
+            partnerNameFound = userData.name || sellerRef;
+          }
+        } catch (err) {
+          console.warn('Error querying user for referral email:', err);
+        }
+      }
+
+      const docData = {
+        client_name: budgetContactName,
+        client_cnpj: budgetCNPJ || 'Não informado',
+        client_phone: budgetPhone,
+        client_email: 'contato@roderindica.com.br',
+        company_name: budgetContactName,
+        client_location: '',
+        base_machine: `${budgetMachineBrand} ${budgetMachineModel}`.trim() || 'Não informado',
+        observations: `Solicitação via Consultor Técnico Digital. Equipamento de interesse: ${budgetEquipName || 'Não especificado'}.`,
+        product_name: budgetEquipName || 'Equipamento Roder',
+        status: 'new',
+        indicator_id: sellerRef || 'consultor-direto',
+        creator_type: 'visitor',
+        // Lead tracking fields for sales reporting
+        lead_source: sellerRef ? 'consultor_compartilhado' : 'consultor_direto',
+        shared_by_seller_email: partnerEmail || '',
+        shared_by_seller_name: partnerNameFound || '',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      await addDoc(collection(db, 'indications'), docData);
+
+      try {
+        const { notifyNewIndication } = await import('../../services/emailService');
+        await notifyNewIndication({
+          client_name: budgetContactName,
+          client_phone: budgetPhone,
+          company_name: budgetContactName,
+          city: '',
+          state: '',
+          product_name: budgetEquipName || 'Equipamento Roder',
+          lead_source: sellerRef ? 'consultor_compartilhado' : 'consultor_direto',
+          shared_by_seller_name: partnerNameFound || sellerRef || 'Nenhum (Direto)',
+          shared_by_seller_email: partnerEmail || ''
+        }, sellerRef ? `Consultor Compartilhado por ${partnerNameFound || sellerRef}` : 'Consultor Direto (Cliente)', partnerEmail || undefined);
+      } catch (err) {
+        console.warn('Error sending notification email:', err);
+      }
+
+      toast.success('Solicitação de Orçamento enviada com sucesso! Nossos consultores entrarão em contato em breve.');
+      
+      setBudgetContactName('');
+      setBudgetCNPJ('');
+      setBudgetPhone('');
+      setBudgetMachineBrand('');
+      setBudgetMachineModel('');
+      setIsBudgetFormOpen(false);
+
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `budget-success-${Date.now()}`,
+          role: 'assistant',
+          content: `✅ **Obrigado! Sua solicitação de orçamento foi enviada para o nosso setor comercial.**\n\nNossa equipe (Gislene e Luana) já recebeu os dados do contato **${budgetContactName}** para o equipamento **${budgetEquipName || 'Roder'}** e entrará em contato em breve via WhatsApp (**${budgetPhone}**).\n\nSe tiver mais alguma dúvida ou quiser simular outro produto, sinta-se à vontade para continuar!`
+        }
+      ]);
+    } catch (error: any) {
+      console.error('Error submitting public budget:', error);
+      toast.error('Erro ao enviar solicitação de orçamento: ' + error.message);
+    } finally {
+      setBudgetSubmitLoading(false);
+    }
   };
 
   // Download technical sheet document as .txt / .md
@@ -1342,25 +1623,54 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => setIsOpen(!isOpen)}
-          className={`relative flex items-center gap-2 p-2.5 px-3 sm:p-3.5 sm:px-5 rounded-full shadow-2xl text-white ${
-            isOpen ? 'bg-slate-700 hover:bg-slate-800' : 'bg-primary hover:bg-primary/90'
+          className={`relative flex items-center justify-center rounded-full shadow-2xl text-white transition-all duration-300 ${
+            isOpen 
+              ? 'p-2.5 px-3 sm:p-3.5 sm:px-5 bg-slate-700 hover:bg-slate-800' 
+              : 'w-16 h-16 sm:w-auto sm:h-auto p-2 sm:p-3.5 sm:px-5 bg-primary hover:bg-primary/90'
           }`}
           style={{ boxShadow: '0 10px 25px -5px rgba(239, 68, 68, 0.4)' }}
         >
           {isOpen ? (
-            <X className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
+            <div className="flex items-center gap-2">
+              <X className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
+              <div className="flex flex-col items-start leading-none text-left">
+                <span className="text-[7.5px] sm:text-[9px] opacity-80 font-medium uppercase tracking-wider">
+                  Assistente
+                </span>
+                <span className="text-[9.5px] sm:text-xs font-black tracking-tight uppercase">
+                  Fechar ✕
+                </span>
+              </div>
+            </div>
           ) : (
-            <Wrench className="h-4.5 w-4.5 sm:h-5 sm:w-5 animate-bounce" />
+            <>
+              {/* Mobile "Bolinha" (Roder Consultor) */}
+              <div className="sm:hidden flex flex-col items-center justify-center text-center">
+                <div className="relative h-[26px] w-[26px] bg-slate-800 border border-amber-400 rounded-full flex items-center justify-center overflow-hidden shadow-inner mb-0.5">
+                  <img 
+                    src={RODER_LOGO_BASE64} 
+                    alt="Roder" 
+                    className="h-5 w-5 object-contain rounded-full animate-pulse scale-[1.20]" 
+                  />
+                </div>
+                <span className="text-[7.5px] font-black tracking-tighter uppercase mt-0.5 leading-none">Roder</span>
+                <span className="text-[6.5px] opacity-90 font-bold uppercase leading-none">Consultor</span>
+              </div>
+
+              {/* Desktop standard pill */}
+              <div className="hidden sm:flex items-center gap-2">
+                <Wrench className="h-4.5 w-4.5 sm:h-5 sm:w-5 animate-bounce" />
+                <div className="flex flex-col items-start leading-none text-left">
+                  <span className="text-[7.5px] sm:text-[9px] opacity-80 font-medium uppercase tracking-wider">
+                    Consultor Técnico
+                  </span>
+                  <span className="text-[9.5px] sm:text-xs font-black tracking-tight uppercase">
+                    Roder IA
+                  </span>
+                </div>
+              </div>
+            </>
           )}
-          
-          <div className="flex flex-col items-start leading-none text-left">
-            <span className="text-[7.5px] sm:text-[9px] opacity-80 font-medium uppercase tracking-wider">
-              {isOpen ? 'Assistente' : 'Consultor Técnico'}
-            </span>
-            <span className="text-[9.5px] sm:text-xs font-black tracking-tight uppercase">
-              {isOpen ? 'Fechar ✕' : 'Roder IA'}
-            </span>
-          </div>
 
           {messages.length > 1 && !isOpen && (
             <span className="absolute -top-1 -right-1 flex h-3 w-3">
@@ -1369,7 +1679,7 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
             </span>
           )}
 
-          {messages.length <= 1 && (
+          {messages.length <= 1 && !isOpen && (
             <div className="absolute -top-1.5 -right-1 bg-amber-500 text-slate-950 font-black text-[8px] px-1.5 py-0.5 rounded-full uppercase tracking-widest animate-pulse border border-white">
               IA
             </div>
@@ -1395,16 +1705,27 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
           >
             {/* Header */}
             <div className="p-4 bg-gradient-to-r from-primary to-slate-850 border-b border-slate-800 flex items-center justify-between shadow-md">
-              <div className="flex items-center gap-2.5">
-                <div className="p-1.5 bg-white/10 rounded-lg">
-                  <Wrench className="h-5 w-5 text-amber-400" />
-                </div>
+              <div className="flex items-center gap-3">
+                <motion.div 
+                  className="relative h-[76px] w-[76px] flex-shrink-0 flex items-center justify-center"
+                  animate={{ scale: [1, 1.04, 1] }}
+                  transition={{ repeat: Infinity, duration: 3.5, ease: "easeInOut" }}
+                >
+                  <div className="absolute inset-0 bg-amber-500/15 rounded-full blur-md animate-pulse" />
+                  <div className="relative h-[68px] w-[68px] bg-slate-800 border-2 border-amber-400 rounded-full flex items-center justify-center overflow-hidden shadow-inner">
+                    <img 
+                      src={RODER_LOGO_BASE64} 
+                      alt="Roder Logo" 
+                      className="h-12 w-12 object-contain rounded-full scale-[1.20]" 
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                </motion.div>
                 <div>
-                  <h3 className="text-sm font-black uppercase tracking-wider flex items-center gap-1">
+                  <h3 className="text-sm font-black uppercase tracking-wider flex items-center gap-1 text-amber-400">
                     Consultor Técnico Roder
-                    <span className="text-[9px] font-black bg-amber-500 text-slate-950 px-1.5 py-0.5 rounded uppercase tracking-widest">IA</span>
+                    <span className="text-[9px] font-black bg-amber-500 text-slate-950 px-1.5 py-0.5 rounded uppercase tracking-widest animate-pulse">IA</span>
                   </h3>
-                  <p className="text-[10px] text-slate-300 font-medium font-mono">DIMENSIONAMENTO E COMPATIBILIDADE</p>
                 </div>
               </div>
               <div className="flex items-center gap-1.5">
@@ -1447,10 +1768,23 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
                   <span className="hidden xs:inline">Relatório</span>
                 </Button>
 
+                {isRegisteredUser && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 px-1.5 sm:px-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 text-xs gap-1"
+                    onClick={() => setIsShareModalOpen(true)}
+                    title="Compartilhar Consultor via WhatsApp"
+                  >
+                    <Share2 className="h-3.5 w-3.5" />
+                    <span className="hidden xs:inline">Compartilhar</span>
+                  </Button>
+                )}
+
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-8 px-1.5 sm:px-2 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 text-xs gap-1"
+                  className="h-8 px-1.5 sm:px-2 text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 text-xs gap-1"
                   onClick={handleClearConversation}
                   title="Limpar Conversa"
                 >
@@ -1458,10 +1792,13 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
                   <span className="hidden xs:inline">Limpar</span>
                 </Button>
 
+                {/* Safe Separator */}
+                <div className="h-6 w-[1px] bg-slate-800 mx-1" />
+
                 {/* Minimize Button - hides the container but persists conversation */}
                 <button
                   onClick={() => setIsOpen(false)}
-                  className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-800 transition-colors flex items-center justify-center h-8 w-8"
+                  className="p-1.5 rounded-lg text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 border border-amber-500/20 transition-colors flex items-center justify-center h-8 w-8"
                   title="Minimizar (Mantém Conversa)"
                 >
                   <Minus className="h-4 w-4" />
@@ -1470,7 +1807,7 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
                 {/* Close/End Button - triggers handleEndConversation (clears conversation and closes) */}
                 <button
                   onClick={handleEndConversation}
-                  className="p-1.5 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-red-500/20 transition-colors flex items-center justify-center h-8 w-8"
+                  className="p-1.5 rounded-lg text-red-500 hover:text-red-400 hover:bg-red-500/10 border border-red-500/30 transition-colors flex items-center justify-center h-8 w-8 ml-2"
                   title="Encerrar Conversa"
                 >
                   <X className="h-4 w-4" />
@@ -1700,18 +2037,67 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
                                   <p className="text-[10px] text-amber-400 font-extrabold uppercase tracking-wider flex items-center gap-1">
                                     <Sparkles className="h-3 w-3 text-amber-400" /> Indicações Rápidas Disponíveis:
                                   </p>
-                                  <div className="flex flex-wrap gap-1.5">
-                                    {matchedEquip.map(({ prod, model }) => (
-                                      <button
-                                        key={`${prod.id}-${model.id}`}
-                                        onClick={() => handleMakeIndication(prod, model)}
-                                        className="flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black uppercase text-[9px] py-1 px-2.5 rounded transition shadow-sm cursor-pointer"
-                                        title={`Clique para realizar indicação/orçamento oficial de ${prod.name} ${model.name}`}
-                                      >
-                                        <CheckCircle className="h-2.5 w-2.5" />
-                                        Indicar {prod.name} {model.name}
-                                      </button>
-                                    ))}
+                                  <div className="flex flex-col gap-2 w-full">
+                                    {matchedEquip.map(({ prod, model }) => {
+                                      const mName = model.name || '';
+                                      const pName = prod.name || '';
+                                      const pdfUrl = model.pdf_url || prod.pdf_url || PRODUCT_PDFS[mName] || PRODUCT_PDFS[pName];
+                                      const videoUrl = model.video_url || prod.video_url || PRODUCT_VIDEOS[mName] || PRODUCT_VIDEOS[pName];
+
+                                      const isValidPdfUrl = (url?: string) => {
+                                        if (!url) return false;
+                                        const lower = url.toLowerCase();
+                                        if (lower === 'fresa-ssh' || lower === 'high-tip' || lower === 'engate-rapido' || lower === 'estufagem') return true;
+                                        return url.startsWith('http://') || url.startsWith('https://');
+                                      };
+
+                                      const isValidVideoUrl = (url?: string) => {
+                                        if (!url) return false;
+                                        const lower = url.toLowerCase();
+                                        if (lower.includes('t_8n_nlf2xk')) return false; // dead video
+                                        return url.startsWith('http://') || url.startsWith('https://');
+                                      };
+
+                                      return (
+                                        <div key={`${prod.id}-${model.id}`} className="flex flex-col gap-1.5 p-2 bg-slate-900/60 rounded-xl border border-slate-800/80 w-full">
+                                          <div className="flex items-center justify-between">
+                                            <span className="text-[10px] font-black text-amber-400 uppercase tracking-tight">{prod.name} - {model.name}</span>
+                                          </div>
+                                          <div className="flex flex-wrap gap-1.5">
+                                            <button
+                                              onClick={() => handleMakeIndication(prod, model)}
+                                              className="flex items-center gap-1 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-slate-950 font-black uppercase text-[9px] py-1 px-2.5 rounded-lg transition shadow-sm cursor-pointer duration-150"
+                                              title={`Clique para realizar indicação/orçamento oficial de ${prod.name} ${model.name}`}
+                                            >
+                                              <CheckCircle className="h-2.5 w-2.5" />
+                                              Orçamento/Indicação
+                                            </button>
+
+                                            {isValidPdfUrl(pdfUrl) && (
+                                              <button
+                                                onClick={() => openTechnicalSheet(pdfUrl, model.name)}
+                                                className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:text-amber-400 font-black uppercase text-[9px] py-1 px-2.5 rounded-lg transition shadow-sm cursor-pointer duration-150"
+                                                title={`Abre a Ficha Técnica oficial em PDF de ${prod.name} ${model.name}`}
+                                              >
+                                                <FileText className="h-2.5 w-2.5 text-amber-400" />
+                                                Ficha Técnica
+                                              </button>
+                                            )}
+
+                                            {isValidVideoUrl(videoUrl) && (
+                                              <button
+                                                onClick={() => window.open(videoUrl, '_blank')}
+                                                className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:text-red-400 font-black uppercase text-[9px] py-1 px-2.5 rounded-lg transition shadow-sm cursor-pointer duration-150"
+                                                title={`Assista ao vídeo de demonstração operacional de ${prod.name} ${model.name}`}
+                                              >
+                                                <Video className="h-2.5 w-2.5 text-red-500" />
+                                                Vídeo Demonstrativo
+                                              </button>
+                                            )}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
                                   </div>
                                 </div>
                               )}
@@ -3003,6 +3389,241 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
       {isFresaSshFichaOpen && (
         <FresaSshFicha onClose={() => setIsFresaSshFichaOpen(false)} defaultModelId={fresaSshDefaultModel} />
       )}
+
+      {isEngateRapidoFichaOpen && (
+        <EngateRapidoFicha onClose={() => setIsEngateRapidoFichaOpen(false)} />
+      )}
+
+      {isGarraEstufagemFichaOpen && (
+        <GarraEstufagemFicha onClose={() => setIsGarraEstufagemFichaOpen(false)} />
+      )}
+
+      {/* 1. Share Modal */}
+      <AnimatePresence>
+        {isShareModalOpen && (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md overflow-hidden text-white shadow-2xl"
+            >
+              <div className="p-4 bg-gradient-to-r from-primary to-slate-850 border-b border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Share2 className="h-5 w-5 text-amber-400" />
+                  <h3 className="text-sm font-black uppercase tracking-wider">Compartilhar Consultor</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsShareModalOpen(false)}
+                  className="text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 p-1.5 rounded-lg transition"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4">
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Gere um link personalizado do **Consultor Técnico Roder** para enviar aos seus clientes. Quando eles acessarem o link, suas consultas serão associadas ao seu perfil de vendedor/indicador.
+                </p>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-extrabold text-amber-400/90 tracking-wider">Seu Nome / Referência de Vendas:</label>
+                  <input
+                    type="text"
+                    value={shareRefName}
+                    onChange={(e) => setShareRefName(e.target.value)}
+                    placeholder="Seu nome ou email"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-amber-400 text-white font-medium"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-extrabold text-amber-400/90 tracking-wider font-mono">Link Gerado:</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={`${window.location.origin}/consultor?ref=${encodeURIComponent(shareRefName || user?.email || 'direto')}`}
+                      className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-400 select-all font-mono focus:outline-none"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 text-xs px-3"
+                      onClick={() => {
+                        const url = `${window.location.origin}/consultor?ref=${encodeURIComponent(shareRefName || user?.email || 'direto')}`;
+                        navigator.clipboard.writeText(url);
+                        toast.success('Link copiado para a área de transferência!');
+                      }}
+                    >
+                      Copiar
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] uppercase font-extrabold text-amber-400/90 tracking-wider">Mensagem para o Cliente:</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const defaultMsg = `Olá! Sou da equipe Roder e gostaria de compartilhar com você o nosso Consultor Técnico Digital com Inteligência Artificial! 🛠️🤖\n\nCom ele, você pode dimensionar equipamentos, calcular produtividade de garras e cabeçotes em tempo real, e tirar qualquer dúvida técnica sobre nossos produtos diretamente do seu celular.\n\nToque no link abaixo para começar a usar agora mesmo:\n👉 ${window.location.origin}/consultor?ref=${encodeURIComponent(shareRefName || user?.email || 'direto')}`;
+                        setShareText(defaultMsg);
+                      }}
+                      className="text-[9px] font-black text-amber-500 hover:underline uppercase"
+                    >
+                      Restaurar Padrão
+                    </button>
+                  </div>
+                  <textarea
+                    rows={6}
+                    value={shareText}
+                    onChange={(e) => setShareText(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-amber-400 text-white leading-relaxed resize-none"
+                  />
+                </div>
+              </div>
+
+              <div className="p-4 bg-slate-950 border-t border-slate-800/60 flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1 border-slate-800 bg-slate-900 text-xs hover:bg-slate-800"
+                  onClick={() => setIsShareModalOpen(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="button"
+                  className="flex-1 bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-slate-950 font-black text-xs gap-1.5 border-0"
+                  onClick={() => {
+                    const finalUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
+                    window.open(finalUrl, '_blank');
+                    setIsShareModalOpen(false);
+                    toast.success('WhatsApp aberto para compartilhamento!');
+                  }}
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  Enviar no WhatsApp
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 2. Budget Request Lead Capture Modal */}
+      <AnimatePresence>
+        {isBudgetFormOpen && (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md overflow-hidden text-white shadow-2xl"
+            >
+              <div className="p-4 bg-gradient-to-r from-primary to-slate-850 border-b border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-amber-400" />
+                  <h3 className="text-sm font-black uppercase tracking-wider">Solicitar Orçamento</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsBudgetFormOpen(false)}
+                  className="text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 p-1.5 rounded-lg transition"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleBudgetSubmit}>
+                <div className="p-5 space-y-4">
+                  <div className="bg-slate-950 p-3.5 border border-slate-800 rounded-xl space-y-1">
+                    <p className="text-[11px] font-black uppercase tracking-wider text-amber-400">Equipamento Selecionado:</p>
+                    <p className="text-xs font-semibold text-white">{budgetEquipName || 'Equipamento Roder (Dimensionamento)'}</p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Seu Nome / Contato *</label>
+                    <input
+                      type="text"
+                      required
+                      value={budgetContactName}
+                      onChange={(e) => setBudgetContactName(e.target.value)}
+                      placeholder="Ex: João Silva"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-amber-400 text-white font-medium"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">CNPJ (Opcional)</label>
+                      <input
+                        type="text"
+                        value={budgetCNPJ}
+                        onChange={(e) => setBudgetCNPJ(e.target.value)}
+                        placeholder="Ex: 00.000.000/0001-00"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-amber-400 text-white font-medium"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">WhatsApp / Telefone *</label>
+                      <input
+                        type="tel"
+                        required
+                        value={budgetPhone}
+                        onChange={(e) => setBudgetPhone(e.target.value)}
+                        placeholder="Ex: (19) 99999-9999"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-amber-400 text-white font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Sua Escavadeira ou Pá Carregadeira (Opcional)</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        value={budgetMachineBrand}
+                        onChange={(e) => setBudgetMachineBrand(e.target.value)}
+                        placeholder="Marca (Ex: Caterpillar)"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-amber-400 text-white font-medium"
+                      />
+                      <input
+                        type="text"
+                        value={budgetMachineModel}
+                        onChange={(e) => setBudgetMachineModel(e.target.value)}
+                        placeholder="Modelo (Ex: 320D)"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-amber-400 text-white font-medium"
+                      />
+                    </div>
+                    <p className="text-[9px] text-slate-400 leading-normal italic">Informar a máquina nos ajuda a validar a compatibilidade hidráulica do equipamento antes de enviar o orçamento.</p>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-slate-950 border-t border-slate-800/60 flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1 border-slate-800 bg-slate-900 text-xs hover:bg-slate-800"
+                    onClick={() => setIsBudgetFormOpen(false)}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={budgetSubmitLoading}
+                    className="flex-1 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-slate-950 font-black text-xs gap-1.5 border-0 animate-pulse hover:animate-none"
+                  >
+                    {budgetSubmitLoading ? 'Enviando...' : 'Solicitar Orçamento'}
+                  </Button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </>
   );
 }

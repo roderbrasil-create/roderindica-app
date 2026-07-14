@@ -82,11 +82,21 @@ export async function getManagerEmails(): Promise<string[]> {
   }
 }
 
-export async function notifyNewIndication(indication: any, partnerName: string) {
+export async function notifyNewIndication(indication: any, partnerName: string, partnerEmail?: string) {
   try {
     console.log('[NOTIFICATION] notifyNewIndication force-enabled for partnerName:', partnerName);
 
     const managers = await getManagerEmails();
+    
+    // Add partner/seller email to notification recipient list if specified
+    if (partnerEmail && partnerEmail.includes('@')) {
+      const lowerPartnerEmail = partnerEmail.trim().toLowerCase();
+      if (!managers.map(x => x.toLowerCase()).includes(lowerPartnerEmail)) {
+        managers.push(partnerEmail.trim());
+        console.log('[NOTIFICATION] Added partnerEmail to notifications list:', partnerEmail);
+      }
+    }
+    
     console.log('[NOTIFICATION] notifyNewIndication: Recipient list =', managers);
     
     if (managers.length === 0) {
@@ -95,6 +105,29 @@ export async function notifyNewIndication(indication: any, partnerName: string) 
     }
 
     const subject = `🔥 NOVO LEAD CADASTRADO: ${indication.client_name || indication.company_name} (via ${partnerName})`;
+    
+    // Build tracking rows based on referral source
+    let trackingHtml = '';
+    if (indication.lead_source === 'consultor_compartilhado') {
+      trackingHtml = `
+        <tr>
+          <td style="padding: 8px 0; color: #666; border-bottom: 1px solid #f3f4f6;">Canal de Venda:</td>
+          <td style="padding: 8px 0; font-weight: bold; color: #10b981; border-bottom: 1px solid #f3f4f6;">Consultor Técnico Compartilhado</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #666; border-bottom: 1px solid #f3f4f6;">Compartilhado por:</td>
+          <td style="padding: 8px 0; font-weight: bold; color: #f97316; border-bottom: 1px solid #f3f4f6;">${indication.shared_by_seller_name || 'Parceiro/Vendedor'} (${indication.shared_by_seller_email || 'Email não cadastrado'})</td>
+        </tr>
+      `;
+    } else if (indication.lead_source === 'consultor_direto') {
+      trackingHtml = `
+        <tr>
+          <td style="padding: 8px 0; color: #666; border-bottom: 1px solid #f3f4f6;">Canal de Venda:</td>
+          <td style="padding: 8px 0; font-weight: bold; color: #3b82f6; border-bottom: 1px solid #f3f4f6;">Consultor Técnico Direto (Cliente)</td>
+        </tr>
+      `;
+    }
+
     const html = `
       <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 8px; overflow: hidden;">
         <div style="background-color: #f97316; color: white; padding: 20px; text-align: center;">
@@ -112,6 +145,7 @@ export async function notifyNewIndication(indication: any, partnerName: string) 
               <td style="padding: 8px 0; color: #666; width: 140px; border-bottom: 1px solid #f3f4f6;">Origem / Indicador:</td>
               <td style="padding: 8px 0; font-weight: bold; color: #f97316; border-bottom: 1px solid #f3f4f6;">${partnerName}</td>
             </tr>
+            ${trackingHtml}
             <tr>
               <td style="padding: 8px 0; color: #666; border-bottom: 1px solid #f3f4f6;">WhatsApp Cliente:</td>
               <td style="padding: 8px 0; font-weight: bold; border-bottom: 1px solid #f3f4f6;">${indication.client_phone || indication.phone || 'Não informado'}</td>

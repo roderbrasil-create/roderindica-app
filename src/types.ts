@@ -146,6 +146,10 @@ export interface Indication {
   lead_type?: string;
   type?: string;
   is_deleted?: boolean;
+  lead_source?: 'consultor_compartilhado' | 'consultor_direto';
+  indicator_id?: string;
+  shared_by_seller_email?: string;
+  shared_by_seller_name?: string;
   created_at: string;
   updated_at: string;
 }

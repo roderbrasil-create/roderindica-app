@@ -340,6 +340,53 @@ export default function Reports() {
     window.open(`https://wa.me/?text=${encodeURIComponent(summaryText)}`, '_blank');
   };
 
+  // 5. AI Consultant Referral and Direct Tracking
+  const consultantTrackingData = useMemo(() => {
+    if (!Array.isArray(indications)) return { sharedCount: 0, sharedSold: 0, directCount: 0, directSold: 0, topSellers: [] };
+
+    let sharedCount = 0;
+    let sharedSold = 0;
+    let directCount = 0;
+    let directSold = 0;
+    const sellerMap: Record<string, { name: string; email: string; count: number; sold: number }> = {};
+
+    indications.forEach(ind => {
+      const source = ind.lead_source || (ind.indicator_id && ind.indicator_id !== 'consultor-direto' ? 'consultor_compartilhado' : 'consultor_direto');
+      const isSold = ind.status === 'sold';
+
+      if (source === 'consultor_compartilhado') {
+        sharedCount++;
+        if (isSold) sharedSold++;
+
+        const email = ind.shared_by_seller_email || ind.indicator_id || 'Email não cadastrado';
+        const name = ind.shared_by_seller_name || ind.indicator_id || 'Parceiro/Vendedor';
+        
+        if (email && email !== 'consultor-direto') {
+          if (!sellerMap[email]) {
+            sellerMap[email] = { name, email, count: 0, sold: 0 };
+          }
+          sellerMap[email].count++;
+          if (isSold) sellerMap[email].sold++;
+        }
+      } else {
+        directCount++;
+        if (isSold) directSold++;
+      }
+    });
+
+    const topSellers = Object.values(sellerMap)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
+    return {
+      sharedCount,
+      sharedSold,
+      directCount,
+      directSold,
+      topSellers
+    };
+  }, [indications]);
+
   if (loading) {
     return (
       <Layout>
@@ -427,6 +474,9 @@ export default function Reports() {
             </TabsTrigger>
             <TabsTrigger value="vendedores" className="rounded-lg font-bold uppercase text-[10px] tracking-widest data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               Performance
+            </TabsTrigger>
+            <TabsTrigger value="consultor" className="rounded-lg font-bold uppercase text-[10px] tracking-widest data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              Consultor IA
             </TabsTrigger>
           </TabsList>
 
@@ -867,6 +917,159 @@ export default function Reports() {
                       <Legend verticalAlign="bottom" height={36}/>
                     </PieChart>
                   </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="consultor" className="space-y-6">
+            {/* KPI Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <Card className="bg-card border-border/50 shadow-sm overflow-hidden">
+                <CardContent className="p-6">
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[10px] font-black uppercase text-amber-500 tracking-wider">Canais de Entrada</span>
+                    <h4 className="text-xl font-black text-foreground">Tráfego & Leads IA</h4>
+                    <div className="grid grid-cols-2 gap-4 mt-3">
+                      <div>
+                        <p className="text-[10px] text-muted-foreground font-bold uppercase">Compartilhado</p>
+                        <p className="text-2xl font-black text-foreground">{consultantTrackingData.sharedCount}</p>
+                        <p className="text-[9px] text-muted-foreground">Orçamentos gerados</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-muted-foreground font-bold uppercase">Acesso Direto</p>
+                        <p className="text-2xl font-black text-foreground">{consultantTrackingData.directCount}</p>
+                        <p className="text-[9px] text-muted-foreground">Clientes sozinhos</p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-card border-border/50 shadow-sm overflow-hidden">
+                <CardContent className="p-6">
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[10px] font-black uppercase text-green-500 tracking-wider">Resultados Práticos</span>
+                    <h4 className="text-xl font-black text-foreground">Vendas Convertidas</h4>
+                    <div className="grid grid-cols-2 gap-4 mt-3">
+                      <div>
+                        <p className="text-[10px] text-muted-foreground font-bold uppercase">Compartilhado</p>
+                        <p className="text-2xl font-black text-green-500">{consultantTrackingData.sharedSold}</p>
+                        <p className="text-[9px] text-muted-foreground">Vendas fechadas</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-muted-foreground font-bold uppercase">Acesso Direto</p>
+                        <p className="text-2xl font-black text-primary">{consultantTrackingData.directSold}</p>
+                        <p className="text-[9px] text-muted-foreground">Vendas fechadas</p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-card border-border/50 shadow-sm overflow-hidden">
+                <CardContent className="p-6">
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[10px] font-black uppercase text-blue-500 tracking-wider">Eficiência de Conversão</span>
+                    <h4 className="text-xl font-black text-foreground">Taxas de Sucesso</h4>
+                    <div className="grid grid-cols-2 gap-4 mt-3">
+                      <div>
+                        <p className="text-[10px] text-muted-foreground font-bold uppercase">Compartilhado</p>
+                        <p className="text-2xl font-black text-blue-500">
+                          {Math.round((consultantTrackingData.sharedSold / (consultantTrackingData.sharedCount || 1)) * 100)}%
+                        </p>
+                        <p className="text-[9px] text-muted-foreground">De lead para venda</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-muted-foreground font-bold uppercase">Acesso Direto</p>
+                        <p className="text-2xl font-black text-purple-500">
+                          {Math.round((consultantTrackingData.directSold / (consultantTrackingData.directCount || 1)) * 100)}%
+                        </p>
+                        <p className="text-[9px] text-muted-foreground">De lead para venda</p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Recharts Bar Comparison */}
+              <Card className="lg:col-span-2 border-border/50 shadow-sm overflow-hidden">
+                <CardHeader className="bg-muted/5 font-bold p-6 border-b border-border/50">
+                  <CardTitle className="text-base uppercase tracking-widest flex items-center gap-2">
+                    <BarChart3 className="h-5 w-5 text-primary" /> Eficiência Comparativa dos Canais do Consultor
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Comparativo direto entre orçamentos e vendas finais por canal
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-6 h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={[
+                        {
+                          name: 'Consultor Compartilhado',
+                          Orçamentos: consultantTrackingData.sharedCount,
+                          Vendas: consultantTrackingData.sharedSold
+                        },
+                        {
+                          name: 'Consultor Direto (Cliente)',
+                          Orçamentos: consultantTrackingData.directCount,
+                          Vendas: consultantTrackingData.directSold
+                        }
+                      ]}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                      <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                      <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#fff',
+                          borderRadius: '12px',
+                          border: 'none',
+                          boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'
+                        }}
+                      />
+                      <Legend />
+                      <Bar dataKey="Orçamentos" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="Vendas" fill="#10b981" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              {/* Best sharing indicators */}
+              <Card className="border-border/50 shadow-sm overflow-hidden">
+                <CardHeader className="bg-muted/5 font-bold p-6 border-b border-border/50">
+                  <CardTitle className="text-base uppercase tracking-widest flex items-center gap-2">
+                    <Users className="h-5 w-5 text-primary" /> Ranking de Compartilhamento
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Sócios, vendedores ou indicadores com maior retorno
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-6">
+                  {consultantTrackingData.topSellers.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <p className="text-xs text-muted-foreground font-mono">Nenhum compartilhamento registrado ainda.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {consultantTrackingData.topSellers.map((seller, idx) => (
+                        <div key={idx} className="flex items-center justify-between border-b border-border/30 pb-3 last:border-none last:pb-0">
+                          <div className="min-w-0">
+                            <p className="text-sm font-black text-foreground truncate">{seller.name}</p>
+                            <p className="text-[10px] text-muted-foreground truncate">{seller.email}</p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="text-xs font-black text-foreground">{seller.count} <span className="text-[9px] text-muted-foreground">orç.</span></p>
+                            <p className="text-[10px] font-bold text-green-500">{seller.sold} <span className="text-[9px] text-muted-foreground">vendas</span></p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>

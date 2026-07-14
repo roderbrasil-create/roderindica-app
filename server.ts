@@ -1403,8 +1403,10 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
      • Escavadeiras de 21 a 35 t: FAE UMM/EX-VT, BL3/EX-VT
    - Garras Florestais por Escavadeira (REGRAS CRÍTICAS DE PORTFÓLIO E ESTABILIDADE):
      • NUNCA indique garras inexistentes como R200 (ela NÃO faz parte do catálogo Roder e não existe!). Só indique garras do catálogo oficial Roder.
-     • Para escavadeira de 8 toneladas para ALIMENTAÇÃO DE PICADOR: Recomendamos a Garra R280. Ela oferece o melhor dimensionamento e estabilidade para esta aplicação.
-     • Para escavadeira de 8 toneladas para CARREGAMENTO OU DESCARREGAMENTO com madeiras de até 3 metros de comprimento: Pode ser indicada a Garra R360, porém a mais compatível continua sendo a Garra R280 para garantir a melhor estabilidade da máquina.
+     • Para escavadeiras de cerca de 7 a 8 toneladas: Normalmente, é indicada a garra R280 para fazer o carregamento convencional.
+     • Para alimentação de picador em máquinas de 7 a 8 toneladas (ou na faixa de 7 até 13 toneladas): É possível indicar a garra R360 ou a garra R280, dependendo do tipo de material:
+       - **Alimentação de Picador com Árvores Inteiras (Eucalipto)**: A melhor e mais recomendada indicação é a **R280**. Ela foi projetada para conseguir pegar os feixes de árvores e arrastá-las usando a força de giro da máquina base para guiar os pés das árvores até a boca do picador. Por causa desse grande esforço de arrastar as árvores inteiras, a **R280** é a escolha ideal.
+       - **Alimentação de Picador com Resíduos e Madeiras Trançadas**: É possível e indicado recomendar a garra **R360**. Pode ser a **R360 Padrão** (com pinça fechada) para manuseio comum de madeira, ou a **R360G** (com unha tipo garfo, aberta), que é excelente para pegar resíduos, paletes, galhadas (como galhos e restos de pé de laranja) e resíduos florestais em geral para alimentar o picador.
      • Catálogo de Garras Florestais Roder Oficiais: R250 (5-8t), R280 (6-10t), R360 (8-12t), R400 (12-18t), R600 (14-22t), R800 (18-25t), R1000 (22-30t), R1200 (24-35t), R1400 (25-35t).
       • DIRETRIZ CRÍTICA DE DIMENSIONAMENTO PARA ESCAVADEIRAS DE 16 TONELADAS (como John Deere 160) - RECOMENDE GARRAS R400, R600 E R800:
         Se a máquina base for uma escavadeira de cerca de 16 toneladas (por exemplo, John Deere 160 LC ou similar), siga rigorosamente as seguintes indicações técnicas estabelecidas por Jeff Roder:
@@ -1782,6 +1784,16 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
           - Quando o operador pressionar o **Botão 3 de corte (segurando o joystick para fechar a garra)**, a serra inicia o corte da árvore e, **automaticamente**, o sistema libera/destrava o tombamento para cair livremente sob o próprio peso da árvore, direcionando a queda de maneira segura na direção em que o cabeçote foi estrategicamente posicionado.
         - **Movimentação e Traçamento de Toras**: O cabeçote é totalmente capaz de realizar o abate, carregar as árvores já cortadas e derrubadas segurando-as firmemente pelas garras de carga, arrastá-las com facilidade para o lado e posicioná-las na pilha de toras ou em um traçador. Quando estiver posicionado para cortar, basta acionar a garra fechando e pressionar o Botão 3 para direcionar o fluxo de óleo à serra por meio da linha de pilotagem, finalizando o corte com perfeição.
 
+17. DIRETRIZ CRÍTICA DE EQUIPAMENTOS USADOS E SEMINOVOS (REGRA DE NEGÓCIO):
+    - A Roder **NÃO** trabalha e normalmente não possui equipamentos usados ou seminovos em seu estoque. Só trabalhamos com equipamentos **novos**, sendo os que temos a pronta entrega no estoque físico ou sob encomenda (produzidos sob demanda).
+    - Se qualquer cliente, parceiro ou vendedor perguntar sobre equipamentos usados ou seminovos, responda de forma extremamente convidativa, gentil e profissional:
+      - Diga de forma simpática que a Roder não trabalha com garras ou cabeçotes usados ou seminovos.
+      - Explique que trabalhamos exclusivamente com equipamentos novos. Raras e excepcionais são as ocasiões em que ocorre retorno de equipamento.
+      - Direcione a conversa de forma muito convincente de que a Roder prefere focar estritamente em novos para oferecer a máxima segurança aos clientes.
+      - Enfatize os enormes benefícios do equipamento novo: o cliente ganha a total segurança de um produto zero-quilômetro, máxima durabilidade, ausência de vícios ou desgastes ocultos anteriores, e conta com o benefício e suporte total da garantia direta da fábrica da Roder.
+      - Lembre-se do ditado popular: "novo é novo", garantindo paz de espírito e alta produtividade na operação florestal.
+      - Para os novos sob encomenda, incentive-os a solicitar o orçamento oficial para que possamos passar o prazo de entrega correto de fábrica.
+
     - Destaque que os vendedores podem descrever qualquer parâmetro ou texto técnico e você (atuando sob a instrução direta de Jeff Roder) integrará e aplicará essa inteligência de engenharia imediatamente em suas análises.
 
 Aqui está o catálogo de produtos e modelos reais cadastrados atualmente na Roder:
@@ -1840,7 +1852,8 @@ ${kitsContext || "Não há kits de instalação cadastrados."}${improvedKnowledg
               isImproved: false,
               improvedAnswer: "",
               ledToIndication: false,
-              responseTimeMs: responseTimeMs
+              responseTimeMs: responseTimeMs,
+              referredBy: userInfo.referredBy || ''
             });
           } catch (err) {
             console.error("Failed to log Roder AI question to Firestore:", err);
