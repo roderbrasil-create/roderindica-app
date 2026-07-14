@@ -107,20 +107,93 @@
           });
         }
 
-        // Force refresh if version mismatch (simple versioning)
-        try {
-          var CURRENT_VERSION = '2.5.0'; // Match APP_VERSION in App.tsx
-          var savedVersion = localStorage.getItem('app_version');
-          if (savedVersion !== CURRENT_VERSION) {
-            localStorage.setItem('app_version', CURRENT_VERSION);
-            // Only reload if it was already loaded once to avoid loops
-            if (savedVersion) {
-              window.location.reload(true);
+        // Automatic update check mechanism to ensure users get the latest version immediately
+        function getPageAssetSignature(doc) {
+          var sigs = [];
+          var scripts = doc.querySelectorAll('script');
+          for (var i = 0; i < scripts.length; i++) {
+            var src = scripts[i].getAttribute('src');
+            if (src && (src.indexOf('/assets/') !== -1 || src.indexOf('index-') !== -1)) {
+              sigs.push(src);
             }
           }
-        } catch (e) {
-          console.warn('[DevHelper] Version check ignored:', e);
+          var links = doc.querySelectorAll('link');
+          for (var i = 0; i < links.length; i++) {
+            var href = links[i].getAttribute('href');
+            if (href && (href.indexOf('/assets/') !== -1 || href.indexOf('index-') !== -1)) {
+              sigs.push(href);
+            }
+          }
+          return sigs.sort().join(',');
         }
+
+        var isCheckingUpdate = false;
+        function performUpdateCheck() {
+          if (isCheckingUpdate) return;
+          if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') return;
+          
+          isCheckingUpdate = true;
+          console.log('[Updater] Checking for new app version...');
+          
+          fetch('/index.html?cb=' + Date.now(), { cache: 'no-store' })
+            .then(function(res) {
+              return res.text();
+            })
+            .then(function(html) {
+              isCheckingUpdate = false;
+              if (!html) return;
+              
+              var parser = new DOMParser();
+              var newDoc = parser.parseFromString(html, 'text/html');
+              var currentSigs = getPageAssetSignature(document);
+              var newSigs = getPageAssetSignature(newDoc);
+              
+              if (currentSigs && newSigs && currentSigs !== newSigs) {
+                console.log('[Updater] New version detected! Active:', currentSigs, 'Server:', newSigs);
+                
+                // Clear cache and reload
+                if (window.caches) {
+                  caches.keys().then(function(names) {
+                    var deletedCount = 0;
+                    var total = names.length;
+                    if (total === 0) {
+                      window.location.reload(true);
+                      return;
+                    }
+                    names.forEach(function(name) {
+                      caches.delete(name).then(function() {
+                        deletedCount++;
+                        if (deletedCount === total) {
+                          console.log('[Updater] Caches cleared. Reloading...');
+                          window.location.reload(true);
+                        }
+                      });
+                    });
+                  }).catch(function() {
+                    window.location.reload(true);
+                  });
+                } else {
+                  window.location.reload(true);
+                }
+              } else {
+                console.log('[Updater] App is up to date.');
+              }
+            })
+            .catch(function(err) {
+              isCheckingUpdate = false;
+              console.warn('[Updater] Failed to check for updates:', err);
+            });
+        }
+
+        // Run check on initial load
+        setTimeout(performUpdateCheck, 1500);
+
+        // Run check every time the app is opened/resumed (visibility change)
+        document.addEventListener('visibilitychange', function() {
+          if (document.visibilityState === 'visible') {
+            performUpdateCheck();
+          }
+        });
 
         try {
           var theme = localStorage.getItem('theme');

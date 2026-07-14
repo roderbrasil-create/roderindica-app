@@ -277,6 +277,85 @@ interface Message {
   content: string;
 }
 
+interface MarkdownImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
+  src?: string;
+  isLightReport?: boolean;
+}
+
+const MarkdownImage: React.FC<MarkdownImageProps> = ({ src, isLightReport, ...props }) => {
+  const [resolvedSrc, setResolvedSrc] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    let active = true;
+    if (!src) {
+      setLoading(false);
+      return;
+    }
+
+    if (src.startsWith('db-file://')) {
+      const fileId = src.replace('db-file://', '');
+      getDoc(doc(db, 'app_files', fileId))
+        .then(docSnap => {
+          if (active) {
+            if (docSnap.exists()) {
+              setResolvedSrc(docSnap.data().data || '');
+            }
+            setLoading(false);
+          }
+        })
+        .catch(err => {
+          console.error("Erro ao carregar imagem de arquivo no Markdown:", err);
+          if (active) {
+            setLoading(false);
+          }
+        });
+    } else {
+      const proxied = (src.startsWith('http://') || src.startsWith('https://'))
+        ? `${getApiBaseUrl()}/api/proxy-image?url=${encodeURIComponent(src)}`
+        : src;
+      if (active) {
+        setResolvedSrc(proxied);
+        setLoading(false);
+      }
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [src]);
+
+  if (loading) {
+    return (
+      <div className={cn(
+        "w-32 h-24 sm:w-48 sm:h-36 animate-pulse rounded-xl border flex items-center justify-center my-3 mx-auto sm:mx-0",
+        isLightReport 
+          ? "bg-slate-100 border-slate-200 text-slate-400" 
+          : "bg-slate-800/40 border-slate-700/50 text-slate-400"
+      )}>
+        <span className="text-[9px] font-medium">Carregando...</span>
+      </div>
+    );
+  }
+
+  if (!resolvedSrc) return null;
+
+  return (
+    <img
+      {...props}
+      src={resolvedSrc}
+      referrerPolicy="no-referrer"
+      className={cn(
+        "max-w-[100%] rounded-xl shadow-xl my-3 block object-contain p-1.5",
+        isLightReport
+          ? "sm:max-w-[340px] max-h-56 border border-slate-200 bg-slate-50 mx-auto"
+          : "sm:max-w-[320px] max-h-48 border border-slate-800 bg-slate-900/40 transition-transform hover:scale-105 duration-200",
+        props.className
+      )}
+    />
+  );
+};
+
 export default function EngineerHelper({ isFullPage = false }: { isFullPage?: boolean } = {}) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -284,6 +363,17 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   
   // Only registered sellers/partners should have sharing access
   const isRegisteredUser = user && profile?.role && !['client', 'visitor'].includes(profile.role);
+  
+  // If a registered seller or partner logged in, clear any external referral code
+  useEffect(() => {
+    if (isRegisteredUser) {
+      const existingRef = localStorage.getItem('roder_consultant_ref');
+      if (existingRef) {
+        console.log("[EngineerHelper] Registered seller/partner logged in. Clearing referral link:", existingRef);
+        localStorage.removeItem('roder_consultant_ref');
+      }
+    }
+  }, [isRegisteredUser]);
   
   // Technical sheet interactive states
   const [isHighTipFichaOpen, setIsHighTipFichaOpen] = useState(false);
@@ -1936,17 +2026,7 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
                           <ReactMarkdown
                             components={{
                               img: ({ node, ...props }) => {
-                                const proxiedSrc = props.src && (props.src.startsWith('http://') || props.src.startsWith('https://'))
-                                  ? `${getApiBaseUrl()}/api/proxy-image?url=${encodeURIComponent(props.src)}`
-                                  : props.src;
-                                return (
-                                  <img
-                                    {...props}
-                                    src={proxiedSrc}
-                                    referrerPolicy="no-referrer"
-                                    className="max-w-[100%] sm:max-w-[320px] rounded-xl border border-slate-800 shadow-xl my-3 block max-h-48 object-contain bg-slate-900/40 p-1.5 transition-transform hover:scale-105 duration-200"
-                                  />
-                                );
+                                return <MarkdownImage {...props} />;
                               },
                               a: ({ node, children, href, ...props }) => {
                                 if (!href) return <span className="text-slate-200 underline">{children}</span>;
@@ -2058,42 +2138,60 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
                                         return url.startsWith('http://') || url.startsWith('https://');
                                       };
 
+                                      const modelImg = (model.images && model.images.length > 0) ? model.images[0] : (prod.image_url || '');
+
                                       return (
-                                        <div key={`${prod.id}-${model.id}`} className="flex flex-col gap-1.5 p-2 bg-slate-900/60 rounded-xl border border-slate-800/80 w-full">
-                                          <div className="flex items-center justify-between">
-                                            <span className="text-[10px] font-black text-amber-400 uppercase tracking-tight">{prod.name} - {model.name}</span>
-                                          </div>
-                                          <div className="flex flex-wrap gap-1.5">
-                                            <button
-                                              onClick={() => handleMakeIndication(prod, model)}
-                                              className="flex items-center gap-1 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-slate-950 font-black uppercase text-[9px] py-1 px-2.5 rounded-lg transition shadow-sm cursor-pointer duration-150"
-                                              title={`Clique para realizar indicação/orçamento oficial de ${prod.name} ${model.name}`}
-                                            >
-                                              <CheckCircle className="h-2.5 w-2.5" />
-                                              Orçamento/Indicação
-                                            </button>
-
-                                            {isValidPdfUrl(pdfUrl) && (
+                                        <div key={`${prod.id}-${model.id}`} className="flex gap-2.5 p-2 bg-slate-900/60 rounded-xl border border-slate-800/80 w-full text-left">
+                                          {(() => {
+                                            const modelImg = (model.images && model.images.length > 0) ? model.images[0] : (prod.image_url || '');
+                                            if (!modelImg) return null;
+                                            return (
+                                              <div className="flex-shrink-0 self-center">
+                                                <MarkdownImage
+                                                  src={modelImg}
+                                                  className="w-16 h-12 sm:w-20 sm:h-16 rounded-lg border border-slate-800 bg-slate-950/50 object-contain p-1 m-0 shadow"
+                                                />
+                                              </div>
+                                            );
+                                          })()}
+                                          <div className="flex-1 flex flex-col justify-between gap-1.5 min-w-0">
+                                            <div className="flex items-center justify-between">
+                                              <span className="text-[10px] font-black text-amber-400 uppercase tracking-tight truncate">
+                                                {prod.name} - {model.name}
+                                              </span>
+                                            </div>
+                                            <div className="flex flex-wrap gap-1">
                                               <button
-                                                onClick={() => openTechnicalSheet(pdfUrl, model.name)}
-                                                className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:text-amber-400 font-black uppercase text-[9px] py-1 px-2.5 rounded-lg transition shadow-sm cursor-pointer duration-150"
-                                                title={`Abre a Ficha Técnica oficial em PDF de ${prod.name} ${model.name}`}
+                                                onClick={() => handleMakeIndication(prod, model)}
+                                                className="flex items-center gap-1 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-slate-950 font-black uppercase text-[8.5px] py-1 px-2 rounded-lg transition shadow-sm cursor-pointer duration-150"
+                                                title={`Clique para realizar indicação/orçamento oficial de ${prod.name} ${model.name}`}
                                               >
-                                                <FileText className="h-2.5 w-2.5 text-amber-400" />
-                                                Ficha Técnica
+                                                <CheckCircle className="h-2.5 w-2.5" />
+                                                Indicar
                                               </button>
-                                            )}
 
-                                            {isValidVideoUrl(videoUrl) && (
-                                              <button
-                                                onClick={() => window.open(videoUrl, '_blank')}
-                                                className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:text-red-400 font-black uppercase text-[9px] py-1 px-2.5 rounded-lg transition shadow-sm cursor-pointer duration-150"
-                                                title={`Assista ao vídeo de demonstração operacional de ${prod.name} ${model.name}`}
-                                              >
-                                                <Video className="h-2.5 w-2.5 text-red-500" />
-                                                Vídeo Demonstrativo
-                                              </button>
-                                            )}
+                                              {isValidPdfUrl(pdfUrl) && (
+                                                <button
+                                                  onClick={() => openTechnicalSheet(pdfUrl, model.name)}
+                                                  className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:text-amber-400 font-black uppercase text-[8.5px] py-1 px-2 rounded-lg transition shadow-sm cursor-pointer duration-150"
+                                                  title={`Abre a Ficha Técnica oficial em PDF de ${prod.name} ${model.name}`}
+                                                >
+                                                  <FileText className="h-2.5 w-2.5 text-amber-400" />
+                                                  Ficha
+                                                </button>
+                                              )}
+
+                                              {isValidVideoUrl(videoUrl) && (
+                                                <button
+                                                  onClick={() => window.open(videoUrl, '_blank')}
+                                                  className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:text-red-400 font-black uppercase text-[8.5px] py-1 px-2 rounded-lg transition shadow-sm cursor-pointer duration-150"
+                                                  title={`Assista ao vídeo de demonstração operacional de ${prod.name} ${model.name}`}
+                                                >
+                                                  <Video className="h-2.5 w-2.5 text-red-500" />
+                                                  Vídeo
+                                                </button>
+                                              )}
+                                            </div>
                                           </div>
                                         </div>
                                       );
@@ -3326,17 +3424,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                       <ReactMarkdown
                         components={{
                           img: ({ node, ...props }) => {
-                            const proxiedSrc = props.src && (props.src.startsWith('http://') || props.src.startsWith('https://'))
-                              ? `${getApiBaseUrl()}/api/proxy-image?url=${encodeURIComponent(props.src)}`
-                              : props.src;
-                            return (
-                              <img
-                                {...props}
-                                src={proxiedSrc}
-                                referrerPolicy="no-referrer"
-                                className="max-w-[100%] sm:max-w-[340px] rounded-xl border border-slate-200 shadow-lg my-4 block max-h-56 object-contain bg-slate-50 p-1.5 mx-auto"
-                              />
-                            );
+                            return <MarkdownImage isLightReport {...props} />;
                           },
                           a: ({ node, children, href, ...props }) => {
                             if (!href) return <span className="text-slate-700 underline font-semibold">{children}</span>;
