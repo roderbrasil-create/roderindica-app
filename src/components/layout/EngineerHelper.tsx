@@ -1082,9 +1082,6 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   };
 
   const handleEndConversation = () => {
-    const confirmEnd = window.confirm("Deseja realmente encerrar a conversa atual? Isso limpará todo o histórico.");
-    if (!confirmEnd) return;
-
     try {
       sessionStorage.removeItem('roder_helper_isOpen');
       sessionStorage.removeItem('roder_helper_messages');
@@ -1828,19 +1825,24 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
             translate="no"
           >
             {/* Header */}
-            <div className="px-3 py-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-primary to-slate-850 border-b border-slate-800 flex items-center justify-between shadow-md">
-              <div className="flex flex-col items-start gap-0.5">
-                <img 
-                  src={RODER_LOGO_WHITE_BASE64} 
-                  alt="Roder Logo" 
-                  className="h-6 sm:h-7 object-contain animate-fade-in" 
-                  referrerPolicy="no-referrer"
-                />
-                <div className="flex items-center gap-1 mt-0.5 leading-none">
-                  <h3 className="text-[9.5px] sm:text-[11px] font-black uppercase tracking-wider text-amber-400 flex items-center gap-1">
-                    Consultor Técnico Roder
-                  </h3>
-                  <span className="text-[7px] sm:text-[8px] font-black bg-amber-500 text-slate-950 px-1 py-0.5 rounded uppercase tracking-widest animate-pulse leading-none">IA</span>
+            <div className={cn(
+              "px-3 pb-2 sm:px-4 sm:py-2.5 bg-black border-b border-neutral-900 flex items-center justify-between shadow-md",
+              isFullPage ? "pt-[calc(env(safe-area-inset-top,12px)+8px)]" : "pt-2 sm:pt-2.5"
+            )}>
+              <div className="flex flex-col items-start select-none">
+                <span className="text-[7.5px] sm:text-[9px] font-semibold uppercase tracking-wider text-neutral-400 leading-none">
+                  Consultor
+                </span>
+                <div className="flex items-center gap-1 leading-none mt-0.5">
+                  <span className="text-xs sm:text-sm font-black tracking-widest text-white uppercase">
+                    RODER
+                  </span>
+                  <span className="text-[10px] sm:text-xs font-bold text-amber-400 uppercase tracking-wide">
+                    Técnico
+                  </span>
+                  <span className="ml-1 text-[7px] sm:text-[8px] font-black bg-amber-500 text-slate-950 px-1 py-0.5 rounded uppercase tracking-widest animate-pulse leading-none">
+                    IA
+                  </span>
                 </div>
               </div>
               <div className="flex items-center gap-1.5">
