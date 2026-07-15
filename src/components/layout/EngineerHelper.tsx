@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, MessageSquare, X, Minus, Send, Calculator, Wrench, HelpCircle, AlertTriangle, Play, RefreshCw, Trash2, ChevronLeft, ChevronRight, CheckCircle, Package, Layers, Tractor, FileText, Mic, Square, Loader2, Brain, BookOpen, ExternalLink, Share2, Video, Phone, QrCode } from 'lucide-react';
+import { Sparkles, MessageSquare, X, Minus, Send, Calculator, Wrench, HelpCircle, AlertTriangle, Play, RefreshCw, Trash2, ChevronLeft, ChevronRight, CheckCircle, Package, Layers, Tractor, FileText, Mic, Square, Loader2, Brain, BookOpen, ExternalLink, Share2, Video, Phone, QrCode, Bot } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { cn, getApiBaseUrl } from '../../lib/utils';
@@ -12,12 +12,13 @@ import { Button } from '../ui/button';
 import { toast } from 'sonner';
 import { Product, ProductModel, StockItem } from '../../types';
 import { MACHINES, MATERIALS, getRecommendedBucket, calculateDischargeHeights, getHighTipBucketWeight } from '../catalog/HighTipData';
-import { RODER_LOGO_BASE64 } from '../catalog/RoderLogo';
+import { RODER_LOGO_BASE64, RODER_LOGO_WHITE_BASE64 } from '../catalog/RoderLogo';
 import { toPng } from 'html-to-image';
 import { HighTipFicha } from '../catalog/HighTipFicha';
 import { FresaSshFicha } from '../catalog/FresaSshFicha';
 import { EngateRapidoFicha } from '../catalog/EngateRapidoFicha';
 import { GarraEstufagemFicha } from '../catalog/GarraEstufagemFicha';
+import { TrituradorLoaderFaeFicha } from '../catalog/TrituradorLoaderFaeFicha';
 
 const DEFAULT_PRODUCTIVITIES: Record<string, string> = {
   "CMF 600": `DERRUBADA (COLHEITA FLORESTAL):
@@ -245,7 +246,15 @@ const PRODUCT_PDFS: Record<string, string> = {
   "High Tip": "high-tip",
   "Engate Rápido": "engate-rapido",
   "Garra para Estufagem": "estufagem",
-  "Garra Estufagem": "estufagem"
+  "Garra Estufagem": "estufagem",
+  "FAE UML SSL VT 175": "loader-fae",
+  "FAE 140 U PM 200": "loader-fae",
+  "UML/SSL/VT 175": "loader-fae",
+  "140/U/PM 200": "loader-fae",
+  "fae-uml-ssl-vt-175": "loader-fae",
+  "fae-140-u-pm-200": "loader-fae",
+  "Triturador / Desbastador FAE p/ Pá Carregadeira": "loader-fae",
+  "Triturador / Desbastador FAE para Pá Carregadeira": "loader-fae"
 };
 
 const PRODUCT_VIDEOS: Record<string, string> = {
@@ -380,13 +389,28 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   const [isFresaSshFichaOpen, setIsFresaSshFichaOpen] = useState(false);
   const [isEngateRapidoFichaOpen, setIsEngateRapidoFichaOpen] = useState(false);
   const [isGarraEstufagemFichaOpen, setIsGarraEstufagemFichaOpen] = useState(false);
+  const [isTrituradorLoaderFaeFichaOpen, setIsTrituradorLoaderFaeFichaOpen] = useState(false);
   const [fresaSshDefaultModel, setFresaSshDefaultModel] = useState<'ssh-150' | 'ssh-200' | 'ssh-225' | 'ssh-250'>('ssh-150');
+  const [trituradorLoaderFaeDefaultModel, setTrituradorLoaderFaeDefaultModel] = useState<string>('fae-uml-ssl-vt-175');
 
   const openTechnicalSheet = (url: string, modelName?: string) => {
     if (!url) return;
     
     const lowerUrl = url.toLowerCase();
     
+    // Check if the link is related to Triturador/Desbastador FAE p/ Pá Carregadeira
+    if (lowerUrl.includes('loader-fae') || lowerUrl === 'loader-fae') {
+      const targetModelName = modelName || '';
+      const modelHint = targetModelName.toLowerCase();
+      if (modelHint.includes('140') || modelHint.includes('pm') || modelHint.includes('200')) {
+        setTrituradorLoaderFaeDefaultModel('fae-140-u-pm-200');
+      } else {
+        setTrituradorLoaderFaeDefaultModel('fae-uml-ssl-vt-175');
+      }
+      setIsTrituradorLoaderFaeFichaOpen(true);
+      return;
+    }
+
     // Check if the link is related to Caçamba High Tip or High Tip
     if (lowerUrl.includes('cacamba-high-tip') || lowerUrl.includes('high-tip')) {
       setIsHighTipFichaOpen(true);
@@ -451,9 +475,8 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     }
   });
   
-  const isOpen = isFullPage ? true : isOpenState;
+  const isOpen = isOpenState;
   const setIsOpen = (val: boolean | ((prev: boolean) => boolean)) => {
-    if (isFullPage) return;
     setIsOpenState(val);
   };
   
@@ -599,6 +622,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   }, [shareRefName, user?.email]);
 
   const [inputValue, setInputValue] = useState('');
+  const [isInputFocused, setIsInputFocused] = useState(false);
   const [arrasteCalcDiameter, setArrasteCalcDiameter] = useState<number>(20);
   const [arrasteCalcEquip, setArrasteCalcEquip] = useState<'msr600' | 'msr1000' | 'clambunk10' | 'clambunk15'>('msr1000');
   const [isArrasteCalcOpen, setIsArrasteCalcOpen] = useState<boolean>(false);
@@ -1705,77 +1729,85 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
   return (
     <>
       {/* Floating Toggle Button */}
-      <div className={cn(
-        "fixed bottom-6 right-6 z-[45] font-sans notranslate transition-all duration-300",
-        hasRightDock && "lg:hidden"
-      )} translate="no">
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setIsOpen(!isOpen)}
-          className={`relative flex items-center justify-center rounded-full shadow-2xl text-white transition-all duration-300 ${
-            isOpen 
-              ? 'p-2.5 px-3 sm:p-3.5 sm:px-5 bg-slate-700 hover:bg-slate-800' 
-              : 'w-16 h-16 sm:w-auto sm:h-auto p-2 sm:p-3.5 sm:px-5 bg-primary hover:bg-primary/90'
-          }`}
-          style={{ boxShadow: '0 10px 25px -5px rgba(239, 68, 68, 0.4)' }}
+      {!isFullPage && (
+        <motion.div
+          drag={!isOpen}
+          dragMomentum={false}
+          dragElastic={0.15}
+          className={cn(
+            "fixed bottom-6 right-6 z-[45] font-sans notranslate transition-all duration-300 touch-none",
+            hasRightDock && "lg:hidden"
+          )}
+          translate="no"
         >
-          {isOpen ? (
-            <div className="flex items-center gap-2">
-              <X className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
-              <div className="flex flex-col items-start leading-none text-left">
-                <span className="text-[7.5px] sm:text-[9px] opacity-80 font-medium uppercase tracking-wider">
-                  Assistente
-                </span>
-                <span className="text-[9.5px] sm:text-xs font-black tracking-tight uppercase">
-                  Fechar ✕
-                </span>
-              </div>
-            </div>
-          ) : (
-            <>
-              {/* Mobile "Bolinha" (Roder Consultor) */}
-              <div className="sm:hidden flex flex-col items-center justify-center text-center">
-                <div className="relative h-[26px] w-[26px] bg-slate-800 border border-amber-400 rounded-full flex items-center justify-center overflow-hidden shadow-inner mb-0.5">
-                  <img 
-                    src={RODER_LOGO_BASE64} 
-                    alt="Roder" 
-                    className="h-5 w-5 object-contain rounded-full animate-pulse scale-[1.20]" 
-                  />
-                </div>
-                <span className="text-[7.5px] font-black tracking-tighter uppercase mt-0.5 leading-none">Roder</span>
-                <span className="text-[6.5px] opacity-90 font-bold uppercase leading-none">Consultor</span>
-              </div>
-
-              {/* Desktop standard pill */}
-              <div className="hidden sm:flex items-center gap-2">
-                <Wrench className="h-4.5 w-4.5 sm:h-5 sm:w-5 animate-bounce" />
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setIsOpen(!isOpen)}
+            className={`relative flex items-center justify-center rounded-full shadow-2xl text-white transition-all duration-300 ${
+              isOpen 
+                ? 'p-2.5 px-3 sm:p-3.5 sm:px-5 bg-slate-700 hover:bg-slate-800' 
+                : 'w-20 h-20 sm:w-auto sm:h-auto p-2 sm:p-3.5 sm:px-5 bg-primary hover:bg-primary/90'
+            }`}
+            style={{ boxShadow: '0 10px 25px -5px rgba(239, 68, 68, 0.4)' }}
+          >
+            {isOpen ? (
+              <div className="flex items-center gap-2">
+                <X className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
                 <div className="flex flex-col items-start leading-none text-left">
                   <span className="text-[7.5px] sm:text-[9px] opacity-80 font-medium uppercase tracking-wider">
-                    Consultor Técnico
+                    Assistente
                   </span>
                   <span className="text-[9.5px] sm:text-xs font-black tracking-tight uppercase">
-                    Roder IA
+                    Fechar ✕
                   </span>
                 </div>
               </div>
-            </>
-          )}
+            ) : (
+              <>
+                {/* Mobile "Bolinha" (Roder Consultor) */}
+                <div className="sm:hidden flex flex-col items-center justify-center text-center">
+                  <div className="relative h-[42px] w-[42px] bg-slate-950 border border-amber-400 rounded-full flex items-center justify-center overflow-hidden shadow-inner mb-0.5">
+                    <img 
+                      src={RODER_LOGO_WHITE_BASE64} 
+                      alt="Roder" 
+                      className="h-9 w-9 object-contain rounded-full animate-pulse scale-[1.15]" 
+                    />
+                  </div>
+                  <span className="text-[7.5px] font-black tracking-tighter uppercase mt-0.5 leading-none">Roder</span>
+                  <span className="text-[6.5px] opacity-90 font-bold uppercase leading-none">Consultor</span>
+                </div>
 
-          {messages.length > 1 && !isOpen && (
-            <span className="absolute -top-1 -right-1 flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500 border border-white"></span>
-            </span>
-          )}
+                {/* Desktop standard pill */}
+                <div className="hidden sm:flex items-center gap-2">
+                  <Wrench className="h-4.5 w-4.5 sm:h-5 sm:w-5 animate-bounce" />
+                  <div className="flex flex-col items-start leading-none text-left">
+                    <span className="text-[7.5px] sm:text-[9px] opacity-80 font-medium uppercase tracking-wider">
+                      Consultor Técnico
+                    </span>
+                    <span className="text-[9.5px] sm:text-xs font-black tracking-tight uppercase">
+                      Roder IA
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
 
-          {messages.length <= 1 && !isOpen && (
-            <div className="absolute -top-1.5 -right-1 bg-amber-500 text-slate-950 font-black text-[8px] px-1.5 py-0.5 rounded-full uppercase tracking-widest animate-pulse border border-white">
-              IA
-            </div>
-          )}
-        </motion.button>
-      </div>
+            {messages.length > 1 && !isOpen && (
+              <span className="absolute top-0 right-0 flex h-3.5 w-3.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-green-500 border-2 border-white"></span>
+              </span>
+            )}
+
+            {messages.length <= 1 && !isOpen && (
+              <div className="absolute -top-1 -right-1 bg-amber-500 text-slate-950 font-black text-[9px] px-2 py-0.5 rounded-full uppercase tracking-widest animate-pulse border border-white shadow">
+                IA
+              </div>
+            )}
+          </motion.button>
+        </motion.div>
+      )}
 
       {/* Floating Chat Container */}
       <AnimatePresence>
@@ -1787,35 +1819,28 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
             transition={{ duration: 0.25 }}
             className={cn(
               "fixed bg-slate-900 border-slate-800 flex flex-col overflow-hidden z-[45] text-white font-sans notranslate transition-all duration-300",
-              hasRightDock
-                ? "bottom-22 right-4 sm:right-6 w-[94vw] sm:w-[480px] h-[86vh] sm:h-[80vh] max-h-[820px] sm:max-h-[720px] border rounded-2xl shadow-3xl lg:top-[65px] lg:bottom-0 lg:right-0 lg:w-[480px] lg:h-[calc(100vh-65px)] lg:max-h-none lg:rounded-none lg:border-t-0 lg:border-b-0 lg:border-r-0 lg:border-l lg:shadow-none"
-                : "bottom-22 right-4 sm:right-6 w-[94vw] sm:w-[480px] h-[86vh] sm:h-[80vh] max-h-[820px] sm:max-h-[720px] border rounded-2xl shadow-3xl"
+              isFullPage
+                ? "bottom-0 right-0 w-full h-full max-h-none rounded-none border-0 sm:bottom-6 sm:right-6 sm:w-[480px] sm:h-[85vh] sm:max-h-[800px] sm:border sm:rounded-2xl sm:shadow-3xl"
+                : hasRightDock
+                  ? "bottom-22 right-4 sm:right-6 w-[94vw] sm:w-[480px] h-[86vh] sm:h-[80vh] max-h-[820px] sm:max-h-[720px] border rounded-2xl shadow-3xl lg:top-[65px] lg:bottom-0 lg:right-0 lg:w-[480px] lg:h-[calc(100vh-65px)] lg:max-h-none lg:rounded-none lg:border-t-0 lg:border-b-0 lg:border-r-0 lg:border-l lg:shadow-none"
+                  : "bottom-22 right-4 sm:right-6 w-[94vw] sm:w-[480px] h-[86vh] sm:h-[80vh] max-h-[820px] sm:max-h-[720px] border rounded-2xl shadow-3xl"
             )}
             translate="no"
           >
             {/* Header */}
-            <div className="p-4 bg-gradient-to-r from-primary to-slate-850 border-b border-slate-800 flex items-center justify-between shadow-md">
-              <div className="flex items-center gap-3">
-                <motion.div 
-                  className="relative h-[76px] w-[76px] flex-shrink-0 flex items-center justify-center"
-                  animate={{ scale: [1, 1.04, 1] }}
-                  transition={{ repeat: Infinity, duration: 3.5, ease: "easeInOut" }}
-                >
-                  <div className="absolute inset-0 bg-amber-500/15 rounded-full blur-md animate-pulse" />
-                  <div className="relative h-[68px] w-[68px] bg-slate-800 border-2 border-amber-400 rounded-full flex items-center justify-center overflow-hidden shadow-inner">
-                    <img 
-                      src={RODER_LOGO_BASE64} 
-                      alt="Roder Logo" 
-                      className="h-12 w-12 object-contain rounded-full scale-[1.20]" 
-                      referrerPolicy="no-referrer"
-                    />
-                  </div>
-                </motion.div>
-                <div>
-                  <h3 className="text-sm font-black uppercase tracking-wider flex items-center gap-1 text-amber-400">
+            <div className="px-3 py-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-primary to-slate-850 border-b border-slate-800 flex items-center justify-between shadow-md">
+              <div className="flex flex-col items-start gap-0.5">
+                <img 
+                  src={RODER_LOGO_WHITE_BASE64} 
+                  alt="Roder Logo" 
+                  className="h-6 sm:h-7 object-contain animate-fade-in" 
+                  referrerPolicy="no-referrer"
+                />
+                <div className="flex items-center gap-1 mt-0.5 leading-none">
+                  <h3 className="text-[9.5px] sm:text-[11px] font-black uppercase tracking-wider text-amber-400 flex items-center gap-1">
                     Consultor Técnico Roder
-                    <span className="text-[9px] font-black bg-amber-500 text-slate-950 px-1.5 py-0.5 rounded uppercase tracking-widest animate-pulse">IA</span>
                   </h3>
+                  <span className="text-[7px] sm:text-[8px] font-black bg-amber-500 text-slate-950 px-1 py-0.5 rounded uppercase tracking-widest animate-pulse leading-none">IA</span>
                 </div>
               </div>
               <div className="flex items-center gap-1.5">
@@ -1891,7 +1916,7 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
                   className="p-1.5 rounded-lg text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 border border-amber-500/20 transition-colors flex items-center justify-center h-8 w-8"
                   title="Minimizar (Mantém Conversa)"
                 >
-                  <Minus className="h-4 w-4" />
+                  <Bot className="h-4.5 w-4.5 animate-pulse" />
                 </button>
 
                 {/* Close/End Button - triggers handleEndConversation (clears conversation and closes) */}
@@ -2127,7 +2152,7 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
                                       const isValidPdfUrl = (url?: string) => {
                                         if (!url) return false;
                                         const lower = url.toLowerCase();
-                                        if (lower === 'fresa-ssh' || lower === 'high-tip' || lower === 'engate-rapido' || lower === 'estufagem') return true;
+                                        if (lower === 'fresa-ssh' || lower === 'high-tip' || lower === 'engate-rapido' || lower === 'estufagem' || lower === 'loader-fae' || lower.includes('loader-fae')) return true;
                                         return url.startsWith('http://') || url.startsWith('https://');
                                       };
 
@@ -3142,43 +3167,59 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
             </div>
 
             {/* Input Footer for standard Chat */}
-            <div className="p-3 bg-slate-900 border-t border-slate-800 flex gap-2 items-center">
+            <div className="p-2 sm:p-2.5 bg-slate-900 border-t border-slate-800 flex gap-1.5 sm:gap-2 items-center">
               {isRecording ? (
-                <div className="flex-1 flex items-center justify-between bg-red-950/30 border border-red-500/30 rounded-lg px-3 py-1.5 text-xs text-red-200">
-                  <div className="flex items-center gap-2">
+                <div className="flex-1 flex items-center justify-between bg-red-950/30 border border-red-500/30 rounded-lg px-2.5 py-1 text-xs text-red-200">
+                  <div className="flex items-center gap-1.5">
                     <span className="relative flex h-2 w-2">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
                     </span>
-                    <span className="font-medium animate-pulse">Gravando áudio...</span>
+                    <span className="font-medium animate-pulse">Gravando...</span>
                   </div>
                   <Button
                     size="sm"
                     variant="destructive"
                     onClick={stopRecording}
-                    className="h-7 px-2 bg-red-600 hover:bg-red-700 text-white font-bold text-[10px] uppercase tracking-wider rounded-md flex items-center gap-1"
+                    className="h-6 px-1.5 bg-red-600 hover:bg-red-700 text-white font-bold text-[9px] uppercase tracking-wider rounded-md flex items-center gap-1"
                   >
-                    <Square className="h-3 w-3 fill-white" /> Parar e Enviar
+                    <Square className="h-2.5 w-2.5 fill-white" /> Enviar
                   </Button>
                 </div>
               ) : transcribing ? (
-                <div className="flex-1 flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-400">
-                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                  <span>Transcrevendo áudio...</span>
+                <div className="flex-1 flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-400">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                  <span>Transcrevendo...</span>
                 </div>
               ) : (
-                <input
-                  type="text"
+                <textarea
                   placeholder="Ou pergunte ao Consultor sobre modelos, escavadeiras..."
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
-                  onFocus={() => setExplorerMinimized(true)}
-                  onClick={() => setExplorerMinimized(true)}
+                  onFocus={() => {
+                    setExplorerMinimized(true);
+                    setIsInputFocused(true);
+                  }}
+                  onClick={() => {
+                    setExplorerMinimized(true);
+                    setIsInputFocused(true);
+                  }}
+                  onBlur={() => {
+                    // Small delay to let any button click process first
+                    setTimeout(() => setIsInputFocused(false), 200);
+                  }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleSend();
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSend();
+                    }
                   }}
                   disabled={loading}
-                  className="flex-1 bg-white border-2 border-slate-300 rounded-lg px-4 text-xs text-slate-950 placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-50 h-11 font-semibold transition duration-150 shadow-sm"
+                  rows={isInputFocused ? 2 : 1}
+                  className={cn(
+                    "flex-1 bg-white border-2 border-slate-300 rounded-lg px-3 text-xs sm:text-sm text-slate-950 placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-50 font-semibold transition-all duration-200 shadow-sm resize-none",
+                    isInputFocused ? "h-16 py-1.5" : "h-9 py-1.5"
+                  )}
                 />
               )}
 
@@ -3189,21 +3230,21 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                   variant="outline"
                   onClick={startRecording}
                   disabled={loading}
-                  className="h-9 px-3 border-slate-800 hover:border-slate-700 bg-slate-950 hover:bg-slate-900 text-slate-300 hover:text-white"
+                  className="h-8 px-2.5 border-slate-800 hover:border-slate-700 bg-slate-950 hover:bg-slate-900 text-slate-300 hover:text-white"
                   title="Gravar áudio"
                 >
-                  <Mic className="h-4 w-4" />
+                  <Mic className="h-3.5 w-3.5" />
                 </Button>
               )}
 
               {!isRecording && !transcribing && (
                 <Button
                   size="sm"
-                  className="h-9 px-3 bg-primary hover:bg-primary/90 text-white font-bold"
+                  className="h-8 px-2.5 bg-primary hover:bg-primary/90 text-white font-bold"
                   onClick={() => handleSend()}
                   disabled={loading || !inputValue.trim()}
                 >
-                  <Send className="h-4 w-4" />
+                  <Send className="h-3.5 w-3.5" />
                 </Button>
               )}
             </div>
@@ -3484,6 +3525,13 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
 
       {isGarraEstufagemFichaOpen && (
         <GarraEstufagemFicha onClose={() => setIsGarraEstufagemFichaOpen(false)} />
+      )}
+
+      {isTrituradorLoaderFaeFichaOpen && (
+        <TrituradorLoaderFaeFicha
+          onClose={() => setIsTrituradorLoaderFaeFichaOpen(false)}
+          defaultModelId={trituradorLoaderFaeDefaultModel}
+        />
       )}
 
       {/* 1. Share Modal */}

@@ -199,7 +199,7 @@ export default function PublicConsultant() {
   }, [ref]);
 
   return (
-    <div className="w-full h-screen bg-slate-950 flex flex-col items-center justify-center font-sans overflow-hidden">
+    <div className="w-full h-[100dvh] bg-slate-950 flex flex-col items-center justify-center font-sans overflow-hidden">
       {/* Full screen rendering of the technical consultant helper */}
       <div className="w-full h-full max-w-none flex flex-col relative">
         <EngineerHelper isFullPage={true} />

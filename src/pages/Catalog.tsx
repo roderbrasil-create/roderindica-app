@@ -85,6 +85,7 @@ import { HighTipSelector } from '../components/catalog/HighTipSelector';
 import { HighTipFicha } from '../components/catalog/HighTipFicha';
 import { MulcherTechnicalDelivery } from '../components/catalog/MulcherTechnicalDelivery';
 import { FresaSshFicha } from '../components/catalog/FresaSshFicha';
+import { TrituradorLoaderFaeFicha } from '../components/catalog/TrituradorLoaderFaeFicha';
 import { EngateRapidoFicha } from '../components/catalog/EngateRapidoFicha';
 import { GarraEstufagemFicha } from '../components/catalog/GarraEstufagemFicha';
 import { RODER_LOGO_BASE64 } from '../components/catalog/RoderLogo';
@@ -306,6 +307,13 @@ const isFresaProduct = (nameOrUrl?: string) => {
          lower.includes('triturador');
 };
 
+const isLoaderTrituradorProduct = (nameOrUrl?: string) => {
+  if (!nameOrUrl) return false;
+  const lower = nameOrUrl.toLowerCase();
+  return (lower.includes('triturador') && (lower.includes('pá carregadeira') || lower.includes('pa carregadeira') || lower.includes('carregadeira') || lower.includes('loader'))) ||
+         lower.includes('uml-ssl-vt') || lower.includes('uml ssl vt') || lower.includes('140 u pm') || lower.includes('140-u-pm') || lower.includes('uml_ssl_vt') || lower.includes('140_u_pm');
+};
+
 const isEstufagemProduct = (nameOrUrl?: string) => {
   if (!nameOrUrl) return false;
   const lower = nameOrUrl.toLowerCase();
@@ -359,10 +367,13 @@ const isAnyFichaSupported = (product: any) => {
   };
   const isFresa = containsFresaKeyword(url) || containsFresaKeyword(name) || containsFresaKeyword(desc) || containsFresaKeyword(cat);
 
+  const isLoaderTriturador = isLoaderTrituradorProduct(url) || isLoaderTrituradorProduct(name) || isLoaderTrituradorProduct(desc) || isLoaderTrituradorProduct(cat) ||
+                             !!(product.id && (product.id.toLowerCase().includes('loader') || product.id.toLowerCase().includes('triturador_loader') || product.id.toLowerCase().includes('uml-ssl-vt') || product.id.toLowerCase().includes('140-u-pm')));
+
   const isEstufagem = isEstufagemProduct(url) || isEstufagemProduct(name) || isEstufagemProduct(desc) || isEstufagemProduct(cat) ||
                       !!(product.id && (product.id.toLowerCase().includes('estufagem') || product.id.toLowerCase().includes('af-360')));
 
-  return !!product.pdf_url || isEngate || isHighTip || isFresa || isEstufagem;
+  return !!product.pdf_url || isEngate || isHighTip || isFresa || isEstufagem || isLoaderTriturador;
 };
 
 
@@ -732,6 +743,8 @@ export default function Catalog() {
   const [animationType, setAnimationType] = useState<'tilt' | 'rotate'>('rotate'); // Default to rotate as requested
   const [isHighTipFichaOpen, setIsHighTipFichaOpen] = useState(false);
   const [isFresaSshFichaOpen, setIsFresaSshFichaOpen] = useState(false);
+  const [isTrituradorLoaderFaeFichaOpen, setIsTrituradorLoaderFaeFichaOpen] = useState(false);
+  const [trituradorLoaderFaeDefaultModel, setTrituradorLoaderFaeDefaultModel] = useState<string>('fae-uml-ssl-vt-175');
   const [isEngateRapidoFichaOpen, setIsEngateRapidoFichaOpen] = useState(false);
   const [isGarraEstufagemFichaOpen, setIsGarraEstufagemFichaOpen] = useState(false);
   const [garraEstufagemDefaultModel, setGarraEstufagemDefaultModel] = useState<string>('af-360');
@@ -1052,6 +1065,13 @@ export default function Catalog() {
           addDesbastadorFlorestalFAE();
         } else if (desbastadorFae?.is_blocked) {
           updateDoc(doc(db, 'products', desbastadorFae.id), { is_blocked: false });
+        }
+
+        const trituradorLoaderFae = data.find(p => p.name === 'Triturador / Desbastador FAE p/ Pá Carregadeira');
+        if (!trituradorLoaderFae && data.length > 0) {
+          addTrituradorFAELoader();
+        } else if (trituradorLoaderFae?.is_blocked) {
+          updateDoc(doc(db, 'products', trituradorLoaderFae.id), { is_blocked: false });
         }
 
         const fresaSsh = data.find(p => p.name === 'FRESA FAE SSH');
@@ -2454,6 +2474,83 @@ export default function Catalog() {
       }
     };
 
+    const addTrituradorFAELoader = async () => {
+      try {
+        setLoading(true);
+        const q = query(collection(db, 'products'), where('name', '==', 'Triturador / Desbastador FAE p/ Pá Carregadeira'));
+        const snap = await getDocs(q);
+        
+        const trituradorLoaderData = {
+          name: 'Triturador / Desbastador FAE p/ Pá Carregadeira',
+          description: 'O Triturador/Desbastador Florestal FAE para Pás Carregadeiras (Mulcher) é um equipamento de alta performance desenvolvido para trabalhos pesados de manejo florestal, limpeza de áreas e trituração de restos vegetais. Compatível com os modelos de pás carregadeiras Caterpillar equipadas com preparação original de fábrica para Mulcher.',
+          category: 'Triturador Florestal',
+          image_url: 'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-triturador-florestal-fae-uml-ssl-vt.jpg.webp',
+          video_url: '',
+          pdf_url: '',
+          is_blocked: false,
+          created_at: snap.empty ? new Date().toISOString() : (snap.docs[0].data() as any).created_at,
+          models: [
+            {
+              id: 'fae-uml-ssl-vt-175',
+              name: 'FAE UML SSL VT 175',
+              base_value: 0,
+              pdf_url: '',
+              images: [
+                'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-triturador-florestal-fae-uml-ssl-vt.jpg.webp'
+              ],
+              technical_specs: {
+                maquina_base: 'CAT 924K',
+                motor: '75 - 120 hp',
+                vazao: '120 - 200 L/min',
+                pressao: '200 - 350 bar',
+                largura_trabalho: '1.820 mm',
+                largura_total: '2.120 mm',
+                peso: '1.400 kg',
+                diametro_rotor: '425 mm',
+                diametro_max_trituracao: '200 mm',
+                numero_de_dentes: '36 + 2',
+                tipo_dente: 'C/3 (Vídia) ou Lâmina BL'
+              }
+            },
+            {
+              id: 'fae-140-u-pm-200',
+              name: 'FAE 140 U PM 200',
+              base_value: 0,
+              pdf_url: '',
+              images: [
+                'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-triturador-florestal-cat-930.jpg.webp'
+              ],
+              technical_specs: {
+                maquina_base: 'CAT 930K / 938K',
+                motor: '180 - 300 hp',
+                vazao: '150 - 360 L/min',
+                pressao: '250 - 415 bar',
+                largura_trabalho: '2.064 mm',
+                largura_total: '2.464 mm',
+                peso: '2.960 kg',
+                diametro_rotor: '500 mm',
+                diametro_max_trituracao: '350 mm',
+                numero_de_dentes: '42 + 2',
+                tipo_dente: 'C/3 (Vídia) ou Lâmina BL'
+              }
+            }
+          ]
+        };
+
+        if (snap.docs.length > 0) {
+          await updateDoc(doc(db, 'products', snap.docs[0].id), trituradorLoaderData);
+        } else {
+          await addDoc(collection(db, 'products'), trituradorLoaderData);
+        }
+        
+        toast.success('Triturador FAE para Pá Carregadeira sincronizado com sucesso!');
+      } catch (err) {
+        console.error('Error adding Triturador FAE Loader:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     const addFresaFAESSH = async () => {
       try {
         setLoading(true);
@@ -3452,6 +3549,45 @@ export default function Catalog() {
     const lowerContextCategory = (productContext?.category || '').toLowerCase();
     const lowerContextDesc = (productContext?.description || '').toLowerCase();
     const lowerContextPdfUrl = (productContext?.pdf_url || '').toLowerCase();
+
+    const containsLoaderTriturador = (str: string) => {
+      const s = (str || '').toLowerCase();
+      return (s.includes('triturador') && (s.includes('pá carregadeira') || s.includes('pa carregadeira') || s.includes('carregadeira') || s.includes('loader'))) ||
+             s.includes('uml-ssl-vt') || s.includes('uml ssl vt') || s.includes('140 u pm') || s.includes('140-u-pm') || s.includes('uml_ssl_vt') || s.includes('140_u_pm');
+    };
+    const isLoaderTriturador = containsLoaderTriturador(lowerUrl) || 
+                               containsLoaderTriturador(lowerModelName) || 
+                               containsLoaderTriturador(lowerViewingName) || 
+                               containsLoaderTriturador(lowerSelectedName) ||
+                               containsLoaderTriturador(lowerContextName) ||
+                               containsLoaderTriturador(lowerContextCategory) ||
+                               containsLoaderTriturador(lowerContextDesc) ||
+                               containsLoaderTriturador(lowerContextPdfUrl) ||
+                               (productContext?.id && (productContext.id.toLowerCase().includes('loader') || productContext.id.toLowerCase().includes('triturador_loader') || productContext.id.toLowerCase().includes('uml-ssl-vt') || productContext.id.toLowerCase().includes('140-u-pm')));
+
+    if (isLoaderTriturador) {
+      if (selectedProductModels) {
+        setSuspendedProductModels(selectedProductModels);
+        setSelectedProductModels(null);
+      }
+      if (viewingGallery) {
+        setSuspendedViewingGallery(viewingGallery);
+        setViewingGallery(null);
+      }
+      const targetModelName = modelName || selectedModel?.name || '';
+      if (targetModelName) {
+        const lower = targetModelName.toLowerCase();
+        if (lower.includes('140') || lower.includes('pm 200') || lower.includes('200')) {
+          setTrituradorLoaderFaeDefaultModel('fae-140-u-pm-200');
+        } else {
+          setTrituradorLoaderFaeDefaultModel('fae-uml-ssl-vt-175');
+        }
+      } else {
+        setTrituradorLoaderFaeDefaultModel('fae-uml-ssl-vt-175');
+      }
+      setIsTrituradorLoaderFaeFichaOpen(true);
+      return;
+    }
 
     const containsHighTipKeyword = (str: string) => {
       const s = (str || '').toLowerCase();
@@ -4459,10 +4595,10 @@ export default function Catalog() {
                           size="sm"
                           className={cn(
                             "w-full h-5 md:h-12 uppercase px-0 border-slate-200 text-foreground shadow-sm leading-none",
-                            !(model.pdf_url || viewingGallery?.pdf_url || isEngateProduct(model.name) || isEngateProduct(viewingGallery?.name) || isHighTipProduct(model.name) || isHighTipProduct(viewingGallery?.name) || isFresaProduct(model.name) || isFresaProduct(viewingGallery?.name)) && "hidden"
+                            !(model.pdf_url || viewingGallery?.pdf_url || isEngateProduct(model.name) || isEngateProduct(viewingGallery?.name) || isHighTipProduct(model.name) || isHighTipProduct(viewingGallery?.name) || isFresaProduct(model.name) || isFresaProduct(viewingGallery?.name) || isLoaderTrituradorProduct(model.name) || isLoaderTrituradorProduct(viewingGallery?.name)) && "hidden"
                           )}
                           onClick={() => openPdf(model.pdf_url || viewingGallery?.pdf_url || '', model.name, viewingGallery)}
-                          disabled={!(model.pdf_url || viewingGallery?.pdf_url || isEngateProduct(model.name) || isEngateProduct(viewingGallery?.name) || isHighTipProduct(model.name) || isHighTipProduct(viewingGallery?.name) || isFresaProduct(model.name) || isFresaProduct(viewingGallery?.name))}
+                          disabled={!(model.pdf_url || viewingGallery?.pdf_url || isEngateProduct(model.name) || isEngateProduct(viewingGallery?.name) || isHighTipProduct(model.name) || isHighTipProduct(viewingGallery?.name) || isFresaProduct(model.name) || isFresaProduct(viewingGallery?.name) || isLoaderTrituradorProduct(model.name) || isLoaderTrituradorProduct(viewingGallery?.name))}
                         >
                           <FileText className="!h-2.5 !w-2.5 md:!h-4 md:!w-4 mb-0.5 md:mb-0 md:mr-0.5 text-red-500" />
                           <span className="hidden sm:inline">Ficha</span>
@@ -4927,9 +5063,9 @@ export default function Catalog() {
                         size="icon"
                         className={cn(
                           "h-8 w-8 mr-1 shrink-0",
-                          (model.pdf_url || selectedProductModels?.pdf_url || isAnyFichaSupported(selectedProductModels) || isEngateProduct(model.name) || isHighTipProduct(model.name) || isFresaProduct(model.name)) ? "text-red-500 hover:text-red-600 hover:bg-red-500/10" : "hidden"
+                          (model.pdf_url || selectedProductModels?.pdf_url || isAnyFichaSupported(selectedProductModels) || isEngateProduct(model.name) || isHighTipProduct(model.name) || isFresaProduct(model.name) || isLoaderTrituradorProduct(model.name)) ? "text-red-500 hover:text-red-600 hover:bg-red-500/10" : "hidden"
                         )}
-                        disabled={!(model.pdf_url || selectedProductModels?.pdf_url || isAnyFichaSupported(selectedProductModels) || isEngateProduct(model.name) || isHighTipProduct(model.name) || isFresaProduct(model.name))}
+                        disabled={!(model.pdf_url || selectedProductModels?.pdf_url || isAnyFichaSupported(selectedProductModels) || isEngateProduct(model.name) || isHighTipProduct(model.name) || isFresaProduct(model.name) || isLoaderTrituradorProduct(model.name))}
                         onClick={() => openPdf(model.pdf_url || selectedProductModels?.pdf_url || '', model.name, selectedProductModels)}
                       >
                         <FileText className="h-4 w-4" />
@@ -5334,10 +5470,10 @@ export default function Catalog() {
                             variant="outline" 
                             className={cn(
                               "flex-1 justify-start gap-2 border-border h-11",
-                              !(selectedModel.pdf_url || selectedProductModels?.pdf_url || isAnyFichaSupported(selectedProductModels) || isEngateProduct(selectedModel.name) || isHighTipProduct(selectedModel.name) || isFresaProduct(selectedModel.name)) && "hidden"
+                              !(selectedModel.pdf_url || selectedProductModels?.pdf_url || isAnyFichaSupported(selectedProductModels) || isEngateProduct(selectedModel.name) || isHighTipProduct(selectedModel.name) || isFresaProduct(selectedModel.name) || isLoaderTrituradorProduct(selectedModel.name)) && "hidden"
                             )}
                             onClick={() => openPdf(selectedModel.pdf_url || selectedProductModels?.pdf_url || '', selectedModel.name, selectedProductModels)}
-                            disabled={!(selectedModel.pdf_url || selectedProductModels?.pdf_url || isAnyFichaSupported(selectedProductModels) || isEngateProduct(selectedModel.name) || isHighTipProduct(selectedModel.name) || isFresaProduct(selectedModel.name))}
+                            disabled={!(selectedModel.pdf_url || selectedProductModels?.pdf_url || isAnyFichaSupported(selectedProductModels) || isEngateProduct(selectedModel.name) || isHighTipProduct(selectedModel.name) || isFresaProduct(selectedModel.name) || isLoaderTrituradorProduct(selectedModel.name))}
                           >
                             <FileText className="h-4 w-4 text-red-500" /> Ficha Técnica (PDF)
                           </Button>
@@ -5346,10 +5482,10 @@ export default function Catalog() {
                             size="icon"
                             className={cn(
                               "h-11 w-11 shrink-0 border-border",
-                              !(selectedModel.pdf_url || selectedProductModels?.pdf_url || isAnyFichaSupported(selectedProductModels) || isEngateProduct(selectedModel.name) || isHighTipProduct(selectedModel.name) || isFresaProduct(selectedModel.name)) && "hidden"
+                              !(selectedModel.pdf_url || selectedProductModels?.pdf_url || isAnyFichaSupported(selectedProductModels) || isEngateProduct(selectedModel.name) || isHighTipProduct(selectedModel.name) || isFresaProduct(selectedModel.name) || isLoaderTrituradorProduct(selectedModel.name)) && "hidden"
                             )}
                             onClick={() => shareFile(selectedModel.pdf_url || selectedProductModels?.pdf_url || '', `Ficha Técnica - ${selectedModel.name}`)}
-                            disabled={!(selectedModel.pdf_url || selectedProductModels?.pdf_url || isAnyFichaSupported(selectedProductModels) || isEngateProduct(selectedModel.name) || isHighTipProduct(selectedModel.name) || isFresaProduct(selectedModel.name))}
+                            disabled={!(selectedModel.pdf_url || selectedProductModels?.pdf_url || isAnyFichaSupported(selectedProductModels) || isEngateProduct(selectedModel.name) || isHighTipProduct(selectedModel.name) || isFresaProduct(selectedModel.name) || isLoaderTrituradorProduct(selectedModel.name))}
                           >
                             <Share2 className="h-4 w-4 text-primary" />
                           </Button>
@@ -6505,6 +6641,23 @@ export default function Catalog() {
               }
             }} 
             defaultModelId={fresaSshDefaultModel} 
+          />
+        )}
+
+        {isTrituradorLoaderFaeFichaOpen && (
+          <TrituradorLoaderFaeFicha 
+            onClose={() => {
+              setIsTrituradorLoaderFaeFichaOpen(false);
+              if (suspendedProductModels) {
+                setSelectedProductModels(suspendedProductModels);
+                setSuspendedProductModels(null);
+              }
+              if (suspendedViewingGallery) {
+                setViewingGallery(suspendedViewingGallery);
+                setSuspendedViewingGallery(null);
+              }
+            }} 
+            defaultModelId={trituradorLoaderFaeDefaultModel} 
           />
         )}
 

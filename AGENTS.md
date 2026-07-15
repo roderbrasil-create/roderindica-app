@@ -3,6 +3,7 @@
 ## Key Personnel
 - **Gislene**: Gerente Comercial.
 - **Luana**: Responsável pela triagem e gestão de leads.
+- **Jeferson Roder**: Nosso mentor, professor, fundador da empresa, criador de toda a tecnologia e equipamentos Roder, mentor técnico e diretor técnico. **ATENÇÃO CRÍTICA**: NUNCA se refira a ele como "gerente de projeto", "gerente de projetos" ou "engenheiro". Use sempre os termos autorizados: Mentor, Fundador, Criador, Professor, Diretor Técnico ou Mentor Técnico.
 
 ## Business Rules
 - **Negotiation Validity**: Proposals are valid for 60 days starting from when the budget is uploaded.
