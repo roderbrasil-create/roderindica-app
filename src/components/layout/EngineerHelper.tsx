@@ -709,6 +709,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   const [reportContent, setReportContent] = useState('');
   const [reportTitle, setReportTitle] = useState('Relatório de Dimensionamento Técnico');
   const reportRef = useRef<HTMLDivElement>(null);
+  const dragContainerRef = useRef<HTMLDivElement>(null);
 
   // States and Handlers for Knowledge Base ("Ensinar Roder IA")
   const [knowledgeOpen, setKnowledgeOpen] = useState(false);
@@ -1725,10 +1726,14 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
 
   return (
     <>
+      {/* Viewport container to keep the draggable floating button fully inside the screen boundaries */}
+      <div ref={dragContainerRef} className="fixed inset-0 pointer-events-none z-[44]" />
+
       {/* Floating Toggle Button */}
-      {!isFullPage && (
+      {(!isFullPage || !isOpen) && (
         <motion.div
           drag={!isOpen}
+          dragConstraints={dragContainerRef}
           dragMomentum={false}
           dragElastic={0.15}
           className={cn(
