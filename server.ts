@@ -664,12 +664,33 @@ async function startServer() {
 
       // Default fallback: fetch and proxy the image server-side to bypass hotlink / CORS protections
       try {
-        const response = await fetch(url, {
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
-          }
-        });
+        let refererUrl = "";
+        try {
+          refererUrl = new URL(url).origin + "/";
+        } catch (_) {}
+
+        // Temporarily ignore self-signed certificate errors common on local or Brazilian hosting servers
+        const previousRejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+        process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
+        const headers: Record<string, string> = {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
+        };
+        if (refererUrl) {
+          headers["Referer"] = refererUrl;
+          headers["Origin"] = refererUrl.replace(/\/$/, "");
+        }
+
+        const response = await fetch(url, { headers });
+
+        // Restore previous SSL verification setting
+        if (previousRejectUnauthorized !== undefined) {
+          process.env.NODE_TLS_REJECT_UNAUTHORIZED = previousRejectUnauthorized;
+        } else {
+          delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+        }
+
         if (response.ok) {
           const contentType = response.headers.get("content-type") || "image/jpeg";
           res.setHeader("Content-Type", contentType);
@@ -1568,9 +1589,10 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
 
 12. EXIBIÇÃO DE FOTOS E IMAGENS DOS PRODUTOS RECOMENDADOS (OBRIGATÓRIO):
     - Sempre que você recomendar ou indicar um equipamento ou modelo específico de produto em sua conversa ou no relatório técnico, você DEVE colocar a foto/imagem correspondente do produto diretamente no corpo do texto (tanto no chat quanto no relatório gerado).
+    - REQUISITO CRÍTICO DE PROTOCOLO: Dê preferência ABSOLUTA às URLs de imagem que começam com "db-file://" (ex: "db-file://xxxxx") fornecidas nos modelos ou produtos abaixo. Elas referem-se a imagens reais salvas no banco de dados e renderizam perfeitamente e instantaneamente no chat e no relatório. Apenas utilize URLs externas iniciando com "https://" se o modelo específico não possuir nenhuma URL do tipo "db-file://" disponível.
     - Para isso, use exatamente a URL fornecida no campo "Imagem" do respectivo modelo, ou "Imagem Principal do Equipamento" do produto no catálogo abaixo.
     - Insira a imagem utilizando a sintaxe Markdown padrão: \`![Nome do Equipamento/Modelo](URL_da_Imagem)\`.
-    - REQUISITO CRÍTICO: Insira a imagem em uma linha própria, com uma quebra de linha antes e depois, para garantir que ela renderize de forma totalmente visível e destacada no chat e no relatório.
+    - REQUISITO CRÍTICO DE DIAGRAMAÇÃO: Insira a imagem em uma linha própria, com uma quebra de linha antes e depois, para garantir que ela renderize de forma totalmente visível e destacada no chat e no relatório.
     - Se o modelo ou equipamento indicado NÃO possuir nenhuma imagem/URL de foto cadastrada no catálogo abaixo, simplesmente NÃO inclua nenhuma imagem. Nunca invente ou crie URLs de imagem fictícias.
 
 13. REFERENCIAR JEFERSON RODER (MUITO IMPORTANTE):

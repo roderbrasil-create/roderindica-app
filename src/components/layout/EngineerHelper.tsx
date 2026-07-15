@@ -2144,6 +2144,7 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
                       <div className="space-y-3">
                         <div className="prose prose-invert max-w-none text-xs text-slate-200 space-y-2 markdown-body">
                           <ReactMarkdown
+                            urlTransform={(url) => url}
                             components={{
                               img: ({ node, ...props }) => {
                                 return <MarkdownImage {...props} />;
@@ -3558,6 +3559,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                     
                     <div className="prose prose-slate text-xs max-w-none text-slate-800 leading-relaxed space-y-3 font-medium">
                       <ReactMarkdown
+                        urlTransform={(url) => url}
                         components={{
                           img: ({ node, ...props }) => {
                             return <MarkdownImage isLightReport {...props} />;
