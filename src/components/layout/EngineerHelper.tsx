@@ -1747,9 +1747,9 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
             className={`relative flex items-center justify-center rounded-full shadow-2xl text-white transition-all duration-300 ${
               isOpen 
                 ? 'p-2.5 px-3 sm:p-3.5 sm:px-5 bg-slate-700 hover:bg-slate-800' 
-                : 'w-20 h-20 sm:w-auto sm:h-auto p-2 sm:p-3.5 sm:px-5 bg-primary hover:bg-primary/90'
+                : 'w-20 h-20 sm:w-auto sm:h-auto p-2 sm:p-3.5 sm:px-5 bg-black hover:bg-neutral-900 border-2 border-amber-500/50'
             }`}
-            style={{ boxShadow: '0 10px 25px -5px rgba(239, 68, 68, 0.4)' }}
+            style={{ boxShadow: isOpen ? '0 10px 25px -5px rgba(0, 0, 0, 0.3)' : '0 10px 25px -5px rgba(245, 158, 11, 0.35)' }}
           >
             {isOpen ? (
               <div className="flex items-center gap-2">
@@ -1765,17 +1765,17 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
               </div>
             ) : (
               <>
-                {/* Mobile "Bolinha" (Roder Consultor) */}
-                <div className="sm:hidden flex flex-col items-center justify-center text-center">
-                  <div className="relative h-[42px] w-[42px] bg-slate-950 border border-amber-400 rounded-full flex items-center justify-center overflow-hidden shadow-inner mb-0.5">
-                    <img 
-                      src={RODER_LOGO_WHITE_BASE64} 
-                      alt="Roder" 
-                      className="h-9 w-9 object-contain rounded-full animate-pulse scale-[1.15]" 
-                    />
-                  </div>
-                  <span className="text-[7.5px] font-black tracking-tighter uppercase mt-0.5 leading-none">Roder</span>
-                  <span className="text-[6.5px] opacity-90 font-bold uppercase leading-none">Consultor</span>
+                {/* Mobile "Bolinha" (Roder Consultor) - Text Only, Elegant Typography */}
+                <div className="sm:hidden flex flex-col items-center justify-center text-center w-full h-full p-1 leading-tight select-none">
+                  <span className="text-[8.5px] font-medium tracking-wider text-white/80 uppercase">
+                    Consultor
+                  </span>
+                  <span className="text-[14px] font-black tracking-widest text-white uppercase my-0.5 animate-pulse drop-shadow-sm">
+                    RODER
+                  </span>
+                  <span className="text-[8.5px] font-bold tracking-wider text-white/90 uppercase">
+                    Técnico
+                  </span>
                 </div>
 
                 {/* Desktop standard pill */}
@@ -1794,14 +1794,14 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
             )}
 
             {messages.length > 1 && !isOpen && (
-              <span className="absolute top-0 right-0 flex h-3.5 w-3.5">
+              <span className="absolute -top-1 -left-1 flex h-3.5 w-3.5 z-10">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-green-500 border-2 border-white"></span>
               </span>
             )}
 
-            {messages.length <= 1 && !isOpen && (
-              <div className="absolute -top-1 -right-1 bg-amber-500 text-slate-950 font-black text-[9px] px-2 py-0.5 rounded-full uppercase tracking-widest animate-pulse border border-white shadow">
+            {!isOpen && (
+              <div className="absolute -top-1 -right-1 bg-amber-500 text-slate-950 font-black text-[9px] px-1.5 py-0.5 rounded-full uppercase tracking-widest animate-pulse border border-white shadow z-10">
                 IA
               </div>
             )}

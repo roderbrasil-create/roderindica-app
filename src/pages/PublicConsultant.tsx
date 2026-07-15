@@ -15,52 +15,56 @@ function generateConsultantIcon(): string {
   ctx.fillStyle = '#000000';
   ctx.fillRect(0, 0, 512, 512);
 
-  // Draw the Roder/Roger style white badge in the upper center
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 14;
-  ctx.beginPath();
-  ctx.arc(256, 185, 95, 0, Math.PI * 2);
-  ctx.stroke();
+  // Subtle border highlight (like a luxury application icon)
+  ctx.strokeStyle = '#f59e0b';
+  ctx.lineWidth = 12;
+  ctx.strokeRect(6, 6, 500, 500);
 
-  // Draw stylized white letter "R" inside the circle
+  // Setup text alignments
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // 1. Draw "CONSULTOR" (Top Text)
   ctx.fillStyle = '#ffffff';
-  
-  // Vertical stem
-  ctx.beginPath();
-  ctx.rect(218, 130, 26, 110);
-  ctx.fill();
+  ctx.font = '500 44px "Inter", "Helvetica Neue", sans-serif';
+  ctx.fillText('CONSULTOR', 256, 170);
 
-  // Outer loop curve
-  ctx.beginPath();
-  ctx.arc(244, 158, 28, -Math.PI / 2, Math.PI / 2, false);
-  ctx.lineWidth = 26;
-  ctx.strokeStyle = '#ffffff';
-  ctx.stroke();
+  // 2. Draw "RODER" (Middle Text - Extra Bold/Black)
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '900 110px "Inter", "Montserrat", "Arial Black", sans-serif';
+  ctx.fillText('RODER', 256, 265);
 
-  // Slanted leg
+  // 3. Draw "TÉCNICO" (Bottom Text - Bold)
+  ctx.fillStyle = '#f59e0b'; // Amber highlight for Técnico to match the bubble style
+  ctx.font = '700 44px "Inter", "Helvetica Neue", sans-serif';
+  ctx.fillText('TÉCNICO', 256, 360);
+
+  // 4. Draw the "IA" Badge in the corner (rounded rect + text)
+  const bx = 370;
+  const by = 50;
+  const bw = 85;
+  const bh = 42;
+  const br = 8; // radius
+
+  // Draw rounded rect
+  ctx.fillStyle = '#f59e0b';
   ctx.beginPath();
-  ctx.moveTo(244, 186);
-  ctx.lineTo(288, 240);
-  ctx.lineTo(320, 240);
-  ctx.lineTo(266, 186);
+  ctx.moveTo(bx + br, by);
+  ctx.lineTo(bx + bw - br, by);
+  ctx.quadraticCurveTo(bx + bw, by, bx + bw, by + br);
+  ctx.lineTo(bx + bw, by + bh - br);
+  ctx.quadraticCurveTo(bx + bw, by + bh, bx + bw - br, by + bh);
+  ctx.lineTo(bx + br, by + bh);
+  ctx.quadraticCurveTo(bx, by + bh, bx, by + bh - br);
+  ctx.lineTo(bx, by + br);
+  ctx.quadraticCurveTo(bx, by, bx + br, by);
   ctx.closePath();
   ctx.fill();
 
-  // Write "CONSULTOR TÉCNICO" in crisp display bold sans-serif
-  ctx.fillStyle = '#ffffff';
-  ctx.font = '900 34px "Inter", "Helvetica Neue", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('CONSULTOR TÉCNICO', 256, 355);
-
-  // Write "RODER" in the official brand orange/amber color
-  ctx.fillStyle = '#f97316';
-  ctx.font = '800 40px "Inter", "Helvetica Neue", sans-serif';
-  ctx.fillText('RODER', 256, 415);
-
-  // Subtle bottom design element
-  ctx.fillStyle = '#334155';
-  ctx.fillRect(180, 460, 152, 6);
+  // Draw "IA" text inside badge
+  ctx.fillStyle = '#000000';
+  ctx.font = '900 24px "Inter", sans-serif';
+  ctx.fillText('IA', bx + bw / 2, by + bh / 2 + 1);
 
   return canvas.toDataURL('image/png');
 }

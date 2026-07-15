@@ -151,8 +151,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         "md:pl-56 flex flex-col min-h-screen transition-all duration-300",
         hasRightDock && "lg:pr-[480px]"
       )}>
+        {/* Style block for mobile safe area layout support */}
+        <style dangerouslySetInnerHTML={{ __html: `
+          @media (max-width: 767px) {
+            .mobile-safe-header {
+              padding-top: env(safe-area-inset-top, 24px) !important;
+            }
+            .mobile-safe-main {
+              padding-top: calc(88px + env(safe-area-inset-top, 24px)) !important;
+            }
+          }
+        `}} />
+
         {/* Mobile Fixed Header & Page Title Sub-header Container */}
-        <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-md border-b border-border shadow-sm flex flex-col">
+        <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-md border-b border-border shadow-sm flex flex-col mobile-safe-header">
           <header className="flex items-center justify-between p-1.5 px-3 h-14">
             <div className="flex items-center gap-2">
               <Button 
@@ -232,7 +244,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <NotificationBell />
         </header>
 
-        <main className="flex-1 p-4 md:p-8 pt-28 md:pt-8 max-w-full">
+        <main className="flex-1 p-4 md:p-8 pt-28 md:pt-8 max-w-full mobile-safe-main">
           {children}
         </main>
       </div>
