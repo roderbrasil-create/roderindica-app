@@ -558,6 +558,10 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     }
   });
 
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState('');
+  const [updateProgress, setUpdateProgress] = useState(0);
+
   const [messages, setMessages] = useState<Message[]>(() => {
     try {
       const saved = sessionStorage.getItem('roder_helper_messages');
@@ -1080,6 +1084,79 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
       sessionStorage.removeItem('roder_helper_selectedCacambaModel');
       sessionStorage.removeItem('roder_helper_recommendedCacambaCap');
     } catch (e) {}
+  };
+
+  // Check for updates on mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('update')) {
+      // Clear the query parameter from the URL bar without reloading the page
+      setTimeout(() => {
+        const cleanUrl = window.location.origin + window.location.pathname;
+        const currentParams = new URLSearchParams(window.location.search);
+        currentParams.delete('update');
+        const qs = currentParams.toString();
+        const finalUrl = cleanUrl + (qs ? '?' + qs : '');
+        window.history.replaceState({}, document.title, finalUrl);
+        toast.success("Consultor Técnico atualizado com sucesso para a versão mais recente!", {
+          duration: 6000,
+          icon: '✅'
+        });
+      }, 500);
+    }
+  }, []);
+
+  const handleForceUpdate = () => {
+    setIsUpdating(true);
+    setUpdateProgress(10);
+    setUpdateStatus("Conectando ao servidor RODER...");
+    
+    // Animate a smooth premium progress bar
+    const progressInterval = setInterval(() => {
+      setUpdateProgress((prev) => {
+        if (prev >= 90) {
+          clearInterval(progressInterval);
+          return 90;
+        }
+        return prev + Math.floor(Math.random() * 15) + 5;
+      });
+    }, 250);
+
+    setTimeout(() => {
+      setUpdateStatus("Limpando cache do navegador e dados antigos...");
+    }, 600);
+
+    setTimeout(() => {
+      setUpdateStatus("Carregando o código de produção mais recente...");
+    }, 1200);
+
+    setTimeout(async () => {
+      setUpdateProgress(100);
+      try {
+        if (window.caches) {
+          const keys = await window.caches.keys();
+          for (const key of keys) {
+            await window.caches.delete(key);
+          }
+        }
+        if ('serviceWorker' in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          for (const registration of registrations) {
+            await registration.unregister();
+          }
+        }
+      } catch (e) {
+        console.error("Erro ao limpar caches:", e);
+      }
+
+      clearInterval(progressInterval);
+
+      // Force a full update reload by adding a fresh cache-buster timestamp
+      const cleanUrl = window.location.origin + window.location.pathname;
+      const currentParams = new URLSearchParams(window.location.search);
+      currentParams.set('update', Date.now().toString());
+      window.location.href = cleanUrl + '?' + currentParams.toString();
+    }, 2200);
   };
 
   const handleEndConversation = () => {
@@ -1912,6 +1989,17 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                   <span className="hidden xs:inline">Limpar</span>
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 px-1.5 sm:px-2 text-sky-400 hover:text-sky-300 hover:bg-sky-500/10 text-xs gap-1"
+                  onClick={handleForceUpdate}
+                  title="Buscar e carregar novas atualizações pendentes"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  <span className="hidden xs:inline">Atualizar</span>
                 </Button>
 
                 {/* Safe Separator */}
@@ -3767,6 +3855,33 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
           </div>
         )}
       </AnimatePresence>
+
+      {/* 3. System Sincronização / Update Screen Overlay */}
+      {isUpdating && (
+        <div className="fixed inset-0 bg-slate-950/95 backdrop-blur-md z-[9999] flex flex-col items-center justify-center font-sans">
+          <div className="flex flex-col items-center max-w-sm text-center px-6">
+            <div className="relative">
+              <RefreshCw className="h-12 w-12 text-amber-500 animate-spin" />
+              <div className="absolute inset-0 h-12 w-12 rounded-full border-4 border-amber-500/20 animate-pulse" />
+            </div>
+            <h3 className="text-white font-black text-lg mt-6 tracking-wide">Sincronizando Sistema</h3>
+            <p className="text-slate-400 text-xs mt-2 min-h-[32px]">
+              {updateStatus || "Baixando a versão mais recente diretamente do servidor..."}
+            </p>
+            
+            <div className="w-48 bg-slate-800 h-2 rounded-full mt-6 overflow-hidden relative">
+              <div 
+                className="bg-gradient-to-r from-amber-500 to-orange-500 h-full rounded-full transition-all duration-300"
+                style={{ width: `${updateProgress}%` }}
+              />
+            </div>
+            
+            <div className="text-[10px] text-slate-500 font-mono mt-4 uppercase tracking-widest animate-pulse">
+              RODER DIGITAL LABS
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

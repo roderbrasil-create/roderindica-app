@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import EngineerHelper from '../components/layout/EngineerHelper';
+import PublicStock from './PublicStock';
 
 // Helper function to programmatically draw a beautiful custom black square icon
 function generateConsultantIcon(): string {
@@ -203,11 +204,14 @@ export default function PublicConsultant() {
   }, [ref]);
 
   return (
-    <div className="w-full h-[100dvh] bg-slate-950 flex flex-col items-center justify-center font-sans overflow-hidden">
-      {/* Full screen rendering of the technical consultant helper */}
-      <div className="w-full h-full max-w-none flex flex-col relative">
-        <EngineerHelper isFullPage={true} />
+    <div className="w-full h-[100dvh] bg-slate-950 flex flex-col relative font-sans overflow-hidden">
+      {/* 1. Underneath we render the PublicStock catalog */}
+      <div className="w-full h-full overflow-auto">
+        <PublicStock />
       </div>
+      
+      {/* 2. On top, we overlay the EngineerHelper. Since its components are positioned absolute/fixed, they will overlay perfectly */}
+      <EngineerHelper isFullPage={true} />
     </div>
   );
 }
