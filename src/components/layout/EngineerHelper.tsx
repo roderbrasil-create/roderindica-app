@@ -3521,78 +3521,80 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
               </div>
 
               {/* Modal Body with Preview */}
-              <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-950/40 flex items-center justify-center">
+              <div className="flex-1 overflow-y-auto p-2 sm:p-4 bg-slate-950/40 flex items-center justify-center">
                 
                 {/* Visual Report Container - This DOM element is converted to an image */}
-                <div 
-                  ref={reportRef}
-                  className="bg-white text-slate-900 w-full max-w-[800px] p-8 rounded-xl shadow-lg border border-slate-200 flex flex-col font-sans"
-                  style={{ width: '800px', minHeight: '500px' }}
-                >
-                  {/* Roder Logo Section */}
-                  <div className="flex items-center justify-between border-b-2 border-amber-500 pb-5 mb-6">
-                    <div className="flex items-center gap-4">
-                      <img 
-                        src={RODER_LOGO_BASE64} 
-                        alt="Roder Logo" 
-                        className="h-10 object-contain brightness-0 opacity-85" 
-                        referrerPolicy="no-referrer"
-                      />
-                      <div className="border-l-2 border-slate-300 pl-4">
-                        <h1 className="text-base font-black tracking-tight text-slate-900 uppercase">Consultoria Técnica Roder</h1>
-                        <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest font-mono">Relatório de Dimensionamento e Compatibilidade</p>
+                <div className="overflow-hidden rounded-xl shadow-lg border border-slate-200" style={{ width: '800px' }}>
+                  <div 
+                    ref={reportRef}
+                    className="bg-white text-slate-900 w-full p-8 flex flex-col font-sans"
+                    style={{ width: '800px', minHeight: '500px', boxSizing: 'border-box' }}
+                  >
+                    {/* Roder Logo Section */}
+                    <div className="flex items-center justify-between border-b-2 border-amber-500 pb-3 mb-4">
+                      <div className="flex items-center gap-3">
+                        <img 
+                          src={RODER_LOGO_BASE64} 
+                          alt="Roder Logo" 
+                          className="h-9 object-contain brightness-0 opacity-85" 
+                          referrerPolicy="no-referrer"
+                        />
+                        <div className="border-l-2 border-slate-300 pl-3">
+                          <h1 className="text-sm font-black tracking-tight text-slate-900 uppercase leading-none">Consultoria Técnica Roder</h1>
+                          <p className="text-[8.5px] font-black text-amber-600 uppercase tracking-widest font-mono mt-1 leading-none">Relatório de Dimensionamento e Compatibilidade</p>
+                        </div>
+                      </div>
+                      <div className="text-right text-[8px] font-mono text-slate-500 font-semibold space-y-0.5 leading-tight">
+                        <p className="uppercase">Data: {new Date().toLocaleDateString('pt-BR')}</p>
+                        <p className="uppercase text-amber-600">Sistema: Roder Indica V2</p>
+                        <p className="uppercase">Validade Proposta: 60 Dias</p>
                       </div>
                     </div>
-                    <div className="text-right text-[10px] font-mono text-slate-500 font-semibold space-y-0.5">
-                      <p className="uppercase">Data: {new Date().toLocaleDateString('pt-BR')}</p>
-                      <p className="uppercase text-amber-600">Sistema: Roder Indica V2</p>
-                      <p className="uppercase">Validade Proposta: 60 Dias</p>
-                    </div>
-                  </div>
 
-                  {/* Report Main Content Area */}
-                  <div className="flex-1 min-h-[300px]">
-                    <h2 className="text-sm font-black text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-100 pb-1 flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-amber-500"></span>
-                      Especificações Técnicas & Recomendações
-                    </h2>
-                    
-                    <div className="prose prose-slate text-xs max-w-none text-slate-800 leading-relaxed space-y-3 font-medium">
-                      <ReactMarkdown
-                        urlTransform={(url) => url}
-                        components={{
-                          img: ({ node, ...props }) => {
-                            return <MarkdownImage isLightReport {...props} />;
-                          },
-                          a: ({ node, children, href, ...props }) => {
-                            if (!href) return <span className="text-slate-700 underline font-semibold">{children}</span>;
-                            return (
-                              <button
-                                type="button"
-                                onClick={() => openTechnicalSheet(href)}
-                                className="text-amber-600 hover:text-amber-700 underline font-extrabold cursor-pointer inline-flex items-center gap-1 bg-amber-500/10 hover:bg-amber-500/20 px-1.5 py-0.5 rounded transition my-0.5"
-                              >
-                                <FileText className="h-3 w-3 inline text-amber-600" />
-                                {children}
-                              </button>
-                            );
-                          }
-                        }}
-                      >
-                        {reportContent}
-                      </ReactMarkdown>
+                    {/* Report Main Content Area */}
+                    <div className="flex-1 min-h-[300px]">
+                      <h2 className="text-xs font-black text-slate-900 uppercase tracking-wider mb-3 border-b border-slate-100 pb-1 flex items-center gap-1.5 leading-none">
+                        <span className="h-2 w-2 rounded-full bg-amber-500"></span>
+                        Especificações Técnicas & Recomendações
+                      </h2>
+                      
+                      <div className="prose prose-slate text-xs max-w-none text-slate-800 leading-relaxed space-y-3 font-medium">
+                        <ReactMarkdown
+                          urlTransform={(url) => url}
+                          components={{
+                            img: ({ node, ...props }) => {
+                              return <MarkdownImage isLightReport {...props} />;
+                            },
+                            a: ({ node, children, href, ...props }) => {
+                              if (!href) return <span className="text-slate-700 underline font-semibold">{children}</span>;
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => openTechnicalSheet(href)}
+                                  className="text-amber-600 hover:text-amber-700 underline font-extrabold cursor-pointer inline-flex items-center gap-1 bg-amber-500/10 hover:bg-amber-500/20 px-1.5 py-0.5 rounded transition my-0.5"
+                                >
+                                  <FileText className="h-3 w-3 inline text-amber-600" />
+                                  {children}
+                                </button>
+                              );
+                            }
+                          }}
+                        >
+                          {reportContent}
+                        </ReactMarkdown>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Decorative stamp watermark and formal footer */}
-                  <div className="mt-8 pt-5 border-t border-slate-200 flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-[9px] font-mono text-slate-400 font-semibold">
-                      <span>© {new Date().getFullYear()} Roder Brasil</span>
-                      <span className="h-1 w-1 rounded-full bg-slate-300"></span>
-                      <span>Equipamentos Florestais e Industriais</span>
-                    </div>
-                    <div className="bg-amber-500/10 border border-amber-500/30 text-amber-700 text-[9px] font-black px-3 py-1 rounded uppercase tracking-wider font-mono">
-                      Equipamento Oficial Roder ✅
+                    {/* Decorative stamp watermark and formal footer */}
+                    <div className="mt-6 pt-3 border-t border-slate-200 flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-[8px] font-mono text-slate-400 font-semibold">
+                        <span>© {new Date().getFullYear()} Roder Brasil</span>
+                        <span className="h-1 w-1 rounded-full bg-slate-300"></span>
+                        <span>Equipamentos Florestais e Industriais</span>
+                      </div>
+                      <div className="bg-amber-500/10 border border-amber-500/30 text-amber-700 text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-wider font-mono">
+                        Equipamento Oficial Roder ✅
+                      </div>
                     </div>
                   </div>
                 </div>
