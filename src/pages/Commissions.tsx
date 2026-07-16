@@ -143,7 +143,7 @@ export default function Commissions() {
   });
 
   const mecanicaProfile = React.useMemo(() => {
-    return Object.values(sellerProfiles).find(p => 
+    return (Object.values(sellerProfiles) as UserProfile[]).find(p => 
       p.name?.toLowerCase().includes('odair') || 
       p.name?.toLowerCase().includes('dias') ||
       p.name?.toLowerCase().includes('mecanica') ||

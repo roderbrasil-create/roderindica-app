@@ -63,14 +63,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const [isHelperOpen, setIsHelperOpen] = useState(() => {
-    try {
-      const saved = sessionStorage.getItem('roder_helper_isOpen');
-      return saved ? JSON.parse(saved) : false;
-    } catch {
-      return false;
-    }
-  });
+  const [isHelperOpen, setIsHelperOpen] = useState(false);
 
   useEffect(() => {
     const handleHelperChange = (e: Event) => {

@@ -313,7 +313,7 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshF
       await new Promise((resolve) => setTimeout(resolve, 400));
 
       // 4. Explicitly wait for all image components inside the element to decode and load
-      const images = Array.from(element.getElementsByTagName('img'));
+      const images = Array.from(element.getElementsByTagName('img')) as HTMLImageElement[];
       await Promise.all(
         images.map(img => {
           if (img.complete) return Promise.resolve();

@@ -1073,7 +1073,7 @@ export default function PublicStock() {
   return (
     <div className="min-h-screen bg-black text-zinc-100 font-sans selection:bg-orange-500/30 pb-20" data-app-version="2.3.1">
       {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b border-zinc-805 bg-black/90 backdrop-blur-md">
+      <header className="sticky top-0 z-50 w-full border-b border-zinc-805 bg-black/90 backdrop-blur-md pt-8 md:pt-0">
         <div className="container flex h-16 items-center justify-between px-4 max-w-7xl mx-auto">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">

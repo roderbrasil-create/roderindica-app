@@ -464,15 +464,10 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   // Only accessible to administrators and commercial managers
   const canTeach = isAdmin || isManager;
   
-  // Persistent state loaded from sessionStorage on mount
+  // Persistent state - always starts closed when the application opens/loads, but can be toggled by the user
   const [isOpenState, setIsOpenState] = useState(() => {
     if (isFullPage) return true;
-    try {
-      const saved = sessionStorage.getItem('roder_helper_isOpen');
-      return saved ? JSON.parse(saved) : false;
-    } catch {
-      return false;
-    }
+    return false;
   });
   
   const isOpen = isOpenState;
@@ -696,6 +691,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   const [explorerMinimized, setExplorerMinimized] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const recordingStartTimeRef = useRef<number>(0);
   
   // Custom calculator state inside the helper
   const [calcOpen, setCalcOpen] = useState(false);
@@ -1376,6 +1372,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
 
   const startRecording = async () => {
     setExplorerMinimized(true);
+    recordingStartTimeRef.current = Date.now();
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         toast.error('Seu navegador não suporta gravação de áudio ou a conexão não é segura (HTTPS).');
@@ -1419,9 +1416,18 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
       };
 
       mediaRecorder.onstop = async () => {
-        if (audioChunksRef.current.length === 0) {
-          toast.error('Nenhum áudio capturado.');
+        const duration = Date.now() - recordingStartTimeRef.current;
+        if (audioChunksRef.current.length === 0 || duration < 1200) {
           setTranscribing(false);
+          setMessages(prev => [
+            ...prev,
+            {
+              id: `silence-${Date.now()}`,
+              role: 'assistant',
+              content: "Não foi possível transcrever o áudio. Tente novamente."
+            }
+          ]);
+          toast.error("Não foi possível transcrever o áudio. Tente novamente.");
           return;
         }
 
@@ -1441,17 +1447,39 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
               const transcription = await transcribeAudio(base64data, finalType, 'chat');
               toast.dismiss('voice-transcribe');
               
-              if (transcription && !transcription.startsWith("Erro na transcrição")) {
+              if (
+                transcription && 
+                !transcription.startsWith("Erro na transcrição") && 
+                transcription.trim() !== "" && 
+                transcription !== "Não foi possível transcrever o áudio." &&
+                !transcription.toLowerCase().includes("erro na transcrição")
+              ) {
                 toast.success('Áudio transcrito com sucesso!');
                 // Automatically send transcribed text to the assistant
                 handleSend(transcription);
               } else {
-                toast.error(transcription || 'A IA não conseguiu entender o áudio.');
+                setMessages(prev => [
+                  ...prev,
+                  {
+                    id: `silence-${Date.now()}`,
+                    role: 'assistant',
+                    content: "Não foi possível transcrever o áudio. Tente novamente."
+                  }
+                ]);
+                toast.error('Não foi possível transcrever o áudio. Tente novamente.');
               }
             } catch (error: any) {
               toast.dismiss('voice-transcribe');
               console.error("Transcription error:", error);
-              toast.error('Erro de rede na transcrição.');
+              setMessages(prev => [
+                ...prev,
+                {
+                  id: `silence-${Date.now()}`,
+                  role: 'assistant',
+                  content: "Não foi possível transcrever o áudio. Tente novamente."
+                }
+              ]);
+              toast.error('Não foi possível transcrever o áudio. Tente novamente.');
             }
           }
           setTranscribing(false);
@@ -2134,7 +2162,7 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
                   className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in duration-200`}
                 >
                   <div
-                    className={`max-w-[85%] rounded-2xl p-3 text-xs leading-relaxed ${
+                    className={`max-w-[85%] rounded-2xl p-3 text-[14.5px] sm:text-xs leading-relaxed ${
                       msg.role === 'user'
                         ? 'bg-primary text-white rounded-tr-none'
                         : 'bg-slate-850 text-slate-100 border border-slate-800 rounded-tl-none'
@@ -2142,7 +2170,7 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
                   >
                     {msg.role === 'assistant' ? (
                       <div className="space-y-3">
-                        <div className="prose prose-invert max-w-none text-xs text-slate-200 space-y-2 markdown-body">
+                        <div className="prose prose-invert max-w-none text-[14.5px] sm:text-xs text-slate-200 space-y-2 markdown-body">
                           <ReactMarkdown
                             urlTransform={(url) => url}
                             components={{
@@ -2528,7 +2556,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
 
               {loading && (
                 <div className="flex justify-start animate-pulse">
-                  <div className="bg-slate-850 border border-slate-800 text-slate-300 rounded-2xl rounded-tl-none p-3 text-xs flex items-center gap-2">
+                  <div className="bg-slate-850 border border-slate-800 text-slate-300 rounded-2xl rounded-tl-none p-3 text-[14.5px] sm:text-xs flex items-center gap-2">
                     <div className="flex gap-1">
                       <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
                       <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
@@ -3313,8 +3341,8 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                   disabled={loading}
                   rows={isInputFocused ? 2 : 1}
                   className={cn(
-                    "flex-1 bg-white border-2 border-slate-300 rounded-lg px-3 text-xs sm:text-sm text-slate-950 placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-50 font-semibold transition-all duration-200 shadow-sm resize-none",
-                    isInputFocused ? "h-16 py-1.5" : "h-9 py-1.5"
+                    "flex-1 bg-white border-2 border-slate-300 rounded-lg px-3 text-[14.5px] sm:text-sm text-slate-950 placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-50 font-semibold transition-all duration-200 shadow-sm resize-none",
+                    isInputFocused ? "h-16 py-1.5" : "h-[38px] py-2"
                   )}
                 />
               )}
@@ -3326,21 +3354,21 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                   variant="outline"
                   onClick={startRecording}
                   disabled={loading}
-                  className="h-8 px-2.5 border-slate-800 hover:border-slate-700 bg-slate-950 hover:bg-slate-900 text-slate-300 hover:text-white"
+                  className="h-[38px] px-3 border-slate-800 hover:border-slate-700 bg-slate-950 hover:bg-slate-900 text-slate-300 hover:text-white flex items-center justify-center"
                   title="Gravar áudio"
                 >
-                  <Mic className="h-3.5 w-3.5" />
+                  <Mic className="h-4.5 w-4.5" />
                 </Button>
               )}
 
               {!isRecording && !transcribing && (
                 <Button
                   size="sm"
-                  className="h-8 px-2.5 bg-primary hover:bg-primary/90 text-white font-bold"
+                  className="h-[38px] px-3 bg-primary hover:bg-primary/90 text-white font-bold flex items-center justify-center"
                   onClick={() => handleSend()}
                   disabled={loading || !inputValue.trim()}
                 >
-                  <Send className="h-3.5 w-3.5" />
+                  <Send className="h-4.5 w-4.5" />
                 </Button>
               )}
             </div>

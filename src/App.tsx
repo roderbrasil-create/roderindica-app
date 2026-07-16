@@ -90,6 +90,19 @@ export default function App() {
 
   useEffect(() => {
     try {
+      // Detect if we already did a force update reload in this session or URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const alreadyReloaded = urlParams.has('refresh') || sessionStorage.getItem('roder_app_version_reloaded') === 'true';
+      
+      if (alreadyReloaded) {
+        console.log("Reload or refresh already detected, skipping further force-reloads to prevent infinite loop.");
+        try {
+          localStorage.setItem('roder_app_version', APP_VERSION);
+        } catch (_) {}
+        setMounted(true);
+        return;
+      }
+
       // Detect if we need to force update
       const lastVersion = localStorage.getItem('roder_app_version');
       
@@ -112,6 +125,7 @@ export default function App() {
         
         try {
           localStorage.setItem('roder_app_version', APP_VERSION);
+          sessionStorage.setItem('roder_app_version_reloaded', 'true');
         } catch (_) {}
         
         // Force hard reload avoiding browser cache by using a unique timestamp
@@ -141,6 +155,7 @@ export default function App() {
 
   return (
     <ErrorBoundary>
+      {/* @ts-ignore */}
       <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
         <PWAProvider>
           <AuthProvider>

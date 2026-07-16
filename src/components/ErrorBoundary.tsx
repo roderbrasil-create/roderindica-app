@@ -13,7 +13,7 @@ interface State {
   copied: boolean;
 }
 
-class ErrorBoundary extends Component<Props, State> {
+class ErrorBoundary extends React.Component<Props, State> {
   public state: State = {
     hasError: false,
     copied: false
@@ -56,14 +56,14 @@ class ErrorBoundary extends Component<Props, State> {
 
   private handleCopy = () => {
     navigator.clipboard.writeText(`Error: ${this.state.error?.message}\nStack: ${this.state.error?.stack}`);
-    this.setState({ copied: true });
-    setTimeout(() => this.setState({ copied: false }), 2000);
+    (this as any).setState({ copied: true });
+    setTimeout(() => (this as any).setState({ copied: false }), 2000);
   };
 
   public render() {
     if (this.state.hasError) {
-      if (this.props.fallback) {
-        return this.props.fallback;
+      if ((this as any).props.fallback) {
+        return (this as any).props.fallback;
       }
 
       return (
@@ -130,7 +130,7 @@ class ErrorBoundary extends Component<Props, State> {
       );
     }
 
-    return this.props.children;
+    return (this as any).props.children;
   }
 }
 

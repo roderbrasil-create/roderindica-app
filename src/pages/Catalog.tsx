@@ -713,14 +713,7 @@ export default function Catalog() {
   const [selectedProductModels, setSelectedProductModels] = useState<Product | null>(null);
   const [selectedModel, setSelectedModel] = useState<any>(null);
 
-  const [isHelperOpen, setIsHelperOpen] = useState(() => {
-    try {
-      const saved = sessionStorage.getItem('roder_helper_isOpen');
-      return saved ? JSON.parse(saved) : false;
-    } catch {
-      return false;
-    }
-  });
+  const [isHelperOpen, setIsHelperOpen] = useState(false);
 
   useEffect(() => {
     const handleHelperChange = (e: Event) => {
