@@ -1927,7 +1927,7 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
             className={cn(
               "fixed bg-slate-900 border-slate-800 flex flex-col overflow-hidden z-[45] text-white font-sans notranslate transition-all duration-300",
               isFullPage
-                ? "bottom-0 right-0 w-full h-full max-h-none rounded-none border-0 sm:bottom-6 sm:right-6 sm:w-[480px] sm:h-[85vh] sm:max-h-[800px] sm:border sm:rounded-2xl sm:shadow-3xl"
+                ? "inset-0 w-full h-full max-h-none rounded-none border-0 sm:top-auto sm:left-auto sm:bottom-6 sm:right-6 sm:w-[480px] sm:h-[85vh] sm:max-h-[800px] sm:border sm:rounded-2xl sm:shadow-3xl"
                 : hasRightDock
                   ? "bottom-22 right-4 sm:right-6 w-[94vw] sm:w-[480px] h-[86vh] sm:h-[80vh] max-h-[820px] sm:max-h-[720px] border rounded-2xl shadow-3xl lg:top-[65px] lg:bottom-0 lg:right-0 lg:w-[480px] lg:h-[calc(100vh-65px)] lg:max-h-none lg:rounded-none lg:border-t-0 lg:border-b-0 lg:border-r-0 lg:border-l lg:shadow-none"
                   : "bottom-22 right-4 sm:right-6 w-[94vw] sm:w-[480px] h-[86vh] sm:h-[80vh] max-h-[820px] sm:max-h-[720px] border rounded-2xl shadow-3xl"
