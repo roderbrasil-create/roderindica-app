@@ -6,6 +6,7 @@ import {
   collection, 
   addDoc, 
   getDocs, 
+  getDoc,
   query, 
   orderBy, 
   where, 
@@ -1145,6 +1146,30 @@ export default function NewIndication() {
       
       // Await runNotifications to ensure the email requests are completely dispatched before page unmounts/navigates
       await runNotifications();
+
+      // Trigger Agendor CRM Sync if enabled
+      try {
+        const agendorSettingsSnap = await getDoc(doc(db, 'settings', 'agendor'));
+        if (agendorSettingsSnap.exists() && agendorSettingsSnap.data()?.enabled) {
+          console.log('[AGENDOR-SYNC] Iniciando sincronização em plano de fundo...');
+          fetch('/api/agendor/sync-indication', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ indicationId })
+          }).then(async (res) => {
+            const data = await res.json();
+            if (res.ok && data.success) {
+              console.log('[AGENDOR-SYNC] Sincronizado no Agendor com sucesso:', data);
+            } else {
+              console.warn('[AGENDOR-SYNC] Erro na sincronização:', data.error);
+            }
+          }).catch(e => {
+            console.error('[AGENDOR-SYNC] Falha na rede ao sincronizar:', e);
+          });
+        }
+      } catch (agendorErr) {
+        console.warn('[AGENDOR-SYNC] Falha ao iniciar sincronização:', agendorErr);
+      }
 
       setSubmissionStatus('done');
       clearDraft();

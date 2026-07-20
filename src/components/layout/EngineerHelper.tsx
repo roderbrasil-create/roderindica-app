@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, MessageSquare, X, Minus, Send, Calculator, Wrench, HelpCircle, AlertTriangle, Play, RefreshCw, Trash2, ChevronLeft, ChevronRight, CheckCircle, Package, Layers, Tractor, FileText, Mic, Square, Loader2, Brain, BookOpen, ExternalLink, Share2, Video, Phone, QrCode, Bot } from 'lucide-react';
+import { Sparkles, MessageSquare, X, Minus, Send, Calculator, Wrench, HelpCircle, AlertTriangle, Play, RefreshCw, Trash2, ChevronLeft, ChevronRight, CheckCircle, Package, Layers, Tractor, FileText, Mic, Square, Loader2, Brain, BookOpen, ExternalLink, Share2, Video, Phone, QrCode, Bot, User, Briefcase } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { cn, getApiBaseUrl } from '../../lib/utils';
@@ -557,6 +557,36 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   const [updateStatus, setUpdateStatus] = useState('');
   const [updateProgress, setUpdateProgress] = useState(0);
 
+  // --- PUBLIC ONBOARDING STATES ---
+  const [publicUser, setPublicUser] = useState<{
+    userType: 'cliente' | 'vendedor' | null;
+    name?: string;
+    phone?: string;
+    cityState?: string;
+    baseMachine?: string;
+    email?: string;
+  } | null>(() => {
+    try {
+      const saved = localStorage.getItem('roder_public_user_profile');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [onboardingStep, setOnboardingStep] = useState<
+    'SELECT_ROLE' | 'CLIENT_NAME' | 'CLIENT_PHONE' | 'CLIENT_CITY' | 'CLIENT_MACHINE' | 'SELLER_EMAIL' | 'SELLER_PHONE' | 'SELLER_NOT_FOUND' | 'COMPLETED'
+  >(() => {
+    try {
+      const saved = localStorage.getItem('roder_public_user_profile');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.userType) return 'COMPLETED';
+      }
+    } catch {}
+    return 'SELECT_ROLE';
+  });
+
   const [messages, setMessages] = useState<Message[]>(() => {
     try {
       const saved = sessionStorage.getItem('roder_helper_messages');
@@ -570,14 +600,47 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
         }
       }
     } catch {}
+
+    // Dynamic initial message based on saved profile
+    try {
+      const savedProfile = localStorage.getItem('roder_public_user_profile');
+      if (savedProfile) {
+        const parsed = JSON.parse(savedProfile);
+        if (parsed.userType === 'vendedor') {
+          return [
+            {
+              id: 'initial-welcome',
+              role: 'assistant',
+              content: `Olá, **${parsed.name || 'Parceiro'}**! Sou o **Consultor Técnico RODER** 🛠️. Fico muito feliz em ter você aqui como Vendedor/Parceiro. Estou de prontidão para ajudar você com especificações, dimensionamento de equipamentos ou estoque. Como posso te apoiar nas suas vendas hoje?`
+            }
+          ];
+        } else if (parsed.userType === 'cliente') {
+          return [
+            {
+              id: 'initial-welcome',
+              role: 'assistant',
+              content: `Olá, **${parsed.name || 'Cliente'}**! Sou o **Consultor Técnico RODER** 🛠️. Estou aqui para ajudar você a dimensionar e escolher o equipamento ideal para a sua máquina **${parsed.baseMachine || 'escavadeira'}**. Como posso ajudar você hoje?`
+            }
+          ];
+        }
+      }
+    } catch {}
+
     return [
       {
         id: 'initial-welcome',
         role: 'assistant',
-        content: 'Olá! Sou o **Consultor Técnico RODER** 🛠️. Estou aqui para ajudar você a dimensionar e indicar o equipamento ideal para a sua escavadeira ou pá carregadeira, além de calcular produtividade. Como posso ajudar hoje?'
+        content: 'Olá! Sou o **Consultor Técnico RODER** 🛠️.\n\nPara que eu possa te dar o melhor atendimento personalizado e registrar seu contato, por favor, me informe:\n\n**Quem é você?**'
       }
     ];
   });
+
+  // Skip onboarding if user is logged in
+  useEffect(() => {
+    if (user && profile) {
+      setOnboardingStep('COMPLETED');
+    }
+  }, [user, profile]);
   
   // --- SPY PROTECTION, SHARING & LEAD/BUDGET CAPTURE STATES ---
   const [askedTopics, setAskedTopics] = useState<string[]>(() => {
@@ -590,13 +653,211 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   });
 
   const [isBudgetFormOpen, setIsBudgetFormOpen] = useState(false);
-  const [budgetContactName, setBudgetContactName] = useState('');
-  const [budgetCNPJ, setBudgetCNPJ] = useState('');
-  const [budgetPhone, setBudgetPhone] = useState('');
-  const [budgetMachineBrand, setBudgetMachineBrand] = useState('');
-  const [budgetMachineModel, setBudgetMachineModel] = useState('');
+  
+  // Persisted state variables for client budget form
+  const [budgetContactName, setBudgetContactName] = useState(() => {
+    const direct = localStorage.getItem('roder_budget_contact_name');
+    if (direct) return direct;
+    try {
+      const saved = localStorage.getItem('roder_public_user_profile');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.name || '';
+      }
+    } catch {}
+    return '';
+  });
+
+  const [budgetCompanyName, setBudgetCompanyName] = useState(() => {
+    const direct = localStorage.getItem('roder_budget_company_name');
+    if (direct) return direct;
+    try {
+      const saved = localStorage.getItem('roder_public_user_profile');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.companyName || parsed.name || '';
+      }
+    } catch {}
+    return '';
+  });
+
+  const [budgetPhone, setBudgetPhone] = useState(() => {
+    const direct = localStorage.getItem('roder_budget_phone');
+    if (direct) return direct;
+    try {
+      const saved = localStorage.getItem('roder_public_user_profile');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.phone || '';
+      }
+    } catch {}
+    return '';
+  });
+
+  const [budgetCNPJ, setBudgetCNPJ] = useState(() => {
+    return localStorage.getItem('roder_budget_cnpj') || '';
+  });
+
+  const [budgetMachineBrand, setBudgetMachineBrand] = useState(() => {
+    const direct = localStorage.getItem('roder_budget_machine_brand');
+    if (direct) return direct;
+    try {
+      const saved = localStorage.getItem('roder_public_user_profile');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.baseMachine || '';
+      }
+    } catch {}
+    return '';
+  });
+
+  const [budgetMachineModel, setBudgetMachineModel] = useState(() => {
+    return localStorage.getItem('roder_budget_machine_model') || '';
+  });
+
+  const [budgetLocation, setBudgetLocation] = useState(() => {
+    const direct = localStorage.getItem('roder_budget_location');
+    if (direct) return direct;
+    try {
+      const saved = localStorage.getItem('roder_public_user_profile');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.cityState || '';
+      }
+    } catch {}
+    return '';
+  });
+
+  const [budgetObservations, setBudgetObservations] = useState('');
   const [budgetEquipName, setBudgetEquipName] = useState('');
   const [budgetSubmitLoading, setBudgetSubmitLoading] = useState(false);
+
+  // Audio transcription & microphone recording states
+  const [isBudgetRecording, setIsBudgetRecording] = useState(false);
+  const [budgetRecordingMode, setBudgetRecordingMode] = useState<'click' | 'hold' | null>(null);
+  const pressTimer = useRef<any>(null);
+  const isPressing = useRef(false);
+  const pressStartTime = useRef<number>(0);
+  const recognitionRef = useRef<any>(null);
+
+  // Pre-fill states from publicUser when budget form is opened
+  useEffect(() => {
+    if (isBudgetFormOpen) {
+      try {
+        const saved = localStorage.getItem('roder_public_user_profile');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (!budgetContactName && parsed.name) setBudgetContactName(parsed.name);
+          if (!budgetPhone && parsed.phone) setBudgetPhone(parsed.phone);
+          if (!budgetLocation && parsed.cityState) setBudgetLocation(parsed.cityState);
+          if (!budgetMachineBrand && parsed.baseMachine) setBudgetMachineBrand(parsed.baseMachine);
+          if (!budgetCompanyName && parsed.name) setBudgetCompanyName(parsed.name);
+        }
+      } catch {}
+    }
+  }, [isBudgetFormOpen]);
+
+  const startSpeechRecording = (mode: 'click' | 'hold') => {
+    const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionAPI) {
+      toast.error("O reconhecimento de voz não é suportado neste navegador.");
+      return;
+    }
+
+    try {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+      }
+
+      const rec = new SpeechRecognitionAPI();
+      rec.continuous = true;
+      rec.interimResults = false;
+      rec.lang = 'pt-BR';
+
+      rec.onstart = () => {
+        setIsBudgetRecording(true);
+        setBudgetRecordingMode(mode);
+      };
+
+      rec.onresult = (event: any) => {
+        const resultIndex = event.resultIndex;
+        const transcript = event.results[resultIndex][0].transcript;
+        if (transcript) {
+          setBudgetObservations(prev => {
+            const trimmed = prev.trim();
+            return trimmed ? `${trimmed} ${transcript}` : transcript;
+          });
+        }
+      };
+
+      rec.onerror = (event: any) => {
+        console.error("Speech error:", event.error);
+        if (event.error === 'not-allowed') {
+          toast.error("Permissão de microfone negada.");
+        }
+      };
+
+      rec.onend = () => {
+        setIsBudgetRecording(false);
+        setBudgetRecordingMode(null);
+      };
+
+      recognitionRef.current = rec;
+      rec.start();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const stopSpeechRecording = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
+    setIsBudgetRecording(false);
+    setBudgetRecordingMode(null);
+  };
+
+  const handleMicPressStart = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    isPressing.current = true;
+    pressStartTime.current = Date.now();
+
+    if (pressTimer.current) clearTimeout(pressTimer.current);
+
+    pressTimer.current = setTimeout(() => {
+      if (isPressing.current) {
+        if (!isBudgetRecording) {
+          startSpeechRecording('hold');
+          toast.info("Gravando por retenção (solte para parar)...");
+        }
+      }
+    }, 2000);
+  };
+
+  const handleMicPressEnd = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    if (!isPressing.current) return;
+    isPressing.current = false;
+
+    if (pressTimer.current) clearTimeout(pressTimer.current);
+
+    const duration = Date.now() - pressStartTime.current;
+
+    if (duration >= 2000) {
+      if (isBudgetRecording && budgetRecordingMode === 'hold') {
+        stopSpeechRecording();
+        toast.success("Áudio gravado com sucesso!");
+      }
+    } else {
+      if (isBudgetRecording) {
+        stopSpeechRecording();
+        toast.success("Gravação encerrada!");
+      } else {
+        startSpeechRecording('click');
+        toast.info("Gravando... clique novamente para parar.");
+      }
+    }
+  };
 
   // Sharing links / Whatsapp dialog states
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -1056,7 +1317,9 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
       {
         id: `clear-${Date.now()}`,
         role: 'assistant',
-        content: 'Olá! Conversa limpa. Sou o **Consultor Técnico RODER** 🛠️. Como posso te ajudar hoje?'
+        content: !user
+          ? 'Olá! Conversa limpa. Sou o **Consultor Técnico RODER** 🛠️.\n\nPara que eu possa te dar o melhor atendimento personalizado e registrar seu contato, por favor, me informe:\n\n**Quem é você?**'
+          : 'Olá! Conversa limpa. Sou o **Consultor Técnico RODER** 🛠️. Como posso te ajudar hoje?'
       }
     ];
     setMessages(defaultMsg);
@@ -1069,6 +1332,13 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     setSelectedCacambaBrand('');
     setSelectedCacambaModel(null);
     setRecommendedCacambaCap('');
+
+    if (!user) {
+      localStorage.removeItem('roder_public_user_profile');
+      setPublicUser(null);
+      setOnboardingStep('SELECT_ROLE');
+    }
+
     try {
       sessionStorage.setItem('roder_helper_messages', JSON.stringify(defaultMsg));
       sessionStorage.removeItem('roder_helper_selectedProduct');
@@ -1175,7 +1445,9 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
       {
         id: `end-${Date.now()}`,
         role: 'assistant',
-        content: 'Olá! Sou o **Consultor Técnico RODER** 🛠️. Estou aqui para ajudar você a dimensionar e indicar o equipamento ideal para a sua escavadeira ou pá carregadeira, além de calcular produtividade. Como posso ajudar hoje?'
+        content: !user
+          ? 'Olá! Sou o **Consultor Técnico RODER** 🛠️.\n\nPara que eu possa te dar o melhor atendimento personalizado e registrar seu contato, por favor, me informe:\n\n**Quem é você?**'
+          : 'Olá! Sou o **Consultor Técnico RODER** 🛠️. Estou aqui para ajudar você a dimensionar e indicar o equipamento ideal para a sua escavadeira ou pá carregadeira, além de calcular produtividade. Como posso ajudar hoje?'
       }
     ]);
     setSelectedProduct(null);
@@ -1188,7 +1460,297 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     setSelectedCacambaModel(null);
     setRecommendedCacambaCap('');
     setIsOpen(false);
+
+    if (!user) {
+      localStorage.removeItem('roder_public_user_profile');
+      setPublicUser(null);
+      setOnboardingStep('SELECT_ROLE');
+    }
+
     toast.success('Conversa encerrada e limpa.');
+  };
+
+  const handleSelectRole = (role: 'cliente' | 'vendedor') => {
+    if (role === 'cliente') {
+      const userMsgId = `user-role-client-${Date.now()}`;
+      const updated = [
+        ...messages,
+        { id: userMsgId, role: 'user', content: 'Sou Cliente (Quero Equipamento / Orçamento)' } as Message
+      ];
+      setMessages(updated);
+      setOnboardingStep('CLIENT_NAME');
+      setPublicUser({ userType: 'cliente' });
+
+      setTimeout(() => {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: `assistant-client-name-${Date.now()}`,
+            role: 'assistant',
+            content: 'Excelente! Vamos realizar o seu cadastro rápido para registrar o seu atendimento. Por favor, me informe o seu **Nome Completo**:'
+          }
+        ]);
+      }, 300);
+    } else {
+      const userMsgId = `user-role-seller-${Date.now()}`;
+      const updated = [
+        ...messages,
+        { id: userMsgId, role: 'user', content: 'Sou Vendedor / Parceiro Cadastrado' } as Message
+      ];
+      setMessages(updated);
+      setOnboardingStep('SELLER_EMAIL');
+      setPublicUser({ userType: 'vendedor' });
+
+      setTimeout(() => {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: `assistant-seller-email-${Date.now()}`,
+            role: 'assistant',
+            content: 'Excelente! Para validar o seu acesso completo como Vendedor/Parceiro Roder, por favor me diga qual o seu **E-mail cadastrado**:'
+          }
+        ]);
+      }, 300);
+    }
+  };
+
+  const handleRetrySellerEmail = () => {
+    setOnboardingStep('SELLER_EMAIL');
+    setMessages(prev => [
+      ...prev,
+      {
+        id: `assistant-retry-email-${Date.now()}`,
+        role: 'assistant',
+        content: 'Perfeito! Por favor, informe o seu **E-mail cadastrado** correto para nova verificação:'
+      }
+    ]);
+  };
+
+  const handleOnboardingInput = async (text: string) => {
+    // Add user message to screen
+    const userMsgId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+    setMessages(prev => [...prev, { id: userMsgId, role: 'user', content: text } as Message]);
+
+    if (onboardingStep === 'CLIENT_NAME') {
+      const updatedUser = { ...publicUser, name: text, userType: 'cliente' as const };
+      setPublicUser(updatedUser);
+      setOnboardingStep('CLIENT_PHONE');
+      
+      setTimeout(() => {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: `assistant-phone-${Date.now()}`,
+            role: 'assistant',
+            content: `Muito prazer, **${text}**! Agora, por favor, me informe o seu **Telefone de contato com WhatsApp (com DDD)** para registrarmos em seu atendimento:`
+          }
+        ]);
+      }, 300);
+    } 
+    else if (onboardingStep === 'CLIENT_PHONE') {
+      const updatedUser = { ...publicUser, phone: text };
+      setPublicUser(updatedUser);
+      setOnboardingStep('CLIENT_CITY');
+      
+      setTimeout(() => {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: `assistant-city-${Date.now()}`,
+            role: 'assistant',
+            content: `Obrigado! E de qual **Cidade e Estado** você está falando?`
+          }
+        ]);
+      }, 300);
+    } 
+    else if (onboardingStep === 'CLIENT_CITY') {
+      const updatedUser = { ...publicUser, cityState: text };
+      setPublicUser(updatedUser);
+      setOnboardingStep('CLIENT_MACHINE');
+      
+      setTimeout(() => {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: `assistant-machine-${Date.now()}`,
+            role: 'assistant',
+            content: `Excelente! Para podermos dimensionar o equipamento ideal com precisão técnica para o seu cenário, qual é a sua **Máquina Base (Marca e Modelo)**? (Ex: CAT 320, JCB 3CX, escavadeira de 8 toneladas... Caso não possua, digite 'Não tenho'):`
+          }
+        ]);
+      }, 300);
+    } 
+    else if (onboardingStep === 'CLIENT_MACHINE') {
+      const finalUser = { ...publicUser, baseMachine: text };
+      setPublicUser(finalUser);
+      localStorage.setItem('roder_public_user_profile', JSON.stringify(finalUser));
+      setOnboardingStep('COMPLETED');
+      
+      setLoading(true);
+      try {
+        // Create an Indication/Lead in Firestore!
+        const sellerRef = localStorage.getItem('roder_consultant_ref') || '';
+        let partnerEmail = '';
+        let partnerNameFound = sellerRef;
+
+        if (sellerRef) {
+          try {
+            let q = query(collection(db, 'users'), where('email', '==', sellerRef));
+            let snap = await getDocs(q);
+            if (snap.empty) {
+              q = query(collection(db, 'users'), where('name', '==', sellerRef));
+              snap = await getDocs(q);
+            }
+            if (!snap.empty) {
+              const uData = snap.docs[0].data();
+              partnerEmail = uData.email || '';
+              partnerNameFound = uData.name || sellerRef;
+            }
+          } catch (err) {
+            console.warn('Error fetching referral partner details:', err);
+          }
+        }
+
+        const docData = {
+          client_name: finalUser.name || 'Cliente Sem Nome',
+          client_cnpj: 'Não informado',
+          client_phone: finalUser.phone || 'Não informado',
+          client_email: 'contato@roderindica.com.br',
+          company_name: finalUser.name || 'Cliente Sem Nome',
+          client_location: finalUser.cityState || 'Não informado',
+          base_machine: finalUser.baseMachine || 'Não especificada',
+          observations: `Início de atendimento pelo Consultor Técnico Digital. Cliente: ${finalUser.name}.`,
+          product_name: 'Atendimento Consultor Técnico',
+          status: 'new',
+          indicator_id: sellerRef || 'consultor-direto',
+          creator_type: 'visitor',
+          lead_source: sellerRef ? 'consultor_compartilhado' : 'consultor_direto',
+          shared_by_seller_email: partnerEmail || '',
+          shared_by_seller_name: partnerNameFound || '',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        await addDoc(collection(db, 'indications'), docData);
+
+        // Notify commercial team (Gislene & Luana) via Email!
+        try {
+          const { notifyNewIndication } = await import('../../services/emailService');
+          await notifyNewIndication({
+            client_name: finalUser.name || 'Cliente Sem Nome',
+            client_phone: finalUser.phone || 'Não informado',
+            company_name: finalUser.name || 'Cliente Sem Nome',
+            city: finalUser.cityState || '',
+            state: '',
+            product_name: 'Consultor Técnico Digital',
+            lead_source: sellerRef ? 'consultor_compartilhado' : 'consultor_direto',
+            shared_by_seller_name: partnerNameFound || sellerRef || 'Nenhum (Direto)',
+            shared_by_seller_email: partnerEmail || ''
+          }, sellerRef ? `Consultor Compartilhado por ${partnerNameFound || sellerRef}` : 'Consultor Direto (Cliente)', partnerEmail || undefined);
+        } catch (err) {
+          console.warn('Failed to send lead email notification:', err);
+        }
+
+        setTimeout(() => {
+          setMessages(prev => [
+            ...prev,
+            {
+              id: `assistant-welcome-complete-${Date.now()}`,
+              role: 'assistant',
+              content: `Cadastro rápido concluído com sucesso! 🎉\n\nOlá, **${finalUser.name}**! Seu contato foi associado à nossa equipe comercial${partnerNameFound ? ` via recomendação do vendedor ${partnerNameFound}` : ''}. \n\nAgora você tem acesso total às minhas simulações, cálculos e respostas com Inteligência Artificial. Como posso ajudar você hoje a escolher ou calcular produtividade para a sua **${finalUser.baseMachine}**?`
+            }
+          ]);
+        }, 300);
+
+      } catch (error: any) {
+        console.error('Error registering public user lead:', error);
+        toast.error('Erro ao registrar atendimento.');
+        setOnboardingStep('CLIENT_MACHINE'); // roll back if save failed
+      } finally {
+        setLoading(false);
+      }
+    } 
+    else if (onboardingStep === 'SELLER_EMAIL') {
+      const email = text.toLowerCase().trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        setTimeout(() => {
+          setMessages(prev => [
+            ...prev,
+            {
+              id: `assistant-email-invalid-${Date.now()}`,
+              role: 'assistant',
+              content: 'Ops! O e-mail informado parece inválido. Por favor, digite um e-mail válido (ex: seu.nome@email.com):'
+            }
+          ]);
+        }, 300);
+        return;
+      }
+
+      const updatedUser = { ...publicUser, email, userType: 'vendedor' as const };
+      setPublicUser(updatedUser);
+      setOnboardingStep('SELLER_PHONE');
+
+      setTimeout(() => {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: `assistant-seller-phone-${Date.now()}`,
+            role: 'assistant',
+            content: `Perfeito! Para confirmação de identidade de parceiro, por favor, me informe o seu **Telefone de contato (WhatsApp)** cadastrado:`
+          }
+        ]);
+      }, 300);
+    } 
+    else if (onboardingStep === 'SELLER_PHONE') {
+      setLoading(true);
+      try {
+        const emailToSearch = publicUser?.email || '';
+        const q = query(collection(db, 'users'), where('email', '==', emailToSearch));
+        const snap = await getDocs(q);
+
+        if (!snap.empty) {
+          const uDoc = snap.docs[0].data();
+          const finalUser = {
+            userType: 'vendedor' as const,
+            email: emailToSearch,
+            phone: text,
+            name: uDoc.name || 'Parceiro Roder',
+            role: uDoc.role || 'external_seller'
+          };
+          setPublicUser(finalUser);
+          localStorage.setItem('roder_public_user_profile', JSON.stringify(finalUser));
+          setOnboardingStep('COMPLETED');
+
+          setTimeout(() => {
+            setMessages(prev => [
+              ...prev,
+              {
+                id: `assistant-welcome-seller-${Date.now()}`,
+                role: 'assistant',
+                content: `Acesso de Parceiro Liberado! 🌟\n\nBem-vindo de volta, **${finalUser.name}**! Verificamos o seu cadastro como **${finalUser.role === 'external_seller' ? 'Indicador/Vendedor Externo' : 'Equipe Roder'}** com sucesso.\n\nVocê tem acesso total e irrestrito ao Consultor Técnico. Como posso apoiar você e o seu cliente hoje?`
+              }
+            ]);
+          }, 300);
+
+        } else {
+          setOnboardingStep('SELLER_NOT_FOUND');
+          setTimeout(() => {
+            setMessages(prev => [
+              ...prev,
+              {
+                id: `assistant-seller-not-found-${Date.now()}`,
+                role: 'assistant',
+                content: `⚠️ Não localizamos nenhum parceiro cadastrado com o e-mail **${emailToSearch}** em nosso banco de dados de vendedores ativos.\n\nPor favor, escolha uma das opções abaixo:`
+              }
+            ]);
+          }, 300);
+        }
+      } catch (err: any) {
+        console.error("Error verifying seller email:", err);
+        toast.error("Erro ao verificar cadastro do vendedor. Tente novamente.");
+      } finally {
+        setLoading(false);
+      }
+    }
   };
 
   const handleSend = async (textToSend?: string) => {
@@ -1201,6 +1763,11 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
 
     // Auto minimize compatibility explorer when typing/submitting text
     setExplorerMinimized(true);
+
+    if (onboardingStep !== 'COMPLETED') {
+      await handleOnboardingInput(queryText);
+      return;
+    }
 
     // Spy Protection / Usage Limits check
     const isVisitor = !user || !profile?.role || (profile.role as string) === 'client' || (profile.role as string) === 'visitor';
@@ -1264,9 +1831,10 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
         updatedMessages.slice(1, -1).map(({ role, content }) => ({ role, content })),
         {
           uid: user?.uid,
-          name: (profile?.name || user?.displayName || user?.email || 'Anônimo').replace('Jefferson', 'Jeferson'),
-          email: profile?.email || user?.email || '',
-          role: profile?.role || 'visitor',
+          name: (profile?.name || publicUser?.name || user?.displayName || user?.email || 'Anônimo').replace('Jefferson', 'Jeferson'),
+          email: profile?.email || publicUser?.email || user?.email || '',
+          role: profile?.role || publicUser?.userType || 'visitor',
+          baseMachine: publicUser?.baseMachine || '',
           referredBy: localStorage.getItem('roder_consultant_ref') || ''
         }
       );
@@ -1333,9 +1901,10 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
         history,
         {
           uid: user?.uid,
-          name: (profile?.name || user?.displayName || user?.email || 'Anônimo').replace('Jefferson', 'Jeferson'),
-          email: profile?.email || user?.email || '',
-          role: profile?.role || 'visitor',
+          name: (profile?.name || publicUser?.name || user?.displayName || user?.email || 'Anônimo').replace('Jefferson', 'Jeferson'),
+          email: profile?.email || publicUser?.email || user?.email || '',
+          role: profile?.role || publicUser?.userType || 'visitor',
+          baseMachine: publicUser?.baseMachine || '',
           referredBy: localStorage.getItem('roder_consultant_ref') || ''
         }
       );
@@ -1424,10 +1993,22 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
             {
               id: `silence-${Date.now()}`,
               role: 'assistant',
-              content: "Não foi possível transcrever o áudio. Tente novamente."
+              content: "Não foi possível transcrever o áudio."
             }
           ]);
-          toast.error("Não foi possível transcrever o áudio. Tente novamente.");
+          toast.error("Não foi possível transcrever o áudio.");
+
+          // Think for a moment, then write the follow-up text without problems
+          setTimeout(() => {
+            setMessages(prev => [
+              ...prev,
+              {
+                id: `silence-followup-${Date.now()}`,
+                role: 'assistant',
+                content: "Não se preocupe, isso pode acontecer! Sinta-se à vontade para digitar a sua mensagem ou pergunta no campo abaixo, e eu lhe ajudarei sem problemas."
+              }
+            ]);
+          }, 1500);
           return;
         }
 
@@ -1463,10 +2044,22 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
                   {
                     id: `silence-${Date.now()}`,
                     role: 'assistant',
-                    content: "Não foi possível transcrever o áudio. Tente novamente."
+                    content: "Não foi possível transcrever o áudio."
                   }
                 ]);
-                toast.error('Não foi possível transcrever o áudio. Tente novamente.');
+                toast.error('Não foi possível transcrever o áudio.');
+
+                // Think for a moment, then write the follow-up text without problems
+                setTimeout(() => {
+                  setMessages(prev => [
+                    ...prev,
+                    {
+                      id: `silence-failed-followup-${Date.now()}`,
+                      role: 'assistant',
+                      content: "Não se preocupe, isso pode acontecer! Sinta-se à vontade para digitar a sua mensagem ou pergunta no campo abaixo, e eu lhe ajudarei sem problemas."
+                    }
+                  ]);
+                }, 1500);
               }
             } catch (error: any) {
               toast.dismiss('voice-transcribe');
@@ -1476,10 +2069,22 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
                 {
                   id: `silence-${Date.now()}`,
                   role: 'assistant',
-                  content: "Não foi possível transcrever o áudio. Tente novamente."
+                  content: "Não foi possível transcrever o áudio."
                 }
               ]);
-              toast.error('Não foi possível transcrever o áudio. Tente novamente.');
+              toast.error('Não foi possível transcrever o áudio.');
+
+              // Think for a moment, then write the follow-up text without problems
+              setTimeout(() => {
+                setMessages(prev => [
+                  ...prev,
+                  {
+                    id: `silence-err-followup-${Date.now()}`,
+                    role: 'assistant',
+                    content: "Não se preocupe, isso pode acontecer! Sinta-se à vontade para digitar a sua mensagem ou pergunta no campo abaixo, e eu lhe ajudarei sem problemas."
+                  }
+                ]);
+              }, 1500);
             }
           }
           setTranscribing(false);
@@ -1621,15 +2226,38 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
         }
       }
 
+      // Save user profile locally so the user is remembered permanently
+      localStorage.setItem('roder_budget_contact_name', budgetContactName);
+      localStorage.setItem('roder_budget_company_name', budgetCompanyName);
+      localStorage.setItem('roder_budget_phone', budgetPhone);
+      localStorage.setItem('roder_budget_cnpj', budgetCNPJ);
+      localStorage.setItem('roder_budget_machine_brand', budgetMachineBrand);
+      localStorage.setItem('roder_budget_machine_model', budgetMachineModel);
+      localStorage.setItem('roder_budget_location', budgetLocation);
+
+      // Also ensure publicUser state/localStorage profile matches this data
+      const updatedProfile = {
+        userType: 'cliente' as const,
+        name: budgetContactName,
+        phone: budgetPhone,
+        cityState: budgetLocation,
+        baseMachine: `${budgetMachineBrand} ${budgetMachineModel}`.trim(),
+        companyName: budgetCompanyName
+      };
+      localStorage.setItem('roder_public_user_profile', JSON.stringify(updatedProfile));
+      setPublicUser(updatedProfile);
+
+      const finalObservations = `Solicitação via Consultor Técnico Digital. Equipamento de interesse: ${budgetEquipName || 'Não especificado'}.${budgetObservations ? `\n\nObservações Adicionais:\n${budgetObservations}` : ''}`;
+
       const docData = {
         client_name: budgetContactName,
         client_cnpj: budgetCNPJ || 'Não informado',
         client_phone: budgetPhone,
         client_email: 'contato@roderindica.com.br',
-        company_name: budgetContactName,
-        client_location: '',
+        company_name: budgetCompanyName || budgetContactName,
+        client_location: budgetLocation || 'Não informado',
         base_machine: `${budgetMachineBrand} ${budgetMachineModel}`.trim() || 'Não informado',
-        observations: `Solicitação via Consultor Técnico Digital. Equipamento de interesse: ${budgetEquipName || 'Não especificado'}.`,
+        observations: finalObservations,
         product_name: budgetEquipName || 'Equipamento Roder',
         status: 'new',
         indicator_id: sellerRef || 'consultor-direto',
@@ -1649,8 +2277,8 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
         await notifyNewIndication({
           client_name: budgetContactName,
           client_phone: budgetPhone,
-          company_name: budgetContactName,
-          city: '',
+          company_name: budgetCompanyName || budgetContactName,
+          city: budgetLocation || '',
           state: '',
           product_name: budgetEquipName || 'Equipamento Roder',
           lead_source: sellerRef ? 'consultor_compartilhado' : 'consultor_direto',
@@ -1663,11 +2291,9 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
 
       toast.success('Solicitação de Orçamento enviada com sucesso! Nossos consultores entrarão em contato em breve.');
       
-      setBudgetContactName('');
-      setBudgetCNPJ('');
-      setBudgetPhone('');
-      setBudgetMachineBrand('');
-      setBudgetMachineModel('');
+      // Do NOT clear user data fields (to keep user remembered permanently). 
+      // Only reset observations.
+      setBudgetObservations('');
       setIsBudgetFormOpen(false);
 
       setMessages(prev => [
@@ -2162,7 +2788,7 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
                   className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in duration-200`}
                 >
                   <div
-                    className={`max-w-[85%] rounded-2xl p-3 text-[14.5px] sm:text-xs leading-relaxed ${
+                    className={`max-w-[85%] rounded-2xl p-3 text-[17.5px] sm:text-[14.5px] leading-relaxed ${
                       msg.role === 'user'
                         ? 'bg-primary text-white rounded-tr-none'
                         : 'bg-slate-850 text-slate-100 border border-slate-800 rounded-tl-none'
@@ -2170,7 +2796,7 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
                   >
                     {msg.role === 'assistant' ? (
                       <div className="space-y-3">
-                        <div className="prose prose-invert max-w-none text-[14.5px] sm:text-xs text-slate-200 space-y-2 markdown-body">
+                        <div className="prose prose-invert max-w-none text-[17.5px] sm:text-[14.5px] text-slate-200 space-y-2 markdown-body">
                           <ReactMarkdown
                             urlTransform={(url) => url}
                             components={{
@@ -2211,6 +2837,59 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
                         
                         {/* Dynamic Quick Action Buttons */}
                         {(() => {
+                          if (onboardingStep === 'SELECT_ROLE' && msg.id === 'initial-welcome') {
+                            return (
+                              <div className="mt-3 pt-2 border-t border-slate-800 flex flex-col gap-2">
+                                <p className="text-[10.5px] text-amber-400 font-extrabold uppercase tracking-wider flex items-center gap-1">
+                                  Selecione uma opção para continuar:
+                                </p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+                                  <button
+                                    onClick={() => handleSelectRole('cliente')}
+                                    className="flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-slate-950 font-black uppercase text-xs py-3 px-4 rounded-xl transition shadow-md cursor-pointer duration-150"
+                                  >
+                                    <User className="h-4 w-4" />
+                                    Sou Cliente
+                                  </button>
+                                  <button
+                                    onClick={() => handleSelectRole('vendedor')}
+                                    className="flex items-center justify-center gap-1.5 bg-slate-700 hover:bg-slate-600 active:bg-slate-500 text-white font-black uppercase text-xs py-3 px-4 rounded-xl transition border border-slate-600 shadow-md cursor-pointer duration-150"
+                                  >
+                                    <Briefcase className="h-4 w-4" />
+                                    Sou Vendedor / Parceiro
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          if (onboardingStep === 'SELLER_NOT_FOUND' && msg.id === messages[messages.length - 1]?.id) {
+                            return (
+                              <div className="mt-3 pt-2 border-t border-slate-800 flex flex-col gap-2">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+                                  <button
+                                    onClick={() => handleRetrySellerEmail()}
+                                    className="flex items-center justify-center gap-1.5 bg-slate-700 hover:bg-slate-600 active:bg-slate-500 text-white font-black uppercase text-xs py-3 px-4 rounded-xl transition border border-slate-600 shadow-md cursor-pointer duration-150"
+                                  >
+                                    <RefreshCw className="h-4 w-4" />
+                                    Tentar Outro E-mail
+                                  </button>
+                                  <button
+                                    onClick={() => handleSelectRole('cliente')}
+                                    className="flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-slate-950 font-black uppercase text-xs py-3 px-4 rounded-xl transition shadow-md cursor-pointer duration-150"
+                                  >
+                                    <User className="h-4 w-4" />
+                                    Entrar como Cliente
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          if (onboardingStep !== 'COMPLETED') {
+                            return null;
+                          }
+
                           const isErrorMsg = msg.content.includes('Ops, ocorreu um erro');
                           if (isErrorMsg) {
                             return (
@@ -3341,7 +4020,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                   disabled={loading}
                   rows={isInputFocused ? 2 : 1}
                   className={cn(
-                    "flex-1 bg-white border-2 border-slate-300 rounded-lg px-3 text-[14.5px] sm:text-sm text-slate-950 placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-50 font-semibold transition-all duration-200 shadow-sm resize-none",
+                    "flex-1 bg-white border-2 border-slate-300 rounded-lg px-3 text-[17.5px] sm:text-[16px] text-slate-950 placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-50 font-semibold transition-all duration-200 shadow-sm resize-none",
                     isInputFocused ? "h-16 py-1.5" : "h-[38px] py-2"
                   )}
                 />
@@ -3357,7 +4036,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                   className="h-[38px] px-3 border-slate-800 hover:border-slate-700 bg-slate-950 hover:bg-slate-900 text-slate-300 hover:text-white flex items-center justify-center"
                   title="Gravar áudio"
                 >
-                  <Mic className="h-4.5 w-4.5" />
+                  <Mic className="h-[22px] w-[22px]" />
                 </Button>
               )}
 
@@ -3801,37 +4480,39 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
               </div>
 
               <form onSubmit={handleBudgetSubmit}>
-                <div className="p-5 space-y-4">
+                <div className="p-5 max-h-[65vh] overflow-y-auto space-y-4 scrollbar-thin scrollbar-thumb-slate-800">
                   <div className="bg-slate-950 p-3.5 border border-slate-800 rounded-xl space-y-1">
                     <p className="text-[11px] font-black uppercase tracking-wider text-amber-400">Equipamento Selecionado:</p>
                     <p className="text-xs font-semibold text-white">{budgetEquipName || 'Equipamento Roder (Dimensionamento)'}</p>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Seu Nome / Contato *</label>
-                    <input
-                      type="text"
-                      required
-                      value={budgetContactName}
-                      onChange={(e) => setBudgetContactName(e.target.value)}
-                      placeholder="Ex: João Silva"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-amber-400 text-white font-medium"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <label className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">CNPJ (Opcional)</label>
+                      <label className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Nome do Cliente *</label>
                       <input
                         type="text"
-                        value={budgetCNPJ}
-                        onChange={(e) => setBudgetCNPJ(e.target.value)}
-                        placeholder="Ex: 00.000.000/0001-00"
+                        required
+                        value={budgetContactName}
+                        onChange={(e) => setBudgetContactName(e.target.value)}
+                        placeholder="Ex: João Silva"
                         className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-amber-400 text-white font-medium"
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">WhatsApp / Telefone *</label>
+                      <label className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Nome da Empresa</label>
+                      <input
+                        type="text"
+                        value={budgetCompanyName}
+                        onChange={(e) => setBudgetCompanyName(e.target.value)}
+                        placeholder="Ex: Madeiras Silva Ltda"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-amber-400 text-white font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">WhatsApp / Celular *</label>
                       <input
                         type="tel"
                         required
@@ -3841,27 +4522,92 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                         className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-amber-400 text-white font-medium"
                       />
                     </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Sua Escavadeira ou Pá Carregadeira (Opcional)</label>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">CNPJ (Não Obrigatório)</label>
                       <input
                         type="text"
-                        value={budgetMachineBrand}
-                        onChange={(e) => setBudgetMachineBrand(e.target.value)}
-                        placeholder="Marca (Ex: Caterpillar)"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-amber-400 text-white font-medium"
-                      />
-                      <input
-                        type="text"
-                        value={budgetMachineModel}
-                        onChange={(e) => setBudgetMachineModel(e.target.value)}
-                        placeholder="Modelo (Ex: 320D)"
+                        value={budgetCNPJ}
+                        onChange={(e) => setBudgetCNPJ(e.target.value)}
+                        placeholder="Ex: 00.000.000/0001-00"
                         className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-amber-400 text-white font-medium"
                       />
                     </div>
-                    <p className="text-[9px] text-slate-400 leading-normal italic">Informar a máquina nos ajuda a validar a compatibilidade hidráulica do equipamento antes de enviar o orçamento.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Cidade / Estado *</label>
+                      <input
+                        type="text"
+                        required
+                        value={budgetLocation}
+                        onChange={(e) => setBudgetLocation(e.target.value)}
+                        placeholder="Ex: Sorocaba / SP"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-amber-400 text-white font-medium"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Qual é a Máquina / Escavadeira</label>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <input
+                          type="text"
+                          value={budgetMachineBrand}
+                          onChange={(e) => setBudgetMachineBrand(e.target.value)}
+                          placeholder="Ex: Komatsu"
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-[11px] focus:outline-none focus:border-amber-400 text-white font-medium"
+                        />
+                        <input
+                          type="text"
+                          value={budgetMachineModel}
+                          onChange={(e) => setBudgetMachineModel(e.target.value)}
+                          placeholder="Ex: PC200"
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-[11px] focus:outline-none focus:border-amber-400 text-white font-medium"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Observações / Detalhes</label>
+                      <div className="flex items-center gap-1.5">
+                        {isBudgetRecording && (
+                          <span className="flex h-2 w-2 relative">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                          </span>
+                        )}
+                        <p className="text-[9px] text-slate-400 italic font-bold">
+                          {isBudgetRecording 
+                            ? (budgetRecordingMode === 'hold' ? "Gravando (solte para parar)..." : "Gravando (clique para parar)...") 
+                            : "Pressione ou clique no 🎤 para ditar"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="relative flex items-center">
+                      <textarea
+                        rows={3}
+                        value={budgetObservations}
+                        onChange={(e) => setBudgetObservations(e.target.value)}
+                        placeholder="Diga ou digite observações (ex: diâmetro da madeira, tipo de serviço, local de instalação, etc...)"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-3 pr-12 py-2.5 text-xs focus:outline-none focus:border-amber-400 text-white font-medium resize-none leading-relaxed"
+                      />
+                      <button
+                        type="button"
+                        onMouseDown={handleMicPressStart}
+                        onMouseUp={handleMicPressEnd}
+                        onTouchStart={handleMicPressStart}
+                        onTouchEnd={handleMicPressEnd}
+                        className={`absolute right-2.5 bottom-2.5 p-2 rounded-full transition-all duration-150 cursor-pointer flex items-center justify-center ${
+                          isBudgetRecording 
+                            ? 'bg-red-500 hover:bg-red-600 active:bg-red-700 text-white scale-110 shadow-lg shadow-red-500/20' 
+                            : 'bg-slate-800 hover:bg-slate-700 active:bg-slate-650 text-amber-400 border border-slate-700 hover:border-amber-500/30'
+                        }`}
+                        title="Segure para gravar ou clique para iniciar/parar"
+                      >
+                        <Mic className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
 

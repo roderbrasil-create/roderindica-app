@@ -181,6 +181,15 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
   const [approvalQueue, setApprovalQueue] = useState<any[]>([]);
   const [approvingId, setApprovingId] = useState<string | null>(null);
 
+  // Agendor CRM Settings State
+  const [agendorSettings, setAgendorSettings] = useState({
+    enabled: false,
+    apiToken: '',
+  });
+  const [savingAgendor, setSavingAgendor] = useState(false);
+  const [testingAgendor, setTestingAgendor] = useState(false);
+  const [showAgendorToken, setShowAgendorToken] = useState(false);
+
   // AI Training Monitoring State
   const [teachings, setTeachings] = useState<AITeaching[]>([]);
   const [loadingTeachings, setLoadingTeachings] = useState(false);
@@ -1011,6 +1020,12 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
       }
     });
 
+    const unsubAgendor = onSnapshot(doc(db, 'settings', 'agendor'), (snap) => {
+      if (snap.exists()) {
+        setAgendorSettings(snap.data() as any);
+      }
+    });
+
     const unsubGoals = onSnapshot(doc(db, 'settings', 'goals'), (snap) => {
       if (snap.exists()) {
         setGoals(snap.data() as any);
@@ -1020,6 +1035,7 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
     return () => {
       unsubEmail();
       unsubNotifications();
+      unsubAgendor();
       unsubGoals();
     };
   }, []);
@@ -1143,6 +1159,45 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
       }
     } catch (error: any) {
       toast.error('Erro técnico: ' + error.message, { id: toastId });
+    }
+  };
+
+  const handleSaveAgendorSettings = async () => {
+    setSavingAgendor(true);
+    try {
+      await setDoc(doc(db, 'settings', 'agendor'), agendorSettings);
+      toast.success('Configurações de integração do Agendor salvas!');
+    } catch (error: any) {
+      toast.error('Erro ao salvar configurações do Agendor: ' + error.message);
+    } finally {
+      setSavingAgendor(false);
+    }
+  };
+
+  const handleTestAgendorConnection = async () => {
+    setTestingAgendor(true);
+    const toastId = toast.loading('Testando conexão com o Agendor...');
+    try {
+      const response = await fetch('/api/agendor/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          apiToken: agendorSettings.apiToken,
+          indicatorName: realProfile?.name || profile?.name || 'Jeferson Roder',
+          indicatorEmail: realProfile?.email || profile?.email || 'jeferson@roderbrasil.com.br',
+          indicatorPhone: realProfile?.phone || profile?.phone || '(14) 99811-5110'
+        })
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        toast.success(data.message || `Conexão efetuada com sucesso! ${data.users?.length || 0} usuários mapeados no Agendor.`, { id: toastId, duration: 12000 });
+      } else {
+        toast.error('Falha de conexão: ' + (data.error || 'Erro desconhecido'), { id: toastId });
+      }
+    } catch (error: any) {
+      toast.error('Erro na chamada da API: ' + error.message, { id: toastId });
+    } finally {
+      setTestingAgendor(false);
     }
   };
 
@@ -2328,6 +2383,91 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
                       >
                         {savingNotifications ? 'Salvando...' : 'Salvar Preferências'}
                       </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Coluna 2: Integração Agendor CRM */}
+              <div className="flex flex-col gap-6">
+                <Card className="bg-card border-border shadow-sm">
+                  <CardHeader>
+                    <CardTitle className="text-xl font-bold flex items-center gap-2">
+                      <Settings className="h-5 w-5 text-primary" /> Integração Agendor CRM
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground">Sincronize contatos, empresas e indicações automaticamente.</p>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="p-4 rounded-lg bg-emerald-500/5 border border-emerald-500/20 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label className="text-sm font-semibold flex items-center gap-1.5 text-emerald-500">
+                            <CheckCircle2 className="h-4 w-4" /> Ativar Integração
+                          </Label>
+                          <p className="text-[10px] text-muted-foreground">Se ativo, novas indicações serão enviadas automaticamente para o Agendor.</p>
+                        </div>
+                        <Switch 
+                          checked={agendorSettings.enabled} 
+                          onCheckedChange={(v) => setAgendorSettings({...agendorSettings, enabled: v})}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="agendor_token" className="text-xs font-semibold flex items-center gap-1">
+                          <Key className="h-3.5 w-3.5 text-primary" /> Token de API do Agendor
+                        </Label>
+                        <div className="relative">
+                          <Input 
+                            id="agendor_token"
+                            type={showAgendorToken ? "text" : "password"}
+                            placeholder="Insira o Token obtido no perfil do Agendor"
+                            value={agendorSettings.apiToken}
+                            onChange={(e) => setAgendorSettings({...agendorSettings, apiToken: e.target.value})}
+                            className="bg-background border-border text-xs pr-10"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowAgendorToken(!showAgendorToken)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          >
+                            {showAgendorToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground leading-relaxed">
+                          Para obter seu Token, acesse o <strong>Agendor &gt; Menu &gt; Configurações &gt; Integrações &gt; API</strong> ou use as credenciais de Gislene no site do Agendor para gerá-lo.
+                        </p>
+                      </div>
+
+                      <div className="p-3.5 bg-slate-500/5 border border-border rounded-lg space-y-2">
+                        <h4 className="text-[11px] font-bold uppercase text-amber-500 flex items-center gap-1">
+                          <AlertCircle className="h-3.5 w-3.5" /> Como Funciona a Integração
+                        </h4>
+                        <ul className="text-[10px] text-muted-foreground space-y-1.5 list-disc pl-4 leading-normal">
+                          <li><strong>Contatos unificados:</strong> O sistema busca ou cria automaticamente a Pessoa e a Empresa no Agendor antes de registrar o negócio.</li>
+                          <li><strong>Sincronismo de Indicações:</strong> Novas solicitações de orçamento do Roder Indica são convertidas instantaneamente em <strong>Negócios (Deals)</strong> na etapa de <strong>Lead</strong> no Agendor.</li>
+                          <li><strong>Rastreabilidade total:</strong> Cada indicação sincronizada salva a referência ID do Agendor no Roder Indica para consultas futuras.</li>
+                        </ul>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button 
+                          onClick={handleSaveAgendorSettings} 
+                          disabled={savingAgendor} 
+                          className="flex-1 bg-primary hover:bg-primary/90 text-xs font-bold"
+                        >
+                          {savingAgendor ? 'Salvando...' : 'Salvar Configurações'}
+                        </Button>
+                        <Button 
+                          variant="outline"
+                          onClick={handleTestAgendorConnection} 
+                          disabled={testingAgendor || !agendorSettings.apiToken} 
+                          className="flex-1 border-border text-xs font-bold"
+                        >
+                          {testingAgendor ? 'Testando...' : 'Testar Conexão'}
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

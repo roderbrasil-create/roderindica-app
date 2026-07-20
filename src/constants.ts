@@ -135,5 +135,12 @@ export const INSTALLATION_KITS: InstallationKit[] = [
       { code: '3000.5000.0284', description: 'Adaptador macho/macho 1.1/16 UNF x 1.1/16 JIC', quantity: 1 },
       { code: '5000.1001.0043', description: 'BOTAO PULSANTE 12MM P9 900016054489 + CAPA P9 C401245-25-1', quantity: 2 }
     ]
+  },
+  {
+    code: '9000.9000.9015',
+    description: 'KIT INSTALACAO GARRA + LINK EM ESCAVADEIRA - (MAQUINA COM FATIA EXTRA SEM LINHA)',
+    items: [
+      { code: '1000.0000.0120', description: 'Link Garra Biela 4 para maquinas pino 80mm', quantity: 1 }
+    ]
   }
 ];

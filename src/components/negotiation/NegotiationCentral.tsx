@@ -31,7 +31,10 @@ import {
   ExternalLink,
   MessageCircle,
   Phone,
-  LayoutDashboard
+  LayoutDashboard,
+  Settings,
+  RotateCw,
+  Search
 } from 'lucide-react';
 import { useNegotiation } from '../../contexts/NegotiationContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -49,7 +52,8 @@ import {
   getDoc,
   addDoc,
   setDoc,
-  deleteDoc
+  deleteDoc,
+  onSnapshot
 } from 'firebase/firestore';
 import { transcribeAudio, generateAISummary, analyzeDetailedBudget, analyzePDFDocument } from '../../services/geminiService';
 import { notifyManagers, notifyExternalSeller, createNotification } from '../../services/notificationService';
@@ -106,6 +110,83 @@ export default function NegotiationCentral() {
   const [loading, setLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
+  // Agendor CRM Integration Local States
+  const [agendorEnabled, setAgendorEnabled] = useState(false);
+  const [syncingAgendor, setSyncingAgendor] = useState(false);
+  const [importingFiles, setImportingFiles] = useState(false);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'settings', 'agendor'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setAgendorEnabled(!!data?.enabled);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  const handleSyncToAgendor = async () => {
+    if (!activeIndication) return;
+    setSyncingAgendor(true);
+    const toastId = toast.loading('Sincronizando com o Agendor CRM...');
+    try {
+      const response = await fetch('/api/agendor/sync-indication', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ indicationId: activeIndication.id })
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        toast.success(data.message || 'Sincronizado no Agendor com sucesso!', { id: toastId });
+        // Refresh local activeIndication fields
+        refreshIndication({
+          ...activeIndication,
+          agendor_synced: !data.pending,
+          agendor_deal_id: data.dealId || activeIndication.agendor_deal_id,
+          agendor_person_id: data.personId || activeIndication.agendor_person_id,
+          agendor_organization_id: data.organizationId || activeIndication.agendor_organization_id,
+          agendor_synced_at: data.pending ? null : (activeIndication.agendor_synced_at || new Date().toISOString()),
+          negotiation_history: data.negotiation_history || activeIndication.negotiation_history
+        });
+      } else {
+        toast.error('Erro na sincronização: ' + (data.error || 'Erro desconhecido'), { id: toastId });
+      }
+    } catch (error: any) {
+      toast.error('Erro de conexão: ' + error.message, { id: toastId });
+    } finally {
+      setSyncingAgendor(false);
+    }
+  };
+
+  const handleImportFromAgendor = async () => {
+    if (!activeIndication) return;
+    setImportingFiles(true);
+    const toastId = toast.loading('Buscando e analisando orçamento/pedido em PDF do Agendor CRM...');
+    try {
+      const response = await fetch('/api/agendor/import-files', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ indicationId: activeIndication.id })
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        toast.success(data.message || 'Documento e itens do CRM importados com sucesso!', { id: toastId });
+        
+        // Refetch newest document state from Firestore
+        const indDoc = await getDoc(doc(db, 'indications', activeIndication.id));
+        if (indDoc.exists()) {
+          refreshIndication({ id: activeIndication.id, ...indDoc.data() } as Indication);
+        }
+      } else {
+        toast.error('Erro ao importar do CRM: ' + (data.error || data.message || 'Erro desconhecido'), { id: toastId, duration: 6000 });
+      }
+    } catch (error: any) {
+      toast.error('Erro de conexão: ' + error.message, { id: toastId });
+    } finally {
+      setImportingFiles(false);
+    }
+  };
+
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 1024);
@@ -155,6 +236,129 @@ export default function NegotiationCentral() {
   const [extractedAddress, setExtractedAddress] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [clientCode, setClientCode] = useState('');
+  
+  // States for Agendor CRM Matching and Searching
+  const [isSearchingCRM, setIsSearchingCRM] = useState(false);
+  const [crmMatch, setCrmMatch] = useState<any | null>(null);
+  const [lastSearchedCnpj, setLastSearchedCnpj] = useState('');
+  const [lastSearchedPhone, setLastSearchedPhone] = useState('');
+
+  const handleSearchCRM = async (
+    searchParams?: { cnpj?: string; phone?: string; name?: string; code?: string },
+    isSilent: boolean = false
+  ) => {
+    if (!isSilent) {
+      setIsSearchingCRM(true);
+    }
+    setCrmMatch(null);
+    const params = new URLSearchParams();
+    
+    const cnpjToSearch = searchParams?.cnpj !== undefined ? searchParams.cnpj : extractedCnpj;
+    const phoneToSearch = searchParams?.phone !== undefined ? searchParams.phone : extractedPhone;
+    const nameToSearch = searchParams?.name !== undefined ? searchParams.name : activeIndication?.client_name || '';
+    const codeToSearch = searchParams?.code !== undefined ? searchParams.code : clientCode;
+
+    if (codeToSearch) params.append('code', codeToSearch);
+    if (cnpjToSearch) params.append('cnpj', cnpjToSearch);
+    if (phoneToSearch) params.append('phone', phoneToSearch);
+    if (nameToSearch) params.append('name', nameToSearch);
+
+    try {
+      const res = await fetch(`/api/agendor/search-client?${params.toString()}`);
+      const data = await res.json();
+      if (res.ok && data.success) {
+        if (data.found) {
+          setCrmMatch(data);
+          if (!isSilent) {
+            toast.success(`Cliente localizado no CRM Agendor: ${data.name || data.company_name}`);
+          }
+        } else {
+          setCrmMatch({ found: false });
+          if (!isSilent) {
+            toast.info('Nenhum cliente correspondente encontrado no CRM com estes dados.');
+          }
+        }
+      } else {
+        if (!isSilent) {
+          toast.error('Erro ao buscar no CRM: ' + (data.error || 'Erro desconhecido'));
+        }
+      }
+    } catch (err: any) {
+      console.error('Erro de busca no CRM:', err);
+      if (!isSilent) {
+        toast.error('Erro ao conectar com o CRM.');
+      }
+    } finally {
+      if (!isSilent) {
+        setIsSearchingCRM(false);
+      }
+    }
+  };
+
+  const handleApplyCRMMatch = () => {
+    if (!crmMatch || !crmMatch.found) return;
+    if (crmMatch.cnpj) setExtractedCnpj(crmMatch.cnpj);
+    if (crmMatch.phone) setExtractedPhone(crmMatch.phone);
+    if (crmMatch.email) setExtractedEmail(crmMatch.email);
+    if (crmMatch.company_name || crmMatch.name) {
+      setCompanyName(crmMatch.company_name || crmMatch.name);
+    }
+    if (crmMatch.client_code) setClientCode(crmMatch.client_code);
+    toast.success('Dados do CRM importados com sucesso! Não se esqueça de salvar as alterações.');
+  };
+
+  // Automated search when activeIndication changes
+  useEffect(() => {
+    if (activeIndication) {
+      const cnpjVal = activeIndication.client_cnpj || '';
+      const phoneVal = activeIndication.client_phone || '';
+      const nameVal = activeIndication.client_name || '';
+      const codeVal = activeIndication.client_code || '';
+
+      setCrmMatch(null);
+      setLastSearchedCnpj('');
+      setLastSearchedPhone('');
+
+      // Silent initial search on open to check if there is a match in CRM
+      if (cnpjVal) {
+        const cleanCnpj = cnpjVal.replace(/\D/g, "");
+        if (cleanCnpj.length === 14) {
+          setLastSearchedCnpj(cleanCnpj);
+          handleSearchCRM({ cnpj: cleanCnpj }, true);
+        }
+      } else if (codeVal) {
+        handleSearchCRM({ code: codeVal }, true);
+      } else if (phoneVal || nameVal) {
+        const cleanPhone = phoneVal.replace(/\D/g, "");
+        if (cleanPhone.length >= 8) {
+          setLastSearchedPhone(cleanPhone);
+          handleSearchCRM({ phone: cleanPhone, name: nameVal }, true);
+        } else if (nameVal.length >= 3) {
+          handleSearchCRM({ name: nameVal }, true);
+        }
+      }
+    }
+  }, [activeIndication]);
+
+  // Automated search when user types or edits CNPJ
+  useEffect(() => {
+    const clean = extractedCnpj.replace(/\D/g, "");
+    if (clean.length === 14 && clean !== lastSearchedCnpj) {
+      setLastSearchedCnpj(clean);
+      handleSearchCRM({ cnpj: clean }, true);
+    }
+  }, [extractedCnpj, lastSearchedCnpj]);
+
+  // Automated search when user types or edits phone number (if no CNPJ set)
+  useEffect(() => {
+    const clean = extractedPhone.replace(/\D/g, "");
+    const cleanCnpj = extractedCnpj.replace(/\D/g, "");
+    if (clean.length >= 10 && clean !== lastSearchedPhone && cleanCnpj.length !== 14) {
+      setLastSearchedPhone(clean);
+      handleSearchCRM({ phone: clean }, true);
+    }
+  }, [extractedPhone, lastSearchedPhone, extractedCnpj]);
+
 
   const convertDMYtoYMD = (dmy: string): string => {
     if (!dmy) return '';
@@ -779,12 +983,12 @@ export default function NegotiationCentral() {
         delivery_date: deliveryDate,
         sale_order_number: orderNumber,
         sale_order_date: orderDate,
-        client_cnpj: extractedCnpj || activeIndication.client_cnpj || '',
-        client_email: extractedEmail || activeIndication.client_email || '',
-        client_phone: extractedPhone || activeIndication.client_phone || '',
-        client_address: extractedAddress || activeIndication.client_address || '',
-        client_company_name: companyName || activeIndication.client_company_name || '',
-        client_code: clientCode || activeIndication.client_code || ''
+        client_cnpj: extractedCnpj || '',
+        client_email: extractedEmail || '',
+        client_phone: extractedPhone || '',
+        client_address: extractedAddress || '',
+        client_company_name: companyName || '',
+        client_code: clientCode || ''
       };
 
       if (budgetLoaded && budgetDate) {
@@ -1228,6 +1432,90 @@ export default function NegotiationCentral() {
 
             {/* Content Area */}
             <div className="flex-1 overflow-y-auto lg:overflow-hidden bg-slate-50/10 p-3 lg:p-6 flex flex-col gap-4">
+            
+            {/* Agendor CRM Sync Status Banner */}
+            {agendorEnabled && (
+              <div className={cn(
+                "border rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 shadow-sm shrink-0",
+                activeIndication?.agendor_synced 
+                  ? "bg-emerald-500/5 border-emerald-500/10" 
+                  : "bg-slate-500/5 border-border"
+              )}>
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "h-8 w-8 rounded-full flex items-center justify-center",
+                    activeIndication?.agendor_synced 
+                      ? "bg-emerald-500/10 text-emerald-600" 
+                      : "bg-slate-500/10 text-slate-500"
+                  )}>
+                    {activeIndication?.agendor_synced ? (
+                      <CheckCircle2 className="h-4 w-4" />
+                    ) : (
+                      <Settings className="h-4 w-4" />
+                    )}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className={cn(
+                        "text-[10px] font-black uppercase leading-none",
+                        activeIndication?.agendor_synced ? "text-emerald-600" : "text-muted-foreground"
+                      )}>
+                        {activeIndication?.agendor_synced ? "Sincronizado no Agendor CRM" : "Não Sincronizado no Agendor"}
+                      </p>
+                      {activeIndication?.agendor_synced_at && (
+                        <span className="text-[8px] text-muted-foreground">
+                          {new Date(activeIndication.agendor_synced_at).toLocaleDateString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-600 leading-tight mt-1">
+                      {activeIndication?.agendor_synced 
+                        ? `Esta indicação está vinculada ao negócio #${activeIndication.agendor_deal_id} no CRM.` 
+                        : "A integração com o Agendor CRM está ativa. Você pode sincronizar este lead manualmente."}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {activeIndication?.agendor_synced ? (
+                    <div className="flex items-center gap-2">
+                      <a 
+                        href={`https://web.agendor.com.br/negocios/${activeIndication.agendor_deal_id}`} 
+                        target="_blank" 
+                        referrerPolicy="no-referrer"
+                        className="text-[10px] font-bold text-slate-700 hover:text-slate-900 flex items-center gap-1 bg-white border border-border px-3 py-1.5 rounded-lg shadow-sm transition-all hover:bg-slate-50"
+                      >
+                        Ver no Agendor <ExternalLink className="h-3 w-3" />
+                      </a>
+                      {canInteract && !isSold && (
+                        <Button 
+                          size="sm"
+                          variant="outline"
+                          onClick={handleImportFromAgendor}
+                          disabled={importingFiles}
+                          className="h-8 text-[10px] font-bold uppercase gap-1.5 border-primary text-primary hover:bg-primary/5 bg-white"
+                        >
+                          <RotateCw className={cn("h-3.5 w-3.5", importingFiles && "animate-spin")} />
+                          {importingFiles ? 'Importando...' : 'Importar do CRM'}
+                        </Button>
+                      )}
+                    </div>
+                  ) : (
+                    <Button 
+                      size="sm"
+                      variant="outline"
+                      onClick={handleSyncToAgendor}
+                      disabled={syncingAgendor}
+                      className="h-8 text-[10px] font-bold uppercase gap-1.5 border-border bg-white"
+                    >
+                      <RotateCw className={cn("h-3.5 w-3.5", syncingAgendor && "animate-spin")} />
+                      {syncingAgendor ? 'Sincronizando...' : 'Sincronizar CRM'}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+
             {isSold && (
               <div className="bg-emerald-50 border-2 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-900/30 rounded-xl p-3 flex items-center justify-between shadow-sm shrink-0">
                 <div className="flex items-center gap-3">
@@ -1556,6 +1844,187 @@ export default function NegotiationCentral() {
                       </div>
                     </div>
                   )}
+
+                  {/* Cadastro de Cliente & CRM Agendor */}
+                  <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm shrink-0 space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="h-5 w-5 bg-primary/10 rounded flex items-center justify-center text-primary font-bold text-xs">A</div>
+                        <h4 className="text-[10px] font-extrabold italic uppercase text-slate-700 dark:text-slate-300">
+                          Dados Cadastrais & CRM Agendor
+                        </h4>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {activeIndication.agendor_synced ? (
+                          <Badge className="bg-emerald-500 text-white border-none text-[8px] font-black uppercase py-0.5 px-1.5 rounded flex items-center gap-1">
+                            <CheckCircle2 className="h-2 w-2" /> Sincronizado
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-amber-500 text-white border-none text-[8px] font-black uppercase py-0.5 px-1.5 rounded flex items-center gap-1">
+                            Pendente
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-[8px] font-black uppercase text-slate-400">CNPJ do Cliente</Label>
+                        <Input 
+                          disabled={!isEditable}
+                          value={extractedCnpj}
+                          onChange={(e) => setExtractedCnpj(e.target.value)}
+                          placeholder="00.000.000/0000-00"
+                          className="bg-slate-50 dark:bg-slate-800 text-slate-950 dark:text-slate-50 font-medium text-xs h-8 px-2 border-slate-200"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[8px] font-black uppercase text-slate-400">Telefone / WhatsApp</Label>
+                        <Input 
+                          disabled={!isEditable}
+                          value={extractedPhone}
+                          onChange={(e) => setExtractedPhone(e.target.value)}
+                          placeholder="(00) 00000-0000"
+                          className="bg-slate-50 dark:bg-slate-800 text-slate-950 dark:text-slate-50 font-medium text-xs h-8 px-2 border-slate-200"
+                        />
+                      </div>
+
+                      <div className="space-y-1 col-span-2">
+                        <Label className="text-[8px] font-black uppercase text-slate-400">Razão Social / Empresa</Label>
+                        <Input 
+                          disabled={!isEditable}
+                          value={companyName}
+                          onChange={(e) => setCompanyName(e.target.value)}
+                          placeholder="Nome da empresa cadastrada"
+                          className="bg-slate-50 dark:bg-slate-800 text-slate-950 dark:text-slate-50 font-medium text-xs h-8 px-2 border-slate-200"
+                        />
+                      </div>
+
+                      <div className="space-y-1 col-span-2">
+                        <Label className="text-[8px] font-black uppercase text-slate-400">E-mail de Contato</Label>
+                        <Input 
+                          disabled={!isEditable}
+                          value={extractedEmail}
+                          onChange={(e) => setExtractedEmail(e.target.value)}
+                          placeholder="exemplo@email.com"
+                          className="bg-slate-50 dark:bg-slate-800 text-slate-950 dark:text-slate-50 font-medium text-xs h-8 px-2 border-slate-200"
+                        />
+                      </div>
+
+                      <div className="space-y-1 col-span-2">
+                        <Label className="text-[8px] font-black uppercase text-slate-400 flex items-center justify-between">
+                          <span>Código de Cadastro (CRM)</span>
+                          {clientCode && (
+                            <span className="text-[7px] text-muted-foreground italic lowercase font-normal">use este código para verificar no CRM</span>
+                          )}
+                        </Label>
+                        <div className="flex gap-2">
+                          <Input 
+                            disabled={!isEditable}
+                            value={clientCode}
+                            onChange={(e) => setClientCode(e.target.value)}
+                            placeholder="Código do cliente ou ID no Agendor"
+                            className="bg-slate-50 dark:bg-slate-800 text-slate-950 dark:text-slate-50 font-mono text-xs h-8 px-2 border-slate-200 flex-1"
+                          />
+                          <Button
+                            size="sm"
+                            type="button"
+                            variant="secondary"
+                            onClick={() => handleSearchCRM({ code: clientCode })}
+                            disabled={!clientCode || isSearchingCRM}
+                            className="h-8 text-[9px] uppercase font-bold"
+                          >
+                            Verificar Cód
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* CRM Search Results and Auto-Matching */}
+                    {crmMatch && (
+                      <div className={cn(
+                        "p-3 rounded-lg border text-xs space-y-2",
+                        crmMatch.found 
+                          ? "bg-emerald-50/50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/20 dark:border-emerald-900/30 dark:text-emerald-300"
+                          : "bg-amber-50/50 border-amber-200 text-amber-800 dark:bg-amber-950/20 dark:border-amber-900/30 dark:text-amber-300"
+                      )}>
+                        {crmMatch.found ? (
+                          <>
+                            <div className="flex items-start gap-2">
+                              <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                              <div className="space-y-0.5">
+                                <p className="font-bold uppercase text-[9px] tracking-wider">Cliente Localizado no CRM!</p>
+                                <p className="font-bold">{crmMatch.name || crmMatch.company_name}</p>
+                                {crmMatch.company_name && crmMatch.company_name !== crmMatch.name && (
+                                  <p className="text-[10px] text-slate-500">Empresa: {crmMatch.company_name}</p>
+                                )}
+                                <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[10px] text-slate-500 mt-1">
+                                  {crmMatch.cnpj && <span>CNPJ: {crmMatch.cnpj}</span>}
+                                  {crmMatch.phone && <span>Tel: {crmMatch.phone}</span>}
+                                  {crmMatch.email && <span className="col-span-2 truncate">Email: {crmMatch.email}</span>}
+                                  {crmMatch.client_code && <span>Código CRM: <b className="font-mono">{crmMatch.client_code}</b></span>}
+                                </div>
+                              </div>
+                            </div>
+                            <Button
+                              size="sm"
+                              type="button"
+                              className="w-full h-7 text-[9px] uppercase font-bold mt-2 bg-emerald-600 hover:bg-emerald-700 text-white border-none shadow-sm"
+                              onClick={handleApplyCRMMatch}
+                            >
+                              Puxar e Preencher estes Dados
+                            </Button>
+                          </>
+                        ) : (
+                          <div className="flex items-start gap-2">
+                            <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                            <div className="space-y-1">
+                              <p className="font-bold uppercase text-[9px] tracking-wider">Cliente Não Localizado</p>
+                              <p className="text-[11px] text-slate-600 leading-tight">
+                                Nenhum cliente correspondente foi localizado no Agendor CRM com os dados atuais (CNPJ, Telefone ou Nome). Ao salvar, um novo registro será criado no CRM.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                        className="flex-1 h-8 text-[9px] uppercase font-black tracking-wider border-border bg-white"
+                        onClick={() => handleSearchCRM()}
+                        disabled={isSearchingCRM}
+                      >
+                        {isSearchingCRM ? (
+                          <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                        ) : (
+                          <Search className="h-3 w-3 mr-1" />
+                        )}
+                        Buscar no CRM
+                      </Button>
+                      
+                      <Button
+                        size="sm"
+                        type="button"
+                        variant="ghost"
+                        className="h-8 text-[9px] uppercase font-bold text-slate-500"
+                        onClick={() => {
+                          setExtractedCnpj('');
+                          setExtractedPhone('');
+                          setExtractedEmail('');
+                          setCompanyName('');
+                          setClientCode('');
+                          setCrmMatch(null);
+                        }}
+                      >
+                        Limpar
+                      </Button>
+                    </div>
+                  </div>
                 </div>
 
                 {/* RIGHT COLUMN: Products Spreadsheet */}

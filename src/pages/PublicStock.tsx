@@ -1072,8 +1072,15 @@ export default function PublicStock() {
 
   return (
     <div className="min-h-screen bg-black text-zinc-100 font-sans selection:bg-orange-500/30 pb-20" data-app-version="2.3.1">
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media (max-width: 767px) {
+          .mobile-safe-stock-header {
+            padding-top: calc(12px + env(safe-area-inset-top, 24px)) !important;
+          }
+        }
+      `}} />
       {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b border-zinc-805 bg-black/90 backdrop-blur-md pt-8 md:pt-0">
+      <header className="sticky top-0 z-50 w-full border-b border-zinc-805 bg-black/90 backdrop-blur-md mobile-safe-stock-header">
         <div className="container flex h-16 items-center justify-between px-4 max-w-7xl mx-auto">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">

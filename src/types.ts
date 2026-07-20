@@ -116,6 +116,11 @@ export interface Indication {
   commission_value?: number;
   commission_rate_applied?: number;
   protection_expires_at?: string;
+  agendor_synced?: boolean;
+  agendor_deal_id?: number | null;
+  agendor_person_id?: number | null;
+  agendor_organization_id?: number | null;
+  agendor_synced_at?: string;
   commissioned_products?: {
     code: string;
     name: string;

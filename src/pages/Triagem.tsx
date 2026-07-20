@@ -311,6 +311,23 @@ export default function Triagem() {
       }
 
       toast.success(`Lead encaminhado para ${targetName}`);
+
+      // Auto sync to Agendor in the background upon assignment
+      fetch('/api/agendor/sync-indication', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ indicationId: selectedIndication.id })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          console.log('[AGENDOR-AUTO-SYNC] Sincronizado com Agendor:', data);
+        } else {
+          console.warn('[AGENDOR-AUTO-SYNC] Falha ao sincronizar:', data.error);
+        }
+      })
+      .catch(err => console.error('[AGENDOR-AUTO-SYNC] Erro na rede:', err));
+
       setIsAssignDialogOpen(false);
       setDuplicateAlert(null);
       setSelectedIndication(null);

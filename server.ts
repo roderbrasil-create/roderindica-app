@@ -1568,8 +1568,16 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
     - **Suporte Destocador vs Suporte Triturador**:
       - O **suporte destocador** é um suporte padrão que possui a mesma furação tanto para o destocador, quanto para o feller tesoura e feller de disco.
       - Já o suporte para trituradores (**suporte triturador**) — específico para os trituradores italianos FAE, que a Roder representa — possui suportes específicos para cada modelo/máquina. **O suporte triturador NÃO é o mesmo suporte destocador**.
-    - **Link para Garra com Biela**:
-      - Para escavadeiras, também temos a opção de **link para garra com biela**, que é uma opção instalada diretamente na máquina no lugar da ponteira padrão.
+    - **Link para Garra com Biela (Instalação Prática de Garra Florestal)**:
+      - Explique ao vendedor/cliente que **SIM, é perfeitamente possível e muito recomendado instalar a garra florestal com o sistema de link** ao invés de utilizar a ponteira padrão florestal.
+      - **Objetivo/Facilidade de Intercambiabilidade**: A montagem com link é extremamente prática e facilita muito para o cliente que precisa substituir periodicamente a garra pela concha (caçamba) original da máquina (ex: para fazer serviços de terraplanagem com a concha e, quando precisar, colocar a garra para trabalhar com madeira). É um modo extremamente prático e fácil para alternar entre garra e concha.
+      - **Como funciona a montagem**: Esta montagem permite que **não seja necessária a retirada do cilindro da concha e dos links originais da concha**. O link é montado utilizando os próprios links e o cilindro da concha original, incluindo a montagem com os mesmos pinos originais da concha. O link possui uma biela que pendura a garra.
+      - **Instalação Hidráulica e Kit Específico**: Como a utilização do link para trabalhar com a garra necessita de uma dinâmica operacional diferente, a instalação hidráulica para o uso do sistema de link é diferente da instalação padrão com ponteira. O kit de instalação possui um código de cadastro específico para montagem de todas as linhas hidráulicas utilizando o link para garra florestal.
+      - **Parâmetros de Códigos de Peças (Escavadeiras de 22t com pino de 80mm)**:
+        * Código do Link para Garra Florestal: **1000.0000.0120 - Link Garra Biela 4 para maquinas pino 80mm**.
+        * Código do Kit de Instalação Hidráulica: **9000.9000.9015 - KIT INSTALACAO GARRA + LINK EM ESCAVADEIRA - (MAQUINA COM FATIA EXTRA SEM LINHA)**.
+        * **Requisito Crítico do Comando**: É estritamente obrigatório que a escavadeira possua **fatia extra com as 2 válvulas de pressão no comando hidráulico** para a perfeita regulagem.
+      - **Acoplamento e Troca das Mangueiras (Uso de Engates Rápidos)**: As quatro mangueiras hidráulicas que realizam as funções de abrir/fechar garra e a rotação do rotator são conectadas por **engates rápidos de face plana (flat-face quick couplers)**. Eles facilitam imensamente o engate e o desengate das mangueiras de forma limpa e sem perda de óleo no momento em que for necessário retirar a garra para voltar a concha (caçamba) original na máquina.
     - **Compatibilidade e Diretrizes de Escavadeiras com Harvester ou Linha F (Florestal) de Fábrica**:
       - **Incompatibilidade Direta com Outros Equipamentos**: Escavadeiras configuradas/preparadas para Harvester florestal **NÃO** são compatíveis com outros acessórios florestais (garras de carregamento, garras traçadoras, cabeçotes multifuncionais, feller tesoura, feller de disco, desbastador, triturador, etc.) sem modificações profundas e irreversíveis.
       - **Como Funcionam as Linhas do Harvester**: O Harvester é alimentado por uma linha de pressão de alto fluxo com a união do fluxo das duas bombas hidráulicas da escavadeira. Essa única linha de alta pressão alimenta diretamente o Harvester, o qual possui um bloco de comando próprio no cabeçote com várias válvulas solenoides para distribuir o óleo para todas as funções do equipamento. Da escavadeira vêm apenas: 1 linha de pressão de alto fluxo, 1 linha de retorno de alto fluxo (com filtro para o tanque), 1 linha de dreno de carcaça e 1 chicote elétrico de comando. No Harvester, o rotator (giro do cabeçote) é acionado por solenoides internas no cabeçote ou, em alguns modelos, derivado da linha de escavação da caçamba da escavadeira.
@@ -1787,10 +1795,24 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
         5. **Retorno do Fluxo da Serra (Linha T - 1 mangueira)**: Linha de retorno do óleo do motor da serra, conectada **diretamente ao tanque hidráulico da máquina**, passando obrigatoriamente pelo filtro de retorno principal.
         6. **Dreno da Carcaça do Motor da Serra (Linha D - 1 mangueira)**: Linha de dreno direto para aliviar a carcaça do motor da serra. O dreno vai direto ao tanque e **NUNCA pode exceder a pressão de 5 bar** (faixa de trabalho segura de **0 a 5 bar**).
 
-      • **PREPARAÇÃO DE ESCALABILIDADE E INTERCAMBIABILIDADE**:
+      • **PREPARAÇÃO DE ESCALABILIDADE E INTERCAMBIABILIDADE (SISTEMA DE LINK E TROCA RÁPIDA)**:
         - Quando uma escavadeira está devidamente preparada com o circuito hidráulico para operar uma garra de tora/florestal com rotator, ela também tem total facilidade de trabalhar com uma caçamba carregadora normal.
         - Quando estiver operando a caçamba normal, restarão **4 mangueiras extras** livres/desconectadas na ponta da máquina.
         - Para que o vendedor saiba, a garra florestal comum de toras necessita apenas dessas **4 mangueiras** para operar com total funcionalidade: 2 mangueiras de abrir/fechar garra e 2 mangueiras de rotação horária/anti-horária do rotator.
+        - **Duração da Troca (Caçamba vs. Garra Florestal/Carregamento)**: O tempo necessário para realizar a troca completa da caçamba pela garra florestal (ou vice-versa) gira em torno de **15 a 30 minutos**. Essa duração é diretamente influenciada pela experiência e habilidade operacional do encarregado.
+        - **Ferramentas Necessárias para a Retirada dos Pinos**:
+          1. **Chave de Aperto**: Para desparafusar e remover os dois parafusos de trava (parafusos prisioneiros/trava) que seguram os pinos originais da caçamba.
+          2. **Barra de Ferro e Marreta**: Após retirar as travas, o operador precisará de uma barra de ferro apropriada apoiada nos pinos, golpeando com a marreta para conseguir bater, deslizar e extrair os dois pinos pesados de fixação (comumente pinos com diâmetro expressivo, de até 80 mm ou mais dependendo do porte da máquina base), que fixam a caçamba na ponta do braço (olhal da lança/braço) e no link do cilindro da caçamba.
+        - **Passo a Passo Físico e Operacional da Substituição**:
+          1. Retirar os dois parafusos de trava dos pinos da concha original usando a chave apropriada.
+          2. Usar a barra de ferro e a marreta para bater e empurrar os dois pinos, removendo a caçamba.
+          3. Posicionar com precisão milimétrica o braço da máquina (olhal da lança) no link/suporte da garra de carregamento.
+          4. Recolocar e bater os dois pinos originais de volta no link de fixação da garra, inserindo em seguida os parafusos de trava e fixando-os com firmeza.
+          5. Conectar de forma extremamente rápida as quatro mangueiras hidráulicas através de **engates rápidos de face plana (flat-face quick couplers)**.
+        - **Habilidade de Alinhamento**: O fator principal de agilidade reside na capacidade do operador em posicionar perfeitamente o braço da máquina no olhal do link de fixação da garra para que fiquem 100% alinhados, permitindo que o pino seja batido com facilidade e sem resistência.
+        - **Recomendação de Equipe (Operador + Mecânico de Apoio)**:
+          - Embora seja perfeitamente viável para o operador realizar esse processo de troca sozinho se ele se sentir seguro e capaz de manusear os pinos pesados, a Roder recomenda fortemente que a atividade seja executada em **duas pessoas** por motivos de segurança e alta produtividade.
+          - Nessa configuração recomendada, um **mecânico de apoio no solo** atua em conjunto enquanto o **operador permanece com total segurança dentro da cabine** da máquina comandando os movimentos finos do joystick. O operador alinha com precisão o braço no link enquanto o mecânico de apoio no solo retira/coloca os pinos e engata rapidamente as mangueiras. Esse trabalho em dupla reduz o tempo de montagem, evita riscos físicos e garante máxima segurança operacional.
 
       • **DIRETRIZ DE ESCOLHA DA GARRA E KIT DE INSTALAÇÃO NA CAT 313 (E ESCAVADEIRAS DE 12 A 18 TONELADAS)**:
         - **Seleção da Garra para Alimentação de Picador/Carregador vs. Carregamento**:
@@ -1880,12 +1902,30 @@ ${kitsContext || "Não há kits de instalação cadastrados."}${improvedKnowledg
             parts: [{ text: question }]
           });
 
+          const userInfo = args.userInfo || {};
+          let userTypeInstruction = "";
+          if (userInfo.role === 'client' || userInfo.role === 'cliente') {
+            userTypeInstruction = `\n\n18. DIRETRIZ DE ATENDIMENTO AO CLIENTE FINAL (MUITO IMPORTANTE):
+- Você está conversando com um CLIENTE final (comprador de equipamentos) chamado "${userInfo.name || 'Cliente'}" que possui a máquina base "${userInfo.baseMachine || 'não informada'}".
+- Seja extremamente acolhedor, focado em ajudá-lo a entender qual o equipamento Roder ideal para o seu trabalho e para a máquina base dele.
+- Quando ele perguntar sobre qualquer equipamento ou demonstrar interesse em especificações, tire todas as dúvidas dele e, de forma ativa e muito gentil, pergunte se ele gostaria de receber uma simulação ou orçamento oficial sem compromisso da nossa equipe comercial (Gislene e Luana).
+- Exemplo de condução: "Seria excelente podermos fazer uma simulação personalizada e te enviar um orçamento oficial sem compromisso com todas as condições! Se você quiser, eu posso pedir para a Gislene ou a Luana entrarem em contato com você no seu WhatsApp. Você gostaria que eu fizesse essa solicitação agora mesmo?"
+- Caso ele confirme, instrua-o a ficar tranquilo pois nossa equipe entrará em contato em breve, ou recomende que ele use o botão de orçamento se preferir.`;
+          } else {
+            userTypeInstruction = `\n\n18. DIRETRIZ DE ATENDIMENTO AO PARCEIRO/VENDEDOR (MUITO IMPORTANTE):
+- Você está conversando com um PARCEIRO/VENDEDOR cadastrado da Roder chamado "${userInfo.name || 'Vendedor'}".
+- Ofereça suporte de engenharia avançado, com foco em ajudá-lo a sanar dúvidas técnicas de clientes, dimensionar corretamente os equipamentos para fechar negócios, identificar códigos de produtos, consultar o estoque atual da fábrica de garras/cabeçotes e auxiliar na elaboração de propostas que serão encaminhadas à equipe interna (Gislene e Luana) no painel administrativo.
+- Sinta-se à vontade para ser mais técnico e usar termos de revenda, comissão, estoque e especificações de montagem e instalação.`;
+          }
+
+          const finalSystemInstruction = systemInstruction + userTypeInstruction;
+
           const startTime = Date.now();
           const response = await generateContentWithRetry(ai, {
             defaultModel: "gemini-3.5-flash",
             contents: contents,
             config: {
-              systemInstruction: systemInstruction,
+              systemInstruction: finalSystemInstruction,
               temperature: 0.7
             }
           });
@@ -3362,7 +3402,37 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
             `).join('')}
           </tbody>
         </table>
-        <p style="margin-top: 20px; font-size: 12px; color: #666; font-style: italic;">
+
+        <h2 style="font-size: 16px; margin-top: 35px; border-bottom: 2px solid #0f172a; padding-bottom: 5px; color: #0f172a; font-weight: bold;">Detalhamento das Indicações Faturadas no Mês (Roder Indica)</h2>
+        <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px;">
+          <thead>
+            <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0; text-align: left;">
+              <th style="padding: 8px; border: 1px solid #e2e8f0;">Cliente</th>
+              <th style="padding: 8px; border: 1px solid #e2e8f0;">Parceiro Indicador</th>
+              <th style="padding: 8px; border: 1px solid #e2e8f0;">Equipamento(s)</th>
+              <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">Valor Venda (R$)</th>
+              <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">Base Comissionável (R$)</th>
+              <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: center;">Alíquota (%)</th>
+              <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">Comissão (R$)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${monthlySales.map((sale: any) => `
+              <tr style="border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.client_name || "Não informado"}</td>
+                <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.external_seller_name || "-"}</td>
+                <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.product_name || "-"}</td>
+                <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">${formatCurrency(sale.sale_value || 0)}</td>
+                <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; font-weight: bold;">${formatCurrency(sale.base_commission_value || 0)}</td>
+                <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center;">${sale.commission_rate_applied || 5}%</td>
+                <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; font-weight: bold; color: #16a34a;">${formatCurrency(sale.commission_value || 0)}</td>
+              </tr>
+            `).join('')}
+            ${monthlySales.length === 0 ? '<tr><td colspan="7" style="padding: 20px; text-align: center; color: #64748b;">Nenhum faturamento registrado no mês anterior.</td></tr>' : ''}
+          </tbody>
+        </table>
+
+        <p style="margin-top: 25px; font-size: 12px; color: #666; font-style: italic;">
           * Por favor, verifique se os vendedores enviaram as Notas Fiscais no sistema antes de efetivar o pagamento.
         </p>
       </div>
@@ -3583,6 +3653,1455 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     }
   }, {
     timezone: BR_TIMEZONE
+  });
+
+  // --- AGENDOR CRM INTEGRATION ROUTES ---
+
+  // Helper function to call Agendor API
+  async function callAgendor(endpoint: string, method: string, apiToken: string, body?: any) {
+    const url = `https://api.agendor.com.br/v3/${endpoint}`;
+    const headers: any = {
+      "Content-Type": "application/json",
+      "Authorization": `Token ${apiToken}`
+    };
+
+    const options: any = {
+      method,
+      headers
+    };
+
+    if (body) {
+      options.body = JSON.stringify(body);
+    }
+
+    const response = await fetch(url, options);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Erro na API do Agendor: ${response.status} - ${errorText}`);
+    }
+
+    return await response.json();
+  }
+
+  // Robust helper to extract ID from Agendor responses (handles nested objects, arrays, and data envelopes)
+  function extractAgendorId(response: any, preferredKeys: string[] = ["id", "organizationId", "organization_id", "dealId", "deal_id", "personId", "person_id"]): any {
+    if (!response) return null;
+    
+    // If array, take first element
+    if (Array.isArray(response)) {
+      if (response.length > 0) {
+        return extractAgendorId(response[0], preferredKeys);
+      }
+      return null;
+    }
+    
+    // 1. Direct key search at top-level
+    for (const key of preferredKeys) {
+      if (response[key] !== undefined && response[key] !== null) {
+        return response[key];
+      }
+    }
+    
+    // 2. Check in 'data' envelope
+    if (response.data) {
+      for (const key of preferredKeys) {
+        if (response.data[key] !== undefined && response.data[key] !== null) {
+          return response.data[key];
+        }
+      }
+    }
+    
+    // 3. Deep recursive search
+    const findKeyRecursive = (obj: any, keys: string[]): any => {
+      if (obj && typeof obj === 'object') {
+        for (const key of keys) {
+          if (key in obj && obj[key] !== undefined && obj[key] !== null) {
+            return obj[key];
+          }
+        }
+        for (const k of Object.keys(obj)) {
+          const res = findKeyRecursive(obj[k], keys);
+          if (res !== undefined && res !== null) {
+            return res;
+          }
+        }
+      }
+      return undefined;
+    };
+    
+    const recursiveId = findKeyRecursive(response, preferredKeys);
+    if (recursiveId !== undefined && recursiveId !== null) {
+      return recursiveId;
+    }
+    
+    return null;
+  }
+
+  // 1. Test Agendor connection and token (now creates an end-to-end test lead as requested)
+  app.post("/api/agendor/test", async (req, res) => {
+    try {
+      const { apiToken, indicatorName, indicatorEmail, indicatorPhone } = req.body;
+      if (!apiToken) {
+        return res.status(400).json({ error: "Token da API do Agendor não fornecido." });
+      }
+
+      console.log("[AGENDOR-TEST] Iniciando teste de conexão end-to-end...");
+
+      // Step A: Test auth token by fetching organizations list (accessible by all roles, unlike /users which requires admin)
+      let testOrgData: any = [];
+      try {
+        testOrgData = await callAgendor("organizations?per_page=1", "GET", apiToken);
+        console.log("[AGENDOR-TEST] Passo A (Lista de Empresas) bem-sucedido.");
+      } catch (err: any) {
+        console.error("[AGENDOR-TEST] Falha no Passo A (Verificação de Token/Empresas):", err.message);
+        return res.status(500).json({ 
+          error: `Falha na verificação do Token de Conexão (Passo A: GET /v3/organizations): ${err.message}. Verifique se o Token está correto e ativo.` 
+        });
+      }
+
+      // Try to fetch users list as optional diagnostic data (only works for admins, will be caught and ignored for standard users)
+      let usersData: any = [];
+      try {
+        usersData = await callAgendor("users", "GET", apiToken);
+        console.log("[AGENDOR-TEST] Opcional: Lista de Usuários obtida com sucesso. Usuários encontrados:", usersData.length || 0);
+      } catch (err: any) {
+        console.log("[AGENDOR-TEST] Opcional: Não foi possível obter lista de usuários (geralmente porque o token não é administrador):", err.message);
+      }
+
+      const finalIndicatorName = indicatorName || "Jeferson Roder";
+      const finalIndicatorEmail = indicatorEmail || "jeferson@roderbrasil.com.br";
+      const finalIndicatorPhone = indicatorPhone || "(14) 99811-5110";
+
+      // Step B: Create a fictitious test client organization
+      const uniqueSuffix = Math.floor(1000 + Math.random() * 9000);
+      const testOrgName = `Cliente Fictício - Teste RODER Indica (${uniqueSuffix})`;
+      
+      const testOrgPayload = {
+        name: testOrgName,
+        contact: {
+          name: "Contato Teste",
+          email: "suporte@roder.com.br",
+          phones: [{ number: "(11) 98888-8888", type: "mobile" }]
+        },
+        address: {
+          city: "Araçariguama",
+          state: "SP"
+        }
+      };
+
+      let organizationId: any = null;
+      let createdOrg: any = null;
+      try {
+        console.log("[AGENDOR-TEST] Criando empresa de teste no Agendor...");
+        createdOrg = await callAgendor("organizations", "POST", apiToken, testOrgPayload);
+        console.log("[AGENDOR-TEST] Resposta do Passo B (Criar Empresa):", JSON.stringify(createdOrg));
+        organizationId = extractAgendorId(createdOrg, ["organizationId", "organization_id", "id"]);
+        console.log("[AGENDOR-TEST] Passo B (Criar Empresa) bem-sucedido. ID:", organizationId);
+
+        if (!organizationId) {
+          return res.status(500).json({ 
+            error: `Falha na extração do ID da empresa criada (Passo B). Chaves retornadas: ${Object.keys(createdOrg || {}).join(", ")}. Resposta completa: ${JSON.stringify(createdOrg)}` 
+          });
+        }
+      } catch (err: any) {
+        console.error("[AGENDOR-TEST] Falha no Passo B (Criar Empresa):", err.message);
+        return res.status(500).json({ 
+          error: `Falha na criação de empresa de teste (Passo B: POST /v3/organizations): ${err.message}` 
+        });
+      }
+
+      // Step C: Create a test deal under the created organization
+      const testDealTitle = `Teste de Integração: RODER Indica V2 - Cliente Fictício (${uniqueSuffix})`;
+      
+      const testDealPayload = {
+        title: testDealTitle,
+        description: `★ ORIGEM: RODER Indica V2 (Teste de Conexão)\n★ PARCEIRO INDICADOR: ${finalIndicatorName}\n★ EMAIL DO PARCEIRO: ${finalIndicatorEmail}\n★ TELEFONE DO PARCEIRO: ${finalIndicatorPhone}\n\nEste é um teste automático de conexão gerado a partir do painel administrativo do RODER Indica V2 para validar a perfeita integração e o registro automático de novos leads com informações completas do parceiro indicador.`,
+        stage: "lead",
+        status: "ongoing",
+        organization: organizationId
+      };
+
+      let dealId: any = null;
+      let createdDeal: any = null;
+      try {
+        console.log("[AGENDOR-TEST] Criando negócio (lead) de teste no Agendor...");
+        createdDeal = await callAgendor(`organizations/${organizationId}/deals`, "POST", apiToken, testDealPayload);
+        console.log("[AGENDOR-TEST] Resposta do Passo C (Criar Negócio):", JSON.stringify(createdDeal));
+        dealId = extractAgendorId(createdDeal, ["dealId", "deal_id", "id"]);
+        console.log("[AGENDOR-TEST] Passo C (Criar Negócio) bem-sucedido. ID:", dealId);
+
+        if (!dealId) {
+          return res.status(500).json({ 
+            error: `Falha na extração do ID do negócio criado (Passo C). Chaves retornadas: ${Object.keys(createdDeal || {}).join(", ")}. Resposta completa: ${JSON.stringify(createdDeal)}` 
+          });
+        }
+      } catch (err: any) {
+        console.error("[AGENDOR-TEST] Falha no Passo C (Criar Negócio):", err.message);
+        return res.status(500).json({ 
+          error: `Falha na criação de negócio de teste (Passo C: POST /v3/organizations/${organizationId}/deals): ${err.message}` 
+        });
+      }
+
+      // Step D: Create a test task/activity (Tarefa de Teste) linked to the created organization and deal as requested
+      let taskId: any = null;
+      let createdTask: any = null;
+      const testTaskText = `[Teste RODER Indica] Ligar para o contato da empresa ${testOrgName} para dar andamento à indicação de ${finalIndicatorName}.`;
+      try {
+        console.log("[AGENDOR-TEST] Criando tarefa/atividade de teste no Agendor...");
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1); // Set to tomorrow
+        const tomorrowStr = tomorrow.toISOString().split(".")[0] + "Z"; // e.g. "2026-07-20T18:48:37Z"
+        
+        const testTaskPayload = {
+          text: testTaskText,
+          due_date: tomorrowStr,
+          deal: Number(dealId) || undefined,
+          organization: Number(organizationId) || undefined
+        };
+        createdTask = await callAgendor("tasks", "POST", apiToken, testTaskPayload);
+        console.log("[AGENDOR-TEST] Resposta do Passo D (Criar Tarefa):", JSON.stringify(createdTask));
+        taskId = extractAgendorId(createdTask, ["taskId", "task_id", "id"]);
+        console.log("[AGENDOR-TEST] Passo D (Criar Tarefa) bem-sucedido. ID:", taskId);
+      } catch (taskErr: any) {
+        console.error("[AGENDOR-TEST] Falha opcional no Passo D (Criar Tarefa):", taskErr.message);
+      }
+
+      let finalMessage = `Conexão efetuada e teste executado com absoluto sucesso! Criamos a empresa de teste "${testOrgName}" (ID ${organizationId}) e o negócio de teste "${testDealTitle}" (ID ${dealId})`;
+      if (taskId) {
+        finalMessage += ` e geramos uma atividade de teste vinculada para amanhã: "${testTaskText}" (ID da tarefa: ${taskId}). Acesse agora a tela de início do seu Agendor, na seção de ATIVIDADES, para conferir tudo em tempo real!`;
+      } else {
+        finalMessage += ` no seu Agendor! Acesse agora o seu CRM Agendor para conferir o novo lead.`;
+      }
+
+      return res.json({ 
+        success: true, 
+        message: finalMessage, 
+        users: usersData,
+        organizationId,
+        dealId,
+        taskId,
+        orgName: testOrgName,
+        dealTitle: testDealTitle,
+        taskText: testTaskText
+      });
+    } catch (err: any) {
+      console.error("[AGENDOR-TEST] Erro geral de teste:", err.message);
+      return res.status(500).json({ error: err.message || "Erro desconhecido ao testar token de conexão com o Agendor." });
+    }
+  });
+
+  // 2. Synchronize an Indication as a Lead/Deal in Agendor
+  app.post("/api/agendor/sync-indication", async (req, res) => {
+    try {
+      const { indicationId } = req.body;
+      if (!indicationId) {
+        return res.status(400).json({ error: "ID da indicação não fornecido." });
+      }
+
+      // Load Agendor Token from global settings
+      const settingsSnap = await db.collection("settings").doc("agendor").get();
+      if (!settingsSnap.exists) {
+        return res.status(400).json({ error: "Configurações de integração com Agendor não encontradas no banco de dados." });
+      }
+
+      const agendorConfig = settingsSnap.data() as any;
+      if (!agendorConfig.apiToken || !agendorConfig.enabled) {
+        return res.status(400).json({ error: "Integração com Agendor desabilitada ou Token de API ausente." });
+      }
+
+      const apiToken = agendorConfig.apiToken;
+
+    // Load indication document
+      const indSnap = await db.collection("indications").doc(indicationId).get();
+      if (!indSnap.exists) {
+        return res.status(404).json({ error: "Indicação não encontrada no banco." });
+      }
+
+      const indData = indSnap.data() as any;
+      const status = indData.status || "pending";
+
+      // If status is pending (meaning Luana hasn't transferred/assigned it yet)
+      if (status === "pending") {
+        const cnpj = indData.client_cnpj || "";
+        if (cnpj && cnpj !== "Não informado") {
+          const cleanCnpj = cnpj.replace(/\D/g, "");
+          if (cleanCnpj.length === 14) {
+            console.log(`[AGENDOR-SYNC] Realizando lookup automático para lead pendente com CNPJ: ${cleanCnpj}`);
+            try {
+              let existingOrgs: any[] = [];
+              try {
+                existingOrgs = await callAgendor(`organizations?cnpj=${cleanCnpj}`, "GET", apiToken);
+              } catch (cnpjErr: any) {
+                console.warn("[AGENDOR-SYNC] Falha ao buscar por parâmetro cnpj:", cnpjErr.message);
+              }
+              if (!Array.isArray(existingOrgs) || existingOrgs.length === 0) {
+                try {
+                  existingOrgs = await callAgendor(`organizations?q=${cleanCnpj}`, "GET", apiToken);
+                } catch (qCnpjErr: any) {
+                  console.warn("[AGENDOR-SYNC] Falha ao buscar CNPJ via parâmetro q:", qCnpjErr.message);
+                }
+              }
+
+              if (existingOrgs && Array.isArray(existingOrgs) && existingOrgs.length > 0) {
+                const org = existingOrgs[0];
+                console.log(`[AGENDOR-SYNC] Cliente localizado no Agendor para pré-preenchimento automático: ${org.name}`);
+
+                const pulledName = org.name || "";
+                const pulledPhone = org.phones?.[0]?.number || "";
+                const pulledEmail = org.emails?.[0]?.email || "";
+                const pulledAddress = org.address ? `${org.address.city || ""}/${org.address.state || ""}` : "";
+
+                const updates: any = {
+                  agendor_organization_id: org.id,
+                  updated_at: new Date().toISOString()
+                };
+
+                const historyEntries: any[] = [];
+
+                if (pulledName && !indData.client_name) {
+                  updates.client_name = pulledName;
+                }
+                if (pulledPhone && !indData.client_phone) {
+                  updates.client_phone = pulledPhone;
+                }
+                if (pulledEmail && !indData.client_email) {
+                  updates.client_email = pulledEmail;
+                }
+                if (pulledAddress && !indData.client_location) {
+                  updates.client_location = pulledAddress;
+                }
+
+                historyEntries.push({
+                  id: Math.random().toString(36).substring(2, 11),
+                  type: "system",
+                  author_name: "CRM Agendor",
+                  created_at: new Date().toISOString(),
+                  content: `[Sincronização Automática]: Dados do cliente localizados no CRM Agendor (ID ${org.id}) e associados a esta indicação.`
+                });
+
+                updates.negotiation_history = admin.firestore.FieldValue.arrayUnion(...historyEntries);
+                await db.collection("indications").doc(indicationId).update(updates);
+
+                const updatedSnap = await db.collection("indications").doc(indicationId).get();
+                return res.json({
+                  success: true,
+                  message: "Dados do cliente encontrados no Agendor e preenchidos com sucesso no Roder Indica!",
+                  pulled: true,
+                  organizationId: org.id,
+                  negotiation_history: updatedSnap.data()?.negotiation_history || []
+                });
+              } else {
+                // CNPJ lookup did not find any results
+                const searchCnpjLog = {
+                  id: Math.random().toString(36).substring(2, 11),
+                  type: "system",
+                  author_name: "CRM Agendor",
+                  created_at: new Date().toISOString(),
+                  content: `[Sincronização Automática]: Realizada busca automática por CNPJ (${cnpj}) no Agendor CRM, mas nenhuma empresa ou contato correspondente foi localizado. O sistema aguardará a triagem manual e transferência pela Luana para criar a negociação.`
+                };
+                
+                const hasLog = (indData.negotiation_history || []).some((h: any) => h.content?.includes("busca automática por CNPJ"));
+                if (!hasLog) {
+                  await db.collection("indications").doc(indicationId).update({
+                    negotiation_history: admin.firestore.FieldValue.arrayUnion(searchCnpjLog),
+                    updated_at: new Date().toISOString()
+                  });
+                }
+              }
+            } catch (lookupErr: any) {
+              console.warn("[AGENDOR-SYNC] Falha na busca automática do CNPJ:", lookupErr.message);
+            }
+          }
+        } else {
+          // No CNPJ was provided
+          const noCnpjLog = {
+            id: Math.random().toString(36).substring(2, 11),
+            type: "system",
+            author_name: "CRM Agendor",
+            created_at: new Date().toISOString(),
+            content: `[Sincronização Automática]: Sem CNPJ informado na indicação. Aguardando triagem manual e transferência pela Luana para criar e sincronizar o negócio no Agendor CRM.`
+          };
+          const hasLog = (indData.negotiation_history || []).some((h: any) => h.content?.includes("Sem CNPJ informado"));
+          if (!hasLog) {
+            await db.collection("indications").doc(indicationId).update({
+              negotiation_history: admin.firestore.FieldValue.arrayUnion(noCnpjLog),
+              updated_at: new Date().toISOString()
+            });
+          }
+        }
+
+        const updatedSnap = await db.collection("indications").doc(indicationId).get();
+        // Just return status pending confirmation
+        return res.json({
+          success: true,
+          message: "Lead em triagem pendente. A sincronização de negócio no Agendor será disparada automaticamente assim que a Luana atribuir um vendedor.",
+          pending: true,
+          negotiation_history: updatedSnap.data()?.negotiation_history || []
+        });
+      }
+
+      // If status is 'negotiating' or other states, we do full sync (deal registration)
+      // Prepare fields
+      const clientName = indData.client_name || "Cliente Roder Indica";
+      const clientPhone = indData.client_phone || "";
+      const companyName = indData.client_company_name || indData.company_name || "";
+      const cnpj = indData.client_cnpj || "";
+      const location = indData.client_location || "";
+      const productName = indData.product_name || "Equipamento Roder";
+      const baseMachine = indData.base_machine || "Não especificada";
+      const observations = indData.observations || "";
+      const dealValue = indData.base_commission_value || 0;
+
+      let city = "";
+      let state = "";
+      if (location && location.includes("/")) {
+        const parts = location.split("/");
+        city = parts[0].trim();
+        state = parts[1].trim();
+      } else if (location && location.includes("-")) {
+        const parts = location.split("-");
+        city = parts[0].trim();
+        state = parts[1].trim();
+      } else if (location) {
+        city = location.trim();
+      }
+
+      // Step A: Create or Link Organization (Empresa) if companyName is present
+      let organizationId: number | null = indData.agendor_organization_id || null;
+      if (!organizationId && companyName && companyName !== clientName) {
+        try {
+          let existingOrgs: any[] = [];
+          if (cnpj && cnpj !== "Não informado") {
+            const cleanCnpj = cnpj.replace(/\D/g, "");
+            if (cleanCnpj.length === 14) {
+              try {
+                existingOrgs = await callAgendor(`organizations?cnpj=${cleanCnpj}`, "GET", apiToken);
+              } catch (cnpjErr: any) {
+                console.warn("[AGENDOR-SYNC] Falha ao buscar por parâmetro cnpj:", cnpjErr.message);
+              }
+              if (!Array.isArray(existingOrgs) || existingOrgs.length === 0) {
+                try {
+                  existingOrgs = await callAgendor(`organizations?q=${cleanCnpj}`, "GET", apiToken);
+                } catch (qCnpjErr: any) {
+                  console.warn("[AGENDOR-SYNC] Falha ao buscar CNPJ via parâmetro q:", qCnpjErr.message);
+                }
+              }
+            }
+          }
+
+          if ((!existingOrgs || existingOrgs.length === 0) && companyName) {
+            try {
+              existingOrgs = await callAgendor(`organizations?q=${encodeURIComponent(companyName)}`, "GET", apiToken);
+            } catch (nameErr: any) {
+              console.warn("[AGENDOR-SYNC] Falha ao buscar empresa por nome:", nameErr.message);
+            }
+          }
+
+          if (existingOrgs && Array.isArray(existingOrgs) && existingOrgs.length > 0) {
+            const matchedOrg = existingOrgs.find((o: any) => {
+              const cleanO = o.cnpj ? o.cnpj.replace(/\D/g, "") : "";
+              const cleanC = cnpj ? cnpj.replace(/\D/g, "") : "";
+              return (cleanC && cleanO === cleanC) || o.name?.toLowerCase() === companyName.toLowerCase();
+            }) || existingOrgs[0];
+            organizationId = matchedOrg.id;
+            console.log("[AGENDOR-SYNC] Organização existente encontrada no Agendor:", organizationId, matchedOrg.name);
+          } else {
+            const orgPayload: any = {
+              name: companyName,
+              address: {
+                city: city || null,
+                state: state || null
+              }
+            };
+            if (cnpj && cnpj !== "Não informado") {
+              const cleanCnpj = cnpj.replace(/\D/g, "");
+              if (cleanCnpj.length === 14) {
+                orgPayload.cnpj = cleanCnpj;
+              }
+            }
+            if (clientPhone) {
+              orgPayload.phones = [{ number: clientPhone, type: "work" }];
+            }
+
+            const orgResult = await callAgendor("organizations", "POST", apiToken, orgPayload);
+            if (orgResult) {
+              organizationId = extractAgendorId(orgResult, ["organizationId", "organization_id", "id"]);
+              console.log("[AGENDOR-SYNC] Nova organização criada no Agendor:", organizationId);
+            }
+          }
+        } catch (orgErr: any) {
+          console.warn("[AGENDOR-SYNC] Falha ao gerenciar organização, tentando prosseguir:", orgErr.message);
+        }
+      }
+
+      // Step B: Create or Link Person (Pessoa)
+      let personId: number | null = indData.agendor_person_id || null;
+      if (!personId) {
+        try {
+          let existingPeople: any[] = [];
+          if (clientPhone) {
+            const cleanPhone = clientPhone.replace(/\D/g, "");
+            if (cleanPhone) {
+              try {
+                existingPeople = await callAgendor(`people?q=${cleanPhone}`, "GET", apiToken);
+              } catch (phoneErr: any) {
+                console.warn("[AGENDOR-SYNC] Falha ao buscar contato por telefone:", phoneErr.message);
+              }
+            }
+          }
+
+          if ((!existingPeople || existingPeople.length === 0) && indData.client_email) {
+            try {
+              existingPeople = await callAgendor(`people?q=${encodeURIComponent(indData.client_email)}`, "GET", apiToken);
+            } catch (emailErr: any) {
+              console.warn("[AGENDOR-SYNC] Falha ao buscar contato por email:", emailErr.message);
+            }
+          }
+
+          if ((!existingPeople || existingPeople.length === 0) && clientName) {
+            try {
+              existingPeople = await callAgendor(`people?q=${encodeURIComponent(clientName)}`, "GET", apiToken);
+            } catch (nameErr: any) {
+              console.warn("[AGENDOR-SYNC] Falha ao buscar contato por nome:", nameErr.message);
+            }
+          }
+
+          if (existingPeople && Array.isArray(existingPeople) && existingPeople.length > 0) {
+            const matchedPerson = existingPeople.find((p: any) => p.name?.toLowerCase() === clientName.toLowerCase()) || existingPeople[0];
+            personId = matchedPerson.id;
+            console.log("[AGENDOR-SYNC] Pessoa existente encontrada no Agendor:", personId, matchedPerson.name);
+          } else {
+            const personPayload: any = {
+              name: clientName,
+              role: "Cliente",
+              description: "Cadastrado automaticamente via Roder Indica"
+            };
+
+            if (organizationId) {
+              personPayload.organization = organizationId;
+            }
+
+            if (clientPhone) {
+              personPayload.phones = [{ number: clientPhone.replace(/\D/g, ""), type: "mobile" }];
+            }
+
+            if (city || state) {
+              personPayload.address = {
+                city: city || null,
+                state: state || null
+              };
+            }
+
+            const personResult = await callAgendor("people", "POST", apiToken, personPayload);
+            if (personResult) {
+              personId = extractAgendorId(personResult, ["personId", "person_id", "id"]);
+              console.log("[AGENDOR-SYNC] Nova pessoa criada no Agendor:", personId);
+            }
+          }
+        } catch (personErr: any) {
+          console.error("[AGENDOR-SYNC] Falha ao gerenciar pessoa:", personErr.message);
+          return res.status(500).json({ error: `Falha ao gerenciar contato no Agendor: ${personErr.message}` });
+        }
+      }
+
+      // Step C: Fetch partner (indicator) & internal salesperson details to link ownership and reference partner
+      let partnerName = indData.external_seller_name || "Parceiro Indicador";
+      let partnerEmail = "";
+      let partnerPhone = "";
+      if (indData.external_seller_uid) {
+        try {
+          const partnerSnap = await db.collection("users").doc(indData.external_seller_uid).get();
+          if (partnerSnap.exists) {
+            const partnerData = partnerSnap.data() as any;
+            partnerName = partnerData.name || partnerName;
+            partnerEmail = partnerData.email || "";
+            partnerPhone = partnerData.phone || "";
+          }
+        } catch (e: any) {
+          console.warn("[AGENDOR-SYNC] Falha ao carregar dados do parceiro indicador:", e.message);
+        }
+      }
+
+      let sellerEmail = "";
+      let sellerName = indData.internal_seller_name || "";
+      if (indData.internal_seller_uid) {
+        try {
+          const sellerSnap = await db.collection("users").doc(indData.internal_seller_uid).get();
+          if (sellerSnap.exists) {
+            const sellerData = sellerSnap.data() as any;
+            sellerName = sellerData.name || sellerName;
+            sellerEmail = sellerData.email || "";
+          }
+        } catch (e: any) {
+          console.warn("[AGENDOR-SYNC] Falha ao carregar dados do vendedor comercial:", e.message);
+        }
+      }
+
+      // Attempt to find the Agendor User ID that matches the salesperson
+      let agendorUserId: number | null = null;
+      if (sellerName || sellerEmail) {
+        try {
+          const agendorUsers = await callAgendor("users", "GET", apiToken);
+          if (Array.isArray(agendorUsers)) {
+            // First search by email matching
+            let matched = sellerEmail 
+              ? agendorUsers.find((u: any) => u.email?.toLowerCase().trim() === sellerEmail.toLowerCase().trim())
+              : null;
+            
+            // Second search by name matching
+            if (!matched && sellerName) {
+              const cleanSellerName = sellerName.toLowerCase().trim();
+              matched = agendorUsers.find((u: any) => {
+                const uName = u.name?.toLowerCase().trim() || "";
+                return uName.includes(cleanSellerName) || cleanSellerName.includes(uName);
+              });
+            }
+
+            if (matched) {
+              agendorUserId = matched.id;
+              console.log(`[AGENDOR-SYNC] Vendedor associado ao negócio no Agendor: ${matched.name} (ID: ${agendorUserId})`);
+            }
+          }
+        } catch (uErr: any) {
+          console.warn("[AGENDOR-SYNC] Erro ao pesquisar usuário correspondente no Agendor:", uErr.message);
+        }
+      }
+
+      // Step D: Create or Update Deal (Negócio) in Agendor
+      let dealId: number | null = indData.agendor_deal_id || null;
+      try {
+        const partnerInfo = `★ ORIGEM: RODER Indica V2\n★ PARCEIRO INDICADOR: ${partnerName}\n★ EMAIL DO PARCEIRO: ${partnerEmail || "Não informado"}\n★ TELEFONE DO PARCEIRO: ${partnerPhone || "Não informado"}\n\n`;
+
+        const dealPayload: any = {
+          title: `Indicação: ${productName} - ${clientName} (Parceiro: ${partnerName})`,
+          description: `${partnerInfo}Máquina Base: ${baseMachine}\nDetalhes: ${indData.machine_details || ""}\n\nObservações do Lead:\n${observations}\n\nSincronizado via RODER Indica V2.`,
+          stage: indData.agendor_stage || "lead",
+          status: indData.agendor_status || "ongoing"
+        };
+
+        if (personId) {
+          dealPayload.person = personId;
+        }
+        if (organizationId) {
+          dealPayload.organization = organizationId;
+        }
+        if (dealValue && dealValue > 0) {
+          dealPayload.value = parseFloat(dealValue);
+        }
+
+        // Assign deal ownership if the salesperson is matched in Agendor
+        if (agendorUserId) {
+          dealPayload.owner = agendorUserId;
+          dealPayload.allowedUsers = [agendorUserId];
+        }
+
+        if (dealId) {
+          console.log("[AGENDOR-SYNC] Atualizando negócio existente:", dealId);
+          await callAgendor(`deals/${dealId}`, "PUT", apiToken, dealPayload);
+        } else {
+          let postEndpoint = "deals";
+          if (organizationId) {
+            postEndpoint = `organizations/${organizationId}/deals`;
+          } else if (personId) {
+            postEndpoint = `people/${personId}/deals`;
+          }
+          console.log(`[AGENDOR-SYNC] Criando novo negócio via endpoint: ${postEndpoint}`);
+          const dealResult = await callAgendor(postEndpoint, "POST", apiToken, dealPayload);
+          if (dealResult) {
+            dealId = extractAgendorId(dealResult, ["dealId", "deal_id", "id"]);
+          }
+        }
+      } catch (dealErr: any) {
+        console.error("[AGENDOR-SYNC] Falha ao gerenciar negócio:", dealErr.message);
+        return res.status(500).json({ error: `Falha ao gerenciar negócio no Agendor: ${dealErr.message}` });
+      }
+
+      // Step E: Update Indication in Firestore to save Agendor ref and log details
+      const sentValueFormatted = dealValue && dealValue > 0 
+        ? `R$ ${parseFloat(dealValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+        : 'Não informado';
+
+      const syncHistoryEntry = {
+        id: Math.random().toString(36).substring(2, 11),
+        type: "system",
+        author_name: "CRM Agendor",
+        created_at: new Date().toISOString(),
+        content: `[Sincronização CRM]: Indicação integrada e enviada ao Agendor CRM com sucesso!
+
+★ DADOS ENVIADOS PARA O CRM:
+• Título do Negócio: "Indicação: ${productName} - ${clientName} (Parceiro: ${partnerName})"
+• Estágio Inicial: "${indData.agendor_stage === 'lead' ? 'Lead (Triagem)' : (indData.agendor_stage || 'Lead')}"
+• Cliente / Empresa: "${companyName || clientName}"
+• Contato Principal: "${clientName}"
+• Telefone de Contato: "${clientPhone || 'Não informado'}"
+• Valor Estimado: ${sentValueFormatted}
+• Vendedor Comercial: "${sellerName || 'Não atribuído'}"
+• Parceiro Indicador: "${partnerName}"
+
+★ DADOS RECEBIDOS DO CRM (REFERÊNCIAS):
+• ID do Negócio (Deal ID): ${dealId}
+• ID da Organização (Org ID): ${organizationId || 'Não criada'}
+• ID da Pessoa (Person ID): ${personId || 'Não criada'}`
+      };
+
+      await db.collection("indications").doc(indicationId).update({
+        agendor_synced: true,
+        agendor_deal_id: dealId,
+        agendor_person_id: personId,
+        agendor_organization_id: organizationId,
+        agendor_synced_at: new Date().toISOString(),
+        negotiation_history: admin.firestore.FieldValue.arrayUnion(syncHistoryEntry)
+      });
+
+      const updatedSnap = await db.collection("indications").doc(indicationId).get();
+      const updatedData = updatedSnap.data();
+
+      return res.json({
+        success: true,
+        message: "Indicação integrada e sincronizada no Agendor CRM com sucesso!",
+        dealId,
+        personId,
+        organizationId,
+        negotiation_history: updatedData?.negotiation_history || []
+      });
+
+    } catch (err: any) {
+      console.error("[AGENDOR-SYNC] Erro geral de sincronização:", err.message);
+      try {
+        const { indicationId } = req.body;
+        if (indicationId) {
+          const failHistoryEntry = {
+            id: Math.random().toString(36).substring(2, 11),
+            type: "system",
+            author_name: "CRM Agendor",
+            created_at: new Date().toISOString(),
+            content: `[Sincronização CRM - FALHA]: Falha na sincronização com o Agendor CRM. Erro: ${err.message}`
+          };
+          await db.collection("indications").doc(indicationId).update({
+            negotiation_history: admin.firestore.FieldValue.arrayUnion(failHistoryEntry),
+            updated_at: new Date().toISOString()
+          });
+        }
+      } catch (logErr) {
+        console.error("[AGENDOR-SYNC] Falha ao gravar histórico de erro:", logErr);
+      }
+      return res.status(500).json({ error: err.message || "Erro interno ao sincronizar com Agendor." });
+    }
+  });
+
+
+  // 2.5. Import and parse PDF files/attachments from Agendor CRM
+  app.post("/api/agendor/import-files", async (req, res) => {
+    try {
+      const { indicationId } = req.body;
+      if (!indicationId) {
+        return res.status(400).json({ error: "ID da indicação não fornecido." });
+      }
+
+      // Load Agendor Token from global settings
+      const settingsSnap = await db.collection("settings").doc("agendor").get();
+      if (!settingsSnap.exists) {
+        return res.status(400).json({ error: "Configurações de integração com Agendor não encontradas." });
+      }
+
+      const agendorConfig = settingsSnap.data() as any;
+      if (!agendorConfig.apiToken || !agendorConfig.enabled) {
+        return res.status(400).json({ error: "Integração com Agendor desabilitada ou Token ausente." });
+      }
+
+      const apiToken = agendorConfig.apiToken;
+
+      // Load indication document
+      const indSnap = await db.collection("indications").doc(indicationId).get();
+      if (!indSnap.exists) {
+        return res.status(404).json({ error: "Indicação não encontrada no banco." });
+      }
+
+      const indData = indSnap.data() as any;
+      const dealId = indData.agendor_deal_id;
+      if (!dealId) {
+        return res.status(400).json({ error: "Esta indicação não possui um ID de negócio do Agendor associado. Por favor, sincronize a indicação primeiro." });
+      }
+
+      console.log(`[AGENDOR-IMPORT] Iniciando busca de anexos para o negócio #${dealId}...`);
+
+      const pdfFiles: Array<{ name: string, url: string, date?: string }> = [];
+
+      // A. Try /deals/{dealId}/files
+      try {
+        const filesRes = await callAgendor(`deals/${dealId}/files`, "GET", apiToken);
+        const filesArray = Array.isArray(filesRes) ? filesRes : (filesRes.data || []);
+        if (Array.isArray(filesArray)) {
+          filesArray.forEach((f: any) => {
+            if (f && f.url && (f.url.toLowerCase().includes(".pdf") || (f.name && f.name.toLowerCase().endsWith(".pdf")))) {
+              pdfFiles.push({
+                name: f.name || "arquivo.pdf",
+                url: f.url,
+                date: f.created_at || f.createdAt || new Date().toISOString()
+              });
+            }
+          });
+        }
+      } catch (err: any) {
+        console.warn("[AGENDOR-IMPORT] Não foi possível obter arquivos de /files:", err.message);
+      }
+
+      // B. Try /deals/{dealId}/comments
+      try {
+        const commentsRes = await callAgendor(`deals/${dealId}/comments`, "GET", apiToken);
+        const commentsArray = Array.isArray(commentsRes) ? commentsRes : (commentsRes.data || []);
+        if (Array.isArray(commentsArray)) {
+          commentsArray.forEach((c: any) => {
+            const attachments = c.attachments || c.files || [];
+            if (Array.isArray(attachments)) {
+              attachments.forEach((att: any) => {
+                if (att && att.url && (att.url.toLowerCase().includes(".pdf") || (att.name && att.name.toLowerCase().endsWith(".pdf")))) {
+                  pdfFiles.push({
+                    name: att.name || "comentario_anexo.pdf",
+                    url: att.url,
+                    date: att.created_at || att.createdAt || c.created_at || c.createdAt || new Date().toISOString()
+                  });
+                }
+              });
+            }
+          });
+        }
+      } catch (err: any) {
+        console.warn("[AGENDOR-IMPORT] Não foi possível obter anexos de /comments:", err.message);
+      }
+
+      if (pdfFiles.length === 0) {
+        return res.status(404).json({ 
+          error: "Nenhum arquivo PDF foi localizado no negócio do Agendor CRM. Por favor, faça o upload do Orçamento ou Pedido de Venda em PDF na seção de Arquivos ou Comentários do negócio no Agendor e tente novamente." 
+        });
+      }
+
+      // Sort by date descending to get the latest file
+      pdfFiles.sort((a, b) => {
+        const dA = a.date ? new Date(a.date).getTime() : 0;
+        const dB = b.date ? new Date(b.date).getTime() : 0;
+        return dB - dA;
+      });
+
+      const targetFile = pdfFiles[0];
+      console.log(`[AGENDOR-IMPORT] Baixando PDF do Agendor: ${targetFile.name} (URL: ${targetFile.url})`);
+
+      const fileResponse = await fetch(targetFile.url);
+      if (!fileResponse.ok) {
+        return res.status(500).json({ error: `Falha ao fazer download do arquivo PDF do Agendor. Status HTTP: ${fileResponse.status}` });
+      }
+
+      const arrayBuffer = await fileResponse.arrayBuffer();
+      const fileBase64 = Buffer.from(arrayBuffer).toString("base64");
+
+      const ai = getGenAI();
+      if (!ai) {
+        return res.status(500).json({ error: "Chave GEMINI_API_KEY não configurada no servidor." });
+      }
+
+      const prompt = `Analise este pedido de venda/orçamento em PDF e extraia as seguintes informações:
+      1. O valor total da venda/pedido (procurado em "Total Pedido", "Valor total com ajuste de frete" ou "Valor total").
+      2. O nome/razão social do cliente ("Cliente"). Se tiver um código numérico antes (ex: "4235 - Eucazin Ltda"), extraia o código separado e limpe o nome.
+      3. O prazo de entrega do pedido (procurado em "PRAZO DE ENTREGA" ou "data de entrega"), trazendo no formato DD/MM/YYYY (ex: "13/07/2026").
+      4. O número do pedido de venda (e.g., procurado no título como "Pedido de Venda nº 9414"). Traga como inteiro ou texto limpo (ex: "9414").
+      5. A data em que o pedido de venda foi feito/gerado (procurada na coluna ou rótulo "Data" na linha do cliente ou próximo à coluna endereço, ex: "28/05/2026"). Traga no formato de data DD/MM/YYYY.
+      6. O CNPJ ou CPF do cliente (procurado em "CNPJ" ou "CPF/CNPJ", ex: "59.317.231/0001-76").
+      7. O código do cliente (procurado na linha ou campo "Cliente" antes do nome ou em campo separado, ex: "4235").
+      8. O apelido ou Nome Abreviado do cliente (procurado in "Apelido/Nome Abrev.", ex: "Eucazin Ltda").
+      9. O e-mail de contato do cliente (procurado na linha de contato, ex: "financeiro@fazendadocarmo.com").
+      10. O telefone ou celular do cliente (procurado na linha de contato ou telefone, ex: "62 9278-6496" ou "(14) 3161-5110").
+      11. O endereço do cliente (procurado no campo "Endereço").
+      12. A lista completa de todos os itens contidos na tabela de itens do pedido. Para cada item extraia:
+         - O código do produto exatamente como está (ex: "1000.1484.0000" ou "9000.9000.9027").
+         - A descrição ou nome do produto.
+         - A quantidade (número).
+         - O preço unitário (número).
+      
+      Responda em formato de objeto JSON estruturado.`;
+
+      console.log("[AGENDOR-IMPORT] Enviando PDF para análise do Gemini...");
+      const geminiResponse = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: [
+          { text: prompt },
+          { inlineData: { data: fileBase64, mimeType: "application/pdf" } }
+        ],
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              sale_value: { type: Type.NUMBER, description: "Total value of the budget/order" },
+              client_name: { type: Type.STRING, description: "Client's corporate or full name" },
+              delivery_date: { type: Type.STRING, description: "Delivery date strictly in DD/MM/YYYY format" },
+              order_number: { type: Type.STRING, description: "Sales order number extracted (e.g. 9414)" },
+              order_date: { type: Type.STRING, description: "Sales order generation date in DD/MM/YYYY format" },
+              client_cnpj: { type: Type.STRING, description: "Customer's CNPJ or CPF (e.g. 59.317.231/0001-76)" },
+              client_code: { type: Type.STRING, description: "Customer's code (e.g. 4235)" },
+              company_name: { type: Type.STRING, description: "Customer's short/abbreviated name (e.g. Eucazin Ltda)" },
+              client_email: { type: Type.STRING, description: "Customer's email (e.g. financeiro@fazendadocarmo.com)" },
+              client_phone: { type: Type.STRING, description: "Customer's phone / cellular (e.g. 62 9278-6496)" },
+              client_address: { type: Type.STRING, description: "Customer's complete address" },
+              items: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    code: { type: Type.STRING, description: "Product code (e.g. 1000.1484.0000)" },
+                    name: { type: Type.STRING, description: "Product description/name" },
+                    quantity: { type: Type.NUMBER, description: "Exact quantity" },
+                    unit_price: { type: Type.NUMBER, description: "Unit price of the product" }
+                  },
+                  required: ["code", "name", "quantity", "unit_price"]
+                }
+              }
+            },
+            required: ["sale_value", "client_name", "items"]
+          }
+        }
+      });
+
+      const parsedText = geminiResponse.text || "";
+      const jsonMatch = parsedText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        return res.status(500).json({ error: "Falha na decodificação do retorno estruturado do Gemini." });
+      }
+      const parsed = JSON.parse(jsonMatch[0]);
+      console.log("[AGENDOR-IMPORT] Análise concluída com sucesso. Itens extraídos:", (parsed.items || []).length);
+
+      // Detect if Sales Order or Budget
+      const isSalesOrder = targetFile.name.toLowerCase().includes("pedido") || 
+                           targetFile.name.toLowerCase().includes("venda") ||
+                           targetFile.name.toLowerCase().includes("order") ||
+                           !!parsed.order_number;
+
+      // Determine commission rate for partner
+      let commissionRate = 5; // Default is 5%
+      const partnerId = indData.external_seller_uid || indData.creator_uid;
+      if (partnerId) {
+        const partnerSnap = await db.collection("users").doc(partnerId).get();
+        if (partnerSnap.exists) {
+          const partnerData = partnerSnap.data() || {};
+          if (partnerData.commission_rate !== undefined && partnerData.commission_rate !== null) {
+            commissionRate = Number(partnerData.commission_rate);
+          }
+        }
+      }
+
+      // Map products and calculate total commissionable base value
+      let totalCommissionable = 0;
+      const mappedProducts = (parsed.items || []).map((item: any) => {
+        const code = (item.code || "").trim();
+        // Kit codes start with "9000" and are NOT commissionable
+        const isComm = code && !code.startsWith("9000");
+        const price = item.unit_price || 0;
+        const qty = item.quantity || 1;
+        if (isComm) {
+          totalCommissionable += price * qty;
+        }
+        return {
+          code,
+          name: item.name || "Equipamento não cadastrado",
+          quantity: qty,
+          base_value: price,
+          is_commissionable: isComm,
+          uniqueId: `${code || 'item'}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`
+        };
+      });
+
+      const finalCommission = totalCommissionable * (commissionRate / 100);
+
+      const updates: any = {
+        commissioned_products: mappedProducts,
+        base_commission_value: totalCommissionable,
+        commission_rate_applied: commissionRate,
+        commission_value: finalCommission,
+        updated_at: new Date().toISOString()
+      };
+
+      if (isSalesOrder) {
+        updates.sales_order_loaded = true;
+        updates.sale_value = parsed.sale_value;
+        if (parsed.order_number) updates.order_number = parsed.order_number;
+        if (parsed.order_date) updates.order_date = parsed.order_date;
+        updates.status = "sold"; // Mark as faturado/sold automatically if order parsed!
+      } else {
+        updates.budget_loaded = true;
+        updates.gross_budget_value = parsed.sale_value;
+        if (parsed.order_number) updates.budget_number = parsed.order_number;
+        if (parsed.order_date) updates.budget_date = parsed.order_date;
+      }
+
+      // Sync Client registration fields if not yet filled
+      if (!indData.client_cnpj && parsed.client_cnpj) updates.client_cnpj = parsed.client_cnpj;
+      if (!indData.client_name && parsed.client_name) updates.client_name = parsed.client_name;
+      if (!indData.client_phone && parsed.client_phone) updates.client_phone = parsed.client_phone;
+      if (!indData.client_email && parsed.client_email) updates.client_email = parsed.client_email;
+      if (!indData.client_address && parsed.client_address) updates.client_address = parsed.client_address;
+
+      // History entry
+      const syncHistoryEntry = {
+        id: Math.random().toString(36).substring(2, 11),
+        type: "status_change",
+        author_name: "Roder IA Automatizada",
+        created_at: new Date().toISOString(),
+        content: `Documento [${targetFile.name}] importado e analisado via CRM Agendor! Tipo identificado: ${isSalesOrder ? 'Pedido de Venda' : 'Orçamento'}. Foram faturados ${mappedProducts.length} itens. Base Comissionável: R$ ${totalCommissionable.toLocaleString("pt-BR", {minimumFractionDigits: 2})}. Alíquota do Indicador Parceiro: ${commissionRate}%. Comissão Calculada: R$ ${finalCommission.toLocaleString("pt-BR", {minimumFractionDigits: 2})}.`
+      };
+
+      updates.negotiation_history = admin.firestore.FieldValue.arrayUnion(syncHistoryEntry);
+
+      await db.collection("indications").doc(indicationId).update(updates);
+
+      return res.json({
+        success: true,
+        message: `Importação realizada com sucesso! Documento analisado: ${targetFile.name} (${isSalesOrder ? 'Pedido de Venda' : 'Orçamento Orçado'}).`,
+        isSalesOrder,
+        parsedData: parsed,
+        totalCommissionable,
+        commissionRate,
+        finalCommission
+      });
+
+    } catch (err: any) {
+      console.error("[AGENDOR-IMPORT] Erro ao importar arquivos:", err.message);
+      return res.status(500).json({ error: err.message || "Erro interno ao processar a importação do CRM." });
+    }
+  });
+
+
+  // 3. Search and Match Client in Agendor CRM
+  app.get("/api/agendor/search-client", async (req, res) => {
+    try {
+      const { cnpj, phone, name, code } = req.query;
+      const settingsSnap = await db.collection("settings").doc("agendor").get();
+      if (!settingsSnap.exists) {
+        return res.status(400).json({ error: "Integração com Agendor não configurada." });
+      }
+      const agendorConfig = settingsSnap.data() as any;
+      if (!agendorConfig.apiToken || !agendorConfig.enabled) {
+        return res.status(400).json({ error: "Integração desabilitada ou sem Token de API." });
+      }
+
+      const apiToken = agendorConfig.apiToken;
+
+      // 1. Precedence: Search by Code / ID
+      if (code) {
+        const cleanCode = String(code).trim();
+        if (/^\d+$/.test(cleanCode)) {
+          // Try fetching organization first
+          try {
+            const org = await callAgendor(`organizations/${cleanCode}`, "GET", apiToken);
+            if (org && org.id) {
+              return res.json({
+                success: true,
+                found: true,
+                source: "code",
+                type: "organization",
+                id: org.id,
+                name: org.name,
+                company_name: org.name,
+                cnpj: org.cnpj || "",
+                phone: org.phones?.[0]?.number || "",
+                email: org.emails?.[0]?.email || "",
+                address: org.address ? `${org.address.city || ""}/${org.address.state || ""}` : "",
+                client_code: String(org.id)
+              });
+            }
+          } catch (e) {
+            // Not an org ID or not found, try person
+            try {
+              const person = await callAgendor(`people/${cleanCode}`, "GET", apiToken);
+              if (person && person.id) {
+                return res.json({
+                  success: true,
+                  found: true,
+                  source: "code",
+                  type: "person",
+                  id: person.id,
+                  name: person.name,
+                  company_name: person.organization?.name || "",
+                  cnpj: "",
+                  phone: person.phones?.[0]?.number || "",
+                  email: person.emails?.[0]?.email || "",
+                  address: person.address ? `${person.address.city || ""}/${person.address.state || ""}` : "",
+                  client_code: String(person.id)
+                });
+              }
+            } catch (pErr) {
+              console.log("[AGENDOR-SEARCH] Code search by direct ID failed:", cleanCode);
+            }
+          }
+        }
+
+        // Try general search with code
+        try {
+          const orgs = await callAgendor(`organizations?q=${encodeURIComponent(cleanCode)}`, "GET", apiToken);
+          if (Array.isArray(orgs) && orgs.length > 0) {
+            const org = orgs[0];
+            return res.json({
+              success: true,
+              found: true,
+              source: "code",
+              type: "organization",
+              id: org.id,
+              name: org.name,
+              company_name: org.name,
+              cnpj: org.cnpj || "",
+              phone: org.phones?.[0]?.number || "",
+              email: org.emails?.[0]?.email || "",
+              address: org.address ? `${org.address.city || ""}/${org.address.state || ""}` : "",
+              client_code: String(org.id)
+            });
+          }
+        } catch (searchCodeErr) {
+          console.warn("[AGENDOR-SEARCH] Search org by code q failed");
+        }
+      }
+
+      // 2. Precedence: CNPJ
+      if (cnpj) {
+        const cleanCnpj = String(cnpj).replace(/\D/g, "");
+        if (cleanCnpj.length === 14) {
+          try {
+            let orgs = await callAgendor(`organizations?cnpj=${cleanCnpj}`, "GET", apiToken);
+            if (!Array.isArray(orgs) || orgs.length === 0) {
+              orgs = await callAgendor(`organizations?q=${cleanCnpj}`, "GET", apiToken);
+            }
+            if (Array.isArray(orgs) && orgs.length > 0) {
+              const org = orgs[0];
+              return res.json({
+                success: true,
+                found: true,
+                source: "cnpj",
+                type: "organization",
+                id: org.id,
+                name: org.name,
+                company_name: org.name,
+                cnpj: org.cnpj || "",
+                phone: org.phones?.[0]?.number || "",
+                email: org.emails?.[0]?.email || "",
+                address: org.address ? `${org.address.city || ""}/${org.address.state || ""}` : "",
+                client_code: String(org.id)
+              });
+            }
+          } catch (cnpjErr: any) {
+            console.error("[AGENDOR-SEARCH] CNPJ lookup failed:", cnpjErr.message);
+          }
+        }
+      }
+
+      // 3. Precedence: Phone number
+      if (phone) {
+        const cleanPhone = String(phone).replace(/\D/g, "");
+        if (cleanPhone.length >= 8) {
+          try {
+            const people = await callAgendor(`people?q=${cleanPhone}`, "GET", apiToken);
+            if (Array.isArray(people) && people.length > 0) {
+              const person = people[0];
+              return res.json({
+                success: true,
+                found: true,
+                source: "phone",
+                type: "person",
+                id: person.id,
+                name: person.name,
+                company_name: person.organization?.name || "",
+                cnpj: "",
+                phone: person.phones?.[0]?.number || "",
+                email: person.emails?.[0]?.email || "",
+                address: person.address ? `${person.address.city || ""}/${person.address.state || ""}` : "",
+                client_code: String(person.id)
+              });
+            }
+
+            // Also try organization search by phone
+            const orgs = await callAgendor(`organizations?q=${cleanPhone}`, "GET", apiToken);
+            if (Array.isArray(orgs) && orgs.length > 0) {
+              const org = orgs[0];
+              return res.json({
+                success: true,
+                found: true,
+                source: "phone",
+                type: "organization",
+                id: org.id,
+                name: org.name,
+                company_name: org.name,
+                cnpj: org.cnpj || "",
+                phone: org.phones?.[0]?.number || "",
+                email: org.emails?.[0]?.email || "",
+                address: org.address ? `${org.address.city || ""}/${org.address.state || ""}` : "",
+                client_code: String(org.id)
+              });
+            }
+          } catch (phoneErr: any) {
+            console.error("[AGENDOR-SEARCH] Phone lookup failed:", phoneErr.message);
+          }
+        }
+      }
+
+      // 4. Precedence: Name
+      if (name) {
+        const cleanName = String(name).trim();
+        if (cleanName.length >= 3) {
+          try {
+            // Try searching organization first
+            const orgs = await callAgendor(`organizations?q=${encodeURIComponent(cleanName)}`, "GET", apiToken);
+            if (Array.isArray(orgs) && orgs.length > 0) {
+              const org = orgs[0];
+              return res.json({
+                success: true,
+                found: true,
+                source: "name",
+                type: "organization",
+                id: org.id,
+                name: org.name,
+                company_name: org.name,
+                cnpj: org.cnpj || "",
+                phone: org.phones?.[0]?.number || "",
+                email: org.emails?.[0]?.email || "",
+                address: org.address ? `${org.address.city || ""}/${org.address.state || ""}` : "",
+                client_code: String(org.id)
+              });
+            }
+
+            // Try searching person
+            const people = await callAgendor(`people?q=${encodeURIComponent(cleanName)}`, "GET", apiToken);
+            if (Array.isArray(people) && people.length > 0) {
+              const person = people[0];
+              return res.json({
+                success: true,
+                found: true,
+                source: "name",
+                type: "person",
+                id: person.id,
+                name: person.name,
+                company_name: person.organization?.name || "",
+                cnpj: "",
+                phone: person.phones?.[0]?.number || "",
+                email: person.emails?.[0]?.email || "",
+                address: person.address ? `${person.address.city || ""}/${person.address.state || ""}` : "",
+                client_code: String(person.id)
+              });
+            }
+          } catch (nameErr: any) {
+            console.error("[AGENDOR-SEARCH] Name lookup failed:", nameErr.message);
+          }
+        }
+      }
+
+      return res.json({ success: true, found: false });
+    } catch (err: any) {
+      console.error("[AGENDOR-SEARCH-CLIENT] Erro geral de busca:", err.message);
+      return res.status(500).json({ error: err.message || "Erro interno ao buscar cliente." });
+    }
+  });
+
+  // 4. Search Contacts (People) from Agendor
+  app.get("/api/agendor/contacts", async (req, res) => {
+    try {
+      const q = req.query.q as string || "";
+      const settingsSnap = await db.collection("settings").doc("agendor").get();
+      if (!settingsSnap.exists) {
+        return res.status(400).json({ error: "Integração com Agendor não configurada." });
+      }
+      const agendorConfig = settingsSnap.data() as any;
+      if (!agendorConfig.apiToken || !agendorConfig.enabled) {
+        return res.status(400).json({ error: "Integração desabilitada ou sem Token de API." });
+      }
+
+      const apiToken = agendorConfig.apiToken;
+      const endpoint = q ? `people?q=${encodeURIComponent(q)}` : "people?limit=15";
+      const people = await callAgendor(endpoint, "GET", apiToken);
+
+      return res.json({ success: true, contacts: people });
+    } catch (err: any) {
+      console.error("[AGENDOR-CONTACTS] Erro ao buscar contatos:", err.message);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 4. Webhook Listener for Agendor CRM updates (Two-Way Sync)
+  app.post("/api/webhooks/agendor", async (req, res) => {
+    try {
+      const payload = req.body;
+      console.log("[AGENDOR-WEBHOOK] Recebido payload:", JSON.stringify(payload, null, 2));
+
+      // Extract details
+      const data = payload.data || payload;
+
+      // Detect Deal ID
+      let dealId = data.id || data.deal_id;
+      if (!dealId && data.deal) {
+        dealId = data.deal.id;
+      }
+      if (!dealId && payload.entity_type === "deal") {
+        dealId = payload.entity_id;
+      }
+
+      if (!dealId) {
+        console.warn("[AGENDOR-WEBHOOK] ID do negócio não identificado no payload.");
+        return res.json({ success: false, message: "ID do negócio não identificado" });
+      }
+
+      // Query firestore to find matching indication by agendor_deal_id
+      const indQuery = await db.collection("indications")
+        .where("agendor_deal_id", "==", Number(dealId))
+        .get();
+
+      if (indQuery.empty) {
+        console.log(`[AGENDOR-WEBHOOK] Nenhuma indicação correspondente encontrada para agendor_deal_id: ${dealId}`);
+        return res.json({ success: false, message: "Indicação não correspondente no Roder" });
+      }
+
+      const indicationDoc = indQuery.docs[0];
+      const indicationId = indicationDoc.id;
+      const indData = indicationDoc.data() as any;
+
+      const updates: any = {};
+      const historyEntries: any[] = [];
+
+      // Check if value changed
+      if (data.value !== undefined && data.value !== null) {
+        const newValue = parseFloat(data.value);
+        if (newValue !== indData.base_commission_value) {
+          updates.base_commission_value = newValue;
+          historyEntries.push({
+            id: Math.random().toString(36).substring(2, 11),
+            type: "status_change",
+            author_name: "CRM Agendor",
+            created_at: new Date().toISOString(),
+            content: `Valor base atualizado via Agendor CRM: de R$ ${(indData.base_commission_value || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} para R$ ${newValue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}.`
+          });
+        }
+      }
+
+      // Format stage names nicely for history
+      const stageLabels: { [key: string]: string } = {
+        lead: "Lead",
+        contact: "Contato",
+        proposal: "Apresentação / Proposta",
+        negotiation: "Negociação",
+        won: "Ganho",
+        lost: "Perdido"
+      };
+
+      const newStage = data.stage;
+      const newStatus = data.status; // 'ongoing', 'won', 'lost'
+
+      if (newStage && newStage !== indData.agendor_stage) {
+        updates.agendor_stage = newStage;
+        const currentStageLabel = stageLabels[indData.agendor_stage || ""] || indData.agendor_stage || "Desconhecido";
+        const newStageLabel = stageLabels[newStage] || newStage;
+        
+        historyEntries.push({
+          id: Math.random().toString(36).substring(2, 11),
+          type: "status_change",
+          author_name: "CRM Agendor",
+          created_at: new Date().toISOString(),
+          content: `Estágio da negociação atualizado no CRM: de "${currentStageLabel}" para "${newStageLabel}".`
+        });
+
+        // Detect if stage changed to proposal/quote sent to start the 60-day protection window
+        const isProposalStage = typeof newStage === "string" && (
+          newStage.toLowerCase() === "proposal" || 
+          newStage.toLowerCase().includes("propos") ||
+          newStage.toLowerCase().includes("orçament") ||
+          newStage.toLowerCase().includes("orcam")
+        );
+
+        if (isProposalStage && !indData.budget_sent_at) {
+          const now = new Date();
+          updates.budget_sent_at = now.toISOString();
+          updates.protection_expires_at = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000).toISOString();
+          historyEntries.push({
+            id: Math.random().toString(36).substring(2, 11),
+            type: "status_change",
+            author_name: "CRM Agendor",
+            created_at: now.toISOString(),
+            content: `[Controle Automático]: Orçamento enviado identificado no CRM Agendor! A validade da proteção de 60 dias para o indicador parceiro foi iniciada e expira em ${new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000).toLocaleDateString("pt-BR")}.`
+          });
+        }
+      }
+
+      if (newStatus && newStatus !== indData.agendor_status) {
+        updates.agendor_status = newStatus;
+        if (newStatus === "won") {
+          historyEntries.push({
+            id: Math.random().toString(36).substring(2, 11),
+            type: "status_change",
+            author_name: "CRM Agendor",
+            created_at: new Date().toISOString(),
+            content: `O negócio foi marcado como GANHO no Agendor CRM. Lembre-se de anexar a nota fiscal e finalizar o faturamento no Roder Indica.`
+          });
+        } else if (newStatus === "lost") {
+          updates.status = "cancelled";
+          const lossReason = data.loss_reason || "Não informada";
+          historyEntries.push({
+            id: Math.random().toString(36).substring(2, 11),
+            type: "status_change",
+            author_name: "CRM Agendor",
+            created_at: new Date().toISOString(),
+            content: `O negócio foi marcado como PERDIDO no Agendor CRM. Motivo: ${lossReason}. A indicação foi cancelada no Roder Indica automaticamente.`
+          });
+        }
+      }
+
+      // Check if a comment/note was added
+      const commentText = payload.comment?.text || payload.comment?.content || payload.activity?.text || payload.activity?.description || payload.text;
+      if (commentText) {
+        historyEntries.push({
+          id: Math.random().toString(36).substring(2, 11),
+          type: "note",
+          author_name: payload.comment?.user?.name || payload.activity?.user?.name || "CRM Agendor",
+          created_at: new Date().toISOString(),
+          content: `[CRM Agendor]: ${commentText}`
+        });
+      }
+
+      // Apply updates to the database
+      if (Object.keys(updates).length > 0 || historyEntries.length > 0) {
+        const indRef = db.collection("indications").doc(indicationId);
+        const updatePayload: any = {
+          ...updates,
+          updated_at: new Date().toISOString()
+        };
+
+        if (historyEntries.length > 0) {
+          updatePayload.negotiation_history = admin.firestore.FieldValue.arrayUnion(...historyEntries);
+        }
+
+        await indRef.update(updatePayload);
+        console.log(`[AGENDOR-WEBHOOK] Indicação ${indicationId} atualizada com sucesso!`);
+      }
+
+      // Automatically trigger file/attachment synchronization when any webhook payload is received
+      if (db) {
+        setTimeout(async () => {
+          try {
+            const settingsSnap = await db.collection("settings").doc("agendor").get();
+            const agendorConfig = settingsSnap.data() as any;
+            if (agendorConfig?.apiToken && agendorConfig?.enabled) {
+              console.log(`[AGENDOR-WEBHOOK] Auto-sincronizando arquivos do negócio #${dealId}...`);
+              const localUrl = `http://0.0.0.0:${PORT}/api/agendor/import-files`;
+              const importRes = await fetch(localUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ indicationId })
+              });
+              const importJson = await importRes.json();
+              console.log(`[AGENDOR-WEBHOOK] Auto-sincronização de arquivos finalizada para indicação ${indicationId}:`, importJson);
+            }
+          } catch (err: any) {
+            console.error(`[AGENDOR-WEBHOOK] Erro ao sincronizar arquivos do negócio #${dealId} automaticamente:`, err.message);
+          }
+        }, 1500); // 1.5-second delay to allow Firestore to finish updating and Agendor file attachment to propagate
+      }
+
+      return res.json({ success: true, message: "Webhook processado com sucesso" });
+    } catch (err: any) {
+      console.error("[AGENDOR-WEBHOOK] Erro no webhook do Agendor:", err.message);
+      return res.status(500).json({ error: err.message });
+    }
   });
 
   app.listen(PORT, "0.0.0.0", () => {
