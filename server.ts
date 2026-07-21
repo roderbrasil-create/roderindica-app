@@ -1478,6 +1478,21 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
        - Para carregadeiras de 6 a 9 toneladas: Indicar o modelo **GPR 4500** (Peso: 520 kg | Capacidade: 4.500 kg | Altura: 1500 mm | Largura: 1380 mm | Garfo: 1200 mm).
        - Para carregadeiras de 8 a 12 toneladas: Indicar o modelo **GPR 7000** (Peso: 600 kg | Capacidade: 7.000 kg | Altura: 1500 mm | Largura: 1380 mm | Garfo: 1200 mm).
 
+    - DIRETRIZ DE DIMENSIONAMENTO DE GARRAS EM ALIMENTAÇÃO DE PICADORES (MUITO IMPORTANTE):
+      Quando a aplicação da garra for para alimentação de picadores florestais, o consultor técnico deve orientar os vendedores a considerar rigorosamente dois fatores em sinergia:
+      1. A máquina base do cliente, conforme a Tabela de Aplicação/Ficha Técnica da Roder (estabelece o limite de peso/força da instalação).
+      2. O modelo e a potência do picador, que determinam a necessidade de alimentação da operação (capacidade de fluxo).
+      • Regra Geral por Potência do Picador:
+        - Picadores de até 600 cv (HP): Utilizar Garra **R400**.
+        - Picadores de até 1.000 cv (HP): Utilizar Garra **R600**.
+      • Importante: Sempre verifique a Tabela de Aplicação da Roder para garantir que a garra selecionada seja compatível com a máquina base do cliente.
+      • Exemplo Prático:
+        - Se o cliente possui uma escavadeira pequena de 8 toneladas: Deve-se seguir estritamente a ficha técnica da Roder, utilizando uma **R280** ou **R360** conforme a aplicação recomendada (pois a máquina de 8t não comporta garras maiores).
+        - Se o cliente possui uma escavadeira de 14 toneladas ou superior: Como a máquina base comporta perfeitamente garras maiores, o dimensionamento deve seguir diretamente a necessidade de alimentação do picador:
+          * Picador de até 600 cv: Garra **R400**.
+          * Picador de até 1.000 cv: Garra **R600**.
+        Desta forma, a máquina base define se a instalação é tecnicamente viável e segura, enquanto o picador define a capacidade de alimentação necessária para atingir a melhor produtividade e desempenho operacional.
+
 6. CÁLCULO DE PRODUTIVIDADE DE GARRAS (Regra de Ouro da Roder):
    - Peso por ciclo (kg) = Área da Garra (m²) * Comprimento da Madeira (m) * 800 kg/m³.
    - Produtividade Horária (t/h) = (3600 / tempo_de_ciclo_em_segundos) * Peso_por_ciclo / 1000.
@@ -3655,6 +3670,310 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     timezone: BR_TIMEZONE
   });
 
+  // Periodic check every 15 minutes to automatically assign pending leads after triage timeout (4 horas)
+  cron.schedule('*/15 * * * *', async () => {
+    console.log("[Schedule] Running automatic assignment check for pending leads...");
+    try {
+      const now = new Date();
+      // Triage timeout limit of 4 hours
+      const thresholdTime = new Date(now.getTime() - 4 * 60 * 60 * 1000);
+
+      const pendingSnap = await db.collection('indications')
+        .where('status', '==', 'pending')
+        .get();
+
+      if (pendingSnap.empty) {
+        console.log("[Schedule] No pending leads found.");
+        return;
+      }
+
+      // Fetch all users to find available internal sellers
+      const usersSnap = await db.collection('users').get();
+      
+      // Determine today's date string in Brasília (BR) Time
+      const utcOffset = now.getTime() + now.getTimezoneOffset() * 60000;
+      const brDate = new Date(utcOffset + (3600000 * -3)); // BRT is UTC-3
+      const year = brDate.getFullYear();
+      const month = String(brDate.getMonth() + 1).padStart(2, '0');
+      const day = String(brDate.getDate()).padStart(2, '0');
+      const todayStr = `${year}-${month}-${day}`;
+
+      const availableSellers = usersSnap.docs
+        .map(d => ({ uid: d.id, ...d.data() } as any))
+        .filter(u => {
+          // Check role or specific names (monali, heloisa, yury)
+          const isSellerRole = u.role === 'internal_seller' || 
+            ['monali', 'heloisa', 'yury'].some(name => u.name?.toLowerCase().includes(name));
+          
+          if (!isSellerRole) return false;
+          
+          // Must be an active receiver
+          if (u.is_lead_receiver === false) return false;
+
+          // Check vacation
+          if (u.vacation_start && u.vacation_end) {
+            if (todayStr >= u.vacation_start && todayStr <= u.vacation_end) {
+              return false;
+            }
+          }
+          return true;
+        });
+
+      if (availableSellers.length === 0) {
+        console.warn("[Schedule] No available internal sellers to receive auto-assigned leads.");
+        return;
+      }
+
+      for (const docRef of pendingSnap.docs) {
+        const indData = { id: docRef.id, ...docRef.data() } as any;
+        const createdAt = new Date(indData.created_at || now.toISOString());
+
+        // If lead was created more than 4 hours ago, auto-assign it!
+        if (createdAt < thresholdTime) {
+          console.log(`[Schedule] Auto-assigning pending lead ${indData.id} (${indData.client_name}) due to triage timeout...`);
+
+          // Balance workload: count how many active leads each available seller has
+          const sellerLeadCounts = await Promise.all(
+            availableSellers.map(async (seller) => {
+              const activeCountSnap = await db.collection('indications')
+                .where('status', '==', 'negotiating')
+                .where('internal_seller_uid', '==', seller.uid)
+                .get();
+              return { seller, count: activeCountSnap.size };
+            })
+          );
+
+          // Sort by active leads count ascending, pick the one with fewest leads
+          sellerLeadCounts.sort((a, b) => a.count - b.count);
+          const chosenSeller = sellerLeadCounts[0].seller;
+
+          console.log(`[Schedule] Chosen seller for lead ${indData.id}: ${chosenSeller.name} with ${sellerLeadCounts[0].count} active leads.`);
+
+          // We need partner (indicator) info too
+          let partnerData: any = null;
+          if (indData.external_seller_uid) {
+            const partnerSnap = await db.collection('users').doc(indData.external_seller_uid).get();
+            if (partnerSnap.exists) {
+              partnerData = partnerSnap.data();
+            }
+          }
+
+          const historyEntry = {
+            id: Math.random().toString(36).substring(2, 11),
+            type: 'system',
+            author_name: 'Sistema Roder',
+            created_at: new Date().toISOString(),
+            content: `Encaminhado automaticamente por tempo limite de triagem (4 horas) para o(a) vendedor(a) ${chosenSeller.name}.`,
+            attachments: []
+          };
+
+          // Update database
+          await db.collection('indications').doc(indData.id).update({
+            internal_seller_uid: chosenSeller.uid,
+            internal_seller_name: chosenSeller.name,
+            status: 'negotiating',
+            updated_at: new Date().toISOString(),
+            duplicate_reviewed: true,
+            negotiation_history: [...(indData.negotiation_history || []), historyEntry]
+          });
+
+          // Create in-app notification for the seller
+          await db.collection('notifications').add({
+            user_uid: chosenSeller.uid,
+            title: 'Novo Lead Atribuído Automaticamente',
+            message: `O lead de ${indData.client_name} foi atribuído automaticamente a você por limite de tempo na triagem.`,
+            type: 'info',
+            read: false,
+            link: '/indicacoes?filter=negotiating',
+            created_at: new Date().toISOString()
+          });
+
+          // Send Emails!
+          // 1. To the Salesperson
+          if (chosenSeller.email) {
+            const emailSubjectSeller = `📥 Novo Lead Atribuído Automaticamente: ${indData.client_name || 'Cliente'} - Fale com o Parceiro ${partnerData?.name || indData.external_seller_name || 'Indicador'}`;
+            
+            // Build requested items list
+            let itemsHtmlList = '';
+            if (indData.items && indData.items.length > 0) {
+              itemsHtmlList = `
+                <div style="margin-top: 15px;">
+                  <p style="margin: 0 0 5px 0; font-size: 13px; font-weight: bold; color: #475569; text-transform: uppercase;">Equipamentos Solicitados:</p>
+                  <div>
+                    ${indData.items.map((item: any) => `
+                      <span style="display: inline-block; background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; color: #1e293b; margin-right: 5px; margin-bottom: 5px;">
+                        ${item.quantity}x ${item.product_name}
+                      </span>
+                    `).join('')}
+                  </div>
+                </div>
+              `;
+            }
+
+            const emailHtmlSeller = `
+              <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); background-color: #ffffff;">
+                <div style="background-color: #3b82f6; color: white; padding: 24px; text-align: center;">
+                  <img src="https://roderbrasil.com.br/wp-content/uploads/2024/05/Logo-Roder-Horizontal.png" alt="Roder" style="height: 35px; filter: brightness(0) invert(1); margin-bottom: 10px;">
+                  <h2 style="margin: 0; text-transform: uppercase; font-size: 20px; font-weight: bold; letter-spacing: 0.5px;">Novo Lead Atribuído (Automático)</h2>
+                  <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;">Um lead foi direcionado automaticamente para você por tempo limite de triagem</p>
+                </div>
+                
+                <div style="padding: 24px; line-height: 1.6;">
+                  <p style="font-size: 15px; margin-top: 0;">Olá <strong>${chosenSeller.name}</strong>,</p>
+                  <p style="font-size: 15px; color: #475569;">O lead do cliente <strong>${indData.client_name || indData.client_person_name || 'Cliente'}</strong> foi atribuído para a sua carteira e já está disponível para andamento no <strong>CRM Agendor</strong>.</p>
+                  
+                  <div style="background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 18px; margin: 20px 0; border-radius: 4px;">
+                    <h3 style="margin: 0 0 10px 0; color: #b45309; font-size: 15px; text-transform: uppercase; font-weight: 800; border-bottom: 1px solid #fef3c7; padding-bottom: 4px;">
+                      Informações do Cliente
+                    </h3>
+                    <table style="font-size: 13px; border-collapse: collapse; width: 100%;">
+                      <tr>
+                        <td style="padding: 4px 0; color: #b45309; font-weight: bold; width: 35%;">Cliente:</td>
+                        <td style="padding: 4px 0; color: #1e293b; font-weight: bold;">${indData.client_name || indData.client_person_name || 'Não informado'}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 4px 0; color: #b45309; font-weight: bold;">Localização:</td>
+                        <td style="padding: 4px 0; color: #1e293b;">${indData.client_location || 'Não informada'}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 4px 0; color: #b45309; font-weight: bold;">WhatsApp / Contato:</td>
+                        <td style="padding: 4px 0; color: #1e293b; font-weight: bold;">${indData.client_phone || 'Não informado'}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 4px 0; color: #b45309; font-weight: bold;">Máquina Base:</td>
+                        <td style="padding: 4px 0; color: #1e293b;">${indData.base_machine || 'Não informada'} ${indData.machine_details || ''}</td>
+                      </tr>
+                    </table>
+                    ${itemsHtmlList}
+                    ${indData.description ? `
+                      <div style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed #fef3c7;">
+                        <p style="margin: 0; font-size: 11px; font-weight: bold; color: #b45309; text-transform: uppercase;">Descrição da Necessidade:</p>
+                        <p style="margin: 3px 0 0 0; font-size: 12px; color: #475569; font-style: italic;">"${indData.description}"</p>
+                      </div>
+                    ` : ''}
+                  </div>
+                  
+                  <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 18px; margin: 20px 0; border-radius: 8px;">
+                    <h3 style="margin: 0 0 10px 0; color: #1e293b; font-size: 15px; text-transform: uppercase; font-weight: 800; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">
+                      Parceiro Indicador Responsável
+                    </h3>
+                    <p style="margin: 0 0 10px 0; font-size: 13px; color: #475569;">Este lead foi indicado pelo nosso parceiro credenciado. Entre em contato com ele para alinhar informações antes de ligar para o cliente!</p>
+                    <table style="font-size: 13px; border-collapse: collapse; width: 100%;">
+                      <tr>
+                        <td style="padding: 4px 0; color: #64748b; font-weight: bold; width: 35%;">Parceiro:</td>
+                        <td style="padding: 4px 0; color: #1e293b; font-weight: bold;">${partnerData?.name || indData.external_seller_name || 'Parceiro'}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 4px 0; color: #64748b; font-weight: bold;">WhatsApp / Celular:</td>
+                        <td style="padding: 4px 0; color: #1e293b; font-weight: bold;">
+                          ${partnerData?.phone ? `
+                            <a href="https://wa.me/55${partnerData.phone.replace(/\D/g, '')}" style="color: #25d366; text-decoration: none; font-weight: bold;">
+                              ${partnerData.phone} 💬
+                            </a>
+                          ` : 'Não informado'}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 4px 0; color: #64748b; font-weight: bold;">E-mail:</td>
+                        <td style="padding: 4px 0; color: #1e293b;">${partnerData?.email || 'Não informado'}</td>
+                      </tr>
+                    </table>
+                  </div>
+
+                  <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 12px 16px; margin: 20px 0; border-radius: 4px; font-size: 13px; color: #1e40af;">
+                    <strong>💡 Dica de Ouro:</strong> Converse com o parceiro por WhatsApp! Ele pode possuir fotos ou vídeos da máquina do cliente, saber detalhes específicos da demanda, ou explicar como o cliente prefere ser atendido, garantindo um contato inicial muito mais assertivo e produtivo.
+                  </div>
+
+                  <div style="text-align: center; margin-top: 30px;">
+                    <a href="https://roderindica.roderbrasil.com.br/indicacoes" style="background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 14px;">ACESSAR PAINEL DO VENDEDOR</a>
+                  </div>
+                </div>
+              </div>
+            `;
+            await sendAutomaticEmail(chosenSeller.email, emailSubjectSeller, emailHtmlSeller);
+          }
+
+          // 2. To the Partner
+          const partnerEmail = partnerData?.email || indData.client_email;
+          if (partnerEmail && partnerEmail.includes('@') && !partnerEmail.endsWith('@mobile.roder.com.br')) {
+            const emailSubjectPartner = `💼 Sua indicação de ${indData.client_name || 'Cliente'} foi encaminhada para ${chosenSeller.name}!`;
+            const waLink = chosenSeller.phone ? `https://wa.me/55${chosenSeller.phone.replace(/\D/g, '')}?text=Olá%20${encodeURIComponent(chosenSeller.name)},%20sou%20o%20parceiro%20${encodeURIComponent(partnerData?.name || 'Parceiro')}%20e%20gostaria%20de%20enviar%20informações%20adicionais%20sobre%20a%20indicação%20de%20${encodeURIComponent(indData.client_name)}` : '';
+
+            const emailHtmlPartner = `
+              <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); background-color: #ffffff;">
+                <div style="background-color: #10b981; color: white; padding: 24px; text-align: center;">
+                  <img src="https://roderbrasil.com.br/wp-content/uploads/2024/05/Logo-Roder-Horizontal.png" alt="Roder" style="height: 35px; filter: brightness(0) invert(1); margin-bottom: 10px;">
+                  <h2 style="margin: 0; text-transform: uppercase; font-size: 20px; font-weight: bold; letter-spacing: 0.5px;">Indicação em Atendimento!</h2>
+                  <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;">Seu lead já foi encaminhado para o setor comercial da fábrica</p>
+                </div>
+                
+                <div style="padding: 24px; line-height: 1.6;">
+                  <p style="font-size: 15px; margin-top: 0;">Olá <strong>${partnerData?.name || 'Parceiro'}</strong>,</p>
+                  <p style="font-size: 15px; color: #475569;">Gostaríamos de informar que a sua indicação para o cliente <strong>${indData.client_name || 'Cliente'}</strong> já foi distribuída (através de fluxo automático por limite de tempo na triagem) e está sob os cuidados do vendedor interno <strong>${chosenSeller.name}</strong>.</p>
+                  
+                  <!-- Seller Info Card -->
+                  <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 18px; margin: 20px 0; border-radius: 8px;">
+                    <h3 style="margin: 0 0 10px 0; color: #166534; font-size: 15px; text-transform: uppercase; font-weight: 800; border-bottom: 1px solid #bbf7d0; padding-bottom: 4px;">
+                      Vendedor Interno Designado
+                    </h3>
+                    <table style="font-size: 13px; border-collapse: collapse; width: 100%;">
+                      <tr>
+                        <td style="padding: 4px 0; color: #15803d; font-weight: bold; width: 35%;">Vendedor(a):</td>
+                        <td style="padding: 4px 0; color: #1e293b; font-weight: bold;">${chosenSeller.name}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 4px 0; color: #15803d; font-weight: bold;">WhatsApp / Celular:</td>
+                        <td style="padding: 4px 0; color: #1e293b; font-weight: bold;">
+                          ${chosenSeller.phone ? `
+                            <a href="https://wa.me/55${chosenSeller.phone.replace(/\D/g, '')}" style="color: #25d366; text-decoration: none; font-weight: bold;">
+                              ${chosenSeller.phone} 💬
+                            </a>
+                          ` : 'Não informado'}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 4px 0; color: #15803d; font-weight: bold;">E-mail:</td>
+                        <td style="padding: 4px 0; color: #1e293b;">${chosenSeller.email || 'Não informado'}</td>
+                      </tr>
+                    </table>
+                  </div>
+
+                  <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 16px; margin: 20px 0; border-radius: 4px; font-size: 13px; color: #1e40af; line-height: 1.5;">
+                    <p style="margin: 0 0 8px 0; font-weight: bold; font-size: 14px;">💡 Como você pode acelerar o fechamento e ajudar o seu cliente?</p>
+                    Se você possuir fotos ou vídeos da máquina do cliente, marca, modelo ou qualquer detalhe operacional específico sobre essa demanda, **compartilhe diretamente com o(a) vendedor(a) ${chosenSeller.name} por WhatsApp**!
+                    <br><br>
+                    Dessa forma, o(a) vendedor(a) poderá **gerar o orçamento correto diretamente baseado nas informações que você enviou**, reduzindo burocracias e otimizando o tempo. Após elaborar o orçamento, ele(a) enviará uma mensagem informando que a proposta foi feita com base nos detalhes precisos que você forneceu.
+                  </div>
+
+                  <p style="font-size: 14px; color: #475569;">Esta cooperação mútua garante que alinhemos as melhores expectativas, oferecendo o equipamento perfeitamente dimensionado para o trabalho do cliente.</p>
+                  
+                  <p style="font-size: 14px; color: #475569;">Você pode continuar acompanhando todo o histórico e a evolução deste atendimento diretamente no painel do <strong>RODER Indica</strong>.</p>
+                </div>
+              </div>
+            `;
+            await sendAutomaticEmail(partnerEmail, emailSubjectPartner, emailHtmlPartner);
+          }
+
+          // Trigger Agendor background sync request
+          try {
+            const baseUrl = `http://localhost:3000`;
+            fetch(`${baseUrl}/api/agendor/sync-indication`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ indicationId: indData.id })
+            }).catch(e => console.error("Error triggering auto sync endpoint:", e.message));
+          } catch (syncErr: any) {
+            console.error("Failed to trigger Agendor sync for auto-assigned lead:", syncErr.message);
+          }
+        }
+      }
+    } catch (error: any) {
+      console.error("[Schedule] Error in automatic lead assignment cron:", error);
+    }
+  }, {
+    timezone: BR_TIMEZONE
+  });
+
   // --- AGENDOR CRM INTEGRATION ROUTES ---
 
   // Helper function to call Agendor API
@@ -4920,6 +5239,210 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     }
   });
 
+  // Internal helper to send automatic emails from server-side triggers (like Agendor webhooks)
+  async function sendNotificationEmail(to: string, subject: string, html: string, fromName?: string) {
+    try {
+      const settingsSnap = await db.collection("settings").doc("email").get();
+      let settings = settingsSnap.exists ? settingsSnap.data() : null;
+
+      if (!settings && process.env.SMTP_USER && process.env.SMTP_PASS) {
+        settings = {
+          provider: process.env.SMTP_PROVIDER || "gmail",
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS,
+          senderEmail: process.env.SMTP_SENDER_EMAIL || process.env.SMTP_USER
+        };
+      }
+
+      if (!settings) {
+        console.warn("[SEND-NOTIFICATION] Configurações de e-mail não encontradas no sistema.");
+        return;
+      }
+
+      if (settings.provider === "gmail") {
+        const transporter = nodemailer.createTransport({
+          host: "smtp.gmail.com",
+          port: 465,
+          secure: true,
+          auth: {
+            user: settings.user,
+            pass: settings.pass.replace(/\s/g, "")
+          },
+          tls: {
+            rejectUnauthorized: false
+          }
+        });
+
+        const mailOptions = {
+          from: fromName ? `"${fromName}" <${settings.user}>` : `"RODER Indica" <${settings.user}>`,
+          to,
+          subject,
+          html
+        };
+
+        await transporter.sendMail(mailOptions);
+        console.log(`[SEND-NOTIFICATION] E-mail enviado com sucesso para ${to} via Gmail`);
+      } else if (settings.provider === "resend") {
+        const resend = new Resend(settings.apiKey);
+        const fromEmail = settings.senderEmail || "vendas@roderbrasil.com.br";
+        await resend.emails.send({
+          from: fromName ? `${fromName} <${fromEmail}>` : `RODER Indica <${fromEmail}>`,
+          to: [to],
+          subject,
+          html,
+          replyTo: fromEmail
+        });
+        console.log(`[SEND-NOTIFICATION] E-mail enviado com sucesso para ${to} via Resend`);
+      } else {
+        const transporter = nodemailer.createTransport({
+          host: settings.host || "smtp.hostinger.com",
+          port: Number(settings.port) || 465,
+          secure: settings.secure !== false,
+          auth: {
+            user: settings.user,
+            pass: settings.pass
+          },
+          tls: {
+            rejectUnauthorized: false
+          }
+        });
+
+        const mailOptions = {
+          from: fromName ? `"${fromName}" <${settings.user}>` : `"${settings.senderName || "RODER Indica"}" <${settings.senderEmail || settings.user}>`,
+          to,
+          subject,
+          html
+        };
+
+        await transporter.sendMail(mailOptions);
+        console.log(`[SEND-NOTIFICATION] E-mail enviado com sucesso para ${to} via Custom SMTP`);
+      }
+    } catch (err: any) {
+      console.error("[SEND-NOTIFICATION] Erro ao enviar e-mail:", err.message);
+    }
+  }
+
+  // Internal helper to format and send partnership notification emails from webhook changes
+  async function sendPartnerNotificationFromWebhook(indData: any, type: "budget_sent" | "sold" | "lost", updates: any) {
+    let partnerEmail = indData.external_seller_email || "";
+    let partnerName = indData.external_seller_name || "Parceiro";
+
+    if (indData.external_seller_uid) {
+      try {
+        const partnerSnap = await db.collection("users").doc(indData.external_seller_uid).get();
+        if (partnerSnap.exists) {
+          const pData = partnerSnap.data() as any;
+          partnerEmail = pData.email || partnerEmail;
+          partnerName = pData.name || partnerName;
+        }
+      } catch (err: any) {
+        console.error("[AGENDOR-WEBHOOK] Erro ao obter e-mail do parceiro para notificação:", err.message);
+      }
+    }
+
+    if (!partnerEmail || partnerEmail.includes("@mobile.roder.com.br") || !partnerEmail.includes("@")) {
+      console.log(`[AGENDOR-WEBHOOK] Notificação de e-mail pulada: e-mail inválido ou de simulação (${partnerEmail})`);
+      return;
+    }
+
+    let subject = "";
+    let html = "";
+    let headerColor = "#f97316";
+
+    const sellerName = indData.internal_seller_name || "Vendedor Roder";
+
+    if (type === "budget_sent") {
+      subject = `Orçamento Enviado: Sua indicação de ${indData.client_name}`;
+      html = `
+        <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 8px; overflow: hidden;">
+          <div style="background-color: #f97316; color: white; padding: 20px; text-align: center;">
+            <h2 style="margin: 0; text-transform: uppercase;">Orçamento Enviado ao Cliente!</h2>
+            <p style="margin: 5px 0 0 0; opacity: 0.9;">Sua indicação está avançando no comercial da RODER (via CRM)</p>
+          </div>
+          
+          <div style="padding: 24px; line-height: 1.6;">
+            <p>Olá <strong>${partnerName}</strong>,</p>
+            
+            <p>Temos ótimas notícias! O orçamento técnico-comercial foi enviado com sucesso para o cliente <strong>${indData.client_name}</strong> referente ao equipamento <strong>${indData.product_name || "equipamento solicitado"}</strong>.</p>
+            
+            <div style="background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 0 6px 6px 0;">
+              <p style="margin: 0; font-weight: bold; color: #b45309; font-size: 15px;">"Esperamos que esta venda seja concluída!"</p>
+            </div>
+
+            <p><strong>Acompanhamento da Negociação:</strong></p>
+            <p>A plataforma <strong>RODER Indica</strong> é o seu canal oficial exclusivo para verificar o progresso, ver o status atualizado e acompanhar os seus ganhos em tempo real.</p>
+            
+            <div style="border-top: 1px solid #eee; margin-top: 20px; padding-top: 15px;">
+              <p>O vendedor responsável pelo atendimento é <strong>${sellerName}</strong>.</p>
+            </div>
+            
+            <p style="font-size: 13px; color: #666; margin-top: 25px;">Qualquer alteração relevante de status na negociação será enviada automaticamente para o seu e-mail.</p>
+            
+            <hr style="border: none; border-top: 1px solid #eee; margin: 25px 0 20px 0;">
+            <p style="font-size: 12px; color: #999; text-align: center; margin: 0;">Roder Máquinas e Equipamentos Ltda.<br>Este é um e-mail automático de acompanhamento de parceria.</p>
+          </div>
+        </div>
+      `;
+    } else if (type === "sold") {
+      headerColor = "#22c55e";
+      subject = `🎉 PARABÉNS! Sua indicação de ${indData.client_name} foi CONCLUÍDA!`;
+      html = `
+        <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 8px; overflow: hidden;">
+          <div style="background-color: ${headerColor}; color: white; padding: 20px; text-align: center;">
+            <h2 style="margin: 0; text-transform: uppercase;">Venda Concluída!</h2>
+            <p style="margin: 5px 0 0 0; opacity: 0.9;">Excelente parceria comercial com a RODER</p>
+          </div>
+          
+          <div style="padding: 24px; line-height: 1.6;">
+            <p>Olá <strong>${partnerName}</strong>,</p>
+            
+            <p>Gostaríamos de informar que a sua indicação para <strong>${indData.client_name}</strong> foi marcada como <strong>GANHA (Concluída)</strong> no CRM Agendor!</p>
+            
+            <div style="background-color: #f0fdf4; border-left: 4px solid #22c55e; padding: 15px; margin: 20px 0; border-radius: 0 6px 6px 0;">
+              <p style="margin: 0; font-weight: bold; color: #15803d; font-size: 15px;">Negócio Fechado!</p>
+              <p style="margin: 5px 0 0 0; color: #166534; font-size: 13px;">O negócio foi fechado com sucesso! A comissão correspondente à sua indicação será liberada e processada no sistema do Roder Indica assim que finalizado o faturamento interno pela nossa equipe comercial.</p>
+            </div>
+
+            <p><strong>Canal de Acompanhamento:</strong></p>
+            <p>Acesse o portal do <strong>RODER Indica</strong> para verificar o progresso detalhado de suas negociações, o histórico e os valores de comissões agendadas.</p>
+            
+            <hr style="border: none; border-top: 1px solid #eee; margin: 25px 0 20px 0;">
+            <p style="font-size: 12px; color: #999; text-align: center; margin: 0;">Roder Máquinas e Equipamentos Ltda.<br>Informativo automático de parceria.</p>
+          </div>
+        </div>
+      `;
+    } else if (type === "lost") {
+      headerColor = "#ef4444";
+      subject = `Atualização: Indicação de ${indData.client_name} finalizada`;
+      html = `
+        <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 8px; overflow: hidden;">
+          <div style="background-color: ${headerColor}; color: white; padding: 20px; text-align: center;">
+            <h2 style="margin: 0; text-transform: uppercase;">Atualização de Status</h2>
+            <p style="margin: 5px 0 0 0; opacity: 0.9;">Negociação Encerrada</p>
+          </div>
+          
+          <div style="padding: 24px; line-height: 1.6;">
+            <p>Olá <strong>${partnerName}</strong>,</p>
+            
+            <p>Gostaríamos de informar que a negociação para a sua indicação do cliente <strong>${indData.client_name}</strong> foi dada como encerrada sem conclusão no CRM Agendor.</p>
+            
+            <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0; border-radius: 0 6px 6px 0;">
+              <p style="margin: 0; font-weight: bold; color: #991b1b; font-size: 14px;">Negociação Finalizada sem Compra</p>
+              <p style="margin: 5px 0 0 0; color: #7f1d1d; font-size: 13px;">Infelizmente este lead não seguiu com a compra do equipamento neste momento. Ficamos à disposição do cliente para novas consultas futuramente.</p>
+            </div>
+
+            <p>Agradecemos o seu empenho e continuamos juntos para as próximas indicações!</p>
+            
+            <hr style="border: none; border-top: 1px solid #eee; margin: 25px 0 20px 0;">
+            <p style="font-size: 12px; color: #999; text-align: center; margin: 0;">Roder Máquinas e Equipamentos Ltda.<br>Informativo automático de parceria.</p>
+          </div>
+        </div>
+      `;
+    }
+
+    await sendNotificationEmail(partnerEmail, subject, html, "Roder Indica");
+  }
+
   // 4. Webhook Listener for Agendor CRM updates (Two-Way Sync)
   app.post("/api/webhooks/agendor", async (req, res) => {
     try {
@@ -4985,6 +5508,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         lost: "Perdido"
       };
 
+      let notifyType: "budget_sent" | "sold" | "lost" | null = null;
       const newStage = data.stage;
       const newStatus = data.status; // 'ongoing', 'won', 'lost'
 
@@ -5020,6 +5544,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
             created_at: now.toISOString(),
             content: `[Controle Automático]: Orçamento enviado identificado no CRM Agendor! A validade da proteção de 60 dias para o indicador parceiro foi iniciada e expira em ${new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000).toLocaleDateString("pt-BR")}.`
           });
+          notifyType = "budget_sent";
         }
       }
 
@@ -5033,6 +5558,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
             created_at: new Date().toISOString(),
             content: `O negócio foi marcado como GANHO no Agendor CRM. Lembre-se de anexar a nota fiscal e finalizar o faturamento no Roder Indica.`
           });
+          notifyType = "sold";
         } else if (newStatus === "lost") {
           updates.status = "cancelled";
           const lossReason = data.loss_reason || "Não informada";
@@ -5043,6 +5569,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
             created_at: new Date().toISOString(),
             content: `O negócio foi marcado como PERDIDO no Agendor CRM. Motivo: ${lossReason}. A indicação foi cancelada no Roder Indica automaticamente.`
           });
+          notifyType = "lost";
         }
       }
 
@@ -5072,6 +5599,12 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
 
         await indRef.update(updatePayload);
         console.log(`[AGENDOR-WEBHOOK] Indicação ${indicationId} atualizada com sucesso!`);
+
+        if (notifyType) {
+          sendPartnerNotificationFromWebhook(indData, notifyType, updates).catch(err => {
+            console.error("[AGENDOR-WEBHOOK] Erro ao enviar e-mail de notificação de parceria:", err.message);
+          });
+        }
       }
 
       // Automatically trigger file/attachment synchronization when any webhook payload is received

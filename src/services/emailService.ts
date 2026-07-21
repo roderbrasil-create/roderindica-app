@@ -221,35 +221,140 @@ export async function notifyPartnerIndicationReceived(indication: any, partnerEm
   await sendEmail({ to: partnerEmail, subject, html });
 }
 
-export async function notifyStatusChange(indication: any, partnerEmail: string, partnerName: string) {
+export async function notifyPartnerBudgetSent(indication: any, partnerEmail: string, partnerName: string, sellerName: string, sellerPhone?: string) {
+  if (!partnerEmail || partnerEmail.endsWith('@mobile.roder.com.br')) return;
+  
+  const subject = `Orçamento Enviado: Sua indicação de ${indication.client_name}`;
+  
+  // Format WhatsApp link for the seller if they have phone number
+  let contactSection = '';
+  if (sellerPhone) {
+    const cleanPhone = sellerPhone.replace(/\D/g, '');
+    const waLink = `https://wa.me/55${cleanPhone}?text=Olá%20${encodeURIComponent(sellerName)},%20sou%20o%20parceiro%20${encodeURIComponent(partnerName)}%20e%20gostaria%20de%20saber%20da%20indicação%20de%20${encodeURIComponent(indication.client_name)}`;
+    contactSection = `
+      <p style="margin: 15px 0 5px 0;">Você pode falar diretamente com o vendedor responsável pelo WhatsApp:</p>
+      <div style="margin: 10px 0;">
+        <a href="${waLink}" style="background: #25d366; color: #fff; padding: 10px 18px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block;">Falar com ${sellerName} no WhatsApp</a>
+      </div>
+    `;
+  } else {
+    contactSection = `<p>O vendedor responsável pelo atendimento é <strong>${sellerName}</strong>.</p>`;
+  }
+
+  const html = `
+    <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 8px; overflow: hidden;">
+      <div style="background-color: #f97316; color: white; padding: 20px; text-align: center;">
+        <h2 style="margin: 0; text-transform: uppercase;">Orçamento Enviado ao Cliente!</h2>
+        <p style="margin: 5px 0 0 0; opacity: 0.9;">Sua indicação está avançando no comercial da RODER</p>
+      </div>
+      
+      <div style="padding: 24px; line-height: 1.6;">
+        <p>Olá <strong>${partnerName}</strong>,</p>
+        
+        <p>Temos ótimas notícias! O orçamento técnico-comercial foi enviado com sucesso para o cliente <strong>${indication.client_name}</strong> (empresa: <em>${indication.company_name || 'Não informada'}</em>) referente ao equipamento <strong>${indication.product_name || 'equipamento solicitado'}</strong>.</p>
+        
+        <div style="background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 0 6px 6px 0;">
+          <p style="margin: 0; font-weight: bold; color: #b45309; font-size: 15px;">"Esperamos que esta venda seja concluída!"</p>
+        </div>
+
+        <p><strong>Acompanhamento da Negociação:</strong></p>
+        <p>A plataforma <strong>RODER Indica</strong> é o seu canal oficial exclusivo para verificar o progresso, ver o status atualizado e acompanhar os seus ganhos em tempo real.</p>
+        
+        <div style="border-top: 1px solid #eee; margin-top: 20px; padding-top: 15px;">
+          ${contactSection}
+        </div>
+        
+        <p style="font-size: 13px; color: #666; margin-top: 25px;">Qualquer alteração relevante de status na negociação (como andamento, faturamento ou encerramento) será enviada automaticamente para o seu e-mail.</p>
+        
+        <hr style="border: none; border-top: 1px solid #eee; margin: 25px 0 20px 0;">
+        <p style="font-size: 12px; color: #999; text-align: center; margin: 0;">Roder Máquinas e Equipamentos Ltda.<br>Este é um e-mail automático de acompanhamento de parceria.</p>
+      </div>
+    </div>
+  `;
+
+  await sendEmail({ to: partnerEmail, subject, html, fromName: 'Roder Indica' });
+}
+
+export async function notifyStatusChange(indication: any, partnerEmail: string, partnerName: string, sellerName?: string) {
   if (!(await shouldSendNotification('status_change_partner'))) return;
   if (!partnerEmail || partnerEmail.endsWith('@mobile.roder.com.br')) return;
 
   const statusMap: any = {
-    'new': 'Nova',
+    'new': 'Nova Indicação',
     'triagem': 'Em Triagem',
     'negotiating': 'Em Negociação',
-    'sold': 'Vendida ✅',
-    'lost': 'Perdida ❌',
-    'cancelled': 'Cancelada'
+    'sold': 'Venda Concluída! ✅',
+    'lost': 'Negociação Encerrada (Perdida) ❌',
+    'cancelled': 'Indicação Cancelada ❌',
+    'archived': 'Arquivada (Duplicidade)'
   };
 
-  const subject = `Atualização da sua indicação: ${indication.client_name}`;
+  const status = indication.status || 'negotiating';
+  const statusLabel = statusMap[status] || status;
+
+  let headerColor = '#f97316'; // orange
+  let title = `Atualização da sua indicação: ${indication.client_name}`;
+  let customMessage = '';
+
+  if (status === 'sold') {
+    headerColor = '#22c55e'; // green
+    title = `🎉 PARABÉNS! Sua indicação de ${indication.client_name} foi CONCLUÍDA!`;
+    customMessage = `
+      <div style="background-color: #f0fdf4; border-left: 4px solid #22c55e; padding: 15px; margin: 20px 0; border-radius: 0 6px 6px 0;">
+        <p style="margin: 0; font-weight: bold; color: #15803d; font-size: 15px;">Faturamento Confirmado!</p>
+        <p style="margin: 5px 0 0 0; color: #166534; font-size: 13px;">O negócio foi fechado com sucesso pela fábrica! A comissão correspondente à sua indicação já foi provisionada no sistema. Agradecemos imensamente pela excelente indicação!</p>
+      </div>
+    `;
+  } else if (status === 'lost' || status === 'cancelled') {
+    headerColor = '#ef4444'; // red
+    title = `Atualização: Indicação de ${indication.client_name} finalizada`;
+    customMessage = `
+      <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0; border-radius: 0 6px 6px 0;">
+        <p style="margin: 0; font-weight: bold; color: #991b1b; font-size: 14px;">Negociação Encerrada sem Venda</p>
+        <p style="margin: 5px 0 0 0; color: #7f1d1d; font-size: 13px;">Infelizmente este lead não seguiu com a compra do equipamento neste momento. Continuamos à disposição do cliente para futuras oportunidades.</p>
+      </div>
+    `;
+  } else if (status === 'negotiating') {
+    headerColor = '#3b82f6'; // blue
+    title = `Sua indicação de ${indication.client_name} está em Negociação`;
+    customMessage = `
+      <p>Nosso setor comercial de fábrica já está em contato ativo com o cliente, tirando dúvidas técnicas sobre a máquina base e elaborando as melhores condições técnicas para o fechamento.</p>
+    `;
+  }
+
+  const subject = title;
+
   const html = `
-    <div style="font-family: sans-serif; color: #333;">
-      <h2>Olá ${partnerName},</h2>
-      <p>Sua indicação de <strong>${indication.client_name}</strong> teve uma atualização de status.</p>
+    <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 8px; overflow: hidden;">
+      <div style="background-color: ${headerColor}; color: white; padding: 20px; text-align: center;">
+        <h2 style="margin: 0; text-transform: uppercase;">Atualização de Status</h2>
+        <p style="margin: 5px 0 0 0; opacity: 0.9;">Acompanhe o progresso da sua indicação</p>
+      </div>
       
-      <p>O novo status é: <strong style="color: #eab308;">${statusMap[indication.status] || indication.status}</strong></p>
-      
-      <p>Acompanhe o progresso em tempo real através do painel do indicador no sistema Roder Indica.</p>
-      
-      <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-      <p style="font-size: 12px; color: #666;">Obrigado por sua parceria com a Roder!</p>
+      <div style="padding: 24px; line-height: 1.6;">
+        <p>Olá <strong>${partnerName}</strong>,</p>
+        
+        <p>Gostaríamos de informar que a sua indicação para <strong>${indication.client_name}</strong> (referente ao equipamento: <em>${indication.product_name || 'Equipamento Roder'}</em>) mudou de status.</p>
+        
+        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 6px; text-align: center; margin: 20px 0;">
+          <span style="font-size: 13px; color: #64748b; text-transform: uppercase; display: block; font-weight: bold; letter-spacing: 0.5px;">Novo Status:</span>
+          <span style="font-size: 18px; font-weight: bold; color: ${headerColor}; display: block; margin-top: 5px;">${statusLabel}</span>
+        </div>
+
+        ${customMessage}
+
+        <p><strong>Canal de Acompanhamento:</strong></p>
+        <p>Lembramos que a plataforma <strong>RODER Indica</strong> é o único canal de acompanhamento oficial onde você pode verificar o progresso detalhado de suas negociações, o histórico e os valores de comissões agendadas.</p>
+        
+        ${sellerName ? `<p style="font-size: 13px; color: #666; border-top: 1px solid #eee; padding-top: 15px; margin-top: 20px;">Vendedor responsável na fábrica: <strong>${sellerName}</strong></p>` : ''}
+        
+        <hr style="border: none; border-top: 1px solid #eee; margin: 25px 0 20px 0;">
+        <p style="font-size: 12px; color: #999; text-align: center; margin: 0;">Roder Máquinas e Equipamentos Ltda.<br>Informativo automático de parceria.</p>
+      </div>
     </div>
   `;
 
-  await sendEmail({ to: partnerEmail, subject, html });
+  await sendEmail({ to: partnerEmail, subject, html, fromName: 'Roder Indica' });
 }
 
 export async function notifyCommissionApproved(commission: any, partnerEmail: string, partnerName: string) {
@@ -591,4 +696,209 @@ export async function notifyClosedOrder(params: {
   });
 
   return { success: result.success, total: recipients.length };
+}
+
+export async function notifyLeadAssignment(
+  indication: any,
+  seller: { name: string; email: string; phone?: string },
+  partner: { name: string; email: string; phone?: string }
+) {
+  try {
+    console.log('[NOTIFICATION] notifyLeadAssignment triggering for:', indication.client_name);
+
+    // 1. Send email to the designated internal salesperson
+    const sellerSubject = `🚀 NOVO LEAD COMERCIAL: ${indication.client_name || 'Cliente'} - Parceiro: ${partner.name}`;
+    
+    // Formatting items if any
+    let itemsListHtml = '';
+    if (indication.items && indication.items.length > 0) {
+      itemsListHtml = `
+        <div style="margin-top: 15px;">
+          <p style="margin: 0 0 5px 0; font-size: 13px; font-weight: bold; color: #475569; text-transform: uppercase;">Equipamentos Solicitados:</p>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+            ${indication.items.map((item: any) => `
+              <span style="display: inline-block; background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; color: #1e293b; margin-right: 5px; margin-bottom: 5px;">
+                ${item.quantity}x ${item.product_name}
+              </span>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    const sellerHtml = `
+      <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); background-color: #ffffff;">
+        <div style="background-color: #f97316; color: white; padding: 24px; text-align: center;">
+          <img src="https://roderbrasil.com.br/wp-content/uploads/2024/05/Logo-Roder-Horizontal.png" alt="Roder" style="height: 35px; filter: brightness(0) invert(1); margin-bottom: 10px;">
+          <h2 style="margin: 0; text-transform: uppercase; font-size: 20px; font-weight: bold; letter-spacing: 0.5px;">Novo Lead Atribuído</h2>
+          <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;">Você foi designado(a) para realizar o atendimento desta indicação</p>
+        </div>
+        
+        <div style="padding: 24px; line-height: 1.6;">
+          <p style="font-size: 15px; margin-top: 0;">Olá <strong>${seller.name}</strong>,</p>
+          <p style="font-size: 15px; color: #475569;">Um novo lead vindo do canal de indicações da RODER foi direcionado para você. Você deve dar continuidade ao atendimento técnico-comercial e registrar o progresso através do <strong>CRM Agendor</strong>.</p>
+          
+          <!-- Client Card -->
+          <div style="background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 18px; margin: 20px 0; border-radius: 4px;">
+            <h3 style="margin: 0 0 10px 0; color: #b45309; font-size: 15px; text-transform: uppercase; font-weight: 800; border-bottom: 1px solid #fef3c7; padding-bottom: 4px;">
+              Informações do Cliente
+            </h3>
+            <table style="font-size: 13px; border-collapse: collapse; width: 100%;">
+              <tr>
+                <td style="padding: 4px 0; color: #b45309; font-weight: bold; width: 35%;">Cliente:</td>
+                <td style="padding: 4px 0; color: #1e293b; font-weight: bold;">${indication.client_name || indication.client_person_name || 'Não informado'}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #b45309; font-weight: bold;">Localização:</td>
+                <td style="padding: 4px 0; color: #1e293b;">${indication.client_location || 'Não informada'}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #b45309; font-weight: bold;">WhatsApp / Contato:</td>
+                <td style="padding: 4px 0; color: #1e293b; font-weight: bold;">${indication.client_phone || 'Não informado'}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #b45309; font-weight: bold;">Máquina Base:</td>
+                <td style="padding: 4px 0; color: #1e293b;">${indication.base_machine || 'Não informada'} ${indication.machine_details || ''}</td>
+              </tr>
+            </table>
+            ${itemsListHtml}
+            ${indication.description ? `
+              <div style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed #fef3c7;">
+                <p style="margin: 0; font-size: 11px; font-weight: bold; color: #b45309; text-transform: uppercase;">Descrição da Necessidade:</p>
+                <p style="margin: 3px 0 0 0; font-size: 12px; color: #475569; font-style: italic;">"${indication.description}"</p>
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- Partner Card -->
+          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 18px; margin: 20px 0; border-radius: 8px;">
+            <h3 style="margin: 0 0 10px 0; color: #1e293b; font-size: 15px; text-transform: uppercase; font-weight: 800; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">
+              Parceiro Indicador Responsável
+            </h3>
+            <p style="margin: 0 0 10px 0; font-size: 13px; color: #475569;">Este lead possui alto grau de confiança devido à recomendação do nosso parceiro credenciado. Entre em contato com ele para alinhar informações antes de ligar para o cliente!</p>
+            <table style="font-size: 13px; border-collapse: collapse; width: 100%;">
+              <tr>
+                <td style="padding: 4px 0; color: #64748b; font-weight: bold; width: 35%;">Parceiro:</td>
+                <td style="padding: 4px 0; color: #1e293b; font-weight: bold;">${partner.name}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #64748b; font-weight: bold;">WhatsApp / Celular:</td>
+                <td style="padding: 4px 0; color: #1e293b; font-weight: bold;">
+                  <a href="https://wa.me/${(partner.phone || '').replace(/\D/g, '')}" style="color: #25d366; text-decoration: none; font-weight: bold;">
+                    ${partner.phone || 'Não informado'} 💬
+                  </a>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #64748b; font-weight: bold;">E-mail:</td>
+                <td style="padding: 4px 0; color: #1e293b;">${partner.email}</td>
+              </tr>
+            </table>
+          </div>
+
+          <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 12px 16px; margin: 20px 0; border-radius: 4px; font-size: 13px; color: #1e40af;">
+            <strong>💡 Dica de Ouro:</strong> Converse com o parceiro <strong>${partner.name}</strong> por WhatsApp! Ele pode possuir fotos ou vídeos da máquina do cliente, saber detalhes específicos da demanda, ou explicar como o cliente prefere ser atendido, garantindo um contato inicial muito mais assertivo e produtivo.
+          </div>
+
+          <div style="text-align: center; margin-top: 30px;">
+            <a href="https://roderindica.roderbrasil.com.br/indicacoes" style="background-color: #f97316; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 14px;">ACESSAR PAINEL DO VENDEDOR</a>
+          </div>
+        </div>
+        
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 0;">
+        <div style="padding: 20px; background-color: #f8fafc; text-align: center;">
+          <p style="font-size: 11px; color: #94a3b8; margin: 0; line-height: 1.4;">
+            Roder Máquinas e Equipamentos Ltda.<br>
+            Este é um e-mail automático gerado pelo sistema Roder Indica V2.
+          </p>
+        </div>
+      </div>
+    `;
+
+    // Send to seller
+    await sendEmail({
+      to: seller.email,
+      subject: sellerSubject,
+      html: sellerHtml,
+      fromName: 'Roder Indica'
+    });
+    console.log(`[NOTIFICATION] Lead assignment email sent successfully to seller: ${seller.email}`);
+
+    // 2. Send email to the partner indicator (external seller)
+    if (partner.email && !partner.email.endsWith('@mobile.roder.com.br')) {
+      const partnerSubject = `🎉 Sua indicação de ${indication.client_name || 'Cliente'} já está com vendedor responsável!`;
+      
+      const partnerHtml = `
+        <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); background-color: #ffffff;">
+          <div style="background-color: #10b981; color: white; padding: 24px; text-align: center;">
+            <img src="https://roderbrasil.com.br/wp-content/uploads/2024/05/Logo-Roder-Horizontal.png" alt="Roder" style="height: 35px; filter: brightness(0) invert(1); margin-bottom: 10px;">
+            <h2 style="margin: 0; text-transform: uppercase; font-size: 20px; font-weight: bold; letter-spacing: 0.5px;">Indicação em Atendimento!</h2>
+            <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;">Seu lead já foi encaminhado para o setor comercial da fábrica</p>
+          </div>
+          
+          <div style="padding: 24px; line-height: 1.6;">
+            <p style="font-size: 15px; margin-top: 0;">Olá <strong>${partner.name}</strong>,</p>
+            <p style="font-size: 15px; color: #475569;">Gostaríamos de informar que a sua indicação para o cliente <strong>${indication.client_name || 'Cliente'}</strong> já foi distribuída e está sob os cuidados de um de nossos vendedores internos da fábrica!</p>
+            
+            <!-- Seller Info Card -->
+            <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 18px; margin: 20px 0; border-radius: 8px;">
+              <h3 style="margin: 0 0 10px 0; color: #166534; font-size: 15px; text-transform: uppercase; font-weight: 800; border-bottom: 1px solid #bbf7d0; padding-bottom: 4px;">
+                Vendedor Interno Designado
+              </h3>
+              <table style="font-size: 13px; border-collapse: collapse; width: 100%;">
+                <tr>
+                  <td style="padding: 4px 0; color: #15803d; font-weight: bold; width: 35%;">Vendedor(a):</td>
+                  <td style="padding: 4px 0; color: #1e293b; font-weight: bold;">${seller.name}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 4px 0; color: #15803d; font-weight: bold;">WhatsApp / Celular:</td>
+                  <td style="padding: 4px 0; color: #1e293b; font-weight: bold;">
+                    <a href="https://wa.me/55${(seller.phone || '').replace(/\D/g, '')}" style="color: #25d366; text-decoration: none; font-weight: bold;">
+                      ${seller.phone || 'Não informado'} 💬
+                    </a>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 4px 0; color: #15803d; font-weight: bold;">E-mail:</td>
+                  <td style="padding: 4px 0; color: #1e293b;">${seller.email}</td>
+                </tr>
+              </table>
+            </div>
+
+            <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 16px; margin: 20px 0; border-radius: 4px; font-size: 13px; color: #1e40af; line-height: 1.5;">
+              <p style="margin: 0 0 8px 0; font-weight: bold; font-size: 14px;">💡 Como você pode acelerar o fechamento e ajudar o seu cliente?</p>
+              Se você possuir fotos ou vídeos da máquina do cliente, marca, modelo ou qualquer detalhe operacional específico sobre essa demanda, **compartilhe diretamente com o(a) vendedor(a) ${seller.name} por WhatsApp**!
+              <br><br>
+              Dessa forma, o(a) vendedor(a) poderá **gerar o orçamento correto diretamente baseado nas informações que você enviou**, reduzindo burocracias e otimizando o tempo. Após elaborar o orçamento, ele(a) enviará uma mensagem informando que a proposta foi feita com base nos detalhes precisos que você forneceu.
+            </div>
+
+            <p style="font-size: 14px; color: #475569;">Esta cooperação mútua garante que alinhemos as melhores expectativas, oferecendo o equipamento perfeitamente dimensionado para o trabalho do cliente.</p>
+            
+            <p style="font-size: 14px; color: #475569;">Você pode continuar acompanhando todo o histórico e a evolução deste atendimento diretamente no painel do <strong>RODER Indica</strong>.</p>
+          </div>
+          
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 0;">
+          <div style="padding: 20px; background-color: #f8fafc; text-align: center;">
+            <p style="font-size: 11px; color: #94a3b8; margin: 0; line-height: 1.4;">
+              Roder Máquinas e Equipamentos Ltda.<br>
+              Este é um e-mail automático de acompanhamento de parceria.
+            </p>
+          </div>
+        </div>
+      `;
+
+      await sendEmail({
+        to: partner.email,
+        subject: partnerSubject,
+        html: partnerHtml,
+        fromName: 'Roder Indica'
+      });
+      console.log(`[NOTIFICATION] Lead assignment email sent successfully to partner: ${partner.email}`);
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('Erro crítico em notifyLeadAssignment:', err);
+    return { success: false, error: err.message };
+  }
 }

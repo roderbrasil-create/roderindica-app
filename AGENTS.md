@@ -66,4 +66,27 @@
     - **Grafia**: O termo correto é estritamente **Rotator** (com "t", NUNCA use "rotador" com "d" ou termos derivados incorretamente em áudios e transcrições de clientes/parceiros). "Giro hidráulico da garra" refere-se exatamente ao mesmo componente.
     - **Giro Infinito**: Todos os rotatores fabricados ou fornecidos pela RODER possuem **giro infinito / ilimitado (360°)**.
 
+- **Garras - Dimensionamento e Compatibilidade com Máquina Base**:
+  - **Critério de Dimensionamento**: Ao indicar uma garra, nunca se deve considerar apenas o volume ou o tipo de material que o cliente pretende movimentar. É fundamental avaliar com rigor a máquina base na qual o equipamento será instalado.
+  - **Risco de Força Excessiva**: Uma escavadeira de grande porte (por exemplo, 14 toneladas) possui força, peso e pressão hidráulica muito superiores aos de uma grua em trator. Ao apoiar ou pressionar a garra contra o chão, a força da máquina base pesada gera um esforço que ultrapassa a capacidade estrutural de garras menores, resultando em desgaste acelerado ou danos graves ao equipamento (agravados por pressões hidráulicas desreguladas). Mesmo que o cliente alegue que irá movimentar pouca carga/uma única tora, as recomendações técnicas de compatibilidade do catálogo Roder devem ser seguidas estritamente.
+  - **Modelos e Recomendações por Porte**:
+    - **Gruas em Trator**: As garras **R280** e **R280L** são excelentes opções para esta aplicação. As garras **R250** (0,25 m³) e **R280** (0,28 m³) possuem estrutura desenvolvida primariamente para gruas em tratores.
+    - **Escavadeiras Pequenas (< 8 Ton.)**: A garra **R280L** is a indicação ideal. Ela conta com engenharia de ponta que oferece uma estrutura mais leve, perfeitamente compatível para trabalho leve e médio em escavadeiras de menor porte. É uma opção muito superior à garra **R250** para esta categoria de máquinas.
+    - **Retroescavadeiras e Escavadeiras (>= 8 Ton.)**: A partir da garra **.36** (como a R360), já temos modelos compatíveis com retroescavadeiras e escavadeiras a partir de aproximadamente 8 toneladas.
+  - **Objetivo Comercial**: A indicação deve alinhar a necessidade de movimentação do cliente com a compatibilidade física do peso e da força da máquina base (conforme o catálogo e tabela de medidas), assegurando uma venda tecnicamente viável e com baixíssimo risco de garantia.
+
+- **Diretriz para Dimensionamento de Garras em Alimentação de Picadores**:
+  - **Fatores de Decisão**: A indicação do modelo para alimentação de picadores florestais deve considerar dois fatores principais em sinergia:
+    1. A máquina base do cliente, conforme a Tabela de Aplicação/Ficha Técnica da Roder.
+    2. O modelo e a potência do picador, que determinam a necessidade de alimentação da operação.
+  - **Regra Geral por Potência do Picador**:
+    - **Picadores de até 600 cv (HP)**: Utilizar Garra **R400**.
+    - **Picadores de até 1.000 cv (HP)**: Utilizar Garra **R600**.
+  - **Compatibilidade e Sinergia**:
+    - Se o cliente possui uma escavadeira pequena (ex: 8 toneladas), a máquina base limita a escolha estrutural, devendo seguir a ficha técnica da Roder utilizando uma **R280** ou **R360** conforme a aplicação.
+    - Se o cliente possui uma escavadeira de 14 toneladas ou superior, a máquina base comporta garras maiores, permitindo que o dimensionamento seja focado inteiramente na potência do picador:
+      - Picador Até 600 cv: Garra **R400**.
+      - Picador Até 1.000 cv: Garra **R600**.
+    - A máquina base estabelece a compatibilidade da instalação (limite de peso/força), enquanto o picador define a capacidade e fluxo de alimentação necessários, alcançando a melhor performance e produtividade.
+
 

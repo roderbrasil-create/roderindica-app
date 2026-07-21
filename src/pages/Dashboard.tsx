@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import Layout from '../components/layout/Layout';
 import FinanceDashboard from '../components/FinanceDashboard';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, query, where, onSnapshot, orderBy, limit, getDocs, getDoc, getDocsFromCache, updateDoc, doc, serverTimestamp, or } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, limit, getDocs, getDoc, getDocsFromCache, updateDoc, doc, serverTimestamp, or, addDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Indication, Commission, Product, Fair } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
@@ -703,7 +703,7 @@ export default function Dashboard() {
     return elapsedMs / (1000 * 60 * 60); // Returns hours
   };
 
-  // NEW: Lead Auto-Assignment Logic (3h business hours timeout)
+  // NEW: Lead Auto-Assignment Logic (4h business hours timeout)
   useEffect(() => {
     if (!isAdmin && !isManager && !isTriagem) return;
     
@@ -722,7 +722,7 @@ export default function Dashboard() {
           const data = doc.data();
           const createdAt = new Date(data.created_at);
           const hoursElapsed = getBusinessHoursElapsed(createdAt, now);
-          return hoursElapsed >= 5 && !data.internal_seller_uid;
+          return hoursElapsed >= 4 && !data.internal_seller_uid;
         });
 
         // Find fair leads pending triage
@@ -737,7 +737,7 @@ export default function Dashboard() {
           if (data.type && data.type !== 'client') return false;
           const createdAt = new Date(data.created_at);
           const hoursElapsed = getBusinessHoursElapsed(createdAt, now);
-          return hoursElapsed >= 5 && !data.assigned_seller_uid;
+          return hoursElapsed >= 4 && !data.assigned_seller_uid;
         });
 
         if (staleDocs.length === 0 && fairStaleDocs.length === 0) return;
@@ -812,6 +812,66 @@ export default function Dashboard() {
               auto_assigned: true,
               assignment_method: 'automated_timeout'
             });
+
+            // Notify the assigned internal seller
+            await addDoc(collection(db, 'notifications'), {
+              user_uid: targetSeller.uid,
+              title: 'Novo Lead Atribuído (Automático)',
+              message: `Você recebeu um novo lead por limite de tempo: ${leadData.client_name}`,
+              type: 'info',
+              read: false,
+              link: '/indicacoes?filter=negotiating',
+              created_at: new Date().toISOString()
+            });
+
+            // Notify the indicator (external seller) via in-app notification
+            if (leadData.external_seller_uid) {
+              await addDoc(collection(db, 'notifications'), {
+                user_uid: leadData.external_seller_uid,
+                title: 'Lead em Atendimento',
+                message: `Sua indicação para ${leadData.client_name} foi encaminhada automaticamente para o setor comercial e já está em atendimento.`,
+                type: 'success',
+                read: false,
+                link: '/indicacoes',
+                created_at: new Date().toISOString()
+              });
+            }
+
+            // Trigger bidirectional email notifications
+            try {
+              const sSnap = await getDoc(doc(db, 'users', targetSeller.uid));
+              let sellerEmail = '';
+              let sellerPhone = '';
+              if (sSnap.exists()) {
+                const sData = sSnap.data();
+                sellerEmail = sData.email || '';
+                sellerPhone = sData.phone || '';
+              }
+
+              let partnerName = 'Parceiro';
+              let partnerEmail = '';
+              let partnerPhone = '';
+              if (leadData.external_seller_uid) {
+                const pSnap = await getDoc(doc(db, 'users', leadData.external_seller_uid));
+                if (pSnap.exists()) {
+                  const pData = pSnap.data();
+                  partnerName = pData.name || 'Parceiro';
+                  partnerEmail = pData.email || '';
+                  partnerPhone = pData.phone || '';
+                }
+              }
+
+              if (sellerEmail) {
+                const { notifyLeadAssignment } = await import('../services/emailService');
+                await notifyLeadAssignment(
+                  { id: leadDoc.id, ...leadData },
+                  { name: targetSeller.name, email: sellerEmail, phone: sellerPhone },
+                  { name: partnerName, email: partnerEmail, phone: partnerPhone }
+                );
+              }
+            } catch (autoEmailErr) {
+              console.error("Error triggering auto-assignment emails:", autoEmailErr);
+            }
           }
         }
 

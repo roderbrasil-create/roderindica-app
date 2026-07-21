@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Layout from '../components/layout/Layout';
-import { collection, query, where, onSnapshot, orderBy, doc, updateDoc, getDocs, addDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, doc, updateDoc, getDocs, addDoc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Indication, UserProfile } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -257,6 +257,38 @@ export default function Triagem() {
         duplicate_reviewed: true
       });
 
+      // Fetch designated salesperson details (email/phone) to include in notifications
+      let sellerEmail = '';
+      let sellerPhone = '';
+      try {
+        const sellerSnap = await getDoc(doc(db, 'users', targetUid));
+        if (sellerSnap.exists()) {
+          const sellerData = sellerSnap.data();
+          sellerEmail = sellerData.email || '';
+          sellerPhone = sellerData.phone || '';
+        }
+      } catch (err) {
+        console.error("Error fetching seller details for email:", err);
+      }
+
+      // Notify partner and seller via beautiful assignment emails
+      if (selectedIndication.external_seller_uid) {
+        try {
+          const userSnap = await getDoc(doc(db, 'users', selectedIndication.external_seller_uid));
+          if (userSnap.exists()) {
+            const userData = userSnap.data();
+            const { notifyLeadAssignment } = await import('../services/emailService');
+            await notifyLeadAssignment(
+              { ...selectedIndication, status: 'negotiating' },
+              { name: targetName || 'Vendedor', email: sellerEmail, phone: sellerPhone },
+              { name: userData.name || 'Parceiro', email: userData.email || '', phone: userData.phone || '' }
+            );
+          }
+        } catch (emailErr) {
+          console.error("Error sending lead assignment emails:", emailErr);
+        }
+      }
+
       // Also update Fair Lead if exists
       if (selectedIndication.fair_lead_id) {
         try {
@@ -311,6 +343,48 @@ export default function Triagem() {
       }
 
       toast.success(`Lead encaminhado para ${targetName}`);
+
+      // Fetch seller details and partner details for bidirectional email notification
+      try {
+        const sellerProfile = internalSellers.find(u => u.uid === targetUid);
+        let sellerEmail = '';
+        let sellerPhone = '';
+        if (sellerProfile) {
+          sellerEmail = sellerProfile.email || '';
+          sellerPhone = sellerProfile.phone || '';
+        } else {
+          const uSnap = await getDoc(doc(db, 'users', targetUid));
+          if (uSnap.exists()) {
+            const uData = uSnap.data();
+            sellerEmail = uData.email || '';
+            sellerPhone = uData.phone || '';
+          }
+        }
+
+        let partnerName = 'Parceiro';
+        let partnerEmail = '';
+        let partnerPhone = '';
+        if (selectedIndication.external_seller_uid) {
+          const pSnap = await getDoc(doc(db, 'users', selectedIndication.external_seller_uid));
+          if (pSnap.exists()) {
+            const pData = pSnap.data();
+            partnerName = pData.name || 'Parceiro';
+            partnerEmail = pData.email || '';
+            partnerPhone = pData.phone || '';
+          }
+        }
+
+        if (sellerEmail) {
+          const { notifyLeadAssignment } = await import('../services/emailService');
+          await notifyLeadAssignment(
+            selectedIndication,
+            { name: targetName, email: sellerEmail, phone: sellerPhone },
+            { name: partnerName, email: partnerEmail, phone: partnerPhone }
+          );
+        }
+      } catch (assignEmailErr) {
+        console.error("Error triggering bidirectional lead assignment emails:", assignEmailErr);
+      }
 
       // Auto sync to Agendor in the background upon assignment
       fetch('/api/agendor/sync-indication', {

@@ -998,7 +998,33 @@ export default function NegotiationCentral() {
         updateData.protection_expires_at = new Date(proposalRefDate.getTime() + 60 * 24 * 60 * 60 * 1000).toISOString();
       }
 
+      const wasBudgetJustSent = budgetLoaded && !activeIndication.budget_loaded;
+
       await updateDoc(indicationRef, updateData);
+
+      // Notify partner via email that budget has been sent (first contact / quote sent)
+      if (wasBudgetJustSent && activeIndication.external_seller_uid) {
+        try {
+          const userSnap = await getDoc(doc(db, 'users', activeIndication.external_seller_uid));
+          if (userSnap.exists()) {
+            const userData = userSnap.data();
+            if (userData.email) {
+              const { notifyPartnerBudgetSent } = await import('../../services/emailService');
+              const sellerName = profile?.name || activeIndication.internal_seller_name || 'Vendedor Roder';
+              const sellerPhone = profile?.phone || '';
+              await notifyPartnerBudgetSent(
+                { ...activeIndication, company_name: companyName || activeIndication.client_company_name || '' },
+                userData.email,
+                userData.name || 'Parceiro',
+                sellerName,
+                sellerPhone
+              );
+            }
+          }
+        } catch (emailErr) {
+          console.error("Error sending budget sent email to partner:", emailErr);
+        }
+      }
 
       // Sync updated base values to registered_products catalog
       if (canInteract) {

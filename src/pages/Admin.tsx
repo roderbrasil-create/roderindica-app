@@ -49,9 +49,12 @@ import {
   Laptop,
   Smartphone,
   Award,
-  Brain
+  Brain,
+  Wrench
 } from 'lucide-react';
 import { HelpTooltip } from '../components/base/HelpTooltip';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { 
   Tabs, 
   TabsContent, 
@@ -142,6 +145,219 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
       toast.error("Erro ao remover ensinamento.");
     }
   };
+
+  const handleDownloadProcedurePDF = () => {
+    try {
+      const doc = new jsPDF('p', 'mm', 'a4');
+      
+      // Top Orange Line (Barra superior decorativa Roder)
+      doc.setFillColor(234, 88, 12); // Roder Orange (ea580c)
+      doc.rect(15, 10, 180, 2.2, 'F');
+      
+      // Header Left
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(20);
+      doc.setTextColor(15, 23, 42); // Slate 900
+      doc.text('RODER', 15, 21);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 100, 100);
+      doc.text('MÁQUINAS E EQUIPAMENTOS', 15, 25);
+      
+      // Header Right
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11.5);
+      doc.setTextColor(234, 88, 12); // Roder Orange
+      doc.text('PROCEDIMENTO DE ATENDIMENTO', 195, 21, { align: 'right' });
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(100, 100, 100);
+      doc.text('Canal Oficial: RODER Indica (Leads de Indicação)', 195, 25, { align: 'right' });
+      
+      // Dividing Line
+      doc.setDrawColor(226, 232, 240); // Slate 200
+      doc.setLineWidth(0.4);
+      doc.line(15, 28, 195, 28);
+      
+      // Title
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text('PROCEDIMENTO OPERACIONAL PADRÃO (POP) - TRATAMENTO DE LEADS', 15, 34);
+      
+      // Introduction
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.2);
+      doc.setTextColor(51, 65, 85); // Slate 700
+      const introText = "O presente documento formaliza a diretriz estratégica e comercial para o atendimento de leads recebidos pelo canal oficial RODER Indica. Estas regras visam assegurar agilidade comercial, máxima conversão, clareza no contato com o cliente e respeito ao direito de comissão de região do Vendedor Externo.";
+      const splitIntro = doc.splitTextToSize(introText, 180);
+      doc.text(splitIntro, 15, 39);
+      
+      let currentY = 39 + (splitIntro.length * 3.8) + 3;
+      
+      // Section 1: Filosofia e Regra de Ouro
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.setTextColor(234, 88, 12);
+      doc.text('1. FILOSOFIA DE VELOCIDADE & REGRA DE OURO', 15, currentY);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(51, 65, 85);
+      const ruleText = "Os leads de indicações têm alto interesse e confiança na marca. O primeiro contato com o cliente pode ser por WhatsApp (preferencialmente) ou ligação telefônica. Se o vendedor interno achar interessante, deve primeiro falar com o parceiro identificado para solicitar mais informações sobre o cliente antes de contatá-lo, promovendo plena sinergia desde o início.";
+      const splitRule = doc.splitTextToSize(ruleText, 180);
+      doc.text(splitRule, 15, currentY + 4);
+      
+      currentY = currentY + 4 + (splitRule.length * 3.6) + 4;
+      
+      // Section 2: Tabela de Responsabilidades
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.setTextColor(234, 88, 12);
+      doc.text('2. ATRIBUIÇÕES E COMPARATIVO DE PAPÉIS', 15, currentY);
+      
+      const tableRows = [
+        [
+          'Primeiro Contato',
+          'Contata via WhatsApp/Ligação (normalmente WhatsApp). Se achar interessante, liga primeiro para o parceiro para solicitar informações antes de falar com o cliente.',
+          'NÃO interfere no contato inicial para manter a agilidade e evitar duplicidade de contatos.',
+          'Cadastra a indicação e, ao receber o e-mail informando o vendedor responsável, envia fotos/vídeos da máquina base via WhatsApp.'
+        ],
+        [
+          'Especificações',
+          'Identifica a Máquina Base (marca, modelo, porte) para dimensionar o acessório perfeito.',
+          'Auxilia indicando modelos que já operam com sucesso em clientes próximos da região.',
+          'Fornece detalhes sobre o modelo de máquina que o cliente possui ou pretende adquirir.'
+        ],
+        [
+          'Orçamento',
+          'Coleta os dados, formata a proposta técnica e envia com extrema rapidez ao cliente via WhatsApp.',
+          'Acompanha a negociação pelo CRM e fica disponível para sanar dúvidas se necessário.',
+          'Acompanha a negociação por e-mails de atualização e pela plataforma RODER Indica em tempo real.'
+        ],
+        [
+          'Visita / Suporte',
+          'Se o cliente solicitar visita física ou quiser ver o acessório trabalhando, aciona o Vendedor Externo.',
+          'Realiza a visita técnica presencial, demonstra o equipamento e apresenta referências locais.',
+          'Fica à disposição para apoiar na ponte de comunicação local ou acompanhar se solicitado.'
+        ],
+        [
+          'Comissionamento',
+          'Comissionado internamente de acordo com as regras de vendas da fábrica.',
+          'Garantido! Recebe integralmente a comissão padrão territorial da venda.',
+          'Garantido! Recebe comissão de indicação pré-definida em seu perfil.'
+        ]
+      ];
+      
+      autoTable(doc, {
+        startY: currentY + 3.5,
+        margin: { left: 15, right: 15 },
+        head: [['AÇÃO / FUNÇÃO', 'VENDEDOR INTERNO (FÁBRICA)', 'VENDEDOR EXTERNO (REGIÃO)', 'PARCEIRO INDICADOR']],
+        body: tableRows,
+        theme: 'striped',
+        headStyles: { fillColor: [15, 23, 42], fontSize: 6.8, fontStyle: 'bold', textColor: [255, 255, 255] },
+        styles: { fontSize: 6.2, cellPadding: 1.5, textColor: [51, 65, 85] },
+        columnStyles: {
+          0: { cellWidth: 26, fontStyle: 'bold', textColor: [15, 23, 42] },
+          1: { cellWidth: 51 },
+          2: { cellWidth: 51 },
+          3: { cellWidth: 52 }
+        },
+        didDrawPage: (data) => {
+          currentY = data.cursor ? data.cursor.y : currentY + 45;
+        }
+      });
+      
+      currentY = currentY + 4;
+      
+      // Section 3: Fluxo Passo a Passo
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.setTextColor(234, 88, 12);
+      doc.text('3. FLUXO OPERACIONAL DE ATENDIMENTO', 15, currentY);
+      
+      const stepsText = [
+        "Passo 1 (Triagem & Análise de Duplicidade): Luana recebe a indicação e analisa se já existe atendimento ou negociação ativa com o cliente para o mesmo equipamento. Se não houver atendimento anterior cadastrado, a indicação é ACEITA (válida e protegida por 60 dias). Caso já exista orçamento ou negociação em andamento, a indicação NÃO é aceita. Todas as informações do início da triagem são formalmente registradas no histórico.",
+        "Passo 2 (Distribuição Comercial): Se aceita, Luana direciona o lead ao Vendedor Interno em até 4 horas (limite máximo para evitar distribuição automática por balanceamento).",
+        "Passo 3 (Sinergia com o Parceiro): Se interessante, o Vendedor Interno entra em contato primeiro com o parceiro identificado para solicitar mais informações antes de contatar o cliente.",
+        "Passo 4 (Contato Multicanal com Cliente): O Vendedor Interno contata o cliente por WhatsApp (normalmente) ou ligação telefônica, citando a indicação do parceiro.",
+        "Passo 5 (Mídias & CRM): O parceiro envia fotos/vídeos da máquina base por WhatsApp após receber o e-mail de aviso do vendedor designado, acompanhando tudo em tempo real pela plataforma e e-mails."
+      ];
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(51, 65, 85);
+      
+      let stepY = currentY + 4;
+      stepsText.forEach((step) => {
+        const splitStep = doc.splitTextToSize(step, 180);
+        doc.text('•', 15, stepY);
+        doc.text(splitStep, 19, stepY);
+        stepY += (splitStep.length * 3.3) + 0.8;
+      });
+      
+      // Section 4: Dimensionamento & Compatibilidade de Garras
+      currentY = stepY + 2.5;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.setTextColor(234, 88, 12);
+      doc.text('4. DIMENSIONAMENTO & COMPATIBILIDADE DE GARRAS', 15, currentY);
+
+      const techBullets = [
+        "Regra de Ouro: Sempre dimensione a garra com base no porte/força da máquina base, e nunca pelo peso da carga.",
+        "Risco de Força: Máquinas grandes exercem enorme esforço ao apoiar a garra no chão. Garras subdimensionadas quebram.",
+        "Gruas em Trator: Modelos R280 e R280L são ideais, projetados para esforços compatíveis com tratores.",
+        "Escavadeiras Pequenas (< 8 Ton.): R280L é ideal, superior à R250. Para alimentação de picador de árvores inteiras (eucalipto) em 8t, use R280.",
+        "Alimentação de Picador (>= 14 Ton.): Siga a potência do picador: até 600 cv use R400; até 1.000 cv use R600. A máquina base define a compatibilidade, o picador define a capacidade."
+      ];
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(51, 65, 85);
+
+      let bulletY = currentY + 3.8;
+      techBullets.forEach((bullet) => {
+        const splitBullet = doc.splitTextToSize(bullet, 180);
+        doc.text('•', 15, bulletY);
+        doc.text(splitBullet, 19, bulletY);
+        bulletY += (splitBullet.length * 3.3) + 0.8;
+      });
+
+      currentY = bulletY + 2.5;
+      
+      // Box CRM Integration
+      doc.setFillColor(248, 250, 252); // Slate 50
+      doc.setDrawColor(203, 213, 225); // Slate 300
+      doc.rect(15, currentY, 180, 18, 'FD');
+      
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(15, 23, 42);
+      doc.text('INTEGRAÇÃO AUTOMÁTICA COM O CRM AGENDOR - SINCRONISMO EM TEMPO REAL:', 18, currentY + 4.5);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.2);
+      doc.setTextColor(51, 65, 85);
+      const crmDesc = "A interação comercial, histórico, propostas e faturamentos são registrados exclusivamente no CRM Agendor pelo Vendedor Interno. Os dados cadastrados ou atualizados no Agendor são espelhados em tempo real na plataforma RODER Indica, permitindo que o parceiro acompanhe o status da negociação de forma transparente, com zero retrabalho de digitação.";
+      const splitCrm = doc.splitTextToSize(crmDesc, 174);
+      doc.text(splitCrm, 18, currentY + 8);
+      
+      // Footer text
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Diretriz Interna Oficial | Canal Comercial RODER Indica | Documento em uma única folha | Gerado em ${new Date().toLocaleDateString('pt-BR')}`, 15, 284);
+      
+      doc.save('Procedimento_Atendimento_Roder_Indica.pdf');
+      toast.success('Procedimento oficial de atendimento baixado em PDF com sucesso!');
+    } catch (err: any) {
+      console.error('Error generating PDF:', err);
+      toast.error('Erro ao gerar PDF: ' + err.message);
+    }
+  };
+
   const hasEditAccess = canManageAll || isTriagem || isMarketing;
 
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -2577,6 +2793,218 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
                     Administradores e Gerentes possuem o botão "OLHO" na lista de usuários que permite simular a visão de qualquer outro perfil (Impersonate). 
                     O email principal para administração é <strong>roderindica@gmail.com</strong>.
                   </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-card border-border shadow-md mt-6">
+              <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border pb-4">
+                <div>
+                  <CardTitle className="text-xl flex items-center gap-2 text-primary font-bold">
+                    <Award className="h-6 w-6 text-primary" /> Procedimento Oficial de Atendimento (RODER Indica)
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground mt-1">Diretrizes oficiais para atendimento ágil e alta conversão de leads indicados</p>
+                </div>
+                <Button 
+                  onClick={handleDownloadProcedurePDF}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs uppercase gap-1.5 h-9"
+                >
+                  <Download className="h-4 w-4" /> Baixar PDF com Logo
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-6 pt-6">
+                <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 text-sm leading-relaxed text-muted-foreground">
+                            Por esta razão, o <strong>primeiro contato deve ser realizado direta e exclusivamente pelo Vendedor Interno da Fábrica</strong>, em coordenação inicial com o parceiro indicador se necessário.
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Left block - O Vendedor Interno */}
+                  <div className="space-y-4 border border-border p-5 rounded-xl bg-muted/20">
+                    <h3 className="font-bold text-primary uppercase tracking-wider text-xs border-b border-border pb-2 flex items-center gap-2">
+                      <User className="h-4 w-4 text-primary" /> Atuação do Vendedor Interno (Fábrica)
+                    </h3>
+                    <ul className="space-y-3 text-xs leading-relaxed text-muted-foreground">
+                      <li className="flex items-start gap-2">
+                        <span className="text-primary font-bold mt-0.5">•</span>
+                        <span><strong>Interação Inicial Inteligente:</strong> Se achar interessante, o vendedor interno deve entrar em contato primeiro com o parceiro identificado para solicitar mais informações sobre o cliente antes de contatar o cliente propriamente dito. Isso agiliza muito o levantamento de dados e estabelece uma forte sinergia.</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-primary font-bold mt-0.5">•</span>
+                        <span><strong>Contato Multicanal com Cliente:</strong> O contato com o cliente pode ser realizado por WhatsApp ou ligação telefônica, sendo que normalmente nos comunicamos via WhatsApp. O vendedor apresenta-se, cita explicitamente a indicação e fundamenta o levantamento técnico complementar.</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-primary font-bold mt-0.5">•</span>
+                        <span><strong>Elaboração de Orçamento:</strong> Elabora e envia a proposta técnica comercial com máxima agilidade diretamente ao cliente, registrando-a no CRM Agendor para sincronização automática.</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  {/* Right block - O Vendedor Externo */}
+                  <div className="space-y-4 border border-border p-5 rounded-xl bg-muted/20">
+                    <h3 className="font-bold text-primary uppercase tracking-wider text-xs border-b border-border pb-2 flex items-center gap-2">
+                      <Users className="h-4 w-4 text-primary" /> Atuação do Vendedor Externo (Região)
+                    </h3>
+                    <ul className="space-y-3 text-xs leading-relaxed text-muted-foreground">
+                      <li className="flex items-start gap-2">
+                        <span className="text-primary font-bold mt-0.5">•</span>
+                        <span><strong>Comissão Territorial Garantida:</strong> Mesmo que a venda seja conduzida e fechada de forma direta pela fábrica com o vendedor interno, o Vendedor Externo da região tem o direito de receber integralmente sua <strong>comissão padrão de território</strong>.</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-primary font-bold mt-0.5">•</span>
+                        <span><strong>Sem Interferência Inicial:</strong> O externo <strong>não</strong> deve intervir ou fazer contato direto no primeiro momento, para manter a comunicação clara e focada no vendedor interno, evitando excesso de pessoas falando com o cliente.</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-primary font-bold mt-0.5">•</span>
+                        <span><strong>Apoio Presencial & Referências:</strong> É acionado apenas se o cliente solicitar uma visita física presencial ou desejar referências de máquinas operando na região. Como conhece muito bem o território local e os proprietários próximos, o vendedor externo traz excelente segurança para o fechamento.</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  {/* Third block - O Parceiro Indicador */}
+                  <div className="space-y-4 border border-border p-5 rounded-xl bg-muted/20">
+                    <h3 className="font-bold text-primary uppercase tracking-wider text-xs border-b border-border pb-2 flex items-center gap-2">
+                      <Award className="h-4 w-4 text-primary" /> Atuação do Parceiro Indicador
+                    </h3>
+                    <ul className="space-y-3 text-xs leading-relaxed text-muted-foreground">
+                      <li className="flex items-start gap-2">
+                        <span className="text-primary font-bold mt-0.5">•</span>
+                        <span><strong>Apoio de Mídia via WhatsApp:</strong> Assim que recebe os dados do cliente e o e-mail informando qual é o vendedor interno responsável pelo atendimento, o parceiro identificado pode enviar fotos, vídeos e outros detalhes da máquina base do cliente diretamente via WhatsApp para o vendedor.</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-primary font-bold mt-0.5">•</span>
+                        <span><strong>Acompanhamento da Negociação:</strong> O parceiro terá todas as informações e poderá acompanhar o andamento da negociação tanto pelo recebimento de e-mails de atualização de status quanto pela plataforma, que exibe o status e quaisquer alterações em tempo real.</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-primary font-bold mt-0.5">•</span>
+                        <span><strong>Sinergia desde o Início:</strong> Mantém-se integrado e disponível para apoiar a negociação caso seja necessário em conjunto com a fábrica.</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="border border-border rounded-xl overflow-hidden mt-4">
+                  <div className="bg-muted p-3 border-b border-border text-xs font-bold uppercase text-foreground">
+                    Comparativo de Atribuições Comerciais
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-muted/30 border-b border-border text-muted-foreground">
+                          <th className="p-3 font-semibold">Atividade</th>
+                          <th className="p-3 font-semibold">Vendedor Interno (Fábrica)</th>
+                          <th className="p-3 font-semibold">Vendedor Externo (Região)</th>
+                          <th className="p-3 font-semibold">Parceiro Indicador</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border text-muted-foreground">
+                        <tr>
+                          <td className="p-3 font-bold text-foreground">Primeiro Contato</td>
+                          <td className="p-3">Se necessário, alinha antes com o parceiro indicador para obter fotos/vídeos da máquina. Se não, faz contato direto com o cliente.</td>
+                          <td className="p-3">Não intervém no primeiro momento (evita duplicidade e ruído).</td>
+                          <td className="p-3">Informa detalhes/fotos/vídeos da máquina ao vendedor designado, interage e aguarda o início do atendimento.</td>
+                        </tr>
+                        <tr>
+                          <td className="p-3 font-bold text-foreground">Proposta Técnica</td>
+                          <td className="p-3">Elabora e envia de forma ágil para manter o lead aquecido.</td>
+                          <td className="p-3">Acompanha via CRM Agendor e auxilia em dúvidas regionais.</td>
+                          <td className="p-3">Recebe e-mail com dados do vendedor e acompanha todo o progresso do orçamento pela plataforma.</td>
+                        </tr>
+                        <tr>
+                          <td className="p-3 font-bold text-foreground">Suporte de Campo</td>
+                          <td className="p-3">Direciona se o cliente solicitar visita técnica ou referências locais.</td>
+                          <td className="p-3">Realiza visita técnica presencial e indica referências próximas.</td>
+                          <td className="p-3">Acompanha o histórico no painel e recebe e-mails automáticos a cada nova mudança de status.</td>
+                        </tr>
+                        <tr>
+                          <td className="p-3 font-bold text-foreground">Comissão / Ganhos</td>
+                          <td className="p-3">Comissionado de acordo com as diretrizes internas da fábrica.</td>
+                          <td className="p-3"><strong>Garantida!</strong> Recebe comissão padrão territorial sobre a venda.</td>
+                          <td className="p-3"><strong>Garantida!</strong> Recebe comissão de indicação cadastrada no sistema.</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Triage Protocol Info Box */}
+                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs leading-relaxed text-emerald-200/90 flex gap-3 items-start mb-4">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-400 mt-0.5 shrink-0" />
+                  <div>
+                    <strong className="text-emerald-300 font-bold block mb-1 text-sm">📋 Protocolo de Triagem e Análise de Duplicidade (Gestão Luana):</strong>
+                    Assim que Luana recebe o lead na triagem, ela realiza uma análise imediata para verificar se já existe algum atendimento ou negociação ativa com este cliente sobre o mesmo equipamento:
+                    <ul className="list-disc pl-4 mt-2 space-y-1 text-emerald-200/70">
+                      <li><strong>Sem Atendimento Anterior:</strong> Se não houver nenhum atendimento ou negociação ativa cadastrada para o cliente e o mesmo equipamento, a indicação é <strong>aceita</strong> e passa a ter validade e proteção de <strong>60 dias</strong>, conforme as regras estabelecidas.</li>
+                      <li><strong>Com Orçamento ou Negociação Ativa:</strong> Se houver um orçamento ou negociação em andamento, a indicação <strong>NÃO é aceita</strong> para preservar o canal comercial atual.</li>
+                      <li><strong>Registro Integral:</strong> Absolutamente todas as informações coletadas, desde o início exato da triagem, são devidamente registradas e salvas no histórico do procedimento operacional da plataforma.</li>
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Integration Info Box */}
+                <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs leading-relaxed text-blue-200/90 flex gap-3 items-start">
+                  <RefreshCw className="h-5 w-5 text-blue-400 mt-0.5 shrink-0" />
+                  <div>
+                    <strong className="text-blue-300 font-bold block mb-1 text-sm">🔄 Integração de Dados 100% Automática com CRM Agendor:</strong>
+                    Toda a interação comercial, anotações de histórico, upload de orçamentos e faturamentos são realizados exclusivamente pelo Vendedor Interno dentro do <strong>CRM Agendor</strong>. 
+                    Por ser totalmente integrado, qualquer novidade cadastrada no CRM Agendor é <strong>sincronizada de forma automática com o RODER Indica</strong>, sem necessidade de preenchimento manual duplo. O vendedor foca no cliente e os sistemas cuidam dos dados!
+                  </div>
+                </div>
+
+                {/* Automatic Distribution Box */}
+                <div className="p-4 rounded-xl bg-orange-500/10 border border-orange-500/20 text-xs leading-relaxed text-orange-200/90 flex gap-3 items-start mt-4">
+                  <Clock className="h-5 w-5 text-orange-400 mt-0.5 shrink-0" />
+                  <div>
+                    <strong className="text-orange-300 font-bold block mb-1 text-sm">🕒 Distribuição Automática por Limite de Tempo na Triagem (4 horas):</strong>
+                    Se uma indicação de lead recém-chegada permanecer em triagem (status "Pendente") por mais de <strong>4 horas</strong> sem encaminhamento manual por parte de Luana, o sistema ativará o protocolo de **Distribuição Automática**.
+                    <br />
+                    O lead será atribuído imediatamente ao Vendedor Interno disponível que possuir a menor carga de leads ativos em negociação (balanceamento de carga). No momento do encaminhamento, e-mails detalhados contendo os dados de contato do Vendedor Interno são disparados para o Parceiro Indicador, permitindo a comunicação inicial e troca ágil de informações sobre a máquina base antes do contato final com o cliente.
+                  </div>
+                </div>
+
+                {/* Technical Learning - Forest Grabs Compatibility */}
+                <div className="p-5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs leading-relaxed text-amber-200/90 flex gap-4 items-start mt-4">
+                  <Brain className="h-6 w-6 text-amber-400 mt-0.5 shrink-0" />
+                  <div>
+                    <strong className="text-amber-300 font-bold block mb-2 text-sm uppercase tracking-wider flex items-center gap-1.5">
+                      🎓 Aprendizagem Técnica (Consultor Técnico) - Compatibilidade e Dimensionamento de Garras:
+                    </strong>
+                    Ao indicar uma garra florestal, o consultor técnico <strong>NÃO</strong> deve considerar somente o volume ou o tipo de material que o cliente pretende movimentar. É fundamental avaliar tecnicamente a <strong>máquina base</strong> na qual o equipamento será instalado:
+                    <ul className="list-disc pl-4 mt-3 space-y-2 text-amber-200/80">
+                      <li><strong>Força da Máquina Base:</strong> Uma escavadeira de grande porte (como 14 toneladas) possui força, peso e pressão hidráulica imensamente superiores aos de uma grua em trator. Ao apoiar ou pressionar a garra contra o chão, a escavadeira gera um esforço que ultrapassa a capacidade estrutural de uma garra pequena, causando desgaste acelerado ou danos mecânicos graves (risco potencializado caso a pressão hidráulica da máquina esteja desregulada). Mesmo que o cliente movimente pouca carga (ex: apenas uma tora), a recomendação do catálogo oficial deve ser estritamente mantida.</li>
+                      <li><strong>Garras R250 e R280:</strong> Possuem estrutura desenvolvida primariamente para aplicação em <strong>gruas de trator</strong>, onde as forces físicas e as pressões de trabalho são significativamente menores. As garras R280 e R280L são ótimas opções para gruas de trator.</li>
+                      <li><strong>Garras para Escavadeiras Pequenas (&lt; 8 Ton.):</strong> Para escavadeiras de pequeno porte (abaixo de 8 toneladas), a melhor indicação é a garra <strong>R280L</strong>. Ela foi desenvolvida com engenharia de ponta que oferece uma estrutura mais leve, sendo a opção ideal e muito mais adequada e segura do que o modelo R250.</li>
+                      <li><strong>Garras para Retroescavadeiras e Escavadeiras (&gt;= 8 Ton.):</strong> A partir do modelo <strong>.36 (como a R360)</strong>, os equipamentos são estruturalmente compatíveis com retroescavadeiras e escavadeiras a partir de aproximadamente 8 toneladas de peso operacional.</li>
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Technical Sizing - Chippers Feeding */}
+                <div className="p-5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs leading-relaxed text-emerald-200/90 flex gap-4 items-start mt-4">
+                  <Wrench className="h-6 w-6 text-emerald-400 mt-0.5 shrink-0" />
+                  <div>
+                    <strong className="text-emerald-300 font-bold block mb-2 text-sm uppercase tracking-wider flex items-center gap-1.5">
+                      ⚙️ Diretriz para Dimensionamento de Garras em Alimentação de Picadores:
+                    </strong>
+                    Quando a aplicação da garra for para alimentação de picadores florestais, a definição do modelo deve considerar de forma integrada dois fatores cruciais:
+                    <ul className="list-disc pl-4 mt-3 space-y-2 text-emerald-200/80">
+                      <li><strong>1. Máquina Base:</strong> Conforme a Tabela de Aplicação/Ficha Técnica da Roder. Ela define a viabilidade física e a segurança de instalação da garra na escavadeira.</li>
+                      <li><strong>2. Potência do Picador:</strong> O modelo e a potência do picador determinam a real necessidade de volume e fluxo de alimentação operacional:
+                        <ul className="list-circle pl-4 mt-1 space-y-1 text-emerald-300/80">
+                          <li>Picadores de <strong>até 600 cv</strong>: Utilizar Garra <strong>R400</strong>.</li>
+                          <li>Picadores de <strong>até 1.000 cv</strong>: Utilizar Garra <strong>R600</strong>.</li>
+                        </ul>
+                      </li>
+                      <li className="mt-2"><strong>Exemplo Prático (8 Toneladas):</strong> Se o cliente possui uma escavadeira pequena de 8t, deve-se seguir rigorosamente o limite da máquina base, utilizando uma <strong>R280</strong> ou <strong>R360</strong>, conforme a aplicação recomendada.</li>
+                      <li><strong>Exemplo Prático (&gt;= 14 Toneladas):</strong> Para escavadeiras de 14 toneladas ou superiores, onde a máquina base comporta perfeitamente garras maiores, o dimensionamento deve focar inteiramente na necessidade do picador: Picador até 600 cv (R400) ou Picador até 1.000 cv (R600).</li>
+                    </ul>
+                    <p className="mt-3 text-[11px] text-emerald-300/90 italic font-semibold">
+                      Desta forma, a máquina base define a compatibilidade da instalação, enquanto o picador define a capacidade de alimentação necessária, assegurando o melhor desempenho operacional e maior produtividade.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-[10px] text-muted-foreground italic border-t border-border pt-4 text-right">
+                  Procedimento Comercial Oficial homologado pelo fundador e diretor técnico Jeferson Roder.
                 </div>
               </CardContent>
             </Card>

@@ -97,17 +97,27 @@ Operando em conjunto (1 Cabeçote CMF 600 na derrubada + 1 Mini Skidder no arras
 - Máquina Base Recomendada: Escavadeiras pesadas de 25 a 35 toneladas.
 - Equipamento de altíssima performance para grandes volumes florestais.`,
 
-  "R250": `Produtividade Estimada com base em ciclo de 20 segundos e madeira de 3m:
-- Produtividade Horária: Cerca de 108 toneladas por hora.
-- Indicada para escavadeiras de 5 a 8 toneladas.`,
+  "R250": `COMPATIBILIDADE & PRODUTIVIDADE (R250 - 0.25m³):
+- Estrutura: Desenvolvida prioritariamente para aplicação em gruas de trator.
+- Risco de Força Excessiva: NÃO recomendada para uso em escavadeiras (mesmo pequenas) ou retroescavadeiras, pois a força bruta de escavação, compressão ou apoio no solo dessas máquinas supera a resistência estrutural deste modelo, gerando desgaste prematuro ou quebras.
+- Produtividade Estimada: Cerca de 108 toneladas por hora (ciclo de 20s em madeira de 3m).`,
   
-  "R280": `Produtividade Estimada com base em ciclo de 20 segundos e madeira de 3m:
-- Produtividade Horária: Cerca de 121 toneladas por hora.
-- Recomendada para escavadeiras de 6 a 10 toneladas. Modelo ideal para alimentação de picador em máquinas de 8t, oferecendo máxima estabilidade e dimensionamento.`,
+  "R280": `COMPATIBILIDADE & PRODUTIVIDADE (R280 - 0.28m³):
+- Estrutura: Desenvolvida prioritariamente para aplicação em gruas de trator, sendo uma boa opção de uso nessa categoria. É altamente recomendada para o manuseio convencional de madeira e também para alimentação de picador florestal com árvores inteiras (como eucalipto), arrastando feixes de árvores até a boca do picador.
+- Risco de Força Excessiva: Assim como a R250, possui estrutura pensada para gruas de trator e NÃO deve ser instalada diretamente em escavadeiras de grande porte.
+- Produtividade Estimada: Cerca de 121 toneladas por hora (ciclo de 20s em madeira de 3m).`,
 
-  "R360": `Produtividade Estimada com base em ciclo de 20 segundos e madeira de 3m:
-- Produtividade Horária: Cerca de 155 toneladas por hora.
-- Indicada para escavadeiras de 8 a 12 toneladas.`,
+  "R280L": `COMPATIBILIDADE & PRODUTIVIDADE (R280L - Linha Leve/Média):
+- Aplicação Escavadeiras Pequenas: Indicação perfeita e ideal para escavadeiras pequenas (abaixo de 8 toneladas) que realizam trabalho leve a médio. Conta com engenharia de ponta e estrutura leve, sendo infinitamente mais adequada e segura para escavadeiras pequenas do que o modelo R250.
+- Aplicação Gruas de Trator: Também é uma excelente opção recomendada para gruas em tratores.
+- Segurança e Durabilidade: Evita fadiga estrutural ao suportar melhor as forças de movimentação e apoio características dessas escavadeiras menores.`,
+
+  "R360": `COMPATIBILIDADE & PRODUTIVIDADE (R360 - 0.36m³):
+- Compatibilidade Máquina Base: Ideal para retroescavadeiras e escavadeiras a partir de aproximadamente 8 toneladas (até 13 toneladas). Oferece a resistência mecânica necessária para suportar a força bruta de escavação e pressão no solo de máquinas de médio porte.
+- Alimentação de Picador Florestal (7 a 13 toneladas):
+  • R360 Padrão (com pinça fechada): Indicada para o manuseio comum de madeira.
+  • R360G (com unha tipo garfo, aberta): Especialmente recomendada para pegar com muito mais facilidade resíduos, paletes, madeiras trançadas, galhadas (ex: galhos, restos de pé de laranja) e resíduos florestais em geral para alimentar o picador.
+- Produtividade Estimada: Cerca de 155 toneladas por hora.`,
 
   "R400": `Produtividade Estimada com base em ciclo de 20 segundos e madeira de 3m:
 - Produtividade Horária: Cerca de 172 toneladas por hora.

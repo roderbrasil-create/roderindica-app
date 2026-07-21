@@ -699,6 +699,25 @@ export default function Indications() {
           `A negociação com ${selectedIndication.client_name} foi concluída com sucesso! Parabéns!`,
           `/indicacoes`
         );
+
+        // Notify partner via email of status change (sold)
+        try {
+          const userSnap = await getDoc(doc(db, 'users', selectedIndication.external_seller_uid));
+          if (userSnap.exists()) {
+            const userData = userSnap.data();
+            if (userData.email) {
+              const { notifyStatusChange } = await import('../services/emailService');
+              await notifyStatusChange(
+                { ...selectedIndication, status: 'sold' },
+                userData.email,
+                userData.name || 'Parceiro',
+                selectedIndication.internal_seller_name || profile?.name
+              );
+            }
+          }
+        } catch (emailErr) {
+          console.error("Error sending sold email to partner:", emailErr);
+        }
       }
       
       await notifyManagers(
@@ -760,6 +779,25 @@ export default function Indications() {
           type: 'warning',
           link: `/indicacoes`
         });
+
+        // Notify partner via email of status change (cancelled)
+        try {
+          const userSnap = await getDoc(doc(db, 'users', selectedIndication.external_seller_uid));
+          if (userSnap.exists()) {
+            const userData = userSnap.data();
+            if (userData.email) {
+              const { notifyStatusChange } = await import('../services/emailService');
+              await notifyStatusChange(
+                { ...selectedIndication, status: 'cancelled' },
+                userData.email,
+                userData.name || 'Parceiro',
+                selectedIndication.internal_seller_name || profile?.name
+              );
+            }
+          }
+        } catch (emailErr) {
+          console.error("Error sending cancellation email to partner:", emailErr);
+        }
       }
 
       await notifyManagers(
