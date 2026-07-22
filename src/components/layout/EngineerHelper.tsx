@@ -105,6 +105,7 @@ Operando em conjunto (1 Cabeçote CMF 600 na derrubada + 1 Mini Skidder no arras
   "R280": `COMPATIBILIDADE & PRODUTIVIDADE (R280 - 0.28m³):
 - Estrutura: Desenvolvida prioritariamente para aplicação em gruas de trator, sendo uma boa opção de uso nessa categoria. É altamente recomendada para o manuseio convencional de madeira e também para alimentação de picador florestal com árvores inteiras (como eucalipto), arrastando feixes de árvores até a boca do picador.
 - Risco de Força Excessiva: Assim como a R250, possui estrutura pensada para gruas de trator e NÃO deve ser instalada diretamente em escavadeiras de grande porte.
+- Rotator & Ponteiras (7 a 10 Toneladas): Recomendado o uso de Rotator de 6 Toneladas e ponteiras/bielas de caçamba de 6t para garantida usabilidade e compatibilidade.
 - Produtividade Estimada: Cerca de 121 toneladas por hora (ciclo de 20s em madeira de 3m).`,
 
   "R280L": `COMPATIBILIDADE & PRODUTIVIDADE (R280L - Linha Leve/Média):
@@ -112,11 +113,15 @@ Operando em conjunto (1 Cabeçote CMF 600 na derrubada + 1 Mini Skidder no arras
 - Aplicação Gruas de Trator: Também é uma excelente opção recomendada para gruas em tratores.
 - Segurança e Durabilidade: Evita fadiga estrutural ao suportar melhor as forças de movimentação e apoio características dessas escavadeiras menores.`,
 
-  "R360": `COMPATIBILIDADE & PRODUTIVIDADE (R360 - 0.36m³):
+  "R360": `COMPATIBILIDADE & PRODUTIVIDADE (R360 - 0.36m³ / R360G):
 - Compatibilidade Máquina Base: Ideal para retroescavadeiras e escavadeiras a partir de aproximadamente 8 toneladas (até 13 toneladas). Oferece a resistência mecânica necessária para suportar a força bruta de escavação e pressão no solo de máquinas de médio porte.
-- Alimentação de Picador Florestal (7 a 13 toneladas):
-  • R360 Padrão (com pinça fechada): Indicada para o manuseio comum de madeira.
-  • R360G (com unha tipo garfo, aberta): Especialmente recomendada para pegar com muito mais facilidade resíduos, paletes, madeiras trançadas, galhadas (ex: galhos, restos de pé de laranja) e resíduos florestais em geral para alimentar o picador.
+- Escavadeiras de 7 a 10 Toneladas (R360 Padrão e R360G):
+  • Viabilidade Física: É fisicamente possível e viável a instalação em máquinas de 7 a 10t.
+  • Alerta de Instabilidade Operacional: O cliente deve estar ciente de que se o operador pegar madeira muito comprida ou feixes de árvores inteiras para arrastar ao picador, a máquina pode "levantar a bunda" (ficar instável) ou não ter força de giro suficiente para arrastar o feixe pesado.
+- Rotator & Ponteiras (7 a 10 Toneladas): Recomendação oficial de utilizar Rotator de 6 Toneladas e ponteiras/bielas dimensionadas para a caçamba de 6t.
+- Variações para Alimentação de Picador:
+  • R360 Padrão (pinça fechada): Manuseio comum de madeira.
+  • R360G (unha tipo garfo, aberta): Ideal para pegar galhadas, paletes, resíduos e restos de pomar (ex: pé de laranja).
 - Produtividade Estimada: Cerca de 155 toneladas por hora.`,
 
   "R400": `Produtividade Estimada com base em ciclo de 20 segundos e madeira de 3m:

@@ -218,6 +218,11 @@ export interface ProductModel {
     peso_operacional?: string;
     motor?: string;
     giro_360?: string;
+    // Cabeçote de Poda GP 150
+    dimensoes?: string;
+    capacidade_carga?: string;
+    finame?: string;
+    linhaviva?: string;
   };
   technical_sheet_image?: string;
   image_zoom?: number;

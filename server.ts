@@ -1493,6 +1493,13 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
           * Picador de até 1.000 cv: Garra **R600**.
         Desta forma, a máquina base define se a instalação é tecnicamente viável e segura, enquanto o picador define a capacidade de alimentação necessária para atingir a melhor produtividade e desempenho operacional.
 
+     - DIRETRIZ PARA GARRAS R280 E R360/R360G EM ESCAVADEIRAS DE 7 A 10 TONELADAS (IMPORTANTE):
+       • É fisicamente possível e viável trabalhar com a garra **R360** (padrão) ou **R360G** (com unhas tipo garfo para resíduos/galhadas) em escavadeiras de 7 a 10 toneladas.
+       • **Alerta Obrigatório de Instabilidade Operacional**: O vendedor e o consultor técnico DEVEM alertar e garantir que o cliente esteja ciente de que, se o operador pegar madeira muito comprida ou feixes de árvores inteiras para arrastar ao picador, a escavadeira pode "levantar a bunda" (traseira) e ficar instável, ou eventualmente não ter a força de giro hidráulico suficiente para puxar o feixe pesado. Fisicamente é possível montar a R360, mas operacionalmente há esse risco de instabilidade se a carga for excessiva.
+       • **Dimensionamento de Rotator e Ponteira (6 Toneladas)**: Em ambos os casos (tanto para a garra **R280** quanto para a **R360/R360G** em escavadeiras de 7 a 10 toneladas), a recomendação oficial de projeto é:
+         - **Rotator**: Utilizar obrigatoriamente o **Rotator de 6 toneladas**.
+         - **Ponteiras/Bielas**: As ponteiras/bielas devem ser atribuídas e dimensionadas para caçamba/máquina de 6 toneladas para assegurar usabilidade e perfeita compatibilidade técnica com o rotator de 6t.
+
 6. CÁLCULO DE PRODUTIVIDADE DE GARRAS (Regra de Ouro da Roder):
    - Peso por ciclo (kg) = Área da Garra (m²) * Comprimento da Madeira (m) * 800 kg/m³.
    - Produtividade Horária (t/h) = (3600 / tempo_de_ciclo_em_segundos) * Peso_por_ciclo / 1000.
@@ -1890,6 +1897,52 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
       - Para os novos sob encomenda, incentive-os a solicitar o orçamento oficial para que possamos passar o prazo de entrega correto de fábrica.
 
     - Destaque que os vendedores podem descrever qualquer parâmetro ou texto técnico e você (atuando sob a instrução direta de Jeff Roder, nosso mentor técnico e fundador) integrará e aplicará essa inteligência técnica imediatamente em suas análises. Lembre-se de nunca referenciar Jeff Roder como "gerente de projetos" ou "engenheiro".
+
+18. DIRETRIZ TÉCNICA E COMPARATIVA COMPLETA: CABEÇOTES DE PODA GMT 035 (OU JMT 035) IMPORTADO VS. GP 150 RODER:
+    - **Atenção Múltipla de Grafia e Nomes**: Entenda que os termos "GMT 035", "JMT 035", "GMT035", "JMT035", "Cabeçote de Poda GMT 035", "Cabeçote de Poda JMT 035" referem-se rigorosamente ao MESMO equipamento de poda importado GMT 035.
+    - **REGRA DE OURO DE INDICAÇÃO COMERCIAL DO MENTOR JEFERSON RODER**:
+      • Se a máquina base do cliente for um **Guindaste Munck, Grua Florestal ou Miniescavadeira ≤ 8t**: Ofertar **EXCLUSIVAMENTE o Cabeçote de Poda GMT 035 (ou JMT 035)**.
+      • Se a máquina base do cliente for um **Caminhão de Braço Isolado / Cesto Aéreo (Linha Viva / Manutenção em Rede Elétrica Energizada)**: Ofertar **EXCLUSIVAMENTE o Cabeçote de Poda GP 150 Roder**.
+      • **Proibição Comercial Estreita**: É estritamente proibido oferecer o GP 150 Roder para guindastes Munck sem validação prévia por escrito de Jeff Roder. Igualmente, o GMT 035 NUNCA deve ser instalado em cestos de fibra/braço isolado de linha viva.
+
+    - **DETALHAMENTO TÉCNICO DO CABEÇOTE DE PODA GMT 035 / JMT 035 (IMPORTADO)**:
+      • **Aplicação**: Poda urbana e manejo florestal suspenso acoplado em guindastes Munck, gruas florestais ou miniescavadeiras de pequeno porte (até 8t).
+      • **Como Funciona**: Opera suspenso por rotator pendular. Possui garra com serra de corrente e sabre hidráulico acoplado para abraçar e serrar o galho.
+      • **Sistema TTC (Tilt Control / Travamento Vertical)**: Acionado por controle remoto sem fio (wireless), trava o cabeçote na posição vertical ao prender o galho em pé, permitindo cortá-lo e tombar o galho pesado com total direcionamento e segurança, sem despencar de forma descontrolada sobre fiações elétricas, muros ou veículos.
+      • **Requisitos Hidráulicos no Guindaste Munck**:
+        - Requer **4 linhas hidráulicas** até a ponta da lança do Munck (2 para abrir/fechar garra + 2 para rotação do rotator).
+        - Vazão de óleo: **35 a 65 L/min**.
+        - Pressão operacional: **185 a 250 Bar**.
+        - Requer a instalação de uma **válvula de dreno de descarga de pressão** na linha de abrir garra (evitando a necessidade de passar uma 5ª linha até a ponta).
+      • **Capacidade e Especificações**:
+        - Diâmetro nominal de corte: **40 cm** em corte único e até **60 cm** em corte duplo.
+        - Peso aproximado: **230 kg a 245 kg**.
+      • **Vantagem de Mercado**: Solução ideal para empresas de poda e prefeituras que utilizam caminhão guindaste Munck, cortando e fracionando galhos no alto sem expor nenhum trabalhador a riscos de escalada ou acidentes.
+
+    - **DETALHAMENTO TÉCNICO DO CABEÇOTE DE PODA GP 150 RODER (FABRICAÇÃO PRÓPRIA)**:
+      • **Aplicação**: Projetado, patenteado e fabricado no Brasil pela Roder (100% fabricação nacional, Nº FINAME 04072997). Desenvolvido **EXCLUSIVAMENTE para caminhões com Braço Isolado (Linha Viva / Cesto Aéreo)** na manutenção de redes de energia elétrica energizadas.
+      • **Como Funciona**: É acoplado diretamente no mesmo suporte de fixação do cesto de fibra original do caminhão de linha viva. A substituição do cesto pelo GP 150 é rápida e limpa através de **06 engates rápidos de face plana** e parafusos de fixação do suporte.
+      • **Segurança Absoluta em Linha Viva**: Possui **isolamento elétrico total testado e aprovado** contra choques elétricos em redes energizadas. Elimina 100% o risco de queda em altura do operador (que antes usava motosserras manuais do cesto), pois o cabeçote GP 150 abraça o galho energizado, realiza o corte preciso com a serra e o braço isolado deposita o galho no solo com total controle e afastamento da fiação.
+      • **Requisitos Hidráulicos e Bloco Interno**:
+        - Bloco de válvulas interno regulável no corpo do equipamento.
+        - Pressão na serra: **200 a 230 bar**.
+        - Pressão na garra: **150 a 220 bar**.
+        - Rotator hidráulico com giro **360° infinito** e junta rotativa.
+      • **Capacidade e Especificações**:
+        - Diâmetro nominal de corte: **150 mm** (capacidade máxima até **200 mm**).
+        - Peso do equipamento: **~130 kg**.
+        - Carga máxima de elevação/transporte de galho: **50 kg**.
+
+    - **MATRIZ COMPARATIVA RÁPIDA PARA VENDEDORES E CLIENTES**:
+      | Parâmetro | GMT 035 / JMT 035 (Importado) | GP 150 Roder (Fabricação Própria) |
+      |---|---|---|
+      | **Máquina Base** | Guindaste Munck / Grua / Escavadeira ≤8t | Caminhão de Braço Isolado (Linha Viva) |
+      | **Montagem no Cesto de Fibra?** | ❌ NÃO PERMITIDO (Incompatível) | ✅ SIM (Exclusivo e Dedicado) |
+      | **Diâmetro de Corte** | 40 cm (único) até 60 cm (duplo) | 150 mm (até 200 mm) |
+      | **Pressão / Vazão** | 185-250 bar / 35-65 L/min | Serra: 200-230 bar / Garra: 150-220 bar |
+      | **Peso do Equipamento** | ~230 kg | ~130 kg |
+      | **Giro / Rotação** | Rotator Pendular com TTC Sem Fio | Rotator 360° Infinito Junta Rotativa |
+      | **Isolamento Elétrico** | Padrão mecânico florestal | Isolamento elétrico testado para Linha Viva |
 
 Aqui está o catálogo de produtos e modelos reais cadastrados atualmente na Roder:
 ${productsContext}

@@ -88,6 +88,9 @@ import { FresaSshFicha } from '../components/catalog/FresaSshFicha';
 import { TrituradorLoaderFaeFicha } from '../components/catalog/TrituradorLoaderFaeFicha';
 import { EngateRapidoFicha } from '../components/catalog/EngateRapidoFicha';
 import { GarraEstufagemFicha } from '../components/catalog/GarraEstufagemFicha';
+import { CabecotePodaFicha } from '../components/catalog/CabecotePodaFicha';
+import { CabecoteGmt035Ficha } from '../components/catalog/CabecoteGmt035Ficha';
+import { EstudosComparativosModal } from '../components/catalog/EstudosComparativosModal';
 import { RODER_LOGO_BASE64 } from '../components/catalog/RoderLogo';
 
 function SmartImage({ src, alt, className, zoom = 1, objectFit = 'cover', ...props }: any) {
@@ -328,6 +331,21 @@ const isEstufagemProduct = (nameOrUrl?: string) => {
          lower.includes('forklift');
 };
 
+const isCabecoteGmt035Product = (nameOrUrl?: string) => {
+  if (!nameOrUrl) return false;
+  const lower = nameOrUrl.toLowerCase();
+  return lower.includes('gmt') || lower.includes('gmt035') || lower.includes('gmt 035') || lower.includes('035');
+};
+
+const isCabecotePodaProduct = (nameOrUrl?: string) => {
+  if (!nameOrUrl) return false;
+  const lower = nameOrUrl.toLowerCase();
+  if (lower.includes('gmt')) return false;
+  return lower.includes('gp 150') || 
+         lower.includes('gp150') || 
+         (lower.includes('poda') && (lower.includes('cabeçote') || lower.includes('cabecote') || lower.includes('garra') || lower.includes('gp')));
+};
+
 const isAnyFichaSupported = (product: any) => {
   if (!product) return false;
   const url = (product.pdf_url || '').toLowerCase();
@@ -373,7 +391,13 @@ const isAnyFichaSupported = (product: any) => {
   const isEstufagem = isEstufagemProduct(url) || isEstufagemProduct(name) || isEstufagemProduct(desc) || isEstufagemProduct(cat) ||
                       !!(product.id && (product.id.toLowerCase().includes('estufagem') || product.id.toLowerCase().includes('af-360')));
 
-  return !!product.pdf_url || isEngate || isHighTip || isFresa || isEstufagem || isLoaderTriturador;
+  const isCabecoteGmt = isCabecoteGmt035Product(url) || isCabecoteGmt035Product(name) || isCabecoteGmt035Product(desc) || isCabecoteGmt035Product(cat) ||
+                        !!(product.id && (product.id.toLowerCase().includes('gmt') || product.id.toLowerCase().includes('035')));
+
+  const isCabecotePoda = isCabecotePodaProduct(url) || isCabecotePodaProduct(name) || isCabecotePodaProduct(desc) || isCabecotePodaProduct(cat) ||
+                         !!(product.id && (product.id.toLowerCase().includes('gp150') || product.id.toLowerCase().includes('poda')));
+
+  return !!product.pdf_url || isEngate || isHighTip || isFresa || isEstufagem || isLoaderTriturador || isCabecoteGmt || isCabecotePoda;
 };
 
 
@@ -740,6 +764,9 @@ export default function Catalog() {
   const [trituradorLoaderFaeDefaultModel, setTrituradorLoaderFaeDefaultModel] = useState<string>('fae-uml-ssl-vt-175');
   const [isEngateRapidoFichaOpen, setIsEngateRapidoFichaOpen] = useState(false);
   const [isGarraEstufagemFichaOpen, setIsGarraEstufagemFichaOpen] = useState(false);
+  const [isCabecotePodaFichaOpen, setIsCabecotePodaFichaOpen] = useState(false);
+  const [isCabecoteGmt035FichaOpen, setIsCabecoteGmt035FichaOpen] = useState(false);
+  const [isEstudosComparativosOpen, setIsEstudosComparativosOpen] = useState(false);
   const [garraEstufagemDefaultModel, setGarraEstufagemDefaultModel] = useState<string>('af-360');
   const [suspendedProductModels, setSuspendedProductModels] = useState<Product | null>(null);
   const [suspendedViewingGallery, setSuspendedViewingGallery] = useState<Product | null>(null);
@@ -994,6 +1021,25 @@ export default function Catalog() {
         const hasConchaVolume = prolongadorConcha.models?.some((m: any) => m.technical_specs?.volume_concha !== undefined);
         if ((!hasPcr1400 || !hasConchaVolume) && data.length > 0) {
           addProlongadorComConcha();
+        }
+      }
+
+      // Make Cabeçote de Poda GP 150 and GMT 035 completely permanent for all users!
+      const cabecotePoda = data.find(p => p.name === 'Cabeçote de Poda GP 150');
+      if (!cabecotePoda && data.length > 0) {
+        addCabecotePodaGP150();
+      } else if (cabecotePoda) {
+        if (cabecotePoda.is_blocked) {
+          updateDoc(doc(db, 'products', cabecotePoda.id), { is_blocked: false });
+        }
+      }
+
+      const cabecoteGmt035 = data.find(p => p.name === 'Cabeçote de Poda e Colheita GMT 035' || p.name?.includes('GMT 035'));
+      if (!cabecoteGmt035 && data.length > 0) {
+        addCabecoteGmt035();
+      } else if (cabecoteGmt035) {
+        if (cabecoteGmt035.is_blocked) {
+          updateDoc(doc(db, 'products', cabecoteGmt035.id), { is_blocked: false });
         }
       }
 
@@ -1499,6 +1545,114 @@ export default function Catalog() {
       toast.error('Erro ao adicionar equipamento');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const addCabecotePodaGP150 = async () => {
+    try {
+      const q = query(collection(db, 'products'), where('name', '==', 'Cabeçote de Poda GP 150'));
+      const snap = await getDocs(q);
+
+      if (!snap.empty) {
+        const productDoc = snap.docs[0];
+        if (productDoc.data().is_blocked) {
+          await updateDoc(doc(db, 'products', productDoc.id), { is_blocked: false });
+        }
+        return;
+      }
+
+      const cabecotePoda = {
+        name: 'Cabeçote de Poda GP 150',
+        description: 'O Cabeçote de Poda GP 150 Roder (Garra de Poda GP 150) é o equipamento de alta precisão projetado exclusivamente para caminhões com sistema de braço isolado em operações de poda urbana e manejo em Linha Viva (próximo à rede elétrica). Oferece máxima segurança operacional sem risco de queda para o operador, acoplado diretamente na ponta do braço isolado com controle remoto integrado.',
+        category: 'Cabeçote Florestal',
+        image_url: 'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/06/img-cabecote-florestal-poda-arvores.jpg.webp',
+        video_url: 'https://roderbrasil.com.br/maquina-urbana/cabecote-florestal-poda-arvores/',
+        pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Cabecote-de-Poda-Roder.pdf',
+        is_blocked: false,
+        created_at: new Date().toISOString(),
+        models: [
+          {
+            id: 'gp-150',
+            name: 'GP 150',
+            base_value: 0,
+            pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Cabecote-de-Poda-Roder.pdf',
+            parts_manual_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Cabecote-de-Poda-Roder.pdf',
+            images: [
+              'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/06/img-cabecote-florestal-poda-arvores.jpg.webp'
+            ],
+            technical_specs: {
+              dimensoes: '620 x 550 x 430 mm',
+              abertura_maxima: '520 mm',
+              diametro_corte: '150 mm (até 200 mm galhos)',
+              peso: '130 kg',
+              capacidade_carga: '50 kg',
+              vazao: '25 a 40 L/min',
+              pressao: 'Serra: 200-230 bar | Garra/Giro: 150-220 bar',
+              giro_360: 'Rotator 360° Infinito (Junta Rotativa)',
+              maquina_base: 'Caminhão c/ Braço Isolado',
+              finame: '04072997'
+            }
+          }
+        ]
+      };
+
+      await addDoc(collection(db, 'products'), cabecotePoda);
+    } catch (err) {
+      console.error('Error adding Cabeçote de Poda GP 150:', err);
+    }
+  };
+
+  const addCabecoteGmt035 = async () => {
+    try {
+      const q = query(collection(db, 'products'), where('name', '==', 'Cabeçote de Poda e Colheita GMT 035'));
+      const snap = await getDocs(q);
+
+      if (!snap.empty) {
+        const productDoc = snap.docs[0];
+        if (productDoc.data().is_blocked) {
+          await updateDoc(doc(db, 'products', productDoc.id), { is_blocked: false });
+        }
+        return;
+      }
+
+      const gmt035 = {
+        name: 'Cabeçote de Poda e Colheita GMT 035',
+        description: 'O Cabeçote de Poda e Colheita GMT 035 (Capacidade de corte 40 cm) é um equipamento multifuncional de alto rendimento projetado para guindastes tipo Munck, gruas florestais, miniescavadeiras e escavadeiras de até 8 toneladas. Equipado com serra de garra compacta, acoplador rápido GMT C10 e opção do Sistema TTC (Total Tree Control) para remoção segura de árvores na posição vertical.',
+        category: 'Cabeçote Florestal',
+        image_url: 'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/06/img-cabecote-florestal-poda-arvores.jpg.webp',
+        video_url: 'https://roderbrasil.com.br/maquina-urbana/cabecote-florestal-poda-arvores/',
+        pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Cabecote-de-Poda-Roder.pdf',
+        is_blocked: false,
+        created_at: new Date().toISOString(),
+        models: [
+          {
+            id: 'gmt-035',
+            name: 'GMT 035 TTC',
+            base_value: 0,
+            pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Cabecote-de-Poda-Roder.pdf',
+            parts_manual_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Cabecote-de-Poda-Roder.pdf',
+            images: [
+              'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/06/img-cabecote-florestal-poda-arvores.jpg.webp'
+            ],
+            technical_specs: {
+              abertura_maxima: '85 cm (33")',
+              diametro_corte: '40 cm (16") único / até 60 cm duplo',
+              comprimento_lamina: '52 cm (20")',
+              peso: '245 kg (Grapple Saw) | 275 kg (TTC)',
+              capacidade_carga: '1.500 kg (3.300 lbs)',
+              vazao: '35 a 65 L/min',
+              pressao: '185 a 250 Bar (2683 - 3626 psi)',
+              sistema_ttc: 'Total Tree Control (Bloqueio Duplo)',
+              maquina_base: 'Guindaste Munck, Grua ou Escavadeira ≤ 8t',
+              linhas_requeridas: '4 linhas hidráulicas na lança + dreno'
+            }
+          }
+        ]
+      };
+
+      await addDoc(collection(db, 'products'), gmt035);
+    } catch (err) {
+      console.error('Error adding Cabeçote de Poda GMT 035:', err);
     }
   };
 
@@ -3637,16 +3791,66 @@ export default function Catalog() {
                         isEstufagemProduct(lowerContextPdfUrl) ||
                         !!(productContext?.id && (productContext.id.toLowerCase().includes('estufagem') || productContext.id.toLowerCase().includes('af-360')));
 
+    const isCabecoteGmt = isCabecoteGmt035Product(lowerUrl) || 
+                          isCabecoteGmt035Product(lowerModelName) || 
+                          isCabecoteGmt035Product(lowerViewingName) || 
+                          isCabecoteGmt035Product(lowerSelectedName) ||
+                          isCabecoteGmt035Product(lowerContextName) ||
+                          isCabecoteGmt035Product(lowerContextCategory) ||
+                          isCabecoteGmt035Product(lowerContextDesc) ||
+                          isCabecoteGmt035Product(lowerContextPdfUrl) ||
+                          !!(productContext?.id && (productContext.id.toLowerCase().includes('gmt') || productContext.id.toLowerCase().includes('035')));
+
+    const isCabecotePoda = !isCabecoteGmt && (
+                          isCabecotePodaProduct(lowerUrl) || 
+                          isCabecotePodaProduct(lowerModelName) || 
+                          isCabecotePodaProduct(lowerViewingName) || 
+                          isCabecotePodaProduct(lowerSelectedName) ||
+                          isCabecotePodaProduct(lowerContextName) ||
+                          isCabecotePodaProduct(lowerContextCategory) ||
+                          isCabecotePodaProduct(lowerContextDesc) ||
+                          isCabecotePodaProduct(lowerContextPdfUrl) ||
+                          !!(productContext?.id && (productContext.id.toLowerCase().includes('gp150') || productContext.id.toLowerCase().includes('poda')))
+                        );
+
     console.log('[DEBUG] openPdf routing check:', { 
       isEngate, 
       isHighTip, 
       isEstufagem,
+      isCabecoteGmt,
+      isCabecotePoda,
       lowerUrl, 
       lowerModelName, 
       lowerSelectedName, 
       lowerContextName, 
       contextId: productContext?.id 
     });
+
+    if (isCabecoteGmt) {
+      if (selectedProductModels) {
+        setSuspendedProductModels(selectedProductModels);
+        setSelectedProductModels(null);
+      }
+      if (viewingGallery) {
+        setSuspendedViewingGallery(viewingGallery);
+        setViewingGallery(null);
+      }
+      setIsCabecoteGmt035FichaOpen(true);
+      return;
+    }
+
+    if (isCabecotePoda) {
+      if (selectedProductModels) {
+        setSuspendedProductModels(selectedProductModels);
+        setSelectedProductModels(null);
+      }
+      if (viewingGallery) {
+        setSuspendedViewingGallery(viewingGallery);
+        setViewingGallery(null);
+      }
+      setIsCabecotePodaFichaOpen(true);
+      return;
+    }
 
     if (isHighTip) {
       if (selectedProductModels) {
@@ -4828,27 +5032,37 @@ export default function Catalog() {
                       </Button>
                     </div>
                   )}
-                  {(isAdmin || isManager) && (
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="outline"
-                        onClick={() => {
-                          const newestProduct = products[0]?.name || '';
-                          setAnnouncementEquipment(newestProduct);
-                          setIsAnnouncementOpen(true);
-                        }} 
-                        className="border-green-600 text-green-600 hover:bg-green-50 h-9 px-3 text-xs md:h-10 md:px-4 md:text-sm font-semibold flex items-center gap-1.5"
-                      >
-                        <Megaphone className="h-4 w-4" /> <span className="hidden xs:inline">Anunciar Novidades</span>
-                      </Button>
-                      <Button 
-                        onClick={() => { resetForm(); setIsDialogOpen(true); }} 
-                        className="bg-primary hover:bg-primary/90 text-primary-foreground h-9 px-3 text-xs md:h-10 md:px-4 md:text-sm"
-                      >
-                        <Plus className="h-4 w-4 mr-1 md:mr-2" /> <span className="hidden xs:inline">Novo Produto</span>
-                      </Button>
-                    </div>
-                  )}
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline"
+                      onClick={() => setIsEstudosComparativosOpen(true)}
+                      className="border-amber-600 text-amber-700 bg-amber-50/50 hover:bg-amber-100/80 h-9 px-3 text-xs md:h-10 md:px-4 md:text-sm font-bold flex items-center gap-1.5 shadow-xs transition-all"
+                      title="Central de Estudos Técnicos & Comparativos Comerciais"
+                    >
+                      <FileText className="h-4 w-4 text-amber-600" /> <span className="hidden sm:inline">Estudos & Comparativos</span><span className="sm:hidden">Estudos</span>
+                    </Button>
+                    {(isAdmin || isManager) && (
+                      <>
+                        <Button 
+                          variant="outline"
+                          onClick={() => {
+                            const newestProduct = products[0]?.name || '';
+                            setAnnouncementEquipment(newestProduct);
+                            setIsAnnouncementOpen(true);
+                          }} 
+                          className="border-green-600 text-green-600 hover:bg-green-50 h-9 px-3 text-xs md:h-10 md:px-4 md:text-sm font-semibold flex items-center gap-1.5"
+                        >
+                          <Megaphone className="h-4 w-4" /> <span className="hidden xs:inline">Anunciar Novidades</span>
+                        </Button>
+                        <Button 
+                          onClick={() => { resetForm(); setIsDialogOpen(true); }} 
+                          className="bg-primary hover:bg-primary/90 text-primary-foreground h-9 px-3 text-xs md:h-10 md:px-4 md:text-sm"
+                        >
+                          <Plus className="h-4 w-4 mr-1 md:mr-2" /> <span className="hidden xs:inline">Novo Produto</span>
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -6684,6 +6898,46 @@ export default function Catalog() {
               }
             }} 
             defaultModelId={garraEstufagemDefaultModel}
+          />
+        )}
+
+        {isCabecotePodaFichaOpen && (
+          <CabecotePodaFicha 
+            onClose={() => {
+              setIsCabecotePodaFichaOpen(false);
+              if (suspendedProductModels) {
+                setSelectedProductModels(suspendedProductModels);
+                setSuspendedProductModels(null);
+              }
+              if (suspendedViewingGallery) {
+                setViewingGallery(suspendedViewingGallery);
+                setSuspendedViewingGallery(null);
+              }
+            }} 
+          />
+        )}
+
+        {isCabecoteGmt035FichaOpen && (
+          <CabecoteGmt035Ficha 
+            onClose={() => {
+              setIsCabecoteGmt035FichaOpen(false);
+              if (suspendedProductModels) {
+                setSelectedProductModels(suspendedProductModels);
+                setSuspendedProductModels(null);
+              }
+              if (suspendedViewingGallery) {
+                setViewingGallery(suspendedViewingGallery);
+                setSuspendedViewingGallery(null);
+              }
+            }} 
+          />
+        )}
+
+        {isEstudosComparativosOpen && (
+          <EstudosComparativosModal
+            isOpen={isEstudosComparativosOpen}
+            onClose={() => setIsEstudosComparativosOpen(false)}
+            onOpenGmtFicha={() => setIsCabecoteGmt035FichaOpen(true)}
           />
         )}
 

@@ -155,7 +155,36 @@ export function EditableImage({
     fileInputRef.current?.click();
   };
 
-  // Handle Paste event on the container
+  // Handle Paste event on the container and window when hovered/focused
+  useEffect(() => {
+    if (disabled) return;
+
+    const handleGlobalPaste = (e: ClipboardEvent) => {
+      const isContainerFocused = document.activeElement === containerRef.current || containerRef.current?.contains(document.activeElement);
+      if (!isHovered && !isContainerFocused) return;
+
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const file = items[i].getAsFile();
+          if (file) {
+            e.preventDefault();
+            processFile(file);
+            toast.success('Imagem colada da área de transferência!');
+            return;
+          }
+        }
+      }
+    };
+
+    window.addEventListener('paste', handleGlobalPaste);
+    return () => {
+      window.removeEventListener('paste', handleGlobalPaste);
+    };
+  }, [isHovered, disabled]);
+
   const handlePaste = (e: React.ClipboardEvent) => {
     if (disabled) return;
     const items = e.clipboardData?.items;
@@ -167,6 +196,7 @@ export function EditableImage({
         if (file) {
           e.preventDefault();
           processFile(file);
+          toast.success('Imagem colada da área de transferência!');
           return;
         }
       }
@@ -202,7 +232,7 @@ export function EditableImage({
           ? 'cursor-default select-none' 
           : 'hover:border-primary/50 hover:shadow-md cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/45'
       }`}
-      title={disabled ? undefined : "Clique, arraste uma imagem ou cole (Ctrl+V) para substituir"}
+      title={disabled ? undefined : "Clique para selecionar, arraste uma imagem ou cole com Ctrl+V"}
     >
       {/* File input */}
       <input 
@@ -226,9 +256,10 @@ export function EditableImage({
             referrerPolicy="no-referrer"
           />
         ) : (
-          <div className="flex flex-col items-center justify-center text-slate-400 p-4">
+          <div className="flex flex-col items-center justify-center text-slate-400 p-4 text-center">
             <ImageIcon className="h-8 w-8 mb-1.5 text-slate-300" />
             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Sem Imagem</span>
+            <span className="text-[9px] text-slate-400 mt-1">Clique para carregar ou pressione <strong>Ctrl+V</strong> para colar</span>
           </div>
         )}
       </div>

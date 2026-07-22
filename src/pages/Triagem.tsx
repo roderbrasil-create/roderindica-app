@@ -26,7 +26,9 @@ import {
   ChevronRight,
   Calendar,
   Palmtree,
-  UserCheck
+  UserCheck,
+  Headset,
+  Clock
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { HelpTooltip } from '../components/base/HelpTooltip';
@@ -189,6 +191,17 @@ export default function Triagem() {
     if (role === 'manager' || role === 'admin') return '👑';
     if (role === 'vendedor_padrao') return '💼';
     return '🤝';
+  };
+
+  const getInternalSellerName = (ind: Indication) => {
+    if (ind.internal_seller_name && ind.internal_seller_name.trim() !== '') {
+      return ind.internal_seller_name;
+    }
+    if (ind.internal_seller_uid) {
+      const seller = internalSellers.find(s => s.uid === ind.internal_seller_uid) || externalSellers.find(s => s.uid === ind.internal_seller_uid);
+      if (seller?.name) return seller.name;
+    }
+    return null;
   };
 
   const checkIntegrity = async (indication: Indication) => {
@@ -653,7 +666,7 @@ export default function Triagem() {
                         </Badge>
                       )}
                       <Badge variant="secondary" className="bg-orange-500/10 text-orange-400 border-orange-500/20 text-[8px] py-0 px-1.5 h-4.5 font-bold">
-                        Novo Lead
+                        {ind.status === 'negotiating' ? 'Distribuído' : 'Novo Lead'}
                       </Badge>
                     </div>
                   </div>
@@ -693,6 +706,25 @@ export default function Triagem() {
                         )}
                       </div>
                     </div>
+                  </div>
+
+                  {/* Vendedor Interno Responsável */}
+                  <div className="border-t border-border/40 pt-2 text-[11px]">
+                    <p className="text-muted-foreground uppercase text-[9px] font-extrabold tracking-wider flex items-center gap-1 mb-1">
+                      <Headset className="h-3 w-3 text-blue-500 shrink-0" />
+                      Vendedor Interno Responsável
+                    </p>
+                    {getInternalSellerName(ind) ? (
+                      <div className="flex items-center gap-1.5 bg-blue-500/10 border border-blue-500/20 px-2.5 py-1 rounded-md text-blue-700 dark:text-blue-300 font-black text-[11px] w-full">
+                        <UserCheck className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                        <span className="truncate uppercase tracking-tight">{getInternalSellerName(ind)}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-md text-amber-700 dark:text-amber-400 font-semibold text-[10px] w-full">
+                        <Clock className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                        <span className="italic">Aguardando atribuição de vendedor</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Location & Machine Info */}

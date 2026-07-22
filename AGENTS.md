@@ -66,7 +66,11 @@
     - **Grafia**: O termo correto é estritamente **Rotator** (com "t", NUNCA use "rotador" com "d" ou termos derivados incorretamente em áudios e transcrições de clientes/parceiros). "Giro hidráulico da garra" refere-se exatamente ao mesmo componente.
     - **Giro Infinito**: Todos os rotatores fabricados ou fornecidos pela RODER possuem **giro infinito / ilimitado (360°)**.
 
-- **Garras - Dimensionamento e Compatibilidade com Máquina Base**:
+- **Garras R280 e R360/R360G em Escavadeiras Menores (7 a 10 Toneladas)**:
+  - **Uso da R360 e R360G**: É fisicamente possível trabalhar com a garra R360 padrão ou R360G (unhas tipo garfo) em escavadeiras de 7 a 10 toneladas.
+  - **Aviso Obrigatório de Instabilidade Operacional**: O cliente DEVE estar formalmente ciente de que, se o operador pegar madeiras muito compridas ou feixes de árvores inteiras para arrastar ao picador, a máquina pode levantar a traseira ("levantar a bunda") e ficar instável, além de eventualmente não possuir força de giro hidráulico suficiente para arrastar o feixe pesado. Fisicamente a montagem é viável, mas operacionalmente deve-se alertar sobre esse risco de instabilidade.
+  - **Recomendação de Rotator e Ponteira (7 a 10 Toneladas)**: Tanto para a R280 quanto para a R360 em escavadeiras de 7 a 10 toneladas, a recomendação oficial é a utilização do **Rotator de 6 Toneladas**.
+  - **Dimensionamento de Ponteiras/Bielas**: As ponteiras/bielas devem ser atribuídas e dimensionadas para caçamba/máquina de 6 toneladas para usabilidade e compatibilidade direta com o rotator de 6 toneladas.
   - **Critério de Dimensionamento**: Ao indicar uma garra, nunca se deve considerar apenas o volume ou o tipo de material que o cliente pretende movimentar. É fundamental avaliar com rigor a máquina base na qual o equipamento será instalado.
   - **Risco de Força Excessiva**: Uma escavadeira de grande porte (por exemplo, 14 toneladas) possui força, peso e pressão hidráulica muito superiores aos de uma grua em trator. Ao apoiar ou pressionar a garra contra o chão, a força da máquina base pesada gera um esforço que ultrapassa a capacidade estrutural de garras menores, resultando em desgaste acelerado ou danos graves ao equipamento (agravados por pressões hidráulicas desreguladas). Mesmo que o cliente alegue que irá movimentar pouca carga/uma única tora, as recomendações técnicas de compatibilidade do catálogo Roder devem ser seguidas estritamente.
   - **Modelos e Recomendações por Porte**:

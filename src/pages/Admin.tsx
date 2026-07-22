@@ -308,8 +308,8 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
       const techBullets = [
         "Regra de Ouro: Sempre dimensione a garra com base no porte/força da máquina base, e nunca pelo peso da carga.",
         "Risco de Força: Máquinas grandes exercem enorme esforço ao apoiar a garra no chão. Garras subdimensionadas quebram.",
-        "Gruas em Trator: Modelos R280 e R280L são ideais, projetados para esforços compatíveis com tratores.",
-        "Escavadeiras Pequenas (< 8 Ton.): R280L é ideal, superior à R250. Para alimentação de picador de árvores inteiras (eucalipto) em 8t, use R280.",
+        "Escavadeiras (7 a 10 Ton.): R360/R360G é fisicamente viável, mas alerta de instabilidade (levantar traseira/falta de giro se arrastar árvores) é obrigatório.",
+        "Rotator & Ponteiras (7 a 10 Ton.): Para R280 e R360 em máquinas de 7 a 10t, utilize Rotator de 6t e ponteiras/bielas dimensionadas para caçamba de 6t.",
         "Alimentação de Picador (>= 14 Ton.): Siga a potência do picador: até 600 cv use R400; até 1.000 cv use R600. A máquina base define a compatibilidade, o picador define a capacidade."
       ];
 
@@ -3000,6 +3000,22 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
                     <p className="mt-3 text-[11px] text-emerald-300/90 italic font-semibold">
                       Desta forma, a máquina base define a compatibilidade da instalação, enquanto o picador define a capacidade de alimentação necessária, assegurando o melhor desempenho operacional e maior produtividade.
                     </p>
+                  </div>
+                </div>
+
+                {/* Technical Guideline - R360/R360G on 7-10 ton Excavators & 6t Rotator */}
+                <div className="p-5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs leading-relaxed text-blue-200/90 flex gap-4 items-start mt-4">
+                  <Wrench className="h-6 w-6 text-blue-400 mt-0.5 shrink-0" />
+                  <div>
+                    <strong className="text-blue-300 font-bold block mb-2 text-sm uppercase tracking-wider flex items-center gap-1.5">
+                      📐 Diretriz de Montagem: R360/R360G em Escavadeiras de 7 a 10 Toneladas & Rotator de 6t:
+                    </strong>
+                    <ul className="list-disc pl-4 space-y-2 text-blue-200/80">
+                      <li><strong>Viabilidade Física da R360 / R360G:</strong> Em escavadeiras menores de 7 a 10 toneladas, é fisicamente possível e viável trabalhar com a garra R360 padrão ou com a R360G (com unhas tipo garfo para galhadas/resíduos).</li>
+                      <li><strong>Aviso Obrigatório de Instabilidade Operacional:</strong> O cliente deve ser formalmente alertado de que, ao pegar madeiras muito compridas ou feixes de árvores inteiras para arrastar no picador, a escavadeira pode <em>"levantar a bunda" (ficar instável)</em>, ou a máquina pode não ter força de giro hidráulico suficiente para puxar o feixe pesado. Fisicamente a montagem é viável, mas a operação exige essa ciência do cliente.</li>
+                      <li><strong>Dimensionamento Obrigatório de Rotator & Ponteira (6 Toneladas):</strong> Em ambos os casos (tanto para a garra R280 quanto para a R360 em máquinas de 7 a 10 toneladas), é terminantemente recomendada a utilização do <strong>Rotator de 6 toneladas</strong>.</li>
+                      <li><strong>Ponteiras/Bielas:</strong> As ponteiras devem ser atribuídas e dimensionadas para a caçamba/máquina de 6 toneladas para assegurar a perfeita usabilidade e montagem com o rotator de 6t.</li>
+                    </ul>
                   </div>
                 </div>
 
