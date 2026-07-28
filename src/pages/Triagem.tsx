@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import { cn, safeFormatDate } from '../lib/utils';
+import { cn, safeFormatDate, getSlaRemainingInfo } from '../lib/utils';
 import { 
   CheckCircle2, 
   XCircle, 
@@ -655,6 +655,18 @@ export default function Triagem() {
                       <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
                         <History className="h-3 w-3 inline" /> Recebido em {safeFormatDate(ind.created_at, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                       </p>
+
+                      {ind.status === 'pending' && (() => {
+                        const slaInfo = getSlaRemainingInfo(ind.created_at, 4);
+                        return (
+                          <div className="mt-1.5 flex items-center gap-1">
+                            <Badge variant="outline" className={cn("text-[9px] py-0.5 px-2 rounded flex items-center gap-1 border font-semibold", slaInfo.badgeColor)}>
+                              <Clock className="h-3 w-3 shrink-0" />
+                              <span>{slaInfo.label}</span>
+                            </Badge>
+                          </div>
+                        );
+                      })()}
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       {ind.ai_score && (

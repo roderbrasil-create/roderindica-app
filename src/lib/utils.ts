@@ -82,6 +82,163 @@ export function getApiBaseUrl(): string {
   return '';
 }
 
+// --- COMMERCIAL HOURS SLA UTILITIES (BRT: Seg-Sex 07:00 às 17:00) ---
+
+export function getBrtDateParts(dateInput: Date | string | number) {
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) {
+    const now = new Date();
+    return getBrtDateParts(now);
+  }
+  
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    weekday: 'short',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+    hour12: false
+  });
+  
+  const parts = formatter.formatToParts(d);
+  const partMap: Record<string, string> = {};
+  for (const part of parts) {
+    partMap[part.type] = part.value;
+  }
+  
+  const weekdayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  let hour = parseInt(partMap.hour, 10);
+  if (hour === 24) hour = 0;
+
+  return {
+    year: parseInt(partMap.year, 10),
+    month: parseInt(partMap.month, 10) - 1, // 0-indexed
+    day: parseInt(partMap.day, 10),
+    dayOfWeek: weekdayMap[partMap.weekday] ?? 0,
+    hour,
+    minute: parseInt(partMap.minute, 10),
+    second: parseInt(partMap.second, 10)
+  };
+}
+
+function createBrtDate(year: number, month: number, day: number, hour: number, minute: number): Date {
+  const y = String(year);
+  const m = String(month + 1).padStart(2, '0');
+  const d = String(day).padStart(2, '0');
+  const h = String(hour).padStart(2, '0');
+  const min = String(minute).padStart(2, '0');
+  return new Date(`${y}-${m}-${d}T${h}:${min}:00.000-03:00`);
+}
+
+function advanceOneDay(year: number, month: number, day: number) {
+  const d = new Date(Date.UTC(year, month, day + 1));
+  return {
+    year: d.getUTCFullYear(),
+    month: d.getUTCMonth(),
+    day: d.getUTCDate()
+  };
+}
+
+function getNextBusinessDay0700(year: number, month: number, day: number, dayOfWeek: number): Date {
+  let cur = { year, month, day };
+  let dow = dayOfWeek;
+  do {
+    cur = advanceOneDay(cur.year, cur.month, cur.day);
+    const tempDate = createBrtDate(cur.year, cur.month, cur.day, 12, 0);
+    const tempParts = getBrtDateParts(tempDate);
+    dow = tempParts.dayOfWeek;
+  } while (dow === 0 || dow === 6);
+  
+  return createBrtDate(cur.year, cur.month, cur.day, 7, 0);
+}
+
+export function calculateSlaExpiration(createdAtInput: Date | string | number, slaHours: number = 4): Date {
+  let current = new Date(createdAtInput);
+  if (isNaN(current.getTime())) current = new Date();
+  
+  let remainingMinutes = slaHours * 60;
+
+  let safetyCounter = 0;
+  while (remainingMinutes > 0 && safetyCounter < 100) {
+    safetyCounter++;
+    const parts = getBrtDateParts(current);
+    
+    // 1. Weekend check
+    if (parts.dayOfWeek === 0 || parts.dayOfWeek === 6) {
+      current = getNextBusinessDay0700(parts.year, parts.month, parts.day, parts.dayOfWeek);
+      continue;
+    }
+
+    // 2. Before commercial hours (< 07:00 BRT)
+    if (parts.hour < 7) {
+      current = createBrtDate(parts.year, parts.month, parts.day, 7, 0);
+      continue;
+    }
+
+    // 3. After commercial hours (>= 17:00 BRT)
+    if (parts.hour >= 17) {
+      current = getNextBusinessDay0700(parts.year, parts.month, parts.day, parts.dayOfWeek);
+      continue;
+    }
+
+    // 4. Within commercial hours (07:00 <= hour < 17:00 Mon-Fri)
+    const minutesLeftToday = (17 - parts.hour) * 60 - parts.minute;
+    if (remainingMinutes <= minutesLeftToday) {
+      current = new Date(current.getTime() + remainingMinutes * 60000);
+      remainingMinutes = 0;
+    } else {
+      remainingMinutes -= minutesLeftToday;
+      current = getNextBusinessDay0700(parts.year, parts.month, parts.day, parts.dayOfWeek);
+    }
+  }
+
+  return current;
+}
+
+export function getSlaRemainingInfo(createdAtInput: Date | string | number, slaHours: number = 4) {
+  const expirationDate = calculateSlaExpiration(createdAtInput, slaHours);
+  const now = new Date();
+  const diffMs = expirationDate.getTime() - now.getTime();
+  const isExpired = diffMs <= 0;
+
+  if (isExpired) {
+    return {
+      expirationDate,
+      isExpired: true,
+      label: 'SLA 4h Expirado (Redirecionando)',
+      badgeColor: 'bg-red-500/10 text-red-600 border-red-200 font-bold'
+    };
+  }
+
+  const totalDiffMins = Math.floor(diffMs / 60000);
+  const hours = Math.floor(totalDiffMins / 60);
+  const mins = totalDiffMins % 60;
+
+  let label = '';
+  if (hours > 0) {
+    label = `SLA: ${hours}h ${mins}m (Horário Comercial BRT)`;
+  } else {
+    label = `SLA: ${mins}m (Horário Comercial BRT)`;
+  }
+
+  let badgeColor = 'bg-emerald-500/10 text-emerald-700 border-emerald-200 font-semibold';
+  if (totalDiffMins < 60) {
+    badgeColor = 'bg-amber-500/10 text-amber-700 border-amber-200 animate-pulse font-bold';
+  }
+
+  return {
+    expirationDate,
+    isExpired: false,
+    label,
+    badgeColor,
+    hours,
+    mins
+  };
+}
+
 // Background auto-detection of the correct, working API endpoint
 if (typeof window !== 'undefined') {
   const detectApi = async () => {

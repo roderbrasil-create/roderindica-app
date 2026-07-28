@@ -3723,13 +3723,118 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     timezone: BR_TIMEZONE
   });
 
-  // Periodic check every 15 minutes to automatically assign pending leads after triage timeout (4 horas)
+  // --- COMMERCIAL HOURS SLA UTILITY (BRT: Seg-Sex 07:00 às 17:00) ---
+  function getBrtDateParts(dateInput: Date | string | number) {
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return getBrtDateParts(new Date());
+    
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Sao_Paulo',
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      weekday: 'short',
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+      hour12: false
+    });
+    
+    const parts = formatter.formatToParts(d);
+    const partMap: Record<string, string> = {};
+    for (const part of parts) {
+      partMap[part.type] = part.value;
+    }
+    
+    const weekdayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+    let hour = parseInt(partMap.hour, 10);
+    if (hour === 24) hour = 0;
+
+    return {
+      year: parseInt(partMap.year, 10),
+      month: parseInt(partMap.month, 10) - 1,
+      day: parseInt(partMap.day, 10),
+      dayOfWeek: weekdayMap[partMap.weekday] ?? 0,
+      hour,
+      minute: parseInt(partMap.minute, 10),
+      second: parseInt(partMap.second, 10)
+    };
+  }
+
+  function createBrtDate(year: number, month: number, day: number, hour: number, minute: number): Date {
+    const y = String(year);
+    const m = String(month + 1).padStart(2, '0');
+    const d = String(day).padStart(2, '0');
+    const h = String(hour).padStart(2, '0');
+    const min = String(minute).padStart(2, '0');
+    return new Date(`${y}-${m}-${d}T${h}:${min}:00.000-03:00`);
+  }
+
+  function advanceOneDay(year: number, month: number, day: number) {
+    const d = new Date(Date.UTC(year, month, day + 1));
+    return {
+      year: d.getUTCFullYear(),
+      month: d.getUTCMonth(),
+      day: d.getUTCDate()
+    };
+  }
+
+  function getNextBusinessDay0700(year: number, month: number, day: number, dayOfWeek: number): Date {
+    let cur = { year, month, day };
+    let dow = dayOfWeek;
+    do {
+      cur = advanceOneDay(cur.year, cur.month, cur.day);
+      const tempDate = createBrtDate(cur.year, cur.month, cur.day, 12, 0);
+      const tempParts = getBrtDateParts(tempDate);
+      dow = tempParts.dayOfWeek;
+    } while (dow === 0 || dow === 6);
+    
+    return createBrtDate(cur.year, cur.month, cur.day, 7, 0);
+  }
+
+  function calculateSlaExpiration(createdAtInput: Date | string | number, slaHours: number = 4): Date {
+    let current = new Date(createdAtInput);
+    if (isNaN(current.getTime())) current = new Date();
+    
+    let remainingMinutes = slaHours * 60;
+    let safetyCounter = 0;
+    while (remainingMinutes > 0 && safetyCounter < 100) {
+      safetyCounter++;
+      const parts = getBrtDateParts(current);
+      
+      if (parts.dayOfWeek === 0 || parts.dayOfWeek === 6) {
+        current = getNextBusinessDay0700(parts.year, parts.month, parts.day, parts.dayOfWeek);
+        continue;
+      }
+
+      if (parts.hour < 7) {
+        current = createBrtDate(parts.year, parts.month, parts.day, 7, 0);
+        continue;
+      }
+
+      if (parts.hour >= 17) {
+        current = getNextBusinessDay0700(parts.year, parts.month, parts.day, parts.dayOfWeek);
+        continue;
+      }
+
+      const minutesLeftToday = (17 - parts.hour) * 60 - parts.minute;
+      if (remainingMinutes <= minutesLeftToday) {
+        current = new Date(current.getTime() + remainingMinutes * 60000);
+        remainingMinutes = 0;
+      } else {
+        remainingMinutes -= minutesLeftToday;
+        current = getNextBusinessDay0700(parts.year, parts.month, parts.day, parts.dayOfWeek);
+      }
+    }
+
+    return current;
+  }
+
+  // Periodic check every 15 minutes to automatically assign pending leads after triage SLA timeout (4 horas úteis BRT)
   cron.schedule('*/15 * * * *', async () => {
-    console.log("[Schedule] Running automatic assignment check for pending leads...");
+    console.log("[Schedule] Running automatic assignment check for pending leads (SLA 4h úteis BRT)...");
     try {
       const now = new Date();
-      // Triage timeout limit of 4 hours
-      const thresholdTime = new Date(now.getTime() - 4 * 60 * 60 * 1000);
 
       const pendingSnap = await db.collection('indications')
         .where('status', '==', 'pending')
@@ -3780,10 +3885,11 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       for (const docRef of pendingSnap.docs) {
         const indData = { id: docRef.id, ...docRef.data() } as any;
         const createdAt = new Date(indData.created_at || now.toISOString());
+        const slaExpirationDate = calculateSlaExpiration(createdAt, 4);
 
-        // If lead was created more than 4 hours ago, auto-assign it!
-        if (createdAt < thresholdTime) {
-          console.log(`[Schedule] Auto-assigning pending lead ${indData.id} (${indData.client_name}) due to triage timeout...`);
+        // If lead has exceeded 4 commercial hours in BRT timezone, auto-assign it!
+        if (now >= slaExpirationDate) {
+          console.log(`[Schedule] Auto-assigning pending lead ${indData.id} (${indData.client_name}) due to commercial SLA timeout (4 business hours BRT)...`);
 
           // Balance workload: count how many active leads each available seller has
           const sellerLeadCounts = await Promise.all(
@@ -3816,7 +3922,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
             type: 'system',
             author_name: 'Sistema Roder',
             created_at: new Date().toISOString(),
-            content: `Encaminhado automaticamente por tempo limite de triagem (4 horas) para o(a) vendedor(a) ${chosenSeller.name}.`,
+            content: `[SLA Expirado - 4 Horas Úteis]: O limite de triagem (4h úteis no horário comercial de Brasília: Seg-Sex 07:00 às 17:00) expirou. O lead foi distribuído automaticamente para o(a) vendedor(a) ${chosenSeller.name} e enviado ao Agendor CRM.`,
             attachments: []
           };
 
@@ -4262,6 +4368,363 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     }
   });
 
+  // Helper to pull fresh updates (stage, status, value, comments, tasks, activities, stream) from Agendor CRM for a linked deal
+  async function syncAndPullAgendorDetails(indicationId: string, indData: any, apiToken: string) {
+    const dealId = indData.agendor_deal_id;
+    if (!dealId) {
+      return { pulled: false, newHistoryCount: 0, message: "Sem ID de negócio do Agendor." };
+    }
+
+    console.log(`[AGENDOR-PULL] Buscando atualizações e histórico do negócio #${dealId} no Agendor...`);
+
+    const updates: any = {
+      agendor_synced: true,
+      agendor_synced_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    const historyEntriesToAdd: any[] = [];
+    const existingHistory: any[] = Array.isArray(indData.negotiation_history) ? indData.negotiation_history : [];
+
+    // Helper to safely extract arrays from various response structures returned by Agendor
+    const extractAgendorList = (res: any): any[] => {
+      if (!res) return [];
+      if (Array.isArray(res)) return res;
+      if (Array.isArray(res.data)) return res.data;
+      if (Array.isArray(res.items)) return res.items;
+      if (Array.isArray(res.comments)) return res.comments;
+      if (Array.isArray(res.activities)) return res.activities;
+      if (Array.isArray(res.tasks)) return res.tasks;
+      if (Array.isArray(res.history)) return res.history;
+      if (Array.isArray(res.stream)) return res.stream;
+      if (Array.isArray(res.results)) return res.results;
+      return [];
+    };
+
+    // Helper to prevent duplicate entries without false-positives
+    const isAlreadyInHistory = (itemId: string | number | undefined, rawText: string) => {
+      const cleanText = (rawText || "").trim();
+      if (!cleanText) return true;
+
+      const idStr = itemId !== undefined && itemId !== null ? String(itemId).trim() : "";
+
+      const checkMatch = (h: any) => {
+        if (!h) return false;
+        // Check exact Agendor ID match if available
+        if (idStr && (
+          h.agendor_id === idStr || 
+          h.id === `agendor-${idStr}` || 
+          h.id === `agendor-comment-${idStr}` || 
+          h.id === `agendor-act-${idStr}` || 
+          h.id === `agendor-task-${idStr}` ||
+          h.id === `agendor-pcomm-${idStr}` ||
+          h.id === `agendor-ocomm-${idStr}`
+        )) {
+          return true;
+        }
+        if (idStr && h.content && (h.content.includes(`ID #${idStr}]`) || h.content.includes(`[CRM Agendor #${idStr}]`))) {
+          return true;
+        }
+        // Check content match
+        if (h.content) {
+          if (h.content === cleanText) return true;
+          if (cleanText.length >= 15 && h.content.includes(cleanText)) return true;
+        }
+        return false;
+      };
+
+      return existingHistory.some(checkMatch) || historyEntriesToAdd.some(checkMatch);
+    };
+
+    // 1. Fetch current Deal details (GET /deals/{dealId})
+    let dealDetails: any = null;
+    try {
+      const dealRes = await callAgendor(`deals/${dealId}`, "GET", apiToken);
+      dealDetails = dealRes?.data || dealRes;
+    } catch (err: any) {
+      console.warn(`[AGENDOR-PULL] Não foi possível obter detalhes do negócio #${dealId}:`, err.message);
+    }
+
+    if (dealDetails) {
+      const newStage = dealDetails.stage?.id || dealDetails.stage || dealDetails.stage_id;
+      if (newStage && typeof newStage === "string" && newStage !== indData.agendor_stage) {
+        updates.agendor_stage = newStage;
+        const stageLabels: { [key: string]: string } = {
+          lead: "Lead (Triagem)",
+          contact: "Contato Iniciado",
+          proposal: "Proposta / Orçamento Enviado",
+          negotiation: "Negociação Em Andamento",
+          won: "Ganho / Venda Realizada",
+          lost: "Perdido"
+        };
+        const stageLabel = stageLabels[newStage] || newStage;
+        
+        historyEntriesToAdd.push({
+          id: `agendor-stage-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          type: "status_change",
+          author_name: "CRM Agendor",
+          created_at: new Date().toISOString(),
+          content: `Estágio da negociação atualizado no Agendor CRM para: "${stageLabel}".`
+        });
+
+        const isProposal = newStage.toLowerCase().includes("propos") || 
+                           newStage.toLowerCase().includes("orçam") ||
+                           newStage.toLowerCase() === "proposal";
+        if (isProposal && !indData.budget_sent_at) {
+          const now = new Date();
+          updates.budget_sent_at = now.toISOString();
+          updates.protection_expires_at = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000).toISOString();
+          historyEntriesToAdd.push({
+            id: `agendor-prot-${Date.now()}`,
+            type: "status_change",
+            author_name: "CRM Agendor",
+            created_at: now.toISOString(),
+            content: `[Proteção de Vendas 60 dias]: Início da janela de proteção do lead registrado a partir da proposta enviada no Agendor. Válida até ${new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000).toLocaleDateString("pt-BR")}.`
+          });
+        }
+      }
+
+      const newStatus = dealDetails.status;
+      if (newStatus && newStatus !== indData.agendor_status) {
+        updates.agendor_status = newStatus;
+        if (newStatus === "won") {
+          updates.status = "sold";
+          historyEntriesToAdd.push({
+            id: `agendor-won-${Date.now()}`,
+            type: "status_change",
+            author_name: "CRM Agendor",
+            created_at: new Date().toISOString(),
+            content: `O negócio foi marcado como GANHO no Agendor CRM!`
+          });
+        } else if (newStatus === "lost") {
+          updates.status = "cancelled";
+          historyEntriesToAdd.push({
+            id: `agendor-lost-${Date.now()}`,
+            type: "status_change",
+            author_name: "CRM Agendor",
+            created_at: new Date().toISOString(),
+            content: `O negócio foi marcado como PERDIDO no Agendor CRM.`
+          });
+        }
+      }
+
+      if (dealDetails.value !== undefined && dealDetails.value !== null) {
+        const numVal = parseFloat(dealDetails.value);
+        if (numVal > 0 && numVal !== indData.base_commission_value) {
+          updates.base_commission_value = numVal;
+        }
+      }
+    }
+
+    // 2. Fetch Deal Comments (/deals/{dealId}/comments & /comments?deal_id={dealId})
+    try {
+      let rawCommentsRes = await callAgendor(`deals/${dealId}/comments`, "GET", apiToken).catch(() => null);
+      if (!rawCommentsRes) {
+        rawCommentsRes = await callAgendor(`comments?deal_id=${dealId}`, "GET", apiToken).catch(() => null);
+      }
+      const commentsList = extractAgendorList(rawCommentsRes);
+      for (const comment of commentsList) {
+        const commentId = comment.id || comment.commentId || comment.comment_id;
+        const commentText = comment.text || comment.content || comment.note || comment.body || comment.comment || comment.description || comment.details || "";
+        if (!commentText.trim()) continue;
+
+        if (!isAlreadyInHistory(commentId, commentText)) {
+          const authorName = comment.user?.name || comment.user?.fullName || comment.author?.name || comment.creator?.name || comment.owner?.name || "Vendedor Comercial (CRM Agendor)";
+          const commentDate = comment.createdAt || comment.created_at || comment.date || comment.updatedAt || comment.updated_at || new Date().toISOString();
+          
+          historyEntriesToAdd.push({
+            id: commentId ? `agendor-comment-${commentId}` : `agendor-comm-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+            agendor_id: commentId ? String(commentId) : undefined,
+            type: "note",
+            author_name: `${authorName}`,
+            created_at: commentDate,
+            content: `[CRM Agendor${commentId ? ' ID #' + commentId : ''} - ${authorName}]:\n${commentText.trim()}`
+          });
+        }
+      }
+    } catch (commErr: any) {
+      console.warn(`[AGENDOR-PULL] Não foi possível buscar comentários para #${dealId}:`, commErr.message);
+    }
+
+    // 3. Fetch Deal Activities & Stream (/deals/{dealId}/activities, /deals/{dealId}/stream, /deals/{dealId}/history)
+    try {
+      let rawActRes = await callAgendor(`deals/${dealId}/activities`, "GET", apiToken).catch(() => null);
+      if (!rawActRes) {
+        rawActRes = await callAgendor(`deals/${dealId}/stream`, "GET", apiToken).catch(() => null);
+      }
+      if (!rawActRes) {
+        rawActRes = await callAgendor(`deals/${dealId}/history`, "GET", apiToken).catch(() => null);
+      }
+      const actList = extractAgendorList(rawActRes);
+      for (const act of actList) {
+        const actId = act.id || act.activityId || act.activity_id || act.historyId;
+        const actText = act.text || act.content || act.note || act.description || act.body || act.title || act.summary || act.details || "";
+        if (!actText.trim()) continue;
+
+        if (!isAlreadyInHistory(actId, actText)) {
+          const authorName = act.user?.name || act.author?.name || act.creator?.name || act.owner?.name || "Vendedor Comercial (CRM Agendor)";
+          const actDate = act.createdAt || act.created_at || act.date || act.updatedAt || act.time || new Date().toISOString();
+          const actType = act.type || act.category || "Histórico/Atividade";
+
+          historyEntriesToAdd.push({
+            id: actId ? `agendor-act-${actId}` : `agendor-act-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+            agendor_id: actId ? String(actId) : undefined,
+            type: "note",
+            author_name: `${authorName}`,
+            created_at: actDate,
+            content: `[CRM Agendor (${actType})${actId ? ' ID #' + actId : ''} - ${authorName}]:\n${actText.trim()}`
+          });
+        }
+      }
+    } catch (actErr: any) {
+      console.warn(`[AGENDOR-PULL] Não foi possível buscar atividades/stream para #${dealId}:`, actErr.message);
+    }
+
+    // 4. Fetch Tasks (/deals/{dealId}/tasks & /tasks?deal_id={dealId})
+    try {
+      let rawTasksRes = await callAgendor(`deals/${dealId}/tasks`, "GET", apiToken).catch(() => null);
+      if (!rawTasksRes) {
+        rawTasksRes = await callAgendor(`tasks?deal_id=${dealId}`, "GET", apiToken).catch(() => null);
+      }
+      const tasksList = extractAgendorList(rawTasksRes);
+      for (const task of tasksList) {
+        const taskId = task.id || task.taskId || task.task_id;
+        const taskText = task.text || task.title || task.description || task.note || task.content || "";
+        if (!taskText.trim()) continue;
+
+        if (!isAlreadyInHistory(taskId, taskText)) {
+          const authorName = task.user?.name || task.assignedTo?.name || task.author?.name || "Vendedor Comercial (CRM Agendor)";
+          const taskDate = task.updatedAt || task.updated_at || task.dueDate || task.due_date || task.createdAt || new Date().toISOString();
+          const isDone = task.status === "completed" || task.completed || task.done || false;
+
+          historyEntriesToAdd.push({
+            id: taskId ? `agendor-task-${taskId}` : `agendor-task-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+            agendor_id: taskId ? String(taskId) : undefined,
+            type: "note",
+            author_name: `${authorName}`,
+            created_at: taskDate,
+            content: `[Tarefa/Contato CRM${taskId ? ' ID #' + taskId : ''} - ${isDone ? 'Concluída' : 'Pendente'} - ${authorName}]:\n${taskText.trim()}`
+          });
+        }
+      }
+    } catch (taskErr: any) {
+      console.warn(`[AGENDOR-PULL] Não foi possível buscar tarefas para #${dealId}:`, taskErr.message);
+    }
+
+    // 5. Fetch Person Comments & Activities if personId exists
+    const personId = indData.agendor_person_id || dealDetails?.person?.id || dealDetails?.person;
+    if (personId) {
+      try {
+        const pComments = await callAgendor(`people/${personId}/comments`, "GET", apiToken).catch(() => null);
+        const pList = extractAgendorList(pComments);
+        for (const comment of pList) {
+          const commentId = comment.id || comment.commentId || comment.comment_id;
+          const commentText = comment.text || comment.content || comment.note || comment.body || comment.comment || comment.description || "";
+          if (!commentText.trim()) continue;
+
+          if (!isAlreadyInHistory(commentId, commentText)) {
+            const authorName = comment.user?.name || comment.author?.name || "Vendedor Comercial (CRM Agendor)";
+            const commentDate = comment.createdAt || comment.created_at || comment.date || new Date().toISOString();
+
+            historyEntriesToAdd.push({
+              id: commentId ? `agendor-pcomm-${commentId}` : `agendor-pcomm-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+              agendor_id: commentId ? String(commentId) : undefined,
+              type: "note",
+              author_name: `${authorName}`,
+              created_at: commentDate,
+              content: `[CRM Agendor (Contato)${commentId ? ' ID #' + commentId : ''} - ${authorName}]:\n${commentText.trim()}`
+            });
+          }
+        }
+      } catch (pCommErr: any) {
+        console.warn(`[AGENDOR-PULL] Não foi possível buscar comentários do contato #${personId}:`, pCommErr.message);
+      }
+    }
+
+    // 6. Fetch Organization Comments & Activities if organizationId exists
+    const organizationId = indData.agendor_organization_id || dealDetails?.organization?.id || dealDetails?.organization;
+    if (organizationId) {
+      try {
+        const oComments = await callAgendor(`organizations/${organizationId}/comments`, "GET", apiToken).catch(() => null);
+        const oList = extractAgendorList(oComments);
+        for (const comment of oList) {
+          const commentId = comment.id || comment.commentId || comment.comment_id;
+          const commentText = comment.text || comment.content || comment.note || comment.body || comment.comment || comment.description || "";
+          if (!commentText.trim()) continue;
+
+          if (!isAlreadyInHistory(commentId, commentText)) {
+            const authorName = comment.user?.name || comment.author?.name || "Vendedor Comercial (CRM Agendor)";
+            const commentDate = comment.createdAt || comment.created_at || comment.date || new Date().toISOString();
+
+            historyEntriesToAdd.push({
+              id: commentId ? `agendor-ocomm-${commentId}` : `agendor-ocomm-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+              agendor_id: commentId ? String(commentId) : undefined,
+              type: "note",
+              author_name: `${authorName}`,
+              created_at: commentDate,
+              content: `[CRM Agendor (Empresa)${commentId ? ' ID #' + commentId : ''} - ${authorName}]:\n${commentText.trim()}`
+            });
+          }
+        }
+      } catch (oCommErr: any) {
+        console.warn(`[AGENDOR-PULL] Não foi possível buscar comentários da organização #${organizationId}:`, oCommErr.message);
+      }
+    }
+
+    // Save updates & new history entries into Firestore
+    if (historyEntriesToAdd.length > 0) {
+      updates.negotiation_history = admin.firestore.FieldValue.arrayUnion(...historyEntriesToAdd);
+    }
+
+    await db.collection("indications").doc(indicationId).update(updates);
+
+    return {
+      pulled: true,
+      newHistoryCount: historyEntriesToAdd.length,
+      updates
+    };
+  }
+
+  // Route to push notes added in Roder Indica directly to Agendor CRM as deal comments
+  app.post("/api/agendor/add-comment", async (req, res) => {
+    try {
+      const { indicationId, content, authorName } = req.body;
+      if (!indicationId || !content) {
+        return res.status(400).json({ error: "Parâmetros 'indicationId' e 'content' são obrigatórios." });
+      }
+
+      const settingsSnap = await db.collection("settings").doc("agendor").get();
+      if (!settingsSnap.exists) {
+        return res.status(400).json({ error: "Integração com Agendor não configurada." });
+      }
+      const agendorConfig = settingsSnap.data() as any;
+      if (!agendorConfig.apiToken || !agendorConfig.enabled) {
+        return res.status(400).json({ error: "Integração com Agendor desabilitada ou sem token." });
+      }
+
+      const indSnap = await db.collection("indications").doc(indicationId).get();
+      if (!indSnap.exists) {
+        return res.status(404).json({ error: "Indicação não encontrada no banco." });
+      }
+      const indData = indSnap.data() as any;
+      const dealId = indData.agendor_deal_id;
+      if (!dealId) {
+        return res.status(400).json({ error: "Indicação não possui ID de negócio do Agendor associado." });
+      }
+
+      const commentText = `[Roder Indica - ${authorName || "Sistema"}]: ${content}`;
+      console.log(`[AGENDOR-COMMENT] Enviando comentário para o negócio #${dealId} no Agendor...`);
+
+      const result = await callAgendor(`deals/${dealId}/comments`, "POST", agendorConfig.apiToken, {
+        text: commentText
+      });
+
+      return res.json({ success: true, result });
+    } catch (err: any) {
+      console.error("[AGENDOR-COMMENT] Erro ao enviar comentário para o Agendor:", err.message);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
   // 2. Synchronize an Indication as a Lead/Deal in Agendor
   app.post("/api/agendor/sync-indication", async (req, res) => {
     try {
@@ -4295,10 +4758,17 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       // If status is pending (meaning Luana hasn't transferred/assigned it yet)
       if (status === "pending") {
         const cnpj = indData.client_cnpj || "";
+        const phone = indData.client_phone || "";
+        const clientName = indData.client_name || indData.contact_name || "";
+        const companyName = indData.client_company_name || indData.company_name || clientName;
+
+        let matchedOrg: any = null;
+
+        // 1. Try search by CNPJ
         if (cnpj && cnpj !== "Não informado") {
           const cleanCnpj = cnpj.replace(/\D/g, "");
           if (cleanCnpj.length === 14) {
-            console.log(`[AGENDOR-SYNC] Realizando lookup automático para lead pendente com CNPJ: ${cleanCnpj}`);
+            console.log(`[AGENDOR-SYNC] Realizando lookup automático para lead pendente por CNPJ: ${cleanCnpj}`);
             try {
               let existingOrgs: any[] = [];
               try {
@@ -4313,97 +4783,102 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
                   console.warn("[AGENDOR-SYNC] Falha ao buscar CNPJ via parâmetro q:", qCnpjErr.message);
                 }
               }
-
               if (existingOrgs && Array.isArray(existingOrgs) && existingOrgs.length > 0) {
-                const org = existingOrgs[0];
-                console.log(`[AGENDOR-SYNC] Cliente localizado no Agendor para pré-preenchimento automático: ${org.name}`);
-
-                const pulledName = org.name || "";
-                const pulledPhone = org.phones?.[0]?.number || "";
-                const pulledEmail = org.emails?.[0]?.email || "";
-                const pulledAddress = org.address ? `${org.address.city || ""}/${org.address.state || ""}` : "";
-
-                const updates: any = {
-                  agendor_organization_id: org.id,
-                  updated_at: new Date().toISOString()
-                };
-
-                const historyEntries: any[] = [];
-
-                if (pulledName && !indData.client_name) {
-                  updates.client_name = pulledName;
-                }
-                if (pulledPhone && !indData.client_phone) {
-                  updates.client_phone = pulledPhone;
-                }
-                if (pulledEmail && !indData.client_email) {
-                  updates.client_email = pulledEmail;
-                }
-                if (pulledAddress && !indData.client_location) {
-                  updates.client_location = pulledAddress;
-                }
-
-                historyEntries.push({
-                  id: Math.random().toString(36).substring(2, 11),
-                  type: "system",
-                  author_name: "CRM Agendor",
-                  created_at: new Date().toISOString(),
-                  content: `[Sincronização Automática]: Dados do cliente localizados no CRM Agendor (ID ${org.id}) e associados a esta indicação.`
-                });
-
-                updates.negotiation_history = admin.firestore.FieldValue.arrayUnion(...historyEntries);
-                await db.collection("indications").doc(indicationId).update(updates);
-
-                const updatedSnap = await db.collection("indications").doc(indicationId).get();
-                return res.json({
-                  success: true,
-                  message: "Dados do cliente encontrados no Agendor e preenchidos com sucesso no Roder Indica!",
-                  pulled: true,
-                  organizationId: org.id,
-                  negotiation_history: updatedSnap.data()?.negotiation_history || []
-                });
-              } else {
-                // CNPJ lookup did not find any results
-                const searchCnpjLog = {
-                  id: Math.random().toString(36).substring(2, 11),
-                  type: "system",
-                  author_name: "CRM Agendor",
-                  created_at: new Date().toISOString(),
-                  content: `[Sincronização Automática]: Realizada busca automática por CNPJ (${cnpj}) no Agendor CRM, mas nenhuma empresa ou contato correspondente foi localizado. O sistema aguardará a triagem manual e transferência pela Luana para criar a negociação.`
-                };
-                
-                const hasLog = (indData.negotiation_history || []).some((h: any) => h.content?.includes("busca automática por CNPJ"));
-                if (!hasLog) {
-                  await db.collection("indications").doc(indicationId).update({
-                    negotiation_history: admin.firestore.FieldValue.arrayUnion(searchCnpjLog),
-                    updated_at: new Date().toISOString()
-                  });
-                }
+                matchedOrg = existingOrgs[0];
               }
             } catch (lookupErr: any) {
               console.warn("[AGENDOR-SYNC] Falha na busca automática do CNPJ:", lookupErr.message);
             }
           }
-        } else {
-          // No CNPJ was provided
-          const noCnpjLog = {
+        }
+
+        // 2. Try search by Phone if no match by CNPJ
+        if (!matchedOrg && phone) {
+          const cleanPhone = phone.replace(/\D/g, "");
+          if (cleanPhone.length >= 8) {
+            console.log(`[AGENDOR-SYNC] Realizando lookup automático por telefone no Agendor: ${cleanPhone}`);
+            try {
+              const phoneOrgs = await callAgendor(`organizations?q=${cleanPhone}`, "GET", apiToken);
+              if (Array.isArray(phoneOrgs) && phoneOrgs.length > 0) {
+                matchedOrg = phoneOrgs[0];
+              }
+            } catch (phoneLookupErr: any) {
+              console.warn("[AGENDOR-SYNC] Falha na busca por telefone:", phoneLookupErr.message);
+            }
+          }
+        }
+
+        if (matchedOrg) {
+          console.log(`[AGENDOR-SYNC] Cliente localizado no Agendor para pré-preenchimento automático: ${matchedOrg.name} (ID ${matchedOrg.id})`);
+
+          const pulledName = matchedOrg.name || "";
+          const pulledPhone = matchedOrg.phones?.[0]?.number || "";
+          const pulledEmail = matchedOrg.emails?.[0]?.email || "";
+          const pulledCnpj = matchedOrg.cnpj || "";
+          const pulledAddress = matchedOrg.address ? `${matchedOrg.address.city || ""}/${matchedOrg.address.state || ""}` : "";
+
+          const updates: any = {
+            agendor_organization_id: matchedOrg.id,
+            updated_at: new Date().toISOString()
+          };
+
+          const historyEntries: any[] = [];
+
+          if (pulledName && (!indData.client_company_name && !indData.client_name)) {
+            updates.client_name = pulledName;
+            updates.client_company_name = pulledName;
+          }
+          if (pulledPhone && !indData.client_phone) {
+            updates.client_phone = pulledPhone;
+          }
+          if (pulledEmail && !indData.client_email) {
+            updates.client_email = pulledEmail;
+          }
+          if (pulledCnpj && (!indData.client_cnpj || indData.client_cnpj === "Não informado")) {
+            updates.client_cnpj = pulledCnpj;
+          }
+          if (pulledAddress && !indData.client_location) {
+            updates.client_location = pulledAddress;
+          }
+
+          historyEntries.push({
             id: Math.random().toString(36).substring(2, 11),
             type: "system",
             author_name: "CRM Agendor",
             created_at: new Date().toISOString(),
-            content: `[Sincronização Automática]: Sem CNPJ informado na indicação. Aguardando triagem manual e transferência pela Luana para criar e sincronizar o negócio no Agendor CRM.`
+            content: `[Vínculo Inteligente CRM Agendor]: Cliente/Empresa existente localizado no Agendor CRM ("${matchedOrg.name}", ID #${matchedOrg.id}, CNPJ: ${pulledCnpj || 'Não informado'}) e associado a esta indicação.`
+          });
+
+          updates.negotiation_history = admin.firestore.FieldValue.arrayUnion(...historyEntries);
+          await db.collection("indications").doc(indicationId).update(updates);
+
+          const updatedSnap = await db.collection("indications").doc(indicationId).get();
+          return res.json({
+            success: true,
+            message: `Cliente/Empresa "${matchedOrg.name}" localizado no Agendor (ID #${matchedOrg.id}) e associado no Roder Indica!`,
+            pulled: true,
+            organizationId: matchedOrg.id,
+            negotiation_history: updatedSnap.data()?.negotiation_history || []
+          });
+        } else {
+          // No match was found yet
+          const noMatchLog = {
+            id: Math.random().toString(36).substring(2, 11),
+            type: "system",
+            author_name: "CRM Agendor",
+            created_at: new Date().toISOString(),
+            content: `[Sincronização Automática]: Realizada busca no Agendor CRM por CNPJ/Telefone, mas nenhum cadastro existente foi localizado. Ao encaminhar o lead na triagem, uma nova Empresa será criada automaticamente na aba "Empresas" do Agendor.`
           };
-          const hasLog = (indData.negotiation_history || []).some((h: any) => h.content?.includes("Sem CNPJ informado"));
+          const hasLog = (indData.negotiation_history || []).some((h: any) => h.content?.includes("Realizada busca no Agendor CRM"));
           if (!hasLog) {
             await db.collection("indications").doc(indicationId).update({
-              negotiation_history: admin.firestore.FieldValue.arrayUnion(noCnpjLog),
+              negotiation_history: admin.firestore.FieldValue.arrayUnion(noMatchLog),
               updated_at: new Date().toISOString()
             });
           }
         }
 
         const updatedSnap = await db.collection("indications").doc(indicationId).get();
-        // Just return status pending confirmation
         return res.json({
           success: true,
           message: "Lead em triagem pendente. A sincronização de negócio no Agendor será disparada automaticamente assim que a Luana atribuir um vendedor.",
@@ -4413,10 +4888,18 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       }
 
       // If status is 'negotiating' or other states, we do full sync (deal registration)
-      // Prepare fields
-      const clientName = indData.client_name || "Cliente Roder Indica";
+      // Prepare clean display names
+      const rawClientName = indData.client_name && indData.client_name.trim() !== "Cliente Roder Indica"
+        ? indData.client_name.trim()
+        : (indData.contact_name || "").trim();
+
+      const rawCompanyName = (indData.client_company_name || indData.company_name || "").trim();
+      
+      // Determine real client display name and company name
+      const realClientName = rawClientName || rawCompanyName || "Cliente Indicação Roder";
+      const companyDisplayName = rawCompanyName || rawClientName || "Empresa Indicação Roder";
+      
       const clientPhone = indData.client_phone || "";
-      const companyName = indData.client_company_name || indData.company_name || "";
       const cnpj = indData.client_cnpj || "";
       const location = indData.client_location || "";
       const productName = indData.product_name || "Equipamento Roder";
@@ -4438,11 +4921,15 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         city = location.trim();
       }
 
-      // Step A: Create or Link Organization (Empresa) if companyName is present
+      // Step A: ALWAYS Create or Link Organization (Empresa) so leads enter the "Empresas" section in Agendor
       let organizationId: number | null = indData.agendor_organization_id || null;
-      if (!organizationId && companyName && companyName !== clientName) {
+      let matchedOrgName = companyDisplayName;
+
+      if (!organizationId) {
         try {
           let existingOrgs: any[] = [];
+          
+          // A1. Search by CNPJ
           if (cnpj && cnpj !== "Não informado") {
             const cleanCnpj = cnpj.replace(/\D/g, "");
             if (cleanCnpj.length === 14) {
@@ -4461,9 +4948,22 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
             }
           }
 
-          if ((!existingOrgs || existingOrgs.length === 0) && companyName) {
+          // A2. Search by Phone
+          if ((!existingOrgs || existingOrgs.length === 0) && clientPhone) {
+            const cleanPhone = clientPhone.replace(/\D/g, "");
+            if (cleanPhone.length >= 8) {
+              try {
+                existingOrgs = await callAgendor(`organizations?q=${cleanPhone}`, "GET", apiToken);
+              } catch (phoneErr: any) {
+                console.warn("[AGENDOR-SYNC] Falha ao buscar empresa por telefone:", phoneErr.message);
+              }
+            }
+          }
+
+          // A3. Search by Name
+          if ((!existingOrgs || existingOrgs.length === 0) && companyDisplayName) {
             try {
-              existingOrgs = await callAgendor(`organizations?q=${encodeURIComponent(companyName)}`, "GET", apiToken);
+              existingOrgs = await callAgendor(`organizations?q=${encodeURIComponent(companyDisplayName)}`, "GET", apiToken);
             } catch (nameErr: any) {
               console.warn("[AGENDOR-SYNC] Falha ao buscar empresa por nome:", nameErr.message);
             }
@@ -4473,13 +4973,24 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
             const matchedOrg = existingOrgs.find((o: any) => {
               const cleanO = o.cnpj ? o.cnpj.replace(/\D/g, "") : "";
               const cleanC = cnpj ? cnpj.replace(/\D/g, "") : "";
-              return (cleanC && cleanO === cleanC) || o.name?.toLowerCase() === companyName.toLowerCase();
+              return (cleanC && cleanO === cleanC) || o.name?.toLowerCase() === companyDisplayName.toLowerCase();
             }) || existingOrgs[0];
+
             organizationId = matchedOrg.id;
-            console.log("[AGENDOR-SYNC] Organização existente encontrada no Agendor:", organizationId, matchedOrg.name);
+            matchedOrgName = matchedOrg.name || companyDisplayName;
+            console.log("[AGENDOR-SYNC] Empresa existente vinculada no Agendor:", organizationId, matchedOrgName);
+
+            // If Agendor org has CNPJ and local indication doesn't, update local CNPJ
+            if (matchedOrg.cnpj && (!indData.client_cnpj || indData.client_cnpj === "Não informado")) {
+              await db.collection("indications").doc(indicationId).update({
+                client_cnpj: matchedOrg.cnpj,
+                updated_at: new Date().toISOString()
+              });
+            }
           } else {
+            // Create NEW Organization in Agendor so it registers in "Empresas"
             const orgPayload: any = {
-              name: companyName,
+              name: companyDisplayName,
               address: {
                 city: city || null,
                 state: state || null
@@ -4492,21 +5003,21 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
               }
             }
             if (clientPhone) {
-              orgPayload.phones = [{ number: clientPhone, type: "work" }];
+              orgPayload.phones = [{ number: clientPhone.replace(/\D/g, ""), type: "work" }];
             }
 
             const orgResult = await callAgendor("organizations", "POST", apiToken, orgPayload);
             if (orgResult) {
               organizationId = extractAgendorId(orgResult, ["organizationId", "organization_id", "id"]);
-              console.log("[AGENDOR-SYNC] Nova organização criada no Agendor:", organizationId);
+              console.log("[AGENDOR-SYNC] Nova Empresa criada na aba Empresas do Agendor:", organizationId);
             }
           }
         } catch (orgErr: any) {
-          console.warn("[AGENDOR-SYNC] Falha ao gerenciar organização, tentando prosseguir:", orgErr.message);
+          console.warn("[AGENDOR-SYNC] Falha ao gerenciar organização/empresa, tentando prosseguir:", orgErr.message);
         }
       }
 
-      // Step B: Create or Link Person (Pessoa)
+      // Step B: Create or Link Person (Pessoa) under the Organization
       let personId: number | null = indData.agendor_person_id || null;
       if (!personId) {
         try {
@@ -4522,31 +5033,23 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
             }
           }
 
-          if ((!existingPeople || existingPeople.length === 0) && indData.client_email) {
+          if ((!existingPeople || existingPeople.length === 0) && realClientName) {
             try {
-              existingPeople = await callAgendor(`people?q=${encodeURIComponent(indData.client_email)}`, "GET", apiToken);
-            } catch (emailErr: any) {
-              console.warn("[AGENDOR-SYNC] Falha ao buscar contato por email:", emailErr.message);
-            }
-          }
-
-          if ((!existingPeople || existingPeople.length === 0) && clientName) {
-            try {
-              existingPeople = await callAgendor(`people?q=${encodeURIComponent(clientName)}`, "GET", apiToken);
+              existingPeople = await callAgendor(`people?q=${encodeURIComponent(realClientName)}`, "GET", apiToken);
             } catch (nameErr: any) {
               console.warn("[AGENDOR-SYNC] Falha ao buscar contato por nome:", nameErr.message);
             }
           }
 
           if (existingPeople && Array.isArray(existingPeople) && existingPeople.length > 0) {
-            const matchedPerson = existingPeople.find((p: any) => p.name?.toLowerCase() === clientName.toLowerCase()) || existingPeople[0];
+            const matchedPerson = existingPeople.find((p: any) => p.name?.toLowerCase() === realClientName.toLowerCase()) || existingPeople[0];
             personId = matchedPerson.id;
-            console.log("[AGENDOR-SYNC] Pessoa existente encontrada no Agendor:", personId, matchedPerson.name);
+            console.log("[AGENDOR-SYNC] Pessoa/Contato existente encontrada no Agendor:", personId, matchedPerson.name);
           } else {
             const personPayload: any = {
-              name: clientName,
+              name: realClientName,
               role: "Cliente",
-              description: "Cadastrado automaticamente via Roder Indica"
+              description: "Cadastrado automaticamente via Roder Indica V2"
             };
 
             if (organizationId) {
@@ -4567,12 +5070,11 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
             const personResult = await callAgendor("people", "POST", apiToken, personPayload);
             if (personResult) {
               personId = extractAgendorId(personResult, ["personId", "person_id", "id"]);
-              console.log("[AGENDOR-SYNC] Nova pessoa criada no Agendor:", personId);
+              console.log("[AGENDOR-SYNC] Nova pessoa criada e vinculada à empresa no Agendor:", personId);
             }
           }
         } catch (personErr: any) {
-          console.error("[AGENDOR-SYNC] Falha ao gerenciar pessoa:", personErr.message);
-          return res.status(500).json({ error: `Falha ao gerenciar contato no Agendor: ${personErr.message}` });
+          console.warn("[AGENDOR-SYNC] Falha ao gerenciar pessoa/contato:", personErr.message);
         }
       }
 
@@ -4640,14 +5142,19 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       }
 
       // Step D: Create or Update Deal (Negócio) in Agendor
+      // Title pattern required: SDR - COMPANY_NAME (PARTNER_NAME)
+      const dealTitle = `SDR - ${companyDisplayName.toUpperCase()} (${partnerName.toUpperCase()})`;
+
       let dealId: number | null = indData.agendor_deal_id || null;
       try {
         const partnerInfo = `★ ORIGEM: RODER Indica V2\n★ PARCEIRO INDICADOR: ${partnerName}\n★ EMAIL DO PARCEIRO: ${partnerEmail || "Não informado"}\n★ TELEFONE DO PARCEIRO: ${partnerPhone || "Não informado"}\n\n`;
 
         const dealPayload: any = {
-          title: `Indicação: ${productName} - ${clientName} (Parceiro: ${partnerName})`,
-          description: `${partnerInfo}Máquina Base: ${baseMachine}\nDetalhes: ${indData.machine_details || ""}\n\nObservações do Lead:\n${observations}\n\nSincronizado via RODER Indica V2.`,
-          stage: indData.agendor_stage || "lead",
+          title: dealTitle,
+          description: `${partnerInfo}Equipamento Desejado: ${productName}\nMáquina Base: ${baseMachine}\nDetalhes: ${indData.machine_details || ""}\n\nObservações do Lead:\n${observations}\n\nSincronizado via RODER Indica V2.`,
+          funnel: "Funil Pré venda - Prospecção",
+          category: "SDR",
+          stage: indData.agendor_stage || "prospeccao",
           status: indData.agendor_status || "ongoing"
         };
 
@@ -4668,7 +5175,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         }
 
         if (dealId) {
-          console.log("[AGENDOR-SYNC] Atualizando negócio existente:", dealId);
+          console.log("[AGENDOR-SYNC] Atualizando negócio existente no Agendor:", dealId);
           await callAgendor(`deals/${dealId}`, "PUT", apiToken, dealPayload);
         } else {
           let postEndpoint = "deals";
@@ -4698,13 +5205,14 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         type: "system",
         author_name: "CRM Agendor",
         created_at: new Date().toISOString(),
-        content: `[Sincronização CRM]: Indicação integrada e enviada ao Agendor CRM com sucesso!
+        content: `[Sincronização CRM Agendor - Funil Pré-Venda / SDR]: Indicação integrada e enviada para o funil "Funil Pré venda - Prospecção" do Agendor CRM com sucesso!
 
 ★ DADOS ENVIADOS PARA O CRM:
-• Título do Negócio: "Indicação: ${productName} - ${clientName} (Parceiro: ${partnerName})"
-• Estágio Inicial: "${indData.agendor_stage === 'lead' ? 'Lead (Triagem)' : (indData.agendor_stage || 'Lead')}"
-• Cliente / Empresa: "${companyName || clientName}"
-• Contato Principal: "${clientName}"
+• Título do Negócio: "${dealTitle}"
+• Funil / Categoria: "Funil Pré venda - Prospecção" (SDR)
+• Estágio Inicial: "${indData.agendor_stage === 'lead' ? 'Prospecção (SDR)' : (indData.agendor_stage || 'Prospecção')}"
+• Empresa (Aba Empresas): "${companyDisplayName}"
+• Contato do Cliente: "${realClientName}"
 • Telefone de Contato: "${clientPhone || 'Não informado'}"
 • Valor Estimado: ${sentValueFormatted}
 • Vendedor Comercial: "${sellerName || 'Não atribuído'}"
@@ -4712,7 +5220,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
 
 ★ DADOS RECEBIDOS DO CRM (REFERÊNCIAS):
 • ID do Negócio (Deal ID): ${dealId}
-• ID da Organização (Org ID): ${organizationId || 'Não criada'}
+• ID da Empresa (Org ID): ${organizationId || 'Não criada'}
 • ID da Pessoa (Person ID): ${personId || 'Não criada'}`
       };
 
@@ -4795,6 +5303,9 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         return res.status(400).json({ error: "Esta indicação não possui um ID de negócio do Agendor associado. Por favor, sincronize a indicação primeiro." });
       }
 
+      // 1. Pull fresh comments, tasks, stage, status, and update agendor_synced_at first
+      const pullResult = await syncAndPullAgendorDetails(indicationId, indData, apiToken);
+
       console.log(`[AGENDOR-IMPORT] Iniciando busca de anexos para o negócio #${dealId}...`);
 
       const pdfFiles: Array<{ name: string, url: string, date?: string }> = [];
@@ -4843,8 +5354,15 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       }
 
       if (pdfFiles.length === 0) {
-        return res.status(404).json({ 
-          error: "Nenhum arquivo PDF foi localizado no negócio do Agendor CRM. Por favor, faça o upload do Orçamento ou Pedido de Venda em PDF na seção de Arquivos ou Comentários do negócio no Agendor e tente novamente." 
+        const historyMsg = pullResult.newHistoryCount && pullResult.newHistoryCount > 0
+          ? `Sincronizados ${pullResult.newHistoryCount} novo(s) registro(s) de histórico/comentários do CRM Agendor!`
+          : `Histórico e horário de verificação do CRM Agendor atualizados com sucesso!`;
+
+        return res.json({ 
+          success: true,
+          message: `${historyMsg} (Nota: Nenhum orçamento ou pedido em PDF foi localizado anexado ao negócio no Agendor).`,
+          pdfFound: false,
+          newHistoryCount: pullResult.newHistoryCount || 0
         });
       }
 
@@ -5496,6 +6014,40 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     await sendNotificationEmail(partnerEmail, subject, html, "Roder Indica");
   }
 
+  // Periodic Agendor CRM background sync every 15 minutes for all active linked deals
+  cron.schedule('*/15 * * * *', async () => {
+    try {
+      const settingsSnap = await db.collection("settings").doc("agendor").get();
+      if (!settingsSnap.exists) return;
+      const agendorConfig = settingsSnap.data() as any;
+      if (!agendorConfig?.apiToken || !agendorConfig?.enabled) return;
+
+      console.log("[Schedule] Iniciando sincronização periódica de negócios do Agendor CRM...");
+
+      const allIndicationsSnap = await db.collection("indications").get();
+      if (allIndicationsSnap.empty) return;
+
+      let syncCount = 0;
+      for (const docSnap of allIndicationsSnap.docs) {
+        const indData = docSnap.data();
+        if (!indData.agendor_deal_id || indData.status === "cancelled") continue;
+        try {
+          await syncAndPullAgendorDetails(docSnap.id, indData, agendorConfig.apiToken);
+          syncCount++;
+        } catch (err: any) {
+          console.warn(`[Schedule-Agendor] Erro ao sincronizar indicação ${docSnap.id}:`, err.message);
+        }
+      }
+      if (syncCount > 0) {
+        console.log(`[Schedule] Sincronização periódica do Agendor concluída com sucesso para ${syncCount} indicação(ões).`);
+      }
+    } catch (error: any) {
+      console.error("[Schedule] Erro na sincronização periódica do Agendor:", error.message);
+    }
+  }, {
+    timezone: BR_TIMEZONE
+  });
+
   // 4. Webhook Listener for Agendor CRM updates (Two-Way Sync)
   app.post("/api/webhooks/agendor", async (req, res) => {
     try {
@@ -5505,24 +6057,36 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       // Extract details
       const data = payload.data || payload;
 
-      // Detect Deal ID
-      let dealId = data.id || data.deal_id;
+      // Detect Deal ID across all possible fields
+      let dealId = data.id || data.deal_id || data.dealId;
       if (!dealId && data.deal) {
-        dealId = data.deal.id;
+        dealId = typeof data.deal === 'object' ? data.deal.id : data.deal;
       }
       if (!dealId && payload.entity_type === "deal") {
         dealId = payload.entity_id;
       }
+      if (!dealId && (payload.related_entity_id || payload.deal_id || payload.dealId)) {
+        dealId = payload.related_entity_id || payload.deal_id || payload.dealId;
+      }
+      if (!dealId && payload.comment?.deal_id) dealId = payload.comment.deal_id;
+      if (!dealId && payload.task?.deal_id) dealId = payload.task.deal_id;
+      if (!dealId && payload.activity?.deal_id) dealId = payload.activity.deal_id;
 
       if (!dealId) {
         console.warn("[AGENDOR-WEBHOOK] ID do negócio não identificado no payload.");
         return res.json({ success: false, message: "ID do negócio não identificado" });
       }
 
-      // Query firestore to find matching indication by agendor_deal_id
-      const indQuery = await db.collection("indications")
+      // Query firestore to find matching indication by agendor_deal_id (supports string or number)
+      let indQuery = await db.collection("indications")
         .where("agendor_deal_id", "==", Number(dealId))
         .get();
+
+      if (indQuery.empty) {
+        indQuery = await db.collection("indications")
+          .where("agendor_deal_id", "==", String(dealId))
+          .get();
+      }
 
       if (indQuery.empty) {
         console.log(`[AGENDOR-WEBHOOK] Nenhuma indicação correspondente encontrada para agendor_deal_id: ${dealId}`);
@@ -5532,6 +6096,15 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       const indicationDoc = indQuery.docs[0];
       const indicationId = indicationDoc.id;
       const indData = indicationDoc.data() as any;
+
+      // Trigger full sync & pull of latest comments, tasks, status, stage, and activities
+      const settingsSnap = await db.collection("settings").doc("agendor").get();
+      const agendorConfig = settingsSnap.exists ? settingsSnap.data() as any : null;
+      let pullResult: any = null;
+      if (agendorConfig?.apiToken) {
+        pullResult = await syncAndPullAgendorDetails(indicationId, indData, agendorConfig.apiToken);
+        console.log(`[AGENDOR-WEBHOOK] Pull completo executado para indicação ${indicationId}:`, pullResult);
+      }
 
       const updates: any = {};
       const historyEntries: any[] = [];
@@ -5692,6 +6265,35 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
+    
+    // Auto-heal Luana Camargo user profile in Firestore
+    setTimeout(async () => {
+      try {
+        if (!db) return;
+        const usersSnap = await db.collection("users").get();
+        for (const userDoc of usersSnap.docs) {
+          const uData = userDoc.data();
+          const emailLower = (uData.email || "").toLowerCase().trim();
+          const nameCurrent = uData.name || "";
+          
+          const isLuana = emailLower === "contato@roderbrasil.com.br" ||
+                          emailLower === "luana@roderbrasil.com.br" ||
+                          emailLower === "luana@roder.com.br" ||
+                          nameCurrent.includes("Contato_Roder") ||
+                          nameCurrent.includes("Contato Roder");
+
+          if (isLuana && nameCurrent !== "Luana Camargo") {
+            console.log(`[BOOT-HEAL] Corrigindo nome do usuário ${userDoc.id} (${uData.email}) de "${nameCurrent}" para "Luana Camargo"...`);
+            await db.collection("users").doc(userDoc.id).update({
+              name: "Luana Camargo",
+              updated_at: new Date().toISOString()
+            });
+          }
+        }
+      } catch (healErr: any) {
+        console.error("[BOOT-HEAL] Erro ao auto-corrigir nome da Luana Camargo:", healErr.message);
+      }
+    }, 3000);
   });
 }
 

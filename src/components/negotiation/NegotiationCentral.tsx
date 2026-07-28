@@ -161,7 +161,7 @@ export default function NegotiationCentral() {
   const handleImportFromAgendor = async () => {
     if (!activeIndication) return;
     setImportingFiles(true);
-    const toastId = toast.loading('Buscando e analisando orçamento/pedido em PDF do Agendor CRM...');
+    const toastId = toast.loading('Buscando atualizações, histórico e documentos no Agendor CRM...');
     try {
       const response = await fetch('/api/agendor/import-files', {
         method: 'POST',
@@ -169,14 +169,15 @@ export default function NegotiationCentral() {
         body: JSON.stringify({ indicationId: activeIndication.id })
       });
       const data = await response.json();
+
+      // Refetch newest document state from Firestore to update history timeline & agendor_synced_at
+      const indDoc = await getDoc(doc(db, 'indications', activeIndication.id));
+      if (indDoc.exists()) {
+        refreshIndication({ id: activeIndication.id, ...indDoc.data() } as Indication);
+      }
+
       if (response.ok && data.success) {
-        toast.success(data.message || 'Documento e itens do CRM importados com sucesso!', { id: toastId });
-        
-        // Refetch newest document state from Firestore
-        const indDoc = await getDoc(doc(db, 'indications', activeIndication.id));
-        if (indDoc.exists()) {
-          refreshIndication({ id: activeIndication.id, ...indDoc.data() } as Indication);
-        }
+        toast.success(data.message || 'Histórico e dados do CRM atualizados com sucesso!', { id: toastId, duration: 5000 });
       } else {
         toast.error('Erro ao importar do CRM: ' + (data.error || data.message || 'Erro desconhecido'), { id: toastId, duration: 6000 });
       }
@@ -186,6 +187,26 @@ export default function NegotiationCentral() {
       setImportingFiles(false);
     }
   };
+
+  useEffect(() => {
+    if (isOpen && activeIndication?.agendor_deal_id) {
+      fetch('/api/agendor/import-files', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ indicationId: activeIndication.id })
+      })
+      .then(res => res.json())
+      .then(async (data) => {
+        if (data && data.success) {
+          const indDoc = await getDoc(doc(db, 'indications', activeIndication.id));
+          if (indDoc.exists()) {
+            refreshIndication({ id: activeIndication.id, ...indDoc.data() } as Indication);
+          }
+        }
+      })
+      .catch(err => console.error("[AGENDOR-AUTO-PULL] Erro no pull automático ao abrir:", err));
+    }
+  }, [isOpen, activeIndication?.id, activeIndication?.agendor_deal_id]);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -1258,6 +1279,19 @@ export default function NegotiationCentral() {
         }),
         updated_at: new Date().toISOString()
       });
+
+      // Push note to Agendor CRM if deal is linked
+      if (activeIndication.agendor_deal_id) {
+        fetch('/api/agendor/add-comment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            indicationId: activeIndication.id,
+            content: historyNote,
+            authorName: profile?.name || 'Vendedor Comercial'
+          })
+        }).catch(err => console.error("Erro ao sincronizar nota com Agendor CRM:", err));
+      }
       
       // Notify involved parties
       if (activeIndication.external_seller_uid && profile?.uid !== activeIndication.external_seller_uid) {
@@ -2339,7 +2373,7 @@ export default function NegotiationCentral() {
                       <div className="p-6">
                         <div className="space-y-8 relative before:absolute before:left-[17px] before:top-2 before:bottom-2 before:w-px before:bg-border">
                         {activeIndication.negotiation_history?.slice().reverse().map((entry, idx) => (
-                          <div key={idx} className="relative pl-10">
+                          <div key={entry.id || `hist-${idx}-${entry.created_at || ''}`} className="relative pl-10">
                             <div className={cn(
                               "absolute left-0 w-9 h-9 rounded-full border-2 border-background flex items-center justify-center z-10 shadow-sm",
                               entry.type === 'system' ? "bg-slate-100 text-slate-500" :

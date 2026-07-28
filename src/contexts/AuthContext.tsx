@@ -312,6 +312,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               });
             }
 
+            // Self-healing display name for Luana Camargo (contato@roderbrasil.com.br / luana@roderbrasil.com.br)
+            const isLuana = userEmail === 'contato@roderbrasil.com.br' || 
+                            userEmail === 'luana@roderbrasil.com.br' || 
+                            userEmail === 'luana@roder.com.br' ||
+                            (profileData.name && (profileData.name.includes('Contato_Roder') || profileData.name.includes('Contato Roder')));
+            if (isLuana && profileData.name !== 'Luana Camargo') {
+              console.log("Self-healing Luana Camargo's display name in Firestore user profile...");
+              profileData.name = 'Luana Camargo';
+              localStorage.setItem('roder_profile_cache', JSON.stringify(profileData));
+              updateDoc(doc(db, 'users', user.uid), {
+                name: 'Luana Camargo',
+                updated_at: new Date().toISOString()
+              }).catch(err => {
+                console.error("Failed to update Luana's name in Firestore:", err);
+              });
+            }
+
             // Self-healing for Vanessa Camargo if her role got corrupted/incorrectly-guessed as internal_seller or anything else
             const isVanessaOrFinance = userEmail.includes('vanessa') || displayName.includes('vanessa') || userEmail.includes('finance');
             
@@ -476,9 +493,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   dashboard_cards: defaults.dashboard_cards.reduce((acc, item) => ({ ...acc, [item]: true }), {})
                 };
 
+                const getInitialName = () => {
+                  if (userEmail === 'comercial@ff.ind.br') return 'Fábio';
+                  if (userEmail === 'contato@roderbrasil.com.br' || userEmail === 'luana@roderbrasil.com.br' || userEmail === 'luana@roder.com.br') return 'Luana Camargo';
+                  if (userEmail === 'gislene@roderbrasil.com.br' || userEmail === 'gislene@roder.com.br') return 'Gislene';
+                  return user.displayName || userEmail.split('@')[0];
+                };
+
                 const newProfile: any = {
                   uid: user.uid,
-                  name: userEmail === 'comercial@ff.ind.br' ? 'Fábio' : (user.displayName || userEmail.split('@')[0]),
+                  name: getInitialName(),
                   email: userEmail,
                   role: roleGuess,
                   status: 'active',

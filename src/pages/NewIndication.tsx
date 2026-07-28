@@ -252,7 +252,7 @@ export default function NewIndication() {
   const [registeredProducts, setRegisteredProducts] = useState<RegisteredProduct[]>([]);
   const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
   const [expandedProducts, setExpandedProducts] = useState<Record<string, boolean>>({});
-  const [externalSellers, setExternalSellers] = useState<{uid: string, name: string}[]>([]);
+  const [externalSellers, setExternalSellers] = useState<{uid: string, name: string, role?: string}[]>([]);
   const [standardSellers, setStandardSellers] = useState<UserProfile[]>([]);
   const [selectedExternalSeller, setSelectedExternalSeller] = useState<{uid: string, name: string} | null>(null);
   const [autoStandardSeller, setAutoStandardSeller] = useState<UserProfile | null>(null);
@@ -344,12 +344,42 @@ export default function NewIndication() {
 
     const fetchExternalSellers = async () => {
       try {
-        const q = query(collection(db, 'users'), where('role', '==', 'external_seller'), orderBy('name', 'asc'));
+        const q = query(
+          collection(db, 'users'), 
+          where('role', 'in', ['external_seller', 'vendedor_padrao', 'manager', 'admin', 'internal_seller', 'triagem'])
+        );
         const snapshot = await getDocs(q);
-        const sellers = snapshot.docs.map(doc => ({ 
-          uid: doc.id, 
-          name: doc.data().name || 'Sem Nome'
-        }));
+        const sellers = snapshot.docs.map(doc => {
+          const data = doc.data();
+          const rawName = (data.name || data.email || 'Sem Nome').replace('Jefferson', 'Jeferson');
+          return { 
+            uid: doc.id, 
+            name: rawName,
+            role: data.role || 'external_seller'
+          };
+        });
+
+        // Ensure Jeferson Roder and Gislene are present in the list if not fetched or under different name/role
+        const hasJeferson = sellers.some(s => s.name.toLowerCase().includes('jeferson'));
+        const hasGislene = sellers.some(s => s.name.toLowerCase().includes('gislene'));
+
+        if (!hasJeferson) {
+          sellers.push({
+            uid: profile?.name?.toLowerCase().includes('jeferson') ? profile.uid : 'jeferson_roder_direct',
+            name: 'Jeferson Roder',
+            role: 'admin'
+          });
+        }
+
+        if (!hasGislene) {
+          sellers.push({
+            uid: profile?.name?.toLowerCase().includes('gislene') ? profile.uid : 'gislene_manager_direct',
+            name: 'Gislene',
+            role: 'manager'
+          });
+        }
+
+        sellers.sort((a, b) => a.name.localeCompare(b.name));
         setExternalSellers(sellers);
       } catch (error) {
         console.error("Error fetching external sellers:", error);
@@ -1529,15 +1559,25 @@ export default function NewIndication() {
                       <SelectValue placeholder="Selecione quem indicou este cliente..." />
                     </SelectTrigger>
                     <SelectContent className="bg-card border-border max-h-[300px]">
-                      {externalSellers.map(seller => (
-                        <SelectItem key={seller.uid} value={seller.uid} className="py-2">
-                          {seller.name}
-                        </SelectItem>
-                      ))}
+                      {externalSellers.map(seller => {
+                        const isInternalOrAdmin = seller.role && ['admin', 'manager', 'internal_seller', 'triagem', 'vendedor_padrao'].includes(seller.role);
+                        return (
+                          <SelectItem key={seller.uid} value={seller.uid} className="py-2 cursor-pointer">
+                            <div className="flex items-center justify-between gap-2 w-full">
+                              <span className="font-semibold">{seller.name}</span>
+                              {isInternalOrAdmin && (
+                                <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 border border-amber-500/20 shrink-0">
+                                  Direto / Sem comissão
+                                </span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
-                  <p className="text-[10px] text-orange-600/70 font-medium">
-                    O lead ficará cadastrado de forma protegida sob o nome do parceiro selecionado.
+                  <p className="text-[10px] text-orange-600/80 font-medium">
+                    O lead ficará cadastrado de forma protegida sob o nome da pessoa ou parceiro selecionado. Indicações da gerência (Jeferson / Gislene) entram nos relatórios de resultado de vendas sem geração de comissão comercial.
                   </p>
                 </div>
               )}

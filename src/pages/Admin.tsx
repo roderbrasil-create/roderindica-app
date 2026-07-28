@@ -1158,7 +1158,28 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
         console.log('[MERGE] Ignorando snapshot de usuários com unificação ativa.');
         return;
       }
-      setUsers(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile)));
+      const rawUsers = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
+      
+      // Auto-heal Luana Camargo display name if set to Contato_Roder Brasil or email match
+      const healedUsers = rawUsers.map(u => {
+        const uEmail = (u.email || '').toLowerCase().trim();
+        const isLuana = uEmail === 'contato@roderbrasil.com.br' || 
+                        uEmail === 'luana@roderbrasil.com.br' || 
+                        uEmail === 'luana@roder.com.br' ||
+                        (u.name && (u.name.includes('Contato_Roder') || u.name.includes('Contato Roder')));
+        
+        if (isLuana && u.name !== 'Luana Camargo') {
+          console.log(`[ADMIN-HEAL] Corrigindo nome do usuário ${u.uid} (${u.email}) para "Luana Camargo"...`);
+          u.name = 'Luana Camargo';
+          updateDoc(doc(db, 'users', u.uid), {
+            name: 'Luana Camargo',
+            updated_at: new Date().toISOString()
+          }).catch(() => {});
+        }
+        return u;
+      });
+
+      setUsers(healedUsers);
       setLoading(false);
     });
     return () => unsubscribe();
@@ -1626,7 +1647,7 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
     try {
       const tempId = `luana_${Date.now()}`;
       const luanaData: UserProfile = {
-        uid: tempId, name: 'Luana', email: luanaEmail, phone: '', role: 'triagem',
+        uid: tempId, name: 'Luana Camargo', email: luanaEmail, phone: '', role: 'triagem',
         status: 'active', created_at: new Date().toISOString(), is_lead_receiver: true
       };
       await setDoc(doc(db, 'users', tempId), luanaData);

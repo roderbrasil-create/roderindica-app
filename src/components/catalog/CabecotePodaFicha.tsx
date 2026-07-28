@@ -185,6 +185,7 @@ export function CabecotePodaFicha({ onClose }: CabecotePodaFichaProps) {
       `*Peso:* 130 kg | *Carga Máxima:* 50 kg\n` +
       `*Giro:* Rotator 360° Infinito (Junta Rotativa)\n` +
       `*Segurança Total:* Risco zero de acidente para o operador em altura.\n\n` +
+      `🔗 *Link do Artifact:* https://claude.ai/code/artifact/a7adbed0-b67b-42a8-abbb-b8d8502e33fa\n` +
       `🔗 *Site Oficial:* https://roderbrasil.com.br/maquina-urbana/cabecote-florestal-poda-arvores/\n` +
       `📄 *Ficha em PDF:* https://roderbrasil.com.br/wp-content/uploads/2025/10/Cabecote-de-Poda-Roder.pdf`;
     
@@ -204,6 +205,16 @@ export function CabecotePodaFicha({ onClose }: CabecotePodaFichaProps) {
             </span>
           </div>
           <div className="flex items-center gap-2">
+            <a
+              href="https://claude.ai/code/artifact/a7adbed0-b67b-42a8-abbb-b8d8502e33fa"
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold transition-colors shadow-sm"
+              title="Abrir Link do Artifact Interativo"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Link do Artifact</span>
+            </a>
             <button
               onClick={handleShareWhatsapp}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors"
@@ -279,6 +290,15 @@ export function CabecotePodaFicha({ onClose }: CabecotePodaFichaProps) {
                       <p className="text-[10px] font-semibold text-slate-500">
                         Sistemas Florestais e Urbanos Roder
                       </p>
+                      <a 
+                        href="https://claude.ai/code/artifact/a7adbed0-b67b-42a8-abbb-b8d8502e33fa"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[9.5px] font-bold text-amber-600 hover:text-amber-700 underline flex items-center gap-1 justify-end mt-0.5"
+                      >
+                        <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+                        Link do Artifact Interativo
+                      </a>
                     </div>
                   </div>
 
@@ -533,10 +553,19 @@ export function CabecotePodaFicha({ onClose }: CabecotePodaFichaProps) {
                     <p><strong>RODER MÁQUINAS E EQUIPAMENTOS LTDA</strong> • Pardinho/SP</p>
                     <p>Página 1 de 3 • Especificações Técnicas e Requisitos do Braço</p>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right flex flex-col items-end gap-0.5">
                     <span className="text-emerald-700 font-extrabold uppercase bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
                       ✓ Documento Oficial Roder GP150
                     </span>
+                    <a 
+                      href="https://claude.ai/code/artifact/a7adbed0-b67b-42a8-abbb-b8d8502e33fa" 
+                      target="_blank" 
+                      rel="noreferrer" 
+                      className="text-[9px] text-amber-600 underline hover:text-amber-700 font-semibold flex items-center gap-0.5"
+                    >
+                      <ExternalLink className="h-2.5 w-2.5" />
+                      https://claude.ai/code/artifact/a7adbed0-b67b-42a8-abbb-b8d8502e33fa
+                    </a>
                   </div>
                 </div>
               </div>
@@ -709,10 +738,19 @@ export function CabecotePodaFicha({ onClose }: CabecotePodaFichaProps) {
                     <p><strong>RODER MÁQUINAS E EQUIPAMENTOS LTDA</strong> • Pardinho/SP</p>
                     <p>Página 2 de 3 • Diagrama Hidráulico e Tabela de Carga</p>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right flex flex-col items-end gap-0.5">
                     <span className="text-emerald-700 font-extrabold uppercase bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
                       ✓ Documento Oficial Roder GP150
                     </span>
+                    <a 
+                      href="https://claude.ai/code/artifact/a7adbed0-b67b-42a8-abbb-b8d8502e33fa" 
+                      target="_blank" 
+                      rel="noreferrer" 
+                      className="text-[9px] text-amber-600 underline hover:text-amber-700 font-semibold flex items-center gap-0.5"
+                    >
+                      <ExternalLink className="h-2.5 w-2.5" />
+                      https://claude.ai/code/artifact/a7adbed0-b67b-42a8-abbb-b8d8502e33fa
+                    </a>
                   </div>
                 </div>
               </div>
@@ -758,15 +796,26 @@ export function CabecotePodaFicha({ onClose }: CabecotePodaFichaProps) {
                           Procedimento Operacional de Poda em Campo (Passo a Passo)
                         </h3>
                       </div>
-                      <a 
-                        href="https://roderbrasil.com.br/maquina-urbana/cabecote-florestal-poda-arvores/" 
-                        target="_blank" 
-                        rel="noreferrer"
-                        className="text-[10px] text-amber-300 font-bold underline flex items-center gap-1 hover:text-white"
-                      >
-                        <Video className="h-3 w-3" />
-                        Assistir Vídeo Demonstrativo
-                      </a>
+                      <div className="flex items-center gap-3">
+                        <a 
+                          href="https://claude.ai/code/artifact/a7adbed0-b67b-42a8-abbb-b8d8502e33fa" 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="text-[10px] text-emerald-300 font-bold underline flex items-center gap-1 hover:text-white"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          Link do Artifact
+                        </a>
+                        <a 
+                          href="https://roderbrasil.com.br/maquina-urbana/cabecote-florestal-poda-arvores/" 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="text-[10px] text-amber-300 font-bold underline flex items-center gap-1 hover:text-white"
+                        >
+                          <Video className="h-3 w-3" />
+                          Assistir Vídeo Demonstrativo
+                        </a>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2.5 text-[11px] leading-snug">
@@ -1000,10 +1049,19 @@ export function CabecotePodaFicha({ onClose }: CabecotePodaFichaProps) {
                     <p><strong>RODER MÁQUINAS E EQUIPAMENTOS LTDA</strong> • Pardinho/SP</p>
                     <p>Página 3 de 3 • Procedimento Operacional, Manutenção e Peças de Desgaste</p>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right flex flex-col items-end gap-0.5">
                     <span className="text-emerald-700 font-extrabold uppercase bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
                       ✓ Documento Oficial Roder GP150
                     </span>
+                    <a 
+                      href="https://claude.ai/code/artifact/a7adbed0-b67b-42a8-abbb-b8d8502e33fa" 
+                      target="_blank" 
+                      rel="noreferrer" 
+                      className="text-[9px] text-amber-600 underline hover:text-amber-700 font-semibold flex items-center gap-0.5"
+                    >
+                      <ExternalLink className="h-2.5 w-2.5" />
+                      https://claude.ai/code/artifact/a7adbed0-b67b-42a8-abbb-b8d8502e33fa
+                    </a>
                   </div>
                 </div>
               </div>

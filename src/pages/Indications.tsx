@@ -855,15 +855,42 @@ export default function Indications() {
 
     const fetchExternalSellers = async () => {
       try {
-        const q = query(collection(db, 'users'), where('role', 'in', ['external_seller', 'vendedor_padrao', 'manager']));
+        const q = query(
+          collection(db, 'users'), 
+          where('role', 'in', ['external_seller', 'vendedor_padrao', 'manager', 'admin', 'internal_seller', 'triagem'])
+        );
         const snapshot = await getDocs(q);
         const sellersList = snapshot.docs.map(d => ({ 
           uid: d.id, 
-          name: d.data().name || 'Sem Nome',
+          name: (d.data().name || 'Sem Nome').replace('Jefferson', 'Jeferson'),
           email: d.data().email || '',
           phone: d.data().phone || '',
           role: d.data().role || 'external_seller'
         }));
+
+        const hasJeferson = sellersList.some(s => s.name.toLowerCase().includes('jeferson'));
+        const hasGislene = sellersList.some(s => s.name.toLowerCase().includes('gislene'));
+
+        if (!hasJeferson) {
+          sellersList.push({
+            uid: profile?.name?.toLowerCase().includes('jeferson') ? profile.uid : 'jeferson_roder_direct',
+            name: 'Jeferson Roder',
+            email: 'roderbrasil@gmail.com',
+            phone: '',
+            role: 'admin'
+          });
+        }
+
+        if (!hasGislene) {
+          sellersList.push({
+            uid: profile?.name?.toLowerCase().includes('gislene') ? profile.uid : 'gislene_manager_direct',
+            name: 'Gislene',
+            email: 'gislene@roderbrasil.com.br',
+            phone: '',
+            role: 'manager'
+          });
+        }
+
         sellersList.sort((a, b) => a.name.localeCompare(b.name));
         setExternalSellers(sellersList);
       } catch (err) {
