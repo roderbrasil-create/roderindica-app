@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import Layout from '../components/layout/Layout';
 import { collection, query, where, onSnapshot, orderBy, doc, updateDoc, getDocs, addDoc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -28,7 +28,11 @@ import {
   Palmtree,
   UserCheck,
   Headset,
-  Clock
+  Clock,
+  Send,
+  X,
+  ExternalLink,
+  Archive
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { HelpTooltip } from '../components/base/HelpTooltip';
@@ -40,7 +44,7 @@ import {
   DialogDescription,
   DialogFooter
 } from '../components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel, SelectSeparator } from '../components/ui/select';
 import { Label } from '../components/ui/label';
 import { Switch } from '../components/ui/switch';
 import { Input } from '../components/ui/input';
@@ -54,13 +58,14 @@ export default function Triagem() {
   const [isDuplicateDialogOpen, setIsDuplicateDialogOpen] = useState(false);
   const [duplicateReason, setDuplicateReason] = useState<string>('');
   const [customReason, setCustomReason] = useState<string>('');
-  const [duplicateAlert, setDuplicateAlert] = useState<{ sellerName: string, sellerUid: string } | null>(null);
+  const [duplicateAlert, setDuplicateAlert] = useState<{ sellerName: string; sellerUid: string; existingIndication?: Indication } | null>(null);
   const [externalSellers, setExternalSellers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRulesDialogOpen, setIsRulesDialogOpen] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [pendingFairLeadsCount, setPendingFairLeadsCount] = useState(0);
   const [statusFilter, setStatusFilter] = useState<'pending' | 'negotiating'>('pending');
+  const [searchTerm, setSearchTerm] = useState('');
   const [indicationToDelete, setIndicationToDelete] = useState<Indication | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -208,29 +213,52 @@ export default function Triagem() {
     // Se já está em negociação, estamos apenas redistribuindo, então não precisa validar duplicidade de novo
     if (indication.status === 'negotiating') return true;
 
-    // Check for duplicate CNPJ or client name in the last 60 days
     try {
+      const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
       const q = query(
         collection(db, 'indications'),
-        where('client_name', '==', indication.client_name),
         where('status', '==', 'negotiating')
       );
 
       const snapshot = await getDocs(q);
-      const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
-      
+      const targetPhoneDigits = (indication.client_phone || '').replace(/\D/g, '');
+      const targetNameLower = (indication.client_name || '').toLowerCase().trim();
+      const targetPersonLower = (indication.client_person_name || '').toLowerCase().trim();
+      const targetCnpjDigits = (indication.client_cnpj || '').replace(/\D/g, '');
+
       const existingNegotiations = snapshot.docs
         .filter(doc => doc.id !== indication.id)
         .filter(doc => {
-          const data = doc.data() as any;
-          return data.created_at > sixtyDaysAgo;
+          const data = doc.data() as Indication;
+          // Check 60 days
+          if (data.created_at && data.created_at <= sixtyDaysAgo) return false;
+
+          const docPhoneDigits = (data.client_phone || '').replace(/\D/g, '');
+          const docNameLower = (data.client_name || '').toLowerCase().trim();
+          const docPersonLower = (data.client_person_name || '').toLowerCase().trim();
+          const docCnpjDigits = (data.client_cnpj || '').replace(/\D/g, '');
+
+          const phoneMatch = targetPhoneDigits.length >= 8 && docPhoneDigits.length >= 8 && targetPhoneDigits === docPhoneDigits;
+          const cnpjMatch = targetCnpjDigits.length >= 8 && docCnpjDigits.length >= 8 && targetCnpjDigits === docCnpjDigits;
+          const nameMatch = (targetNameLower && docNameLower && targetNameLower === docNameLower) ||
+                            (targetPersonLower && docPersonLower && targetPersonLower === docPersonLower) ||
+                            (targetNameLower && docPersonLower && targetNameLower === docPersonLower) ||
+                            (targetPersonLower && docNameLower && targetPersonLower === docPersonLower);
+
+          return phoneMatch || cnpjMatch || nameMatch;
         });
 
       if (existingNegotiations.length > 0) {
-        const existing = existingNegotiations[0].data() as Indication;
+        const existingDoc = existingNegotiations[0];
+        const existingData = existingDoc.data() as Indication;
+        const existingIndication: Indication = {
+          id: existingDoc.id,
+          ...existingData
+        };
         setDuplicateAlert({
-          sellerName: existing.internal_seller_name || 'Vendedor não identificado',
-          sellerUid: existing.internal_seller_uid || ''
+          sellerName: existingIndication.internal_seller_name || 'Vendedor não identificado',
+          sellerUid: existingIndication.internal_seller_uid || '',
+          existingIndication
         });
         return false;
       }
@@ -551,11 +579,115 @@ export default function Triagem() {
     }
   };
 
-  // Filter internal sellers to manage
-  const sellersToManage = internalSellers.filter(u => 
-    u.role === 'internal_seller' || 
-    ['monali', 'heloisa', 'yury'].some(name => u.name?.toLowerCase().includes(name))
-  );
+  // Filter internal sellers to manage in sidebar (deduplicated)
+  const sellersToManage = useMemo(() => {
+    const seenUids = new Set<string>();
+    const seenNames = new Set<string>();
+    return internalSellers.filter(u => {
+      if (!u.uid || seenUids.has(u.uid)) return false;
+      const cleanName = (u.name || '').toLowerCase().trim();
+      if (cleanName && seenNames.has(cleanName)) return false;
+
+      const isCandidate = u.role === 'internal_seller' || 
+        ['monali', 'heloisa', 'yury'].some(name => (u.name || '').toLowerCase().includes(name));
+
+      if (isCandidate) {
+        seenUids.add(u.uid);
+        if (cleanName) seenNames.add(cleanName);
+        return true;
+      }
+      return false;
+    });
+  }, [internalSellers]);
+
+  // Filter ONLY ACTIVE lead receivers for forwarding dialog (Highlighted at top)
+  const activeLeadReceivers = useMemo(() => {
+    const seenUids = new Set<string>();
+    const seenNames = new Set<string>();
+    return internalSellers
+      .filter(seller => {
+        if (!seller.is_lead_receiver) return false;
+        if (!seller.uid || seenUids.has(seller.uid)) return false;
+        const cleanName = (seller.name || '').toLowerCase().trim();
+        if (cleanName && seenNames.has(cleanName)) return false;
+
+        seenUids.add(seller.uid);
+        if (cleanName) seenNames.add(cleanName);
+        return true;
+      })
+      .sort((a, b) => {
+        const names = ['heloisa', 'monali', 'yury'];
+        const aName = (a.name || '').toLowerCase();
+        const bName = (b.name || '').toLowerCase();
+        const aSpecial = names.some(n => aName.includes(n));
+        const bSpecial = names.some(n => bName.includes(n));
+        if (aSpecial && !bSpecial) return -1;
+        if (!aSpecial && bSpecial) return 1;
+        if (aName.includes('heloisa') && bName.includes('monali')) return -1;
+        if (aName.includes('monali') && bName.includes('heloisa')) return 1;
+        return aName.localeCompare(bName);
+      });
+  }, [internalSellers]);
+
+  // Filter OTHER internal sellers and management for manual selection (e.g. Yury for International, Gislene for Management)
+  const otherSellers = useMemo(() => {
+    const seenUids = new Set<string>();
+    const seenNames = new Set<string>();
+
+    // Register activeLeadReceivers to prevent duplication
+    activeLeadReceivers.forEach(s => {
+      if (s.uid) seenUids.add(s.uid);
+      if (s.name) seenNames.add((s.name).toLowerCase().trim());
+    });
+
+    return internalSellers
+      .filter(seller => {
+        if (seller.is_lead_receiver) return false;
+        if (!seller.uid || seenUids.has(seller.uid)) return false;
+        const cleanName = (seller.name || '').toLowerCase().trim();
+        if (cleanName && seenNames.has(cleanName)) return false;
+
+        const isEligible = 
+          ['internal_seller', 'manager', 'admin', 'vendedor_padrao', 'triagem'].includes(seller.role || '') ||
+          ['yury', 'gislene', 'jeferson', 'heloisa', 'monali'].some(n => cleanName.includes(n));
+
+        if (isEligible) {
+          seenUids.add(seller.uid);
+          if (cleanName) seenNames.add(cleanName);
+          return true;
+        }
+        return false;
+      })
+      .sort((a, b) => {
+        const aName = (a.name || '').toLowerCase();
+        const bName = (b.name || '').toLowerCase();
+        const aPriority = aName.includes('yury') || aName.includes('gislene');
+        const bPriority = bName.includes('yury') || bName.includes('gislene');
+        if (aPriority && !bPriority) return -1;
+        if (!aPriority && bPriority) return 1;
+        return aName.localeCompare(bName);
+      });
+  }, [internalSellers, activeLeadReceivers]);
+
+  const filteredIndications = indications.filter(ind => {
+    if (!searchTerm.trim()) return true;
+    const term = searchTerm.toLowerCase().trim();
+    const digits = searchTerm.replace(/\D/g, '');
+    const phoneDigits = (ind.client_phone || '').replace(/\D/g, '');
+    const phoneMatch = digits.length >= 3 && phoneDigits.includes(digits);
+
+    return (
+      ind.client_name?.toLowerCase().includes(term) ||
+      ind.client_person_name?.toLowerCase().includes(term) ||
+      ind.client_phone?.toLowerCase().includes(term) ||
+      phoneMatch ||
+      ind.client_location?.toLowerCase().includes(term) ||
+      ind.base_machine?.toLowerCase().includes(term) ||
+      ind.external_seller_name?.toLowerCase().includes(term) ||
+      ind.internal_seller_name?.toLowerCase().includes(term) ||
+      ind.items?.some(i => i.product_name.toLowerCase().includes(term))
+    );
+  });
 
   return (
     <Layout>
@@ -602,37 +734,58 @@ export default function Triagem() {
           </div>
         </div>
 
-        <div className="flex bg-muted p-1 rounded-xl w-fit mb-6">
-          <Button 
-            variant={statusFilter === 'pending' ? 'default' : 'ghost'} 
-            size="sm" 
-            onClick={() => setStatusFilter('pending')}
-            className="text-xs font-black uppercase rounded-lg px-6"
-          >
-            Aguardando Triagem
-          </Button>
-          <Button 
-            variant={statusFilter === 'negotiating' ? 'default' : 'ghost'} 
-            size="sm" 
-            onClick={() => setStatusFilter('negotiating')}
-            className="text-xs font-black uppercase rounded-lg px-6"
-          >
-            Já Distribuídos (Redistribuir)
-          </Button>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div className="flex bg-muted p-1 rounded-xl w-fit">
+            <Button 
+              variant={statusFilter === 'pending' ? 'default' : 'ghost'} 
+              size="sm" 
+              onClick={() => setStatusFilter('pending')}
+              className="text-xs font-black uppercase rounded-lg px-6"
+            >
+              Aguardando Triagem ({indications.filter(i => i.status !== 'negotiating').length})
+            </Button>
+            <Button 
+              variant={statusFilter === 'negotiating' ? 'default' : 'ghost'} 
+              size="sm" 
+              onClick={() => setStatusFilter('negotiating')}
+              className="text-xs font-black uppercase rounded-lg px-6"
+            >
+              Já Distribuídos (Redistribuir)
+            </Button>
+          </div>
+
+          <div className="relative w-full sm:w-80">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input 
+              placeholder="Buscar por cliente, telefone, cidade, máquina..." 
+              className="pl-9 pr-9 bg-card border-border text-xs h-9"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1 rounded-full hover:bg-muted"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
           {/* Coluna da Esquerda: Leads (3 das 4 colunas no desktop) */}
           <div className="lg:col-span-3 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {indications.length === 0 ? (
+          {filteredIndications.length === 0 ? (
             <Card className="bg-card border-border shadow-sm md:col-span-2 lg:col-span-3">
               <CardContent className="p-12 text-center text-muted-foreground">
-                Nenhum novo lead aguardando triagem.
+                {searchTerm ? 'Nenhum lead encontrado com o termo pesquisado.' : 'Nenhum novo lead aguardando triagem.'}
               </CardContent>
             </Card>
           ) : (
-            indications.map((ind) => (
+            filteredIndications.map((ind) => (
               <Card key={ind.id} className="bg-card border-border shadow-sm flex flex-col justify-between hover:border-primary/40 transition-all text-xs">
                 <div className="p-4 space-y-3 flex-1">
                   {/* Header row: Title and Badges */}
@@ -1067,28 +1220,116 @@ export default function Triagem() {
 
         {/* Duplicate/Integrity Warning Dialog */}
         <Dialog open={!!duplicateAlert} onOpenChange={() => setDuplicateAlert(null)}>
-          <DialogContent className="bg-card border-border text-card-foreground">
+          <DialogContent className="bg-card border-border text-card-foreground max-w-lg">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-red-500">
-                <AlertTriangle className="h-5 w-5" /> ALERTA DE CLIENTE ATIVO
+              <DialogTitle className="flex items-center gap-2 text-red-500 font-black text-base">
+                <AlertTriangle className="h-5 w-5 shrink-0" /> ALERTA DE CLIENTE EM ATENDIMENTO ATIVO
               </DialogTitle>
-              <DialogDescription className="text-muted-foreground">
-                O cliente <strong>{selectedIndication?.client_name}</strong> já possui um orçamento em aberto e está em atendimento com o(a) vendedor(a) <strong>{duplicateAlert?.sellerName}</strong>.
+              <DialogDescription className="text-muted-foreground text-xs">
+                O cliente <strong>{selectedIndication?.client_person_name || selectedIndication?.client_name}</strong> já possui um atendimento em aberto no sistema com o(a) vendedor(a) <strong>{duplicateAlert?.sellerName}</strong>.
               </DialogDescription>
             </DialogHeader>
-            <div className="p-4 rounded-lg bg-muted text-sm space-y-3">
-              <p>Deseja encaminhar esta nova indicação para o(a) mesmo(a) vendedor(a)?</p>
-              <p className="text-[10px] text-muted-foreground italic">* Recomendado para centralizar o atendimento caso seja um novo equipamento para o mesmo cliente.</p>
+
+            {/* Existing Lead Summary Box */}
+            {duplicateAlert?.existingIndication && (
+              <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs space-y-2.5">
+                <div className="flex items-center justify-between pb-2 border-b border-amber-500/20">
+                  <span className="font-extrabold uppercase text-[10px] tracking-wider text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5" />
+                    Resumo do Atendimento Em Aberto
+                  </span>
+                  <span className="text-[10px] font-extrabold text-amber-800 dark:text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/30">
+                    Em Negociação
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-foreground/90">
+                  <div>
+                    <span className="text-[10px] text-muted-foreground font-semibold block uppercase">Data do Pedido</span>
+                    <span className="font-bold">{safeFormatDate(duplicateAlert.existingIndication.created_at)}</span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-muted-foreground font-semibold block uppercase">Vendedor Responsável</span>
+                    <span className="font-bold text-primary">{duplicateAlert.existingIndication.internal_seller_name || duplicateAlert.sellerName}</span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-muted-foreground font-semibold block uppercase">Indicador / Origem</span>
+                    <span className="font-semibold">{duplicateAlert.existingIndication.external_seller_name || 'Sem Indicador / Triage'}</span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-muted-foreground font-semibold block uppercase">Equipamento / Solicitado</span>
+                    <span className="font-semibold truncate block">
+                      {duplicateAlert.existingIndication.base_machine || 
+                       duplicateAlert.existingIndication.items?.map(i => i.product_name).join(', ') || 
+                       'Não especificado'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Direct link button to Business Center */}
+                <div className="pt-1.5 flex justify-end">
+                  <a
+                    href={`/indicacoes?search=${encodeURIComponent(
+                      duplicateAlert.existingIndication.client_phone || 
+                      duplicateAlert.existingIndication.client_person_name || 
+                      duplicateAlert.existingIndication.client_name || ''
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-[11px] font-bold text-primary hover:text-primary/80 bg-background/90 hover:bg-background px-3 py-1.5 rounded-lg border border-border shadow-xs transition-all"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Ver Atendimento na Central de Negócios ↗
+                  </a>
+                </div>
+              </div>
+            )}
+
+            <div className="p-3 rounded-lg bg-muted text-xs space-y-1">
+              <p className="font-semibold text-foreground">Como deseja prosseguir com esta nova solicitação?</p>
+              <p className="text-[10px] text-muted-foreground leading-relaxed">
+                Você pode manter o atendimento centralizado com <strong>{duplicateAlert?.sellerName}</strong>, direcionar para outro vendedor caso seja um equipamento diferente, ou marcar como duplicidade.
+              </p>
             </div>
-            <DialogFooter className="flex flex-col sm:flex-row gap-2">
-              <Button variant="outline" onClick={() => setDuplicateAlert(null)} className="border-border">
+
+            <DialogFooter className="flex flex-col sm:flex-wrap sm:flex-row gap-2 justify-end pt-1">
+              <Button variant="outline" onClick={() => setDuplicateAlert(null)} className="border-border text-xs font-semibold">
                 Avaliar Depois
               </Button>
+
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setDuplicateAlert(null);
+                  setIsDuplicateDialogOpen(true);
+                }}
+                className="border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-500/10 text-xs font-bold gap-1"
+              >
+                <Archive className="h-3.5 w-3.5" />
+                Marcar como Duplicidade
+              </Button>
+
+              <Button 
+                variant="secondary"
+                onClick={() => {
+                  setDuplicateAlert(null);
+                  setIsAssignDialogOpen(true);
+                }} 
+                className="bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 font-bold text-xs border border-amber-500/30 gap-1"
+              >
+                <UserPlus className="h-3.5 w-3.5" />
+                Escolher Outro Vendedor
+              </Button>
+
               <Button 
                 onClick={() => handleAssign(duplicateAlert?.sellerUid, duplicateAlert?.sellerName)} 
-                className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs gap-1"
               >
-                Sim, enviar para {duplicateAlert?.sellerName}
+                <Send className="h-3.5 w-3.5" />
+                Enviar p/ {duplicateAlert?.sellerName}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1158,31 +1399,95 @@ export default function Triagem() {
               </DialogDescription>
             </DialogHeader>
             <div className="py-4">
-              <Label htmlFor="seller" className="mb-2 block">Vendedor Interno</Label>
+              <Label htmlFor="seller" className="mb-2 block font-semibold text-xs uppercase tracking-wider text-muted-foreground">
+                Vendedor Interno Responsável
+              </Label>
               <Select onValueChange={setSelectedSeller} value={selectedSeller}>
-                <SelectTrigger className="bg-background border-border">
-                  <SelectValue placeholder="Selecione um vendedor..." />
+                <SelectTrigger className="bg-background border-border h-11">
+                  <SelectValue placeholder="Selecione o vendedor responsável..." />
                 </SelectTrigger>
-                <SelectContent className="bg-card border-border text-card-foreground">
-                  {internalSellers
-                    .sort((a, b) => {
-                      const names = ['heloisa', 'monali', 'yury'];
-                      const aName = a.name.toLowerCase();
-                      const bName = b.name.toLowerCase();
-                      const aSpecial = names.some(n => aName.includes(n));
-                      const bSpecial = names.some(n => bName.includes(n));
-                      if (aSpecial && !bSpecial) return -1;
-                      if (!aSpecial && bSpecial) return 1;
-                      // Fallback for sorting Monali and Heloisa specifically if needed
-                      if (aName.includes('heloisa') && bName.includes('monali')) return -1;
-                      if (aName.includes('monali') && bName.includes('heloisa')) return 1;
-                      return aName.localeCompare(bName);
-                    })
-                    .map((seller) => (
-                    <SelectItem key={seller.uid} value={seller.uid}>
-                      {seller.name} {seller.is_lead_receiver && "(Preferencial)"}
-                    </SelectItem>
-                  ))}
+                <SelectContent className="bg-card border-border text-card-foreground max-h-80">
+                  {/* Group 1: Active Lead Receivers (Highlighted at Top) */}
+                  {activeLeadReceivers.length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 py-1.5 px-2 flex items-center gap-1.5 bg-emerald-500/10 rounded-md my-1">
+                        <Sparkles className="h-3.5 w-3.5 shrink-0" />
+                        Recebedores de Lead Ativos (Destaque Fila)
+                      </SelectLabel>
+                      {activeLeadReceivers.map((seller) => {
+                        const onVacation = isSellerOnVacation(seller);
+                        return (
+                          <SelectItem 
+                            key={seller.uid} 
+                            value={seller.uid}
+                            className="font-bold text-foreground focus:bg-emerald-500/15 py-2 cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                              <span>{seller.name}</span>
+                              <span className="text-[10px] bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-extrabold px-1.5 py-0.5 rounded border border-emerald-500/30">
+                                Ativo na Fila
+                              </span>
+                              {onVacation && (
+                                <span className="text-[10px] text-amber-600 bg-amber-500/10 px-1.5 py-0.5 rounded">
+                                  (Em Férias)
+                                </span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectGroup>
+                  )}
+
+                  {activeLeadReceivers.length > 0 && otherSellers.length > 0 && (
+                    <SelectSeparator className="my-2 border-border" />
+                  )}
+
+                  {/* Group 2: Other Internal Sellers & Management (Available below) */}
+                  {otherSellers.length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground py-1.5 px-2">
+                        Outros Vendedores / Gerência (Internacional ou Direto)
+                      </SelectLabel>
+                      {otherSellers.map((seller) => {
+                        const onVacation = isSellerOnVacation(seller);
+                        const nameLower = (seller.name || '').toLowerCase();
+                        const isGislene = nameLower.includes('gislene') || seller.role === 'manager';
+                        const isYury = nameLower.includes('yury');
+
+                        let roleTag = '';
+                        if (isGislene) roleTag = 'Gerente Comercial';
+                        else if (isYury) roleTag = 'Vendas Internacionais';
+                        else if (seller.role === 'admin') roleTag = 'Diretoria / Admin';
+
+                        return (
+                          <SelectItem key={seller.uid} value={seller.uid} className="py-2 cursor-pointer">
+                            <div className="flex items-center gap-2">
+                              <span className="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-600 shrink-0" />
+                              <span>{seller.name}</span>
+                              {roleTag && (
+                                <span className="text-[10px] bg-muted text-muted-foreground font-semibold px-1.5 py-0.5 rounded border border-border">
+                                  {roleTag}
+                                </span>
+                              )}
+                              {onVacation && (
+                                <span className="text-[10px] text-amber-600 bg-amber-500/10 px-1.5 py-0.5 rounded">
+                                  (Em Férias)
+                                </span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectGroup>
+                  )}
+
+                  {activeLeadReceivers.length === 0 && otherSellers.length === 0 && (
+                    <div className="p-3 text-xs text-muted-foreground text-center font-medium">
+                      Nenhum vendedor disponível.
+                    </div>
+                  )}
                 </SelectContent>
               </Select>
             </div>

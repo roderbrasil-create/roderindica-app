@@ -1120,10 +1120,23 @@ export default function Indications() {
   }, [activeTab]);
 
   const filteredIndications = indications.filter(ind => {
-    const searchLower = searchTerm.toLowerCase();
-    const matchesSearch = ind.client_name.toLowerCase().includes(searchLower) || 
-                          ind.base_machine.toLowerCase().includes(searchLower) ||
+    const searchLower = searchTerm.toLowerCase().trim();
+    const searchDigits = searchTerm.replace(/\D/g, '');
+
+    const clientPhoneDigits = (ind.client_phone || '').replace(/\D/g, '');
+    const clientPhoneMatch = searchDigits.length >= 3 && clientPhoneDigits.includes(searchDigits);
+
+    const matchesSearch = !searchTerm.trim() || 
+                          ind.client_name?.toLowerCase().includes(searchLower) || 
+                          ind.client_person_name?.toLowerCase().includes(searchLower) ||
+                          ind.client_phone?.toLowerCase().includes(searchLower) ||
+                          clientPhoneMatch ||
+                          ind.client_cnpj?.toLowerCase().includes(searchLower) ||
+                          ind.client_city?.toLowerCase().includes(searchLower) ||
+                          ind.client_state?.toLowerCase().includes(searchLower) ||
+                          ind.internal_seller_name?.toLowerCase().includes(searchLower) ||
                           ind.external_seller_name?.toLowerCase().includes(searchLower) ||
+                          ind.base_machine?.toLowerCase().includes(searchLower) ||
                           ind.items?.some(i => i.product_name.toLowerCase().includes(searchLower));
 
     if (profile?.role === 'financial') {
@@ -1206,10 +1219,19 @@ export default function Indications() {
       const isOwnerByUid = ind.external_seller_uid === profile?.uid;
       const matchesOwner = isOwnerByUid;
       
-      const searchLower = searchTerm.toLowerCase();
-      const matchesSearch = !searchTerm || 
-                            ind.client_name.toLowerCase().includes(searchLower) || 
-                            ind.base_machine.toLowerCase().includes(searchLower) ||
+      const searchLower = searchTerm.toLowerCase().trim();
+      const searchDigits = searchTerm.replace(/\D/g, '');
+      const clientPhoneDigits = (ind.client_phone || '').replace(/\D/g, '');
+      const clientPhoneMatch = searchDigits.length >= 3 && clientPhoneDigits.includes(searchDigits);
+
+      const matchesSearch = !searchTerm.trim() || 
+                            ind.client_name?.toLowerCase().includes(searchLower) || 
+                            ind.client_person_name?.toLowerCase().includes(searchLower) ||
+                            ind.client_phone?.toLowerCase().includes(searchLower) ||
+                            clientPhoneMatch ||
+                            ind.client_cnpj?.toLowerCase().includes(searchLower) ||
+                            ind.client_city?.toLowerCase().includes(searchLower) ||
+                            ind.base_machine?.toLowerCase().includes(searchLower) ||
                             ind.items?.some(i => i.product_name.toLowerCase().includes(searchLower));
 
       const matchesStatus = statusFilter === 'all' || 
@@ -1277,7 +1299,7 @@ export default function Indications() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input 
                 id="financial-search-input"
-                placeholder="Buscar por cliente, máquina ou indicador..." 
+                placeholder="Buscar por cliente, telefone, cidade, máquina, vendedor ou indicador..." 
                 className="pl-10 pr-10 bg-card border-border text-xs"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -1646,7 +1668,7 @@ export default function Indications() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input 
-              placeholder="Buscar por cliente, máquina ou indicador..." 
+              placeholder="Buscar por cliente, telefone, cidade, máquina, vendedor ou indicador..." 
               className="pl-10 pr-10 bg-card border-border"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
