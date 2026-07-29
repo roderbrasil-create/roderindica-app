@@ -1132,8 +1132,8 @@ export default function Indications() {
                           ind.client_phone?.toLowerCase().includes(searchLower) ||
                           clientPhoneMatch ||
                           ind.client_cnpj?.toLowerCase().includes(searchLower) ||
-                          ind.client_city?.toLowerCase().includes(searchLower) ||
-                          ind.client_state?.toLowerCase().includes(searchLower) ||
+                          (ind as any).client_city?.toLowerCase().includes(searchLower) ||
+                          (ind as any).client_state?.toLowerCase().includes(searchLower) ||
                           ind.internal_seller_name?.toLowerCase().includes(searchLower) ||
                           ind.external_seller_name?.toLowerCase().includes(searchLower) ||
                           ind.base_machine?.toLowerCase().includes(searchLower) ||
@@ -1230,7 +1230,7 @@ export default function Indications() {
                             ind.client_phone?.toLowerCase().includes(searchLower) ||
                             clientPhoneMatch ||
                             ind.client_cnpj?.toLowerCase().includes(searchLower) ||
-                            ind.client_city?.toLowerCase().includes(searchLower) ||
+                            (ind as any).client_city?.toLowerCase().includes(searchLower) ||
                             ind.base_machine?.toLowerCase().includes(searchLower) ||
                             ind.items?.some(i => i.product_name.toLowerCase().includes(searchLower));
 

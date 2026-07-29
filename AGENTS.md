@@ -93,4 +93,39 @@
       - Picador Até 1.000 cv: Garra **R600**.
     - A máquina base estabelece a compatibilidade da instalação (limite de peso/força), enquanto o picador define a capacidade e fluxo de alimentação necessários, alcançando a melhor performance e produtividade.
 
+- **Parâmetros Técnicos de Produtividade em Traçamento de Madeira (MÉDIAS DE CAMPO RODER)**:
+  - **Fatores Físicos e Operacionais de Variação**:
+    - **Habilidade e Agilidade do Operador**: Operadores mais experientes e ágeis obtêm ciclos significativamente mais rápidos.
+    - **Qualidade e Conservação do Conjunto de Corte**: Sabre e corrente novos/bem afiados garantem a máxima velocidade de corte e vazão de m³/h; componentes abaixo de meia-vida reduzem a eficiência de corte.
+    - **Eficiência Operacional Padrão**: Considerar SEMPRE **80% de eficiência** (em 1 turno de 10h/dia = 8,0h efetivas de trabalho útil x 22 dias = 176h/mês).
+  - **Cabeçotes Multifuncionais (Área ~0.40 m² - CMF 500 / CMF 600)**:
+    - 2,20m ("Metrão"): **40 a 50 m³/h**
+    - 3,00m: **60 a 80 m³/h**
+    - 6,00m (Toras Longas): **80 a 110+ m³/h**
+    - 1,10m ("Metrinho"): **25 a 35 m³/h**
+  - **Garra Traçadora GT 600 (Área de garra = 0.60 m²)**:
+    - 2,20m ("Metrão"): **50 a 90 m³/h**
+    - 3,00m: **70 a 100 m³/h**
+    - 3,60m (Caso Real de Cliente): **~68 m³/h úteis** contínuos (atinge **12.000 m³/mês** operando 10h/dia com 80% de eficiência = 176h úteis/mês).
+    - 6,00m: **100 a 140+ m³/h**
+    - 1,10m ("Metrinho"): **30 a 45 m³/h**
+  - **Garra Traçadora GT 800 X (Área de garra = 0.80 m²)**:
+    - 3,00m de comprimento: **80 a 110 m³/h**
+    - 2,20m ("Metrão"): **65 a 95 m³/h**
+    - 6,00m: **120 a 160+ m³/h**
+    - 1,10m ("Metrinho"): **35 a 55 m³/h**
+  - **Garra Traçadora GT 1000 X (Área de garra = 1.00 m²)**:
+    - 2,20m ("Metrão"): **110 a 130 m³/h**
+    - 3,00m: **130 a 160 m³/h**
+    - 6,00m: **160 a 220+ m³/h**
+    - 1,10m ("Metrinho"): **60 a 80 m³/h**
+  - **Regra de Exibição das Tabelas nos Relatórios**:
+    - **Sem Comprimento Informado**: Sempre apresentar nas tabelas os **4 comprimentos padrão**:
+      1) **1,00m a 1,10m ("Metrinho")**
+      2) **2,20m ("Metrão")**
+      3) **3,00m (Padrão)**
+      4) **6,00m (Toras Longas)**
+    - **Com Comprimento Informado**: Se o usuário fornecer um comprimento exato (ex: 3,60m, 2,50m), calcular a estimativa diretamente para aquele valor.
+    - **Pergunta Consultiva de Fechamento**: No final do relatório ou resposta, perguntar SEMPRE se as informações ajudaram ou se o usuário deseja informar o comprimento exato de traçamento do cliente para recalcular com máxima precisão os m³/h e m³/mês, mencionando que os valores variam segundo a habilidade do operador e estado do conjunto de corte.
+
 

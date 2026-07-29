@@ -90,6 +90,7 @@ import { EngateRapidoFicha } from '../components/catalog/EngateRapidoFicha';
 import { GarraEstufagemFicha } from '../components/catalog/GarraEstufagemFicha';
 import { CabecotePodaFicha } from '../components/catalog/CabecotePodaFicha';
 import { CabecoteGmt035Ficha } from '../components/catalog/CabecoteGmt035Ficha';
+import { SacadorSac500Ficha } from '../components/catalog/SacadorSac500Ficha';
 import { EstudosComparativosModal } from '../components/catalog/EstudosComparativosModal';
 import { RODER_LOGO_BASE64 } from '../components/catalog/RoderLogo';
 
@@ -304,10 +305,7 @@ const isHighTipProduct = (nameOrUrl?: string) => {
 const isFresaProduct = (nameOrUrl?: string) => {
   if (!nameOrUrl) return false;
   const lower = nameOrUrl.toLowerCase();
-  return lower.includes('fresa') || 
-         lower.includes('ssh') || 
-         lower.includes('trituradora') ||
-         lower.includes('triturador');
+  return lower.includes('fresa') || lower.includes('ssh');
 };
 
 const isLoaderTrituradorProduct = (nameOrUrl?: string) => {
@@ -344,6 +342,18 @@ const isCabecotePodaProduct = (nameOrUrl?: string) => {
   return lower.includes('gp 150') || 
          lower.includes('gp150') || 
          (lower.includes('poda') && (lower.includes('cabeçote') || lower.includes('cabecote') || lower.includes('garra') || lower.includes('gp')));
+};
+
+const DEFAULT_FAE_SPECS: Record<string, any> = {
+  'fae-bl0-ex': { peso_do_equipamento: '290 a 325 kg', maquina_base: '2 a 4 Ton.', pressao: '180 a 250 bar', vazao: '50 a 90 L/min', diametro_max_trituracao: '80 mm (8 cm)', tipo_dente: 'Mini BL (Bite Limiter) / Lâmina ou Martelo Vídea (Fixo)' },
+  'fae-pml-ex': { peso_do_equipamento: '190 a 210 kg', maquina_base: '1.5 a 5.5 Ton.', pressao: '150 a 220 bar', vazao: '20 a 90 L/min', diametro_max_trituracao: '50 mm (5 cm)', tipo_dente: 'Mini PML Lâminas Y ou Martelos PML' },
+  'fae-bl1-ex-vt': { peso_do_equipamento: '350 a 410 kg', maquina_base: '4 a 8 Ton.', pressao: '180 a 350 bar', vazao: '50 a 140 L/min', diametro_max_trituracao: '120 mm (12 cm)', tipo_dente: 'Mini BL (Bite Limiter) dentes fixos planos com Vídea' },
+  'fae-dml-hy': { peso_do_equipamento: '490 a 590 kg', maquina_base: '5 a 13 Ton.', pressao: '200 a 350 bar', vazao: '50 a 160 L/min', diametro_max_trituracao: '120 mm (12 cm)', tipo_dente: 'Dentes cilíndricos tipo E com Vídea' },
+  'fae-bl2-ex-vt': { peso_do_equipamento: '645 a 750 kg', maquina_base: '8 a 14 Ton.', pressao: '200 a 350 bar', vazao: '80 a 150 L/min', diametro_max_trituracao: '150 mm (15 cm)', tipo_dente: 'Dentes fixos planos de Vídea com tecnologia Bite Limiter' },
+  'fae-bl3-ex-vt': { peso_do_equipamento: '1050 a 1250 kg', maquina_base: '14 a 20 Ton.', pressao: '220 a 350 bar', vazao: '100 a 200 L/min', diametro_max_trituracao: '200 mm (20 cm)', tipo_dente: 'Dentes fixos BL3 de Vídea tipo plano com limitador' },
+  'fae-uml-ex-vt': { peso_do_equipamento: '1100 a 1350 kg', maquina_base: '14 a 20 Ton.', pressao: '220 a 350 bar', vazao: '110 a 220 L/min', diametro_max_trituracao: '200 mm (20 cm)', tipo_dente: 'Dentes C/3/HD planos com Vídea' },
+  'fae-uml-s-ex-vt': { peso_do_equipamento: '1350 a 1600 kg', maquina_base: '18 a 25 Ton.', pressao: '220 a 350 bar', vazao: '120 a 250 L/min', diametro_max_trituracao: '250 mm (25 cm)', tipo_dente: 'Dentes fixos de Vídea tipo C/3/HD ou dentes planos F' },
+  'fae-umm-ex-vt': { peso_do_equipamento: '1700 a 1950 kg', maquina_base: '20 a 30 Ton.', pressao: '220 a 350 bar', vazao: '150 a 300 L/min', diametro_max_trituracao: '300 mm (30 cm)', tipo_dente: 'Dentes fixos reforçados tipo UMM/HD com Vídea' }
 };
 
 const isAnyFichaSupported = (product: any) => {
@@ -766,6 +776,7 @@ export default function Catalog() {
   const [isGarraEstufagemFichaOpen, setIsGarraEstufagemFichaOpen] = useState(false);
   const [isCabecotePodaFichaOpen, setIsCabecotePodaFichaOpen] = useState(false);
   const [isCabecoteGmt035FichaOpen, setIsCabecoteGmt035FichaOpen] = useState(false);
+  const [isSacadorSac500FichaOpen, setIsSacadorSac500FichaOpen] = useState(false);
   const [isEstudosComparativosOpen, setIsEstudosComparativosOpen] = useState(false);
   const [garraEstufagemDefaultModel, setGarraEstufagemDefaultModel] = useState<string>('af-360');
   const [suspendedProductModels, setSuspendedProductModels] = useState<Product | null>(null);
@@ -3826,6 +3837,35 @@ export default function Catalog() {
       contextId: productContext?.id 
     });
 
+    const isSacadorProduct = (str?: string) => {
+      if (!str) return false;
+      const s = str.toLowerCase();
+      return s.includes('sac-500') || s.includes('sac500') || s.includes('sacador');
+    };
+
+    const isSacador = isSacadorProduct(lowerUrl) || 
+                      isSacadorProduct(lowerModelName) || 
+                      isSacadorProduct(lowerViewingName) || 
+                      isSacadorProduct(lowerSelectedName) ||
+                      isSacadorProduct(lowerContextName) ||
+                      isSacadorProduct(lowerContextCategory) ||
+                      isSacadorProduct(lowerContextDesc) ||
+                      isSacadorProduct(lowerContextPdfUrl) ||
+                      !!(productContext?.id && (productContext.id.toLowerCase().includes('sac-500') || productContext.id.toLowerCase().includes('sacador')));
+
+    if (isSacador) {
+      if (selectedProductModels) {
+        setSuspendedProductModels(selectedProductModels);
+        setSelectedProductModels(null);
+      }
+      if (viewingGallery) {
+        setSuspendedViewingGallery(viewingGallery);
+        setViewingGallery(null);
+      }
+      setIsSacadorSac500FichaOpen(true);
+      return;
+    }
+
     if (isCabecoteGmt) {
       if (selectedProductModels) {
         setSuspendedProductModels(selectedProductModels);
@@ -4663,7 +4703,10 @@ export default function Catalog() {
 
                   {/* Specs Grid - Bento Style boxes with Units */}
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1 md:gap-2.5 mb-1.5 md:mb-4">
-                    {Object.entries(model.technical_specs || {})
+                    {Object.entries({
+                      ...(DEFAULT_FAE_SPECS[model.id] || {}),
+                      ...(model.technical_specs || {})
+                    })
                       .filter(([key, value]) => {
                         if (viewingGallery?.name === 'Mini Skidder') {
                           const excluded = ['diametro_corte', 'sabre', 'corrente', 'motor', 'peso_operacional'];
@@ -4673,27 +4716,31 @@ export default function Catalog() {
                       })
                       .sort(([a], [b]) => {
                         const order = [
-                          'maquina_base', 'instalacao_hidraulica', 'acionamento', 'tempo_de_ciclo', 'compatibilidade', 'seguranca', 'peso_operacional', 'giro_360',
-                          'diametro_max_corte', 'diametro_corte', 'peso', 'peso_do_equipamento', 
+                          'maquina_base', 'peso_do_equipamento', 'peso', 'peso_operacional',
+                          'diametro_max_trituracao', 'diametro_max_de_trituracao_mm', 'diametro_max_corte', 'diametro_corte',
+                          'pressao', 'pressao_trabalho', 'vazao', 'vazão',
+                          'instalacao_hidraulica', 'acionamento', 'tempo_de_ciclo', 'compatibilidade', 'seguranca', 'giro_360',
                           'n_facas', 'acumulador', 'area_carga', 'area_da_garra', 
                           'abertura_maxima', 'diametro_minimo', 'carregadeira',
-                          'escavadeira', 'pressao', 'pressao_trabalho', 'potencia_do_trator', 
+                          'escavadeira', 'potencia_do_trator', 
                           'capacidade_de_carga', 'capacidade_carga',
-                          'altura_total', 'largura_total', 'comprimento_util_garfo'
+                          'altura_total', 'largura_total', 'comprimento_util_garfo',
+                          'dimensoes', 'capacidade_diametro', 'tipo_dente', 'tipo_material'
                         ];
                         const idxA = order.indexOf(a.toLowerCase());
                         const idxB = order.indexOf(b.toLowerCase());
                         if (idxA !== -1 && idxB !== -1) return idxA - idxB;
                         return (idxA !== -1 ? -1 : (idxB !== -1 ? 1 : a.localeCompare(b)));
                       })
-                      .slice(0, 9)
+                      .slice(0, 12)
                       .map(([key, value]: any) => {
                         // Helper to format units
                         let displayValue = String(value);
                         const k = key.toLowerCase();
-                        if ((k.includes('peso') || k.includes('capacidade')) && !k.includes('operacional') && !displayValue.toLowerCase().includes('kg') && !displayValue.toLowerCase().includes('ton')) displayValue += ' kg';
-                        if ((k.includes('medida') || k.includes('abertura') || k.includes('diametro') || k.includes('altura') || k.includes('largura') || k.includes('comprimento')) && !displayValue.toLowerCase().includes('mm')) displayValue += ' mm';
+                        if ((k.includes('peso') || k.includes('capacidade')) && !k.includes('operacional') && !k.includes('diametro') && !displayValue.toLowerCase().includes('kg') && !displayValue.toLowerCase().includes('ton') && !displayValue.toLowerCase().includes('cm')) displayValue += ' kg';
+                        if ((k.includes('medida') || k.includes('abertura') || (k.includes('diametro') && !k.includes('capacidade')) || k.includes('altura') || k.includes('largura') || k.includes('comprimento')) && !k.includes('dimensoes') && !displayValue.toLowerCase().includes('mm') && !displayValue.toLowerCase().includes('cm')) displayValue += ' mm';
                         if ((k.includes('pressao') || k.includes('pressão')) && !displayValue.toLowerCase().includes('bar')) displayValue += ' bar';
+                        if ((k.includes('vazao') || k.includes('vazão')) && !displayValue.toLowerCase().includes('l/min') && !displayValue.toLowerCase().includes('lmin')) displayValue += ' L/min';
                         
                         const kMapping = key.toLowerCase();
                         const specLabels: Record<string, string> = {
@@ -4716,6 +4763,8 @@ export default function Catalog() {
                           carregadeira: 'Carregadeira',
                           escavadeira: 'Escavadeira',
                           pressao: 'Pressão',
+                          vazao: 'Vazão',
+                          vazão: 'Vazão',
                           peso_operacional: 'Peso Operacional(T)',
                           giro_360: 'Giro 360º ilimitado',
                           diametro_max_carga: 'Ø Máx. Carga',
@@ -4734,11 +4783,15 @@ export default function Catalog() {
                           numero_de_dentes: 'Número de Dentes',
                           altura_total: 'Altura Total',
                           largura_total: 'Largura Total',
-                          comprimento_util_garfo: 'Comprimento Útil do Garfo'
+                          comprimento_util_garfo: 'Comprimento Útil do Garfo',
+                          dimensoes: 'Dimensões Físicas',
+                          capacidade_diametro: 'Capacidade Máx. Diâmetro'
                         };
                         const label = specLabels[kMapping] || key.replace(/_/g, ' ');
                         const isGiro360 = kMapping === 'giro_360';
                         const isTipoMaterial = kMapping === 'tipo_material';
+                        const isDimensoes = kMapping === 'dimensoes';
+                        const isCapacidadeDiametro = kMapping === 'capacidade_diametro';
 
                         return (
                             <div key={key} className={cn(
@@ -4746,7 +4799,7 @@ export default function Catalog() {
                               isGiro360 
                                 ? "bg-orange-500/10 border-orange-500/30 shadow-orange-500/10" 
                                 : "bg-slate-50/80 border-slate-200",
-                              isTipoMaterial && "col-span-2 md:col-span-3 lg:col-span-4"
+                              (isTipoMaterial || isDimensoes || isCapacidadeDiametro) && "col-span-2 md:col-span-2"
                             )}>
                               <p className={cn(
                                 "!text-[6px] md:!text-[10px] font-bold uppercase leading-none mb-0.5 truncate italic",
@@ -4756,7 +4809,9 @@ export default function Catalog() {
                               </p>
                               <p className={cn(
                                 "!text-[9px] md:!text-[13px] font-bold",
-                                isTipoMaterial ? "whitespace-normal break-words leading-tight" : "truncate leading-none",
+                                (isTipoMaterial || isDimensoes || isCapacidadeDiametro) 
+                                  ? "whitespace-normal break-words leading-tight !text-[8px] md:!text-[10.5px]" 
+                                  : "truncate leading-none",
                                 isGiro360 ? "text-orange-600" : "text-primary"
                               )}>
                                 {displayValue}
@@ -5577,6 +5632,18 @@ export default function Catalog() {
                             <div className="p-3 rounded-xl border border-border bg-muted/20 shadow-sm hover:border-primary/30 transition-colors col-span-2">
                               <p className="text-[10px] text-muted-foreground uppercase font-black tracking-wider mb-1">Tipo de Material</p>
                               <p className="text-xs font-black text-primary leading-relaxed break-words whitespace-normal">{selectedModel.technical_specs.tipo_material}</p>
+                            </div>
+                          )}
+                          {selectedModel.technical_specs.dimensoes && (
+                            <div className="p-3 rounded-xl border border-border bg-muted/20 shadow-sm hover:border-primary/30 transition-colors col-span-2">
+                              <p className="text-[10px] text-muted-foreground uppercase font-black tracking-wider mb-1">Dimensões Físicas</p>
+                              <p className="text-xs font-black text-primary leading-tight break-words whitespace-normal">{selectedModel.technical_specs.dimensoes}</p>
+                            </div>
+                          )}
+                          {selectedModel.technical_specs.capacidade_diametro && (
+                            <div className="p-3 rounded-xl border border-border bg-muted/20 shadow-sm hover:border-primary/30 transition-colors col-span-2">
+                              <p className="text-[10px] text-muted-foreground uppercase font-black tracking-wider mb-1">Capacidade Máx. de Diâmetro</p>
+                              <p className="text-xs font-black text-primary leading-tight break-words whitespace-normal">{selectedModel.technical_specs.capacidade_diametro}</p>
                             </div>
                           )}
                         </div>
@@ -6561,6 +6628,30 @@ export default function Catalog() {
                         })}
                       />
                     </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase">Dimensões Físicas</Label>
+                      <Input 
+                        className="h-9 text-xs"
+                        placeholder="Ex: 1.904 mm x 1.600 mm x 1.555 mm"
+                        value={editingModelData.technical_specs?.dimensoes || ''} 
+                        onChange={(e) => setEditingModelData({ 
+                          ...editingModelData, 
+                          technical_specs: { ...editingModelData.technical_specs, dimensoes: e.target.value } 
+                        })}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase">Capacidade Máx. Diâmetro</Label>
+                      <Input 
+                        className="h-9 text-xs"
+                        placeholder="Ex: Até 45 cm (Seringueira) | 12 a 35 cm (Eucalipto)"
+                        value={editingModelData.technical_specs?.capacidade_diametro || ''} 
+                        onChange={(e) => setEditingModelData({ 
+                          ...editingModelData, 
+                          technical_specs: { ...editingModelData.technical_specs, capacidade_diametro: e.target.value } 
+                        })}
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -6921,6 +7012,22 @@ export default function Catalog() {
           <CabecoteGmt035Ficha 
             onClose={() => {
               setIsCabecoteGmt035FichaOpen(false);
+              if (suspendedProductModels) {
+                setSelectedProductModels(suspendedProductModels);
+                setSuspendedProductModels(null);
+              }
+              if (suspendedViewingGallery) {
+                setViewingGallery(suspendedViewingGallery);
+                setSuspendedViewingGallery(null);
+              }
+            }} 
+          />
+        )}
+
+        {isSacadorSac500FichaOpen && (
+          <SacadorSac500Ficha 
+            onClose={() => {
+              setIsSacadorSac500FichaOpen(false);
               if (suspendedProductModels) {
                 setSelectedProductModels(suspendedProductModels);
                 setSuspendedProductModels(null);

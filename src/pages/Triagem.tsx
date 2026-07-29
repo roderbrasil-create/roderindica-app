@@ -431,12 +431,13 @@ export default function Triagem() {
       fetch('/api/agendor/sync-indication', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ indicationId: selectedIndication.id })
+        body: JSON.stringify({ indicationId: selectedIndication.id, forceSyncDeal: true })
       })
       .then(res => res.json())
       .then(data => {
         if (data.success) {
           console.log('[AGENDOR-AUTO-SYNC] Sincronizado com Agendor:', data);
+          toast.success('Lead encaminhado e sincronizado no CRM Agendor com sucesso!');
         } else {
           console.warn('[AGENDOR-AUTO-SYNC] Falha ao sincronizar:', data.error);
         }

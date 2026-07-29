@@ -1,4 +1,4 @@
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, addDoc, collection } from 'firebase/firestore';
 
 export async function runSelfHealing(data: any[], db: any) {
   try {
@@ -145,22 +145,51 @@ export async function runSelfHealing(data: any[], db: any) {
     }
 
     // 8. DESBASTADOR FLORESTAL FAE (ID: npECpZNNE9CGENLjGwSP)
-    const desbastadorDoc = data.find(p => p.id === 'npECpZNNE9CGENLjGwSP' || p.name === 'Desbastador Florestal FAE para Escavadeiras e Retroescavadeira');
+    const desbastadorDoc = data.find(p => p.id === 'npECpZNNE9CGENLjGwSP' || p.name === 'Desbastador Florestal FAE para Escavadeiras e Retroescavadeira' || p.name?.toLowerCase().includes('desbastador florestal fae'));
     if (desbastadorDoc && desbastadorDoc.models) {
       const bl0Model = desbastadorDoc.models.find((m: any) => m.id === 'fae-bl0-ex');
-      if (bl0Model && (!bl0Model.images || !bl0Model.images.some((img: string) => img.startsWith('db-file://')))) {
-        console.log('[Healing] Restoring Desbastador Florestal FAE images...');
+      const needsSpecsHealing = desbastadorDoc.models.some((m: any) => !m.technical_specs || !m.technical_specs.peso_do_equipamento || !m.technical_specs.diametro_max_trituracao);
+      const needsImagesHealing = bl0Model && (!bl0Model.images || !bl0Model.images.some((img: string) => img.startsWith('db-file://')));
+
+      if (needsSpecsHealing || needsImagesHealing) {
+        console.log('[Healing] Restoring Desbastador Florestal FAE technical_specs & images...');
+        const defaultFaeSpecs: Record<string, any> = {
+          'fae-bl0-ex': { peso_do_equipamento: '290 a 325 kg', maquina_base: '2 a 4 Ton.', pressao: '180 a 250 bar', vazao: '50 a 90 L/min', diametro_max_trituracao: '80 mm (8 cm)', tipo_dente: 'Mini BL (Bite Limiter) / Lâmina ou Martelo Vídea (Fixo)' },
+          'fae-pml-ex': { peso_do_equipamento: '190 a 210 kg', maquina_base: '1.5 a 5.5 Ton.', pressao: '150 a 220 bar', vazao: '20 a 90 L/min', diametro_max_trituracao: '50 mm (5 cm)', tipo_dente: 'Mini PML Lâminas Y ou Martelos PML' },
+          'fae-bl1-ex-vt': { peso_do_equipamento: '350 a 410 kg', maquina_base: '4 a 8 Ton.', pressao: '180 a 350 bar', vazao: '50 a 140 L/min', diametro_max_trituracao: '120 mm (12 cm)', tipo_dente: 'Mini BL (Bite Limiter) dentes fixos planos com Vídea' },
+          'fae-dml-hy': { peso_do_equipamento: '490 a 590 kg', maquina_base: '5 a 13 Ton.', pressao: '200 a 350 bar', vazao: '50 a 160 L/min', diametro_max_trituracao: '120 mm (12 cm)', tipo_dente: 'Dentes cilíndricos tipo E com Vídea' },
+          'fae-bl2-ex-vt': { peso_do_equipamento: '645 a 750 kg', maquina_base: '8 a 14 Ton.', pressao: '200 a 350 bar', vazao: '80 a 150 L/min', diametro_max_trituracao: '150 mm (15 cm)', tipo_dente: 'Dentes fixos planos de Vídea com tecnologia Bite Limiter' },
+          'fae-bl3-ex-vt': { peso_do_equipamento: '1050 a 1250 kg', maquina_base: '14 a 20 Ton.', pressao: '220 a 350 bar', vazao: '100 a 200 L/min', diametro_max_trituracao: '200 mm (20 cm)', tipo_dente: 'Dentes fixos BL3 de Vídea tipo plano com limitador' },
+          'fae-uml-ex-vt': { peso_do_equipamento: '1100 a 1350 kg', maquina_base: '14 a 20 Ton.', pressao: '220 a 350 bar', vazao: '110 a 220 L/min', diametro_max_trituracao: '200 mm (20 cm)', tipo_dente: 'Dentes C/3/HD planos com Vídea' },
+          'fae-uml-s-ex-vt': { peso_do_equipamento: '1350 a 1600 kg', maquina_base: '18 a 25 Ton.', pressao: '220 a 350 bar', vazao: '120 a 250 L/min', diametro_max_trituracao: '250 mm (25 cm)', tipo_dente: 'Dentes fixos de Vídea tipo C/3/HD ou dentes planos F' },
+          'fae-umm-ex-vt': { peso_do_equipamento: '1700 a 1950 kg', maquina_base: '20 a 30 Ton.', pressao: '220 a 350 bar', vazao: '150 a 300 L/min', diametro_max_trituracao: '300 mm (30 cm)', tipo_dente: 'Dentes fixos reforçados tipo UMM/HD com Vídea' }
+        };
+
         const updatedModels = desbastadorDoc.models.map((m: any) => {
-          if (m.id === 'fae-bl0-ex') return { ...m, images: ['db-file://tpaBKAFko6LXkBTbjYBr', 'db-file://YyvWLpsskmBHVznLiSSC', 'db-file://eavAWBFBYBssN8fmaCCd'] };
-          if (m.id === 'fae-pml-ex') return { ...m, images: ['db-file://o250muUq0PnA7fQR5nCR', 'db-file://QsxxAqUDFJRo40oMtXpt', 'db-file://uigCh3oqg876krXWU0qa'] };
-          if (m.id === 'fae-bl1-ex-vt') return { ...m, images: ['db-file://KxCghJ5QsKPTfZaoAR7R', 'db-file://4y38tfNrliO7S3VXj9nT', 'db-file://sS0Iavw9T0X4n0GDW4az', 'db-file://65MBZrx9KoO7oJ947rgS'] };
-          if (m.id === 'fae-dml-hy') return { ...m, images: ['db-file://8h8pALZN9iG5fd4Q9Snb', 'db-file://mhymO2tQOxcvGSqUS4h4', 'db-file://ohgeHtitPErHqIgDMHI7'] };
-          if (m.id === 'fae-bl2-ex-vt') return { ...m, images: ['db-file://US9zYchyK8uPhI2ymmd0', 'db-file://hM1qTk09k1O977KpPSSV'] };
-          if (m.id === 'fae-bl3-ex-vt') return { ...m, images: ['db-file://8tiM6rH16NMur1q4xqOv', 'db-file://jw4WyK6lEiyBgjIYErPd', 'db-file://2Cj5FikMsYfxGC7kObpG'] };
-          if (m.id === 'fae-uml-ex-vt') return { ...m, images: ['db-file://xH5C0o7qHCXgbPllI8hv', 'db-file://qtpHqn2BHOj2zaCRycbm', 'db-file://dxqB2PrQ4wcl6eUie2Zp', 'db-file://GuwOnI3DutvvG4fZn1h5', 'db-file://L8gy9gjs9CSUcIf2M6mA', 'db-file://Dwtp2CuoZNYB5bBIUzG4'] };
-          if (m.id === 'fae-uml-s-ex-vt') return { ...m, images: ['db-file://YMeLIo2amVNuUgto0c3G', 'db-file://rorAafjsU30y9P9W2g9o', 'db-file://EueQzUxvKuDIiEwQmdpK'] };
-          if (m.id === 'fae-umm-ex-vt') return { ...m, images: ['db-file://SLdlo717yZP2smStzcnJ', 'db-file://En5ZqIOVmzb1uoBm9JCn', 'db-file://tvABksEedUjzZdNWqzcr'] };
-          return m;
+          const specFallback = defaultFaeSpecs[m.id] || {};
+          const mergedSpecs = { ...specFallback, ...(m.technical_specs || {}) };
+          // Ensure peso_do_equipamento and diametro_max_trituracao are present
+          if (specFallback.peso_do_equipamento && !m.technical_specs?.peso_do_equipamento) {
+            mergedSpecs.peso_do_equipamento = specFallback.peso_do_equipamento;
+          }
+          if (specFallback.diametro_max_trituracao && !m.technical_specs?.diametro_max_trituracao) {
+            mergedSpecs.diametro_max_trituracao = specFallback.diametro_max_trituracao;
+          }
+
+          let newImages = m.images;
+          if (needsImagesHealing) {
+            if (m.id === 'fae-bl0-ex') newImages = ['db-file://tpaBKAFko6LXkBTbjYBr', 'db-file://YyvWLpsskmBHVznLiSSC', 'db-file://eavAWBFBYBssN8fmaCCd'];
+            if (m.id === 'fae-pml-ex') newImages = ['db-file://o250muUq0PnA7fQR5nCR', 'db-file://QsxxAqUDFJRo40oMtXpt', 'db-file://uigCh3oqg876krXWU0qa'];
+            if (m.id === 'fae-bl1-ex-vt') newImages = ['db-file://KxCghJ5QsKPTfZaoAR7R', 'db-file://4y38tfNrliO7S3VXj9nT', 'db-file://sS0Iavw9T0X4n0GDW4az', 'db-file://65MBZrx9KoO7oJ947rgS'];
+            if (m.id === 'fae-dml-hy') newImages = ['db-file://8h8pALZN9iG5fd4Q9Snb', 'db-file://mhymO2tQOxcvGSqUS4h4', 'db-file://ohgeHtitPErHqIgDMHI7'];
+            if (m.id === 'fae-bl2-ex-vt') newImages = ['db-file://US9zYchyK8uPhI2ymmd0', 'db-file://hM1qTk09k1O977KpPSSV'];
+            if (m.id === 'fae-bl3-ex-vt') newImages = ['db-file://8tiM6rH16NMur1q4xqOv', 'db-file://jw4WyK6lEiyBgjIYErPd', 'db-file://2Cj5FikMsYfxGC7kObpG'];
+            if (m.id === 'fae-uml-ex-vt') newImages = ['db-file://xH5C0o7qHCXgbPllI8hv', 'db-file://qtpHqn2BHOj2zaCRycbm', 'db-file://dxqB2PrQ4wcl6eUie2Zp', 'db-file://GuwOnI3DutvvG4fZn1h5', 'db-file://L8gy9gjs9CSUcIf2M6mA', 'db-file://Dwtp2CuoZNYB5bBIUzG4'];
+            if (m.id === 'fae-uml-s-ex-vt') newImages = ['db-file://YMeLIo2amVNuUgto0c3G', 'db-file://rorAafjsU30y9P9W2g9o', 'db-file://EueQzUxvKuDIiEwQmdpK'];
+            if (m.id === 'fae-umm-ex-vt') newImages = ['db-file://SLdlo717yZP2smStzcnJ', 'db-file://En5ZqIOVmzb1uoBm9JCn', 'db-file://tvABksEedUjzZdNWqzcr'];
+          }
+
+          return { ...m, images: newImages, technical_specs: mergedSpecs };
         });
         await updateDoc(doc(db, 'products', desbastadorDoc.id), { models: updatedModels });
       }
@@ -258,6 +287,45 @@ export async function runSelfHealing(data: any[], db: any) {
         ];
         await updateDoc(doc(db, 'products', fresaSshDoc.id), { models: updatedModels });
       }
+    }
+
+    // 9. SACADOR DE ÁRVORES SAC 500
+    const sacadorDoc = data.find(p => 
+      p.name?.toLowerCase().includes('sacador') || 
+      p.models?.some((m: any) => m.id === 'sac-500' || m.name?.toLowerCase().includes('sac 500'))
+    );
+
+    if (!sacadorDoc && db) {
+      console.log('[Healing] Seeding Sacador de Árvores SAC 500 product...');
+      const sacadorData = {
+        name: 'Sacador de Árvores SAC 500',
+        category: 'Equipamentos Florestais',
+        description: 'O Sacador Florestal SAC 500 Roder/Ibiguarim é o equipamento desenvolvido para extração completa de árvores inteiras com toco e sistema radicular (raízes). Equipado com 2 cilindros hidráulicos pesados, sapata de apoio e duas placas frontais intercambiáveis (Placa Dentada para seringueira/teca e Placa em V para eucalipto), garante limpeza total do solo para preparo agrícola ou florestal com alta produtividade.',
+        image_url: '',
+        video_url: 'https://youtu.be/KzvgjsCeRf0?si=9l9Wf29rVg9NQ7db',
+        pdf_url: 'sacador-sac-500',
+        is_blocked: false,
+        created_at: new Date().toISOString(),
+        models: [
+          {
+            id: 'sac-500',
+            name: 'SAC 500',
+            base_value: 0,
+            images: [],
+            technical_specs: {
+              maquina_base: 'Escavadeira de 20 a 30 t',
+              peso: '1.850 kg (~2.160 kg)',
+              dimensoes: '1.904 mm (A) x 1.600 mm (L) x 1.555 mm (P)',
+              capacidade_diametro: 'Até 45 cm (Seringueira) | 12 a 35 cm (Eucalipto)',
+              pressao_bar: '320 a 350 bar',
+              vazao_lmin: '180 a 250 L/min',
+              cilindros: '2 Cilindros',
+              acumulador: 'Não possui'
+            }
+          }
+        ]
+      };
+      await addDoc(collection(db, 'products'), sacadorData);
     }
   } catch (err) {
     console.error('Self healing failed:', err);

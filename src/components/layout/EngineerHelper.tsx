@@ -8,6 +8,7 @@ import { db } from '../../lib/firebase';
 import { askEngineerHelper, transcribeAudio, analyzeAndEnrichProductDossier } from '../../services/geminiService';
 import { useAuth } from '../../contexts/AuthContext';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
 import { Product, ProductModel, StockItem } from '../../types';
@@ -19,6 +20,7 @@ import { FresaSshFicha } from '../catalog/FresaSshFicha';
 import { EngateRapidoFicha } from '../catalog/EngateRapidoFicha';
 import { GarraEstufagemFicha } from '../catalog/GarraEstufagemFicha';
 import { TrituradorLoaderFaeFicha } from '../catalog/TrituradorLoaderFaeFicha';
+import { SacadorSac500Ficha } from '../catalog/SacadorSac500Ficha';
 
 const DEFAULT_PRODUCTIVITIES: Record<string, string> = {
   "CMF 600": `DERRUBADA (COLHEITA FLORESTAL):
@@ -364,16 +366,27 @@ const MarkdownImage: React.FC<MarkdownImageProps> = ({ src, isLightReport, ...pr
 
   if (!resolvedSrc) return null;
 
+  if (isLightReport) {
+    return (
+      <img
+        {...props}
+        src={resolvedSrc}
+        referrerPolicy="no-referrer"
+        className={cn(
+          "float-left mr-4 mb-2 mt-1 max-w-[210px] sm:max-w-[230px] max-h-[185px] w-auto h-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-xs object-contain",
+          props.className
+        )}
+      />
+    );
+  }
+
   return (
     <img
       {...props}
       src={resolvedSrc}
       referrerPolicy="no-referrer"
       className={cn(
-        "max-w-[100%] rounded-xl shadow-xl my-3 block object-contain p-1.5",
-        isLightReport
-          ? "sm:max-w-[340px] max-h-56 border border-slate-200 bg-slate-50 mx-auto"
-          : "sm:max-w-[320px] max-h-48 border border-slate-800 bg-slate-900/40 transition-transform hover:scale-105 duration-200",
+        "max-w-[100%] rounded-xl shadow-xl my-3 block object-contain p-1.5 sm:max-w-[320px] max-h-48 border border-slate-800 bg-slate-900/40 transition-transform hover:scale-105 duration-200",
         props.className
       )}
     />
@@ -405,6 +418,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   const [isEngateRapidoFichaOpen, setIsEngateRapidoFichaOpen] = useState(false);
   const [isGarraEstufagemFichaOpen, setIsGarraEstufagemFichaOpen] = useState(false);
   const [isTrituradorLoaderFaeFichaOpen, setIsTrituradorLoaderFaeFichaOpen] = useState(false);
+  const [isSacadorSac500FichaOpen, setIsSacadorSac500FichaOpen] = useState(false);
   const [fresaSshDefaultModel, setFresaSshDefaultModel] = useState<'ssh-150' | 'ssh-200' | 'ssh-225' | 'ssh-250'>('ssh-150');
   const [trituradorLoaderFaeDefaultModel, setTrituradorLoaderFaeDefaultModel] = useState<string>('fae-uml-ssl-vt-175');
 
@@ -412,6 +426,17 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     if (!url) return;
     
     const lowerUrl = url.toLowerCase();
+
+    // Check if the link is related to Sacador SAC 500
+    if (
+      lowerUrl.includes('sac-500') || 
+      lowerUrl.includes('sac500') || 
+      lowerUrl.includes('sacador') || 
+      (modelName && modelName.toLowerCase().includes('sac500'))
+    ) {
+      setIsSacadorSac500FichaOpen(true);
+      return;
+    }
     
     // Check if the link is related to Triturador/Desbastador FAE p/ Pá Carregadeira
     if (lowerUrl.includes('loader-fae') || lowerUrl === 'loader-fae') {
@@ -2316,7 +2341,7 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
         {
           id: `budget-success-${Date.now()}`,
           role: 'assistant',
-          content: `✅ **Obrigado! Sua solicitação de orçamento foi enviada para o nosso setor comercial.**\n\nNossa equipe (Gislene e Luana) já recebeu os dados do contato **${budgetContactName}** para o equipamento **${budgetEquipName || 'Roder'}** e entrará em contato em breve via WhatsApp (**${budgetPhone}**).\n\nSe tiver mais alguma dúvida ou quiser simular outro produto, sinta-se à vontade para continuar!`
+          content: `✅ **Obrigado! Sua solicitação de orçamento foi enviada para o nosso setor comercial.**\n\nNossa equipe de vendas internas da fábrica já recebeu os dados do contato **${budgetContactName}** para o equipamento **${budgetEquipName || 'Roder'}** e elaborará a proposta e o orçamento oficial direto da fábrica em breve via WhatsApp (**${budgetPhone}**).\n\nSe tiver mais alguma dúvida ou quiser simular outro produto, sinta-se à vontade para continuar!`
         }
       ]);
     } catch (error: any) {
@@ -2814,7 +2839,25 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
                         <div className="prose prose-invert max-w-none text-[17.5px] sm:text-[14.5px] text-slate-200 space-y-2 markdown-body">
                           <ReactMarkdown
                             urlTransform={(url) => url}
+                            remarkPlugins={[remarkGfm]}
                             components={{
+                              table: ({ children }) => (
+                                <div className="overflow-x-auto my-3 rounded-xl border border-slate-700 bg-slate-900/90 shadow-lg">
+                                  <table className="w-full text-xs text-left text-slate-200 border-collapse">{children}</table>
+                                </div>
+                              ),
+                              thead: ({ children }) => (
+                                <thead className="bg-slate-800 text-amber-400 font-extrabold uppercase text-[10px] tracking-wider border-b border-slate-700">{children}</thead>
+                              ),
+                              th: ({ children }) => (
+                                <th className="px-3 py-2.5 border-r last:border-r-0 border-slate-700 font-extrabold">{children}</th>
+                              ),
+                              td: ({ children }) => (
+                                <td className="px-3 py-2 border-r last:border-r-0 border-b border-slate-800 text-slate-300 font-medium">{children}</td>
+                              ),
+                              tr: ({ children }) => (
+                                <tr className="even:bg-slate-850/60 hover:bg-slate-800/50 transition-colors">{children}</tr>
+                              ),
                               img: ({ node, ...props }) => {
                                 return <MarkdownImage {...props} />;
                               },
@@ -4243,7 +4286,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
               </div>
 
               {/* Modal Body with Preview */}
-              <div className="flex-1 overflow-y-auto p-2 sm:p-4 bg-slate-950/40 flex items-center justify-center">
+              <div className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-6 bg-slate-950/40 flex justify-center items-start">
                 
                 {/* Visual Report Container - This DOM element is converted to an image */}
                 <div className="overflow-hidden rounded-xl shadow-lg border border-slate-200" style={{ width: '800px' }}>
@@ -4283,7 +4326,34 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                       <div className="prose prose-slate text-xs max-w-none text-slate-800 leading-relaxed space-y-3 font-medium">
                         <ReactMarkdown
                           urlTransform={(url) => url}
+                          remarkPlugins={[remarkGfm]}
                           components={{
+                            h1: ({ children }) => <h1 className="text-sm font-black text-slate-900 mt-4 mb-2 border-b border-amber-300 pb-1 clear-both">{children}</h1>,
+                            h2: ({ children }) => <h2 className="text-xs font-black text-slate-900 mt-3 mb-2 border-b border-amber-200 pb-0.5 clear-both flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-amber-500"></span>{children}</h2>,
+                            h3: ({ children }) => <h3 className="text-[11.5px] font-extrabold text-amber-700 mt-3 mb-1 clear-both">{children}</h3>,
+                            h4: ({ children }) => <h4 className="text-[11px] font-bold text-slate-900 mt-2 mb-1 clear-both">{children}</h4>,
+                            p: ({ children }) => <div className="mb-3 text-slate-800 leading-relaxed font-medium clear-both flow-root">{children}</div>,
+                            ul: ({ children }) => <ul className="list-disc list-inside space-y-2.5 mb-3 text-slate-800 font-medium clear-both">{children}</ul>,
+                            ol: ({ children }) => <ol className="list-decimal list-inside space-y-2.5 mb-3 text-slate-800 font-medium clear-both">{children}</ol>,
+                            li: ({ children }) => <li className="mb-2.5 text-slate-800 leading-relaxed font-medium clear-both flow-root">{children}</li>,
+                            hr: () => <hr className="my-3 border-slate-200 clear-both" />,
+                            table: ({ children }) => (
+                              <div className="overflow-x-auto my-3 rounded-lg border border-amber-500/30 bg-amber-50/20 shadow-xs clear-both">
+                                <table className="w-full text-[10px] text-left text-slate-900 border-collapse">{children}</table>
+                              </div>
+                            ),
+                            thead: ({ children }) => (
+                              <thead className="bg-amber-500 text-slate-950 font-black uppercase text-[9px] tracking-wider border-b-2 border-amber-600">{children}</thead>
+                            ),
+                            th: ({ children }) => (
+                              <th className="px-2.5 py-1.5 border-r last:border-r-0 border-amber-600/30 font-black">{children}</th>
+                            ),
+                            td: ({ children }) => (
+                              <td className="px-2.5 py-1.5 border-r last:border-r-0 border-b border-slate-200 text-slate-800 font-medium">{children}</td>
+                            ),
+                            tr: ({ children }) => (
+                              <tr className="even:bg-slate-100/70 hover:bg-amber-500/5 transition-colors">{children}</tr>
+                            ),
                             img: ({ node, ...props }) => {
                               return <MarkdownImage isLightReport {...props} />;
                             },
@@ -4353,6 +4423,10 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
           onClose={() => setIsTrituradorLoaderFaeFichaOpen(false)}
           defaultModelId={trituradorLoaderFaeDefaultModel}
         />
+      )}
+
+      {isSacadorSac500FichaOpen && (
+        <SacadorSac500Ficha onClose={() => setIsSacadorSac500FichaOpen(false)} />
       )}
 
       {/* 1. Share Modal */}

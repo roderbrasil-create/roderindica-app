@@ -34,7 +34,10 @@ import {
   LayoutDashboard,
   Settings,
   RotateCw,
-  Search
+  Search,
+  Crown,
+  Headphones,
+  Sparkles
 } from 'lucide-react';
 import { useNegotiation } from '../../contexts/NegotiationContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -189,24 +192,44 @@ export default function NegotiationCentral() {
   };
 
   useEffect(() => {
-    if (isOpen && activeIndication?.agendor_deal_id) {
-      fetch('/api/agendor/import-files', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ indicationId: activeIndication.id })
-      })
-      .then(res => res.json())
-      .then(async (data) => {
-        if (data && data.success) {
-          const indDoc = await getDoc(doc(db, 'indications', activeIndication.id));
-          if (indDoc.exists()) {
-            refreshIndication({ id: activeIndication.id, ...indDoc.data() } as Indication);
+    if (isOpen && activeIndication?.id) {
+      if (!activeIndication.agendor_synced || !activeIndication.agendor_deal_id) {
+        // Automatic sync to Agendor CRM when opening negotiation central if deal not synced
+        fetch('/api/agendor/sync-indication', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ indicationId: activeIndication.id, forceSyncDeal: true })
+        })
+        .then(res => res.json())
+        .then(async (data) => {
+          if (data && data.success) {
+            const indDoc = await getDoc(doc(db, 'indications', activeIndication.id));
+            if (indDoc.exists()) {
+              refreshIndication({ id: activeIndication.id, ...indDoc.data() } as Indication);
+            }
           }
-        }
-      })
-      .catch(err => console.error("[AGENDOR-AUTO-PULL] Erro no pull automático ao abrir:", err));
+        })
+        .catch(err => console.error("[AGENDOR-AUTO-SYNC-ON-OPEN] Erro ao sincronizar automaticamente:", err));
+      } else {
+        // Pull newest history, updates, and files from Agendor CRM
+        fetch('/api/agendor/import-files', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ indicationId: activeIndication.id })
+        })
+        .then(res => res.json())
+        .then(async (data) => {
+          if (data && data.success) {
+            const indDoc = await getDoc(doc(db, 'indications', activeIndication.id));
+            if (indDoc.exists()) {
+              refreshIndication({ id: activeIndication.id, ...indDoc.data() } as Indication);
+            }
+          }
+        })
+        .catch(err => console.error("[AGENDOR-AUTO-PULL] Erro no pull automático ao abrir:", err));
+      }
     }
-  }, [isOpen, activeIndication?.id, activeIndication?.agendor_deal_id]);
+  }, [isOpen, activeIndication?.id, activeIndication?.agendor_deal_id, activeIndication?.agendor_synced]);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -414,10 +437,21 @@ export default function NegotiationCentral() {
 
   useEffect(() => {
     if (activeIndication) {
-      const loadedProducts = (activeIndication.commissioned_products || []).map((p: any, idx: number) => ({
+      let loadedProducts = (activeIndication.commissioned_products || []).map((p: any, idx: number) => ({
         ...p,
         uniqueId: p.uniqueId || `${p.code || 'item'}-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`
       }));
+
+      if (loadedProducts.length === 0 && activeIndication.items && activeIndication.items.length > 0) {
+        loadedProducts = activeIndication.items.map((item: any, idx: number) => ({
+          code: item.code || '',
+          name: item.product_name || item.name || 'Equipamento Roder',
+          quantity: item.quantity || 1,
+          base_value: item.price || 0,
+          is_commissionable: true,
+          uniqueId: `init-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`
+        }));
+      }
       setCommissionedProducts(loadedProducts);
       setGrossBudgetValue(activeIndication.gross_budget_value?.toString() || '');
       setBudgetLoaded(activeIndication.budget_loaded || false);
@@ -1430,65 +1464,149 @@ export default function NegotiationCentral() {
             </div>
 
             {/* User Info Bar */}
-            <div className="bg-muted/30 px-4 lg:px-6 py-2 border-b border-border/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
-              <div className="flex flex-wrap items-center gap-2 sm:gap-4 min-w-0">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="h-7 w-7 lg:h-8 lg:w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                    <User className="h-3.5 w-3.5 lg:h-4 lg:w-4 text-primary" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <p className="text-[9px] font-bold text-muted-foreground uppercase leading-none">Cliente</p>
-                      {activeIndication.ai_score && (
-                        <Badge className={cn(
-                          "text-[7px] lg:text-[8px] h-3 lg:h-3.5 font-bold uppercase border-none py-0 px-1",
-                          activeIndication.ai_score === 'hot' ? "bg-red-500 text-white" : activeIndication.ai_score === 'cold' ? "bg-blue-500 text-white" : "bg-amber-500 text-white"
-                        )}>
-                          {activeIndication.ai_score === 'hot' ? '🔥 Quente' : activeIndication.ai_score === 'cold' ? '❄️ Frio' : '⚖️ Morno'}
-                        </Badge>
-                      )}
+            {(() => {
+              const clientDisplayName = activeIndication?.client_person_name || activeIndication?.client_name || (activeIndication as any)?.company_name || 'Cliente Indicação';
+              const indicatorDisplayName = activeIndication?.external_seller_name || indicatorProfile?.name || 'Gislene Roder';
+              const consultantDisplayName = activeIndication?.internal_seller_name || 'Não atribuído';
+              const equipmentRequestedText = activeIndication?.base_machine 
+                || (activeIndication?.items && activeIndication.items.length > 0 
+                    ? activeIndication.items.map((i: any) => `${i.quantity || 1}x ${i.product_name || i.name}`).join(', ')
+                    : (commissionedProducts && commissionedProducts.length > 0 
+                        ? commissionedProducts.map((p: any) => `${p.quantity || 1}x ${p.name}`).join(', ')
+                        : 'Equipamento Roder'));
+
+              return (
+                <div className="bg-slate-100/80 dark:bg-slate-900/50 px-4 lg:px-6 py-2.5 border-b border-border flex flex-col lg:flex-row lg:items-center justify-between gap-3 shrink-0">
+                  <div className="flex flex-wrap items-center gap-3 lg:gap-4 min-w-0">
+                    {/* Cliente */}
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="h-8 w-8 rounded-full bg-primary/10 text-primary font-black flex items-center justify-center shrink-0 text-xs">
+                        {clientDisplayName.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <span className="text-[9px] font-black uppercase text-muted-foreground tracking-wider leading-none">Cliente</span>
+                          {activeIndication.ai_score && (
+                            <Badge className={cn(
+                              "text-[7px] lg:text-[8px] h-3.5 font-bold uppercase border-none py-0 px-1",
+                              activeIndication.ai_score === 'hot' ? "bg-red-500 text-white" : activeIndication.ai_score === 'cold' ? "bg-blue-500 text-white" : "bg-amber-500 text-white"
+                            )}>
+                              {activeIndication.ai_score === 'hot' ? '🔥 Quente' : activeIndication.ai_score === 'cold' ? '❄️ Frio' : '⚖️ Morno'}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs lg:text-sm font-black uppercase tracking-tight text-slate-900 dark:text-slate-100 truncate max-w-[160px] sm:max-w-xs">
+                            {clientDisplayName}
+                          </p>
+                          {activeIndication.client_phone && (
+                            <a 
+                              href={`https://wa.me/55${activeIndication.client_phone.replace(/\D/g, '')}`} 
+                              target="_blank" 
+                              rel="noreferrer"
+                              className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30 flex items-center gap-1 transition-all"
+                            >
+                              <Phone className="h-2.5 w-2.5" />
+                              <span>{activeIndication.client_phone}</span>
+                            </a>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-xs lg:text-sm font-bold italic truncate max-w-[140px] xs:max-w-[200px] sm:max-w-xs">{activeIndication.client_name}</p>
+
+                    <Separator orientation="vertical" className="hidden sm:block h-7 bg-border" />
+
+                    {/* Indicador / Parceiro */}
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <div className="h-7 w-7 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0">
+                        <Crown className="h-3.5 w-3.5 text-amber-500" />
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-black uppercase text-muted-foreground block leading-none mb-0.5">Indicador</span>
+                        <span className="text-xs font-bold text-amber-600 dark:text-amber-400 truncate max-w-[130px] block">
+                          {indicatorDisplayName}
+                        </span>
+                      </div>
+                    </div>
+
+                    <Separator orientation="vertical" className="hidden sm:block h-7 bg-border" />
+
+                    {/* Consultor / Vendedor Interno */}
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                        <Headphones className="h-3.5 w-3.5 text-primary" />
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-black uppercase text-muted-foreground block leading-none mb-0.5">Consultor</span>
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate max-w-[130px] block">
+                          {consultantDisplayName}
+                        </span>
+                      </div>
+                    </div>
+
+                    <Separator orientation="vertical" className="hidden sm:block h-7 bg-border" />
+
+                    {/* Equipamento Solicitado */}
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <div className="h-7 w-7 rounded-full bg-orange-500/10 flex items-center justify-center shrink-0">
+                        <Package className="h-3.5 w-3.5 text-orange-500" />
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-black uppercase text-muted-foreground block leading-none mb-0.5">Equipamento</span>
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate max-w-[170px] block">
+                          {equipmentRequestedText}
+                        </span>
+                      </div>
+                    </div>
+
+                    <Separator orientation="vertical" className="hidden sm:block h-7 bg-border" />
+
+                    {/* Localização */}
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <div>
+                        <span className="text-[9px] font-black uppercase text-muted-foreground block leading-none mb-0.5">Local</span>
+                        <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 truncate max-w-[110px] block">
+                          {activeIndication.client_location || 'Não indicado'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right side buttons */}
+                  <div className="flex gap-1.5 justify-end shrink-0">
+                    <Button 
+                      variant={activeTab === 'commercial' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setActiveTab('commercial')}
+                      className={cn(
+                        "gap-1 lg:gap-2 font-bold italic uppercase text-[8px] lg:text-[10px] tracking-wider h-7 lg:h-8 px-2 lg:px-4 rounded-full transition-all border",
+                        activeTab === 'commercial' 
+                          ? "bg-primary text-white border-primary shadow-md shadow-primary/10" 
+                          : "bg-white text-muted-foreground border-border hover:border-primary/50 hover:bg-muted"
+                      )}
+                    >
+                      <Package className="h-3 w-3 shrink-0" />
+                      <span>{isMobile ? "Comercial" : "Comercial & Produtos"}</span>
+                    </Button>
+                    <Button 
+                      variant={activeTab === 'timeline' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setActiveTab('timeline')}
+                      className={cn(
+                        "gap-1 lg:gap-2 font-bold italic uppercase text-[8px] lg:text-[10px] tracking-wider h-7 lg:h-8 px-2 lg:px-4 rounded-full transition-all border",
+                        activeTab === 'timeline' 
+                          ? "bg-primary text-white border-primary shadow-md shadow-primary/10" 
+                          : "bg-white text-muted-foreground border-border hover:border-primary/50 hover:bg-muted"
+                      )}
+                    >
+                      <History className="h-3 w-3 shrink-0" />
+                      <span>{isMobile ? "Histórico" : "Acompanhamento"}</span>
+                    </Button>
                   </div>
                 </div>
-                <Separator orientation="vertical" className="hidden sm:block h-6" />
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  <p className="text-[10px] lg:text-xs font-semibold text-slate-600 truncate max-w-[130px] sm:max-w-xs">{activeIndication.client_location || 'Local não indicado'}</p>
-                </div>
-              </div>
-              
-              <div className="flex gap-1.5 justify-end shrink-0">
-                <Button 
-                  variant={activeTab === 'commercial' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setActiveTab('commercial')}
-                  className={cn(
-                    "gap-1 lg:gap-2 font-bold italic uppercase text-[8px] lg:text-[10px] tracking-wider h-7 lg:h-8 px-2 lg:px-4 rounded-full transition-all border",
-                    activeTab === 'commercial' 
-                      ? "bg-primary text-white border-primary shadow-md shadow-primary/10" 
-                      : "bg-white text-muted-foreground border-border hover:border-primary/50 hover:bg-muted"
-                  )}
-                >
-                  <Package className="h-3 w-3 shrink-0" />
-                  <span>{isMobile ? "Comercial" : "Comercial & Produtos"}</span>
-                </Button>
-                <Button 
-                  variant={activeTab === 'timeline' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setActiveTab('timeline')}
-                  className={cn(
-                    "gap-1 lg:gap-2 font-bold italic uppercase text-[8px] lg:text-[10px] tracking-wider h-7 lg:h-8 px-2 lg:px-4 rounded-full transition-all border",
-                    activeTab === 'timeline' 
-                      ? "bg-primary text-white border-primary shadow-md shadow-primary/10" 
-                      : "bg-white text-muted-foreground border-border hover:border-primary/50 hover:bg-muted"
-                  )}
-                >
-                  <History className="h-3 w-3 shrink-0" />
-                  <span>{isMobile ? "Histórico" : "Acompanhamento"}</span>
-                </Button>
-              </div>
-            </div>
+              );
+            })()}
 
             {/* Content Area */}
             <div className="flex-1 overflow-y-auto lg:overflow-hidden bg-slate-50/10 p-3 lg:p-6 flex flex-col gap-4">
