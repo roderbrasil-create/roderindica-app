@@ -1211,18 +1211,43 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
         pixelRatio: 2, // Enhances text clarity
         backgroundColor: '#ffffff',
         style: {
+          width: '800px',
+          maxWidth: 'none',
+          padding: '32px',
           transform: 'scale(1)',
           transformOrigin: 'top left',
         }
       };
 
       const dataUrl = await toPng(element, options);
+      const fileName = `Relatorio_Tecnico_Roder_${new Date().toISOString().slice(0, 10)}.png`;
+
+      // Web Share API support for iOS Safari / Android Chrome (allows native "Salvar em Fotos" / "Salvar Imagem")
+      try {
+        const res = await fetch(dataUrl);
+        const blob = await res.blob();
+        const file = new File([blob], fileName, { type: 'image/png' });
+
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: 'Relatório Técnico Roder',
+            text: 'Relatório de Análise Técnica Roder'
+          });
+          toast.success("Opção de compartilhamento aberta! Escolha 'Salvar Imagem' ou 'Salvar em Fotos'.", { id: toastId });
+          return;
+        }
+      } catch (shareErr) {
+        console.log("Web Share API cancelled or unavailable:", shareErr);
+      }
+
+      // Fallback for desktop or standard web browsers
       const link = document.createElement('a');
-      link.download = `Relatorio_Tecnico_Roder_${new Date().toISOString().slice(0, 10)}.png`;
+      link.download = fileName;
       link.href = dataUrl;
       link.click();
 
-      toast.success("Imagem do relatório salva com sucesso na sua galeria!", { id: toastId });
+      toast.success("Imagem do relatório baixada com sucesso!", { id: toastId });
     } catch (error) {
       console.error("Error generating report image:", error);
       toast.error("Erro ao gerar imagem. Por favor, tente novamente.", { id: toastId });
@@ -4248,21 +4273,21 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
             <div className="bg-slate-900 border border-slate-880 text-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] animate-in fade-in zoom-in-95 duration-200">
               
               {/* Header Controls */}
-              <div className="bg-slate-950 px-6 py-4 flex items-center justify-between border-b border-slate-800 shrink-0">
-                <div className="flex items-center gap-2">
-                  <span className="p-1 rounded-lg bg-primary/10 text-primary">
+              <div className="bg-slate-950 px-3 sm:px-6 py-3 sm:py-4 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 border-b border-slate-800 shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="p-1 rounded-lg bg-primary/10 text-primary shrink-0">
                     <FileText className="h-5 w-5" />
                   </span>
-                  <span className="font-extrabold text-sm tracking-tight text-white uppercase">{reportTitle}</span>
+                  <span className="font-extrabold text-xs sm:text-sm tracking-tight text-white uppercase truncate">{reportTitle}</span>
                 </div>
                 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 sm:gap-2 ml-auto">
                   <button
                     onClick={handleDownloadReportPng}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-green-650 hover:bg-green-700 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-lg transition shadow cursor-pointer border-0"
-                    title="Baixar imagem em formato PNG para a galeria de fotos do celular"
+                    className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 bg-green-650 hover:bg-green-700 text-white font-extrabold uppercase text-[9px] sm:text-[10px] tracking-wider rounded-lg transition shadow cursor-pointer border-0 shrink-0"
+                    title="Salvar imagem no celular ou enviar direto para WhatsApp/Fotos"
                   >
-                    <CheckCircle className="h-3.5 w-3.5" /> Salvar em Fotos (PNG)
+                    <CheckCircle className="h-3.5 w-3.5" /> Salvar em Fotos
                   </button>
 
                   <button
@@ -4270,7 +4295,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                       navigator.clipboard.writeText(reportContent.replace(/[*#]/g, ''));
                       toast.success("Texto do relatório copiado para a área de transferência!");
                     }}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-extrabold uppercase text-[10px] tracking-wider rounded-lg transition cursor-pointer"
+                    className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-extrabold uppercase text-[9px] sm:text-[10px] tracking-wider rounded-lg transition cursor-pointer shrink-0"
                     title="Copiar texto limpo para colar no WhatsApp"
                   >
                     Copiar Texto
@@ -4278,7 +4303,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
 
                   <button 
                     onClick={() => setIsReportOpen(false)}
-                    className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer border-0"
+                    className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer border-0 shrink-0"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -4286,30 +4311,30 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
               </div>
 
               {/* Modal Body with Preview */}
-              <div className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-6 bg-slate-950/40 flex justify-center items-start">
+              <div className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-6 bg-slate-950/40 flex justify-center items-start w-full overflow-x-hidden">
                 
-                {/* Visual Report Container - This DOM element is converted to an image */}
-                <div className="overflow-hidden rounded-xl shadow-lg border border-slate-200" style={{ width: '800px' }}>
+                {/* Visual Report Container - Responsive on mobile, full 800px max width on desktop */}
+                <div className="overflow-hidden rounded-xl shadow-lg border border-slate-200 w-full max-w-[800px] bg-white">
                   <div 
                     ref={reportRef}
-                    className="bg-white text-slate-900 w-full p-8 flex flex-col font-sans"
-                    style={{ width: '800px', minHeight: '500px', boxSizing: 'border-box' }}
+                    className="bg-white text-slate-900 w-full p-4 sm:p-8 flex flex-col font-sans box-border"
+                    style={{ minHeight: '500px' }}
                   >
                     {/* Roder Logo Section */}
-                    <div className="flex items-center justify-between border-b-2 border-amber-500 pb-3 mb-4">
-                      <div className="flex items-center gap-3">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b-2 border-amber-500 pb-3 mb-4 gap-2">
+                      <div className="flex items-center gap-2.5">
                         <img 
                           src={RODER_LOGO_BASE64} 
                           alt="Roder Logo" 
-                          className="h-9 object-contain brightness-0 opacity-85" 
+                          className="h-7 sm:h-9 object-contain brightness-0 opacity-85" 
                           referrerPolicy="no-referrer"
                         />
-                        <div className="border-l-2 border-slate-300 pl-3">
-                          <h1 className="text-sm font-black tracking-tight text-slate-900 uppercase leading-none">Consultoria Técnica Roder</h1>
-                          <p className="text-[8.5px] font-black text-amber-600 uppercase tracking-widest font-mono mt-1 leading-none">Relatório de Dimensionamento e Compatibilidade</p>
+                        <div className="border-l-2 border-slate-300 pl-2.5">
+                          <h1 className="text-xs sm:text-sm font-black tracking-tight text-slate-900 uppercase leading-none">Consultoria Técnica Roder</h1>
+                          <p className="text-[7.5px] sm:text-[8.5px] font-black text-amber-600 uppercase tracking-widest font-mono mt-1 leading-none">Relatório de Dimensionamento e Compatibilidade</p>
                         </div>
                       </div>
-                      <div className="text-right text-[8px] font-mono text-slate-500 font-semibold space-y-0.5 leading-tight">
+                      <div className="text-left sm:text-right text-[7.5px] sm:text-[8px] font-mono text-slate-500 font-semibold space-y-0.5 leading-tight">
                         <p className="uppercase">Data: {new Date().toLocaleDateString('pt-BR')}</p>
                         <p className="uppercase text-amber-600">Sistema: Roder Indica V2</p>
                         <p className="uppercase">Validade Proposta: 60 Dias</p>
@@ -4323,33 +4348,33 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                         Especificações Técnicas & Recomendações
                       </h2>
                       
-                      <div className="prose prose-slate text-xs max-w-none text-slate-800 leading-relaxed space-y-3 font-medium">
+                      <div className="prose prose-slate text-xs max-w-none text-slate-800 leading-relaxed space-y-3 font-medium break-words">
                         <ReactMarkdown
                           urlTransform={(url) => url}
                           remarkPlugins={[remarkGfm]}
                           components={{
-                            h1: ({ children }) => <h1 className="text-sm font-black text-slate-900 mt-4 mb-2 border-b border-amber-300 pb-1 clear-both">{children}</h1>,
-                            h2: ({ children }) => <h2 className="text-xs font-black text-slate-900 mt-3 mb-2 border-b border-amber-200 pb-0.5 clear-both flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-amber-500"></span>{children}</h2>,
-                            h3: ({ children }) => <h3 className="text-[11.5px] font-extrabold text-amber-700 mt-3 mb-1 clear-both">{children}</h3>,
-                            h4: ({ children }) => <h4 className="text-[11px] font-bold text-slate-900 mt-2 mb-1 clear-both">{children}</h4>,
-                            p: ({ children }) => <div className="mb-3 text-slate-800 leading-relaxed font-medium clear-both flow-root">{children}</div>,
-                            ul: ({ children }) => <ul className="list-disc list-inside space-y-2.5 mb-3 text-slate-800 font-medium clear-both">{children}</ul>,
-                            ol: ({ children }) => <ol className="list-decimal list-inside space-y-2.5 mb-3 text-slate-800 font-medium clear-both">{children}</ol>,
-                            li: ({ children }) => <li className="mb-2.5 text-slate-800 leading-relaxed font-medium clear-both flow-root">{children}</li>,
+                            h1: ({ children }) => <h1 className="text-xs sm:text-sm font-black text-slate-900 mt-4 mb-2 border-b border-amber-300 pb-1 clear-both break-words">{children}</h1>,
+                            h2: ({ children }) => <h2 className="text-xs font-black text-slate-900 mt-3 mb-2 border-b border-amber-200 pb-0.5 clear-both flex items-center gap-1.5 break-words"><span className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"></span>{children}</h2>,
+                            h3: ({ children }) => <h3 className="text-[11px] sm:text-[11.5px] font-extrabold text-amber-700 mt-3 mb-1 clear-both break-words">{children}</h3>,
+                            h4: ({ children }) => <h4 className="text-[10.5px] sm:text-[11px] font-bold text-slate-900 mt-2 mb-1 clear-both break-words">{children}</h4>,
+                            p: ({ children }) => <div className="mb-3 text-slate-800 leading-relaxed font-medium clear-both flow-root break-words">{children}</div>,
+                            ul: ({ children }) => <ul className="list-disc list-inside space-y-2 mb-3 text-slate-800 font-medium clear-both break-words">{children}</ul>,
+                            ol: ({ children }) => <ol className="list-decimal list-inside space-y-2 mb-3 text-slate-800 font-medium clear-both break-words">{children}</ol>,
+                            li: ({ children }) => <li className="mb-2 text-slate-800 leading-relaxed font-medium clear-both flow-root break-words">{children}</li>,
                             hr: () => <hr className="my-3 border-slate-200 clear-both" />,
                             table: ({ children }) => (
-                              <div className="overflow-x-auto my-3 rounded-lg border border-amber-500/30 bg-amber-50/20 shadow-xs clear-both">
-                                <table className="w-full text-[10px] text-left text-slate-900 border-collapse">{children}</table>
+                              <div className="overflow-x-auto my-3 rounded-lg border border-amber-500/30 bg-amber-50/20 shadow-xs clear-both max-w-full">
+                                <table className="w-full text-[9.5px] sm:text-[10px] text-left text-slate-900 border-collapse">{children}</table>
                               </div>
                             ),
                             thead: ({ children }) => (
-                              <thead className="bg-amber-500 text-slate-950 font-black uppercase text-[9px] tracking-wider border-b-2 border-amber-600">{children}</thead>
+                              <thead className="bg-amber-500 text-slate-950 font-black uppercase text-[8.5px] sm:text-[9px] tracking-wider border-b-2 border-amber-600">{children}</thead>
                             ),
                             th: ({ children }) => (
-                              <th className="px-2.5 py-1.5 border-r last:border-r-0 border-amber-600/30 font-black">{children}</th>
+                              <th className="px-2 sm:px-2.5 py-1.5 border-r last:border-r-0 border-amber-600/30 font-black whitespace-normal break-words">{children}</th>
                             ),
                             td: ({ children }) => (
-                              <td className="px-2.5 py-1.5 border-r last:border-r-0 border-b border-slate-200 text-slate-800 font-medium">{children}</td>
+                              <td className="px-2 sm:px-2.5 py-1.5 border-r last:border-r-0 border-b border-slate-200 text-slate-800 font-medium whitespace-normal break-words">{children}</td>
                             ),
                             tr: ({ children }) => (
                               <tr className="even:bg-slate-100/70 hover:bg-amber-500/5 transition-colors">{children}</tr>
@@ -4378,7 +4403,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                     </div>
 
                     {/* Decorative stamp watermark and formal footer */}
-                    <div className="mt-6 pt-3 border-t border-slate-200 flex items-center justify-between">
+                    <div className="mt-6 pt-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2 text-[8px] font-mono text-slate-400 font-semibold">
                         <span>© {new Date().getFullYear()} Roder Brasil</span>
                         <span className="h-1 w-1 rounded-full bg-slate-300"></span>

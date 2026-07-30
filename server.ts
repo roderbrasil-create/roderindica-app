@@ -4382,6 +4382,21 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     return null;
   }
 
+  // Helper to safely extract arrays from various response structures returned by Agendor
+  function extractAgendorList(res: any): any[] {
+    if (!res) return [];
+    if (Array.isArray(res)) return res;
+    if (Array.isArray(res.data)) return res.data;
+    if (Array.isArray(res.items)) return res.items;
+    if (Array.isArray(res.comments)) return res.comments;
+    if (Array.isArray(res.activities)) return res.activities;
+    if (Array.isArray(res.tasks)) return res.tasks;
+    if (Array.isArray(res.history)) return res.history;
+    if (Array.isArray(res.stream)) return res.stream;
+    if (Array.isArray(res.results)) return res.results;
+    return [];
+  }
+
   // 1. Test Agendor connection and token (now creates an end-to-end test lead as requested)
   app.post("/api/agendor/test", async (req, res) => {
     try {
@@ -4746,35 +4761,47 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       console.warn(`[AGENDOR-PULL] Não foi possível buscar atividades/stream para #${dealId}:`, actErr.message);
     }
 
-    // 4. Fetch Tasks (/deals/{dealId}/tasks & /tasks?deal_id={dealId})
+    // 4. Fetch Tasks & Activities (/v3/tasks?createdDateGt=...)
     try {
-      let rawTasksRes = await callAgendor(`deals/${dealId}/tasks`, "GET", apiToken).catch(() => null);
-      if (!rawTasksRes) {
-        rawTasksRes = await callAgendor(`tasks?deal_id=${dealId}`, "GET", apiToken).catch(() => null);
-      }
+      const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
+      const rawTasksRes = await callAgendor(`tasks?createdDateGt=${sixtyDaysAgo}`, "GET", apiToken).catch(() => null);
       const tasksList = extractAgendorList(rawTasksRes);
+
+      const targetOrgId = organizationId ? String(organizationId) : null;
+      const targetPersonId = personId ? String(personId) : null;
+      const targetDealId = dealId ? String(dealId) : null;
+
       for (const task of tasksList) {
         const taskId = task.id || task.taskId || task.task_id;
         const taskText = task.text || task.title || task.description || task.note || task.content || "";
         if (!taskText.trim()) continue;
 
-        if (!isAlreadyInHistory(taskId, taskText)) {
-          const authorName = task.user?.name || task.assignedTo?.name || task.author?.name || "Vendedor Comercial (CRM Agendor)";
-          const taskDate = task.updatedAt || task.updated_at || task.dueDate || task.due_date || task.createdAt || new Date().toISOString();
-          const isDone = task.status === "completed" || task.completed || task.done || false;
+        // Check if task belongs to this Deal, Organization, or Person
+        const taskDealId = task.deal?.id ? String(task.deal.id) : null;
+        const taskOrgId = task.organization?.id ? String(task.organization.id) : null;
+        const taskPersonId = task.person?.id ? String(task.person.id) : null;
+
+        const isMatch = (targetDealId && taskDealId === targetDealId) ||
+                        (targetOrgId && taskOrgId === targetOrgId) ||
+                        (targetPersonId && taskPersonId === targetPersonId);
+
+        if (isMatch && !isAlreadyInHistory(taskId, taskText)) {
+          const authorName = task.finishedBy?.name || task.user?.name || task.assignedTo?.name || task.author?.name || "Vendedor Comercial (CRM Agendor)";
+          const taskDate = task.finishedAt || task.createdAt || task.updatedAt || task.dueDate || new Date().toISOString();
+          const taskType = task.type || "Atividade/Ligação";
 
           historyEntriesToAdd.push({
             id: taskId ? `agendor-task-${taskId}` : `agendor-task-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
             agendor_id: taskId ? String(taskId) : undefined,
             type: "note",
-            author_name: `${authorName}`,
+            author_name: authorName,
             created_at: taskDate,
-            content: `[Tarefa/Contato CRM${taskId ? ' ID #' + taskId : ''} - ${isDone ? 'Concluída' : 'Pendente'} - ${authorName}]:\n${taskText.trim()}`
+            content: `[CRM Agendor (${taskType}) - ${authorName}]:\n${taskText.trim()}`
           });
         }
       }
     } catch (taskErr: any) {
-      console.warn(`[AGENDOR-PULL] Não foi possível buscar tarefas para #${dealId}:`, taskErr.message);
+      console.warn(`[AGENDOR-PULL] Não foi possível buscar tarefas/atividades para #${dealId}:`, taskErr.message);
     }
 
     // 5. Fetch Person Comments & Activities if personId exists
@@ -4851,13 +4878,15 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     };
   }
 
-  // Route to push notes added in Roder Indica directly to Agendor CRM as deal comments
+  // Route to push notes & photos added in Roder Indica directly to Agendor CRM
   app.post("/api/agendor/add-comment", async (req, res) => {
     try {
       const { indicationId, content, authorName } = req.body;
-      if (!indicationId || !content) {
-        return res.status(400).json({ error: "Parâmetros 'indicationId' e 'content' são obrigatórios." });
+      if (!indicationId) {
+        return res.status(400).json({ error: "Parâmetro 'indicationId' é obrigatório." });
       }
+
+      console.log(`[AGENDOR-COMMENT] Novo acompanhamento recebido para indicação #${indicationId}. Sincronizando com Agendor CRM...`);
 
       const settingsSnap = await db.collection("settings").doc("agendor").get();
       if (!settingsSnap.exists) {
@@ -4868,22 +4897,8 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         return res.status(400).json({ error: "Integração com Agendor desabilitada ou sem token." });
       }
 
-      const indSnap = await db.collection("indications").doc(indicationId).get();
-      if (!indSnap.exists) {
-        return res.status(404).json({ error: "Indicação não encontrada no banco." });
-      }
-      const indData = indSnap.data() as any;
-      const dealId = indData.agendor_deal_id;
-      if (!dealId) {
-        return res.status(400).json({ error: "Indicação não possui ID de negócio do Agendor associado." });
-      }
-
-      const commentText = `[Roder Indica - ${authorName || "Sistema"}]: ${content}`;
-      console.log(`[AGENDOR-COMMENT] Enviando comentário para o negócio #${dealId} no Agendor...`);
-
-      const result = await callAgendor(`deals/${dealId}/comments`, "POST", agendorConfig.apiToken, {
-        text: commentText
-      });
+      // Re-trigger syncAndPullAgendorDetails to rebuild the description with all options, photos & new notes, and sync with Agendor
+      const result = await syncAndPullAgendorDetails(indicationId, true);
 
       return res.json({ success: true, result });
     } catch (err: any) {
@@ -4939,18 +4954,20 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
             try {
               let existingOrgs: any[] = [];
               try {
-                existingOrgs = await callAgendor(`organizations?cnpj=${cleanCnpj}`, "GET", apiToken);
+                const cnpjRes = await callAgendor(`organizations?cnpj=${cleanCnpj}`, "GET", apiToken);
+                existingOrgs = extractAgendorList(cnpjRes);
               } catch (cnpjErr: any) {
                 console.warn("[AGENDOR-SYNC] Falha ao buscar por parâmetro cnpj:", cnpjErr.message);
               }
-              if (!Array.isArray(existingOrgs) || existingOrgs.length === 0) {
+              if (existingOrgs.length === 0) {
                 try {
-                  existingOrgs = await callAgendor(`organizations?q=${cleanCnpj}`, "GET", apiToken);
+                  const qRes = await callAgendor(`organizations?q=${cleanCnpj}`, "GET", apiToken);
+                  existingOrgs = extractAgendorList(qRes);
                 } catch (qCnpjErr: any) {
                   console.warn("[AGENDOR-SYNC] Falha ao buscar CNPJ via parâmetro q:", qCnpjErr.message);
                 }
               }
-              if (existingOrgs && Array.isArray(existingOrgs) && existingOrgs.length > 0) {
+              if (existingOrgs.length > 0) {
                 matchedOrg = existingOrgs[0];
               }
             } catch (lookupErr: any) {
@@ -4965,8 +4982,9 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
           if (cleanPhone.length >= 8) {
             console.log(`[AGENDOR-SYNC] Realizando lookup automático por telefone no Agendor: ${cleanPhone}`);
             try {
-              const phoneOrgs = await callAgendor(`organizations?q=${cleanPhone}`, "GET", apiToken);
-              if (Array.isArray(phoneOrgs) && phoneOrgs.length > 0) {
+              const phoneOrgsRes = await callAgendor(`organizations?q=${cleanPhone}`, "GET", apiToken);
+              const phoneOrgs = extractAgendorList(phoneOrgsRes);
+              if (phoneOrgs.length > 0) {
                 matchedOrg = phoneOrgs[0];
               }
             } catch (phoneLookupErr: any) {
@@ -5088,164 +5106,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         city = location.trim();
       }
 
-      // Step A: ALWAYS Create or Link Organization (Empresa) so leads enter the "Empresas" section in Agendor
-      let organizationId: number | null = indData.agendor_organization_id || null;
-      let matchedOrgName = companyDisplayName;
-
-      if (!organizationId) {
-        try {
-          let existingOrgs: any[] = [];
-          
-          // A1. Search by CNPJ
-          if (cnpj && cnpj !== "Não informado") {
-            const cleanCnpj = cnpj.replace(/\D/g, "");
-            if (cleanCnpj.length === 14) {
-              try {
-                existingOrgs = await callAgendor(`organizations?cnpj=${cleanCnpj}`, "GET", apiToken);
-              } catch (cnpjErr: any) {
-                console.warn("[AGENDOR-SYNC] Falha ao buscar por parâmetro cnpj:", cnpjErr.message);
-              }
-              if (!Array.isArray(existingOrgs) || existingOrgs.length === 0) {
-                try {
-                  existingOrgs = await callAgendor(`organizations?q=${cleanCnpj}`, "GET", apiToken);
-                } catch (qCnpjErr: any) {
-                  console.warn("[AGENDOR-SYNC] Falha ao buscar CNPJ via parâmetro q:", qCnpjErr.message);
-                }
-              }
-            }
-          }
-
-          // A2. Search by Phone
-          if ((!existingOrgs || existingOrgs.length === 0) && clientPhone) {
-            const cleanPhone = clientPhone.replace(/\D/g, "");
-            if (cleanPhone.length >= 8) {
-              try {
-                existingOrgs = await callAgendor(`organizations?q=${cleanPhone}`, "GET", apiToken);
-              } catch (phoneErr: any) {
-                console.warn("[AGENDOR-SYNC] Falha ao buscar empresa por telefone:", phoneErr.message);
-              }
-            }
-          }
-
-          // A3. Search by Name
-          if ((!existingOrgs || existingOrgs.length === 0) && companyDisplayName) {
-            try {
-              existingOrgs = await callAgendor(`organizations?q=${encodeURIComponent(companyDisplayName)}`, "GET", apiToken);
-            } catch (nameErr: any) {
-              console.warn("[AGENDOR-SYNC] Falha ao buscar empresa por nome:", nameErr.message);
-            }
-          }
-
-          if (existingOrgs && Array.isArray(existingOrgs) && existingOrgs.length > 0) {
-            const matchedOrg = existingOrgs.find((o: any) => {
-              const cleanO = o.cnpj ? o.cnpj.replace(/\D/g, "") : "";
-              const cleanC = cnpj ? cnpj.replace(/\D/g, "") : "";
-              return (cleanC && cleanO === cleanC) || o.name?.toLowerCase() === companyDisplayName.toLowerCase();
-            }) || existingOrgs[0];
-
-            organizationId = matchedOrg.id;
-            matchedOrgName = matchedOrg.name || companyDisplayName;
-            console.log("[AGENDOR-SYNC] Empresa existente vinculada no Agendor:", organizationId, matchedOrgName);
-
-            // If Agendor org has CNPJ and local indication doesn't, update local CNPJ
-            if (matchedOrg.cnpj && (!indData.client_cnpj || indData.client_cnpj === "Não informado")) {
-              await db.collection("indications").doc(indicationId).update({
-                client_cnpj: matchedOrg.cnpj,
-                updated_at: new Date().toISOString()
-              });
-            }
-          } else {
-            // Create NEW Organization in Agendor so it registers in "Empresas"
-            const orgPayload: any = {
-              name: companyDisplayName,
-              address: {
-                city: city || null,
-                state: state || null
-              }
-            };
-            if (cnpj && cnpj !== "Não informado") {
-              const cleanCnpj = cnpj.replace(/\D/g, "");
-              if (cleanCnpj.length === 14) {
-                orgPayload.cnpj = cleanCnpj;
-              }
-            }
-            if (clientPhone) {
-              orgPayload.phones = [{ number: clientPhone.replace(/\D/g, ""), type: "work" }];
-            }
-
-            const orgResult = await callAgendor("organizations", "POST", apiToken, orgPayload);
-            if (orgResult) {
-              organizationId = extractAgendorId(orgResult, ["organizationId", "organization_id", "id"]);
-              console.log("[AGENDOR-SYNC] Nova Empresa criada na aba Empresas do Agendor:", organizationId);
-            }
-          }
-        } catch (orgErr: any) {
-          console.warn("[AGENDOR-SYNC] Falha ao gerenciar organização/empresa, tentando prosseguir:", orgErr.message);
-        }
-      }
-
-      // Step B: Create or Link Person (Pessoa) under the Organization
-      let personId: number | null = indData.agendor_person_id || null;
-      if (!personId) {
-        try {
-          let existingPeople: any[] = [];
-          if (clientPhone) {
-            const cleanPhone = clientPhone.replace(/\D/g, "");
-            if (cleanPhone) {
-              try {
-                existingPeople = await callAgendor(`people?q=${cleanPhone}`, "GET", apiToken);
-              } catch (phoneErr: any) {
-                console.warn("[AGENDOR-SYNC] Falha ao buscar contato por telefone:", phoneErr.message);
-              }
-            }
-          }
-
-          if ((!existingPeople || existingPeople.length === 0) && realClientName) {
-            try {
-              existingPeople = await callAgendor(`people?q=${encodeURIComponent(realClientName)}`, "GET", apiToken);
-            } catch (nameErr: any) {
-              console.warn("[AGENDOR-SYNC] Falha ao buscar contato por nome:", nameErr.message);
-            }
-          }
-
-          if (existingPeople && Array.isArray(existingPeople) && existingPeople.length > 0) {
-            const matchedPerson = existingPeople.find((p: any) => p.name?.toLowerCase() === realClientName.toLowerCase()) || existingPeople[0];
-            personId = matchedPerson.id;
-            console.log("[AGENDOR-SYNC] Pessoa/Contato existente encontrada no Agendor:", personId, matchedPerson.name);
-          } else {
-            const personPayload: any = {
-              name: realClientName,
-              role: "Cliente",
-              description: "Cadastrado automaticamente via Roder Indica V2"
-            };
-
-            if (organizationId) {
-              personPayload.organization = organizationId;
-            }
-
-            if (clientPhone) {
-              personPayload.phones = [{ number: clientPhone.replace(/\D/g, ""), type: "mobile" }];
-            }
-
-            if (city || state) {
-              personPayload.address = {
-                city: city || null,
-                state: state || null
-              };
-            }
-
-            const personResult = await callAgendor("people", "POST", apiToken, personPayload);
-            if (personResult) {
-              personId = extractAgendorId(personResult, ["personId", "person_id", "id"]);
-              console.log("[AGENDOR-SYNC] Nova pessoa criada e vinculada à empresa no Agendor:", personId);
-            }
-          }
-        } catch (personErr: any) {
-          console.warn("[AGENDOR-SYNC] Falha ao gerenciar pessoa/contato:", personErr.message);
-        }
-      }
-
-      // Step C: Fetch partner (indicator) & internal salesperson details to link ownership and reference partner
+      // Step A: Fetch partner (indicator) & internal salesperson details to resolve Agendor User ID FIRST
       let partnerName = indData.external_seller_name || "Parceiro Indicador";
       let partnerEmail = "";
       let partnerPhone = "";
@@ -5263,7 +5124,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         }
       }
 
-      let sellerEmail = "";
+      let sellerEmail = indData.internal_seller_email || "";
       let sellerName = indData.internal_seller_name || "";
       if (indData.internal_seller_uid) {
         try {
@@ -5271,36 +5132,42 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
           if (sellerSnap.exists) {
             const sellerData = sellerSnap.data() as any;
             sellerName = sellerData.name || sellerName;
-            sellerEmail = sellerData.email || "";
+            sellerEmail = sellerData.email || sellerEmail;
           }
         } catch (e: any) {
           console.warn("[AGENDOR-SYNC] Falha ao carregar dados do vendedor comercial:", e.message);
         }
       }
 
-      // Attempt to find the Agendor User ID that matches the salesperson
+      // Find agendorUserId matching the assigned salesperson (e.g., Heloísa Laira)
       let agendorUserId: number | null = null;
       if (sellerName || sellerEmail) {
         try {
-          const agendorUsers = await callAgendor("users", "GET", apiToken);
-          if (Array.isArray(agendorUsers)) {
-            // First search by email matching
+          const agendorUsersRes = await callAgendor("users", "GET", apiToken);
+          const agendorUsersList = extractAgendorList(agendorUsersRes);
+          if (agendorUsersList.length > 0) {
+            // 1. First search by email matching
             let matched = sellerEmail 
-              ? agendorUsers.find((u: any) => u.email?.toLowerCase().trim() === sellerEmail.toLowerCase().trim())
+              ? agendorUsersList.find((u: any) => {
+                  const uEmail = (u.contact?.email || u.email || "").toLowerCase().trim();
+                  return uEmail === sellerEmail.toLowerCase().trim();
+                })
               : null;
             
-            // Second search by name matching
+            // 2. Second search by name matching
             if (!matched && sellerName) {
               const cleanSellerName = sellerName.toLowerCase().trim();
-              matched = agendorUsers.find((u: any) => {
-                const uName = u.name?.toLowerCase().trim() || "";
+              matched = agendorUsersList.find((u: any) => {
+                const uName = (u.name || "").toLowerCase().trim();
                 return uName.includes(cleanSellerName) || cleanSellerName.includes(uName);
               });
             }
 
             if (matched) {
               agendorUserId = matched.id;
-              console.log(`[AGENDOR-SYNC] Vendedor associado ao negócio no Agendor: ${matched.name} (ID: ${agendorUserId})`);
+              console.log(`[AGENDOR-SYNC] Vendedor associado no Agendor: ${matched.name} (ID: ${agendorUserId})`);
+            } else {
+              console.warn(`[AGENDOR-SYNC] Vendedor '${sellerName}' (${sellerEmail}) não localizado entre usuários do Agendor.`);
             }
           }
         } catch (uErr: any) {
@@ -5308,22 +5175,354 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         }
       }
 
-      // Step D: Create or Update Deal (Negócio) in Agendor
+      // Build contact payload for Agendor (Organization & Person)
+      const contactPayload: any = {};
+      if (clientPhone) {
+        const cleanDigits = clientPhone.replace(/\D/g, "");
+        if (cleanDigits) {
+          contactPayload.work = clientPhone;
+          contactPayload.mobile = clientPhone;
+          if (cleanDigits.length >= 10) {
+            contactPayload.whatsapp = cleanDigits.startsWith("55") ? `+${cleanDigits}` : `+55${cleanDigits}`;
+          } else {
+            contactPayload.whatsapp = clientPhone;
+          }
+        }
+      }
+      if (indData.client_email) {
+        contactPayload.email = indData.client_email;
+      }
+
+      // Build formatted equipment items list
+      let itemsText = productName || "Equipamento Roder";
+      if (Array.isArray(indData.items) && indData.items.length > 0) {
+        itemsText = indData.items
+          .map((it: any) => `  • ${it.product_name || it.name || "Produto"} (Qtd: ${it.quantity || 1})`)
+          .join("\n");
+      } else {
+        itemsText = `  • ${itemsText}`;
+      }
+
+      // Build formatted proposal options
+      let optionsText = "";
+      if (indData.options) {
+        const selectedOpts: string[] = [];
+        if (indData.options.complete_installation) selectedOpts.push("Completo com Instalação Comercial (Instalação Roder)");
+        if (indData.options.kit_hydraulic) selectedOpts.push("Equipamento + Kit Hidráulico p/ Máquina (sem técnico Roder)");
+        if (indData.options.only_equipment) selectedOpts.push("Somente Equipamento Solto");
+        if (indData.options.with_freight) selectedOpts.push("Incluso Frete Roder de Fábrica");
+
+        if (selectedOpts.length > 0) {
+          optionsText = selectedOpts.map(o => `  • ${o}`).join("\n");
+        } else {
+          optionsText = "  • Nenhum opcional específico marcado";
+        }
+      } else {
+        optionsText = "  • Não informados";
+      }
+
+      // Build formatted media links if indicator uploaded photos during initial registration
+      let mediaLinksText = "";
+      const mediaArr: string[] = Array.isArray(indData.media_urls) && indData.media_urls.length > 0
+        ? indData.media_urls
+        : (indData.media_url ? [indData.media_url] : []);
+
+      if (mediaArr.length > 0) {
+        mediaLinksText = "\n\n📷 FOTOS DA MÁQUINA / EQUIPAMENTO (CADASTRO INICIAL):\n" +
+          mediaArr.map((url: string, idx: number) => `  • Foto ${idx + 1}: ${url}`).join("\n");
+      }
+
+      // Build formatted follow-up notes & attachments from negotiation history
+      let followUpNotesText = "";
+      let followUpPhotosText = "";
+      if (Array.isArray(indData.negotiation_history) && indData.negotiation_history.length > 0) {
+        const followUpNotes: string[] = [];
+        const followUpAttachments: string[] = [];
+
+        for (const entry of indData.negotiation_history) {
+          if (entry.type === 'note' || entry.type === 'whatsapp' || entry.type === 'call') {
+            const dateFormatted = entry.created_at ? new Date(entry.created_at).toLocaleDateString('pt-BR') : '';
+            followUpNotes.push(`  • [${dateFormatted} - ${entry.author_name || 'Parceiro'}]: ${entry.content || ''}`);
+          }
+          if (Array.isArray(entry.attachments) && entry.attachments.length > 0) {
+            for (const att of entry.attachments) {
+              if (att.url) {
+                followUpAttachments.push(`  • ${att.name || 'Foto/Anexo'}: ${att.url}`);
+              }
+            }
+          }
+        }
+
+        if (followUpNotes.length > 0) {
+          followUpNotesText = "\n\n📌 ACOMPANHAMENTOS E NOVAS OBSERVAÇÕES REGISTRADAS NO RODER INDICA:\n" + followUpNotes.join("\n");
+        }
+        if (followUpAttachments.length > 0) {
+          followUpPhotosText = "\n\n📷 NOVAS FOTOS / DOCUMENTOS DOS ACOMPANHAMENTOS:\n" + followUpAttachments.join("\n");
+        }
+      }
+
+      const fullFormattedDescription = 
+        `★ ORIGEM: RODER Indica V2\n` +
+        `★ PARCEIRO INDICADOR: ${partnerName}\n` +
+        `★ TELEFONE DO PARCEIRO: ${partnerPhone || "Não informado"}\n` +
+        `★ EMAIL DO PARCEIRO: ${partnerEmail || "Não informado"}\n\n` +
+        `📦 EQUIPAMENTO(S) SOLICITADO(S):\n${itemsText}\n\n` +
+        `⚙️ OPCIONAIS DA INDICAÇÃO:\n${optionsText}\n\n` +
+        `🚜 MÁQUINA BASE DE ACOPLAMENTO:\n` +
+        `  • Tipo da Máquina: ${baseMachine || "Não informada"}\n` +
+        `  • Marca / Modelo / Detalhes: ${indData.machine_details || "Não informados"}\n\n` +
+        `📍 CIDADE/LOCALIDADE DO CLIENTE: ${city ? `${city}${state ? " - " + state : ""}` : "Não informada"}\n\n` +
+        `📝 OBSERVAÇÕES INICIAIS DO PARCEIRO INDICADOR / SOLICITAÇÃO:\n${observations || indData.description || "Nenhuma observação informada."}` +
+        `${mediaLinksText}` +
+        `${followUpNotesText}` +
+        `${followUpPhotosText}\n\n` +
+        `Sincronizado via RODER Indica V2.`;
+
+      // Step B: Create or Update Organization (Empresa) so leads enter the "Empresas" section in Agendor
+      let organizationId: number | null = indData.agendor_organization_id || null;
+      let matchedOrgName = companyDisplayName;
+
+      const orgPayload: any = {
+        name: companyDisplayName,
+        description: fullFormattedDescription,
+        address: {
+          city: city || null,
+          state: state || null
+        }
+      };
+      if (cnpj && cnpj !== "Não informado") {
+        const cleanCnpj = cnpj.replace(/\D/g, "");
+        if (cleanCnpj.length === 14) {
+          orgPayload.cnpj = cleanCnpj;
+        }
+      }
+      if (Object.keys(contactPayload).length > 0) {
+        orgPayload.contact = contactPayload;
+      }
+      if (agendorUserId) {
+        orgPayload.ownerUser = agendorUserId;
+        orgPayload.owner = agendorUserId;
+        orgPayload.allowedUsers = [agendorUserId];
+      }
+
+      if (!organizationId) {
+        try {
+          let existingOrgs: any[] = [];
+          
+          // B1. Search by CNPJ
+          if (cnpj && cnpj !== "Não informado") {
+            const cleanCnpj = cnpj.replace(/\D/g, "");
+            if (cleanCnpj.length === 14) {
+              try {
+                const resC = await callAgendor(`organizations?cnpj=${cleanCnpj}`, "GET", apiToken);
+                existingOrgs = extractAgendorList(resC);
+              } catch (cnpjErr: any) {
+                console.warn("[AGENDOR-SYNC] Falha ao buscar por parâmetro cnpj:", cnpjErr.message);
+              }
+              if (existingOrgs.length === 0) {
+                try {
+                  const resQ = await callAgendor(`organizations?q=${cleanCnpj}`, "GET", apiToken);
+                  existingOrgs = extractAgendorList(resQ);
+                } catch (qCnpjErr: any) {
+                  console.warn("[AGENDOR-SYNC] Falha ao buscar CNPJ via parâmetro q:", qCnpjErr.message);
+                }
+              }
+            }
+          }
+
+          // B2. Search by Phone
+          if (existingOrgs.length === 0 && clientPhone) {
+            const cleanPhone = clientPhone.replace(/\D/g, "");
+            if (cleanPhone.length >= 8) {
+              try {
+                const resP = await callAgendor(`organizations?q=${cleanPhone}`, "GET", apiToken);
+                existingOrgs = extractAgendorList(resP);
+              } catch (phoneErr: any) {
+                console.warn("[AGENDOR-SYNC] Falha ao buscar empresa por telefone:", phoneErr.message);
+              }
+            }
+          }
+
+          // B3. Search by Name
+          if (existingOrgs.length === 0 && companyDisplayName) {
+            try {
+              const resN = await callAgendor(`organizations?q=${encodeURIComponent(companyDisplayName)}`, "GET", apiToken);
+              existingOrgs = extractAgendorList(resN);
+            } catch (nameErr: any) {
+              console.warn("[AGENDOR-SYNC] Falha ao buscar empresa por nome:", nameErr.message);
+            }
+          }
+
+          if (existingOrgs.length > 0) {
+            const matchedOrg = existingOrgs.find((o: any) => {
+              const cleanO = o.cnpj ? o.cnpj.replace(/\D/g, "") : "";
+              const cleanC = cnpj ? cnpj.replace(/\D/g, "") : "";
+              return (cleanC && cleanO === cleanC) || o.name?.toLowerCase() === companyDisplayName.toLowerCase();
+            }) || existingOrgs[0];
+
+            organizationId = matchedOrg.id;
+            matchedOrgName = matchedOrg.name || companyDisplayName;
+            console.log("[AGENDOR-SYNC] Empresa existente vinculada no Agendor:", organizationId, matchedOrgName);
+
+            // Update existing Organization with owner and phone
+            try {
+              await callAgendor(`organizations/${organizationId}`, "PUT", apiToken, orgPayload);
+            } catch (updErr: any) {
+              console.warn("[AGENDOR-SYNC] Falha ao atualizar empresa existente:", updErr.message);
+            }
+
+            if (matchedOrg.cnpj && (!indData.client_cnpj || indData.client_cnpj === "Não informado")) {
+              await db.collection("indications").doc(indicationId).update({
+                client_cnpj: matchedOrg.cnpj,
+                updated_at: new Date().toISOString()
+              });
+            }
+          } else {
+            // Create NEW Organization in Agendor
+            const orgResult = await callAgendor("organizations", "POST", apiToken, orgPayload);
+            if (orgResult) {
+              organizationId = extractAgendorId(orgResult, ["organizationId", "organization_id", "id"]);
+              console.log("[AGENDOR-SYNC] Nova Empresa criada na aba Empresas do Agendor:", organizationId);
+            }
+          }
+        } catch (orgErr: any) {
+          console.warn("[AGENDOR-SYNC] Falha ao gerenciar organização/empresa, tentando prosseguir:", orgErr.message);
+        }
+      } else {
+        // Update existing Organization in Agendor with owner & phone
+        try {
+          await callAgendor(`organizations/${organizationId}`, "PUT", apiToken, orgPayload);
+        } catch (updErr: any) {
+          console.warn("[AGENDOR-SYNC] Falha ao atualizar organização já vinculada:", updErr.message);
+        }
+      }
+
+      // Step C: Create or Update Person (Pessoa) under the Organization
+      let personId: number | null = indData.agendor_person_id || null;
+      
+      const personPayload: any = {
+        name: realClientName,
+        role: "Cliente",
+        description: fullFormattedDescription
+      };
+      if (organizationId) {
+        personPayload.organization = organizationId;
+      }
+      if (Object.keys(contactPayload).length > 0) {
+        personPayload.contact = contactPayload;
+      }
+      if (city || state) {
+        personPayload.address = {
+          city: city || null,
+          state: state || null
+        };
+      }
+      if (agendorUserId) {
+        personPayload.ownerUser = agendorUserId;
+        personPayload.owner = agendorUserId;
+        personPayload.allowedUsers = [agendorUserId];
+      }
+
+      if (!personId) {
+        try {
+          let existingPeople: any[] = [];
+          if (clientPhone) {
+            const cleanPhone = clientPhone.replace(/\D/g, "");
+            if (cleanPhone) {
+              try {
+                const resP = await callAgendor(`people?q=${cleanPhone}`, "GET", apiToken);
+                existingPeople = extractAgendorList(resP);
+              } catch (phoneErr: any) {
+                console.warn("[AGENDOR-SYNC] Falha ao buscar contato por telefone:", phoneErr.message);
+              }
+            }
+          }
+
+          if (existingPeople.length === 0 && realClientName) {
+            try {
+              const resN = await callAgendor(`people?q=${encodeURIComponent(realClientName)}`, "GET", apiToken);
+              existingPeople = extractAgendorList(resN);
+            } catch (nameErr: any) {
+              console.warn("[AGENDOR-SYNC] Falha ao buscar contato por nome:", nameErr.message);
+            }
+          }
+
+          if (existingPeople.length > 0) {
+            const matchedPerson = existingPeople.find((p: any) => p.name?.toLowerCase() === realClientName.toLowerCase()) || existingPeople[0];
+            personId = matchedPerson.id;
+            console.log("[AGENDOR-SYNC] Pessoa/Contato existente encontrada no Agendor:", personId, matchedPerson.name);
+
+            // Update existing Person with owner and phone
+            try {
+              await callAgendor(`people/${personId}`, "PUT", apiToken, personPayload);
+            } catch (updPErr: any) {
+              console.warn("[AGENDOR-SYNC] Falha ao atualizar pessoa existente:", updPErr.message);
+            }
+          } else {
+            const personResult = await callAgendor("people", "POST", apiToken, personPayload);
+            if (personResult) {
+              personId = extractAgendorId(personResult, ["personId", "person_id", "id"]);
+              console.log("[AGENDOR-SYNC] Nova pessoa criada e vinculada à empresa no Agendor:", personId);
+            }
+          }
+        } catch (personErr: any) {
+          console.warn("[AGENDOR-SYNC] Falha ao gerenciar pessoa/contato:", personErr.message);
+        }
+      } else {
+        // Update existing Person in Agendor with owner & phone
+        try {
+          await callAgendor(`people/${personId}`, "PUT", apiToken, personPayload);
+        } catch (updPErr: any) {
+          console.warn("[AGENDOR-SYNC] Falha ao atualizar pessoa já vinculada:", updPErr.message);
+        }
+      }
+
+      // Step D: Resolve dynamic Funnel ID and Stage ID from Agendor
+      let funnelId: number | null = null;
+      let stageId: number | null = null;
+      let funnelName = "Funil Pré venda - Prospecção";
+      let stageName = "Prospecção";
+
+      try {
+        const funnelsRes = await callAgendor("funnels", "GET", apiToken);
+        const funnelsList = extractAgendorList(funnelsRes);
+        if (Array.isArray(funnelsList) && funnelsList.length > 0) {
+          const targetFunnel = funnelsList.find((f: any) => {
+            const fName = (f.name || "").toLowerCase();
+            return fName.includes("pré venda") || fName.includes("prospecção") || fName.includes("sdr");
+          }) || funnelsList[0];
+
+          funnelId = targetFunnel.id;
+          funnelName = targetFunnel.name || funnelName;
+
+          if (Array.isArray(targetFunnel.dealStages) && targetFunnel.dealStages.length > 0) {
+            const targetStage = targetFunnel.dealStages.find((s: any) => {
+              const sName = (s.name || "").toLowerCase();
+              return sName.includes("prospecção") || sName.includes("primeira abordagem") || sName.includes("contato");
+            }) || targetFunnel.dealStages[0];
+
+            stageId = targetStage.id;
+            stageName = targetStage.name || stageName;
+          }
+        }
+      } catch (funnelErr: any) {
+        console.warn("[AGENDOR-SYNC] Não foi possível consultar funis via API:", funnelErr.message);
+      }
+
+      // Step E: Create or Update Deal (Negócio) in Agendor
       // Title pattern required: SDR - COMPANY_NAME (PARTNER_NAME)
       const dealTitle = `SDR - ${companyDisplayName.toUpperCase()} (${partnerName.toUpperCase()})`;
 
       let dealId: number | null = indData.agendor_deal_id || null;
       try {
-        const partnerInfo = `★ ORIGEM: RODER Indica V2\n★ PARCEIRO INDICADOR: ${partnerName}\n★ EMAIL DO PARCEIRO: ${partnerEmail || "Não informado"}\n★ TELEFONE DO PARCEIRO: ${partnerPhone || "Não informado"}\n\n`;
-
         const dealPayload: any = {
           title: dealTitle,
-          description: `${partnerInfo}Equipamento Desejado: ${productName}\nMáquina Base: ${baseMachine}\nDetalhes: ${indData.machine_details || ""}\n\nObservações do Lead:\n${observations}\n\nSincronizado via RODER Indica V2.`,
-          funnel: "Funil Pré venda - Prospecção",
-          category: "SDR",
-          stage: indData.agendor_stage || "prospeccao",
+          description: fullFormattedDescription,
           status: indData.agendor_status || "ongoing"
         };
+
+        if (funnelId) dealPayload.funnel = funnelId;
+        if (stageId) dealPayload.stage = stageId;
 
         if (personId) {
           dealPayload.person = personId;
@@ -5338,6 +5537,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         // Assign deal ownership if the salesperson is matched in Agendor
         if (agendorUserId) {
           dealPayload.owner = agendorUserId;
+          dealPayload.ownerUser = agendorUserId;
           dealPayload.allowedUsers = [agendorUserId];
         }
 
@@ -5403,13 +5603,23 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       const updatedSnap = await db.collection("indications").doc(indicationId).get();
       const updatedData = updatedSnap.data();
 
+      // Instantly pull latest tasks, comments, and activities from Agendor into negotiation_history
+      if (updatedData) {
+        await syncAndPullAgendorDetails(indicationId, updatedData, apiToken).catch((pErr) => {
+          console.warn("[AGENDOR-SYNC] Falha ao puxar histórico pós-sincronização:", pErr.message);
+        });
+      }
+
+      const finalSnap = await db.collection("indications").doc(indicationId).get();
+      const finalData = finalSnap.data();
+
       return res.json({
         success: true,
         message: "Indicação integrada e sincronizada no Agendor CRM com sucesso!",
         dealId,
         personId,
         organizationId,
-        negotiation_history: updatedData?.negotiation_history || []
+        negotiation_history: finalData?.negotiation_history || []
       });
 
     } catch (err: any) {
@@ -5436,6 +5646,44 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     }
   });
 
+
+  // 2.4. Pull latest details & activities from Agendor CRM
+  app.post("/api/agendor/pull-details", async (req, res) => {
+    try {
+      const { indicationId } = req.body;
+      if (!indicationId) {
+        return res.status(400).json({ error: "ID da indicação não fornecido." });
+      }
+
+      const settingsSnap = await db.collection("settings").doc("agendor").get();
+      if (!settingsSnap.exists) {
+        return res.status(400).json({ error: "Configurações do Agendor não encontradas." });
+      }
+      const agendorConfig = settingsSnap.data() || {};
+      if (!agendorConfig.apiToken) {
+        return res.status(400).json({ error: "Token de API do Agendor não configurado." });
+      }
+
+      const indSnap = await db.collection("indications").doc(indicationId).get();
+      if (!indSnap.exists) {
+        return res.status(404).json({ error: "Indicação não encontrada no banco de dados." });
+      }
+      const indData = indSnap.data() || {};
+
+      const pullResult = await syncAndPullAgendorDetails(indicationId, indData, agendorConfig.apiToken);
+      const finalSnap = await db.collection("indications").doc(indicationId).get();
+      const finalData = finalSnap.data() || {};
+
+      return res.json({
+        success: true,
+        pullResult,
+        negotiation_history: finalData.negotiation_history || []
+      });
+    } catch (err: any) {
+      console.error("[AGENDOR-PULL] Erro ao buscar detalhes do Agendor:", err.message);
+      return res.status(500).json({ error: err.message || "Erro interno ao buscar histórico do Agendor." });
+    }
+  });
 
   // 2.5. Import and parse PDF files/attachments from Agendor CRM
   app.post("/api/agendor/import-files", async (req, res) => {

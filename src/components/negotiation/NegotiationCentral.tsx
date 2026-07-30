@@ -90,6 +90,7 @@ import { cn } from '../../lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { maskCurrency, unmaskCurrency } from '../../lib/masks';
+import { compressFileToDataURL, compressImage } from '../../lib/imageUtils';
 
 export default function NegotiationCentral() {
   const { 
@@ -1293,77 +1294,112 @@ export default function NegotiationCentral() {
     try {
       const attachments: { name: string; url: string }[] = [];
       
-      // Upload images if any
+      // Upload images if any with compression and 4s timeout race so it NEVER hangs
       for (const image of historyImages) {
-        const fileRef = ref(storage, `indications/${activeIndication.id}/history/${Date.now()}_${image.name}`);
-        await uploadBytes(fileRef, image);
-        const url = await getDownloadURL(fileRef);
-        attachments.push({ name: image.name, url });
+        try {
+          // Step 1: Compress image if it's large
+          let fileToUpload: File | Blob = image;
+          try {
+            fileToUpload = await compressImage(image, 0.5, 1200);
+          } catch (cErr) {
+            console.warn("[HISTORY] Image compression warning:", cErr);
+          }
+
+          // Step 2: Try Firebase Storage with a strict 4-second timeout race
+          const fileRef = ref(storage, `indications/${activeIndication.id}/history/${Date.now()}_${image.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`);
+          
+          const uploadTask = uploadBytes(fileRef, fileToUpload).then(async (snap) => {
+            return await getDownloadURL(snap.ref);
+          });
+
+          const timeoutTask = new Promise<string>((_, reject) => {
+            setTimeout(() => reject(new Error("Storage upload timeout")), 4000);
+          });
+
+          const url = await Promise.race([uploadTask, timeoutTask]);
+          attachments.push({ name: image.name, url });
+        } catch (storageErr) {
+          console.warn("[HISTORY] Storage upload skipped/failed, using compressed base64 fallback:", storageErr);
+          try {
+            const base64Url = await compressFileToDataURL(image, 900, 0.7);
+            attachments.push({ name: image.name, url: base64Url });
+          } catch (b64Err) {
+            console.error("[HISTORY] Base64 fallback error:", b64Err);
+          }
+        }
       }
 
       const indicationRef = doc(db, 'indications', activeIndication.id);
+      const newHistoryEntry = {
+        id: Math.random().toString(36).substring(2, 11),
+        type: 'note' as const,
+        author_name: profile?.name || 'Sistema',
+        created_at: new Date().toISOString(),
+        content: historyNote,
+        attachments
+      };
+
       await updateDoc(indicationRef, {
-        negotiation_history: arrayUnion({
-          id: Math.random().toString(36).substring(2, 11),
-          type: 'note',
-          author_name: profile?.name || 'Sistema',
-          created_at: new Date().toISOString(),
-          content: historyNote,
-          attachments
-        }),
+        negotiation_history: arrayUnion(newHistoryEntry),
         updated_at: new Date().toISOString()
       });
 
-      // Push note to Agendor CRM if deal is linked
-      if (activeIndication.agendor_deal_id) {
-        fetch('/api/agendor/add-comment', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            indicationId: activeIndication.id,
-            content: historyNote,
-            authorName: profile?.name || 'Vendedor Comercial'
-          })
-        }).catch(err => console.error("Erro ao sincronizar nota com Agendor CRM:", err));
-      }
-      
-      // Notify involved parties
-      if (activeIndication.external_seller_uid && profile?.uid !== activeIndication.external_seller_uid) {
-        await createNotification({
-          user_uid: activeIndication.external_seller_uid,
-          title: 'Novo Acompanhamento',
-          message: `${profile?.name} adicionou uma observação na negociação de ${activeIndication.client_name}.`,
-          type: 'info',
-          link: `/indicacoes`
-        });
-      }
-      
-      if (activeIndication.internal_seller_uid && profile?.uid !== activeIndication.internal_seller_uid) {
-        await createNotification({
-          user_uid: activeIndication.internal_seller_uid,
-          title: 'Novo Acompanhamento',
-          message: `${profile?.name} adicionou uma observação na negociação de ${activeIndication.client_name}.`,
-          type: 'info',
-          link: `/indicacoes`
-        });
-      }
+      // Update local state immediately so UI updates without waiting
+      const updatedHistory = [...(activeIndication.negotiation_history || []), newHistoryEntry];
+      const updatedIndication = {
+        ...activeIndication,
+        negotiation_history: updatedHistory
+      };
+      refreshIndication(updatedIndication);
 
-      await notifyManagers(
-        'Novo Acompanhamento',
-        `${profile?.name} registrou um novo histórico para ${activeIndication.client_name}.`,
-        `/indicacoes`
-      );
-
+      // Clear input state and show toast notification right away
       setHistoryNote('');
       setHistoryImages([]);
-      toast.success('Acompanhamento adicionado!');
-      
-      const updatedSnap = await getDoc(indicationRef);
-      if (updatedSnap.exists()) {
-        refreshIndication({ id: updatedSnap.id, ...updatedSnap.data() } as Indication);
+      toast.success('Acompanhamento adicionado com sucesso!');
+
+      // Push note & new attachments to Agendor CRM in background asynchronously
+      fetch('/api/agendor/add-comment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          indicationId: activeIndication.id,
+          content: historyNote,
+          authorName: profile?.name || 'Parceiro Indicador'
+        })
+      }).catch(err => console.error("Erro ao sincronizar nota com Agendor CRM:", err));
+
+      // Asynchronously trigger notifications without blocking UI
+      try {
+        if (activeIndication.external_seller_uid && profile?.uid !== activeIndication.external_seller_uid) {
+          createNotification({
+            user_uid: activeIndication.external_seller_uid,
+            title: 'Novo Acompanhamento',
+            message: `${profile?.name} adicionou uma observação na negociação de ${activeIndication.client_name}.`,
+            type: 'info',
+            link: `/indicacoes`
+          }).catch(console.error);
+        }
+        if (activeIndication.internal_seller_uid && profile?.uid !== activeIndication.internal_seller_uid) {
+          createNotification({
+            user_uid: activeIndication.internal_seller_uid,
+            title: 'Novo Acompanhamento',
+            message: `${profile?.name} adicionou uma observação na negociação de ${activeIndication.client_name}.`,
+            type: 'info',
+            link: `/indicacoes`
+          }).catch(console.error);
+        }
+        notifyManagers(
+          'Novo Acompanhamento',
+          `${profile?.name} registrou um novo histórico para ${activeIndication.client_name}.`,
+          `/indicacoes`
+        ).catch(console.error);
+      } catch (notifErr) {
+        console.warn("Error sending notifications:", notifErr);
       }
+
     } catch (error: any) {
-      toast.error('Erro ao adicionar histórico: ' + error.message);
+      console.error("Erro ao adicionar histórico:", error);
+      toast.error('Erro ao adicionar histórico: ' + (error.message || 'Falha inesperada'));
     } finally {
       setLoading(false);
     }
@@ -1414,7 +1450,7 @@ export default function NegotiationCentral() {
                 : "border-2 border-primary/20 shadow-[0_32px_64px_-12px_rgba(0,0,0,0.3)] rounded-3xl min-w-[700px] min-h-[500px] max-w-[95vw] max-h-[95vh]"
             )}
             style={isMobile ? {
-              touchAction: 'none'
+              touchAction: 'pan-y'
             } : {
               width: '1200px',
               height: '800px',
@@ -2475,92 +2511,17 @@ export default function NegotiationCentral() {
                 </div>
               </div>
             ) : (
-              <div key="timeline-tab-content" className="flex-1 flex gap-6 overflow-hidden">
-                <div className="flex-1 flex flex-col gap-4 overflow-hidden">
-                  <div className="flex flex-col h-full bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
-                    <div className="bg-muted/50 px-4 py-3 border-b border-border flex items-center justify-between">
-                      <h4 className="text-xs font-black italic uppercase flex items-center gap-2">
-                        <History className="h-4 w-4 text-primary" /> Linha do Tempo de Atendimento
-                      </h4>
-                      <Badge variant="outline" className="text-[9px] font-bold uppercase border-primary/20 text-primary">
-                        {activeIndication.negotiation_history?.length || 0} Registros
-                      </Badge>
-                    </div>
-                    
-                    <ScrollArea className="h-full">
-                      <div className="p-6">
-                        <div className="space-y-8 relative before:absolute before:left-[17px] before:top-2 before:bottom-2 before:w-px before:bg-border">
-                        {activeIndication.negotiation_history?.slice().reverse().map((entry, idx) => (
-                          <div key={entry.id || `hist-${idx}-${entry.created_at || ''}`} className="relative pl-10">
-                            <div className={cn(
-                              "absolute left-0 w-9 h-9 rounded-full border-2 border-background flex items-center justify-center z-10 shadow-sm",
-                              entry.type === 'system' ? "bg-slate-100 text-slate-500" :
-                              entry.type === 'note' ? "bg-primary/10 text-primary" :
-                              "bg-blue-500 text-white"
-                            )}>
-                              {entry.type === 'system' ? <LayoutDashboard className="h-4 w-4" /> :
-                               entry.type === 'note' ? <MessageSquare className="h-4 w-4" /> :
-                               <Clock className="h-4 w-4" />}
-                            </div>
-                            
-                              <div className="bg-white rounded-2xl p-4 border border-border/50 group hover:border-primary/20 transition-colors shadow-sm">
-                                <div className="flex items-center justify-between mb-2">
-                                  <span className="text-[10px] font-black italic uppercase text-primary tracking-wider">{entry.author_name}</span>
-                                  <span className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1">
-                                    <Calendar className="h-3 w-3" /> {format(new Date(entry.created_at), "dd/MM/yy 'às' HH:mm", { locale: ptBR })}
-                                  </span>
-                                </div>
-                                <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap mb-3">{cleanHistoryContent(entry.content)}</p>
-                                
-                                {entry.attachments && entry.attachments.length > 0 && (
-                                  <div className="flex flex-wrap gap-2 pt-2 border-t border-border/30">
-                                    {entry.attachments.map((file, fIdx) => (
-                                      <div key={fIdx} className="group/item relative">
-                                        <div 
-                                          className="w-20 h-20 rounded-xl overflow-hidden border border-border bg-muted cursor-pointer hover:border-primary/50 transition-all"
-                                          onClick={() => setSelectedImage(file.url)}
-                                        >
-                                          <img src={file.url} alt={file.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                                        </div>
-                                        <div className="absolute -top-1 -right-1 opacity-0 group-hover/item:opacity-100 transition-opacity flex gap-1">
-                                          <Button 
-                                            size="icon" 
-                                            variant="secondary" 
-                                            className="h-6 w-6 rounded-full shadow-lg"
-                                            onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(`Veja esta foto da negociação: ${file.url}`)}`, '_blank')}
-                                          >
-                                            <Share2 className="h-3 w-3 text-green-600" />
-                                          </Button>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                          </div>
-                        ))}
-                        
-                        {!activeIndication.negotiation_history?.length && (
-                          <div className="flex flex-col items-center justify-center py-20 text-muted-foreground opacity-50">
-                            <History className="h-12 w-12 mb-4" />
-                            <p className="text-sm font-bold uppercase tracking-wider">Nenhum histórico registrado</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </ScrollArea>
-                  </div>
-                </div>
-
-                <div className="w-80 flex flex-col gap-4">
-                  <div className="p-5 bg-primary/5 rounded-2xl border border-primary/10 space-y-4">
+              <div key="timeline-tab-content" className="flex-1 flex flex-col lg:flex-row gap-4 lg:gap-6 lg:overflow-hidden min-h-0">
+                {/* On Mobile: Novo Acompanhamento Form goes FIRST at the top */}
+                <div className="w-full lg:w-80 flex flex-col gap-4 order-1 lg:order-2 shrink-0">
+                  <div className="p-4 lg:p-5 bg-primary/5 rounded-2xl border border-primary/10 space-y-3 lg:space-y-4">
                     <h4 className="text-xs font-black italic uppercase text-primary flex items-center gap-2">
                       <Plus className="h-4 w-4" /> Novo Acompanhamento
                     </h4>
                     {!canInteract ? (
-                      <div className="bg-white/50 border border-orange-200 rounded-xl p-4 text-center">
-                        <Info className="h-8 w-8 text-orange-500 mx-auto mb-2" />
-                        <p className="text-[10px] font-black uppercase text-orange-600 mb-1">Acesso de Observador</p>
+                      <div className="bg-white/50 border border-orange-200 rounded-xl p-3 text-center">
+                        <Info className="h-6 w-6 text-orange-500 mx-auto mb-1" />
+                        <p className="text-[10px] font-black uppercase text-orange-600 mb-0.5">Acesso de Observador</p>
                         <p className="text-[9px] text-muted-foreground leading-tight">Como esta indicação foi feita por um parceiro externo, você pode apenas observar o andamento na sua região.</p>
                       </div>
                     ) : (
@@ -2569,13 +2530,13 @@ export default function NegotiationCentral() {
                           value={historyNote}
                           onChange={(e) => setHistoryNote(e.target.value)}
                           placeholder="Descreva o que foi conversado ou realizado..."
-                          className="w-full bg-background border border-primary/20 rounded-xl p-3 text-xs min-h-[150px] resize-none focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                          className="w-full bg-background border border-primary/20 rounded-xl p-3 text-xs min-h-[100px] lg:min-h-[140px] resize-none focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                         />
                         
                         {/* Image Upload Area */}
-                        <div className="space-y-3">
-                          <label className="flex items-center gap-2 px-4 py-2 bg-background border border-border border-dashed rounded-xl cursor-pointer hover:bg-muted/30 transition-all text-[10px] font-bold uppercase text-muted-foreground">
-                            <Camera className="h-4 w-4 text-primary" />
+                        <div className="space-y-2">
+                          <label className="flex items-center gap-2 px-3 lg:px-4 py-2 bg-background border border-border border-dashed rounded-xl cursor-pointer hover:bg-muted/30 transition-all text-[10px] font-bold uppercase text-muted-foreground">
+                            <Camera className="h-4 w-4 text-primary shrink-0" />
                             <span>Anexar Fotos / Capturas</span>
                             <input 
                               type="file" 
@@ -2599,9 +2560,9 @@ export default function NegotiationCentral() {
                                   </div>
                                   <button 
                                     onClick={() => setHistoryImages(prev => prev.filter((_, idx) => idx !== i))}
-                                    className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
                                   >
-                                    <X className="h-2 w-2" />
+                                    <X className="h-3 w-3" />
                                   </button>
                                 </div>
                               ))}
@@ -2612,7 +2573,7 @@ export default function NegotiationCentral() {
                         <Button 
                           onClick={handleAddHistory}
                           disabled={loading || (!historyNote.trim() && historyImages.length === 0)}
-                          className="w-full bg-primary hover:bg-primary/90 text-white font-black italic uppercase text-xs h-12 shadow-lg shadow-primary/20 rounded-xl"
+                          className="w-full bg-primary hover:bg-primary/90 text-white font-black italic uppercase text-xs h-10 lg:h-12 shadow-lg shadow-primary/20 rounded-xl"
                         >
                           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Registrar Histórico <ChevronRight className="ml-2 h-4 w-4" /></>}
                         </Button>
@@ -2620,10 +2581,85 @@ export default function NegotiationCentral() {
                     )}
                   </div>
                   
-                  <div className="mt-auto p-4 bg-muted/30 rounded-2xl border border-border border-dashed">
+                  <div className="hidden lg:block mt-auto p-4 bg-muted/30 rounded-2xl border border-border border-dashed">
                     <p className="text-[9px] font-bold text-muted-foreground uppercase leading-relaxed text-center">
                       Os acompanhamentos registrados aqui ficam visíveis para toda a equipe comercial e gestão.
                     </p>
+                  </div>
+                </div>
+
+                {/* Timeline List (Linha do Tempo de Atendimento) */}
+                <div className="flex-1 flex flex-col gap-4 lg:overflow-hidden order-2 lg:order-1 min-h-0">
+                  <div className="flex flex-col h-full bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+                    <div className="bg-muted/50 px-4 py-3 border-b border-border flex items-center justify-between shrink-0">
+                      <h4 className="text-xs font-black italic uppercase flex items-center gap-2">
+                        <History className="h-4 w-4 text-primary" /> Linha do Tempo de Atendimento
+                      </h4>
+                      <Badge variant="outline" className="text-[9px] font-bold uppercase border-primary/20 text-primary">
+                        {activeIndication.negotiation_history?.length || 0} Registros
+                      </Badge>
+                    </div>
+                    
+                    <div className="p-4 lg:p-6 lg:overflow-y-auto flex-1">
+                      <div className="space-y-6 lg:space-y-8 relative before:absolute before:left-[17px] before:top-2 before:bottom-2 before:w-px before:bg-border">
+                        {activeIndication.negotiation_history?.slice().reverse().map((entry, idx) => (
+                          <div key={entry.id || `hist-${idx}-${entry.created_at || ''}`} className="relative pl-10">
+                            <div className={cn(
+                              "absolute left-0 w-8 h-8 lg:w-9 lg:h-9 rounded-full border-2 border-background flex items-center justify-center z-10 shadow-sm",
+                              entry.type === 'system' ? "bg-slate-100 text-slate-500" :
+                              entry.type === 'note' ? "bg-primary/10 text-primary" :
+                              "bg-blue-500 text-white"
+                            )}>
+                              {entry.type === 'system' ? <LayoutDashboard className="h-3.5 w-3.5 lg:h-4 lg:w-4" /> :
+                               entry.type === 'note' ? <MessageSquare className="h-3.5 w-3.5 lg:h-4 lg:w-4" /> :
+                               <Clock className="h-3.5 w-3.5 lg:h-4 lg:w-4" />}
+                            </div>
+                            
+                            <div className="bg-white dark:bg-slate-900 rounded-2xl p-3 lg:p-4 border border-border/50 group hover:border-primary/20 transition-colors shadow-sm">
+                              <div className="flex flex-wrap items-center justify-between gap-1 mb-2">
+                                <span className="text-[10px] font-black italic uppercase text-primary tracking-wider">{entry.author_name}</span>
+                                <span className="text-[9px] lg:text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" /> {entry.created_at ? format(new Date(entry.created_at), "dd/MM/yy 'às' HH:mm", { locale: ptBR }) : 'Data n/i'}
+                                </span>
+                              </div>
+                              <p className="text-xs lg:text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap mb-2">{cleanHistoryContent(entry.content)}</p>
+                              
+                              {entry.attachments && entry.attachments.length > 0 && (
+                                <div className="flex flex-wrap gap-2 pt-2 border-t border-border/30">
+                                  {entry.attachments.map((file, fIdx) => (
+                                    <div key={fIdx} className="group/item relative">
+                                      <div 
+                                        className="w-16 h-16 lg:w-20 lg:h-20 rounded-xl overflow-hidden border border-border bg-muted cursor-pointer hover:border-primary/50 transition-all"
+                                        onClick={() => setSelectedImage(file.url)}
+                                      >
+                                        <img src={file.url} alt={file.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                      </div>
+                                      <div className="absolute -top-1 -right-1 opacity-100 lg:opacity-0 group-hover/item:opacity-100 transition-opacity flex gap-1">
+                                        <Button 
+                                          size="icon" 
+                                          variant="secondary" 
+                                          className="h-6 w-6 rounded-full shadow-lg"
+                                          onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(`Veja esta foto da negociação: ${file.url}`)}`, '_blank')}
+                                        >
+                                          <Share2 className="h-3 w-3 text-green-600" />
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                        
+                        {!activeIndication.negotiation_history?.length && (
+                          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground opacity-50">
+                            <History className="h-10 w-10 mb-2" />
+                            <p className="text-xs font-bold uppercase tracking-wider">Nenhum histórico registrado</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
