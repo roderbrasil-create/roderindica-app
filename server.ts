@@ -297,6 +297,83 @@ async function startServer() {
     }
   });
 
+  app.get("/api/admin/clean-accessories-duplicates", async (req, res) => {
+    try {
+      const colRef = db.collection('accessories');
+      const snap = await colRef.get();
+      console.log(`[CLEAN-ACC] Total documents in accessories collection: ${snap.size}`);
+
+      const grouped = new Map<string, any[]>();
+      snap.docs.forEach(doc => {
+        const data = doc.data();
+        const brandClean = (data.brand || '').trim().toUpperCase();
+        const modelClean = (data.model || '').trim().toUpperCase();
+        const key = `${brandClean}__${modelClean}`;
+        if (!grouped.has(key)) {
+          grouped.set(key, []);
+        }
+        grouped.get(key)!.push({ id: doc.id, ...data });
+      });
+
+      let removedCount = 0;
+      const duplicatesDetail: any[] = [];
+
+      for (const [key, items] of grouped.entries()) {
+        if (items.length > 1) {
+          // Sort items: keep the best one (with photos or more fields or newest)
+          items.sort((a, b) => {
+            const aHasPhoto = a.photo_urls && Object.values(a.photo_urls).some(Boolean) ? 1 : 0;
+            const bHasPhoto = b.photo_urls && Object.values(b.photo_urls).some(Boolean) ? 1 : 0;
+            if (bHasPhoto !== aHasPhoto) return bHasPhoto - aHasPhoto;
+            
+            const aKeys = Object.keys(a).filter(k => a[k]).length;
+            const bKeys = Object.keys(b).filter(k => b[k]).length;
+            if (bKeys !== aKeys) return bKeys - aKeys;
+
+            return (b.created_at || '').localeCompare(a.created_at || '');
+          });
+
+          const keep = items[0];
+          const toDelete = items.slice(1);
+
+          duplicatesDetail.push({
+            key,
+            keptId: keep.id,
+            deletedCount: toDelete.length,
+            deletedIds: toDelete.map(d => d.id)
+          });
+
+          for (const item of toDelete) {
+            await colRef.doc(item.id).delete();
+            removedCount++;
+          }
+        }
+      }
+
+      return res.json({
+        success: true,
+        totalDocsBefore: snap.size,
+        totalDocsAfter: snap.size - removedCount,
+        removedCount,
+        duplicatesDetail
+      });
+    } catch (err: any) {
+      console.error("[CLEAN-ACC] Error cleaning accessories duplicates:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/admin/list-accessories", async (req, res) => {
+    try {
+      const colRef = db.collection('accessories');
+      const snap = await colRef.get();
+      const docs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      res.json({ total: docs.length, docs });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.get("/api/admin/dump-history", async (req, res) => {
     try {
       console.log("[AdminFix] Starting manual database restoration from server side...");

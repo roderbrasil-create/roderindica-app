@@ -97,13 +97,14 @@ const seedMissingAccessories = async (existing: Accessory[]) => {
   try {
     const toSeed = ACCESSORIES_DATA.filter(defaultItem => {
       return !existing.some(firestoreItem => {
-        if (firestoreItem.brand.toLowerCase() !== defaultItem.brand.toLowerCase()) return false;
+        if (!firestoreItem.brand || !firestoreItem.model) return false;
+        if (firestoreItem.brand.trim().toUpperCase() !== defaultItem.brand.trim().toUpperCase()) return false;
         
-        const cleanModel = (m: string) => m.toLowerCase().replace(/[\s\/-]/g, '');
+        const cleanModel = (m: string) => m.toUpperCase().trim().replace(/[\s\/-]/g, '');
         const dm = cleanModel(defaultItem.model);
         const fm = cleanModel(firestoreItem.model);
         
-        return fm.includes(dm) || dm.includes(fm);
+        return fm === dm;
       });
     });
 
@@ -222,17 +223,74 @@ export default function Accessories() {
     };
   }, []);
 
+  const uniqueAccessories = useMemo(() => {
+    const map = new Map<string, Accessory>();
+    const duplicateIdsToDelete: string[] = [];
+
+    for (const item of accessories) {
+      if (!item.brand || !item.model) continue;
+      const brandClean = item.brand.trim().toUpperCase();
+      const modelClean = item.model.trim().toUpperCase();
+      const key = `${brandClean}__${modelClean}`;
+
+      if (!map.has(key)) {
+        map.set(key, { 
+          ...item, 
+          brand: brandClean, 
+          model: modelClean 
+        });
+      } else {
+        const existing = map.get(key)!;
+        // Merge missing fields
+        if (!existing.pin && item.pin) existing.pin = item.pin;
+        if (!existing.ponteira_biela_4 && item.ponteira_biela_4) existing.ponteira_biela_4 = item.ponteira_biela_4;
+        if (!existing.ponteira_biela_6 && item.ponteira_biela_6) existing.ponteira_biela_6 = item.ponteira_biela_6;
+        if (!existing.suporte_destocador && item.suporte_destocador) existing.suporte_destocador = item.suporte_destocador;
+        if (!existing.suporte_triturador && item.suporte_triturador) existing.suporte_triturador = item.suporte_triturador;
+        if (!existing.link_garra_biela_4 && item.link_garra_biela_4) existing.link_garra_biela_4 = item.link_garra_biela_4;
+        if (!existing.link_garra_biela_6 && item.link_garra_biela_6) existing.link_garra_biela_6 = item.link_garra_biela_6;
+        
+        if (item.photo_urls) {
+          existing.photo_urls = {
+            ...existing.photo_urls,
+            ...item.photo_urls
+          };
+        }
+
+        if (item.id && item.id !== existing.id && !duplicateIdsToDelete.includes(item.id)) {
+          duplicateIdsToDelete.push(item.id);
+        }
+      }
+    }
+
+    // Auto-clean duplicates in Firestore in background if any found
+    if (duplicateIdsToDelete.length > 0) {
+      console.log(`[Accessories] Auto-cleaning ${duplicateIdsToDelete.length} duplicate accessory documents from Firestore...`);
+      duplicateIdsToDelete.forEach(dupId => {
+        deleteDoc(doc(db, 'accessories', dupId)).catch(err => {
+          console.error("Error auto-deleting duplicate accessory doc:", dupId, err);
+        });
+      });
+    }
+
+    return Array.from(map.values()).sort((a, b) => {
+      const bComp = a.brand.localeCompare(b.brand);
+      if (bComp !== 0) return bComp;
+      return a.model.localeCompare(b.model);
+    });
+  }, [accessories]);
+
   const filteredAccessories = useMemo(() => {
-    return accessories.filter(item => 
+    return uniqueAccessories.filter(item => 
       (item.brand.toLowerCase().includes(accessorySearch.toLowerCase()) ||
       item.model.toLowerCase().includes(accessorySearch.toLowerCase()))
     );
-  }, [accessories, accessorySearch]);
+  }, [uniqueAccessories, accessorySearch]);
 
   const brands = useMemo(() => {
-    const b = Array.from(new Set(accessories.map(a => a.brand))).sort();
+    const b = Array.from(new Set(uniqueAccessories.map(a => a.brand.trim().toUpperCase()))).sort();
     return b;
-  }, [accessories]);
+  }, [uniqueAccessories]);
 
   const filteredKits = useMemo(() => {
     return kits.filter(kit => 
@@ -622,7 +680,7 @@ export default function Accessories() {
           </div>
           <div className="flex gap-2">
             <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 px-3 py-1">
-              {accessories.length} Máquinas
+              {uniqueAccessories.length} Máquinas
             </Badge>
             <Badge variant="outline" className="bg-blue-500/5 text-blue-500 border-blue-500/20 px-3 py-1">
               {kits.length} Kits
