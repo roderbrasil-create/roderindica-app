@@ -81,63 +81,68 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const isHome = location.pathname === '/';
 
+  // Calculate dynamic header height on mobile when banners (impersonation, offline, quota) are active
+  const mobileHeaderOffset = 88 
+    + (isImpersonating ? 40 : 0) 
+    + (isOffline ? 28 : 0) 
+    + (isQuotaExceeded ? 42 : 0);
+
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
-      <AnimatePresence>
-
-
-        {isQuotaExceeded && (
-          <motion.div 
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="bg-amber-600 text-white px-4 py-2 flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-4 text-center sticky top-0 z-[80] shadow-md border-b border-amber-700 font-sans leading-relaxed"
-          >
-            <div className="flex items-center gap-2">
-              <span className="bg-amber-900/60 text-white px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider animate-pulse">Cota Excedida</span>
-              <span className="text-xs font-bold">
-                Limite de leituras diárias do Firebase atingido (50.000/dia)!
+      {/* Desktop Banners (Hidden on mobile; mobile banners are inside the fixed mobile safe container) */}
+      <div className="hidden md:block">
+        <AnimatePresence>
+          {isQuotaExceeded && (
+            <motion.div 
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="bg-amber-600 text-white px-4 py-2 flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-4 text-center sticky top-0 z-[80] shadow-md border-b border-amber-700 font-sans leading-relaxed"
+            >
+              <div className="flex items-center gap-2">
+                <span className="bg-amber-900/60 text-white px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider animate-pulse">Cota Excedida</span>
+                <span className="text-xs font-bold">
+                  Limite de leituras diárias do Firebase atingido (50.000/dia)!
+                </span>
+              </div>
+              <span className="text-[10px] text-amber-100 sm:border-l sm:border-amber-500/50 sm:pl-3">
+                Para liberar o acesso, o administrador do projeto precisa habilitar o plano <strong>Blaze (Pay-As-You-Go)</strong> no Console Firebase ou aguardar o reset automático à meia-noite (PST).
               </span>
+            </motion.div>
+          )}
+
+          {isOffline && (
+            <motion.div 
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="bg-red-600 text-white px-4 py-1.5 flex items-center justify-center gap-2 sticky top-0 z-[70] shadow-md"
+            >
+              <WifiOff className="h-3.5 w-3.5 animate-pulse" />
+              <span className="text-[10px] font-black uppercase tracking-widest">Modo Offline Ativado - Usando Dados Locais</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {isImpersonating && (
+          <div className="bg-orange-600 text-white px-4 py-2 flex items-center justify-between sticky top-0 z-[60] shadow-lg animate-in slide-in-from-top duration-300">
+            <div className="flex items-center gap-2 text-sm font-bold">
+              <Eye className="h-4 w-4 animate-pulse" />
+              <span>VOCÊ ESTÁ SIMULANDO A CONTA DE:</span>
+              <span className="bg-white/20 px-2 py-0.5 rounded uppercase tracking-wider">{profile?.name}</span>
             </div>
-            <span className="text-[10px] text-amber-100 sm:border-l sm:border-amber-500/50 sm:pl-3">
-              Para liberar o acesso, o administrador do projeto precisa habilitar o plano <strong>Blaze (Pay-As-You-Go)</strong> no Console Firebase ou aguardar o reset automático à meia-noite (PST).
-            </span>
-          </motion.div>
-        )}
-
-        {isOffline && (
-          <motion.div 
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="bg-red-600 text-white px-4 py-1.5 flex items-center justify-center gap-2 sticky top-[45px] z-[70] shadow-md"
-          >
-            <WifiOff className="h-3.5 w-3.5 animate-pulse" />
-            <span className="text-[10px] font-black uppercase tracking-widest">Modo Offline Ativado - Usando Dados Locais</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {isImpersonating && (
-        <div className={cn(
-          "bg-orange-600 text-white px-4 py-2 flex items-center justify-between sticky z-[60] shadow-lg animate-in slide-in-from-top duration-300",
-          isOffline ? "top-[31px]" : "top-0"
-        )}>
-          <div className="flex items-center gap-2 text-sm font-bold">
-            <Eye className="h-4 w-4 animate-pulse" />
-            <span className="hidden sm:inline">VOCÊ ESTÁ SIMULANDO A CONTA DE:</span>
-            <span className="bg-white/20 px-2 py-0.5 rounded uppercase tracking-wider">{profile?.name}</span>
+            <Button 
+              size="sm" 
+              variant="secondary" 
+              className="h-8 bg-white text-orange-600 hover:bg-white/90 font-black uppercase text-[10px] tracking-widest"
+              onClick={stopImpersonation}
+            >
+              <EyeOff className="h-3 w-3 mr-1" /> Sair da Simulação
+            </Button>
           </div>
-          <Button 
-            size="sm" 
-            variant="secondary" 
-            className="h-8 bg-white text-orange-600 hover:bg-white/90 font-black uppercase text-[10px] tracking-widest"
-            onClick={stopImpersonation}
-          >
-            <EyeOff className="h-3 w-3 mr-1" /> Sair da Simulação
-          </Button>
-        </div>
-      )}
+        )}
+      </div>
+
       <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
       
       <div className={cn(
@@ -148,16 +153,53 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <style dangerouslySetInnerHTML={{ __html: `
           @media (max-width: 767px) {
             .mobile-safe-header {
-              padding-top: env(safe-area-inset-top, 24px) !important;
+              padding-top: env(safe-area-inset-top, 0px) !important;
             }
             .mobile-safe-main {
-              padding-top: calc(88px + env(safe-area-inset-top, 24px)) !important;
+              padding-top: calc(${mobileHeaderOffset}px + env(safe-area-inset-top, 0px)) !important;
             }
           }
         `}} />
 
-        {/* Mobile Fixed Header & Page Title Sub-header Container */}
-        <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-md border-b border-border shadow-sm flex flex-col mobile-safe-header">
+        {/* Mobile Fixed Header Container with Top Safe Area Inset */}
+        <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-md border-b border-border shadow-sm flex flex-col mobile-safe-header">
+          {/* Mobile Alert / Simulation Banners - Padded safely below device status bar */}
+          {isQuotaExceeded && (
+            <div className="bg-amber-600 text-white px-3 py-1.5 flex items-center justify-between text-[10px] font-bold border-b border-amber-700">
+              <div className="flex items-center gap-1.5">
+                <span className="bg-amber-900/60 text-white px-1.5 py-0.5 rounded text-[8px] font-black uppercase">Cota Excedida</span>
+                <span className="truncate">Limite de leituras atingido</span>
+              </div>
+            </div>
+          )}
+
+          {isOffline && (
+            <div className="bg-red-600 text-white px-3 py-1 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest">
+              <WifiOff className="h-3 w-3 animate-pulse" />
+              <span>Modo Offline Ativado</span>
+            </div>
+          )}
+
+          {isImpersonating && (
+            <div className="bg-orange-600 text-white px-3 py-1.5 flex items-center justify-between text-xs font-bold shadow-md border-b border-orange-700/50">
+              <div className="flex items-center gap-1.5 min-w-0 pr-2">
+                <Eye className="h-3.5 w-3.5 shrink-0 animate-pulse text-amber-200" />
+                <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider bg-white/20 px-1.5 py-0.5 rounded truncate max-w-[140px] sm:max-w-none">
+                  {profile?.name}
+                </span>
+              </div>
+              <Button 
+                size="sm" 
+                variant="secondary" 
+                className="h-6 px-2 bg-white text-orange-600 hover:bg-white/90 font-black uppercase text-[9px] tracking-wider shrink-0 shadow-xs"
+                onClick={stopImpersonation}
+              >
+                <EyeOff className="h-3 w-3 mr-1" /> Sair da Simulação
+              </Button>
+            </div>
+          )}
+
+          {/* Main Mobile Bar */}
           <header className="flex items-center justify-between p-1.5 px-3 h-14">
             <div className="flex items-center gap-2">
               <Button 
@@ -194,7 +236,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     }}
                   />
                 </div>
-                <span className="font-extrabold text-sm tracking-tight text-slate-855">Roder Indica</span>
+                <span className="font-extrabold text-sm tracking-tight text-slate-800">Roder Indica</span>
               </div>
             </div>
             
@@ -213,7 +255,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        {/* Desktop Header (optional, but good for notifications) */}
+        {/* Desktop Header */}
         <header className="hidden md:flex items-center justify-between p-4 border-b border-border bg-background/50 backdrop-blur-sm sticky top-0 z-30">
           <div className="flex items-center gap-4">
             {!isHome && (
@@ -228,7 +270,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </Button>
             )}
             
-            {/* Added current page title on Desktop for symmetry and clarity */}
             <div className="flex items-center gap-2 border-l border-border pl-4">
               <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
               <span className="text-xs font-black uppercase tracking-wider text-muted-foreground">{getPageTitle(location.pathname)}</span>

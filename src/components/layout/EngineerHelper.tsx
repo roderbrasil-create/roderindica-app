@@ -55,6 +55,69 @@ Traçamento de Feixes para "Metrinho":
 Traçamento de Grandes Volumes:
 - Produtividade Média: 30 a 45 m³ por hora.`,
 
+  "CFTA 50": `DESEMPENHO – FELLER TESOURA CFTA 50 (Dados de Campo Reais):
+1. EM ESCAVADEIRA DE 20 A 22 TONELADAS (Ex: Cliente Rogério - CAT 320 FM 2012):
+- Operação: Eucalipto de 5 a 7 anos (Diâmetro médio: 25 a 30 cm)
+- Consumo Médio de Combustível: 18 Litros/hora
+- Produtividade Média:
+  • 200 árvores por hora
+  • Aproximadamente 1 hectare por dia
+  • Média de 1.600 árvores por turno de 8 horas
+
+2. EM PÁ CARREGADEIRA (Ex: Cliente em Pá Carregadeira Volvo L60):
+- Operação: Eucalipto (Diâmetro médio: 20 a 30 cm)
+- Produtividade Média:
+  • 160 árvores por hora
+  • Aproximadamente 1.280 árvores por turno de 8 horas
+
+COMPARATIVO ESCAVADEIRA vs PÁ CARREGADEIRA:
+A escavadeira possui produção superior porque atinge até 3 linhas (linha central + 1 de cada lado) parada no mesmo ponto, cortando e acumulando de 3 a 5 árvores sem se locomover antes de tombar o feixe. A pá carregadeira precisa andar árvore por árvore na mesma linha e se deslocar/manobrar lateralmente para descarregar cada feixe, reduzindo o rendimento horário.
+
+SEGURANÇA EM TERRENOS INCLINADOS / DECLIVE (> 10°):
+- Não recomendado utilizar Feller Tesoura em inclinações superiores a 10° (o feller é rígido na lança e faz as árvores presas acompanharem a inclinação da máquina, gerando risco de tombamento). Para terrenos inclinados, indica-se o Cabeçote Multifuncional CMF (com link pendular articulado).`,
+
+  "CFTA 60": `DESEMPENHO – FELLER TESOURA CFTA 60 (Dados de Campo Reais):
+EM ESCAVADEIRA DE 20 A 22 TONELADAS (Ex: Cliente Victor - CAT 320DL 2007):
+- Operação: Primeiro corte e rebrota (Diâmetro médio: 10 a 30 cm)
+- Consumo Médio de Combustível: 22 Litros/hora
+- Produtividade Média:
+  • 4 a 6 árvores por minuto
+  • 240 a 360 árvores por hora
+  • Média de 1.920 a 3.600 árvores por turno de 8 a 10 horas
+
+COMPARATIVO & TERRENOS INCLINADOS:
+- Produção de 240 a 360 árvores/h em escavadeiras de 20-22t.
+- Em terrenos com inclinação > 10°, não recomendamos o uso de Feller Tesoura devido à rigidez do acoplamento (a árvore acompanha a inclinação da máquina). Para áreas inclinadas, recomenda-se o Cabeçote Multifuncional CMF com link de suspensão pendular.`,
+
+  "Feller Tesoura": `DESEMPENHO & PRODUTIVIDADE (FELLER TESOURA CFTA 50 / CFTA 60):
+- Escavadeira de 20-22t com CFTA 50: 200 árvores/hora (~1.600 árvores/turno de 8h | Consumo: 18 L/h).
+- Escavadeira de 20-22t com CFTA 60: 240 a 360 árvores/hora (4 a 6 árvores/min | 1.920 a 3.600 árvores/turno de 8-10h | Consumo: 22 L/h).
+- Pá Carregadeira (Volvo L60 com CFTA 50): 160 árvores/hora (~1.280 árvores/turno de 8h).
+
+DINÂMICA DE TRABALHO:
+Escavadeiras são mais produtivas que pás carregadeiras pois cortam até 3 linhas (centro + laterais) e acumulam de 3 a 5 árvores sem se locomover do lugar. A carregadeira precisa andar árvore a árvore e manobrar lateralmente para descarregar o feixe.
+
+DIRETRIZ DE SEGURANÇA EM ACLIVES / TERRENOS INCLINADOS:
+Para declividades acima de 10°, o Feller Tesoura/Disco não é recomendado, pois seu acoplamento rígido faz com que as árvores mantidas no cabeçote sigam o ângulo do terreno, desequilibrando a máquina. Recomenda-se o Cabeçote Multifuncional CMF (com link pendular que compensa o terreno e mantém o equilíbrio da máquina base).`,
+
+  "GT 360 vs GT 400X": `COMPARATIVO DE GARRAS TRAÇADORAS (GT 360 vs GT 400X):
+1. GARRA TRAÇADORA GT 360:
+   - Área útil de garra: 0,36 m²
+   - Máquina Base Recomendada: Escavadeiras de 8 a 14 toneladas ou tratores pesados com grua florestal de grande porte.
+   - Perfil de Operação: Ideal para traçar feixes médios e toras individuais com excelente agilidade.
+
+2. GARRA TRAÇADORA GT 400X:
+   - Área útil de garra: 0,40 m² (Linha X: Estrutura reforçada de alta durabilidade)
+   - Máquina Base Recomendada: Escavadeiras de 12 a 18 toneladas.
+   - Perfil de Operação: Maior abertura e capacidade de fechamento de feixe, permitindo maior volume traçado (m³/h) por ciclo.
+
+REGRAS DE NOMENCLATURA & CONSULTORIA:
+- Área útil (m²): "0.36" / "36" = R360; "0.60" / "60" = R600; "1.0" / "1000" = R1000; "traçadora 0.60" = GT 600X.
+- Quando o cliente diz "GT 400", ele refere-se à GT 400X.
+- Áudios/transcrições que indicarem "engate de reboque GT" referem-se à Garra Traçadora GT.
+- Se o usuário perguntar de forma genérica ("garra 0.60" ou "diferença entre 360 e 400"), atue como consultor objetivo, responda diretamente e ofereça opções interativas para o usuário selecionar.`,
+
+
   "MSR 600": `DESEMPENHO & ARRASTE (MINI SKIDDER):
 - Capacidade de Arraste: Arrasta de 1.000 a 1.500 árvores por turno (em distâncias curtas).
 - Rendimento por Hora: Cerca de 20 m³ por hora (leva cerca de 20 horas de trabalho para arrastar todo o volume de 1 hectare de 400 m³).
@@ -88,6 +151,23 @@ Operando em conjunto (1 Cabeçote CMF 600 na derrubada + 1 Mini Skidder no arras
 - Rendimento para Metrinho: De 100 a 130 metros estéreos por turno de 8h.
 - Máquina Base Recomendada: Escavadeiras de 8 a 16 toneladas.
 - Ideal para operações de médio porte, garantindo excelente agilidade no traçamento.`,
+
+  "GT 400X": `TRAÇAMENTO & PRODUTIVIDADE (GARRA TRAÇADORA GT 400X):
+- Área de Carga: 0,40 m²
+- Máquina Base Recomendada: Escavadeiras de 10 a 22 toneladas.
+- Peso do Equipamento: 825 kg
+- Especificações do Sistema de Corte: Corrente 3/4" 11H | Motor de Pistão Parker 60cc | Sabre 45"
+- Parâmetros Hidráulicos: Pressão 240 bar | Vazão de 125 a 210 L/min
+- Rendimento Estimado para Metrinho (1,10m): De 130 a 160 metros estéreos por turno de 8h.
+- Equipamento de altíssima resistência estrutural para trabalho pesado e contínuo.`,
+
+  "GT 400x": `TRAÇAMENTO & PRODUTIVIDADE (GARRA TRAÇADORA GT 400X):
+- Área de Carga: 0,40 m²
+- Máquina Base Recomendada: Escavadeiras de 10 a 22 toneladas.
+- Peso do Equipamento: 825 kg
+- Especificações do Sistema de Corte: Corrente 3/4" 11H | Motor de Pistão Parker 60cc | Sabre 45"
+- Parâmetros Hidráulicos: Pressão 240 bar | Vazão de 125 a 210 L/min
+- Rendimento Estimado para Metrinho (1,10m): De 130 a 160 metros estéreos por turno de 8h.`,
 
   "GT 800x": `TRAÇAMENTO & PRODUTIVIDADE (GARRA TRAÇADORA):
 - Rendimento para Metrinho: De 180 a 220 metros estéreos por turno de 8h.
@@ -308,24 +388,70 @@ interface MarkdownImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   isLightReport?: boolean;
 }
 
+const DB_IMAGE_CACHE = new Map<string, string>();
+
+const normalizeProductImageUrl = (rawSrc?: string): string => {
+  if (!rawSrc) return '';
+  if (rawSrc.includes('garra-florestal-roder.jpg')) {
+    return 'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-garra-florestal.jpg.webp';
+  }
+  if (rawSrc.includes('Cabecote-Multifuncional-Roder.jpg')) {
+    return 'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-cabecote-multifuncional.jpg.webp';
+  }
+  if (rawSrc.includes('triturador-florestal-fae.jpg')) {
+    return 'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-desbastador-florestal.jpg.webp';
+  }
+  return rawSrc;
+};
+
 const MarkdownImage: React.FC<MarkdownImageProps> = ({ src, isLightReport, ...props }) => {
-  const [resolvedSrc, setResolvedSrc] = useState<string>('');
-  const [loading, setLoading] = useState<boolean>(true);
+  const normalizedSrc = normalizeProductImageUrl(src);
+
+  const getInitialResolvedSrc = () => {
+    if (!normalizedSrc) return '';
+    if (normalizedSrc.startsWith('db-file://')) {
+      const fileId = normalizedSrc.replace('db-file://', '');
+      return DB_IMAGE_CACHE.get(fileId) || '';
+    }
+    if (normalizedSrc.startsWith('http://') || normalizedSrc.startsWith('https://')) {
+      return `${getApiBaseUrl()}/api/proxy-image?url=${encodeURIComponent(normalizedSrc)}`;
+    }
+    return normalizedSrc;
+  };
+
+  const [resolvedSrc, setResolvedSrc] = useState<string>(getInitialResolvedSrc);
+  const [loading, setLoading] = useState<boolean>(() => {
+    if (!normalizedSrc) return false;
+    if (normalizedSrc.startsWith('db-file://')) {
+      const fileId = normalizedSrc.replace('db-file://', '');
+      return !DB_IMAGE_CACHE.has(fileId);
+    }
+    return false; // NO ASYNC LOADING SKELETON FOR HTTP/HTTPS IMAGES -> PREVENTS FLICKER & LAYOUT SHIFTS!
+  });
+  const [hasError, setHasError] = useState<boolean>(false);
 
   useEffect(() => {
     let active = true;
-    if (!src) {
+    const finalSrc = normalizeProductImageUrl(src);
+    if (!finalSrc) {
       setLoading(false);
       return;
     }
 
-    if (src.startsWith('db-file://')) {
-      const fileId = src.replace('db-file://', '');
+    if (finalSrc.startsWith('db-file://')) {
+      const fileId = finalSrc.replace('db-file://', '');
+      if (DB_IMAGE_CACHE.has(fileId)) {
+        setResolvedSrc(DB_IMAGE_CACHE.get(fileId)!);
+        setLoading(false);
+        return;
+      }
       getDoc(doc(db, 'app_files', fileId))
         .then(docSnap => {
           if (active) {
             if (docSnap.exists()) {
-              setResolvedSrc(docSnap.data().data || '');
+              const val = docSnap.data().data || '';
+              DB_IMAGE_CACHE.set(fileId, val);
+              setResolvedSrc(val);
             }
             setLoading(false);
           }
@@ -337,9 +463,9 @@ const MarkdownImage: React.FC<MarkdownImageProps> = ({ src, isLightReport, ...pr
           }
         });
     } else {
-      const proxied = (src.startsWith('http://') || src.startsWith('https://'))
-        ? `${getApiBaseUrl()}/api/proxy-image?url=${encodeURIComponent(src)}`
-        : src;
+      const proxied = (finalSrc.startsWith('http://') || finalSrc.startsWith('https://'))
+        ? `${getApiBaseUrl()}/api/proxy-image?url=${encodeURIComponent(finalSrc)}`
+        : finalSrc;
       if (active) {
         setResolvedSrc(proxied);
         setLoading(false);
@@ -351,27 +477,42 @@ const MarkdownImage: React.FC<MarkdownImageProps> = ({ src, isLightReport, ...pr
     };
   }, [src]);
 
+  const handleError = () => {
+    console.warn("[MarkdownImage] Falha ao carregar imagem, aplicando fallback:", resolvedSrc);
+    const finalSrc = normalizeProductImageUrl(src);
+    // If proxy failed, try raw src directly
+    if (resolvedSrc.includes('/api/proxy-image') && finalSrc) {
+      setResolvedSrc(finalSrc);
+    } else {
+      setHasError(true);
+    }
+  };
+
+  if (hasError || (!loading && !resolvedSrc)) {
+    return null; // Gracefully hide broken image without leaving broken 404 boxes or jumping text
+  }
+
   if (loading) {
     return (
       <div className={cn(
-        "w-32 h-24 sm:w-48 sm:h-36 animate-pulse rounded-xl border flex items-center justify-center my-3 mx-auto sm:mx-0",
+        "w-48 h-32 rounded-xl border flex items-center justify-center my-2 shrink-0 transition-all",
         isLightReport 
-          ? "bg-slate-100 border-slate-200 text-slate-400" 
+          ? "bg-slate-100/80 border-slate-200 text-slate-400" 
           : "bg-slate-800/40 border-slate-700/50 text-slate-400"
       )}>
-        <span className="text-[9px] font-medium">Carregando...</span>
+        <span className="text-[9px] font-medium">Carregando imagem...</span>
       </div>
     );
   }
-
-  if (!resolvedSrc) return null;
 
   if (isLightReport) {
     return (
       <img
         {...props}
         src={resolvedSrc}
+        onError={handleError}
         referrerPolicy="no-referrer"
+        loading="lazy"
         className={cn(
           "float-left mr-4 mb-2 mt-1 max-w-[210px] sm:max-w-[230px] max-h-[185px] w-auto h-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-xs object-contain",
           props.className
@@ -384,7 +525,9 @@ const MarkdownImage: React.FC<MarkdownImageProps> = ({ src, isLightReport, ...pr
     <img
       {...props}
       src={resolvedSrc}
+      onError={handleError}
       referrerPolicy="no-referrer"
+      loading="lazy"
       className={cn(
         "max-w-[100%] rounded-xl shadow-xl my-3 block object-contain p-1.5 sm:max-w-[320px] max-h-48 border border-slate-800 bg-slate-900/40 transition-transform hover:scale-105 duration-200",
         props.className

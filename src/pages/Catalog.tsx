@@ -1437,6 +1437,23 @@ export default function Catalog() {
             }
           },
           {
+            id: 'gt-400x',
+            name: 'GT 400X',
+            base_value: 0,
+            pdf_url: 'https://drive.google.com/file/d/1x4DAQf12IwUtdqBAVjE03EWJomex7OmJ/view?usp=drive_link',
+            images: ['db-file://gt400x_cad_render_file'],
+            technical_specs: {
+              area_carga: '0,40',
+              peso: '825 kg',
+              motor: 'Pistão Parker 60cc',
+              sabre: '45"',
+              corrente: '3/4"',
+              maquina_base: '10 a 22 ton',
+              pressao: '240 bar',
+              vazao: '125 a 210 L/min'
+            }
+          },
+          {
             id: 'gt-600x',
             name: 'GT 600x',
             base_value: 0,

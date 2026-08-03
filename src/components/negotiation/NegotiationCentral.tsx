@@ -1446,7 +1446,7 @@ export default function NegotiationCentral() {
             className={cn(
               "fixed z-[100] bg-card overflow-hidden flex flex-col",
               isMobile 
-                ? "inset-0 w-full h-full rounded-none border-none" 
+                ? "inset-0 w-full h-full rounded-none border-none pt-[max(16px,env(safe-area-inset-top))]" 
                 : "border-2 border-primary/20 shadow-[0_32px_64px_-12px_rgba(0,0,0,0.3)] rounded-3xl min-w-[700px] min-h-[500px] max-w-[95vw] max-h-[95vh]"
             )}
             style={isMobile ? {
@@ -1462,7 +1462,7 @@ export default function NegotiationCentral() {
               onPointerDown={(e) => !isMobile && dragControls.start(e)}
               className={cn(
                 "bg-white flex items-center justify-between px-4 lg:px-6 border-b border-slate-200 shrink-0",
-                isMobile ? "h-14" : "h-16 cursor-move active:cursor-grabbing group/handle"
+                isMobile ? "min-h-[56px] py-2" : "h-16 cursor-move active:cursor-grabbing group/handle"
               )}
             >
               <div className="flex items-center gap-2 lg:gap-4 min-w-0">
@@ -1645,7 +1645,7 @@ export default function NegotiationCentral() {
             })()}
 
             {/* Content Area */}
-            <div className="flex-1 overflow-y-auto lg:overflow-hidden bg-slate-50/10 p-3 lg:p-6 flex flex-col gap-4">
+            <div className="flex-1 overflow-y-auto lg:overflow-hidden bg-slate-50/10 p-3 lg:p-6 flex flex-col gap-4 touch-pan-y overscroll-contain">
             
             {/* Agendor CRM Sync Status Banner */}
             {agendorEnabled && (
@@ -2511,7 +2511,7 @@ export default function NegotiationCentral() {
                 </div>
               </div>
             ) : (
-              <div key="timeline-tab-content" className="flex-1 flex flex-col lg:flex-row gap-4 lg:gap-6 lg:overflow-hidden min-h-0">
+              <div key="timeline-tab-content" className="w-full flex flex-col lg:flex-row gap-4 lg:gap-6 lg:overflow-hidden lg:flex-1 lg:min-h-0">
                 {/* On Mobile: Novo Acompanhamento Form goes FIRST at the top */}
                 <div className="w-full lg:w-80 flex flex-col gap-4 order-1 lg:order-2 shrink-0">
                   <div className="p-4 lg:p-5 bg-primary/5 rounded-2xl border border-primary/10 space-y-3 lg:space-y-4">
@@ -2589,8 +2589,8 @@ export default function NegotiationCentral() {
                 </div>
 
                 {/* Timeline List (Linha do Tempo de Atendimento) */}
-                <div className="flex-1 flex flex-col gap-4 lg:overflow-hidden order-2 lg:order-1 min-h-0">
-                  <div className="flex flex-col h-full bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+                <div className="w-full lg:flex-1 flex flex-col gap-4 lg:overflow-hidden order-2 lg:order-1 lg:min-h-0">
+                  <div className="flex flex-col h-auto lg:h-full bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
                     <div className="bg-muted/50 px-4 py-3 border-b border-border flex items-center justify-between shrink-0">
                       <h4 className="text-xs font-black italic uppercase flex items-center gap-2">
                         <History className="h-4 w-4 text-primary" /> Linha do Tempo de Atendimento
@@ -2600,7 +2600,7 @@ export default function NegotiationCentral() {
                       </Badge>
                     </div>
                     
-                    <div className="p-4 lg:p-6 lg:overflow-y-auto flex-1">
+                    <div className="p-4 lg:p-6 overflow-y-auto flex-1 min-h-[200px]">
                       <div className="space-y-6 lg:space-y-8 relative before:absolute before:left-[17px] before:top-2 before:bottom-2 before:w-px before:bg-border">
                         {activeIndication.negotiation_history?.slice().reverse().map((entry, idx) => (
                           <div key={entry.id || `hist-${idx}-${entry.created_at || ''}`} className="relative pl-10">
@@ -2671,7 +2671,7 @@ export default function NegotiationCentral() {
             onPointerDown={(e) => !isMobile && dragControls.start(e)}
             className={cn(
               "bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0 gap-2",
-              isMobile ? "p-3" : "p-6 cursor-move active:cursor-grabbing group/footer"
+              isMobile ? "p-3 pb-[max(12px,env(safe-area-inset-bottom))]" : "p-6 cursor-move active:cursor-grabbing group/footer"
             )}
           >
             <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>

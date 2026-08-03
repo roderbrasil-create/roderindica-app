@@ -1265,22 +1265,22 @@ async function startServer() {
               const productsList: any[] = [];
               
               const FALLBACK_PRODUCT_IMAGES: Record<string, string> = {
-                "Cabeçote Multifuncional": "https://roderbrasil.com.br/wp-content/uploads/2021/06/Cabecote-Multifuncional-Roder.jpg",
-                "CMF 600": "https://roderbrasil.com.br/wp-content/uploads/2021/06/Cabecote-Multifuncional-Roder.jpg",
-                "CMF 500": "https://roderbrasil.com.br/wp-content/uploads/2021/06/Cabecote-Multifuncional-Roder.jpg",
-                "CMF 800": "https://roderbrasil.com.br/wp-content/uploads/2021/06/Cabecote-Multifuncional-Roder.jpg",
-                "Garra Florestal": "https://roderbrasil.com.br/wp-content/uploads/2021/05/garra-florestal-roder.jpg",
-                "Garras Florestais": "https://roderbrasil.com.br/wp-content/uploads/2021/05/garra-florestal-roder.jpg",
+                "Cabeçote Multifuncional": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-cabecote-multifuncional.jpg.webp",
+                "CMF 600": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-cabecote-multifuncional.jpg.webp",
+                "CMF 500": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-cabecote-multifuncional.jpg.webp",
+                "CMF 800": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-cabecote-multifuncional.jpg.webp",
+                "Garra Florestal": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-garra-florestal.jpg.webp",
+                "Gavras Florestais": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-garra-florestal.jpg.webp",
                 "Feller de Disco": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-feller-de-disco.jpg.webp",
                 "Destocador Tipo Broca": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/destocador.jpg.webp",
                 "Feller Tesoura": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Feller-Tesoura.jpg.webp",
-                "Garra Traçadora": "https://roderbrasil.com.br/wp-content/uploads/2021/05/garra-florestal-roder.jpg",
+                "Garra Traçadora": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-garra-tracadora.jpg.webp",
                 "Mini Skidder": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-mini-skidder.jpg.webp",
                 "Carregador frontal": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-carregador-frontal.jpg.webp",
                 "Caçamba High Tip": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp",
                 "Garra Frontal": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Garra-Frontal.jpg.webp",
                 "Garra para Estufagem": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Garra-para-Estufagem-giratoria.jpg.webp",
-                "Desbastador Florestal": "https://roderbrasil.com.br/wp-content/uploads/2021/05/triturador-florestal-fae.jpg"
+                "Desbastador Florestal": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-desbastador-florestal.jpg.webp"
               };
 
               snap.forEach((doc: any) => {
@@ -1440,7 +1440,7 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
         - Quando citar qualquer uma dessas garras (R400, R600, R800) em suas respostas ou relatórios, você é OBRIGADO a exibir as especificações técnicas completas de cada modelo presentes no catálogo (especificando peso, abertura máxima, área de carga, diâmetro mínimo de tora e pressão de trabalho).
         - Você DEVE obrigatoriamente incluir a imagem correspondente da garra florestal Roder no texto e no relatório usando a sintaxe Markdown:
           
-          ![Garra Florestal Roder](https://roderbrasil.com.br/wp-content/uploads/2021/05/garra-florestal-roder.jpg)
+          ![Garra Florestal Roder](https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-garra-florestal.jpg.webp)
           
           (Insira a imagem em sua própria linha, com uma quebra de linha antes e depois, para renderizar perfeitamente no chat e no relatório).
         - **Indicação da Garra R800**: Explique que para este porte de máquina (16 toneladas), também é possível colocar a Garra R800. Destaque que alguns clientes utilizam a Garra R800 especificamente para realizar o carregamento de madeira curta de no máximo 3 metros de comprimento.
@@ -2110,6 +2110,51 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
         - **Sacador SAC 500**: 1.500 a 4.000 m³/mês de extração completa de árvores com toco e raízes (seringueira, teca, eucalipto).
         - **Desbastador / Triturador FAE**: 10 a 25 hectares/mês de moagem de galhadas e resíduos florestais.
         - **Destocador Tipo Broca Roder**: 1.000 a 2.500 tocos/mês de destruição de tocos pós-colheita.
+
+23. BENCHMARKS E DADOS REAIS DE CAMPO PARA FELLER TESOURA (CFTA 50 E CFTA 60):
+    - **Dados Reais de Clientes e Média de Campo (Feller Tesoura)**:
+      • **Feller Tesoura CFTA 50 em Escavadeira de 20-22t** (Ex: Cliente Rogério - CAT 320 FM 2012):
+        - Operação: Eucalipto de 5 a 7 anos (Diâmetro médio: 25 a 30 cm).
+        - Consumo Médio de Combustível: 18 Litros/hora.
+        - Produção Média: 200 árvores/hora | ~1 hectare/dia | ~1.600 árvores por turno de 8h.
+      • **Feller Tesoura CFTA 60 em Escavadeira de 20-22t** (Ex: Cliente Victor - CAT 320DL 2007):
+        - Operação: Primeiro corte e rebrota (Diâmetro médio: 10 a 30 cm).
+        - Consumo Médio de Combustível: 22 Litros/hora.
+        - Produção Média: 4 a 6 árvores/minuto | 240 a 360 árvores/hora | 1.920 a 3.600 árvores por turno de 8 a 10h.
+      • **Feller Tesoura CFTA 50 em Pá Carregadeira** (Ex: Cliente em Pá Carregadeira Volvo L60):
+        - Operação: Eucalipto (Diâmetro médio: 20 a 30 cm).
+        - Produção Média: 160 árvores/hora | ~1.280 árvores por turno de 8h.
+    - **Comparativo Operacional: Escavadeira vs. Pá Carregadeira**:
+      • A escavadeira sempre atinge produção significativamente superior à pá carregadeira.
+      • **Escavadeira**: Posicionada na linha central, alcança a linha do meio + 1 linha lateral de cada lado. Sem se locomover, corta de 3 a 5 árvores, acumulando-as no Feller Tesoura para um tombo único de feixe. Só então anda um pouco à frente e repete.
+      • **Pá Carregadeira**: Funciona cortando 1 linha por vez, árvore a árvore. A cada feixe cortado (2 a 5 árvores), necessita locomover-se para o lado, manobrar para descarregar o feixe no solo, e dar ré para se alinhar novamente na rua. Essa constante movimentação e manobra reduz a produtividade (160 árvores/h na L60 vs 200 a 360 árvores/h na escavadeira de 20t).
+    - **Segurança em Terrenos Inclinados / Aclive / Declive (> 10°)**:
+      • **Pá Carregadeira em Inclinados**: NÃO RECOMENDADA devido ao altíssimo risco de tombamento da máquina base.
+      • **Terrenos com Inclinação Superior a 10 Graus**: Feller Tesoura e Feller de Disco NÃO SÃO RECOMENDADOS em aclives/declives > 10°. Como o acoplamento do feller é rígido na ponta da lança, ele acompanha a inclinação do terreno junto com a máquina base. As árvores presas no feller seguem esse mesmo ângulo, gerando um efeito alavanca perigoso que compromete o equilíbrio da máquina.
+      • **Solução Recomendada para Inclinados (> 10°)**: **Cabeçote Multifuncional CMF**.
+      • **Por que o Cabeçote CMF é o ideal para aclives?**: Ele é suspenso por um link/pêndulo articulado na ponta do braço. Em movimento pendular livre, o cabeçote se auto-ajusta ao alinhamento da árvore independente do ângulo da máquina no terreno. Embora não segure a árvore ereta (ele realiza o corte e permite o tombo direcionado), ele preserva o centro de gravidade e a estabilidade da máquina base em aclives e declives.
+
+24. CATÁLOGO E REGRAS DE MODELOS PARA GARRAS TRAÇADORAS (LINHA GT) E GARRAS DE CARGA (LINHA R):
+    - **Modelos da Linha GT (Garra Traçadora)**: GT 280, GT 360, GT 400X, GT 600X, GT 800X, GT 1000X.
+    - **Equivalência do Sufixo "X"**: Quando o usuário ou vendedor disser "GT 400", "GT 600", "GT 800" ou "GT 1000", entenda que ele se refere à **GT 400X**, **GT 600X**, etc. A omissão da letra X no texto ou áudio não altera o modelo do produto. NUNCA diga que a GT 360 ou GT 400X não existem no catálogo Roder.
+    - **Mapeamento de Garra por Área Útil (m²)**:
+      • "0.36" ou "36" = Garra de Carga R360 (0,36 m²).
+      • "0.60" ou "60" = Garra de Carga R600 (0,60 m²).
+      • "1.0", "1.00" ou "1000" = Garra de Carga R1000 (1,00 m²).
+      • "0.60 traçadora" ou "traçadora 0.60" = Garra Traçadora GT 600X (0,60 m²).
+    - **Identificação dos Prefixos e Transcrição de Áudio**:
+      • "GT" / "engate de reboque GT" / "traçadora" = Garra Traçadora (com conjunto de corte de sabre hidráulico).
+      • "R" / "garra de carga" = Garra de Carga (apenas movimentação/carregamento, sem sabre).
+      • Se a pergunta for ambígua ou omitir o tipo (ex: "medidas da garra 0.60" ou "diferença entre 360 e 400"): aja como consultor objetivo. Responda diretamente e apresente as opções de forma clara para o usuário selecionar.
+    - **Comparativo Direto e Especificações Técnicas: GT 360 vs GT 400X**:
+      • **GT 360**: Área de 0,36 m² | Para escavadeiras de 8 a 14t ou tratores com grua maior | Ideal para feixes menores de madeira e volume médio por ciclo. Usa conjunto de corte de menor porte.
+      • **GT 400X**: Área de 0,40 m² | Linha X (chassi e estrutura super-reforçados de alta durabilidade) | Para escavadeiras de 12 a 18t | Maior abertura de garra e maior acúmulo.
+      • **Conjunto de Corte e Corrente de Passo 3/4" na GT 400X**: A GT 400X utiliza o **mesmo conjunto de corte das traçadoras maiores (GT 600X e GT 800X)**, equipado com **corrente de passo 3/4"** e o **mesmo motor de pistão Parker de 60cc**.
+      • **Motivo da Diferença de Preço (GT 360 vs GT 400X)**: A GT 400X possui um valor diferenciado em relação à GT 360 pois o seu conjunto de corte é idêntico e compatível com o das traçadoras maiores (GT 600X e GT 800X) e inclui o motor de pistão Parker de 60cc.
+      • **Aplicação da Corrente 3/4"**: Corrente para serviço pesado / severo, indicada para clientes que necessitam de alta produtividade com correntes mais robustas.
+      • **TERMINOLOGIA CRÍTICA**: NUNCA diga que a corrente é do "padrão de traçadora pesada". Diga estritamente que é do **"padrão das traçadoras maiores"**.
+    - **Regra Geral de Comunicação**: Respostas curtas, objetivas, sem enrolação. Fale apenas de equipamentos existentes no catálogo Roder.
+
 
 Aqui está o catálogo de produtos e modelos reais cadastrados atualmente na Roder:
 ${productsContext}
@@ -4767,8 +4812,8 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       const rawTasksRes = await callAgendor(`tasks?createdDateGt=${sixtyDaysAgo}`, "GET", apiToken).catch(() => null);
       const tasksList = extractAgendorList(rawTasksRes);
 
-      const targetOrgId = organizationId ? String(organizationId) : null;
-      const targetPersonId = personId ? String(personId) : null;
+      const targetOrgId = dealDetails?.organization?.id || dealDetails?.organization_id ? String(dealDetails?.organization?.id || dealDetails?.organization_id) : null;
+      const targetPersonId = dealDetails?.person?.id || dealDetails?.person_id ? String(dealDetails?.person?.id || dealDetails?.person_id) : null;
       const targetDealId = dealId ? String(dealId) : null;
 
       for (const task of tasksList) {
@@ -4898,7 +4943,9 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       }
 
       // Re-trigger syncAndPullAgendorDetails to rebuild the description with all options, photos & new notes, and sync with Agendor
-      const result = await syncAndPullAgendorDetails(indicationId, true);
+      const indSnap = await db.collection("indications").doc(indicationId).get();
+      const indData = indSnap.exists ? indSnap.data() : {};
+      const result = await syncAndPullAgendorDetails(indicationId, indData, agendorConfig.apiToken);
 
       return res.json({ success: true, result });
     } catch (err: any) {

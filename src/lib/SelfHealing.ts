@@ -84,16 +84,51 @@ export async function runSelfHealing(data: any[], db: any) {
     const garraTracadoraDoc = data.find(p => p.id === 'lvtZFB8k19scU7RGQcf3' || p.name === 'Garra Traçadora');
     if (garraTracadoraDoc && garraTracadoraDoc.models) {
       const firstM = garraTracadoraDoc.models.find((m: any) => m.id === 'gt-280');
-      if (firstM && (!firstM.images || firstM.images.length === 0)) {
-        console.log('[Healing] Restoring Garra Traçadora images...');
-        const updatedModels = garraTracadoraDoc.models.map((m: any) => {
-          if (m.id === 'gt-280') return { ...m, images: ['db-file://T3AZpDqws1aS9URRKmJe'] };
-          if (m.id === 'gt-360') return { ...m, images: ['db-file://2rLCOUnp5A4Dug6AQcwo'] };
-          if (m.id === 'gt-600x') return { ...m, images: ['db-file://yoQVm6BmNbhrvYazLd9Y'] };
-          if (m.id === 'gt-800x') return { ...m, images: ['db-file://UjUTN3EfcSFcfYcKGE4R'] };
-          if (m.id === 'gt-1000x') return { ...m, images: ['db-file://dNRUeZKmgacnbvolRLod'] };
+      const hasGt400 = garraTracadoraDoc.models.some((m: any) => m.id === 'gt-400x' || m.name === 'GT 400X');
+
+      if (!hasGt400 || (firstM && (!firstM.images || firstM.images.length === 0))) {
+        console.log('[Healing] Restoring Garra Traçadora models & images (including GT 400X)...');
+        let updatedModels = [...garraTracadoraDoc.models];
+
+        if (!hasGt400) {
+          const gt400Model = {
+            id: 'gt-400x',
+            name: 'GT 400X',
+            base_value: 0,
+            pdf_url: 'https://drive.google.com/file/d/1x4DAQf12IwUtdqBAVjE03EWJomex7OmJ/view?usp=drive_link',
+            video_url: 'https://youtube.com/shorts/Z7-3cheDGSI?si=jh-RMEaw5F_WZcLm',
+            parts_manual_url: '',
+            image_zoom: 1,
+            images: ['db-file://gt400x_cad_render_file'],
+            technical_specs: {
+              maquina_base: '10 a 22 ton',
+              peso: '825 kg',
+              pressao: '240 bar',
+              vazao: '125 a 210 L/min',
+              area_carga: '0,40',
+              corrente: '3/4"',
+              motor: 'Pistão Parker 60cc',
+              sabre: '45"'
+            }
+          };
+          const gt360Idx = updatedModels.findIndex((m: any) => m.id === 'gt-360');
+          if (gt360Idx !== -1) {
+            updatedModels.splice(gt360Idx + 1, 0, gt400Model);
+          } else {
+            updatedModels.push(gt400Model);
+          }
+        }
+
+        updatedModels = updatedModels.map((m: any) => {
+          if (m.id === 'gt-280') return { ...m, images: ['db-file://Wj4OM6RpNJ77HJs4NoC8'] };
+          if (m.id === 'gt-360') return { ...m, images: ['db-file://yTMD0y29Nfs1PAxhOjLs'] };
+          if (m.id === 'gt-400x') return { ...m, images: ['db-file://gt400x_cad_render_file'] };
+          if (m.id === 'gt-600x') return { ...m, images: ['db-file://lBqBK8be2ugitbpEeZ4Q'] };
+          if (m.id === 'gt-800x') return { ...m, images: ['db-file://xctRH10u3fLLY9WAgiBE'] };
+          if (m.id === 'gt-1000x') return { ...m, images: ['db-file://VXvK4nBgbCsYRar8lUGL'] };
           return m;
         });
+
         await updateDoc(doc(db, 'products', garraTracadoraDoc.id), { models: updatedModels });
       }
     }
