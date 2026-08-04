@@ -129,6 +129,53 @@ const months = [
   { value: 12, label: 'Dezembro' }
 ];
 
+export const isMatchForExternalSeller = (ind: any, prof: any) => {
+  if (!ind || !prof) return false;
+  
+  // 1. Match by UID
+  if (prof.uid && (
+    ind.external_seller_uid === prof.uid || 
+    ind.created_by === prof.uid || 
+    ind.user_id === prof.uid || 
+    ind.indicator_uid === prof.uid ||
+    ind.partner_id === prof.uid
+  )) {
+    return true;
+  }
+
+  const norm = (str?: string) => (str || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+  // 2. Match by Name (case and accent insensitive, handles full/partial names)
+  const profName = norm(prof.name);
+  if (profName && profName.length >= 2) {
+    const indExtName = norm(ind.external_seller_name);
+    const indIndName = norm(ind.indicator_name);
+    const indPartnerName = norm(ind.partner_name);
+    
+    if (indExtName && (indExtName === profName || indExtName.includes(profName) || profName.includes(indExtName))) {
+      return true;
+    }
+    if (indIndName && (indIndName === profName || indIndName.includes(profName) || profName.includes(indIndName))) {
+      return true;
+    }
+    if (indPartnerName && (indPartnerName === profName || indPartnerName.includes(profName) || profName.includes(indPartnerName))) {
+      return true;
+    }
+  }
+
+  // 3. Match by Email
+  const profEmail = norm(prof.email);
+  if (profEmail) {
+    const indExtEmail = norm(ind.external_seller_email);
+    const indIndEmail = norm(ind.indicator_email);
+    
+    if (indExtEmail && indExtEmail === profEmail) return true;
+    if (indIndEmail && indIndEmail === profEmail) return true;
+  }
+
+  return false;
+};
+
 export default function Indications() {
   const { profile, isExternalSeller, isInternalSeller, isManager, isAdmin, isTriagem, isRegionalSeller } = useAuth();
   const { 
@@ -949,9 +996,21 @@ export default function Indications() {
       const queryFilters: any[] = [];
       
       if (isExternalSeller) {
-        queryFilters.push(where('external_seller_uid', '==', profile.uid));
+        if (profile.uid) {
+          queryFilters.push(where('external_seller_uid', '==', profile.uid));
+          queryFilters.push(where('created_by', '==', profile.uid));
+          queryFilters.push(where('user_id', '==', profile.uid));
+          queryFilters.push(where('indicator_uid', '==', profile.uid));
+        }
         if (profile.email) {
           queryFilters.push(where('external_seller_email', '==', profile.email.toLowerCase()));
+          queryFilters.push(where('external_seller_email', '==', profile.email));
+        }
+        if (profile.name) {
+          queryFilters.push(where('external_seller_name', '==', profile.name));
+          queryFilters.push(where('external_seller_name', '==', profile.name.toUpperCase()));
+          queryFilters.push(where('external_seller_name', '==', profile.name.toLowerCase()));
+          queryFilters.push(where('indicator_name', '==', profile.name));
         }
       }
       
@@ -1047,6 +1106,14 @@ export default function Indications() {
         setLoading(false);
       }
     });
+
+    if (isExternalSeller) {
+      getDocs(query(indicationsRef, limit(300)))
+        .then(extraSnap => {
+          processSnapshot(extraSnap);
+        })
+        .catch(err => console.warn("Extra snapshot fetch for external seller:", err));
+    }
 
     return () => unsubscribe();
   }, [profile?.uid, profile?.role, isInternalSeller, isExternalSeller, isManager, isAdmin, isTriagem, isRegionalSeller]);
@@ -1178,7 +1245,7 @@ export default function Indications() {
 
     if (isPureExternalSeller) {
       if (ind.source === 'fair' && ind.lead_type && ind.lead_type !== 'client') return false;
-      return !ind.is_deleted;
+      return !ind.is_deleted && isMatchForExternalSeller(ind, profile);
     }
 
     // Dropdown filters (SECONDARY FILTERS - only apply if not 'all')
@@ -1216,8 +1283,7 @@ export default function Indications() {
   const getGroupedReferralsByMonth = () => {
     const partnerReferrals = indications.filter(ind => {
       if (ind.is_deleted) return false;
-      const isOwnerByUid = ind.external_seller_uid === profile?.uid;
-      const matchesOwner = isOwnerByUid;
+      const matchesOwner = isMatchForExternalSeller(ind, profile);
       
       const searchLower = searchTerm.toLowerCase().trim();
       const searchDigits = searchTerm.replace(/\D/g, '');
@@ -1608,7 +1674,7 @@ export default function Indications() {
         {['andamento', 'vendidos'].includes(activeTab) && (() => {
           const isMatchForUser = (i: any) => {
             if (isPureExternalSeller) {
-              return i.external_seller_uid === profile?.uid;
+              return isMatchForExternalSeller(i, profile);
             }
             if (isInternalSeller && !isManager && !isAdmin) {
               const isOwnerByUid = i.internal_seller_uid === profile?.uid;

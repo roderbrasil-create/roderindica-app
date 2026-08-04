@@ -283,7 +283,23 @@ export default function Dashboard() {
             )
           );
         } else {
-          q = query(collection(db, 'indications'), where('external_seller_uid', '==', profile?.uid));
+          const qFilters: any[] = [];
+          if (profile?.uid) {
+            qFilters.push(where('external_seller_uid', '==', profile.uid));
+            qFilters.push(where('created_by', '==', profile.uid));
+          }
+          if (profile?.email) {
+            qFilters.push(where('external_seller_email', '==', profile.email.toLowerCase()));
+          }
+          if (profile?.name) {
+            qFilters.push(where('external_seller_name', '==', profile.name));
+            qFilters.push(where('external_seller_name', '==', profile.name.toUpperCase()));
+          }
+          if (qFilters.length > 0) {
+            q = query(collection(db, 'indications'), or(...qFilters));
+          } else {
+            q = query(collection(db, 'indications'), limit(100));
+          }
         }
 
         const snap = await getDocs(q);
