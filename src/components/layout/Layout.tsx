@@ -82,7 +82,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const isHome = location.pathname === '/';
 
   // Calculate dynamic header height on mobile when banners (impersonation, offline, quota) are active
-  const mobileHeaderOffset = 88 
+  const mobileHeaderOffset = 56 
     + (isImpersonating ? 40 : 0) 
     + (isOffline ? 28 : 0) 
     + (isQuotaExceeded ? 42 : 0);
@@ -244,15 +244,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                <NotificationBell />
             </div>
           </header>
-
-          {/* Sub-header with current page name - fixed below the main bar */}
-          <div className="flex items-center justify-between px-4 h-8 bg-muted/40 border-t border-border/40 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-            <div className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-              <span>{getPageTitle(location.pathname)}</span>
-            </div>
-            <span className="text-[9px] font-mono text-muted-foreground/50">RODER INDICA V2</span>
-          </div>
         </div>
 
         {/* Desktop Header */}
@@ -278,7 +269,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <NotificationBell />
         </header>
 
-        <main className="flex-1 p-4 md:p-8 pt-28 md:pt-8 max-w-full mobile-safe-main">
+        <main className="flex-1 p-4 md:p-8 pt-16 md:pt-8 max-w-full mobile-safe-main">
           {children}
         </main>
       </div>

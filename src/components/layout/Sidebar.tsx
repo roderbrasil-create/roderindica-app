@@ -543,7 +543,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden" 
+          className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm md:hidden" 
           onClick={() => setIsOpen(false)}
         />
       )}
@@ -551,22 +551,22 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
       {/* Sidebar */}
       <motion.aside 
         initial={false}
-        animate={{ x: isMobile ? (isOpen ? 0 : -224) : 0 }}
+        animate={{ x: isMobile ? (isOpen ? 0 : -280) : 0 }}
         transition={{ type: 'spring', damping: 25, stiffness: 200 }}
         drag={isMobile ? "x" : false}
-        dragConstraints={{ left: -224, right: 0 }}
+        dragConstraints={{ left: -280, right: 0 }}
         dragElastic={0.1}
         onDragEnd={(_, info) => {
           if (isMobile && info.offset.x < -50) setIsOpen(false);
         }}
         className={cn(
-          "fixed top-0 left-0 z-50 h-full w-56 bg-sidebar border-r border-sidebar-border transition-colors md:translate-x-0",
+          "fixed top-0 left-0 z-[100] h-full h-[100dvh] w-72 md:w-56 bg-sidebar border-r border-sidebar-border transition-colors md:translate-x-0 shadow-2xl md:shadow-none flex flex-col",
           !isOpen && "md:translate-x-0"
         )}
       >
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full h-[100dvh] min-h-0">
           {/* Header */}
-          <div className="py-2.5 px-3 flex items-center justify-between border-b border-sidebar-border/50">
+          <div className="py-2.5 px-3 flex items-center justify-between border-b border-sidebar-border/50 shrink-0 pt-[calc(0.625rem+env(safe-area-inset-top,0px))]">
             <Link to="/" className="flex items-center gap-1.5 hover:opacity-90 transition-opacity" onClick={() => isMobile && setIsOpen(false)}>
               <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center p-1 shadow-sm overflow-hidden shrink-0">
                 <img 
@@ -585,11 +585,11 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
             <Button 
                 variant="ghost" 
                 size="sm" 
-                className="md:hidden text-sidebar-foreground/60 hover:text-sidebar-foreground flex items-center gap-1 px-1.5" 
+                className="md:hidden text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent flex items-center gap-1 px-2 py-1 h-8 rounded-lg border border-sidebar-border/50 font-bold text-xs" 
                 onClick={() => setIsOpen(false)}
             >
               <ChevronLeft className="h-4 w-4" />
-              <span className="text-xs font-medium">Fechar</span>
+              <span>Fechar</span>
             </Button>
           </div>
 
@@ -644,7 +644,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
           </ScrollArea>
 
           {/* Footer */}
-          <div className="p-3 border-t border-sidebar-border/50 bg-sidebar-accent/30 text-xs">
+          <div className="p-3 border-t border-sidebar-border/50 bg-sidebar-accent/30 text-xs shrink-0">
             <div className="flex items-center gap-2 px-1.5 py-1 mb-2">
               <div className="w-8 h-8 rounded-full bg-sidebar-primary flex items-center justify-center text-xs font-bold text-sidebar-primary-foreground shadow-inner uppercase shrink-0">
                 {profile?.name?.charAt(0) || user?.email?.charAt(0) || '?'}
