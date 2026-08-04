@@ -1364,7 +1364,8 @@ export default function NegotiationCentral() {
         body: JSON.stringify({
           indicationId: activeIndication.id,
           content: historyNote,
-          authorName: profile?.name || 'Parceiro Indicador'
+          authorName: profile?.name || 'Parceiro Indicador',
+          attachments
         })
       }).catch(err => console.error("Erro ao sincronizar nota com Agendor CRM:", err));
 
@@ -2626,26 +2627,51 @@ export default function NegotiationCentral() {
                               
                               {entry.attachments && entry.attachments.length > 0 && (
                                 <div className="flex flex-wrap gap-2 pt-2 border-t border-border/30">
-                                  {entry.attachments.map((file, fIdx) => (
-                                    <div key={fIdx} className="group/item relative">
-                                      <div 
-                                        className="w-16 h-16 lg:w-20 lg:h-20 rounded-xl overflow-hidden border border-border bg-muted cursor-pointer hover:border-primary/50 transition-all"
-                                        onClick={() => setSelectedImage(file.url)}
-                                      >
-                                        <img src={file.url} alt={file.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                                      </div>
-                                      <div className="absolute -top-1 -right-1 opacity-100 lg:opacity-0 group-hover/item:opacity-100 transition-opacity flex gap-1">
-                                        <Button 
-                                          size="icon" 
-                                          variant="secondary" 
-                                          className="h-6 w-6 rounded-full shadow-lg"
-                                          onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(`Veja esta foto da negociação: ${file.url}`)}`, '_blank')}
+                                  {entry.attachments.map((file, fIdx) => {
+                                    const isPdf = file.name?.toLowerCase().endsWith('.pdf') || file.url?.toLowerCase().includes('.pdf');
+                                    const isDoc = !isPdf && (file.name?.toLowerCase().match(/\.(doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip)$/) || !file.url?.match(/\.(jpeg|jpg|gif|png|webp)/i));
+
+                                    if (isPdf || isDoc) {
+                                      return (
+                                        <div key={fIdx} className="flex items-center gap-2 p-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-border/50 hover:border-primary/50 transition-all">
+                                          <FileText className="h-5 w-5 text-red-500 shrink-0" />
+                                          <div className="min-w-0 max-w-[160px] lg:max-w-[200px]">
+                                            <p className="text-xs font-bold truncate text-foreground">{file.name || 'Documento PDF'}</p>
+                                            <span className="text-[10px] text-muted-foreground uppercase font-semibold">Anexo CRM</span>
+                                          </div>
+                                          <Button 
+                                            size="sm" 
+                                            variant="ghost" 
+                                            className="h-7 px-2 text-xs text-primary hover:text-primary"
+                                            onClick={() => window.open(file.url, '_blank')}
+                                          >
+                                            <ExternalLink className="h-3.5 w-3.5" />
+                                          </Button>
+                                        </div>
+                                      );
+                                    }
+
+                                    return (
+                                      <div key={fIdx} className="group/item relative">
+                                        <div 
+                                          className="w-16 h-16 lg:w-20 lg:h-20 rounded-xl overflow-hidden border border-border bg-muted cursor-pointer hover:border-primary/50 transition-all"
+                                          onClick={() => setSelectedImage(file.url)}
                                         >
-                                          <Share2 className="h-3 w-3 text-green-600" />
-                                        </Button>
+                                          <img src={file.url} alt={file.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                        </div>
+                                        <div className="absolute -top-1 -right-1 opacity-100 lg:opacity-0 group-hover/item:opacity-100 transition-opacity flex gap-1">
+                                          <Button 
+                                            size="icon" 
+                                            variant="secondary" 
+                                            className="h-6 w-6 rounded-full shadow-lg"
+                                            onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(`Veja esta foto da negociação: ${file.url}`)}`, '_blank')}
+                                          >
+                                            <Share2 className="h-3 w-3 text-green-600" />
+                                          </Button>
+                                        </div>
                                       </div>
-                                    </div>
-                                  ))}
+                                    );
+                                  })}
                                 </div>
                               )}
                             </div>

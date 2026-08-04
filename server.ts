@@ -4821,11 +4821,17 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
 
     // 2. Fetch Deal Comments (/deals/{dealId}/comments & /comments?deal_id={dealId})
     try {
-      let rawCommentsRes = await callAgendor(`deals/${dealId}/comments`, "GET", apiToken).catch(() => null);
-      if (!rawCommentsRes) {
-        rawCommentsRes = await callAgendor(`comments?deal_id=${dealId}`, "GET", apiToken).catch(() => null);
-      }
-      const commentsList = extractAgendorList(rawCommentsRes);
+      const rawCommentsRes = await Promise.all([
+        callAgendor(`deals/${dealId}/comments`, "GET", apiToken).catch(() => null),
+        callAgendor(`comments?deal_id=${dealId}`, "GET", apiToken).catch(() => null),
+        callAgendor(`comments?deal=${dealId}`, "GET", apiToken).catch(() => null)
+      ]);
+      const commentsList = [
+        ...extractAgendorList(rawCommentsRes[0]),
+        ...extractAgendorList(rawCommentsRes[1]),
+        ...extractAgendorList(rawCommentsRes[2])
+      ];
+
       for (const comment of commentsList) {
         const commentId = comment.id || comment.commentId || comment.comment_id;
         const commentText = comment.text || comment.content || comment.note || comment.body || comment.comment || comment.description || comment.details || "";
@@ -4835,13 +4841,24 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
           const authorName = comment.user?.name || comment.user?.fullName || comment.author?.name || comment.creator?.name || comment.owner?.name || "Vendedor Comercial (CRM Agendor)";
           const commentDate = comment.createdAt || comment.created_at || comment.date || comment.updatedAt || comment.updated_at || new Date().toISOString();
           
+          // Parse attachments in comment if any
+          const rawAtts = comment.attachments || comment.files || comment.file || [];
+          const attsArray = Array.isArray(rawAtts) ? rawAtts : (rawAtts ? [rawAtts] : []);
+          const attachments = attsArray
+            .filter((a: any) => a && (a.url || a.file_url || a.link))
+            .map((a: any) => ({
+              name: a.name || a.title || a.filename || "Anexo",
+              url: a.url || a.file_url || a.link
+            }));
+
           historyEntriesToAdd.push({
             id: commentId ? `agendor-comment-${commentId}` : `agendor-comm-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
             agendor_id: commentId ? String(commentId) : undefined,
             type: "note",
             author_name: `${authorName}`,
             created_at: commentDate,
-            content: `[CRM Agendor${commentId ? ' ID #' + commentId : ''} - ${authorName}]:\n${commentText.trim()}`
+            content: `[CRM Agendor${commentId ? ' ID #' + commentId : ''} - ${authorName}]:\n${commentText.trim()}`,
+            attachments: attachments.length > 0 ? attachments : undefined
           });
         }
       }
@@ -4851,14 +4868,21 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
 
     // 3. Fetch Deal Activities & Stream (/deals/{dealId}/activities, /deals/{dealId}/stream, /deals/{dealId}/history)
     try {
-      let rawActRes = await callAgendor(`deals/${dealId}/activities`, "GET", apiToken).catch(() => null);
-      if (!rawActRes) {
-        rawActRes = await callAgendor(`deals/${dealId}/stream`, "GET", apiToken).catch(() => null);
-      }
-      if (!rawActRes) {
-        rawActRes = await callAgendor(`deals/${dealId}/history`, "GET", apiToken).catch(() => null);
-      }
-      const actList = extractAgendorList(rawActRes);
+      const rawActRes = await Promise.all([
+        callAgendor(`deals/${dealId}/activities`, "GET", apiToken).catch(() => null),
+        callAgendor(`activities?deal_id=${dealId}`, "GET", apiToken).catch(() => null),
+        callAgendor(`deals/${dealId}/stream`, "GET", apiToken).catch(() => null),
+        callAgendor(`deals/${dealId}/history`, "GET", apiToken).catch(() => null),
+        callAgendor(`deals/${dealId}/timeline`, "GET", apiToken).catch(() => null)
+      ]);
+      const actList = [
+        ...extractAgendorList(rawActRes[0]),
+        ...extractAgendorList(rawActRes[1]),
+        ...extractAgendorList(rawActRes[2]),
+        ...extractAgendorList(rawActRes[3]),
+        ...extractAgendorList(rawActRes[4])
+      ];
+
       for (const act of actList) {
         const actId = act.id || act.activityId || act.activity_id || act.historyId;
         const actText = act.text || act.content || act.note || act.description || act.body || act.title || act.summary || act.details || "";
@@ -4867,7 +4891,17 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         if (!isAlreadyInHistory(actId, actText)) {
           const authorName = act.user?.name || act.author?.name || act.creator?.name || act.owner?.name || "Vendedor Comercial (CRM Agendor)";
           const actDate = act.createdAt || act.created_at || act.date || act.updatedAt || act.time || new Date().toISOString();
-          const actType = act.type || act.category || "Histórico/Atividade";
+          const actType = act.type || act.category || act.activity_type || "Histórico/Atividade";
+
+          // Parse attachments in activity if any
+          const rawAtts = act.attachments || act.files || act.file || [];
+          const attsArray = Array.isArray(rawAtts) ? rawAtts : (rawAtts ? [rawAtts] : []);
+          const attachments = attsArray
+            .filter((a: any) => a && (a.url || a.file_url || a.link))
+            .map((a: any) => ({
+              name: a.name || a.title || a.filename || "Anexo",
+              url: a.url || a.file_url || a.link
+            }));
 
           historyEntriesToAdd.push({
             id: actId ? `agendor-act-${actId}` : `agendor-act-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -4875,7 +4909,8 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
             type: "note",
             author_name: `${authorName}`,
             created_at: actDate,
-            content: `[CRM Agendor (${actType})${actId ? ' ID #' + actId : ''} - ${authorName}]:\n${actText.trim()}`
+            content: `[CRM Agendor (${actType})${actId ? ' ID #' + actId : ''} - ${authorName}]:\n${actText.trim()}`,
+            attachments: attachments.length > 0 ? attachments : undefined
           });
         }
       }
@@ -4883,11 +4918,26 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       console.warn(`[AGENDOR-PULL] Não foi possível buscar atividades/stream para #${dealId}:`, actErr.message);
     }
 
-    // 4. Fetch Tasks & Activities (/v3/tasks?createdDateGt=...)
+    // 4. Fetch Tasks & Activities (/v3/tasks & /deals/{dealId}/tasks)
     try {
       const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
-      const rawTasksRes = await callAgendor(`tasks?createdDateGt=${sixtyDaysAgo}`, "GET", apiToken).catch(() => null);
-      const tasksList = extractAgendorList(rawTasksRes);
+      const rawTasksRes = await Promise.all([
+        callAgendor(`deals/${dealId}/tasks`, "GET", apiToken).catch(() => null),
+        callAgendor(`deals/${dealId}/tasks?status=all`, "GET", apiToken).catch(() => null),
+        callAgendor(`tasks?deal_id=${dealId}`, "GET", apiToken).catch(() => null),
+        callAgendor(`tasks?deal=${dealId}`, "GET", apiToken).catch(() => null),
+        callAgendor(`tasks?createdDateGt=${sixtyDaysAgo}`, "GET", apiToken).catch(() => null),
+        callAgendor(`tasks?status=all&createdDateGt=${sixtyDaysAgo}`, "GET", apiToken).catch(() => null)
+      ]);
+
+      const tasksList = [
+        ...extractAgendorList(rawTasksRes[0]),
+        ...extractAgendorList(rawTasksRes[1]),
+        ...extractAgendorList(rawTasksRes[2]),
+        ...extractAgendorList(rawTasksRes[3]),
+        ...extractAgendorList(rawTasksRes[4]),
+        ...extractAgendorList(rawTasksRes[5])
+      ];
 
       const targetOrgId = dealDetails?.organization?.id || dealDetails?.organization_id ? String(dealDetails?.organization?.id || dealDetails?.organization_id) : null;
       const targetPersonId = dealDetails?.person?.id || dealDetails?.person_id ? String(dealDetails?.person?.id || dealDetails?.person_id) : null;
@@ -4898,19 +4948,29 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         const taskText = task.text || task.title || task.description || task.note || task.content || "";
         if (!taskText.trim()) continue;
 
-        // Check if task belongs to this Deal, Organization, or Person
-        const taskDealId = task.deal?.id ? String(task.deal.id) : null;
-        const taskOrgId = task.organization?.id ? String(task.organization.id) : null;
-        const taskPersonId = task.person?.id ? String(task.person.id) : null;
+        // Safely extract deal/org/person IDs (support objects, strings, numbers)
+        const taskDealId = typeof task.deal === "object" ? String(task.deal?.id || task.deal?.deal_id || "") : String(task.deal || task.deal_id || task.dealId || "");
+        const taskOrgId = typeof task.organization === "object" ? String(task.organization?.id || "") : String(task.organization || task.organization_id || "");
+        const taskPersonId = typeof task.person === "object" ? String(task.person?.id || "") : String(task.person || task.person_id || "");
 
-        const isMatch = (targetDealId && taskDealId === targetDealId) ||
+        const isMatch = (targetDealId && (taskDealId === targetDealId || taskDealId.includes(targetDealId))) ||
                         (targetOrgId && taskOrgId === targetOrgId) ||
                         (targetPersonId && taskPersonId === targetPersonId);
 
         if (isMatch && !isAlreadyInHistory(taskId, taskText)) {
           const authorName = task.finishedBy?.name || task.user?.name || task.assignedTo?.name || task.author?.name || "Vendedor Comercial (CRM Agendor)";
           const taskDate = task.finishedAt || task.createdAt || task.updatedAt || task.dueDate || new Date().toISOString();
-          const taskType = task.type || "Atividade/Ligação";
+          const taskType = task.type || task.category || "WhatsApp / Ligação";
+
+          // Parse attachments in task if any
+          const rawAtts = task.attachments || task.files || task.file || [];
+          const attsArray = Array.isArray(rawAtts) ? rawAtts : (rawAtts ? [rawAtts] : []);
+          const attachments = attsArray
+            .filter((a: any) => a && (a.url || a.file_url || a.link))
+            .map((a: any) => ({
+              name: a.name || a.title || a.filename || "Anexo",
+              url: a.url || a.file_url || a.link
+            }));
 
           historyEntriesToAdd.push({
             id: taskId ? `agendor-task-${taskId}` : `agendor-task-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -4918,7 +4978,8 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
             type: "note",
             author_name: authorName,
             created_at: taskDate,
-            content: `[CRM Agendor (${taskType}) - ${authorName}]:\n${taskText.trim()}`
+            content: `[CRM Agendor (${taskType})${task.finished ? ' ✓ Finalizada' : ''} - ${authorName}]:\n${taskText.trim()}`,
+            attachments: attachments.length > 0 ? attachments : undefined
           });
         }
       }
@@ -5003,7 +5064,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
   // Route to push notes & photos added in Roder Indica directly to Agendor CRM
   app.post("/api/agendor/add-comment", async (req, res) => {
     try {
-      const { indicationId, content, authorName } = req.body;
+      const { indicationId, content, authorName, attachments } = req.body;
       if (!indicationId) {
         return res.status(400).json({ error: "Parâmetro 'indicationId' é obrigatório." });
       }
@@ -5019,12 +5080,71 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         return res.status(400).json({ error: "Integração com Agendor desabilitada ou sem token." });
       }
 
-      // Re-trigger syncAndPullAgendorDetails to rebuild the description with all options, photos & new notes, and sync with Agendor
-      const indSnap = await db.collection("indications").doc(indicationId).get();
-      const indData = indSnap.exists ? indSnap.data() : {};
-      const result = await syncAndPullAgendorDetails(indicationId, indData, agendorConfig.apiToken);
+      const apiToken = agendorConfig.apiToken;
 
-      return res.json({ success: true, result });
+      const indSnap = await db.collection("indications").doc(indicationId).get();
+      if (!indSnap.exists) {
+        return res.status(404).json({ error: "Indicação não encontrada." });
+      }
+      const indData = indSnap.data() as any;
+
+      const dealId = indData.agendor_deal_id;
+      const personId = indData.agendor_person_id;
+      const organizationId = indData.agendor_organization_id;
+
+      // Build formatted comment text to push to Agendor CRM
+      let commentText = `[Acompanhamento RODER Indica - ${authorName || 'Parceiro/Vendedor'}]\n${content || ''}`;
+      if (Array.isArray(attachments) && attachments.length > 0) {
+        commentText += `\n\n📷 Anexos/Fotos (${attachments.length}):\n` + attachments.map((a: any) => `- ${a.name || 'Arquivo'}: ${a.url}`).join('\n');
+      }
+
+      let pushed = false;
+      let pushError = null;
+
+      // 1. Push comment to Deal if dealId exists
+      if (dealId) {
+        try {
+          await callAgendor(`deals/${dealId}/comments`, "POST", apiToken, { text: commentText });
+          pushed = true;
+          console.log(`[AGENDOR-COMMENT] Comentário enviado com sucesso para o negócio #${dealId}`);
+        } catch (err1: any) {
+          console.warn(`[AGENDOR-COMMENT] Falha em /deals/${dealId}/comments, tentando /comments:`, err1.message);
+          try {
+            await callAgendor(`comments`, "POST", apiToken, { deal_id: Number(dealId), text: commentText });
+            pushed = true;
+            console.log(`[AGENDOR-COMMENT] Comentário enviado via /comments para o negócio #${dealId}`);
+          } catch (err2: any) {
+            pushError = err2.message;
+            console.error(`[AGENDOR-COMMENT] Erro ao postar comentário no negócio:`, err2.message);
+          }
+        }
+      }
+
+      // 2. Fallback to Person/Organization if dealId wasn't present or failed
+      if (!pushed && personId) {
+        try {
+          await callAgendor(`people/${personId}/comments`, "POST", apiToken, { text: commentText });
+          pushed = true;
+          console.log(`[AGENDOR-COMMENT] Comentário enviado com sucesso para a pessoa #${personId}`);
+        } catch (pErr: any) {
+          console.warn(`[AGENDOR-COMMENT] Falha em /people/${personId}/comments:`, pErr.message);
+        }
+      }
+
+      if (!pushed && organizationId) {
+        try {
+          await callAgendor(`organizations/${organizationId}/comments`, "POST", apiToken, { text: commentText });
+          pushed = true;
+          console.log(`[AGENDOR-COMMENT] Comentário enviado com sucesso para a empresa #${organizationId}`);
+        } catch (oErr: any) {
+          console.warn(`[AGENDOR-COMMENT] Falha em /organizations/${organizationId}/comments:`, oErr.message);
+        }
+      }
+
+      // Re-trigger syncAndPullAgendorDetails to sync back and pull any newest updates from Agendor
+      const pullResult = await syncAndPullAgendorDetails(indicationId, indData, apiToken);
+
+      return res.json({ success: true, pushed, pushError, pullResult });
     } catch (err: any) {
       console.error("[AGENDOR-COMMENT] Erro ao enviar comentário para o Agendor:", err.message);
       return res.status(500).json({ error: err.message });
