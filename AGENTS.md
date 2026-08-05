@@ -22,6 +22,13 @@
   - **Inviabilidade de Segurança**: Em caso de queda de árvore na direção da cabine (vento contra ou erro), o operador não consegue desviar ou girar a cabine para evitar o acidente, ao contrário de uma escavadeira de esteira com giro central de 360°.
   - **Alternativa Recomendada**: Indique a aquisição de uma **escavadeira de esteira pequena (7 a 8 toneladas)**. Essas escavadeiras são ágeis, fáceis de transportar, têm excelente alcance/movimentos superiores e alta economia de combustível por hora de trabalho.
 
+- **Cabeçote CMF 500 - Porte de Máquina, Performance e Operação em Rebrota**:
+  - **Faixa de Aplicação Ideal**: O CMF 500 é mais indicado para escavadeiras de **8 a 14 toneladas**. Na máquina de **14 toneladas**, ele já trabalha com a sua melhor performance.
+  - **Instalação em Máquinas de até 22 Toneladas**: Pode ser instalado em escavadeiras de até **22 toneladas**. Porém, em uma máquina grande de 22t, devido ao tamanho, peso e força bruta do braço, o operador deve tomar cuidado especial para não danificar o equipamento. Por isso, recomendamos o **CMF 600** para máquinas de 22 toneladas. Contudo, existem clientes que trabalham com o CMF 500 em máquinas de até 22 toneladas.
+  - **Operação em Área de Rebrota**: A Roder **NÃO recomenda** o CMF 500 para corte em área de rebrota por conta de sua corrente mais fina (passo .404), pois cortar vários fustes simultaneamente exige maior esforço do conjunto de corte.
+  - **Indicação Técnica para Rebrota**: Para rebrota, a corrente do **CMF 600** é a melhor e mais indicada, pois opera com **corrente 3/4"** e sabre mais resistente (padrão das traçadoras maiores).
+  - **Uso do CMF 500 em Rebrota (Exceção/Habilidade Operacional)**: Existem clientes que operam em rebrota utilizando o CMF 500, porém deve-se ter um cuidado operacional muito maior para não entortar o sabre durante a operação, exigindo alta habilidade do operador.
+
 - **Garfo Paleteiro - Dimensionamento por Porte de Máquina**:
   - **Regra de Ouro**: O dimensionamento do garfo paleteiro deve ser feito **SEMPRE de acordo com o tamanho/porte da pá carregadeira, e NUNCA de acordo com o peso da carga** a ser transportada.
   - **Uso do GPR 4500 em Máquinas Maiores (> 8 Ton.)**: É **estritamente PROIBIDO** utilizar o garfo paleteiro GPR 4500 (capacidade de carga de 4.500 kg) em pás carregadeiras acima de 8 toneladas, mesmo que o cliente alegue que a carga real a ser levantada pese menos do que 4.500 kg.

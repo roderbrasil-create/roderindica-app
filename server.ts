@@ -91,6 +91,24 @@ if (admin.apps.length === 0) {
 
 const db = getFirestore(adminApp, config.firestoreDatabaseId || '(default)');
 
+function getTodayLocalDate(): string {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getLocalDateString(isoString: string): string {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return isoString.split('T')[0];
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 // Initialize Gemini AI (Server-side)
 let genAI: GoogleGenAI | null = null;
 function getGenAI() {
@@ -1620,7 +1638,8 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
 9. DIMENSIONAMENTO E PRODUTIVIDADE DO CABEÇOTE MULTIFUNCIONAL CMF 600 (REGRAS CRÍTICAS DE ENGENHARIA):
    - Se perguntarem como determinar o tamanho correto para uma caçamba ou cabeçote multifuncional (CMF) para uma escavadeira:
      - Para escavadeiras na faixa de 13 a 22 toneladas (como a CAT 313, Hyundai 130, etc.) em operação de colheita de eucalipto, pinus e reflorestamento, a indicação técnica ideal e exata é SEMPRE e EXCLUSIVAMENTE o Cabeçote Multifuncional CMF 600. Não cite ou sugira o modelo CMF 500 para essa faixa, nem dê outras opções para não confundir o usuário. Recomende o CMF 600 de forma direta e sem hesitação como a única escolha correta, pois ele é o mais vendido (98% das vendas) e ágil com estoque frequente.
-     - O cabeçote/caçamba multifuncional CMF 500 (nossa menor opção) só é adequado para escavadeiras de menor porte (8 a 12 toneladas) ou quando o usuário pedir explicitamente um modelo menor de corte leve.
+     - O cabeçote multifuncional CMF 500 é mais indicado para escavadeiras de 8 a 14 toneladas, sendo que na máquina de 14 toneladas ele já trabalha com a sua melhor performance. Pode ser instalado em escavadeiras de até 22 toneladas. Para uma máquina grande de 22 toneladas, é possível trabalhar com o CMF 500, porém, pelo tamanho da máquina, peso e força do braço, o operador deve tomar cuidado para não danificar o equipamento. Por isso, recomendamos o CMF 600 para máquinas de 22 toneladas. Mas existem clientes reais que trabalham com o CMF 500 em máquinas de até 22 toneladas.
+     - OPERAÇÃO EM REBROTA COM CMF 500: Não recomendamos o CMF 500 para corte em área de rebrota por conta da corrente fina (.404), pois cortar vários fustes exige maior esforço do conjunto de corte. Para isso, a corrente do cabeçote CMF 600 é a melhor e mais indicada, que trabalha com corrente 3/4" e sabre mais resistente (padrão das traçadoras maiores). Mas também temos clientes que trabalham com rebrota com CMF 500, porém deve-se ter um cuidado operacional muito maior para não entortar o sabre durante a operação.
      - Quando questionado sobre qual cabeçote multifuncional é ideal para máquinas na faixa de 20 a 30 toneladas, recomende preferencialmente o CMF 600, mas mencione que o CMF 800 só é de fato recomendado quando o cliente necessita cortar árvores de grande porte com até 80 centímetros de diâmetro (por exemplo, em áreas de mata nativa que exigem maior área de corte). O CMF 800 nunca está em estoque a pronta entrega; ele é produzido estritamente sob encomenda. Recomende sempre preferencialmente o CMF 600, a menos que o diâmetro de corte exija realmente o CMF 800.
    - PRODUTIVIDADE E PERFORMANCE DO CMF 600:
      - **Derrubada/Colheita de Eucalipto (Felling)**:
@@ -1649,8 +1668,8 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
        • Vazão extra para passagem livre de óleo.
        • Permite rotação/giro infinito e ilimitado ao cabeçote, eliminando o problema de mangueiras externas girando fora do cabeçote.
    - Se perguntarem as principais diferenças entre o cabeçote multifuncional CMF 500 e CMF 600:
-     - Tipo de corrente utilizada: O CMF 500 utiliza corrente .404, idêntica à de harvester convencional usada no corte de árvore a árvore.
-     - O CMF 600 utiliza corrente de bitola 3/4, que é muito mais robusta para trabalhos pesados e para o traçamento de várias árvores (ou feixes de madeira) simultaneamente. A corrente 3/4 oferece maior durabilidade e rendimento operacional.
+     - Porte de Máquina: O CMF 500 é mais indicado para escavadeiras de 8 a 14 toneladas (com melhor performance em 14t), podendo ser instalado em até 22t (com ressalva de cuidado operacional). Já o CMF 600 é a escolha perfeita para máquinas de 13 a 22 toneladas (e recomendado para 22t).
+     - Tipo de corrente e Rebrota: O CMF 500 utiliza corrente .404 (harvester convencional), por isso não é recomendado para áreas de rebrota onde o corte de vários fustes exige muito do sabre (embora existam clientes que utilizam CMF 500 em rebrota com alta habilidade operacional para não entortar o sabre). O CMF 600 utiliza corrente de bitola 3/4" e sabre reforçado (padrão das traçadoras maiores), sendo o melhor e mais indicado para rebrota e traçamento pesado de múltiplos fustes.
      - Robustez geral: O CMF 600 é um cabeçote significativamente mais robusto e durável sob condições severas.
 
 10. DIMENSIONAMENTO DE CARREGADOR FRONTAL (PORTA-PALETES / GARFOS ROTATIVOS):
@@ -2231,6 +2250,10 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
       • **Aplicação da Corrente 3/4"**: Corrente para serviço pesado / severo, indicada para clientes que necessitam de alta produtividade com correntes mais robustas.
       • **TERMINOLOGIA CRÍTICA**: NUNCA diga que a corrente é do "padrão de traçadora pesada". Diga estritamente que é do **"padrão das traçadoras maiores"**.
     - **Regra Geral de Comunicação**: Respostas curtas, objetivas, sem enrolação. Fale apenas de equipamentos existentes no catálogo Roder.
+    - **Diretriz Crítica para Relatórios e Dossiês Técnicos (Relatórios Impessoais sem Nome de Vendedor / Imagem de Equipamento e Linhas Hidráulicas)**:
+      • **Texto Impessoal**: NUNCA dirija-se a um vendedor/usuário específico pelo nome no texto do relatório ou dossiê (ex: JAMAIS escreva "Yury,", "Olá Yury," ou "Jeferson," no corpo do relatório). O relatório deve ser gerado de forma neutra, impessoal e estritamente técnica para que qualquer vendedor ou usuário possa copiar, imprimir ou enviar o documento diretamente ao cliente final.
+      • **Foto do Equipamento**: Quando o relatório ou recomendação abordar um equipamento específico (ex: Cabeçote Multifuncional CMF 500, Garra Traçadora GT 600X, Feller CFTA 50, etc.), inclua no relatório a foto/imagem principal do equipamento.
+      • **Especificações de Linhas Hidráulicas e Funções**: Na seção de especificações técnicas e recomendações, especifique SEMPRE de forma clara e detalhada a quantidade de linhas hidráulicas necessárias e suas respectivas funções para o equipamento abordado (ex: Cabeçote CMF 500: 1 linha de pressão de alto fluxo, 1 linha de retorno de alto fluxo direto para o tanque e 1 linha de dreno de carcaça livre sem pressão; Garras de Carga com Rotator: 4 mangueiras bidirecionais - 2 para giro 360° e 2 para abrir/fechar a garra). Caso a quantidade de linhas de um equipamento não seja conhecida, não invente, mas para os equipamentos cujas diretrizes foram mapeadas, inclua obrigatoriamente essa especificação técnica para orientar 100% o cliente.
 
 
 Aqui está o catálogo de produtos e modelos reais cadastrados atualmente na Roder:
@@ -2337,28 +2360,34 @@ ${kitsContext || "Não há kits de instalação cadastrados."}${improvedKnowledg
 
         case "generateRoderAIDailySummary": {
           const { dateStr } = args;
-          const targetDate = dateStr || new Date().toISOString().split('T')[0];
-          
-          const startOfDay = `${targetDate}T00:00:00.000Z`;
-          const endOfDay = `${targetDate}T23:59:59.999Z`;
+          const targetDate = dateStr || getTodayLocalDate();
           
           let questionsList: any[] = [];
           try {
             const qSnap = await db.collection('roder_ai_questions')
-              .where('timestamp', '>=', startOfDay)
-              .where('timestamp', '<=', endOfDay)
+              .orderBy('timestamp', 'desc')
+              .limit(500)
               .get();
             
             qSnap.forEach(doc => {
               const data = doc.data();
-              questionsList.push({
-                userName: data.userName,
-                userEmail: data.userEmail,
-                question: data.question,
-                answer: data.answer,
-                topic: data.topic
-              });
+              if (data.timestamp) {
+                const itemDate = getLocalDateString(data.timestamp);
+                if (itemDate === targetDate) {
+                  questionsList.push({
+                    userName: data.userName || 'Anônimo',
+                    userEmail: data.userEmail || '',
+                    userRole: data.userRole || '',
+                    question: data.question || '',
+                    answer: data.answer || '',
+                    topic: data.topic || 'Dúvida Geral',
+                    timestamp: data.timestamp
+                  });
+                }
+              }
             });
+            // Sort chronologically (oldest to newest for the day)
+            questionsList.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
           } catch (err) {
             console.error("Error loading today's questions for summary:", err);
           }
@@ -2366,7 +2395,7 @@ ${kitsContext || "Não há kits de instalação cadastrados."}${improvedKnowledg
           if (questionsList.length === 0) {
             result = {
               date: targetDate,
-              summary: "Nenhuma pergunta foi realizada ao consultor Roder IA no dia de hoje.",
+              summary: "Nenhuma pergunta foi realizada ao consultor Roder IA na data selecionada.",
               totalQuestions: 0,
               bestQuestions: []
             };
@@ -2374,14 +2403,16 @@ ${kitsContext || "Não há kits de instalação cadastrados."}${improvedKnowledg
           }
           
           const prompt = `Você é um analista de dados técnico especializado na Roder Brasil.
-            Abaixo está a lista de todas as perguntas feitas hoje pelos vendedores e parceiros ao Consultor Técnico Roder IA.
-            Sua tarefa é ler estas interações e produzir um RESUMO DIÁRIO executivo e motivador em formato Markdown estruturado.
-            O resumo deve ser focado na gerência comercial (Gislene e Luana).
+            Abaixo está a lista de TODAS as interações/perguntas realizadas hoje por TODOS os usuários (vendedores internos, vendedores externos, diretores e parceiros) ao Consultor Técnico Roder IA.
+            Sua tarefa é analisar rigorosamente todas essas conversas e produzir um RESUMO DIÁRIO executivo consolidado em formato Markdown estruturado.
+            O resumo é voltado para a gerência comercial (Gislene e Luana) e diretoria.
             
             DIRETRIZES DO RESUMO:
-            1. Traga um panorama geral de usabilidade (ex: quantidade total de perguntas, perfil dos usuários).
-            2. Selecione e cite as MELHORES perguntas técnicas (com maiores dúvidas, ou as mais inteligentes/relevantes). Cite o nome do vendedor que a realizou e o resultado/especificação do produto indicada.
-            3. Analise se as respostas da IA estão sendo precisas ou se há pontos de melhoria técnica a sugerir à gerência.
+            1. Traga uma consolidação de TODAS as conversas e interações do dia organizadas por ordem de horário.
+            2. Traga um panorama geral de usabilidade (quantidade total de perguntas, perfil dos usuários/vendedores).
+            3. Selecione e destaque as MELHORES perguntas técnicas (com maiores dúvidas, orçamentos gerados ou especificações mais inteligentes).
+            4. Se houver relatórios ou dossiês gerados para envio ao cliente, garanta que qualquer recomendação apresentada seja impessoal e genérica (sem dirigir-se ao vendedor por nomes específicos como Yury ou Jeferson), facilitando o envio ao cliente final.
+            5. Nas recomendações de equipamentos (como CMF 500, Feller CFTA, Garras R/GT), cite as especificações técnicas completas, incluindo a foto principal do equipamento e a quantidade e função de cada linha hidráulica necessária.
             
             INTERAÇÕES DO DIA (${targetDate}):
             ${JSON.stringify(questionsList, null, 2)}
@@ -5318,16 +5349,25 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       }
 
       // If status is 'negotiating' or other states, we do full sync (deal registration)
-      // Prepare clean display names
-      const rawClientName = indData.client_name && indData.client_name.trim() !== "Cliente Roder Indica"
-        ? indData.client_name.trim()
-        : (indData.contact_name || "").trim();
+      // Prepare clean display names according to user business rules:
+      // Lead must be created in 'Empresas' (Organizations) tab in Agendor using the Person's Name in the name column.
+      const rawPersonName = (indData.client_person_name || indData.contact_name || indData.client_name || "").trim();
+      let rawCompanyName = (indData.client_company_name || indData.company_name || "").trim();
 
-      const rawCompanyName = (indData.client_company_name || indData.company_name || "").trim();
-      
-      // Determine real client display name and company name
-      const realClientName = rawClientName || rawCompanyName || "Cliente Indicação Roder";
-      const companyDisplayName = rawCompanyName || rawClientName || "Empresa Indicação Roder";
+      if (rawCompanyName.toLowerCase() === "cliente roder indica") {
+        rawCompanyName = "";
+      }
+
+      let realClientName = rawPersonName;
+      if (!realClientName || realClientName.toLowerCase() === "cliente roder indica") {
+        realClientName = rawCompanyName || "Cliente Indicação Roder";
+      }
+
+      // Name column in 'Empresas' tab MUST display the Person's Name (e.g. "HUGO (WANDERSON E HELOISA)" or "HUGO")
+      let companyDisplayName = realClientName;
+      if (rawCompanyName && rawCompanyName.toLowerCase() !== realClientName.toLowerCase()) {
+        companyDisplayName = `${realClientName} (${rawCompanyName})`;
+      }
       
       const clientPhone = indData.client_phone || "";
       const cnpj = indData.client_cnpj || "";
@@ -5425,12 +5465,9 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       if (clientPhone) {
         const cleanDigits = clientPhone.replace(/\D/g, "");
         if (cleanDigits) {
-          contactPayload.work = clientPhone;
-          contactPayload.mobile = clientPhone;
+          contactPayload.phones = [{ number: clientPhone, type: "mobile" }];
           if (cleanDigits.length >= 10) {
             contactPayload.whatsapp = cleanDigits.startsWith("55") ? `+${cleanDigits}` : `+55${cleanDigits}`;
-          } else {
-            contactPayload.whatsapp = clientPhone;
           }
         }
       }
@@ -5554,9 +5591,8 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         orgPayload.contact = contactPayload;
       }
       if (agendorUserId) {
-        orgPayload.ownerUser = agendorUserId;
-        orgPayload.owner = agendorUserId;
-        orgPayload.allowedUsers = [agendorUserId];
+        orgPayload.ownerUser = { id: agendorUserId };
+        orgPayload.allowedUsers = [{ id: agendorUserId }];
       }
 
       if (!organizationId) {
@@ -5622,7 +5658,8 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
             try {
               await callAgendor(`organizations/${organizationId}`, "PUT", apiToken, orgPayload);
             } catch (updErr: any) {
-              console.warn("[AGENDOR-SYNC] Falha ao atualizar empresa existente:", updErr.message);
+              console.warn("[AGENDOR-SYNC] Falha ao atualizar empresa existente, tentando com payload simplificado:", updErr.message);
+              await callAgendor(`organizations/${organizationId}`, "PUT", apiToken, { name: companyDisplayName, description: fullFormattedDescription }).catch(() => null);
             }
 
             if (matchedOrg.cnpj && (!indData.client_cnpj || indData.client_cnpj === "Não informado")) {
@@ -5633,14 +5670,32 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
             }
           } else {
             // Create NEW Organization in Agendor
-            const orgResult = await callAgendor("organizations", "POST", apiToken, orgPayload);
-            if (orgResult) {
-              organizationId = extractAgendorId(orgResult, ["organizationId", "organization_id", "id"]);
-              console.log("[AGENDOR-SYNC] Nova Empresa criada na aba Empresas do Agendor:", organizationId);
+            try {
+              const orgResult = await callAgendor("organizations", "POST", apiToken, orgPayload);
+              if (orgResult) {
+                organizationId = extractAgendorId(orgResult, ["organizationId", "organization_id", "id"]);
+                console.log("[AGENDOR-SYNC] Nova Empresa criada na aba Empresas do Agendor:", organizationId);
+              }
+            } catch (postOrgErr: any) {
+              console.warn("[AGENDOR-SYNC] Erro ao criar empresa com payload completo, tentando fallback simplificado:", postOrgErr.message);
+              const fallbackPayload: any = {
+                name: companyDisplayName,
+                description: fullFormattedDescription
+              };
+              if (cnpj && cnpj !== "Não informado") {
+                const cleanCnpj = cnpj.replace(/\D/g, "");
+                if (cleanCnpj.length === 14) fallbackPayload.cnpj = cleanCnpj;
+              }
+              if (city || state) fallbackPayload.address = { city: city || null, state: state || null };
+              const fallbackRes = await callAgendor("organizations", "POST", apiToken, fallbackPayload);
+              if (fallbackRes) {
+                organizationId = extractAgendorId(fallbackRes, ["organizationId", "organization_id", "id"]);
+                console.log("[AGENDOR-SYNC] Nova Empresa criada via payload fallback no Agendor:", organizationId);
+              }
             }
           }
         } catch (orgErr: any) {
-          console.warn("[AGENDOR-SYNC] Falha ao gerenciar organização/empresa, tentando prosseguir:", orgErr.message);
+          console.error("[AGENDOR-SYNC] Falha ao gerenciar organização/empresa no Agendor:", orgErr.message);
         }
       } else {
         // Update existing Organization in Agendor with owner & phone
@@ -5651,85 +5706,8 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         }
       }
 
-      // Step C: Create or Update Person (Pessoa) under the Organization
+      // Step C: Bypass creation in 'Pessoas' tab as per business rule (leads are registered directly under 'Empresas')
       let personId: number | null = indData.agendor_person_id || null;
-      
-      const personPayload: any = {
-        name: realClientName,
-        role: "Cliente",
-        description: fullFormattedDescription
-      };
-      if (organizationId) {
-        personPayload.organization = organizationId;
-      }
-      if (Object.keys(contactPayload).length > 0) {
-        personPayload.contact = contactPayload;
-      }
-      if (city || state) {
-        personPayload.address = {
-          city: city || null,
-          state: state || null
-        };
-      }
-      if (agendorUserId) {
-        personPayload.ownerUser = agendorUserId;
-        personPayload.owner = agendorUserId;
-        personPayload.allowedUsers = [agendorUserId];
-      }
-
-      if (!personId) {
-        try {
-          let existingPeople: any[] = [];
-          if (clientPhone) {
-            const cleanPhone = clientPhone.replace(/\D/g, "");
-            if (cleanPhone) {
-              try {
-                const resP = await callAgendor(`people?q=${cleanPhone}`, "GET", apiToken);
-                existingPeople = extractAgendorList(resP);
-              } catch (phoneErr: any) {
-                console.warn("[AGENDOR-SYNC] Falha ao buscar contato por telefone:", phoneErr.message);
-              }
-            }
-          }
-
-          if (existingPeople.length === 0 && realClientName) {
-            try {
-              const resN = await callAgendor(`people?q=${encodeURIComponent(realClientName)}`, "GET", apiToken);
-              existingPeople = extractAgendorList(resN);
-            } catch (nameErr: any) {
-              console.warn("[AGENDOR-SYNC] Falha ao buscar contato por nome:", nameErr.message);
-            }
-          }
-
-          if (existingPeople.length > 0) {
-            const matchedPerson = existingPeople.find((p: any) => p.name?.toLowerCase() === realClientName.toLowerCase()) || existingPeople[0];
-            personId = matchedPerson.id;
-            console.log("[AGENDOR-SYNC] Pessoa/Contato existente encontrada no Agendor:", personId, matchedPerson.name);
-
-            // Update existing Person with owner and phone
-            try {
-              await callAgendor(`people/${personId}`, "PUT", apiToken, personPayload);
-            } catch (updPErr: any) {
-              console.warn("[AGENDOR-SYNC] Falha ao atualizar pessoa existente:", updPErr.message);
-            }
-          } else {
-            const personResult = await callAgendor("people", "POST", apiToken, personPayload);
-            if (personResult) {
-              personId = extractAgendorId(personResult, ["personId", "person_id", "id"]);
-              console.log("[AGENDOR-SYNC] Nova pessoa criada e vinculada à empresa no Agendor:", personId);
-            }
-          }
-        } catch (personErr: any) {
-          console.warn("[AGENDOR-SYNC] Falha ao gerenciar pessoa/contato:", personErr.message);
-        }
-      } else {
-        // Update existing Person in Agendor with owner & phone
-        try {
-          await callAgendor(`people/${personId}`, "PUT", apiToken, personPayload);
-        } catch (updPErr: any) {
-          console.warn("[AGENDOR-SYNC] Falha ao atualizar pessoa já vinculada:", updPErr.message);
-        }
-      }
 
       // Step D: Resolve dynamic Funnel ID and Stage ID from Agendor
       let funnelId: number | null = null;

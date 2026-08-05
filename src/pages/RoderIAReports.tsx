@@ -81,6 +81,24 @@ interface DailySummary {
   generatedAt: string;
 }
 
+const getTodayLocalDate = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getLocalDateString = (isoString: string) => {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return isoString.split('T')[0];
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function RoderIAReports() {
   const { isAdmin, isManager, profile } = useAuth();
   const navigate = useNavigate();
@@ -95,15 +113,13 @@ export default function RoderIAReports() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTopicFilter, setSelectedTopicFilter] = useState('Todos');
   const [selectedUserTypeFilter, setSelectedUserTypeFilter] = useState('Todos');
-  const [selectedDateFilter, setSelectedDateFilter] = useState(''); // YYYY-MM-DD
+  const [selectedDateFilter, setSelectedDateFilter] = useState<string>(() => getTodayLocalDate()); // Default to today's local date
   const [activeTab, setActiveTab] = useState<'dashboard' | 'questions' | 'summary'>('dashboard');
   
   // Daily Summary States
   const [dailySummary, setDailySummary] = useState<DailySummary | null>(null);
   const [generatingSummary, setGeneratingSummary] = useState(false);
-  const [selectedSummaryDate, setSelectedSummaryDate] = useState<string>(() => {
-    return new Date().toISOString().split('T')[0];
-  });
+  const [selectedSummaryDate, setSelectedSummaryDate] = useState<string>(() => getTodayLocalDate());
   
   const fetchSummaryForDate = async (dateStr: string) => {
     try {
@@ -380,22 +396,26 @@ export default function RoderIAReports() {
       
     const matchesTopic = selectedTopicFilter === 'Todos' || q.topic === selectedTopicFilter;
     const matchesUserType = selectedUserTypeFilter === 'Todos' || getUserType(q) === selectedUserTypeFilter;
-    const matchesDate = !selectedDateFilter || q.timestamp.split('T')[0] === selectedDateFilter;
+    const matchesDate = !selectedDateFilter || getLocalDateString(q.timestamp) === selectedDateFilter;
     
     return matchesSearch && matchesTopic && matchesDate && matchesUserType;
   });
   
-  // Group questions by day
+  // Group questions by day (sorted by time)
   const groupQuestionsByDay = (list: AIQuestion[]) => {
     const groups: { [date: string]: AIQuestion[] } = {};
-    list.forEach(q => {
-      const date = new Date(q.timestamp).toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-      });
-      if (!groups[date]) groups[date] = [];
-      groups[date].push(q);
+    
+    // Sort list chronologically or desc
+    const sortedList = [...list].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    
+    sortedList.forEach(q => {
+      const localDateStr = getLocalDateString(q.timestamp);
+      // Format as DD/MM/YYYY for title
+      const [yyyy, mm, dd] = localDateStr.split('-');
+      const formattedDate = (dd && mm && yyyy) ? `${dd}/${mm}/${yyyy}` : localDateStr;
+      
+      if (!groups[formattedDate]) groups[formattedDate] = [];
+      groups[formattedDate].push(q);
     });
     return groups;
   };
@@ -938,12 +958,34 @@ export default function RoderIAReports() {
                   <option value="Parceiros Indicadores">Parceiros Indicadores</option>
                 </select>
 
-                <input
-                  type="date"
-                  value={selectedDateFilter}
-                  onChange={(e) => setSelectedDateFilter(e.target.value)}
-                  className="px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none"
-                />
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="date"
+                    value={selectedDateFilter}
+                    onChange={(e) => setSelectedDateFilter(e.target.value)}
+                    className="px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none cursor-pointer"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDateFilter(getTodayLocalDate())}
+                    className={`px-2 py-1.5 text-xs font-bold rounded-lg border transition-colors ${
+                      selectedDateFilter === getTodayLocalDate() 
+                        ? 'bg-slate-900 text-white border-slate-900' 
+                        : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+                    }`}
+                  >
+                    Hoje
+                  </button>
+                  {selectedDateFilter && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDateFilter('')}
+                      className="px-2 py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-900 underline"
+                    >
+                      Todas
+                    </button>
+                  )}
+                </div>
 
                 {(selectedTopicFilter !== 'Todos' || selectedUserTypeFilter !== 'Todos' || selectedDateFilter || searchQuery) && (
                   <button
@@ -1076,6 +1118,17 @@ export default function RoderIAReports() {
                       onChange={(e) => setSelectedSummaryDate(e.target.value)}
                       className="bg-transparent border-none text-xs font-semibold text-slate-800 focus:outline-none focus:ring-0 cursor-pointer"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSummaryDate(getTodayLocalDate())}
+                      className={`ml-1 px-2 py-1 text-[11px] font-bold rounded border transition-colors ${
+                        selectedSummaryDate === getTodayLocalDate()
+                          ? 'bg-slate-900 text-white border-slate-900'
+                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                      }`}
+                    >
+                      Hoje
+                    </button>
                   </div>
                   
                   <button

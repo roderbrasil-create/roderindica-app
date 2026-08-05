@@ -71,7 +71,8 @@ import {
   GripHorizontal,
   Maximize2,
   Minimize2,
-  Undo
+  Undo,
+  Building2
 } from 'lucide-react';
 import { transcribeAudio, generateAISummary, analyzeDetailedBudget, analyzePDFDocument } from '../services/geminiService';
 import { notifyManagers, notifyInternalSeller, notifyExternalSeller, createNotification } from '../services/notificationService';
@@ -128,6 +129,24 @@ const months = [
   { value: 11, label: 'Novembro' },
   { value: 12, label: 'Dezembro' }
 ];
+
+export const getLeadCompanyDisplayName = (ind: any) => {
+  if (!ind) return '';
+  const company = ind.client_company_name || ind.company_name;
+  if (company && typeof company === 'string' && company.trim()) {
+    const trimmed = company.trim();
+    if (!ind.client_person_name || trimmed.toLowerCase() !== ind.client_person_name.trim().toLowerCase()) {
+      return trimmed;
+    }
+  }
+  if (ind.client_person_name && ind.client_name && typeof ind.client_name === 'string') {
+    const clientNameTrimmed = ind.client_name.trim();
+    if (clientNameTrimmed && clientNameTrimmed.toLowerCase() !== ind.client_person_name.trim().toLowerCase()) {
+      return clientNameTrimmed;
+    }
+  }
+  return '';
+};
 
 export const isMatchForExternalSeller = (ind: any, prof: any) => {
   if (!ind || !prof) return false;
@@ -1196,6 +1215,8 @@ export default function Indications() {
     const matchesSearch = !searchTerm.trim() || 
                           ind.client_name?.toLowerCase().includes(searchLower) || 
                           ind.client_person_name?.toLowerCase().includes(searchLower) ||
+                          ind.client_company_name?.toLowerCase().includes(searchLower) ||
+                          (ind as any).company_name?.toLowerCase().includes(searchLower) ||
                           ind.client_phone?.toLowerCase().includes(searchLower) ||
                           clientPhoneMatch ||
                           ind.client_cnpj?.toLowerCase().includes(searchLower) ||
@@ -1936,7 +1957,11 @@ export default function Indications() {
 
                     {/* MOBILE LAYOUT (MONTH LIST) */}
                     <div className="block md:hidden space-y-2">
-                      {group.items.map((ind) => (
+                      {group.items.map((ind) => {
+                        const contactName = ind.client_person_name || ind.client_name || 'Nome não informado';
+                        const companyName = getLeadCompanyDisplayName(ind);
+
+                        return (
                         <div 
                           key={ind.id} 
                           className={cn(
@@ -1950,11 +1975,21 @@ export default function Indications() {
                           )}
                         >
                           <div className="min-w-0 flex-1 space-y-1">
-                            <div className="flex items-center justify-between gap-1 leading-none">
-                              <span className="font-extrabold text-xs text-foreground uppercase truncate" title={ind.client_person_name ? `${ind.client_person_name}${ind.client_name ? ` (${ind.client_name})` : ''}` : ind.client_name || 'Nome não informado'}>
-                                {ind.client_person_name || ind.client_name || 'Nome não informado'}
-                              </span>
-                              <span className="text-[9px] text-muted-foreground shrink-0 font-medium">
+                            <div className="flex items-start justify-between gap-1 leading-none">
+                              <div className="min-w-0 flex-1 space-y-0.5">
+                                <span className="font-extrabold text-xs text-foreground uppercase truncate block" title={contactName}>
+                                  {contactName}
+                                </span>
+                                {companyName && (
+                                  <div className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground/90 uppercase truncate tracking-tight">
+                                    <Building2 className="h-2.5 w-2.5 shrink-0 text-primary/70" />
+                                    <span className="truncate" title={companyName}>
+                                      {companyName}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                              <span className="text-[9px] text-muted-foreground shrink-0 font-medium pt-0.5">
                                 {new Date(ind.created_at).toLocaleDateString('pt-BR')}
                               </span>
                             </div>
@@ -1994,7 +2029,8 @@ export default function Indications() {
                             </Button>
                           </div>
                         </div>
-                      ))}
+                      );
+                    })}
                     </div>
                   </div>
                 ))}
@@ -2390,6 +2426,8 @@ export default function Indications() {
                   const expired = ind.protection_expires_at && isAfter(new Date(), parseISO(ind.protection_expires_at));
                   const isInternalInd = ind.external_seller_uid && userRolesMap[ind.external_seller_uid] && userRolesMap[ind.external_seller_uid] !== 'external_seller';
                   const missingBaseVal = !isInternalInd && ind.status === 'negotiating' && (!ind.base_commission_value || ind.base_commission_value <= 0);
+                  const contactName = ind.client_person_name || ind.client_name || 'Nome não informado';
+                  const companyName = getLeadCompanyDisplayName(ind);
                   
                   return (
                     <div 
@@ -2405,26 +2443,37 @@ export default function Indications() {
                       )}
                     >
                       <div className="min-w-0 flex-1 space-y-1">
-                        {/* Row 1: Client Name & Date */}
-                        <div className="flex items-center justify-between gap-1 leading-none">
-                          <div className="flex items-center gap-1 flex-wrap min-w-0" onClick={(e) => e.stopPropagation()}>
-                            <span className="font-extrabold text-xs text-foreground uppercase truncate" title={ind.client_person_name ? `${ind.client_person_name}${ind.client_name ? ` (${ind.client_name})` : ''}` : ind.client_name || 'Nome não informado'}>
-                              {ind.client_person_name || ind.client_name || 'Nome não informado'}
-                            </span>
-                            {ind.client_phone && (
-                              <a
-                                href={`https://wa.me/${ind.client_phone.replace(/\D/g, '').startsWith('55') ? ind.client_phone.replace(/\D/g, '') : '55' + ind.client_phone.replace(/\D/g, '')}`}
-                                target="_blank"
-                                rel="no-referrer"
-                                className="inline-flex items-center gap-1 px-1 py-0.5 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-extrabold text-[9px] transition-all border border-emerald-500/15"
-                                title="Falar no WhatsApp"
-                              >
-                                <MessageCircle className="h-2.5 w-2.5 fill-emerald-500 text-emerald-500 shrink-0" />
-                                <span>WhatsApp</span>
-                              </a>
+                        {/* Row 1: Client Name, Company Name & Date */}
+                        <div className="flex items-start justify-between gap-1 leading-none">
+                          <div className="min-w-0 flex-1 space-y-0.5" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center gap-1 flex-wrap min-w-0">
+                              <span className="font-extrabold text-xs text-foreground uppercase truncate" title={contactName}>
+                                {contactName}
+                              </span>
+                              {ind.client_phone && (
+                                <a
+                                  href={`https://wa.me/${ind.client_phone.replace(/\D/g, '').startsWith('55') ? ind.client_phone.replace(/\D/g, '') : '55' + ind.client_phone.replace(/\D/g, '')}`}
+                                  target="_blank"
+                                  rel="no-referrer"
+                                  className="inline-flex items-center gap-1 px-1 py-0.5 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-extrabold text-[9px] transition-all border border-emerald-500/15 shrink-0"
+                                  title="Falar no WhatsApp"
+                                >
+                                  <MessageCircle className="h-2.5 w-2.5 fill-emerald-500 text-emerald-500 shrink-0" />
+                                  <span>WhatsApp</span>
+                                </a>
+                              )}
+                            </div>
+
+                            {companyName && (
+                              <div className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground/90 uppercase truncate tracking-tight">
+                                <Building2 className="h-2.5 w-2.5 shrink-0 text-primary/70" />
+                                <span className="truncate" title={companyName}>
+                                  {companyName}
+                                </span>
+                              </div>
                             )}
                           </div>
-                          <span className="text-[9px] text-muted-foreground shrink-0 font-medium">
+                          <span className="text-[9px] text-muted-foreground shrink-0 font-medium pt-0.5">
                             {new Date(ind.created_at).toLocaleDateString('pt-BR')}
                           </span>
                         </div>
