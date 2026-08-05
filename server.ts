@@ -5120,7 +5120,18 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         }
       }
 
-      // 2. Fallback to Person/Organization if dealId wasn't present or failed
+      // 2. Also push comment to Organization if organizationId exists
+      if (organizationId) {
+        try {
+          await callAgendor(`organizations/${organizationId}/comments`, "POST", apiToken, { text: commentText });
+          pushed = true;
+          console.log(`[AGENDOR-COMMENT] Comentário enviado com sucesso para a empresa #${organizationId}`);
+        } catch (oErr: any) {
+          console.warn(`[AGENDOR-COMMENT] Falha em /organizations/${organizationId}/comments:`, oErr.message);
+        }
+      }
+
+      // 3. Fallback to Person if dealId/org wasn't present or failed
       if (!pushed && personId) {
         try {
           await callAgendor(`people/${personId}/comments`, "POST", apiToken, { text: commentText });
@@ -5128,16 +5139,6 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
           console.log(`[AGENDOR-COMMENT] Comentário enviado com sucesso para a pessoa #${personId}`);
         } catch (pErr: any) {
           console.warn(`[AGENDOR-COMMENT] Falha em /people/${personId}/comments:`, pErr.message);
-        }
-      }
-
-      if (!pushed && organizationId) {
-        try {
-          await callAgendor(`organizations/${organizationId}/comments`, "POST", apiToken, { text: commentText });
-          pushed = true;
-          console.log(`[AGENDOR-COMMENT] Comentário enviado com sucesso para a empresa #${organizationId}`);
-        } catch (oErr: any) {
-          console.warn(`[AGENDOR-COMMENT] Falha em /organizations/${organizationId}/comments:`, oErr.message);
         }
       }
 
@@ -5451,10 +5452,18 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       let optionsText = "";
       if (indData.options) {
         const selectedOpts: string[] = [];
-        if (indData.options.complete_installation) selectedOpts.push("Completo com Instalação Comercial (Instalação Roder)");
-        if (indData.options.kit_hydraulic) selectedOpts.push("Equipamento + Kit Hidráulico p/ Máquina (sem técnico Roder)");
-        if (indData.options.only_equipment) selectedOpts.push("Somente Equipamento Solto");
-        if (indData.options.with_freight) selectedOpts.push("Incluso Frete Roder de Fábrica");
+        if (typeof indData.options === "object" && !Array.isArray(indData.options)) {
+          if (indData.options.complete_installation) selectedOpts.push("Completo com Instalação Comercial (Instalação Roder)");
+          if (indData.options.kit_hydraulic) selectedOpts.push("Equipamento + Kit Hidráulico p/ Máquina (sem técnico Roder)");
+          if (indData.options.only_equipment) selectedOpts.push("Somente Equipamento Solto");
+          if (indData.options.with_freight) selectedOpts.push("Incluso Frete Roder de Fábrica");
+        } else if (Array.isArray(indData.options) && indData.options.length > 0) {
+          indData.options.forEach((o: any) => {
+            if (typeof o === "string") selectedOpts.push(o);
+            else if (o?.label) selectedOpts.push(o.label);
+            else if (o?.name) selectedOpts.push(o.name);
+          });
+        }
 
         if (selectedOpts.length > 0) {
           optionsText = selectedOpts.map(o => `  • ${o}`).join("\n");
@@ -5506,6 +5515,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       }
 
       const fullFormattedDescription = 
+        `📋 FICHA DE SOLICITAÇÃO DE INDICAÇÃO - RODER INDICA V2\n\n` +
         `★ ORIGEM: RODER Indica V2\n` +
         `★ PARCEIRO INDICADOR: ${partnerName}\n` +
         `★ TELEFONE DO PARCEIRO: ${partnerPhone || "Não informado"}\n` +
@@ -5514,9 +5524,9 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         `⚙️ OPCIONAIS DA INDICAÇÃO:\n${optionsText}\n\n` +
         `🚜 MÁQUINA BASE DE ACOPLAMENTO:\n` +
         `  • Tipo da Máquina: ${baseMachine || "Não informada"}\n` +
-        `  • Marca / Modelo / Detalhes: ${indData.machine_details || "Não informados"}\n\n` +
+        `  • Marca / Modelo / Detalhes: ${indData.machine_details || indData.machine_model || "Não informados"}\n\n` +
         `📍 CIDADE/LOCALIDADE DO CLIENTE: ${city ? `${city}${state ? " - " + state : ""}` : "Não informada"}\n\n` +
-        `📝 OBSERVAÇÕES INICIAIS DO PARCEIRO INDICADOR / SOLICITAÇÃO:\n${observations || indData.description || "Nenhuma observação informada."}` +
+        `📝 OBSERVAÇÕES INICIAIS DO PARCEIRO INDICADOR / SOLICITAÇÃO:\n${observations || indData.description || indData.notes || "Nenhuma observação informada."}` +
         `${mediaLinksText}` +
         `${followUpNotesText}` +
         `${followUpPhotosText}\n\n` +
@@ -5799,6 +5809,30 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
           const dealResult = await callAgendor(postEndpoint, "POST", apiToken, dealPayload);
           if (dealResult) {
             dealId = extractAgendorId(dealResult, ["dealId", "deal_id", "id"]);
+          }
+        }
+
+        // Post activity note directly into Agendor so observations, machine, options, and photos appear in 'Histórico de Atividades'
+        if (dealId) {
+          try {
+            await callAgendor(`deals/${dealId}/comments`, "POST", apiToken, { text: fullFormattedDescription });
+            console.log(`[AGENDOR-SYNC] Ficha de indicação postada no histórico de atividades do negócio #${dealId}`);
+          } catch (commErr1: any) {
+            console.warn(`[AGENDOR-SYNC] Falha ao postar em /deals/${dealId}/comments, tentando /comments:`, commErr1.message);
+            try {
+              await callAgendor(`comments`, "POST", apiToken, { deal_id: Number(dealId), text: fullFormattedDescription });
+              console.log(`[AGENDOR-SYNC] Ficha de indicação postada via /comments para o negócio #${dealId}`);
+            } catch (commErr2: any) {
+              console.warn(`[AGENDOR-SYNC] Falha ao registrar comentário no negócio:`, commErr2.message);
+            }
+          }
+        }
+        if (organizationId) {
+          try {
+            await callAgendor(`organizations/${organizationId}/comments`, "POST", apiToken, { text: fullFormattedDescription });
+            console.log(`[AGENDOR-SYNC] Ficha de indicação postada no histórico da empresa #${organizationId}`);
+          } catch (oCommErr: any) {
+            console.warn(`[AGENDOR-SYNC] Falha ao registrar comentário na empresa:`, oCommErr.message);
           }
         }
       } catch (dealErr: any) {
