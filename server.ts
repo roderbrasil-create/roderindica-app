@@ -5592,7 +5592,6 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       }
       if (agendorUserId) {
         orgPayload.ownerUser = { id: agendorUserId };
-        orgPayload.allowedUsers = [{ id: agendorUserId }];
       }
 
       if (!organizationId) {
@@ -5743,11 +5742,31 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
 
       // Step E: Create or Update Deal (Negócio) in Agendor
       // Title pattern required: SDR - COMPANY_NAME (PARTNER_NAME)
-      const dealTitle = `SDR - ${companyDisplayName.toUpperCase()} (${partnerName.toUpperCase()})`;
+      let dealTitle = `SDR - ${companyDisplayName.toUpperCase()} (${partnerName.toUpperCase()})`;
 
       let dealId: number | null = indData.agendor_deal_id || null;
+
+      // Pre-check: If dealId is not saved locally, search if a deal already exists for this Organization in Agendor
+      if (!dealId && organizationId) {
+        try {
+          const orgDealsRes = await callAgendor(`organizations/${organizationId}/deals`, "GET", apiToken);
+          const orgDealsList = extractAgendorList(orgDealsRes);
+          if (orgDealsList.length > 0) {
+            const matchedDeal = orgDealsList.find((d: any) => d.title?.toLowerCase().trim() === dealTitle.toLowerCase().trim())
+              || orgDealsList.find((d: any) => d.status === "ongoing")
+              || orgDealsList[0];
+            if (matchedDeal) {
+              dealId = extractAgendorId(matchedDeal, ["dealId", "deal_id", "id"]);
+              console.log("[AGENDOR-SYNC] Negócio existente encontrado para a empresa no Agendor:", dealId);
+            }
+          }
+        } catch (orgDealsErr: any) {
+          console.warn("[AGENDOR-SYNC] Falha ao consultar negócios existentes da empresa:", orgDealsErr.message);
+        }
+      }
+
       try {
-        const dealPayload: any = {
+        let dealPayload: any = {
           title: dealTitle,
           description: fullFormattedDescription,
           status: indData.agendor_status || "ongoing"
@@ -5770,13 +5789,19 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         if (agendorUserId) {
           dealPayload.owner = agendorUserId;
           dealPayload.ownerUser = agendorUserId;
-          dealPayload.allowedUsers = [agendorUserId];
         }
 
         if (dealId) {
           console.log("[AGENDOR-SYNC] Atualizando negócio existente no Agendor:", dealId);
-          await callAgendor(`deals/${dealId}`, "PUT", apiToken, dealPayload);
-        } else {
+          try {
+            await callAgendor(`deals/${dealId}`, "PUT", apiToken, dealPayload);
+          } catch (putErr: any) {
+            console.warn(`[AGENDOR-SYNC] Falha ao atualizar negócio #${dealId}, tentando recriar ou atualizar via busca:`, putErr.message);
+            dealId = null; // reset to attempt creation/recovery
+          }
+        }
+
+        if (!dealId) {
           let postEndpoint = "deals";
           if (organizationId) {
             postEndpoint = `organizations/${organizationId}/deals`;
@@ -5784,9 +5809,52 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
             postEndpoint = `people/${personId}/deals`;
           }
           console.log(`[AGENDOR-SYNC] Criando novo negócio via endpoint: ${postEndpoint}`);
-          const dealResult = await callAgendor(postEndpoint, "POST", apiToken, dealPayload);
-          if (dealResult) {
-            dealId = extractAgendorId(dealResult, ["dealId", "deal_id", "id"]);
+          try {
+            const dealResult = await callAgendor(postEndpoint, "POST", apiToken, dealPayload);
+            if (dealResult) {
+              dealId = extractAgendorId(dealResult, ["dealId", "deal_id", "id"]);
+            }
+          } catch (postDealErr: any) {
+            const errMsg = postDealErr.message || "";
+            if (errMsg.includes("There can only be one deal with this title") || errMsg.includes("400")) {
+              console.warn("[AGENDOR-SYNC] Título de negócio duplicado ou conflito no Agendor. Buscando negócio existente para atualizar...");
+              let recovered = false;
+
+              // Try searching organization deals
+              if (organizationId) {
+                try {
+                  const orgDealsRes = await callAgendor(`organizations/${organizationId}/deals`, "GET", apiToken);
+                  const orgDealsList = extractAgendorList(orgDealsRes);
+                  if (orgDealsList.length > 0) {
+                    const matched = orgDealsList.find((d: any) => d.title?.toLowerCase().trim() === dealTitle.toLowerCase().trim()) || orgDealsList[0];
+                    if (matched) {
+                      dealId = extractAgendorId(matched, ["dealId", "deal_id", "id"]);
+                      if (dealId) {
+                        console.log("[AGENDOR-SYNC] Negócio existente recuperado com sucesso:", dealId);
+                        await callAgendor(`deals/${dealId}`, "PUT", apiToken, dealPayload);
+                        recovered = true;
+                      }
+                    }
+                  }
+                } catch (recovErr: any) {
+                  console.warn("[AGENDOR-SYNC] Erro ao recuperar negócio por empresa:", recovErr.message);
+                }
+              }
+
+              // If still not recovered, append equipment or short ID to make the deal title unique
+              if (!recovered) {
+                const equip = indData.equipment || indData.equipment_name || indicationId.substring(0, 6);
+                dealTitle = `${dealTitle} - ${String(equip).toUpperCase()}`;
+                dealPayload.title = dealTitle;
+                console.log(`[AGENDOR-SYNC] Criando negócio com título único diferenciado: "${dealTitle}"`);
+                const retryResult = await callAgendor(postEndpoint, "POST", apiToken, dealPayload);
+                if (retryResult) {
+                  dealId = extractAgendorId(retryResult, ["dealId", "deal_id", "id"]);
+                }
+              }
+            } else {
+              throw postDealErr;
+            }
           }
         }
 
