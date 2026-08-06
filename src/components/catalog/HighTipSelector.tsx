@@ -294,6 +294,72 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
     }
   };
 
+  const handleSharePdfWhatsapp = async () => {
+    const element = reportRef.current;
+    if (!element) {
+      toast.error("Elemento do relatório não encontrado.");
+      return;
+    }
+
+    const toastId = toast.loading("Gerando PDF e preparando para WhatsApp...");
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      const options = {
+        quality: 1.0,
+        pixelRatio: 2,
+        backgroundColor: '#ffffff',
+        style: {
+          transform: 'scale(1)',
+          transformOrigin: 'top left',
+          width: '794px',
+          height: '1123px',
+        }
+      };
+
+      const dataUrl = await toPng(element, options);
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      pdf.addImage(dataUrl, 'PNG', 0, 0, 210, 297, undefined, 'FAST');
+
+      const docName = `Relatorio_Tecnico_Roder_High_Tip_${selectedBucket || 'Selecao'}.pdf`;
+      const pdfBlob = pdf.output('blob');
+      const pdfFile = new File([pdfBlob], docName, { type: 'application/pdf' });
+
+      if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+        try {
+          await navigator.share({
+            files: [pdfFile],
+            title: 'Relatório Técnico Roder High Tip',
+            text: 'Segue em anexo o relatório técnico de dimensionamento em PDF.'
+          });
+          toast.success("Escolha o contato no WhatsApp para enviar o PDF!", { id: toastId });
+          return;
+        } catch (shareErr: any) {
+          if (shareErr.name === 'AbortError') {
+            toast.dismiss(toastId);
+            return;
+          }
+        }
+      }
+
+      pdf.save(docName);
+      const waText = generateWhatsAppText();
+      const encodedWaText = encodeURIComponent(`*RELATÓRIO TÉCNICO DE VIABILIDADE - CAÇAMBA HIGH TIP RODER*\n\n*(Anexei o arquivo PDF baixado nesta conversa)*\n\n` + waText);
+      window.open(`https://api.whatsapp.com/send?text=${encodedWaText}`, '_blank');
+
+      toast.success("PDF baixado! Abrindo o WhatsApp Web para anexar o arquivo e enviar ao cliente.", { id: toastId, duration: 6000 });
+    } catch (error) {
+      console.error("Erro ao gerar PDF para WhatsApp:", error);
+      toast.error("Erro ao gerar PDF do relatório.", { id: toastId });
+    }
+  };
+
   const getReportData = () => {
     if (!recommendation || !selectedBucket) return null;
     
@@ -967,7 +1033,15 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
                 💡 Dica: O PDF será gerado com o design completo e salvo diretamente no seu dispositivo.
               </p>
             </div>
-            <div className="flex items-center gap-2 self-end sm:self-auto">
+            <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap sm:flex-nowrap justify-end">
+              <button
+                onClick={handleSharePdfWhatsapp}
+                className="flex items-center gap-1.5 py-1.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-colors shadow-sm cursor-pointer"
+                title="Gerar PDF e compartilhar no WhatsApp"
+              >
+                <Share2 className="h-3.5 w-3.5" />
+                Compartilhar PDF (WhatsApp)
+              </button>
               <button
                 onClick={handleCopyText}
                 className={`flex items-center gap-1.5 py-1.5 px-3 border text-xs font-bold rounded-lg transition-colors shadow-sm ${
@@ -976,7 +1050,7 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
                     : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
                 }`}
               >
-                {copied ? <Check className="h-3.5 w-3.5" /> : <Share2 className="h-3.5 w-3.5" />}
+                {copied ? <Check className="h-3.5 w-3.5" /> : <FileText className="h-3.5 w-3.5" />}
                 {copied ? 'Copiado!' : 'Copiar Texto'}
               </button>
               <button

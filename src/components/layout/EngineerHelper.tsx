@@ -15,6 +15,7 @@ import { Product, ProductModel, StockItem } from '../../types';
 import { MACHINES, MATERIALS, getRecommendedBucket, calculateDischargeHeights, getHighTipBucketWeight } from '../catalog/HighTipData';
 import { RODER_LOGO_BASE64, RODER_LOGO_WHITE_BASE64 } from '../catalog/RoderLogo';
 import { toPng } from 'html-to-image';
+import { jsPDF } from 'jspdf';
 import { HighTipFicha } from '../catalog/HighTipFicha';
 import { FresaSshFicha } from '../catalog/FresaSshFicha';
 import { EngateRapidoFicha } from '../catalog/EngateRapidoFicha';
@@ -1394,6 +1395,91 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     } catch (error) {
       console.error("Error generating report image:", error);
       toast.error("Erro ao gerar imagem. Por favor, tente novamente.", { id: toastId });
+    }
+  };
+
+  const handleSharePdfWhatsapp = async () => {
+    const element = reportRef.current;
+    if (!element) return;
+
+    const toastId = toast.loading("Gerando PDF e preparando envio para WhatsApp...");
+
+    try {
+      const options = {
+        quality: 1.0,
+        pixelRatio: 2,
+        backgroundColor: '#ffffff',
+        style: {
+          width: '800px',
+          maxWidth: 'none',
+          padding: '32px',
+          transform: 'scale(1)',
+          transformOrigin: 'top left',
+        }
+      };
+
+      const dataUrl = await toPng(element, options);
+      const fileName = `Relatorio_Tecnico_Roder_${new Date().toISOString().slice(0, 10)}.pdf`;
+
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const imgProps = pdf.getImageProperties(dataUrl);
+      const pdfWidth = 210;
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+      if (pdfHeight > 297) {
+        let heightLeft = pdfHeight;
+        let position = 0;
+        pdf.addImage(dataUrl, 'PNG', 0, position, pdfWidth, pdfHeight, undefined, 'FAST');
+        heightLeft -= 297;
+
+        while (heightLeft > 0) {
+          position = heightLeft - pdfHeight;
+          pdf.addPage();
+          pdf.addImage(dataUrl, 'PNG', 0, position, pdfWidth, pdfHeight, undefined, 'FAST');
+          heightLeft -= 297;
+        }
+      } else {
+        pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
+      }
+
+      const pdfBlob = pdf.output('blob');
+      const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+
+      // If mobile supports native file sharing
+      if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+        try {
+          await navigator.share({
+            files: [pdfFile],
+            title: 'Relatório Técnico Roder',
+            text: 'Segue em anexo o Relatório de Análise Técnica Roder em PDF.'
+          });
+          toast.success("Escolha o WhatsApp para enviar o arquivo PDF diretamente ao cliente!", { id: toastId });
+          return;
+        } catch (shareErr: any) {
+          if (shareErr.name === 'AbortError') {
+            toast.dismiss(toastId);
+            return;
+          }
+          console.warn("Web Share API failed, falling back to download + WhatsApp link:", shareErr);
+        }
+      }
+
+      // Fallback for Desktop: Save PDF and open WhatsApp Web with formatted text
+      pdf.save(fileName);
+      const cleanSummary = reportContent.replace(/[*#]/g, '').slice(0, 300);
+      const waText = `*RELATÓRIO DE ANÁLISE TÉCNICA - RODER BRASIL*\n\n*(Anexei o relatório completo em PDF nesta conversa)*\n\n${cleanSummary}...`;
+      const encodedWaText = encodeURIComponent(waText);
+      window.open(`https://api.whatsapp.com/send?text=${encodedWaText}`, '_blank');
+
+      toast.success("PDF baixado! Abrindo o WhatsApp Web para você selecionar o contato e anexar o PDF.", { id: toastId, duration: 6000 });
+    } catch (error) {
+      console.error("Error generating PDF for WhatsApp:", error);
+      toast.error("Erro ao gerar PDF do relatório. Por favor, tente novamente.", { id: toastId });
     }
   };
 
@@ -4424,13 +4510,21 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                   <span className="font-extrabold text-xs sm:text-sm tracking-tight text-white uppercase truncate">{reportTitle}</span>
                 </div>
                 
-                <div className="flex items-center gap-1.5 sm:gap-2 ml-auto">
+                <div className="flex items-center gap-1.5 sm:gap-2 ml-auto flex-wrap sm:flex-nowrap justify-end">
+                  <button
+                    onClick={handleSharePdfWhatsapp}
+                    className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold uppercase text-[9px] sm:text-[10px] tracking-wider rounded-lg transition shadow cursor-pointer border-0 shrink-0"
+                    title="Gerar PDF e abrir no WhatsApp para enviar diretamente ao cliente"
+                  >
+                    <Share2 className="h-3.5 w-3.5" /> Compartilhar PDF no WhatsApp
+                  </button>
+
                   <button
                     onClick={handleDownloadReportPng}
-                    className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 bg-green-650 hover:bg-green-700 text-white font-extrabold uppercase text-[9px] sm:text-[10px] tracking-wider rounded-lg transition shadow cursor-pointer border-0 shrink-0"
-                    title="Salvar imagem no celular ou enviar direto para WhatsApp/Fotos"
+                    className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-extrabold uppercase text-[9px] sm:text-[10px] tracking-wider rounded-lg transition cursor-pointer shrink-0"
+                    title="Salvar imagem no celular ou enviar direto para Fotos"
                   >
-                    <CheckCircle className="h-3.5 w-3.5" /> Salvar em Fotos
+                    <CheckCircle className="h-3.5 w-3.5 text-green-400" /> Salvar em Fotos
                   </button>
 
                   <button

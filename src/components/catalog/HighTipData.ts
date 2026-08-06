@@ -174,10 +174,10 @@ export function getRecommendedBucket(machine: Machine, density: number, useTurnS
     return { cap: sizeStr, utilization };
   });
 
-  // 1. Try to find options strictly within the 60% to 80% range
-  const idealOptions = options.filter(opt => opt.utilization >= 60 && opt.utilization <= 80);
+  // 1. Try to find options strictly within the 60% to 85% range (up to 85% is safe and provides high productivity)
+  const idealOptions = options.filter(opt => opt.utilization >= 60 && opt.utilization <= 85);
   if (idealOptions.length > 0) {
-    // Maximize capacity within the ideal 60% to 80% range
+    // Maximize capacity within the ideal 60% to 85% range
     const best = idealOptions.reduce((prev, curr) => parseFloat(curr.cap) > parseFloat(prev.cap) ? curr : prev);
     return best.cap;
   }
@@ -190,6 +190,6 @@ export function getRecommendedBucket(machine: Machine, density: number, useTurnS
     return best.cap;
   }
 
-  // 3. If all options exceed 80%, recommend the smallest possible bucket (2.0)
+  // 3. If all options exceed 85%, recommend the smallest possible bucket (2.0)
   return "2.0";
 }
