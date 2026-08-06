@@ -41,6 +41,8 @@ const BUCKET_DIMENSIONS: Record<string, { a: string, b: string, c: string }> = {
   '4.0': { a: '1.350', b: '2.800', c: '2.300' },
   '5.0': { a: '1.360', b: '2.950', c: '2.700' },
   '7.0': { a: '1.500', b: '2.950', c: '2.800' },
+  '8.0': { a: '1.650', b: '2.950', c: '2.850' },
+  '10.0': { a: '1.850', b: '2.950', c: '2.900' },
 };
 
 interface HighTipSelectorProps {
@@ -595,8 +597,8 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
                     </span>
                   </div>
                   
-                  <div className="grid grid-cols-7 gap-1">
-                    {['2.0', '2.5', '2.8', '3.0', '4.0', '5.0', '7.0'].map((size) => {
+                  <div className="grid grid-cols-3 sm:grid-cols-9 gap-1">
+                    {['2.0', '2.5', '2.8', '3.0', '4.0', '5.0', '7.0', '8.0', '10.0'].map((size) => {
                       const isActive = selectedBucket === size;
                       const isRecommended = recommendation.capacity === size;
                       const bucketWeight = getHighTipBucketWeight(size);

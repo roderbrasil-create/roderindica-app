@@ -43,6 +43,27 @@ class ErrorBoundary extends React.Component<Props, State> {
       }
     }
 
+    // Check if it's a DOM manipulation error caused by translation extensions or third party extensions
+    const isDomError = 
+      error && error.message && 
+      (error.message.includes('removeChild') || 
+       error.message.includes('insertBefore') || 
+       error.message.includes('not a child of this node'));
+
+    if (isDomError) {
+      console.warn('DOM manipulation error detected (Google Translate / Extension mutation). Auto-reloading page...');
+      try {
+        const lastReload = sessionStorage.getItem('last_dom_error_reload');
+        const now = Date.now();
+        if (!lastReload || (now - parseInt(lastReload, 10) > 5000)) {
+          sessionStorage.setItem('last_dom_error_reload', now.toString());
+          window.location.reload();
+        }
+      } catch (e) {
+        console.error('Failed to trigger auto-reload on DOM error:', e);
+      }
+    }
+
     return { hasError: true, error, copied: false };
   }
 

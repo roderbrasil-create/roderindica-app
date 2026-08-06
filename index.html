@@ -1,9 +1,10 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR" class="notranslate" translate="no">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>RODER Indica V2</title>
+    <meta name="google" content="notranslate" />
     <!-- Cache Busting Tags -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
@@ -19,6 +20,31 @@
     <meta name="theme-color" content="#f97316" />
     <script>
       (function() {
+        // Prevent React DOM reconciler crashes caused by Google Translate or browser extensions modifying text nodes
+        if (typeof window !== 'undefined' && typeof Node !== 'undefined' && Node.prototype) {
+          var originalRemoveChild = Node.prototype.removeChild;
+          Node.prototype.removeChild = function(child) {
+            if (child.parentNode !== this) {
+              if (child.parentNode) {
+                return originalRemoveChild.call(child.parentNode, child);
+              }
+              return child;
+            }
+            return originalRemoveChild.call(this, child);
+          };
+
+          var originalInsertBefore = Node.prototype.insertBefore;
+          Node.prototype.insertBefore = function(newNode, referenceNode) {
+            if (referenceNode && referenceNode.parentNode !== this) {
+              if (referenceNode.parentNode) {
+                return originalInsertBefore.call(referenceNode.parentNode, newNode, referenceNode);
+              }
+              return originalInsertBefore.call(this, newNode, null);
+            }
+            return originalInsertBefore.call(this, newNode, referenceNode);
+          };
+        }
+
         // Polyfill localStorage & sessionStorage in iframe/sandbox environments where third-party access is blocked
         function checkAndPolyfillStorage(type) {
           try {

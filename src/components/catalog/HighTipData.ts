@@ -145,11 +145,13 @@ export function getHighTipBucketWeight(capacity: string): number {
   if (cap <= 3.1) return 1800; // Covers 2.5, 2.8, 3.0
   if (cap <= 4.1) return 2000; // Covers 4.0
   if (cap <= 5.1) return 2200; // Covers 5.0
-  return 2500; // Covers 7.0
+  if (cap <= 7.1) return 2500; // Covers 7.0
+  if (cap <= 8.1) return 2700; // Covers 8.0
+  return 3000; // Covers 10.0
 }
 
 export function getRecommendedBucket(machine: Machine, density: number, useTurnSafety: boolean = false): string {
-  const AVAILABLE_BUCKETS = [2.0, 2.5, 2.8, 3.0, 4.0, 5.0, 7.0];
+  const AVAILABLE_BUCKETS = [2.0, 2.5, 2.8, 3.0, 4.0, 5.0, 7.0, 8.0, 10.0];
   const payloadLimit = Math.round(machine.operatingWeight * 300); // in kg
   
   // Factoring in physics-based safety adjustments:

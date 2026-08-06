@@ -1405,7 +1405,11 @@ export default function Triagem() {
               </Label>
               <Select onValueChange={setSelectedSeller} value={selectedSeller}>
                 <SelectTrigger className="bg-background border-border h-11">
-                  <SelectValue placeholder="Selecione o vendedor responsável..." />
+                  <SelectValue placeholder="Selecione o vendedor responsável...">
+                    {activeLeadReceivers.find(s => s.uid === selectedSeller)?.name || 
+                     otherSellers.find(s => s.uid === selectedSeller)?.name ||
+                     internalSellers.find(s => s.uid === selectedSeller)?.name}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent className="bg-card border-border text-card-foreground max-h-80">
                   {/* Group 1: Active Lead Receivers (Highlighted at Top) */}
@@ -1421,6 +1425,7 @@ export default function Triagem() {
                           <SelectItem 
                             key={seller.uid} 
                             value={seller.uid}
+                            label={seller.name}
                             className="font-bold text-foreground focus:bg-emerald-500/15 py-2 cursor-pointer"
                           >
                             <div className="flex items-center gap-2">
@@ -1463,7 +1468,7 @@ export default function Triagem() {
                         else if (seller.role === 'admin') roleTag = 'Diretoria / Admin';
 
                         return (
-                          <SelectItem key={seller.uid} value={seller.uid} className="py-2 cursor-pointer">
+                          <SelectItem key={seller.uid} value={seller.uid} label={seller.name} className="py-2 cursor-pointer">
                             <div className="flex items-center gap-2">
                               <span className="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-600 shrink-0" />
                               <span>{seller.name}</span>

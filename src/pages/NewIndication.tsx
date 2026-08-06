@@ -265,6 +265,57 @@ export default function NewIndication() {
     'Trator'
   ];
 
+  // Helper to dynamically resolve photo URL for any selected equipment
+  const getProductPhoto = (item: IndicationItem): string => {
+    if (item.image_url) return item.image_url;
+
+    const rawName = item.product_name || '';
+    if (!rawName) return '';
+    const lowerRaw = rawName.trim().toLowerCase();
+
+    // 1. Search in catalogProducts
+    for (const p of catalogProducts) {
+      const pNameLower = p.name.trim().toLowerCase();
+      
+      // Check models first if product has models
+      if (p.models && p.models.length > 0) {
+        for (const m of p.models) {
+          const mNameLower = m.name.trim().toLowerCase();
+          const fullHyphen = `${pNameLower} - ${mNameLower}`;
+          const fullSpace = `${pNameLower} ${mNameLower}`;
+          
+          const mPhoto = m.image_url || m.images?.[0] || p.image_url;
+          
+          if (
+            lowerRaw === fullHyphen || 
+            lowerRaw === fullSpace || 
+            lowerRaw === mNameLower || 
+            (lowerRaw.includes(pNameLower) && lowerRaw.includes(mNameLower))
+          ) {
+            if (mPhoto) return mPhoto;
+          }
+        }
+      }
+
+      // Direct match on parent catalog product name or startsWith
+      if (lowerRaw === pNameLower || lowerRaw.startsWith(pNameLower)) {
+        if (p.image_url) return p.image_url;
+      }
+    }
+
+    // 2. Search in registeredProducts
+    const matchedReg = registeredProducts.find(rp => {
+      const rpNameLower = rp.name.trim().toLowerCase();
+      return lowerRaw === rpNameLower || lowerRaw.includes(rpNameLower) || rpNameLower.includes(lowerRaw);
+    });
+    if (matchedReg) {
+      if (matchedReg.image_url) return matchedReg.image_url;
+      if ((matchedReg as any).photo_url) return (matchedReg as any).photo_url;
+    }
+
+    return '';
+  };
+
   // Load draft or incoming router state on mount
   useEffect(() => {
     if (initializedRef.current) return;
@@ -274,30 +325,63 @@ export default function NewIndication() {
       setFormData(draft.data.formData);
       setSelectedItems(draft.data.selectedItems || []);
       setOptions(draft.data.options);
+      if (draft.data.selectedExternalSeller) {
+        setSelectedExternalSeller(draft.data.selectedExternalSeller);
+      }
       toast.info('Rascunho restaurado automaticamente.');
       initializedRef.current = true;
     } else if (state?.product_name && (catalogProducts.length > 0 || registeredProducts.length > 0)) {
-      const matchedCat = catalogProducts.find(p => p.name.toLowerCase() === state.product_name?.toLowerCase());
+      const stateNameLower = state.product_name.trim().toLowerCase();
+      const matchedCat = catalogProducts.find(p => p.name.toLowerCase() === stateNameLower);
       if (matchedCat) {
-        setSelectedItems([{ id: matchedCat.id, product_name: matchedCat.name, quantity: 1 }]);
+        setSelectedItems([{ id: matchedCat.id, product_name: matchedCat.name, quantity: 1, image_url: matchedCat.image_url }]);
         setExpandedProducts({ [matchedCat.id]: true });
       } else {
         let foundModel = false;
         for (const catProd of catalogProducts) {
-          if (catProd.models) {
-            const m = catProd.models.find(model => `${catProd.name} - ${model.name}`.toLowerCase() === state.product_name?.toLowerCase());
+          if (catProd.models && catProd.models.length > 0) {
+            const m = catProd.models.find(model => {
+              const full1 = `${catProd.name} - ${model.name}`.toLowerCase();
+              const full2 = `${catProd.name} ${model.name}`.toLowerCase();
+              return full1 === stateNameLower || full2 === stateNameLower || (stateNameLower.includes(catProd.name.toLowerCase()) && stateNameLower.includes(model.name.toLowerCase()));
+            });
             if (m) {
-              setSelectedItems([{ id: `model-${m.id}`, product_name: `${catProd.name} - ${m.name}`, quantity: 1 }]);
+              const formattedName = `${catProd.name} - ${m.name}`;
+              setSelectedItems([{ 
+                id: `model-${m.id}`, 
+                product_name: formattedName, 
+                quantity: 1, 
+                image_url: m.image_url || catProd.image_url 
+              }]);
               setExpandedProducts({ [catProd.id]: true });
               foundModel = true;
               break;
             }
           }
+          if (!foundModel && stateNameLower.startsWith(catProd.name.toLowerCase())) {
+            setSelectedItems([{ 
+              id: catProd.id, 
+              product_name: state.product_name, 
+              quantity: 1, 
+              image_url: catProd.image_url 
+            }]);
+            setExpandedProducts({ [catProd.id]: true });
+            foundModel = true;
+            break;
+          }
         }
         if (!foundModel) {
-          const matchedReg = registeredProducts.find(p => p.name.toLowerCase() === state.product_name?.toLowerCase());
+          const matchedReg = registeredProducts.find(p => 
+            p.name.toLowerCase() === stateNameLower || stateNameLower.includes(p.name.toLowerCase())
+          );
           if (matchedReg) {
-            setSelectedItems([{ id: matchedReg.id || 'initial-item', product_name: matchedReg.name, code: matchedReg.code, quantity: 1 }]);
+            setSelectedItems([{ 
+              id: matchedReg.id || 'initial-item', 
+              product_name: matchedReg.name, 
+              code: matchedReg.code, 
+              quantity: 1, 
+              image_url: matchedReg.image_url || (matchedReg as any).photo_url 
+            }]);
           } else {
             setSelectedItems([{ id: 'custom-item', product_name: state.product_name, quantity: 1 }]);
           }
@@ -313,9 +397,9 @@ export default function NewIndication() {
   // Save draft on changes
   useEffect(() => {
     if (formData.client_name || formData.client_person_name || selectedItems.length > 0) {
-      saveDraft({ formData, selectedItems, options });
+      saveDraft({ formData, selectedItems, options, selectedExternalSeller });
     }
-  }, [formData, selectedItems, options]);
+  }, [formData, selectedItems, options, selectedExternalSeller]);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -1349,13 +1433,8 @@ export default function NewIndication() {
                   <p className="text-[10px] font-black uppercase text-primary tracking-wider pl-1 font-mono">Equipamentos Selecionados ({selectedItems.length})</p>
                   <div className="grid grid-cols-1 gap-2">
                     {selectedItems.map((item, id) => {
-                      let nameToCheck = item.product_name;
-                      if (item.product_name.includes(' - ')) {
-                        nameToCheck = item.product_name.split(' - ')[0];
-                      }
-                      const matchedCat = catalogProducts.find(p => p.name.toLowerCase() === nameToCheck.toLowerCase());
-                      const productPhoto = matchedCat?.image_url || '';
-                      const isCustom = item.id === 'custom-item' || item.id === 'initial-item' || !matchedCat;
+                      const productPhoto = getProductPhoto(item);
+                      const isCustom = item.id === 'custom-item' || item.id === 'initial-item' || !productPhoto;
 
                       return (
                         <div 
@@ -1548,7 +1627,7 @@ export default function NewIndication() {
                   <Select 
                     onValueChange={(val) => {
                       const seller = externalSellers.find(s => s.uid === val);
-                      if (seller) setSelectedExternalSeller(seller);
+                      if (seller) setSelectedExternalSeller({ uid: seller.uid, name: seller.name });
                       if (validationErrors.partner) {
                         setValidationErrors(prev => ({ ...prev, partner: false }));
                       }
@@ -1556,13 +1635,20 @@ export default function NewIndication() {
                     value={selectedExternalSeller?.uid || ""}
                   >
                     <SelectTrigger className="bg-white dark:bg-zinc-950 border-input h-11 font-semibold text-foreground">
-                      <SelectValue placeholder="Selecione quem indicou este cliente..." />
+                      <SelectValue placeholder="Selecione quem indicou este cliente...">
+                        {selectedExternalSeller?.name}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent className="bg-card border-border max-h-[300px]">
                       {externalSellers.map(seller => {
                         const isInternalOrAdmin = seller.role && ['admin', 'manager', 'internal_seller', 'triagem', 'vendedor_padrao'].includes(seller.role);
                         return (
-                          <SelectItem key={seller.uid} value={seller.uid} className="py-2 cursor-pointer">
+                          <SelectItem 
+                            key={seller.uid} 
+                            value={seller.uid} 
+                            label={seller.name}
+                            className="py-2 cursor-pointer"
+                          >
                             <div className="flex items-center justify-between gap-2 w-full">
                               <span className="font-semibold">{seller.name}</span>
                               {isInternalOrAdmin && (

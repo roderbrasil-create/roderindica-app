@@ -287,7 +287,9 @@ export function HighTipFicha({ onClose }: HighTipFichaProps) {
                     <li>• Caçamba Roder 3,0 m³ <span className="text-[10px] text-slate-500 font-medium">(Est. 1.800 kg)</span></li>
                     <li>• Caçamba Roder 4,0 m³ <span className="text-[10px] text-slate-500 font-medium">(Est. 2.000 kg)</span></li>
                     <li>• Caçamba Roder 5,0 m³ <span className="text-[10px] text-slate-500 font-medium">(Est. 2.200 kg)</span></li>
-                    <li>• Caçamba Roder 7,0 m³ <span className="text-[10px] text-amber-600 font-semibold">(Est. 2.500 kg - Novo)</span></li>
+                    <li>• Caçamba Roder 7,0 m³ <span className="text-[10px] text-slate-500 font-medium">(Est. 2.500 kg)</span></li>
+                    <li>• Caçamba Roder 8,0 m³ <span className="text-[10px] text-amber-600 font-semibold">(Est. 2.700 kg - Novo)</span></li>
+                    <li>• Caçamba Roder 10,0 m³ <span className="text-[10px] text-amber-600 font-semibold">(Est. 3.000 kg - Novo)</span></li>
                     <li className="text-[10px] text-slate-500 pt-1 font-normal">*Modelos sob medida disponíveis</li>
                   </ul>
                 </div>
@@ -529,6 +531,20 @@ export function HighTipFicha({ onClose }: HighTipFichaProps) {
                           <td className="p-1.5 text-center font-mono">2.800 mm</td>
                           <td className="p-1.5 pr-3 text-right font-bold text-slate-600">2.500 kg</td>
                         </tr>
+                        <tr className="hover:bg-amber-50/60 bg-amber-50/30 transition-colors">
+                          <td className="p-1.5 pl-3 font-bold text-amber-900">8.0 m³ <span className="text-[9px] font-bold text-amber-600">(Novo)</span></td>
+                          <td className="p-1.5 text-center font-mono">1.650 mm</td>
+                          <td className="p-1.5 text-center font-mono font-bold text-slate-900">2.950 mm</td>
+                          <td className="p-1.5 text-center font-mono">2.850 mm</td>
+                          <td className="p-1.5 pr-3 text-right font-bold text-amber-800">2.700 kg</td>
+                        </tr>
+                        <tr className="hover:bg-amber-50/60 bg-amber-50/30 transition-colors">
+                          <td className="p-1.5 pl-3 font-bold text-amber-900">10.0 m³ <span className="text-[9px] font-bold text-amber-600">(Novo)</span></td>
+                          <td className="p-1.5 text-center font-mono">1.850 mm</td>
+                          <td className="p-1.5 text-center font-mono font-bold text-slate-900">2.950 mm</td>
+                          <td className="p-1.5 text-center font-mono">2.900 mm</td>
+                          <td className="p-1.5 pr-3 text-right font-bold text-amber-800">3.000 kg</td>
+                        </tr>
                       </tbody>
                     </table>
                   </div>
@@ -672,7 +688,7 @@ export function HighTipFicha({ onClose }: HighTipFichaProps) {
                   </table>
                 </div>
                 <p className="text-[9px] text-slate-500 leading-relaxed italic mt-1.5">
-                  * <strong>Nota sobre Alturas de Descarga Livre:</strong> Calculada com base no pino original e no ganho real obtido pela articulação suspensa da Caçamba High Tip, que rotaciona na extremidade superior eliminando a perda de altura por tombamento da concha padrão (despejo convencional a 45°). O ganho real de altura livre de descarga varia de +1,15 m a +1,27 m em relação à descarga livre convencional, utilizando braços de estrutura com comprimento de 1,50 m (para modelo 2,0 m³), 1,80 m (para modelos de 2,5 m³ a 3,0 m³) e 2,00 m (para modelos de 4,0 m³ a 7,0 m³).
+                  * <strong>Nota sobre Alturas de Descarga Livre:</strong> Calculada com base no pino original e no ganho real obtido pela articulação suspensa da Caçamba High Tip, que rotaciona na extremidade superior eliminando a perda de altura por tombamento da concha padrão (despejo convencional a 45°). O ganho real de altura livre de descarga varia de +1,15 m a +1,27 m em relação à descarga livre convencional, utilizando braços de estrutura com comprimento de 1,50 m (para modelo 2,0 m³), 1,80 m (para modelos de 2,5 m³ a 3,0 m³) e 2,00 m (para modelos de 4,0 m³ a 10,0 m³).
                 </p>
               </div>
 

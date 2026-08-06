@@ -1013,10 +1013,11 @@ export default function Catalog() {
           updateDoc(doc(db, 'products', cacambaHighTip.id), { is_blocked: false });
         }
         const hasCht70 = cacambaHighTip.models?.some((m: any) => m.id === 'cht-70');
+        const hasCht100 = cacambaHighTip.models?.some((m: any) => m.id === 'cht-100');
         const hasChtMedidas = cacambaHighTip.models?.some((m: any) => m.technical_specs?.medida_a !== undefined);
         const hasOldPeso = cacambaHighTip.models?.some((m: any) => m.technical_specs?.peso === 'A definir');
         
-        if ((!hasCht70 || !hasChtMedidas || hasOldPeso) && data.length > 0) {
+        if ((!hasCht70 || !hasCht100 || !hasChtMedidas || hasOldPeso) && data.length > 0) {
           addCacambaHighTip();
         }
       }
@@ -2091,6 +2092,36 @@ export default function Catalog() {
               medida_a: '1.500 mm',
               medida_b: '2.950 mm',
               medida_c: '2.800 mm'
+            }
+          },
+          {
+            id: 'cht-80',
+            name: 'Caçamba High Tip 8,0 m³',
+            base_value: 0,
+            images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp'],
+            technical_specs: {
+              capacidade: '8,0 m³',
+              peso: '2.700 kg',
+              maquina_base: '18 a 22 Ton. (Leve / Volumoso)',
+              tipo_material: 'Materiais extremamente leves e volumosos (cavacos, serragem, casca de pinus, bagaço)',
+              medida_a: '1.650 mm',
+              medida_b: '2.950 mm',
+              medida_c: '2.850 mm'
+            }
+          },
+          {
+            id: 'cht-100',
+            name: 'Caçamba High Tip 10,0 m³',
+            base_value: 0,
+            images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp'],
+            technical_specs: {
+              capacidade: '10,0 m³',
+              peso: '3.000 kg',
+              maquina_base: '22 a 26 Ton. (Grandes Pás Carregadeiras / Leve / Volumoso)',
+              tipo_material: 'Materiais ultra leves e grandes volumes (cavacos, biomassa, cascas)',
+              medida_a: '1.850 mm',
+              medida_b: '2.950 mm',
+              medida_c: '2.900 mm'
             }
           }
         ]
@@ -4144,9 +4175,9 @@ export default function Catalog() {
       diametro_corte: 'Ø Máx. Corte',
       area_carga: 'Área Carga',
       peso: 'Peso Equipamento',
-      medida_a: 'Comprimento "A"',
-      medida_b: 'Altura "B"',
-      medida_c: 'Largura Total "C"',
+      medida_a: 'Altura "A"',
+      medida_b: 'Largura Total "B"',
+      medida_c: 'Comprimento "C"',
       medida_d: 'Medida "D"',
       giro_360: 'Giro 360 graus ilimitado',
       dentes_disco: 'Dentes do Disco',
@@ -4764,9 +4795,9 @@ export default function Catalog() {
                           trator: 'Pá Carregadeira',
                           peso: 'Peso Equipamento',
                           area_carga: 'Área Carga',
-                          medida_a: 'Comprimento "A"',
-                          medida_b: 'Altura "B"',
-                          medida_c: 'Largura Total "C"',
+                          medida_a: 'Altura "A"',
+                          medida_b: 'Largura Total "B"',
+                          medida_c: 'Comprimento "C"',
                           medida_d: 'Medida "D"',
                           abertura_total: 'Abertura total da garra',
                           peso_do_equipamento: 'Peso Equipamento',
@@ -5505,19 +5536,19 @@ export default function Catalog() {
                           )}
                           {selectedModel.technical_specs.medida_a && (
                             <div className="p-3 rounded-xl border border-border bg-muted/20 shadow-sm hover:border-primary/30 transition-colors">
-                              <p className="text-[6px] md:text-[10px] text-muted-foreground uppercase font-black tracking-wider mb-1">Comprimento "A"</p>
+                              <p className="text-[6px] md:text-[10px] text-muted-foreground uppercase font-black tracking-wider mb-1">Altura "A"</p>
                               <p className="text-[9px] md:text-xl font-black text-primary">{selectedModel.technical_specs.medida_a} <span className="text-[7.5px] md:text-xs font-medium text-muted-foreground">mm</span></p>
                             </div>
                           )}
                           {selectedModel.technical_specs.medida_b && (
                             <div className="p-3 rounded-xl border border-border bg-muted/20 shadow-sm hover:border-primary/30 transition-colors">
-                              <p className="text-[6px] md:text-[10px] text-muted-foreground uppercase font-black tracking-wider mb-1">Altura "B"</p>
+                              <p className="text-[6px] md:text-[10px] text-muted-foreground uppercase font-black tracking-wider mb-1">Largura Total "B"</p>
                               <p className="text-[9px] md:text-xl font-black text-primary">{selectedModel.technical_specs.medida_b} <span className="text-[7.5px] md:text-xs font-medium text-muted-foreground">mm</span></p>
                             </div>
                           )}
                           {selectedModel.technical_specs.medida_c && (
                             <div className="p-3 rounded-xl border border-border bg-muted/20 shadow-sm hover:border-primary/30 transition-colors">
-                              <p className="text-[6px] md:text-[10px] text-muted-foreground uppercase font-black tracking-wider mb-1">Largura Total "C"</p>
+                              <p className="text-[6px] md:text-[10px] text-muted-foreground uppercase font-black tracking-wider mb-1">Comprimento "C"</p>
                               <p className="text-[9px] md:text-xl font-black text-primary">{selectedModel.technical_specs.medida_c} <span className="text-[7.5px] md:text-xs font-medium text-muted-foreground">mm</span></p>
                             </div>
                           )}
@@ -6602,7 +6633,7 @@ export default function Catalog() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[10px] uppercase">Comprimento "A" (mm)</Label>
+                      <Label className="text-[10px] uppercase">Altura "A" (mm)</Label>
                       <Input 
                         className="h-9 text-xs"
                         value={editingModelData.technical_specs?.medida_a || ''} 
@@ -6613,7 +6644,7 @@ export default function Catalog() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[10px] uppercase">Altura "B" (mm)</Label>
+                      <Label className="text-[10px] uppercase">Largura Total "B" (mm)</Label>
                       <Input 
                         className="h-9 text-xs"
                         value={editingModelData.technical_specs?.medida_b || ''} 
@@ -6624,7 +6655,7 @@ export default function Catalog() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[10px] uppercase">Largura Total "C" (mm)</Label>
+                      <Label className="text-[10px] uppercase">Comprimento "C" (mm)</Label>
                       <Input 
                         className="h-9 text-xs"
                         value={editingModelData.technical_specs?.medida_c || ''} 

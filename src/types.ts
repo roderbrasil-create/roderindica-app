@@ -49,6 +49,7 @@ export interface IndicationItem {
   quantity: number;
   price?: number;
   code?: string;
+  image_url?: string;
 }
 
 export interface IndicationOptions {
@@ -201,6 +202,7 @@ export interface ProductModel {
   parts_manual_url?: string;
   video_url?: string;
   images?: string[];
+  image_url?: string;
   technical_specs?: {
     // Garra Florestal
     area_carga?: string;
