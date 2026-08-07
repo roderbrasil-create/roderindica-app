@@ -118,6 +118,68 @@ export default function NegotiationCentral() {
   const [agendorEnabled, setAgendorEnabled] = useState(false);
   const [syncingAgendor, setSyncingAgendor] = useState(false);
   const [importingFiles, setImportingFiles] = useState(false);
+  const [showRelinkBox, setShowRelinkBox] = useState(false);
+  const [relinkInput, setRelinkInput] = useState('');
+  const [isRelinking, setIsRelinking] = useState(false);
+
+  const handleDirectRelinkAgendor = async () => {
+    if (!relinkInput.trim() || !activeIndication) return;
+    setIsRelinking(true);
+    const toastId = toast.loading('Re-vinculando e buscando negócio no Agendor CRM...');
+    try {
+      let rawInput = relinkInput.trim();
+      let extractedId = '';
+
+      const dealUrlMatch = rawInput.match(/negocios\/([0-9]+)/i);
+      const dealEmailMatch = rawInput.match(/n([0-9]{5,})@/i);
+      const digitsMatch = rawInput.match(/([0-9]{5,})/);
+
+      if (dealEmailMatch) {
+        extractedId = dealEmailMatch[1];
+      } else if (dealUrlMatch) {
+        extractedId = dealUrlMatch[1];
+      } else if (digitsMatch) {
+        extractedId = digitsMatch[1];
+      } else {
+        extractedId = rawInput;
+      }
+
+      if (!extractedId) {
+        toast.error('Código ou Link do Agendor inválido.', { id: toastId });
+        setIsRelinking(false);
+        return;
+      }
+
+      const indRef = doc(db, 'indications', activeIndication.id);
+      const nowIso = new Date().toISOString();
+      const dealIdNum = Number(extractedId) || null;
+      await updateDoc(indRef, {
+        agendor_deal_id: dealIdNum,
+        agendor_synced: true,
+        agendor_synced_at: nowIso,
+        updated_at: nowIso
+      });
+      
+      refreshIndication({
+        ...activeIndication,
+        agendor_deal_id: dealIdNum,
+        agendor_synced: true,
+        agendor_synced_at: nowIso
+      });
+
+      toast.success(`Negócio #${extractedId} do Agendor re-vinculado com sucesso! Sincronizando histórico...`, { id: toastId });
+      setRelinkInput('');
+      setShowRelinkBox(false);
+
+      // Trigger auto-import from CRM for new deal
+      handleImportFromAgendor();
+    } catch (err: any) {
+      console.error('Erro ao re-vincular negócio no Agendor:', err);
+      toast.error('Erro ao re-vincular: ' + (err.message || 'Erro de rede'), { id: toastId });
+    } finally {
+      setIsRelinking(false);
+    }
+  };
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'settings', 'agendor'), (snap) => {
@@ -265,6 +327,8 @@ export default function NegotiationCentral() {
   const [standardSellerEnabled, setStandardSellerEnabled] = useState(false);
   const [standardSellerRate, setStandardSellerRate] = useState(2);
   const [historyNote, setHistoryNote] = useState('');
+  const [selectedActivityType, setSelectedActivityType] = useState<'nota' | 'ligacao' | 'whatsapp' | 'email' | 'proposta' | 'reuniao' | 'visita'>('nota');
+  const [timelineFilter, setTimelineFilter] = useState<'all' | 'agendor' | 'roder'>('all');
   const [historyImages, setHistoryImages] = useState<File[]>([]);
   const [budgetFiles, setBudgetFiles] = useState<File[]>([]);
   const [registeredProducts, setRegisteredProducts] = useState<RegisteredProduct[]>([]);
@@ -340,7 +404,7 @@ export default function NegotiationCentral() {
     }
   };
 
-  const handleApplyCRMMatch = () => {
+  const handleApplyCRMMatch = async () => {
     if (!crmMatch || !crmMatch.found) return;
     if (crmMatch.cnpj) setExtractedCnpj(crmMatch.cnpj);
     if (crmMatch.phone) setExtractedPhone(crmMatch.phone);
@@ -349,6 +413,37 @@ export default function NegotiationCentral() {
       setCompanyName(crmMatch.company_name || crmMatch.name);
     }
     if (crmMatch.client_code) setClientCode(crmMatch.client_code);
+
+    // If a deal was matched directly by ID or URL
+    if (crmMatch.type === 'deal' && crmMatch.deal_id && activeIndication) {
+      try {
+        const indRef = doc(db, 'indications', activeIndication.id);
+        const orgId = crmMatch.id && String(crmMatch.id) !== String(crmMatch.deal_id) ? crmMatch.id : (activeIndication.agendor_organization_id || null);
+        
+        await updateDoc(indRef, {
+          agendor_deal_id: crmMatch.deal_id,
+          agendor_organization_id: orgId,
+          agendor_synced: true,
+          agendor_synced_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+
+        refreshIndication({
+          ...activeIndication,
+          agendor_deal_id: crmMatch.deal_id,
+          agendor_organization_id: orgId,
+          agendor_synced: true,
+          agendor_synced_at: new Date().toISOString()
+        });
+
+        toast.success(`Negócio #${crmMatch.deal_id} do Agendor vinculado com sucesso! Puxando histórico...`);
+        handleImportFromAgendor();
+        return;
+      } catch (err: any) {
+        console.error('Erro ao vincular ID do negócio:', err);
+      }
+    }
+
     toast.success('Dados do CRM importados com sucesso! Não se esqueça de salvar as alterações.');
   };
 
@@ -1329,13 +1424,25 @@ export default function NegotiationCentral() {
         }
       }
 
+      const categoryTags: Record<string, string> = {
+        nota: '[NOTA]',
+        ligacao: '[LIGAÇÃO]',
+        whatsapp: '[WHATSAPP]',
+        email: '[E-MAIL]',
+        proposta: '[PROPOSTA]',
+        reuniao: '[REUNIÃO]',
+        visita: '[VISITA]'
+      };
+      const catTag = categoryTags[selectedActivityType] || '[NOTA]';
+      const formattedNote = historyNote.trim().startsWith('[') ? historyNote.trim() : `${catTag} ${historyNote.trim()}`;
+
       const indicationRef = doc(db, 'indications', activeIndication.id);
       const newHistoryEntry = {
         id: Math.random().toString(36).substring(2, 11),
         type: 'note' as const,
         author_name: profile?.name || 'Sistema',
         created_at: new Date().toISOString(),
-        content: historyNote,
+        content: formattedNote,
         attachments
       };
 
@@ -1363,7 +1470,7 @@ export default function NegotiationCentral() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           indicationId: activeIndication.id,
-          content: historyNote,
+          content: formattedNote,
           authorName: profile?.name || 'Parceiro Indicador',
           attachments
         })
@@ -1453,8 +1560,9 @@ export default function NegotiationCentral() {
             style={isMobile ? {
               touchAction: 'pan-y'
             } : {
-              width: '1200px',
-              height: '800px',
+              width: '96vw',
+              maxWidth: '1680px',
+              height: '92vh',
               touchAction: 'none'
             }}
           >
@@ -1611,35 +1719,40 @@ export default function NegotiationCentral() {
                   </div>
 
                   {/* Right side buttons */}
-                  <div className="flex gap-1.5 justify-end shrink-0">
-                    <Button 
-                      variant={activeTab === 'commercial' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setActiveTab('commercial')}
-                      className={cn(
-                        "gap-1 lg:gap-2 font-bold italic uppercase text-[8px] lg:text-[10px] tracking-wider h-7 lg:h-8 px-2 lg:px-4 rounded-full transition-all border",
-                        activeTab === 'commercial' 
-                          ? "bg-primary text-white border-primary shadow-md shadow-primary/10" 
-                          : "bg-white text-muted-foreground border-border hover:border-primary/50 hover:bg-muted"
-                      )}
-                    >
-                      <Package className="h-3 w-3 shrink-0" />
-                      <span>{isMobile ? "Comercial" : "Comercial & Produtos"}</span>
-                    </Button>
-                    <Button 
-                      variant={activeTab === 'timeline' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setActiveTab('timeline')}
-                      className={cn(
-                        "gap-1 lg:gap-2 font-bold italic uppercase text-[8px] lg:text-[10px] tracking-wider h-7 lg:h-8 px-2 lg:px-4 rounded-full transition-all border",
-                        activeTab === 'timeline' 
-                          ? "bg-primary text-white border-primary shadow-md shadow-primary/10" 
-                          : "bg-white text-muted-foreground border-border hover:border-primary/50 hover:bg-muted"
-                      )}
-                    >
-                      <History className="h-3 w-3 shrink-0" />
-                      <span>{isMobile ? "Histórico" : "Acompanhamento"}</span>
-                    </Button>
+                  <div className="flex items-center gap-2 justify-end shrink-0">
+                    <span className="hidden lg:inline-flex items-center gap-1.5 text-[10px] font-black uppercase text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full shrink-0">
+                      <LayoutDashboard className="h-3.5 w-3.5 text-emerald-600" /> Tela Cheia (Lado a Lado)
+                    </span>
+                    <div className="flex lg:hidden items-center gap-1.5">
+                      <Button 
+                        variant={activeTab === 'commercial' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setActiveTab('commercial')}
+                        className={cn(
+                          "gap-1 font-bold italic uppercase text-[8px] tracking-wider h-7 px-2 rounded-full transition-all border",
+                          activeTab === 'commercial' 
+                            ? "bg-primary text-white border-primary shadow-md shadow-primary/10" 
+                            : "bg-white text-muted-foreground border-border hover:border-primary/50 hover:bg-muted"
+                        )}
+                      >
+                        <Package className="h-3 w-3 shrink-0" />
+                        <span>Comercial</span>
+                      </Button>
+                      <Button 
+                        variant={activeTab === 'timeline' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setActiveTab('timeline')}
+                        className={cn(
+                          "gap-1 font-bold italic uppercase text-[8px] tracking-wider h-7 px-2 rounded-full transition-all border",
+                          activeTab === 'timeline' 
+                            ? "bg-primary text-white border-primary shadow-md shadow-primary/10" 
+                            : "bg-white text-muted-foreground border-border hover:border-primary/50 hover:bg-muted"
+                        )}
+                      >
+                        <History className="h-3 w-3 shrink-0" />
+                        <span>Acompanhamento</span>
+                      </Button>
+                    </div>
                   </div>
                 </div>
               );
@@ -1651,49 +1764,49 @@ export default function NegotiationCentral() {
             {/* Agendor CRM Sync Status Banner */}
             {agendorEnabled && (
               <div className={cn(
-                "border rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 shadow-sm shrink-0",
+                "border rounded-xl p-3 flex flex-col gap-2 shadow-sm shrink-0 transition-all",
                 activeIndication?.agendor_synced 
                   ? "bg-emerald-500/5 border-emerald-500/10" 
                   : "bg-slate-500/5 border-border"
               )}>
-                <div className="flex items-center gap-3">
-                  <div className={cn(
-                    "h-8 w-8 rounded-full flex items-center justify-center",
-                    activeIndication?.agendor_synced 
-                      ? "bg-emerald-500/10 text-emerald-600" 
-                      : "bg-slate-500/10 text-slate-500"
-                  )}>
-                    {activeIndication?.agendor_synced ? (
-                      <CheckCircle2 className="h-4 w-4" />
-                    ) : (
-                      <Settings className="h-4 w-4" />
-                    )}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className={cn(
-                        "text-[10px] font-black uppercase leading-none",
-                        activeIndication?.agendor_synced ? "text-emerald-600" : "text-muted-foreground"
-                      )}>
-                        {activeIndication?.agendor_synced ? "Sincronizado no Agendor CRM" : "Não Sincronizado no Agendor"}
-                      </p>
-                      {activeIndication?.agendor_synced_at && (
-                        <span className="text-[8px] text-muted-foreground">
-                          {new Date(activeIndication.agendor_synced_at).toLocaleDateString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={cn(
+                      "h-8 w-8 rounded-full flex items-center justify-center shrink-0",
+                      activeIndication?.agendor_synced 
+                        ? "bg-emerald-500/10 text-emerald-600" 
+                        : "bg-slate-500/10 text-slate-500"
+                    )}>
+                      {activeIndication?.agendor_synced ? (
+                        <CheckCircle2 className="h-4 w-4" />
+                      ) : (
+                        <Settings className="h-4 w-4" />
                       )}
                     </div>
-                    <p className="text-xs text-slate-600 leading-tight mt-1">
-                      {activeIndication?.agendor_synced 
-                        ? `Esta indicação está vinculada ao negócio #${activeIndication.agendor_deal_id} no CRM.` 
-                        : "A integração com o Agendor CRM está ativa. Você pode sincronizar este lead manualmente."}
-                    </p>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className={cn(
+                          "text-[10px] font-black uppercase leading-none",
+                          activeIndication?.agendor_synced ? "text-emerald-600" : "text-muted-foreground"
+                        )}>
+                          {activeIndication?.agendor_synced ? "Sincronizado no Agendor CRM" : "Não Sincronizado no Agendor"}
+                        </p>
+                        {activeIndication?.agendor_synced_at && (
+                          <span className="text-[8px] text-muted-foreground">
+                            {new Date(activeIndication.agendor_synced_at).toLocaleDateString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-600 leading-tight mt-1 truncate max-w-md">
+                        {activeIndication?.agendor_synced 
+                          ? `Esta indicação está vinculada ao negócio #${activeIndication.agendor_deal_id} no CRM.` 
+                          : "A integração com o Agendor CRM está ativa. Você pode sincronizar este lead manualmente."}
+                      </p>
+                    </div>
                   </div>
-                </div>
 
-                <div className="flex items-center gap-2">
-                  {activeIndication?.agendor_synced ? (
-                    <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    {activeIndication?.agendor_synced && (
                       <a 
                         href={`https://web.agendor.com.br/negocios/${activeIndication.agendor_deal_id}`} 
                         target="_blank" 
@@ -1702,32 +1815,86 @@ export default function NegotiationCentral() {
                       >
                         Ver no Agendor <ExternalLink className="h-3 w-3" />
                       </a>
-                      {canInteract && !isSold && (
-                        <Button 
-                          size="sm"
-                          variant="outline"
-                          onClick={handleImportFromAgendor}
-                          disabled={importingFiles}
-                          className="h-8 text-[10px] font-bold uppercase gap-1.5 border-primary text-primary hover:bg-primary/5 bg-white"
-                        >
-                          <RotateCw className={cn("h-3.5 w-3.5", importingFiles && "animate-spin")} />
-                          {importingFiles ? 'Importando...' : 'Importar do CRM'}
-                        </Button>
-                      )}
-                    </div>
-                  ) : (
-                    <Button 
-                      size="sm"
-                      variant="outline"
-                      onClick={handleSyncToAgendor}
-                      disabled={syncingAgendor}
-                      className="h-8 text-[10px] font-bold uppercase gap-1.5 border-border bg-white"
-                    >
-                      <RotateCw className={cn("h-3.5 w-3.5", syncingAgendor && "animate-spin")} />
-                      {syncingAgendor ? 'Sincronizando...' : 'Sincronizar CRM'}
-                    </Button>
-                  )}
+                    )}
+
+                    {activeIndication?.agendor_synced && canInteract && !isSold && (
+                      <Button 
+                        size="sm"
+                        variant="outline"
+                        onClick={handleImportFromAgendor}
+                        disabled={importingFiles}
+                        className="h-8 text-[10px] font-bold uppercase gap-1.5 border-primary text-primary hover:bg-primary/5 bg-white"
+                      >
+                        <RotateCw className={cn("h-3.5 w-3.5", importingFiles && "animate-spin")} />
+                        {importingFiles ? 'Importando...' : 'Importar do CRM'}
+                      </Button>
+                    )}
+
+                    {canInteract && !isSold && (
+                      <Button 
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setShowRelinkBox(!showRelinkBox)}
+                        className="h-8 text-[10px] font-bold uppercase gap-1.5 border-amber-500/50 text-amber-700 dark:text-amber-300 bg-amber-50/80 hover:bg-amber-100 dark:bg-amber-950/30"
+                      >
+                        <Settings className="h-3.5 w-3.5" />
+                        <span>{showRelinkBox ? 'Fechar Re-vinculação' : 'Alterar ID / Re-vincular'}</span>
+                      </Button>
+                    )}
+
+                    {!activeIndication?.agendor_synced && (
+                      <Button 
+                        size="sm"
+                        variant="outline"
+                        onClick={handleSyncToAgendor}
+                        disabled={syncingAgendor}
+                        className="h-8 text-[10px] font-bold uppercase gap-1.5 border-border bg-white"
+                      >
+                        <RotateCw className={cn("h-3.5 w-3.5", syncingAgendor && "animate-spin")} />
+                        {syncingAgendor ? 'Sincronizando...' : 'Sincronizar CRM'}
+                      </Button>
+                    )}
+                  </div>
                 </div>
+
+                {/* Inline Re-link Box */}
+                {showRelinkBox && (
+                  <div className="w-full mt-1 pt-2 border-t border-amber-500/20 flex flex-col gap-2 bg-amber-500/10 p-3 rounded-lg animate-in fade-in slide-in-from-top-1 duration-200">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-extrabold uppercase text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                        <Settings className="h-3.5 w-3.5 text-amber-600" />
+                        Vincular a um Novo Negócio do Agendor:
+                      </span>
+                      <button 
+                        type="button" 
+                        onClick={() => setShowRelinkBox(false)}
+                        className="text-[10px] text-slate-500 hover:text-slate-700 font-bold uppercase"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Input 
+                        value={relinkInput}
+                        onChange={(e) => setRelinkInput(e.target.value)}
+                        placeholder="Cole aqui o novo ID (ex: 44477683), Link da URL do Agendor ou Email de redirecionamento"
+                        className="bg-white dark:bg-slate-900 text-xs h-8 border-amber-500/40 flex-1 font-mono text-slate-900 dark:text-slate-100"
+                      />
+                      <Button 
+                        size="sm"
+                        disabled={!relinkInput.trim() || isRelinking}
+                        onClick={handleDirectRelinkAgendor}
+                        className="h-8 text-[9px] uppercase font-bold bg-amber-600 hover:bg-amber-700 text-white shrink-0 shadow-sm"
+                      >
+                        {isRelinking ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RotateCw className="h-3 w-3 mr-1" />}
+                        {isRelinking ? 'Sincronizando...' : 'Salvar & Re-sincronizar'}
+                      </Button>
+                    </div>
+                    <p className="text-[9px] text-amber-800/80 dark:text-amber-300 leading-tight">
+                      💡 <b>Como funciona:</b> Se um negócio foi cancelado e recriado no Agendor por Luana ou outro consultor, cole aqui o novo ID (ex: <code>44477683</code>), link completo ou e-mail de redirecionamento (ex: <code>sdr-163494n44477683@to.agendor.com.br</code>) para vincular e puxar todo o histórico automaticamente.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1770,10 +1937,15 @@ export default function NegotiationCentral() {
               )}
             </AnimatePresence>
 
-            {activeTab === 'commercial' ? (
-              <div key="commercial-tab-content" className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-5 lg:overflow-hidden min-h-0">
-                {/* LEFT COLUMN: Order Details, Commissions & Standard Seller */}
-                <div className="lg:col-span-5 flex flex-col gap-4 lg:overflow-y-auto pr-1">
+            {/* DESKTOP SPLIT SCREEN / MOBILE SINGLE TAB CONTAINER */}
+            <div className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden">
+              <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 min-h-0">
+                
+                {/* RIGHT PANEL: COMERCIAL & PRODUTOS (5 SPANS, RIGHT SIDE) */}
+                <div className={cn(
+                  "lg:col-span-5 order-2 lg:order-2 flex flex-col gap-4 overflow-y-auto pl-1 lg:border-l border-slate-200/80 dark:border-slate-800 lg:pl-5 h-full min-h-0",
+                  isMobile && activeTab !== 'commercial' ? "hidden lg:flex" : "flex"
+                )}>
                   {/* Luana / Gislene warning for missing base commission value */}
                   {(isAdmin || isManager) && activeIndication?.status === 'negotiating' && (!activeIndication.base_commission_value || activeIndication.base_commission_value <= 0) && (
                     <motion.div 
@@ -2060,194 +2232,12 @@ export default function NegotiationCentral() {
                     </div>
                   )}
 
-                  {/* Cadastro de Cliente & CRM Agendor */}
-                  <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm shrink-0 space-y-4">
-                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-                      <div className="flex items-center gap-2">
-                        <div className="h-5 w-5 bg-primary/10 rounded flex items-center justify-center text-primary font-bold text-xs">A</div>
-                        <h4 className="text-[10px] font-extrabold italic uppercase text-slate-700 dark:text-slate-300">
-                          Dados Cadastrais & CRM Agendor
-                        </h4>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        {activeIndication.agendor_synced ? (
-                          <Badge className="bg-emerald-500 text-white border-none text-[8px] font-black uppercase py-0.5 px-1.5 rounded flex items-center gap-1">
-                            <CheckCircle2 className="h-2 w-2" /> Sincronizado
-                          </Badge>
-                        ) : (
-                          <Badge className="bg-amber-500 text-white border-none text-[8px] font-black uppercase py-0.5 px-1.5 rounded flex items-center gap-1">
-                            Pendente
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <Label className="text-[8px] font-black uppercase text-slate-400">CNPJ do Cliente</Label>
-                        <Input 
-                          disabled={!isEditable}
-                          value={extractedCnpj}
-                          onChange={(e) => setExtractedCnpj(e.target.value)}
-                          placeholder="00.000.000/0000-00"
-                          className="bg-slate-50 dark:bg-slate-800 text-slate-950 dark:text-slate-50 font-medium text-xs h-8 px-2 border-slate-200"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <Label className="text-[8px] font-black uppercase text-slate-400">Telefone / WhatsApp</Label>
-                        <Input 
-                          disabled={!isEditable}
-                          value={extractedPhone}
-                          onChange={(e) => setExtractedPhone(e.target.value)}
-                          placeholder="(00) 00000-0000"
-                          className="bg-slate-50 dark:bg-slate-800 text-slate-950 dark:text-slate-50 font-medium text-xs h-8 px-2 border-slate-200"
-                        />
-                      </div>
-
-                      <div className="space-y-1 col-span-2">
-                        <Label className="text-[8px] font-black uppercase text-slate-400">Razão Social / Empresa</Label>
-                        <Input 
-                          disabled={!isEditable}
-                          value={companyName}
-                          onChange={(e) => setCompanyName(e.target.value)}
-                          placeholder="Nome da empresa cadastrada"
-                          className="bg-slate-50 dark:bg-slate-800 text-slate-950 dark:text-slate-50 font-medium text-xs h-8 px-2 border-slate-200"
-                        />
-                      </div>
-
-                      <div className="space-y-1 col-span-2">
-                        <Label className="text-[8px] font-black uppercase text-slate-400">E-mail de Contato</Label>
-                        <Input 
-                          disabled={!isEditable}
-                          value={extractedEmail}
-                          onChange={(e) => setExtractedEmail(e.target.value)}
-                          placeholder="exemplo@email.com"
-                          className="bg-slate-50 dark:bg-slate-800 text-slate-950 dark:text-slate-50 font-medium text-xs h-8 px-2 border-slate-200"
-                        />
-                      </div>
-
-                      <div className="space-y-1 col-span-2">
-                        <Label className="text-[8px] font-black uppercase text-slate-400 flex items-center justify-between">
-                          <span>Código de Cadastro (CRM)</span>
-                          {clientCode && (
-                            <span className="text-[7px] text-muted-foreground italic lowercase font-normal">use este código para verificar no CRM</span>
-                          )}
-                        </Label>
-                        <div className="flex gap-2">
-                          <Input 
-                            disabled={!isEditable}
-                            value={clientCode}
-                            onChange={(e) => setClientCode(e.target.value)}
-                            placeholder="Código do cliente ou ID no Agendor"
-                            className="bg-slate-50 dark:bg-slate-800 text-slate-950 dark:text-slate-50 font-mono text-xs h-8 px-2 border-slate-200 flex-1"
-                          />
-                          <Button
-                            size="sm"
-                            type="button"
-                            variant="secondary"
-                            onClick={() => handleSearchCRM({ code: clientCode })}
-                            disabled={!clientCode || isSearchingCRM}
-                            className="h-8 text-[9px] uppercase font-bold"
-                          >
-                            Verificar Cód
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* CRM Search Results and Auto-Matching */}
-                    {crmMatch && (
-                      <div className={cn(
-                        "p-3 rounded-lg border text-xs space-y-2",
-                        crmMatch.found 
-                          ? "bg-emerald-50/50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/20 dark:border-emerald-900/30 dark:text-emerald-300"
-                          : "bg-amber-50/50 border-amber-200 text-amber-800 dark:bg-amber-950/20 dark:border-amber-900/30 dark:text-amber-300"
-                      )}>
-                        {crmMatch.found ? (
-                          <>
-                            <div className="flex items-start gap-2">
-                              <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
-                              <div className="space-y-0.5">
-                                <p className="font-bold uppercase text-[9px] tracking-wider">Cliente Localizado no CRM!</p>
-                                <p className="font-bold">{crmMatch.name || crmMatch.company_name}</p>
-                                {crmMatch.company_name && crmMatch.company_name !== crmMatch.name && (
-                                  <p className="text-[10px] text-slate-500">Empresa: {crmMatch.company_name}</p>
-                                )}
-                                <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[10px] text-slate-500 mt-1">
-                                  {crmMatch.cnpj && <span>CNPJ: {crmMatch.cnpj}</span>}
-                                  {crmMatch.phone && <span>Tel: {crmMatch.phone}</span>}
-                                  {crmMatch.email && <span className="col-span-2 truncate">Email: {crmMatch.email}</span>}
-                                  {crmMatch.client_code && <span>Código CRM: <b className="font-mono">{crmMatch.client_code}</b></span>}
-                                </div>
-                              </div>
-                            </div>
-                            <Button
-                              size="sm"
-                              type="button"
-                              className="w-full h-7 text-[9px] uppercase font-bold mt-2 bg-emerald-600 hover:bg-emerald-700 text-white border-none shadow-sm"
-                              onClick={handleApplyCRMMatch}
-                            >
-                              Puxar e Preencher estes Dados
-                            </Button>
-                          </>
-                        ) : (
-                          <div className="flex items-start gap-2">
-                            <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-                            <div className="space-y-1">
-                              <p className="font-bold uppercase text-[9px] tracking-wider">Cliente Não Localizado</p>
-                              <p className="text-[11px] text-slate-600 leading-tight">
-                                Nenhum cliente correspondente foi localizado no Agendor CRM com os dados atuais (CNPJ, Telefone ou Nome). Ao salvar, um novo registro será criado no CRM.
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                        className="flex-1 h-8 text-[9px] uppercase font-black tracking-wider border-border bg-white"
-                        onClick={() => handleSearchCRM()}
-                        disabled={isSearchingCRM}
-                      >
-                        {isSearchingCRM ? (
-                          <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                        ) : (
-                          <Search className="h-3 w-3 mr-1" />
-                        )}
-                        Buscar no CRM
-                      </Button>
-                      
-                      <Button
-                        size="sm"
-                        type="button"
-                        variant="ghost"
-                        className="h-8 text-[9px] uppercase font-bold text-slate-500"
-                        onClick={() => {
-                          setExtractedCnpj('');
-                          setExtractedPhone('');
-                          setExtractedEmail('');
-                          setCompanyName('');
-                          setClientCode('');
-                          setCrmMatch(null);
-                        }}
-                      >
-                        Limpar
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* RIGHT COLUMN: Products Spreadsheet */}
-                <div className="lg:col-span-7 flex flex-col bg-white dark:bg-card border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm h-full min-h-0 w-full">
-                  <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-2 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
-                    <h4 className="text-[10px] font-bold italic uppercase flex items-center gap-2 text-slate-600 dark:text-slate-350">
-                      <Package className="h-3.5 w-3.5 text-primary" /> Planilha de Produtos Comissionáveis
-                    </h4>
+                  {/* Planilha de Produtos Comissionáveis */}
+                  <div className="flex flex-col bg-white dark:bg-card border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm shrink-0 w-full">
+                    <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-2 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
+                      <h4 className="text-[10px] font-bold italic uppercase flex items-center gap-2 text-slate-600 dark:text-slate-350">
+                        <Package className="h-3.5 w-3.5 text-primary" /> Planilha de Produtos Comissionáveis
+                      </h4>
                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{commissionedProducts.length} itens</span>
                   </div>
                   
@@ -2511,10 +2501,14 @@ export default function NegotiationCentral() {
                   </div>
                 </div>
               </div>
-            ) : (
-              <div key="timeline-tab-content" className="w-full flex flex-col lg:flex-row gap-4 lg:gap-6 lg:overflow-hidden lg:flex-1 lg:min-h-0">
-                {/* On Mobile: Novo Acompanhamento Form goes FIRST at the top */}
-                <div className="w-full lg:w-80 flex flex-col gap-4 order-1 lg:order-2 shrink-0">
+
+                {/* LEFT PANEL: ACOMPANHAMENTO & LINHA DO TEMPO (7 SPANS, LEFT SIDE - AGENDOR CRM STYLE) */}
+                <div className={cn(
+                  "lg:col-span-7 order-1 lg:order-1 flex flex-col gap-4 overflow-y-auto pr-1 lg:pr-4 h-full min-h-0",
+                  isMobile && activeTab !== 'timeline' ? "hidden lg:flex" : "flex"
+                )}>
+                {/* On Mobile & Desktop: Novo Acompanhamento Form goes at top of right panel */}
+                <div className="w-full flex flex-col gap-4 shrink-0">
                   <div className="p-4 lg:p-5 bg-primary/5 rounded-2xl border border-primary/10 space-y-3 lg:space-y-4">
                     <h4 className="text-xs font-black italic uppercase text-primary flex items-center gap-2">
                       <Plus className="h-4 w-4" /> Novo Acompanhamento
@@ -2527,11 +2521,43 @@ export default function NegotiationCentral() {
                       </div>
                     ) : (
                       <>
+                        {/* Seletor Rápido de Tipo de Atividade / Categoria */}
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {[
+                            { id: 'nota', label: 'Nota', icon: MessageSquare, color: 'bg-slate-100 text-slate-700 hover:bg-slate-200' },
+                            { id: 'ligacao', label: 'Ligação', icon: Phone, color: 'bg-blue-50 text-blue-700 hover:bg-blue-100' },
+                            { id: 'whatsapp', label: 'WhatsApp', icon: MessageCircle, color: 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
+                            { id: 'email', label: 'E-mail', icon: FileText, color: 'bg-purple-50 text-purple-700 hover:bg-purple-100' },
+                            { id: 'proposta', label: 'Proposta', icon: BadgeDollarSign, color: 'bg-amber-50 text-amber-700 hover:bg-amber-100' },
+                            { id: 'reuniao', label: 'Reunião', icon: User, color: 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100' },
+                            { id: 'visita', label: 'Visita', icon: MapPin, color: 'bg-orange-50 text-orange-700 hover:bg-orange-100' },
+                          ].map((cat) => {
+                            const IconComp = cat.icon;
+                            const isSel = selectedActivityType === cat.id;
+                            return (
+                              <button
+                                key={cat.id}
+                                type="button"
+                                onClick={() => setSelectedActivityType(cat.id as any)}
+                                className={cn(
+                                  "px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase transition-all flex items-center gap-1 border",
+                                  isSel 
+                                    ? "bg-primary text-white border-primary shadow-sm scale-105" 
+                                    : `${cat.color} border-slate-200/70 dark:border-slate-800`
+                                )}
+                              >
+                                <IconComp className="h-3 w-3" />
+                                <span>{cat.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+
                         <textarea 
                           value={historyNote}
                           onChange={(e) => setHistoryNote(e.target.value)}
-                          placeholder="Descreva o que foi conversado ou realizado..."
-                          className="w-full bg-background border border-primary/20 rounded-xl p-3 text-xs min-h-[100px] lg:min-h-[140px] resize-none focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                          placeholder="Descreva o que foi conversado ou realizado com o cliente..."
+                          className="w-full bg-background border border-primary/20 rounded-xl p-3 text-xs min-h-[90px] lg:min-h-[110px] resize-none focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                         />
                         
                         {/* Image Upload Area */}
@@ -2590,20 +2616,65 @@ export default function NegotiationCentral() {
                 </div>
 
                 {/* Timeline List (Linha do Tempo de Atendimento) */}
-                <div className="w-full lg:flex-1 flex flex-col gap-4 lg:overflow-hidden order-2 lg:order-1 lg:min-h-0">
+                <div className="w-full flex-1 flex flex-col gap-4 shrink-0 min-h-[300px]">
                   <div className="flex flex-col h-auto lg:h-full bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
-                    <div className="bg-muted/50 px-4 py-3 border-b border-border flex items-center justify-between shrink-0">
-                      <h4 className="text-xs font-black italic uppercase flex items-center gap-2">
-                        <History className="h-4 w-4 text-primary" /> Linha do Tempo de Atendimento
-                      </h4>
-                      <Badge variant="outline" className="text-[9px] font-bold uppercase border-primary/20 text-primary">
-                        {activeIndication.negotiation_history?.length || 0} Registros
-                      </Badge>
+                    <div className="bg-muted/50 px-4 py-2.5 border-b border-border flex flex-wrap items-center justify-between gap-2 shrink-0">
+                      <div className="flex items-center gap-2">
+                        <History className="h-4 w-4 text-primary" />
+                        <h4 className="text-xs font-black italic uppercase">
+                          Linha do Tempo de Atendimento
+                        </h4>
+                        <Badge variant="outline" className="text-[8px] font-bold uppercase border-primary/20 text-primary">
+                          {activeIndication.negotiation_history?.length || 0} Registros
+                        </Badge>
+                      </div>
+
+                      {/* Timeline Filter */}
+                      <div className="flex items-center gap-1 bg-slate-200/70 dark:bg-slate-800 p-0.5 rounded-lg text-[9px] font-bold uppercase">
+                        <button
+                          type="button"
+                          onClick={() => setTimelineFilter('all')}
+                          className={cn(
+                            "px-2 py-0.5 rounded-md transition-all",
+                            timelineFilter === 'all' ? "bg-white text-slate-900 shadow-sm font-black" : "text-slate-500 hover:text-slate-800"
+                          )}
+                        >
+                          Todos
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTimelineFilter('agendor')}
+                          className={cn(
+                            "px-2 py-0.5 rounded-md transition-all",
+                            timelineFilter === 'agendor' ? "bg-emerald-600 text-white shadow-sm font-black" : "text-slate-500 hover:text-slate-800"
+                          )}
+                        >
+                          Agendor CRM
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTimelineFilter('roder')}
+                          className={cn(
+                            "px-2 py-0.5 rounded-md transition-all",
+                            timelineFilter === 'roder' ? "bg-primary text-white shadow-sm font-black" : "text-slate-500 hover:text-slate-800"
+                          )}
+                        >
+                          Roder Indica
+                        </button>
+                      </div>
                     </div>
                     
                     <div className="p-4 lg:p-6 overflow-y-auto flex-1 min-h-[200px]">
                       <div className="space-y-6 lg:space-y-8 relative before:absolute before:left-[17px] before:top-2 before:bottom-2 before:w-px before:bg-border">
-                        {activeIndication.negotiation_history?.slice().reverse().map((entry, idx) => (
+                        {activeIndication.negotiation_history
+                          ?.slice()
+                          .reverse()
+                          .filter((entry) => {
+                            if (timelineFilter === 'agendor') return entry.author_name?.toLowerCase().includes('agendor') || entry.content?.includes('[AGENDOR]');
+                            if (timelineFilter === 'roder') return !entry.author_name?.toLowerCase().includes('agendor') && !entry.content?.includes('[AGENDOR]');
+                            return true;
+                          })
+                          .map((entry, idx) => (
                           <div key={entry.id || `hist-${idx}-${entry.created_at || ''}`} className="relative pl-10">
                             <div className={cn(
                               "absolute left-0 w-8 h-8 lg:w-9 lg:h-9 rounded-full border-2 border-background flex items-center justify-center z-10 shadow-sm",
@@ -2688,11 +2759,13 @@ export default function NegotiationCentral() {
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
 
-          {/* Footer Actions */}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer Actions */}
           <div 
             onPointerDown={(e) => !isMobile && dragControls.start(e)}
             className={cn(

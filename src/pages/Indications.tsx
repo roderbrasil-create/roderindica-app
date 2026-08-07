@@ -886,20 +886,25 @@ export default function Indications() {
 
   const handleDeleteIndication = async () => {
     if (!selectedIndication) return;
+    const indicationId = selectedIndication.id;
     try {
       setDeleting(true);
-      const indicationId = selectedIndication.id;
       setIsDeleteDialogOpen(false);
       
       // Delay deletion slightly so the dialog closing transitions can settle
       await new Promise((resolve) => setTimeout(resolve, 200));
       
       await deleteDoc(doc(db, 'indications', indicationId));
+      
+      // Immediately remove deleted indication from local state
+      setIndications(prev => prev.filter(ind => ind.id !== indicationId));
+
       toast.success('Indicação excluída permanentemente de todos os registros.');
     } catch (error: any) {
       toast.error('Erro ao excluir indicação: ' + error.message);
     } finally {
       setDeleting(false);
+      setSelectedIndication(null);
     }
   };
 
@@ -1060,7 +1065,7 @@ export default function Indications() {
       }
     }
 
-    const processSnapshot = (snapshot: any, isFromCache = false) => {
+    const processSnapshot = (snapshot: any) => {
       const data = snapshot.docs
         .map((doc: any) => ({ id: doc.id, ...doc.data() } as Indication))
         .filter((ind: any) => !ind.is_deleted);
@@ -1071,19 +1076,7 @@ export default function Indications() {
         return dateB - dateA;
       });
       
-      setIndications(prev => {
-        // When loading from cache then live, merge and avoid duplicates
-        if (isFromCache) return data;
-        const existingIds = new Set(data.map(i => i.id));
-        const keptFromPrev = prev.filter(p => !existingIds.has(p.id));
-        const merged = [...data, ...keptFromPrev];
-        merged.sort((a: any, b: any) => {
-          const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
-          const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
-          return dateB - dateA;
-        });
-        return merged;
-      });
+      setIndications(data);
       setLoading(false);
     };
 
@@ -1941,7 +1934,7 @@ export default function Indications() {
                                       size="sm" 
                                       variant="outline" 
                                       className="h-8 px-3 text-[10px] font-black uppercase text-primary border-primary/20 hover:bg-primary/10 gap-1.5"
-                                      onClick={() => openNegotiation(ind)}
+                                      onClick={() => openNegotiation(ind, 'timeline')}
                                     >
                                       <MessageSquare className="h-3.5 w-3.5" />
                                       <span>Acompanhar</span>
@@ -2022,7 +2015,7 @@ export default function Indications() {
                               size="xs" 
                               variant="outline" 
                               className="h-8 w-8 p-0 border-primary/20 hover:bg-primary/10 text-primary"
-                              onClick={() => openNegotiation(ind)}
+                              onClick={() => openNegotiation(ind, 'timeline')}
                               title="Acompanhar"
                             >
                               <MessageSquare className="h-4 w-4" />
@@ -2315,7 +2308,7 @@ export default function Indications() {
                                   size="sm" 
                                   variant="outline" 
                                   className="h-8 text-xs gap-1 py-1 font-bold border-orange-500/30 text-orange-500 hover:bg-orange-500/10"
-                                  onClick={() => openNegotiation(ind)}
+                                  onClick={() => openNegotiation(ind, 'timeline')}
                                   title="Acompanhar Atendimento"
                                 >
                                   <MessageSquare className="h-3.5 w-3.5" />
