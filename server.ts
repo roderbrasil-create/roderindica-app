@@ -38,7 +38,15 @@ import { ACCESSORIES_DATA, INSTALLATION_KITS } from "./src/constants.js";
 // Resolve __dirname safely to avoid crashes in bundled CommonJS mode
 const __dirname = process.cwd();
 
-const config = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'firebase-applet-config.json'), 'utf8'));
+let config: any = {};
+try {
+  const saConfigPath = path.join(process.cwd(), 'firebase-applet-config.json');
+  if (fs.existsSync(saConfigPath)) {
+    config = JSON.parse(fs.readFileSync(saConfigPath, 'utf8'));
+  }
+} catch (e: any) {
+  console.warn('[FIREBASE-ADMIN] Could not load firebase-applet-config.json:', e.message);
+}
 
 let adminApp: admin.app.App;
 
@@ -77,7 +85,7 @@ if (admin.apps.length === 0) {
   }
 
   const initConfig: any = {
-    projectId: config.projectId,
+    projectId: config.projectId || process.env.FIREBASE_PROJECT_ID || 'ai-studio-e7c58188-6deb-4a73-b6a5-1858f8dce981',
   };
 
   if (credential) {
@@ -89,7 +97,7 @@ if (admin.apps.length === 0) {
   adminApp = admin.app();
 }
 
-const db = getFirestore(adminApp, config.firestoreDatabaseId || '(default)');
+const db = getFirestore(adminApp, config.firestoreDatabaseId || process.env.FIRESTORE_DATABASE_ID || '(default)');
 
 function getTodayLocalDate(): string {
   const d = new Date();
@@ -212,7 +220,7 @@ async function classifyQuestionTopic(ai: GoogleGenAI, question: string): Promise
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT || 3000;
 
   // Set up standard and highly compatible CORS middleware using the 'cors' library
   app.use(cors({
