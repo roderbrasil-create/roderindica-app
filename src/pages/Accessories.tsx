@@ -26,7 +26,13 @@ import {
   Camera,
   FileDown,
   Eye,
-  Image
+  Image,
+  FileUp,
+  RefreshCw,
+  AlertCircle,
+  CheckCircle2,
+  ArrowRight,
+  ChevronDown
 } from 'lucide-react';
 import { ACCESSORIES_DATA, INSTALLATION_KITS as DEFAULT_KITS } from '../constants';
 import { Accessory, InstallationKit, InstallationKitItem } from '../types';
@@ -173,6 +179,18 @@ export default function Accessories() {
   const [pasteText, setPasteText] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+
+  // PDF Update Modal States
+  const [isUpdatePdfModalOpen, setIsUpdatePdfModalOpen] = useState(false);
+  const [isParsingPdf, setIsParsingPdf] = useState(false);
+  const [isApplyingPdfSync, setIsApplyingPdfSync] = useState(false);
+  const [pdfFileName, setPdfFileName] = useState<string | null>(null);
+  const [pdfDiffResult, setPdfDiffResult] = useState<{
+    added: { parsedKit: InstallationKit; type: 'ADDED'; changes: string[] }[];
+    updated: { parsedKit: InstallationKit; existingKit?: InstallationKit; type: 'UPDATED'; changes: string[] }[];
+    unchanged: { parsedKit: InstallationKit; existingKit?: InstallationKit; type: 'UNCHANGED'; changes: string[] }[];
+  } | null>(null);
+  const [expandedDiffKitCode, setExpandedDiffKitCode] = useState<string | null>(null);
 
   // Form States
     const [accessoryForm, setAccessoryForm] = useState<Partial<Accessory>>({
@@ -366,6 +384,194 @@ export default function Accessories() {
     });
 
     return parsedKits;
+  };
+
+  const computeKitsDiff = (parsedKits: InstallationKit[], existingKits: InstallationKit[]) => {
+    const existingMap = new Map<string, InstallationKit>();
+    existingKits.forEach(k => existingMap.set(k.code.trim(), k));
+
+    const added: { parsedKit: InstallationKit; type: 'ADDED'; changes: string[] }[] = [];
+    const updated: { parsedKit: InstallationKit; existingKit?: InstallationKit; type: 'UPDATED'; changes: string[] }[] = [];
+    const unchanged: { parsedKit: InstallationKit; existingKit?: InstallationKit; type: 'UNCHANGED'; changes: string[] }[] = [];
+
+    parsedKits.forEach(pKit => {
+      const code = pKit.code.trim();
+      const existing = existingMap.get(code);
+
+      if (!existing) {
+        added.push({
+          parsedKit: pKit,
+          type: 'ADDED',
+          changes: ['Novo kit cadastrado no PDF']
+        });
+      } else {
+        const changes: string[] = [];
+
+        // Check description change
+        if (pKit.description.trim() !== existing.description.trim()) {
+          changes.push(`Descrição alterada: "${existing.description}" ➔ "${pKit.description}"`);
+        }
+
+        // Check items
+        const exItemsMap = new Map<string, number>();
+        (existing.items || []).forEach(it => exItemsMap.set(it.code, it.quantity));
+
+        const newItemsMap = new Map<string, number>();
+        (pKit.items || []).forEach(it => newItemsMap.set(it.code, it.quantity));
+
+        // Added or changed items
+        (pKit.items || []).forEach(it => {
+          if (!exItemsMap.has(it.code)) {
+            changes.push(`Item adicionado: ${it.code} (${it.description}) - Qtd: ${it.quantity}`);
+          } else if (exItemsMap.get(it.code) !== it.quantity) {
+            changes.push(`Qtd alterada no item ${it.code}: ${exItemsMap.get(it.code)} ➔ ${it.quantity}`);
+          }
+        });
+
+        // Removed items
+        (existing.items || []).forEach(it => {
+          if (!newItemsMap.has(it.code)) {
+            changes.push(`Item removido: ${it.code} (${it.description})`);
+          }
+        });
+
+        if (changes.length > 0) {
+          updated.push({
+            parsedKit: pKit,
+            existingKit: existing,
+            type: 'UPDATED',
+            changes
+          });
+        } else {
+          unchanged.push({
+            parsedKit: pKit,
+            existingKit: existing,
+            type: 'UNCHANGED',
+            changes: []
+          });
+        }
+      }
+    });
+
+    return { added, updated, unchanged };
+  };
+
+  const processPdfBase64OrText = async (fileBase64?: string, rawText?: string) => {
+    setIsParsingPdf(true);
+    setPdfDiffResult(null);
+
+    const loadingToast = toast.loading("Analisando relatório em PDF dos kits...");
+
+    try {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/api/parse-kits-pdf`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileBase64, rawText })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Falha ao processar o PDF no servidor.');
+      }
+
+      const data = await res.json();
+      if (!data.success || !Array.isArray(data.kits)) {
+        throw new Error('Formato de resposta inválido.');
+      }
+
+      const parsedKits: InstallationKit[] = data.kits;
+
+      if (parsedKits.length === 0) {
+        toast.dismiss(loadingToast);
+        toast.error('Nenhum kit foi identificado no PDF. Verifique se o arquivo é o relatório DBCorp PCR da Roder.');
+        setIsParsingPdf(false);
+        return;
+      }
+
+      const diff = computeKitsDiff(parsedKits, kits);
+      setPdfDiffResult(diff);
+
+      toast.dismiss(loadingToast);
+      toast.success(`PDF analisado! ${parsedKits.length} kits processados (${diff.added.length} novos, ${diff.updated.length} com alterações).`);
+    } catch (err: any) {
+      console.error(err);
+      toast.dismiss(loadingToast);
+      toast.error(err.message || 'Erro ao analisar PDF.');
+    } finally {
+      setIsParsingPdf(false);
+    }
+  };
+
+  const handlePdfFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      toast.error('Por favor, selecione um arquivo no formato PDF.');
+      return;
+    }
+
+    setPdfFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result as string;
+      processPdfBase64OrText(base64);
+    };
+    reader.onerror = () => {
+      toast.error('Erro ao ler o arquivo PDF.');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleApplyPdfSync = async () => {
+    if (!pdfDiffResult) return;
+
+    const { added, updated } = pdfDiffResult;
+    const totalChanges = added.length + updated.length;
+
+    if (totalChanges === 0) {
+      toast.info('Não há alterações a serem aplicadas no banco de dados.');
+      return;
+    }
+
+    setIsApplyingPdfSync(true);
+    const loadingToast = toast.loading(`Sincronizando ${totalChanges} kits no banco de dados...`);
+
+    try {
+      // 1. Add new kits
+      for (const item of added) {
+        await addDoc(collection(db, 'installation_kits'), {
+          code: item.parsedKit.code,
+          description: item.parsedKit.description,
+          items: item.parsedKit.items,
+          created_at: new Date().toISOString()
+        });
+      }
+
+      // 2. Update modified kits
+      for (const item of updated) {
+        if (item.existingKit?.id) {
+          await updateDoc(doc(db, 'installation_kits', item.existingKit.id), {
+            description: item.parsedKit.description,
+            items: item.parsedKit.items,
+            updated_at: new Date().toISOString()
+          });
+        }
+      }
+
+      toast.dismiss(loadingToast);
+      toast.success(`Sucesso! ${added.length} novos kits adicionados e ${updated.length} kits atualizados no banco de dados!`);
+      setIsUpdatePdfModalOpen(false);
+      setPdfFileName(null);
+      setPdfDiffResult(null);
+    } catch (err: any) {
+      console.error(err);
+      toast.dismiss(loadingToast);
+      toast.error('Erro ao salvar no banco de dados.');
+    } finally {
+      setIsApplyingPdfSync(false);
+    }
   };
 
   const handleBulkImport = async () => {
@@ -847,13 +1053,27 @@ export default function Accessories() {
                   <CardTitle className="text-lg">Quadro 2: Kit de Instalação</CardTitle>
                 </div>
                 {isManager && (
-                  <Button size="sm" onClick={() => {
-                    setEditingKit(null);
-                    setKitForm({ code: '', description: '', items: [], photo_url: '' });
-                    setIsKitModalOpen(true);
-                  }} className="h-8 gap-1 bg-blue-600 hover:bg-blue-700">
-                    <Plus className="h-4 w-4" /> Novo Kit
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" onClick={() => {
+                      setEditingKit(null);
+                      setKitForm({ code: '', description: '', items: [], photo_url: '' });
+                      setIsKitModalOpen(true);
+                    }} className="h-8 gap-1 bg-blue-600 hover:bg-blue-700">
+                      <Plus className="h-4 w-4" /> Novo Kit
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => {
+                        setIsUpdatePdfModalOpen(true);
+                        setPdfDiffResult(null);
+                        setPdfFileName(null);
+                      }} 
+                      className="h-8 gap-1.5 border-blue-500/40 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/40 font-semibold"
+                    >
+                      <FileText className="h-4 w-4" /> Update PDF Kits
+                    </Button>
+                  </div>
                 )}
               </div>
               <CardDescription>Busca por Código ou Descrição do Kit</CardDescription>
@@ -1381,6 +1601,160 @@ export default function Accessories() {
             <Button onClick={handleSaveKit} disabled={loading}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
               Salvar Kit
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Update PDF Kits */}
+      <Dialog open={isUpdatePdfModalOpen} onOpenChange={setIsUpdatePdfModalOpen}>
+        <DialogContent className="sm:max-w-[720px] max-h-[85vh] flex flex-col p-6">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl font-bold">
+              <FileText className="h-6 w-6 text-blue-600" />
+              Atualizar Kits de Instalação via PDF
+            </DialogTitle>
+            <DialogDescription>
+              Carregue o arquivo PDF com a lista atualizada de kits de instalação (Relatório DBCorp PCR). O sistema irá analisar os dados e exibir as diferenças antes de atualizar o banco de dados.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto space-y-4 py-2 pr-1">
+            {/* File Upload Box */}
+            <div className="border-2 border-dashed border-blue-200 dark:border-blue-900/60 rounded-xl p-6 bg-blue-50/40 dark:bg-blue-950/20 text-center hover:bg-blue-50/80 transition-colors">
+              <input 
+                type="file" 
+                accept=".pdf" 
+                id="pdf-kit-upload" 
+                className="hidden" 
+                onChange={handlePdfFileSelect}
+                disabled={isParsingPdf || isApplyingPdfSync}
+              />
+              <label htmlFor="pdf-kit-upload" className="cursor-pointer flex flex-col items-center justify-center gap-2">
+                <div className="h-12 w-12 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                  {isParsingPdf ? <Loader2 className="h-6 w-6 animate-spin" /> : <FileUp className="h-6 w-6" />}
+                </div>
+                <div>
+                  <span className="font-semibold text-foreground">Clique para selecionar o PDF</span>
+                  <p className="text-xs text-muted-foreground mt-0.5">Suporta o relatório de kits de instalação em PDF (DBCorp PCR)</p>
+                </div>
+                {pdfFileName && (
+                  <Badge variant="outline" className="mt-2 bg-background border-blue-500/30 text-blue-600 font-mono">
+                    {pdfFileName}
+                  </Badge>
+                )}
+              </label>
+            </div>
+
+            {/* Analysis & Diff Results */}
+            {pdfDiffResult && (
+              <div className="space-y-4">
+                {/* Stats Summary */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="p-3 rounded-lg border border-green-500/20 bg-green-50/50 dark:bg-green-950/20 text-center">
+                    <span className="text-2xl font-black text-green-600 dark:text-green-400">
+                      {pdfDiffResult.added.length}
+                    </span>
+                    <p className="text-xs font-semibold text-green-700 dark:text-green-300 mt-0.5">Novos Kits</p>
+                  </div>
+
+                  <div className="p-3 rounded-lg border border-amber-500/20 bg-amber-50/50 dark:bg-amber-950/20 text-center">
+                    <span className="text-2xl font-black text-amber-600 dark:text-amber-400">
+                      {pdfDiffResult.updated.length}
+                    </span>
+                    <p className="text-xs font-semibold text-amber-700 dark:text-amber-300 mt-0.5">Com Alterações</p>
+                  </div>
+
+                  <div className="p-3 rounded-lg border border-slate-500/20 bg-slate-50/50 dark:bg-slate-950/20 text-center">
+                    <span className="text-2xl font-black text-slate-600 dark:text-slate-400">
+                      {pdfDiffResult.unchanged.length}
+                    </span>
+                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 mt-0.5">Sem Alterações</p>
+                  </div>
+                </div>
+
+                {/* Detailed Changes View */}
+                {pdfDiffResult.added.length === 0 && pdfDiffResult.updated.length === 0 ? (
+                  <div className="p-4 rounded-lg bg-muted/40 border border-border text-center text-sm text-muted-foreground">
+                    <CheckCircle2 className="h-8 w-8 text-green-500 mx-auto mb-2" />
+                    Todos os kits do PDF já estão perfeitamente sincronizados com o banco de dados. Nenhuma alteração pendente!
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                      Resumo das Alterações ({pdfDiffResult.added.length + pdfDiffResult.updated.length} kits a serem atualizados):
+                    </p>
+                    
+                    <ScrollArea className="h-[220px] rounded-md border border-border p-2 bg-muted/10">
+                      <div className="space-y-2">
+                        {/* New Kits List */}
+                        {pdfDiffResult.added.map((item, idx) => (
+                          <div key={`add-${idx}`} className="p-2.5 rounded-lg border border-green-500/30 bg-green-50/30 dark:bg-green-950/20 text-xs">
+                            <div className="flex items-center justify-between font-bold text-green-800 dark:text-green-300">
+                              <span>{item.parsedKit.code} - {item.parsedKit.description}</span>
+                              <Badge className="bg-green-600 hover:bg-green-700 text-white text-[10px]">NOVO</Badge>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground mt-1">
+                              Possui {item.parsedKit.items?.length || 0} itens no kit.
+                            </p>
+                          </div>
+                        ))}
+
+                        {/* Updated Kits List */}
+                        {pdfDiffResult.updated.map((item, idx) => {
+                          const isExpanded = expandedDiffKitCode === item.parsedKit.code;
+                          return (
+                            <div key={`upd-${idx}`} className="p-2.5 rounded-lg border border-amber-500/30 bg-amber-50/30 dark:bg-amber-950/20 text-xs">
+                              <div 
+                                className="flex items-center justify-between font-bold text-amber-900 dark:text-amber-200 cursor-pointer select-none"
+                                onClick={() => setExpandedDiffKitCode(isExpanded ? null : item.parsedKit.code)}
+                              >
+                                <span>{item.parsedKit.code} - {item.parsedKit.description}</span>
+                                <div className="flex items-center gap-1.5">
+                                  <Badge className="bg-amber-600 hover:bg-amber-700 text-white text-[10px]">
+                                    {item.changes.length} {item.changes.length === 1 ? 'ALTERAÇÃO' : 'ALTERAÇÕES'}
+                                  </Badge>
+                                  <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", isExpanded && "rotate-180")} />
+                                </div>
+                              </div>
+                              <ul className="mt-2 space-y-1 list-disc list-inside text-[11px] text-amber-800 dark:text-amber-300 pl-1">
+                                {item.changes.map((ch, chIdx) => (
+                                  <li key={chIdx}>{ch}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="border-t border-border pt-4 mt-2">
+            <Button variant="outline" onClick={() => setIsUpdatePdfModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleApplyPdfSync} 
+              disabled={
+                !pdfDiffResult || 
+                (pdfDiffResult.added.length === 0 && pdfDiffResult.updated.length === 0) || 
+                isApplyingPdfSync
+              }
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+            >
+              {isApplyingPdfSync ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" /> Sincronizando...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2" /> Confirmar e Sincronizar ({pdfDiffResult ? pdfDiffResult.added.length + pdfDiffResult.updated.length : 0} Alterações)
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -220,7 +220,7 @@ async function classifyQuestionTopic(ai: GoogleGenAI, question: string): Promise
 
 async function startServer() {
   const app = express();
-  const PORT = process.env.PORT || 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
   // Set up standard and highly compatible CORS middleware using the 'cors' library
   app.use(cors({
@@ -282,6 +282,108 @@ async function startServer() {
         hasGeminiKey,
         hasServiceAccount
       });
+    }
+  });
+
+  app.post("/api/parse-kits-pdf", async (req, res) => {
+    try {
+      const { fileBase64, rawText } = req.body;
+      let text = rawText || "";
+
+      if (fileBase64) {
+        try {
+          const pdfParse = customRequire("pdf-parse");
+          const cleanBase64 = fileBase64.replace(/^data:application\/pdf;base64,/, '');
+          const buffer = Buffer.from(cleanBase64, 'base64');
+          const pdfData = await pdfParse(buffer);
+          text = pdfData.text || "";
+        } catch (pdfErr: any) {
+          console.error("[PARSE-PDF] Error parsing PDF buffer with pdf-parse:", pdfErr.message);
+        }
+      }
+
+      if (!text || text.trim().length === 0) {
+        return res.status(400).json({ error: "Nenhum texto ou arquivo PDF válido recebido." });
+      }
+
+      // Robust kit parser
+      const kitsMap = new Map<string, { code: string; description: string; items: { code: string; description: string; quantity: number }[] }>();
+
+      const lines = text.split(/\r?\n/);
+      let currentKitCode: string | null = null;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        // Skip report metadata lines
+        if (
+          line.startsWith('Roder Máquinas') ||
+          line.startsWith('Quant. Item Pai') ||
+          line.includes('DBCorp PCR') ||
+          line.startsWith('Nível Nº Item') ||
+          line.startsWith('Filtros:') ||
+          line.includes('Relatório de Estruturas')
+        ) {
+          continue;
+        }
+
+        // Check for kit header line, e.g. "9000.9000.9000 KIT INSTALACAO DESTOCADOR EM ESCAVADEIRA..."
+        const kitMatch = line.match(/(9000\.\d{4}\.\d{4})\s+(.+?)(?:\s+UN\s+\d+|\s+UN|$)/i);
+        if (kitMatch && !line.match(/\d{4}\.\d{4}\.\d{4}\s+.+?\s+(UN|PC|MT|PAR)\s+[\d,]+/i)) {
+          const code = kitMatch[1].trim();
+          let desc = kitMatch[2].trim();
+          desc = desc.replace(/^Item\s+UN\s+Versão\s+/i, '').replace(/\s+UN\s*\d*$/i, '').trim();
+
+          currentKitCode = code;
+          if (!kitsMap.has(code)) {
+            kitsMap.set(code, { code, description: desc, items: [] });
+          } else if (desc && kitsMap.get(code)!.description !== desc) {
+            kitsMap.get(code)!.description = desc;
+          }
+          continue;
+        }
+
+        // Check for item row line in active kit
+        if (currentKitCode && kitsMap.has(currentKitCode)) {
+          const itemMatch = line.match(/(\d{4}\.\d{4}\.\d{4})\s+(.+?)\s+(UN|PC|MT|PAR)\s+([\d]+(?:[,\.]\d+)?)/i);
+          if (itemMatch) {
+            const itemCode = itemMatch[1].trim();
+            if (itemCode !== currentKitCode) {
+              let itemDesc = itemMatch[2].trim();
+              const qty = parseFloat(itemMatch[4].replace(',', '.'));
+
+              const currentKit = kitsMap.get(currentKitCode)!;
+              const existingIdx = currentKit.items.findIndex(it => it.code === itemCode);
+              if (existingIdx >= 0) {
+                currentKit.items[existingIdx] = {
+                  code: itemCode,
+                  description: itemDesc,
+                  quantity: isNaN(qty) ? 1 : qty
+                };
+              } else {
+                currentKit.items.push({
+                  code: itemCode,
+                  description: itemDesc,
+                  quantity: isNaN(qty) ? 1 : qty
+                });
+              }
+            }
+          }
+        }
+      }
+
+      const parsedKits = Array.from(kitsMap.values());
+      console.log(`[PARSE-PDF] Extracted ${parsedKits.length} kits from PDF/text.`);
+
+      res.json({
+        success: true,
+        count: parsedKits.length,
+        kits: parsedKits
+      });
+    } catch (err: any) {
+      console.error("[PARSE-PDF] Error processing PDF request:", err);
+      res.status(500).json({ error: err.message || "Erro ao processar o arquivo PDF." });
     }
   });
 

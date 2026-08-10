@@ -1084,7 +1084,7 @@ export default function Indications() {
     getDocsFromCache(q).then(snapshot => {
       if (!snapshot.empty) {
         console.log("Proactive cache load successful");
-        processSnapshot(snapshot, true);
+        processSnapshot(snapshot);
       }
     }).catch(() => {
       // Ignore cache errors on proactive load
