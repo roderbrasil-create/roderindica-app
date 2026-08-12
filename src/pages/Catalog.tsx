@@ -290,7 +290,7 @@ const isEngateProduct = (nameOrUrl?: string) => {
 const isHighTipProduct = (nameOrUrl?: string) => {
   if (!nameOrUrl) return false;
   const lower = nameOrUrl.toLowerCase();
-  if (lower.includes('prolongador') || lower.includes('pcr')) return false;
+  if (lower.includes('prolongador') || lower.includes('pcr') || lower.includes('destocador')) return false;
   return lower.includes('high tip') || 
          lower.includes('high-tip') || 
          lower.includes('cacamba-high-tip') || 
@@ -298,7 +298,7 @@ const isHighTipProduct = (nameOrUrl?: string) => {
          lower.includes('caçamba de alto despejo') ||
          lower.includes('alto despejo') ||
          lower.includes('vuelco alto') ||
-         lower.includes('despejo') ||
+         lower.includes('despejo alto') ||
          lower.includes('high_tip');
 };
 
@@ -384,8 +384,16 @@ const isAnyFichaSupported = (product: any) => {
 
   const containsHighTipKeyword = (str: string) => {
     const s = (str || '').toLowerCase();
-    if (s.includes('prolongador')) return false;
-    return s.includes('high') || s.includes('tip') || s.includes('despejo') || s.includes('concha') || s.includes('caçamba de alto') || s.includes('cacamba de alto');
+    if (s.includes('prolongador') || s.includes('destocador')) return false;
+    return s.includes('high tip') || 
+           s.includes('high-tip') || 
+           s.includes('high_tip') || 
+           s.includes('hightip') || 
+           s.includes('caçamba de alto') || 
+           s.includes('cacamba de alto') || 
+           s.includes('alto despejo') || 
+           s.includes('vuelco alto') || 
+           s.includes('despejo alto');
   };
   const isHighTip = !isProlongador && (containsHighTipKeyword(url) || containsHighTipKeyword(name) || containsHighTipKeyword(desc) || containsHighTipKeyword(cat));
 
@@ -1107,8 +1115,13 @@ export default function Catalog() {
         const destocadorBroca = data.find(p => p.name === 'Destocador Tipo Broca');
         if (!destocadorBroca && data.length > 0) {
           addDestocadorBroca();
-        } else if (destocadorBroca?.is_blocked) {
-          updateDoc(doc(db, 'products', destocadorBroca.id), { is_blocked: false });
+        } else if (destocadorBroca) {
+          if (destocadorBroca.is_blocked || destocadorBroca.pdf_url !== 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Destocador-Roder.pdf') {
+            updateDoc(doc(db, 'products', destocadorBroca.id), { 
+              is_blocked: false,
+              pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Destocador-Roder.pdf' 
+            });
+          }
         }
 
         const desbastadorFae = data.find(p => p.name === 'Desbastador Florestal FAE para Escavadeiras e Retroescavadeira');
@@ -1262,6 +1275,7 @@ export default function Catalog() {
             id: 'dth-240b',
             name: 'DTH 240B',
             base_value: 0,
+            pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Destocador-Roder.pdf',
             images: [
               'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/destocador.jpg.webp',
               'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-destocador-roder-03.jpg.webp'
@@ -3797,8 +3811,16 @@ export default function Catalog() {
 
     const containsHighTipKeyword = (str: string) => {
       const s = (str || '').toLowerCase();
-      if (s.includes('prolongador')) return false;
-      return s.includes('high') || s.includes('tip') || s.includes('despejo') || s.includes('concha') || s.includes('caçamba de alto') || s.includes('cacamba de alto');
+      if (s.includes('prolongador') || s.includes('destocador')) return false;
+      return s.includes('high tip') || 
+             s.includes('high-tip') || 
+             s.includes('high_tip') || 
+             s.includes('hightip') || 
+             s.includes('caçamba de alto') || 
+             s.includes('cacamba de alto') || 
+             s.includes('alto despejo') || 
+             s.includes('vuelco alto') || 
+             s.includes('despejo alto');
     };
     const isProlongador = lowerUrl.includes('prolongador') || 
                           lowerModelName.includes('prolongador') || 
@@ -3813,9 +3835,16 @@ export default function Catalog() {
                           lowerContextName.includes('pcr') ||
                           (productContext?.id && productContext.id.toLowerCase().includes('prolongador'));
 
+    const isDestocador = lowerUrl.includes('destocador') || 
+                         lowerModelName.includes('destocador') || 
+                         lowerViewingName.includes('destocador') || 
+                         lowerSelectedName.includes('destocador') || 
+                         lowerContextName.includes('destocador') || 
+                         lowerContextCategory.includes('destocador') || 
+                         lowerContextDesc.includes('destocador') || 
+                         lowerContextPdfUrl.includes('destocador');
 
-
-    const isHighTip = !isProlongador && (
+    const isHighTip = !isProlongador && !isDestocador && (
                       containsHighTipKeyword(lowerUrl) || 
                       containsHighTipKeyword(lowerModelName) || 
                       containsHighTipKeyword(lowerViewingName) || 
