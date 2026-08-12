@@ -3471,38 +3471,28 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     }
   }
 
+  // Global Service Worker cleanup handlers (both dev and production)
+  app.get(["/sw.js", "/service-worker.js"], (req, res) => {
+    res.setHeader("Content-Type", "application/javascript");
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.send(`
+      self.addEventListener('install', function(e) { self.skipWaiting(); });
+      self.addEventListener('activate', function(e) {
+        self.registration.unregister().then(function() { return self.clients.matchAll(); }).then(function(clients) {
+          clients.forEach(function(client) { if (client.url && 'navigate' in client) { client.navigate(client.url); } });
+        });
+      });
+    `);
+  });
+
+  app.get("/registerSW.js", (req, res) => {
+    res.setHeader("Content-Type", "application/javascript");
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.send(`console.log('registerSW mock active');`);
+  });
+
   if (process.env.NODE_ENV !== "production" && !fs.existsSync(indexPath)) {
     console.log("Starting in DEVELOPMENT mode with Vite dev server");
-    
-    // Inject self-destructing service workers in dev mode to clear any active caches immediately
-    app.get(["/sw.js", "/service-worker.js"], (req, res) => {
-      res.setHeader("Content-Type", "application/javascript");
-      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-      res.send(`
-        self.addEventListener('install', function(e) {
-          self.skipWaiting();
-        });
-        self.addEventListener('activate', function(e) {
-          self.registration.unregister()
-            .then(function() {
-              return self.clients.matchAll();
-            })
-            .then(function(clients) {
-              clients.forEach(function(client) {
-                if (client.url && 'navigate' in client) {
-                  client.navigate(client.url);
-                }
-              });
-            });
-        });
-      `);
-    });
-
-    app.get("/registerSW.js", (req, res) => {
-      res.setHeader("Content-Type", "application/javascript");
-      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-      res.send(`console.log('registerSW mock in development');`);
-    });
 
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -3512,13 +3502,26 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
   } else {
     console.log(`Starting in PRODUCTION mode. Serving static files from: ${distPath}`);
     
-    // Serve static files
+    // Serve static files from dist directory and root directory
+    app.use('/assets', express.static(path.resolve(distPath, 'assets'), { maxAge: '1y' }));
+    app.use('/assets', express.static(path.resolve(process.cwd(), 'assets'), { maxAge: '1y' }));
     app.use(express.static(distPath));
+    app.use(express.static(process.cwd()));
     
-    // Fallback to index.html for SPA routing
+    // Fallback to index.html for SPA routing, but return 404 for missing static assets
     app.get('*', (req, res) => {
+      // Check if request is for a missing file with extension (e.g. .js, .css, .woff2, .png, etc.)
+      const isAssetRequest = /\.(js|css|woff2?|ttf|png|jpg|jpeg|gif|svg|ico|json|map)$/i.test(req.path);
+      if (isAssetRequest) {
+        return res.status(404).send("File not found");
+      }
+
       if (fs.existsSync(indexPath)) {
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
         res.sendFile(indexPath);
+      } else if (fs.existsSync(path.resolve(process.cwd(), 'index.html'))) {
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        res.sendFile(path.resolve(process.cwd(), 'index.html'));
       } else {
         res.status(500).send("<html><head><title>RODER Brasil</title></head><body style='font-family:sans-serif;padding:40px;text-align:center;'><h2>Construindo aplicação...</h2><p>Por favor, recarregue a página em alguns segundos.</p></body></html>");
       }

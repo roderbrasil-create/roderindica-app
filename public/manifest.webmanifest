@@ -1,0 +1,26 @@
+{
+  "id": "/",
+  "name": "RODER Brasil - Gestão",
+  "short_name": "RODER App",
+  "description": "Gestão de Leads, Catálogos e Estoque Roder Brasil",
+  "theme_color": "#f97316",
+  "background_color": "#0f172a",
+  "display": "standalone",
+  "orientation": "any",
+  "scope": "/",
+  "start_url": "/",
+  "icons": [
+    {
+      "src": "https://roderbrasil.com.br/wp-content/uploads/2024/05/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://roderbrasil.com.br/wp-content/uploads/2024/05/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
