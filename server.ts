@@ -3,6 +3,7 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
+import { execSync } from "child_process";
 import { Resend } from "resend";
 import nodemailer from "nodemailer";
 import cron from "node-cron";
@@ -3446,24 +3447,32 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     }
   });
 
-  let hasDist = false;
   let distPath = path.resolve(process.cwd(), 'dist');
-  if (fs.existsSync(path.resolve(distPath, 'index.html'))) {
-    hasDist = true;
-  } else if (fs.existsSync(path.resolve(__dirname, 'index.html'))) {
-    distPath = __dirname;
-    hasDist = true;
-  } else if (fs.existsSync(path.resolve(__dirname, 'dist', 'index.html'))) {
-    distPath = path.resolve(__dirname, 'dist');
-    hasDist = true;
+  let indexPath = path.resolve(distPath, 'index.html');
+
+  if (!fs.existsSync(indexPath)) {
+    if (fs.existsSync(path.resolve(__dirname, 'index.html')) && fs.existsSync(path.resolve(__dirname, 'assets'))) {
+      distPath = __dirname;
+      indexPath = path.resolve(distPath, 'index.html');
+    }
   }
 
-  if (process.env.NODE_ENV !== "production" || !hasDist) {
-    if (!hasDist && process.env.NODE_ENV === "production") {
-      console.warn("⚠️ [HOSTINGER / PRODUCTION]: 'dist/index.html' não encontrado. Ativando servidor de assets dinâmico Vite como fallback automático...");
-    } else {
-      console.log("Starting in DEVELOPMENT mode");
+  // If index.html STILL doesn't exist in production, run build automatically
+  if (!fs.existsSync(indexPath) && process.env.NODE_ENV === "production") {
+    console.log("⚠️ [HOSTINGER DEPLOYMENT]: 'dist/index.html' não encontrado.");
+    console.log("🔨 Executando 'npm run build' automaticamente...");
+    try {
+      execSync("npm run build", { stdio: "inherit", cwd: process.cwd() });
+      distPath = path.resolve(process.cwd(), 'dist');
+      indexPath = path.resolve(distPath, 'index.html');
+      console.log("✅ Build automático concluído com sucesso!");
+    } catch (buildErr: any) {
+      console.error("❌ Falha no build automático em runtime:", buildErr?.message || buildErr);
     }
+  }
+
+  if (process.env.NODE_ENV !== "production" && !fs.existsSync(indexPath)) {
+    console.log("Starting in DEVELOPMENT mode with Vite dev server");
     
     // Inject self-destructing service workers in dev mode to clear any active caches immediately
     app.get(["/sw.js", "/service-worker.js"], (req, res) => {
@@ -3508,12 +3517,10 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     
     // Fallback to index.html for SPA routing
     app.get('*', (req, res) => {
-      console.log(`Fallback triggered for: ${req.url}`);
-      const indexPath = path.resolve(distPath, 'index.html');
       if (fs.existsSync(indexPath)) {
         res.sendFile(indexPath);
       } else {
-        res.status(404).send("Artefatos de compilação não encontrados. Por favor, execute 'npm run build'.");
+        res.status(500).send("<html><head><title>RODER Brasil</title></head><body style='font-family:sans-serif;padding:40px;text-align:center;'><h2>Construindo aplicação...</h2><p>Por favor, recarregue a página em alguns segundos.</p></body></html>");
       }
     });
   }
