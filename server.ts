@@ -3502,13 +3502,22 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
   } else {
     console.log(`Starting in PRODUCTION mode. Serving static files from: ${distPath}`);
     
-    // Serve static files from dist directory
-    app.use(express.static(distPath));
-    app.use('/assets', express.static(path.resolve(distPath, 'assets'), { maxAge: '1y' }));
+    // Serve static assets with long max-age, but DO NOT serve index.html via express.static
+    app.use('/assets', express.static(path.resolve(distPath, 'assets'), { maxAge: '1y', immutable: true }));
+    app.use(express.static(distPath, { 
+      index: false,
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.html')) {
+          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+          res.setHeader("Pragma", "no-cache");
+          res.setHeader("Expires", "0");
+        }
+      }
+    }));
     
-    // Fallback to index.html for SPA routing, but return 404 for missing static assets
+    // Serve index.html with strict NO-CACHE headers for all navigation routes
     app.get('*', (req, res) => {
-      // Check if request is for a missing file with extension
+      // Check if request is for a missing asset file (e.g. old JS bundle from cached HTML)
       const isAssetRequest = /\.(js|css|woff2?|ttf|png|jpg|jpeg|gif|svg|ico|json|map)$/i.test(req.path);
       if (isAssetRequest) {
         return res.status(404).send("File not found");
@@ -3516,6 +3525,8 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
 
       if (fs.existsSync(indexPath)) {
         res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        res.setHeader("Pragma", "no-cache");
+        res.setHeader("Expires", "0");
         return res.sendFile(indexPath);
       }
       res.status(500).send("<html><head><title>RODER Brasil</title></head><body style='font-family:sans-serif;padding:40px;text-align:center;'><h2>Construindo aplicação...</h2><p>Por favor, recarregue a página em alguns segundos.</p></body></html>");
