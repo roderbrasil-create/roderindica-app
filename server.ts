@@ -3446,8 +3446,24 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     }
   });
 
-  if (process.env.FORCE_VITE_DEV === "true") {
-    console.log("Starting in DEVELOPMENT mode");
+  let hasDist = false;
+  let distPath = path.resolve(process.cwd(), 'dist');
+  if (fs.existsSync(path.resolve(distPath, 'index.html'))) {
+    hasDist = true;
+  } else if (fs.existsSync(path.resolve(__dirname, 'index.html'))) {
+    distPath = __dirname;
+    hasDist = true;
+  } else if (fs.existsSync(path.resolve(__dirname, 'dist', 'index.html'))) {
+    distPath = path.resolve(__dirname, 'dist');
+    hasDist = true;
+  }
+
+  if (process.env.NODE_ENV !== "production" || !hasDist) {
+    if (!hasDist && process.env.NODE_ENV === "production") {
+      console.warn("⚠️ [HOSTINGER / PRODUCTION]: 'dist/index.html' não encontrado. Ativando servidor de assets dinâmico Vite como fallback automático...");
+    } else {
+      console.log("Starting in DEVELOPMENT mode");
+    }
     
     // Inject self-destructing service workers in dev mode to clear any active caches immediately
     app.get(["/sw.js", "/service-worker.js"], (req, res) => {
@@ -3485,19 +3501,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     });
     app.use(vite.middlewares);
   } else {
-    console.log("Starting in PRODUCTION mode");
-    
-    // Find dist directory robustly (handles running via tsx/node server.ts OR compiled node dist/server.cjs)
-    let distPath = path.resolve(process.cwd(), 'dist');
-    if (!fs.existsSync(path.resolve(distPath, 'index.html'))) {
-      if (fs.existsSync(path.resolve(__dirname, 'index.html'))) {
-        distPath = __dirname;
-      } else if (fs.existsSync(path.resolve(__dirname, 'dist', 'index.html'))) {
-        distPath = path.resolve(__dirname, 'dist');
-      }
-    }
-    
-    console.log(`Serving static files from: ${distPath}`);
+    console.log(`Starting in PRODUCTION mode. Serving static files from: ${distPath}`);
     
     // Serve static files
     app.use(express.static(distPath));
