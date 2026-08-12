@@ -221,7 +221,7 @@ async function classifyQuestionTopic(ai: GoogleGenAI, question: string): Promise
 
 async function startServer() {
   const app = express();
-  const PORT = Number(process.env.PORT) || 3000;
+  const PORT = process.env.PORT || 3000;
 
   // Set up standard and highly compatible CORS middleware using the 'cors' library
   app.use(cors({
@@ -6796,8 +6796,8 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     }
   });
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://0.0.0.0:${PORT}`);
+  const onServerListen = () => {
+    console.log(`Server running on port/socket: ${PORT}`);
     
     // Auto-heal Luana Camargo user profile in Firestore
     setTimeout(async () => {
@@ -6827,7 +6827,14 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         console.error("[BOOT-HEAL] Erro ao auto-corrigir nome da Luana Camargo:", healErr.message);
       }
     }, 3000);
-  });
+  };
+
+  if (typeof PORT === 'string' && (PORT.startsWith('/') || PORT.startsWith('\\\\'))) {
+    app.listen(PORT, onServerListen);
+  } else {
+    const portNum = Number(PORT) || 3000;
+    app.listen(portNum, "0.0.0.0", onServerListen);
+  }
 }
 
 startServer().catch(err => {
