@@ -3502,15 +3502,13 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
   } else {
     console.log(`Starting in PRODUCTION mode. Serving static files from: ${distPath}`);
     
-    // Serve static files from dist directory and root directory
-    app.use('/assets', express.static(path.resolve(distPath, 'assets'), { maxAge: '1y' }));
-    app.use('/assets', express.static(path.resolve(process.cwd(), 'assets'), { maxAge: '1y' }));
+    // Serve static files from dist directory
     app.use(express.static(distPath));
-    app.use(express.static(process.cwd()));
+    app.use('/assets', express.static(path.resolve(distPath, 'assets'), { maxAge: '1y' }));
     
     // Fallback to index.html for SPA routing, but return 404 for missing static assets
     app.get('*', (req, res) => {
-      // Check if request is for a missing file with extension (e.g. .js, .css, .woff2, .png, etc.)
+      // Check if request is for a missing file with extension
       const isAssetRequest = /\.(js|css|woff2?|ttf|png|jpg|jpeg|gif|svg|ico|json|map)$/i.test(req.path);
       if (isAssetRequest) {
         return res.status(404).send("File not found");
@@ -3518,13 +3516,9 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
 
       if (fs.existsSync(indexPath)) {
         res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-        res.sendFile(indexPath);
-      } else if (fs.existsSync(path.resolve(process.cwd(), 'index.html'))) {
-        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-        res.sendFile(path.resolve(process.cwd(), 'index.html'));
-      } else {
-        res.status(500).send("<html><head><title>RODER Brasil</title></head><body style='font-family:sans-serif;padding:40px;text-align:center;'><h2>Construindo aplicação...</h2><p>Por favor, recarregue a página em alguns segundos.</p></body></html>");
+        return res.sendFile(indexPath);
       }
+      res.status(500).send("<html><head><title>RODER Brasil</title></head><body style='font-family:sans-serif;padding:40px;text-align:center;'><h2>Construindo aplicação...</h2><p>Por favor, recarregue a página em alguns segundos.</p></body></html>");
     });
   }
 
