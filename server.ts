@@ -3486,7 +3486,18 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     app.use(vite.middlewares);
   } else {
     console.log("Starting in PRODUCTION mode");
-    const distPath = path.resolve(__dirname, 'dist');
+    
+    // Find dist directory robustly (handles running via tsx/node server.ts OR compiled node dist/server.cjs)
+    let distPath = path.resolve(process.cwd(), 'dist');
+    if (!fs.existsSync(path.resolve(distPath, 'index.html'))) {
+      if (fs.existsSync(path.resolve(__dirname, 'index.html'))) {
+        distPath = __dirname;
+      } else if (fs.existsSync(path.resolve(__dirname, 'dist', 'index.html'))) {
+        distPath = path.resolve(__dirname, 'dist');
+      }
+    }
+    
+    console.log(`Serving static files from: ${distPath}`);
     
     // Serve static files
     app.use(express.static(distPath));
@@ -3498,7 +3509,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       if (fs.existsSync(indexPath)) {
         res.sendFile(indexPath);
       } else {
-        res.status(404).send("Build artifacts not found. Please run npm run build.");
+        res.status(404).send("Artefatos de compilação não encontrados. Por favor, execute 'npm run build'.");
       }
     });
   }
