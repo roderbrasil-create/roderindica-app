@@ -3473,22 +3473,13 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     }
   }
 
-  // If no pre-compiled index.html is found, try programmatic build or fall back to Vite middleware
+  // If no pre-compiled index.html is found, try root index.html or fall back to Vite middleware
   if (!indexPath) {
-    console.log("⚠️ [STATIC-SERVER] 'dist/index.html' com assets pré-compilados não foi encontrado nos diretórios padrão.");
-    
-    // 1. Try to run build via npm/vite CLI if possible
-    try {
-      console.log("🔨 [STATIC-SERVER] Tentando compilar via npm run build...");
-      execSync("npm run build", { stdio: "inherit", cwd: process.cwd() });
-      const checkIndex = path.resolve(process.cwd(), 'dist', 'index.html');
-      if (fs.existsSync(checkIndex)) {
-        distPath = path.resolve(process.cwd(), 'dist');
-        indexPath = checkIndex;
-        console.log("✅ [STATIC-SERVER] Build automático concluído com sucesso!");
-      }
-    } catch (buildErr: any) {
-      console.warn("⚠️ [STATIC-SERVER] Execução de 'npm run build' via shell indisponível no ambiente de hospedagem:", buildErr?.message || buildErr);
+    console.log("⚠️ [STATIC-SERVER] 'dist/index.html' com assets pré-compilados não foi encontrado nos diretórios padrão. Buscando em fallback...");
+    const rootIndex = path.resolve(process.cwd(), 'index.html');
+    if (fs.existsSync(rootIndex)) {
+      indexPath = rootIndex;
+      distPath = process.cwd();
     }
   }
 
