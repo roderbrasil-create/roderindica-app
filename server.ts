@@ -3542,7 +3542,15 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         res.setHeader("Expires", "0");
         return res.sendFile(indexPath);
       }
-      res.status(500).send("<html><head><title>RODER Brasil</title></head><body style='font-family:sans-serif;padding:40px;text-align:center;'><h2>Construindo aplicação...</h2><p>Por favor, recarregue a página em alguns segundos.</p></body></html>");
+
+      // If indexPath is somehow gone, look dynamically for root index.html
+      const rootIndex = path.resolve(process.cwd(), 'index.html');
+      if (fs.existsSync(rootIndex)) {
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        return res.sendFile(rootIndex);
+      }
+
+      return res.status(200).send("<!DOCTYPE html><html><head><title>RODER Brasil</title><meta http-equiv='refresh' content='2'></head><body style='background:#0f172a;color:#f8fafc;font-family:sans-serif;padding:40px;text-align:center;'><h2>Iniciando RODER Brasil...</h2><p>Carregando módulos em tempo real...</p></body></html>");
     });
   } else {
     // If no static build exists (e.g. fresh Git clone on Hostinger), start Vite server dynamically!
