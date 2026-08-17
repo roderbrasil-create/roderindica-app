@@ -366,5 +366,10 @@ service cloud.firestore {
     match /approval_queue/{approvalId} {
       allow read, write: if isAuthenticated();
     }
+
+    match /roder_comercial_guidelines/{guidelineId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && (isAdmin() || isManager() || isInternalSeller() || isTriagem() || request.auth.token.email.lower() == "roderbrasil@gmail.com");
+    }
   }
 }

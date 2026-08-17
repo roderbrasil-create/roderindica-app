@@ -41,7 +41,9 @@ import Endomarketing from './pages/Endomarketing';
 import PublicTechnicalDelivery from './pages/PublicTechnicalDelivery';
 import ProductDossier from './pages/ProductDossier';
 import RoderIAReports from './pages/RoderIAReports';
+import IAManual from './pages/IAManual';
 import PublicConsultant from './pages/PublicConsultant';
+import PublicEngateRapidoFicha from './pages/PublicEngateRapidoFicha';
 
 function PrivateRoute({ children, roles }: { children: React.ReactNode, roles?: string[] }) {
   const { user, profile, loading, isImpersonating, isAdmin, isManager, isMarketing, isTriagem, isFinancial, isInternalSeller, isExternalSeller, isRegionalSeller } = useAuth();
@@ -83,10 +85,10 @@ function PrivateRoute({ children, roles }: { children: React.ReactNode, roles?: 
 
 import PWAInstallBanner from './components/system/PWAInstallBanner';
 
-// App Version: 2.1.3 - Sidebar Endomarketing Update Pending
+// App Version: 2.6.0 - Manual Tecnico da Base de Conhecimento IA
 export default function App() {
   const [mounted, setMounted] = useState(false);
-  const APP_VERSION = "2.5.0"; // Consolidating print sheets and cache cleaning update
+  const APP_VERSION = "2.6.0"; // Manual Tecnico da Base de Conhecimento IA update
 
   useEffect(() => {
     try {
@@ -191,6 +193,7 @@ function AppContent() {
                         location.pathname.startsWith('/stock_holder') ||
                         location.pathname.startsWith('/consultor') ||
                         location.pathname.startsWith('/consultor-tecnico') ||
+                        location.pathname.startsWith('/ficha') ||
                         location.pathname.startsWith('/entrega-tecnica-fae');
 
   useEffect(() => {
@@ -325,6 +328,18 @@ function AppContent() {
                   </PrivateRoute>
                 } />
 
+                <Route path="/manual-ia" element={
+                  <PrivateRoute roles={['admin', 'manager', 'internal_seller', 'triagem', 'external_seller', 'vendedor_padrao', 'financial', 'marketing']}>
+                    <IAManual />
+                  </PrivateRoute>
+                } />
+
+                <Route path="/manual-tecnico" element={
+                  <PrivateRoute roles={['admin', 'manager', 'internal_seller', 'triagem', 'external_seller', 'vendedor_padrao', 'financial', 'marketing']}>
+                    <IAManual />
+                  </PrivateRoute>
+                } />
+
                 <Route path="/feiras" element={
                   <PrivateRoute roles={['admin', 'manager', 'financial', 'internal_seller', 'triagem', 'marketing']}>
                     <Fairs />
@@ -354,6 +369,8 @@ function AppContent() {
                 <Route path="/entrega-tecnica-fae" element={<PublicTechnicalDelivery />} />
                 <Route path="/consultor" element={<PublicConsultant />} />
                 <Route path="/consultor-tecnico" element={<PublicConsultant />} />
+                <Route path="/ficha/engate-rapido" element={<PublicEngateRapidoFicha />} />
+                <Route path="/ficha-engate-rapido" element={<PublicEngateRapidoFicha />} />
 
                 <Route path="/comercial/avaliacoes" element={
                   <PrivateRoute roles={['admin', 'manager', 'triagem', 'marketing', 'internal_seller']}>

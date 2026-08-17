@@ -316,7 +316,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     const isFairsPath = path.startsWith('/feiras') || path === '/cadastro-rapido';
     const isFinancialPath = path === '/comissoes' || path === '/consulta-financeira' || path.startsWith('/financeiro');
     const isComercialPath = path.startsWith('/comercial');
-    const isTechnicalPath = path === '/dossie' || path === '/relatorios-ia';
+    const isTechnicalPath = path === '/dossie' || path === '/relatorios-ia' || path === '/manual-ia' || path === '/manual-tecnico';
 
     if (isFairsPath) {
       setFairsMenuOpen(true);
@@ -426,11 +426,12 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
       id: 'technical_consultant_parent',
       name: 'Consultor Roder IA', 
       icon: BrainCircuit, 
-      roles: ['admin', 'manager'],
+      roles: ['admin', 'manager', 'internal_seller', 'triagem', 'external_seller', 'vendedor_padrao', 'financial', 'marketing'],
       isParent: true,
       isOpenState: technicalMenuOpen,
       setIsOpenState: handleSetTechnicalMenuOpen,
       subItems: [
+        { name: 'Manual Técnico & Base IA', path: '/manual-ia', icon: BookOpen, roles: ['admin', 'manager', 'internal_seller', 'triagem', 'external_seller', 'vendedor_padrao', 'financial', 'marketing'] },
         { name: 'Dossiê Técnico', path: '/dossie', icon: FileText, roles: ['admin', 'manager'] },
         { name: 'Relatórios Roder IA', path: '/relatorios-ia', icon: BarChart3, roles: ['admin', 'manager'] },
       ]

@@ -435,6 +435,7 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
     { id: 'products_stock', label: 'Produtos em Estoque' },
     { id: 'products_registered', label: 'Produtos Cadastrados' },
     { id: 'accessories', label: 'Acessórios' },
+    { id: 'manual_ia', label: 'Manual Técnico Base IA' },
     { id: 'triagem', label: 'Triagem' },
     { id: 'comercial', label: 'Comercial' },
     { id: 'users', label: 'Usuários' },
