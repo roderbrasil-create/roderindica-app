@@ -5,6 +5,8 @@ import { db } from '../lib/firebase';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { Product } from '../types';
 import { generateTechnicalPdf } from '../utils/generateTechnicalPdf';
+import { generateTechnicalDocx } from '../utils/generateTechnicalDocx';
+import GoogleDocsExportModal from '../components/manual/GoogleDocsExportModal';
 import { 
   BookOpen, 
   Download, 
@@ -22,6 +24,7 @@ import {
   Sparkles, 
   Package, 
   FileText, 
+  FileDown,
   UserCheck, 
   DollarSign, 
   Clock, 
@@ -44,6 +47,8 @@ export default function IAManual() {
   const [activeTab, setActiveTab] = useState<'overview' | 'compatibility' | 'productivity' | 'hydraulics' | 'catalog' | 'guidelines' | 'prompt'>('overview');
   const [searchProduct, setSearchProduct] = useState('');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isGeneratingDocx, setIsGeneratingDocx] = useState(false);
+  const [isGoogleDocsModalOpen, setIsGoogleDocsModalOpen] = useState(false);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
 
   // Sync products from Firestore in real-time
@@ -144,6 +149,26 @@ export default function IAManual() {
     }
   };
 
+  const handleDownloadDocx = async () => {
+    setIsGeneratingDocx(true);
+    try {
+      await generateTechnicalDocx({
+        products,
+        guidelines,
+        version: '2.2.0',
+        generatedBy: profile?.name || user?.email || 'RODER Brasil'
+      });
+      toast.success('Documento para Google Docs (.docx) gerado com sucesso!', {
+        description: 'O arquivo .docx foi baixado. Você pode abri-lo diretamente ou importá-lo no Google Docs mantendo a formatação e tabelas.'
+      });
+    } catch (error) {
+      console.error('Error generating DOCX for Google Docs:', error);
+      toast.error('Erro ao gerar o documento para Google Docs.');
+    } finally {
+      setIsGeneratingDocx(false);
+    }
+  };
+
   const systemPromptText = `Você é o Consultor Técnico e Comercial da RODER Brasil, especialista em equipamentos florestais e de movimentação de carga.
 
 DIRETRIZES INSTITUCIONAIS OBRIGATÓRIAS:
@@ -205,23 +230,34 @@ REGRAS DE COMPATIBILIDADE E DIMENSIONAMENTO:
             </div>
 
             {/* Main Action Buttons */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full lg:w-auto flex-wrap">
               <Button
                 onClick={handleDownloadPdf}
                 disabled={isGeneratingPdf}
-                className="bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white font-bold px-6 py-6 rounded-xl shadow-lg hover:shadow-orange-500/25 transition-all text-sm flex items-center justify-center gap-2.5"
+                className="bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white font-bold px-4 sm:px-5 py-5 sm:py-6 rounded-xl shadow-lg hover:shadow-orange-500/25 transition-all text-xs sm:text-sm flex items-center justify-center gap-2"
+                title="Baixar manual completo em PDF de alta qualidade"
               >
-                <Download className={`w-5 h-5 ${isGeneratingPdf ? 'animate-spin' : 'animate-bounce'}`} />
-                <span>{isGeneratingPdf ? 'Gerando Documento...' : 'Baixar Manual Completo (PDF)'}</span>
+                <Download className={`w-4 h-4 sm:w-5 sm:h-5 ${isGeneratingPdf ? 'animate-spin' : ''}`} />
+                <span>{isGeneratingPdf ? 'Gerando PDF...' : 'Baixar em PDF'}</span>
+              </Button>
+
+              <Button
+                onClick={() => setIsGoogleDocsModalOpen(true)}
+                className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-500 hover:to-indigo-500 text-white font-bold px-4 sm:px-5 py-5 sm:py-6 rounded-xl shadow-lg hover:shadow-blue-500/25 transition-all text-xs sm:text-sm flex items-center justify-center gap-2"
+                title="Opções para abrir e editar no Google Docs ou baixar em .docx"
+              >
+                <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span>Salvar / Abrir no Google Docs</span>
               </Button>
 
               <Button
                 onClick={handleCopyPrompt}
                 variant="outline"
-                className="border-slate-600 bg-slate-800/80 hover:bg-slate-700 text-slate-100 font-semibold px-4 py-6 rounded-xl text-sm flex items-center justify-center gap-2"
+                className="border-slate-600 bg-slate-800/80 hover:bg-slate-700 text-slate-100 font-semibold px-4 py-5 sm:py-6 rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2"
+                title="Copiar prompt do sistema para colar em ChatGPT, Claude ou Gemini"
               >
                 {copiedPrompt ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-slate-400" />}
-                <span>{copiedPrompt ? 'Prompt Copiado!' : 'Copiar Prompt para Agente'}</span>
+                <span>{copiedPrompt ? 'Prompt Copiado!' : 'Copiar Prompt'}</span>
               </Button>
             </div>
           </div>
@@ -873,6 +909,14 @@ REGRAS DE COMPATIBILIDADE E DIMENSIONAMENTO:
           </div>
         )}
       </div>
+
+      <GoogleDocsExportModal
+        isOpen={isGoogleDocsModalOpen}
+        onClose={() => setIsGoogleDocsModalOpen(false)}
+        products={products}
+        guidelines={guidelines}
+        userName={profile?.name || user?.email || 'RODER Brasil'}
+      />
     </Layout>
   );
 }

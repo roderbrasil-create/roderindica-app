@@ -1,11 +1,11 @@
 // server.js
-// Ponto de entrada principal para compatibilidade com Hostinger e servidores Node.js
+// Ponto de entrada principal para compatibilidade com Hostinger, cPanel, Docker e servidores Node.js
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 
-process.env.NODE_ENV = 'production';
+process.env.NODE_ENV = process.env.NODE_ENV || 'production';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,16 +29,30 @@ if (!needsBuild && fs.existsSync(serverTsPath)) {
 }
 
 if (needsBuild) {
-  console.log("⚠️ [HOSTINGER ENTRYPOINT]: Compilando aplicação ('npm run build')...");
+  console.log("⚠️ [HOSTINGER ENTRYPOINT]: Tentando compilar aplicação ('npm run build')...");
   try {
     execSync('npm run build', { stdio: 'inherit', cwd: __dirname });
   } catch (err) {
-    console.error("Falha ao executar build em server.js:", err);
+    console.warn("⚠️ [HOSTINGER ENTRYPOINT] Build via shell indisponível ou ignorado:", err?.message || err);
   }
 }
 
-import('./dist/server.cjs').catch((err) => {
-  console.error("Erro ao iniciar 'dist/server.cjs':", err);
-});
+// Check if bundled dist/server.cjs exists; otherwise boot server.ts
+if (fs.existsSync(cjsPath)) {
+  import('./dist/server.cjs').catch(async (err) => {
+    console.error("⚠️ Erro ao iniciar 'dist/server.cjs', tentando carregar 'server.ts':", err);
+    try {
+      await import('./server.ts');
+    } catch (tsErr) {
+      console.error("❌ Erro fatal ao carregar 'server.ts':", tsErr);
+    }
+  });
+} else {
+  console.log("🚀 [HOSTINGER ENTRYPOINT]: Iniciando diretamente via 'server.ts'...");
+  import('./server.ts').catch((err) => {
+    console.error("❌ Erro fatal ao carregar 'server.ts':", err);
+  });
+}
+
 
 

@@ -3447,27 +3447,48 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     }
   });
 
-  let distPath = path.resolve(process.cwd(), 'dist');
-  let indexPath = path.resolve(distPath, 'index.html');
+  // Find compiled build output across potential host directories (Hostinger, cPanel, Passenger, Docker, etc.)
+  const candidateDistDirs = [
+    path.resolve(process.cwd(), 'dist'),
+    path.resolve(process.cwd(), 'build'),
+    path.resolve(__dirname, 'dist'),
+    path.resolve(__dirname),
+    path.resolve(__dirname, '..', 'dist'),
+    path.resolve(__dirname, '..'),
+    path.resolve(process.cwd(), 'public_html', 'dist'),
+    path.resolve(process.cwd(), 'public_html')
+  ];
 
-  if (!fs.existsSync(indexPath)) {
-    if (fs.existsSync(path.resolve(__dirname, 'index.html')) && fs.existsSync(path.resolve(__dirname, 'assets'))) {
-      distPath = __dirname;
-      indexPath = path.resolve(distPath, 'index.html');
+  let distPath: string | null = null;
+  let indexPath: string | null = null;
+
+  for (const candidate of candidateDistDirs) {
+    const checkIndex = path.resolve(candidate, 'index.html');
+    const checkAssets = path.resolve(candidate, 'assets');
+    if (fs.existsSync(checkIndex) && fs.existsSync(checkAssets)) {
+      distPath = candidate;
+      indexPath = checkIndex;
+      console.log(`✅ [STATIC-SERVER] Diretório de build válido com assets encontrado em: ${distPath}`);
+      break;
     }
   }
 
-  // If index.html STILL doesn't exist in production, run build automatically
-  if (!fs.existsSync(indexPath) && process.env.NODE_ENV === "production") {
-    console.log("⚠️ [HOSTINGER DEPLOYMENT]: 'dist/index.html' não encontrado.");
-    console.log("🔨 Executando 'npm run build' automaticamente...");
+  // If no pre-compiled index.html is found, try programmatic build or fall back to Vite middleware
+  if (!indexPath) {
+    console.log("⚠️ [STATIC-SERVER] 'dist/index.html' com assets pré-compilados não foi encontrado nos diretórios padrão.");
+    
+    // 1. Try to run build via npm/vite CLI if possible
     try {
+      console.log("🔨 [STATIC-SERVER] Tentando compilar via npm run build...");
       execSync("npm run build", { stdio: "inherit", cwd: process.cwd() });
-      distPath = path.resolve(process.cwd(), 'dist');
-      indexPath = path.resolve(distPath, 'index.html');
-      console.log("✅ Build automático concluído com sucesso!");
+      const checkIndex = path.resolve(process.cwd(), 'dist', 'index.html');
+      if (fs.existsSync(checkIndex)) {
+        distPath = path.resolve(process.cwd(), 'dist');
+        indexPath = checkIndex;
+        console.log("✅ [STATIC-SERVER] Build automático concluído com sucesso!");
+      }
     } catch (buildErr: any) {
-      console.error("❌ Falha no build automático em runtime:", buildErr?.message || buildErr);
+      console.warn("⚠️ [STATIC-SERVER] Execução de 'npm run build' via shell indisponível no ambiente de hospedagem:", buildErr?.message || buildErr);
     }
   }
 
@@ -3491,16 +3512,8 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     res.send(`console.log('registerSW mock active');`);
   });
 
-  if (process.env.NODE_ENV !== "production" && !fs.existsSync(indexPath)) {
-    console.log("Starting in DEVELOPMENT mode with Vite dev server");
-
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    console.log(`Starting in PRODUCTION mode. Serving static files from: ${distPath}`);
+  if (distPath && indexPath && fs.existsSync(indexPath)) {
+    console.log(`Starting in PRODUCTION static mode. Serving frontend from: ${distPath}`);
     
     // Serve static assets with long max-age, but DO NOT serve index.html via express.static
     app.use('/assets', express.static(path.resolve(distPath, 'assets'), { maxAge: '1y', immutable: true }));
@@ -3523,7 +3536,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         return res.status(404).send("File not found");
       }
 
-      if (fs.existsSync(indexPath)) {
+      if (indexPath && fs.existsSync(indexPath)) {
         res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
         res.setHeader("Pragma", "no-cache");
         res.setHeader("Expires", "0");
@@ -3531,6 +3544,50 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       }
       res.status(500).send("<html><head><title>RODER Brasil</title></head><body style='font-family:sans-serif;padding:40px;text-align:center;'><h2>Construindo aplicação...</h2><p>Por favor, recarregue a página em alguns segundos.</p></body></html>");
     });
+  } else {
+    // If no static build exists (e.g. fresh Git clone on Hostinger), start Vite server dynamically!
+    console.log("🚀 [SERVER] Iniciando servidor Vite on-demand para atender todas as requisições em tempo real (zero falhas)...");
+
+    try {
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+        root: process.cwd(),
+      });
+      app.use(vite.middlewares);
+      console.log("✅ [SERVER] Vite middleware anexado com sucesso. Aplicação rodando!");
+    } catch (viteErr: any) {
+      console.error("❌ [SERVER] Erro ao iniciar Vite middleware:", viteErr);
+      
+      // Fallback emergency route
+      app.get('*', (req, res) => {
+        res.status(200).send(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>RODER Brasil - Inicialização</title>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+              <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+                .card { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 32px; max-width: 500px; text-align: center; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5); }
+                h1 { color: #f97316; font-size: 24px; margin-top: 0; }
+                p { color: #94a3b8; font-size: 14px; line-height: 1.6; }
+                .btn { display: inline-block; background: #f97316; color: white; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; margin-top: 20px; transition: background 0.2s; cursor: pointer; border: none; }
+                .btn:hover { background: #ea580c; }
+              </style>
+            </head>
+            <body>
+              <div class="card">
+                <h1>RODER Brasil</h1>
+                <p>O servidor está ativo. Se você acabou de publicar uma nova versão na Hostinger, certifique-se de executar o comando <code>npm run build</code> ou fazer o upload da pasta <code>dist</code> gerada.</p>
+                <button class="btn" onclick="window.location.reload()">Recarregar Página</button>
+              </div>
+            </body>
+          </html>
+        `);
+      });
+    }
   }
 
   // --- Scheduled Reports Logic ---
