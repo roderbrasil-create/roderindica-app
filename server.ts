@@ -3567,8 +3567,12 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     } catch (viteErr: any) {
       console.error("❌ [SERVER] Erro ao iniciar Vite middleware:", viteErr);
       
-      // Fallback emergency route
+      // Fallback emergency route with HTTP 200
       app.get('*', (req, res) => {
+        const rootIndex = path.resolve(process.cwd(), 'index.html');
+        if (fs.existsSync(rootIndex)) {
+          return res.sendFile(rootIndex);
+        }
         res.status(200).send(`
           <!DOCTYPE html>
           <html>
@@ -3588,7 +3592,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
             <body>
               <div class="card">
                 <h1>RODER Brasil</h1>
-                <p>O servidor está ativo. Se você acabou de publicar uma nova versão na Hostinger, certifique-se de executar o comando <code>npm run build</code> ou fazer o upload da pasta <code>dist</code> gerada.</p>
+                <p>O servidor está ativo. Se você acabou de publicar uma nova versão na Hostinger, certifique-se de executar o comando <code>npm run build</code> ou reiniciar a aplicação.</p>
                 <button class="btn" onclick="window.location.reload()">Recarregar Página</button>
               </div>
             </body>
