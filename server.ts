@@ -3501,8 +3501,10 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     path.resolve(process.cwd(), 'dist'),
     path.resolve(process.cwd(), 'build'),
     path.resolve(__dirname, 'dist'),
+    path.resolve(__dirname, 'build'),
     path.resolve(__dirname),
     path.resolve(__dirname, '..', 'dist'),
+    path.resolve(__dirname, '..', 'build'),
     path.resolve(__dirname, '..'),
     path.resolve(process.cwd(), 'public_html', 'dist'),
     path.resolve(process.cwd(), 'public_html')
@@ -3514,21 +3516,36 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
   for (const candidate of candidateDistDirs) {
     const checkIndex = path.resolve(candidate, 'index.html');
     const checkAssets = path.resolve(candidate, 'assets');
-    if (fs.existsSync(checkIndex) && fs.existsSync(checkAssets)) {
-      distPath = candidate;
-      indexPath = checkIndex;
-      console.log(`✅ [STATIC-SERVER] Diretório de build válido com assets encontrado em: ${distPath}`);
-      break;
+    if (fs.existsSync(checkIndex)) {
+      try {
+        const content = fs.readFileSync(checkIndex, 'utf8');
+        // A real compiled index.html contains /assets/ or compiled scripts, not <script type="module" src="/src/main.tsx">
+        if (content.includes('/assets/') || fs.existsSync(checkAssets)) {
+          distPath = candidate;
+          indexPath = checkIndex;
+          console.log(`✅ [STATIC-SERVER] Diretório de build válido com assets encontrado em: ${distPath}`);
+          break;
+        }
+      } catch (readErr) {
+        console.warn(`[STATIC-SERVER] Aviso ao ler index em ${candidate}:`, readErr);
+      }
     }
   }
 
-  // If no pre-compiled index.html is found, try root index.html or fall back to Vite middleware
+  // If no pre-compiled index.html is found, try dist/index.html first, then root index.html
   if (!indexPath) {
     console.log("⚠️ [STATIC-SERVER] 'dist/index.html' com assets pré-compilados não foi encontrado nos diretórios padrão. Buscando em fallback...");
+    const fallbackDistIndex = path.resolve(process.cwd(), 'dist', 'index.html');
     const rootIndex = path.resolve(process.cwd(), 'index.html');
-    if (fs.existsSync(rootIndex)) {
+    
+    if (fs.existsSync(fallbackDistIndex)) {
+      indexPath = fallbackDistIndex;
+      distPath = path.resolve(process.cwd(), 'dist');
+      console.log(`✅ [STATIC-SERVER] Usando fallback dist: ${distPath}`);
+    } else if (fs.existsSync(rootIndex)) {
       indexPath = rootIndex;
       distPath = process.cwd();
+      console.log(`ℹ️ [STATIC-SERVER] Usando fallback raiz: ${distPath}`);
     }
   }
 
@@ -3583,7 +3600,13 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         return res.sendFile(indexPath);
       }
 
-      // If indexPath is somehow gone, look dynamically for root index.html
+      // If indexPath is somehow gone, look dynamically for root index.html or dist/index.html
+      const fallbackDistIndex = path.resolve(process.cwd(), 'dist', 'index.html');
+      if (fs.existsSync(fallbackDistIndex)) {
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        return res.sendFile(fallbackDistIndex);
+      }
+
       const rootIndex = path.resolve(process.cwd(), 'index.html');
       if (fs.existsSync(rootIndex)) {
         res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
@@ -3593,8 +3616,8 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       return res.status(200).send("<!DOCTYPE html><html><head><title>RODER Brasil</title><meta http-equiv='refresh' content='2'></head><body style='background:#0f172a;color:#f8fafc;font-family:sans-serif;padding:40px;text-align:center;'><h2>Iniciando RODER Brasil...</h2><p>Carregando módulos em tempo real...</p></body></html>");
     });
   } else {
-    // If no static build exists (e.g. fresh Git clone on Hostinger), start Vite server dynamically!
-    console.log("🚀 [SERVER] Iniciando servidor Vite on-demand para atender todas as requisições em tempo real (zero falhas)...");
+    // If no static build exists (e.g. fresh Git clone on Hostinger), start Vite server dynamically or serve index directly
+    console.log("🚀 [SERVER] Tentando servir frontend em modo de compatibilidade...");
 
     try {
       const vite = await createViteServer({
@@ -3607,8 +3630,17 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     } catch (viteErr: any) {
       console.error("❌ [SERVER] Erro ao iniciar Vite middleware:", viteErr);
       
-      // Fallback emergency route with HTTP 200
+      // Serve index.html or static files if available
+      app.use(express.static(process.cwd()));
+      if (fs.existsSync(path.resolve(process.cwd(), 'dist'))) {
+        app.use(express.static(path.resolve(process.cwd(), 'dist')));
+      }
+
       app.get('*', (req, res) => {
+        const fallbackDistIndex = path.resolve(process.cwd(), 'dist', 'index.html');
+        if (fs.existsSync(fallbackDistIndex)) {
+          return res.sendFile(fallbackDistIndex);
+        }
         const rootIndex = path.resolve(process.cwd(), 'index.html');
         if (fs.existsSync(rootIndex)) {
           return res.sendFile(rootIndex);
@@ -3632,7 +3664,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
             <body>
               <div class="card">
                 <h1>RODER Brasil</h1>
-                <p>O servidor está ativo. Se você acabou de publicar uma nova versão na Hostinger, certifique-se de executar o comando <code>npm run build</code> ou reiniciar a aplicação.</p>
+                <p>O servidor está ativo. Se você acabou de publicar uma nova versão na Hostinger, execute <code>npm run build</code> ou reinicie o aplicativo Node.js no painel.</p>
                 <button class="btn" onclick="window.location.reload()">Recarregar Página</button>
               </div>
             </body>
