@@ -36,8 +36,13 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { ACCESSORIES_DATA, INSTALLATION_KITS } from "./src/constants.js";
 
-// Resolve __dirname safely to avoid crashes in bundled CommonJS mode
-const __dirname = process.cwd();
+let __currentDir: string;
+try {
+  __currentDir = path.dirname(fileURLToPath(import.meta.url));
+} catch (e) {
+  __currentDir = process.cwd();
+}
+const __appDir = __currentDir;
 
 let config: any = {};
 try {
@@ -3500,12 +3505,12 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
   const candidateDistDirs = [
     path.resolve(process.cwd(), 'dist'),
     path.resolve(process.cwd(), 'build'),
-    path.resolve(__dirname, 'dist'),
-    path.resolve(__dirname, 'build'),
-    path.resolve(__dirname),
-    path.resolve(__dirname, '..', 'dist'),
-    path.resolve(__dirname, '..', 'build'),
-    path.resolve(__dirname, '..'),
+    path.resolve(__appDir, 'dist'),
+    path.resolve(__appDir, 'build'),
+    path.resolve(__appDir),
+    path.resolve(__appDir, '..', 'dist'),
+    path.resolve(__appDir, '..', 'build'),
+    path.resolve(__appDir, '..'),
     path.resolve(process.cwd(), 'public_html', 'dist'),
     path.resolve(process.cwd(), 'public_html')
   ];
