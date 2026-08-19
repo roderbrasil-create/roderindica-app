@@ -9,12 +9,12 @@ import {
   WidthType,
   AlignmentType,
   HeadingLevel,
-  BorderStyle,
   ShadingType,
   convertInchesToTwip
 } from 'docx';
 import { saveAs } from 'file-saver';
 import { Product } from '../types';
+import { EQUIPMENT_SPEC_TABLES } from '../data/equipmentManualData';
 
 export interface TechnicalManualDocxData {
   products?: Product[];
@@ -34,7 +34,6 @@ export async function generateTechnicalDocx({
   const slateGray = '475569';
   const lightBg = 'F8FAFC';
   const amberBg = 'FEF3C7';
-  const borderColor = 'CBD5E1';
 
   const createCell = (
     text: string,
@@ -220,6 +219,78 @@ export async function generateTechnicalDocx({
     ]
   ];
 
+  // Dynamic spec tables for docx
+  const equipmentSpecDocxTables = EQUIPMENT_SPEC_TABLES.map(specTable => {
+    const headerCols = specTable.headers.map(h => createOrangeHeaderCell(h));
+    const dataRows = specTable.rows.map((row, idx) => {
+      const isEven = idx % 2 === 0;
+      return new TableRow({
+        children: row.map((cellText, cellIdx) =>
+          createCell(cellText, {
+            bold: cellIdx === 0,
+            bgColor: isEven ? 'FFFFFF' : amberBg,
+            fontSize: 17
+          })
+        )
+      });
+    });
+
+    const tableElements: (Paragraph | Table)[] = [
+      new Paragraph({
+        spacing: { before: 240, after: 60 },
+        children: [
+          new TextRun({
+            text: specTable.categoryTitle,
+            bold: true,
+            size: 22,
+            color: slateDark,
+            font: 'Calibri'
+          })
+        ]
+      }),
+      new Paragraph({
+        spacing: { before: 0, after: 120 },
+        children: [
+          new TextRun({
+            text: specTable.categorySubtitle,
+            italics: true,
+            size: 18,
+            color: slateGray,
+            font: 'Calibri'
+          })
+        ]
+      }),
+      new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({ children: headerCols }),
+          ...dataRows
+        ]
+      })
+    ];
+
+    if (specTable.notes && specTable.notes.length > 0) {
+      specTable.notes.forEach(note => {
+        tableElements.push(
+          new Paragraph({
+            spacing: { before: 60, after: 40 },
+            children: [
+              new TextRun({
+                text: `• ${note}`,
+                size: 16,
+                italics: true,
+                color: slateGray,
+                font: 'Calibri'
+              })
+            ]
+          })
+        );
+      });
+    }
+
+    return tableElements;
+  }).flat();
+
   const formattedProducts = products.length > 0
     ? products.map(p => {
         const anyP = p as any;
@@ -235,16 +306,7 @@ export async function generateTechnicalDocx({
           desc
         ];
       })
-    : [
-        ['R280', 'Garra Florestal R280', 'Garras', 'Sob Consulta', 'Garra 0.28m³ ideal para escavadeiras de 7-8t e gruas'],
-        ['CMF 500', 'Cabeçote Multifuncional CMF 500', 'Cabeçotes', 'Sob Consulta', 'Cabeçote para escavadeiras 8-14t com traçador e desgalhador'],
-        ['CMF 600', 'Cabeçote Multifuncional CMF 600', 'Cabeçotes', 'Sob Consulta', 'Cabeçote reforçado com corrente 3/4" ideal para rebrota e 14-22t'],
-        ['GT 600', 'Garra Traçadora GT 600', 'Garras Traçadoras', 'Sob Consulta', 'Garra traçadora 0.60m² para alto rendimento de traçamento'],
-        ['GPR 4500', 'Garfo Paleteiro GPR 4500', 'Garfos Paleteiros', 'Sob Consulta', 'Garfo paleteiro para pás carregadeiras de 6 a 9t'],
-        ['GPR 7000', 'Garfo Paleteiro GPR 7000', 'Garfos Paleteiros', 'Sob Consulta', 'Garfo paleteiro reforçado para pás carregadeiras de 8 a 12t'],
-        ['CFTA 50', 'Feller Tesoura CFTA 50', 'Fellers', 'Sob Consulta', 'Feller tesoura para corte e acúmulo de árvores em escavadeiras 12-20t'],
-        ['CFTA 60', 'Feller Tesoura CFTA 60', 'Fellers', 'Sob Consulta', 'Feller tesoura reforçado para escavadeiras 20-22t']
-      ];
+    : [];
 
   const promptText = `Você é o Consultor Técnico e Comercial Especialista da RODER Brasil, autoridade máxima em equipamentos florestais, garras, cabeçotes multifuncionais e garfos paleteiros.
 
@@ -255,11 +317,12 @@ DIRETRIZES INSTITUCIONAIS OBRIGATÓRIAS:
 - Proteção de lead: 60 dias. Comissão é calculada sobre a base_commission_value após desconto.
 
 REGRAS DE COMPATIBILIDADE E DIMENSIONAMENTO:
-1. CMF 500: Indicado para escavadeiras de 8 a 14t (ideal 14t). PROIBIDO em retroescavadeiras (risco operacional grave e falta de giro 360° da cabine para desviar de quedas). NÃO recomendado em rebrota (corrente .404 entorta sabre; para rebrota indicar CMF 600 com corrente 3/4"). Para terrenos inclinados (>10°), indicar CMF com biela pendular.
-2. Garfo Paleteiro (GPR 4500/7000): Dimensionar SEMPRE pelo porte da pá carregadeira, NUNCA pelo peso da carga. PROIBIDO GPR 4500 em máquinas >8t (força da máquina entorta os garfos). Para 6-9t -> GPR 4500; 8-12t -> GPR 7000.
-3. Garras: R280 para escavadeiras 7-8t e feixes de árvores inteiras/eucalipto. R360G para galhadas, resíduos e citrus. Picadores até 600cv -> R400; até 1000cv -> R600.
+1. Garras Florestais (R250 a R1400): R250 (0,25m² - 5-8t), R280 (0,28m² - 6-10t / árvores inteiras), R360 (0,36m² - 8-12t), R400 (0,40m² - 12-18t / picador até 600cv), R600 (0,60m² - 14-22t / picador até 1000cv), R800 a R1400 (grandes escavadeiras 18-35t).
+2. Cabeçotes CMF 500 / 600 / 800: CMF 500 (8-14t, ideal 14t). PROIBIDO em retroescavadeiras. NÃO indicado em rebrota (usar CMF 600 com corrente 3/4"). Para aclives >10°, indicar CMF pendular.
+3. Garfo Paleteiro (GPR 4500/7000): Dimensionar SEMPRE pelo porte da pá carregadeira, NUNCA pelo peso da carga. PROIBIDO GPR 4500 em máquinas >8t. (6-9t -> GPR 4500; 8-12t -> GPR 7000).
 4. Feller Tesoura (CFTA 50/60): Produção em escavadeira (200-360 árv/h) supera amplamente pá carregadeira (160 árv/h). PROIBIDO feller em terrenos inclinados >10°.
-5. Hidráulica: Rotator tem giro infinito 360° (pino 45mm, biela 100mm). Máquinas sem fatia extra usam kit 9000.9000.9016. Escavadeiras com Harvester de fábrica exigem conversão hidráulica e não possuem cilindro da caçamba.`;
+5. Garras Traçadoras (GT 280 a GT 1000X): GT 600 atinge 70-100 m³/h em toras de 3,00m e ~68 m³/h úteis em 3,60m (12.000 m³/mês).
+6. Hidráulica: Rotator tem giro infinito 360° (pino 45mm, biela 100mm). Máquinas sem fatia extra usam kit 9000.9000.9016. Escavadeiras com Harvester de fábrica exigem conversão hidráulica e não possuem cilindro da caçamba.`;
 
   // Build document sections
   const doc = new Document({
@@ -342,7 +405,7 @@ REGRAS DE COMPATIBILIDADE E DIMENSIONAMENTO:
                           new TextRun({ text: 'Triagem e Gestão de Leads: ', bold: true, size: 18 }),
                           new TextRun({ text: 'Luana Camargo\n', size: 18 }),
                           new TextRun({ text: 'Emitido por: ', bold: true, size: 18 }),
-                          new TextRun({ text: `${generatedBy} (Exportação Oficial para Google Docs e Word)`, size: 18 })
+                          new TextRun({ text: `${generatedBy} (Tabelas Completas de Todos os Equipamentos Roder)`, size: 18 })
                         ]
                       })
                     ]
@@ -440,35 +503,41 @@ REGRAS DE COMPATIBILIDADE E DIMENSIONAMENTO:
             ]
           }),
 
-          // SECTION 5
-          ...createSectionHeader('5. Catálogo Oficial de Equipamentos Roder (Sincronizado)', 'Lista atualizada diretamente do banco de dados de produtos Roder'),
-          new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            rows: [
-              new TableRow({
-                children: [
-                  createOrangeHeaderCell('Código', 14),
-                  createOrangeHeaderCell('Equipamento', 26),
-                  createOrangeHeaderCell('Categoria', 16),
-                  createOrangeHeaderCell('Preço Base', 16),
-                  createOrangeHeaderCell('Descrição & Especificações', 28)
-                ]
-              }),
-              ...formattedProducts.map((row, idx) => new TableRow({
-                children: [
-                  createCell(row[0], { bold: true, widthPercent: 14, bgColor: idx % 2 === 0 ? 'FFFFFF' : amberBg }),
-                  createCell(row[1], { bold: true, widthPercent: 26, bgColor: idx % 2 === 0 ? 'FFFFFF' : amberBg }),
-                  createCell(row[2], { widthPercent: 16, bgColor: idx % 2 === 0 ? 'FFFFFF' : amberBg }),
-                  createCell(row[3], { widthPercent: 16, bgColor: idx % 2 === 0 ? 'FFFFFF' : amberBg }),
-                  createCell(row[4], { widthPercent: 28, bgColor: idx % 2 === 0 ? 'FFFFFF' : amberBg })
-                ]
-              }))
-            ]
-          }),
+          // SECTION 5: TODAS AS TABELAS ESPECÍFICAS DE EQUIPAMENTOS
+          ...createSectionHeader('5. Fichas Técnicas & Especificações Completas por Equipamento', 'Tabelas detalhadas de todas as categorias e modelos Roder (R250 a R1400, GT, CMF, Fellers, High Tip, etc.)'),
+          ...equipmentSpecDocxTables,
 
-          // SECTION 6 (if guidelines exist)
+          // SECTION 6 (Inventário do Banco de Dados se houver)
+          ...(formattedProducts.length > 0 ? [
+            ...createSectionHeader('6. Catálogo Dinâmico do Sistema (Banco de Dados)', 'Inventário conectado em tempo real'),
+            new Table({
+              width: { size: 100, type: WidthType.PERCENTAGE },
+              rows: [
+                new TableRow({
+                  children: [
+                    createHeaderCell('Código', 14),
+                    createHeaderCell('Equipamento', 26),
+                    createHeaderCell('Categoria', 16),
+                    createHeaderCell('Preço Base', 16),
+                    createHeaderCell('Descrição', 28)
+                  ]
+                }),
+                ...formattedProducts.map((row, idx) => new TableRow({
+                  children: [
+                    createCell(row[0], { bold: true, widthPercent: 14, bgColor: idx % 2 === 0 ? 'FFFFFF' : lightBg }),
+                    createCell(row[1], { bold: true, widthPercent: 26, bgColor: idx % 2 === 0 ? 'FFFFFF' : lightBg }),
+                    createCell(row[2], { widthPercent: 16, bgColor: idx % 2 === 0 ? 'FFFFFF' : lightBg }),
+                    createCell(row[3], { widthPercent: 16, bgColor: idx % 2 === 0 ? 'FFFFFF' : lightBg }),
+                    createCell(row[4], { widthPercent: 28, bgColor: idx % 2 === 0 ? 'FFFFFF' : lightBg })
+                  ]
+                }))
+              ]
+            })
+          ] : []),
+
+          // SECTION 7 (if guidelines exist)
           ...(guidelines && guidelines.length > 0 ? [
-            ...createSectionHeader('6. Diretrizes Comerciais & Aprendizados Especiais', 'Regras adicionais registradas dinamicamente no sistema'),
+            ...createSectionHeader('7. Diretrizes Comerciais & Aprendizados Especiais', 'Regras adicionais registradas dinamicamente no sistema'),
             new Table({
               width: { size: 100, type: WidthType.PERCENTAGE },
               rows: [
@@ -490,8 +559,8 @@ REGRAS DE COMPATIBILIDADE E DIMENSIONAMENTO:
             })
           ] : []),
 
-          // SECTION 7: PROMPT
-          ...createSectionHeader('7. Prompt do Sistema para Agentes de IA Externos', 'Copie ou importe este bloco de texto diretamente para ChatGPT, Claude, Gemini ou Google Docs'),
+          // SECTION 8: PROMPT
+          ...createSectionHeader('8. Prompt do Sistema para Agentes de IA Externos', 'Copie ou importe este bloco de texto diretamente para ChatGPT, Claude, Gemini ou Google Docs'),
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
             rows: [

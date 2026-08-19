@@ -80,6 +80,8 @@ export interface Indication {
   client_phone: string;
   client_email?: string;
   client_location?: string;
+  is_export?: boolean;
+  export_country?: string;
   is_icms_contributor?: boolean;
   base_machine: string;
   machine_details?: string;

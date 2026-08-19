@@ -388,6 +388,47 @@ async function startServer() {
     }
   });
 
+  app.post("/api/reassign-export-lead", async (req, res) => {
+    try {
+      const docRef = db.collection('indications').doc('lBMjE4xQ1tImzmGT1NTK');
+      const docSnap = await docRef.get();
+      if (!docSnap.exists) {
+        return res.status(404).json({ error: "Indicação não encontrada" });
+      }
+
+      const yuryUid = "QfWBeRvpreTskZZGQxmr8cK6BIR2";
+      const yuryName = "Yury Mello";
+
+      const currentData = docSnap.data() || {};
+      const history = currentData.negotiation_history || [];
+
+      history.push({
+        id: Math.random().toString(36).substring(2, 11),
+        type: 'system',
+        author_name: 'Sistema (Exportação)',
+        created_at: new Date().toISOString(),
+        content: `🌎 Reclassificado como LEAD DE EXPORTAÇÃO (Argentina). Atendimento transferido automaticamente para ${yuryName}.`,
+        attachments: []
+      });
+
+      await docRef.update({
+        internal_seller_uid: yuryUid,
+        internal_seller_name: yuryName,
+        is_export: true,
+        export_country: 'Argentina',
+        client_location: 'Eldorado, Misiones (Argentina)',
+        negotiation_history: history,
+        updated_at: new Date().toISOString()
+      });
+
+      console.log("[EXPORT-REASSIGN] Successfully assigned lBMjE4xQ1tImzmGT1NTK to Yury Mello.");
+      res.json({ success: true, message: "Lead transferido com sucesso para Yury Mello" });
+    } catch (err: any) {
+      console.error("[EXPORT-REASSIGN] Error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.get("/api/sync-liugong-908", async (req, res) => {
     try {
       console.log("[SYNC-LIUGONG] Starting LIUGONG 908 syncing...");
@@ -813,6 +854,14 @@ async function startServer() {
 
   // Proxy endpoint to load Firebase Storage images without CORS / read permission blocks
   app.get("/api/proxy-image", async (req, res) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "*");
+    
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+
     try {
       const { url } = req.query;
       if (!url || typeof url !== 'string') {

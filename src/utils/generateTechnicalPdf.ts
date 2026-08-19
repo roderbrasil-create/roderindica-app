@@ -1,10 +1,13 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Product } from '../types';
+import { EQUIPMENT_SPEC_TABLES } from '../data/equipmentManualData';
 
 export interface TechnicalManualData {
   products?: Product[];
   guidelines?: Array<{ title?: string; text?: string; category?: string }>;
+  accessories?: any[];
+  installationKits?: any[];
   version?: string;
   generatedBy?: string;
 }
@@ -12,6 +15,8 @@ export interface TechnicalManualData {
 export function generateTechnicalPdf({
   products = [],
   guidelines = [],
+  accessories = [],
+  installationKits = [],
   version = '2.2.0',
   generatedBy = 'RODER Brasil'
 }: TechnicalManualData = {}) {
@@ -22,7 +27,6 @@ export function generateTechnicalPdf({
   let currentY = 15;
 
   const orangeColor: [number, number, number] = [234, 88, 12]; // Roder Orange #ea580c
-  const amberColor: [number, number, number] = [217, 119, 6]; // Amber #d97706
   const slateDark: [number, number, number] = [15, 23, 42]; // Slate-900 #0f172a
   const slateGray: [number, number, number] = [71, 85, 105]; // Slate-600 #475569
   const lightBg: [number, number, number] = [248, 250, 252]; // Slate-50 #f8fafc
@@ -58,7 +62,7 @@ export function generateTechnicalPdf({
   };
 
   const addSectionTitle = (title: string, subtitle?: string) => {
-    checkPageBreak(20);
+    checkPageBreak(22);
     doc.setFillColor(...orangeColor);
     doc.rect(margin, currentY, 4, 11, 'F');
 
@@ -97,7 +101,7 @@ export function generateTechnicalPdf({
   doc.text(`Data de Emissão: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} | Versão do Manual: ${version}`, margin + 6, currentY + 13);
   doc.text(`Mentor Técnico / Criador da Tecnologia: JEFERSON RODER (Fundador, Mentor e Diretor Técnico)`, margin + 6, currentY + 18);
   doc.text(`Gerência Comercial: Gislene | Triagem e Gestão de Leads: Luana Camargo`, margin + 6, currentY + 23);
-  doc.text(`Emitido por: ${generatedBy} | Atualização automática integrada ao banco de dados RODER`, margin + 6, currentY + 28);
+  doc.text(`Emitido por: ${generatedBy} | Catálogo 100% Completo: Garras (R250 a R1400), GT, CMF, Feller, High Tip, FAE e Acessórios`, margin + 6, currentY + 28);
 
   currentY += 36;
 
@@ -270,57 +274,172 @@ export function generateTechnicalPdf({
 
   currentY = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 10 : currentY + 60;
 
-  // SECTION 5: CATALOGO DINAMICO DE PRODUTOS
-  addSectionTitle('5. Catálogo Oficial de Equipamentos Roder (Sincronizado)', 'Lista atualizada diretamente do banco de dados de produtos Roder');
+  // SECTION 5: TABELAS COMPLETAS DE ESPECIFICAÇÕES TÉCNICAS POR CATEGORIA DE EQUIPAMENTO
+  addSectionTitle('5. Fichas Técnicas & Especificações Completas por Equipamento', 'Tabelas completas com todos os modelos e características de engenharia');
 
-  const formattedProducts = products.length > 0
-    ? products.map(p => {
-        const anyP = p as any;
-        const code = anyP.code || (p.models && p.models.length > 0 ? p.models[0].name : 'RODER');
-        const priceVal = anyP.price || (p.models && p.models.length > 0 && p.models[0].base_value ? p.models[0].base_value : undefined);
-        const priceStr = priceVal ? `R$ ${Number(priceVal).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'Sob Consulta';
-        const desc = p.description ? p.description.substring(0, 95) + (p.description.length > 95 ? '...' : '') : 'Equipamento florestal Roder';
-        return [
-          code,
-          p.name || 'Equipamento',
-          p.category || 'Geral',
-          priceStr,
-          desc
-        ];
-      })
-    : [
-        ['R280', 'Garra Florestal R280', 'Garras', 'Sob Consulta', 'Garra 0.28m³ ideal para escavadeiras de 7-8t e gruas'],
-        ['CMF 500', 'Cabeçote Multifuncional CMF 500', 'Cabeçotes', 'Sob Consulta', 'Cabeçote para escavadeiras 8-14t com traçador e desgalhador'],
-        ['CMF 600', 'Cabeçote Multifuncional CMF 600', 'Cabeçotes', 'Sob Consulta', 'Cabeçote reforçado com corrente 3/4" ideal para rebrota e 14-22t'],
-        ['GT 600', 'Garra Traçadora GT 600', 'Garras Traçadoras', 'Sob Consulta', 'Garra traçadora 0.60m² para alto rendimento de traçamento'],
-        ['GPR 4500', 'Garfo Paleteiro GPR 4500', 'Garfos Paleteiros', 'Sob Consulta', 'Garfo paleteiro para pás carregadeiras de 6 a 9t'],
-        ['GPR 7000', 'Garfo Paleteiro GPR 7000', 'Garfos Paleteiros', 'Sob Consulta', 'Garfo paleteiro reforçado para pás carregadeiras de 8 a 12t'],
-        ['CFTA 50', 'Feller Tesoura CFTA 50', 'Fellers', 'Sob Consulta', 'Feller tesoura para corte e acúmulo de árvores em escavadeiras 12-20t'],
-        ['CFTA 60', 'Feller Tesoura CFTA 60', 'Fellers', 'Sob Consulta', 'Feller tesoura reforçado para escavadeiras 20-22t']
-      ];
+  // Render each equipment family table with complete specs
+  for (const table of EQUIPMENT_SPEC_TABLES) {
+    checkPageBreak(35);
+    
+    // Sub-header for equipment family
+    doc.setFillColor(241, 245, 249);
+    doc.roundedRect(margin, currentY, pageWidth - (margin * 2), 10, 1.5, 1.5, 'F');
+    doc.setFillColor(...orangeColor);
+    doc.rect(margin, currentY, 3, 10, 'F');
 
-  autoTable(doc, {
-    startY: currentY,
-    head: [['Código', 'Equipamento', 'Categoria', 'Preço Base', 'Descrição & Especificações']],
-    body: formattedProducts,
-    margin: { left: margin, right: margin },
-    headStyles: { fillColor: orangeColor, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.5 },
-    bodyStyles: { fontSize: 7, textColor: slateDark },
-    alternateRowStyles: { fillColor: [254, 243, 199] },
-    columnStyles: {
-      0: { cellWidth: 22, fontStyle: 'bold' },
-      1: { cellWidth: 45, fontStyle: 'bold' },
-      2: { cellWidth: 28 },
-      3: { cellWidth: 28 },
-      4: { cellWidth: 'auto' }
+    doc.setTextColor(...slateDark);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text(table.categoryTitle, margin + 6, currentY + 6.5);
+
+    currentY += 13;
+
+    if (table.categorySubtitle) {
+      doc.setTextColor(...slateGray);
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(7.5);
+      doc.text(table.categorySubtitle, margin + 2, currentY - 1);
+      currentY += 3;
     }
-  });
 
-  currentY = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 10 : currentY + 70;
+    autoTable(doc, {
+      startY: currentY,
+      head: [table.headers],
+      body: table.rows,
+      margin: { left: margin, right: margin },
+      headStyles: { fillColor: orangeColor, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7 },
+      bodyStyles: { fontSize: 6.8, textColor: slateDark },
+      alternateRowStyles: { fillColor: [254, 243, 199] },
+      columnStyles: {
+        0: { fontStyle: 'bold', cellWidth: table.columnWidthsPdf[0] || 'auto' }
+      }
+    });
 
-  // SECTION 6: DIRETRIZES & APRENDIZADOS ADICIONAIS (SE HOUVER)
+    currentY = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 4 : currentY + 40;
+
+    // Render table notes if available
+    if (table.notes && table.notes.length > 0) {
+      checkPageBreak(14);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.5);
+      doc.setTextColor(...slateGray);
+      table.notes.forEach(note => {
+        const splitNote = doc.splitTextToSize(`* ${note}`, pageWidth - (margin * 2) - 4);
+        doc.text(splitNote, margin + 2, currentY);
+        currentY += (splitNote.length * 3.2) + 1;
+      });
+      currentY += 4;
+    } else {
+      currentY += 4;
+    }
+  }
+
+  // SECTION 6: INVENTÁRIO SINCRONIZADO DO BANCO DE DADOS
+  if (products && products.length > 0) {
+    addSectionTitle('6. Inventário Sincronizado do Catálogo (Banco de Dados)', `${products.length} produtos sincronizados em tempo real`);
+
+    const formattedProducts = products.map(p => {
+      const anyP = p as any;
+      const code = anyP.code || (p.models && p.models.length > 0 ? p.models[0].name : 'RODER');
+      const modelCount = p.models && Array.isArray(p.models) ? `${p.models.length} mod.` : '1 mod.';
+      const priceVal = anyP.price || (p.models && p.models.length > 0 && p.models[0].base_value ? p.models[0].base_value : undefined);
+      const priceStr = priceVal ? `R$ ${Number(priceVal).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'Sob Consulta';
+      const desc = p.description ? p.description.substring(0, 90) + (p.description.length > 90 ? '...' : '') : 'Equipamento oficial Roder';
+      return [
+        code,
+        p.name || 'Equipamento',
+        p.category || 'Geral',
+        modelCount,
+        priceStr,
+        desc
+      ];
+    });
+
+    autoTable(doc, {
+      startY: currentY,
+      head: [['Código/Base', 'Equipamento', 'Categoria', 'Modelos', 'Preço Base', 'Descrição']],
+      body: formattedProducts,
+      margin: { left: margin, right: margin },
+      headStyles: { fillColor: slateDark, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7 },
+      bodyStyles: { fontSize: 6.8, textColor: slateDark },
+      alternateRowStyles: { fillColor: [241, 245, 249] },
+      columnStyles: {
+        0: { cellWidth: 20, fontStyle: 'bold' },
+        1: { cellWidth: 42, fontStyle: 'bold' },
+        2: { cellWidth: 26 },
+        3: { cellWidth: 16 },
+        4: { cellWidth: 24 },
+        5: { cellWidth: 'auto' }
+      }
+    });
+
+    currentY = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 10 : currentY + 70;
+  }
+
+  // SECTION 7: QUADRO 1 - ACESSÓRIOS POR MÁQUINA (SINCRONIZADOS AO VIVO)
+  if (accessories && accessories.length > 0) {
+    addSectionTitle('7. Quadro 1: Consulta de Acessórios por Máquina (Ao Vivo)', `${accessories.length} modelos de máquinas com códigos 1000.XXXX.XXXX sincronizados`);
+
+    const formattedAccessories = accessories.slice(0, 45).map(acc => [
+      acc.brand || '',
+      acc.model || '',
+      acc.pin || '',
+      acc.ponteira_biela_4 || '-',
+      acc.ponteira_biela_6 || '-',
+      acc.suporte_destocador || '-',
+      acc.suporte_triturador || '-',
+      acc.link_garra_biela_6 || acc.link_garra_biela_4 || '-'
+    ]);
+
+    autoTable(doc, {
+      startY: currentY,
+      head: [['Marca', 'Modelo', 'Pino', 'Pont. Biela 4', 'Pont. Biela 6', 'Sup. Destoc.', 'Sup. Trit.', 'Link Garra']],
+      body: formattedAccessories,
+      margin: { left: margin, right: margin },
+      headStyles: { fillColor: orangeColor, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 6.5 },
+      bodyStyles: { fontSize: 6.2, textColor: slateDark },
+      alternateRowStyles: { fillColor: [254, 243, 199] },
+      columnStyles: {
+        0: { fontStyle: 'bold', cellWidth: 20 },
+        1: { fontStyle: 'bold', cellWidth: 26 },
+        2: { cellWidth: 18 }
+      }
+    });
+
+    currentY = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 10 : currentY + 60;
+  }
+
+  // SECTION 8: QUADRO 2 - KITS DE INSTALAÇÃO (SINCRONIZADOS AO VIVO)
+  if (installationKits && installationKits.length > 0) {
+    addSectionTitle('8. Quadro 2: Catálogo de Kits de Instalação (Ao Vivo)', `${installationKits.length} kits homologados (9000.9000.9000 a 9000.9000.9060) sincronizados`);
+
+    const formattedKits = installationKits.slice(0, 60).map(k => [
+      k.code || '',
+      k.description || '',
+      k.items && Array.isArray(k.items) ? `${k.items.length} itens comp.` : 'Completo'
+    ]);
+
+    autoTable(doc, {
+      startY: currentY,
+      head: [['Código do Kit', 'Descrição Oficial do Kit de Instalação Hidráulica', 'Qtd. Itens']],
+      body: formattedKits,
+      margin: { left: margin, right: margin },
+      headStyles: { fillColor: slateDark, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7 },
+      bodyStyles: { fontSize: 6.5, textColor: slateDark },
+      alternateRowStyles: { fillColor: [241, 245, 249] },
+      columnStyles: {
+        0: { fontStyle: 'bold', cellWidth: 32 },
+        1: { cellWidth: 'auto' },
+        2: { cellWidth: 24, fontStyle: 'bold' }
+      }
+    });
+
+    currentY = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 10 : currentY + 60;
+  }
+
+  // SECTION 9: DIRETRIZES & APRENDIZADOS ADICIONAIS
   if (guidelines && guidelines.length > 0) {
-    addSectionTitle('6. Diretrizes Comerciais & Aprendizados Especiais', 'Regras adicionais registradas dinamicamente no sistema');
+    addSectionTitle('9. Diretrizes Comerciais & Aprendizados Especiais', 'Regras adicionais registradas dinamicamente no sistema');
 
     const formattedGuidelines = guidelines.slice(0, 15).map(g => [
       g.category || 'Geral',
@@ -346,8 +465,8 @@ export function generateTechnicalPdf({
     currentY = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 10 : currentY + 50;
   }
 
-  // SECTION 7: PROMPT PARA AGENTES DE IA EXTERNOS
-  addSectionTitle('7. Prompt do Sistema para Agentes de IA Externos', 'Copie e cole este bloco de texto nas configurações de qualquer Agente IA (ChatGPT / Claude / Gemini)');
+  // SECTION 10: PROMPT PARA AGENTES DE IA EXTERNOS
+  addSectionTitle('10. Prompt do Sistema para Agentes de IA Externos', 'Copie e cole este bloco de texto nas configurações de qualquer Agente IA (ChatGPT / Claude / Gemini)');
 
   const promptText = `Você é o Consultor Técnico e Comercial Especialista da RODER Brasil, autoridade máxima em equipamentos florestais, garras, cabeçotes multifuncionais e garfos paleteiros.
 
@@ -358,11 +477,15 @@ DIRETRIZES INSTITUCIONAIS OBRIGATÓRIAS:
 - Proteção de lead: 60 dias. Comissão é calculada sobre a base_commission_value após desconto.
 
 REGRAS DE COMPATIBILIDADE E DIMENSIONAMENTO:
-1. CMF 500: Indicado para escavadeiras de 8 a 14t (ideal 14t). PROIBIDO em retroescavadeiras (risco operacional grave e falta de giro 360° da cabine para desviar de quedas). NÃO recomendado em rebrota (corrente .404 entorta sabre; para rebrota indicar CMF 600 com corrente 3/4"). Para terrenos inclinados (>10°), indicar CMF com biela pendular.
-2. Garfo Paleteiro (GPR 4500/7000): Dimensionar SEMPRE pelo porte da pá carregadeira, NUNCA pelo peso da carga. PROIBIDO GPR 4500 em máquinas >8t (força da máquina entorta os garfos). Para 6-9t -> GPR 4500; 8-12t -> GPR 7000.
-3. Garras: R280 para escavadeiras 7-8t e feixes de árvores inteiras/eucalipto. R360G para galhadas, resíduos e citrus. Picadores até 600cv -> R400; até 1000cv -> R600.
+1. Garras Florestais (R250 a R1400): R250 (0,25m² - 5-8t), R280 (0,28m² - 6-10t / árvores inteiras), R360 (0,36m² - 8-12t), R400 (0,40m² - 12-18t / picador até 600cv), R600 (0,60m² - 14-22t / picador até 1000cv), R800 a R1400 (grandes escavadeiras 18-35t).
+2. Cabeçotes CMF 500 / 600 / 800: CMF 500 (8-14t, ideal 14t). PROIBIDO em retroescavadeiras. NÃO indicado em rebrota (usar CMF 600 com corrente 3/4"). Para aclives >10°, indicar CMF pendular.
+3. Garfo Paleteiro (GPR 4500/7000): Dimensionar SEMPRE pelo porte da pá carregadeira, NUNCA pelo peso da carga. PROIBIDO GPR 4500 em máquinas >8t. (6-9t -> GPR 4500; 8-12t -> GPR 7000).
 4. Feller Tesoura (CFTA 50/60): Produção em escavadeira (200-360 árv/h) supera amplamente pá carregadeira (160 árv/h). PROIBIDO feller em terrenos inclinados >10°.
-5. Hidráulica: Rotator tem giro infinito 360° (pino 45mm, biela 100mm). Máquinas sem fatia extra usam kit 9000.9000.9016. Escavadeiras com Harvester de fábrica exigem conversão hidráulica e não possuem cilindro da caçamba.`;
+5. Garras Traçadoras (GT 280 a GT 1000X): GT 600 atinge 70-100 m³/h em toras de 3,00m e ~68 m³/h úteis em 3,60m (12.000 m³/mês).
+6. Hidráulica, Rotatores, Acessórios e Kits de Instalação:
+   - Rotator Roder: Giro infinito contínuo 360° (3t, 6t, 10t, 16t). Padrão biela 100mm x pino 45mm.
+   - Quadro 1 - Acessórios de Montagem (Padrão 1000.XXXX.XXXX): Ponteiras de biela 4/6, suportes de destocador/triturador e links de garra para 43+ modelos de máquinas base.
+   - Quadro 2 - Kits de Instalação Hidráulica (Padrão 9000.9000.9000 a 9000.9000.9060): Kits completos para destocador, CMF, garras, feller e derivação sem fatia extra (9000.9000.9016).`;
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.2);

@@ -823,6 +823,12 @@ export default function Triagem() {
                       })()}
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">
+                      {ind.is_export && (
+                        <Badge className="bg-sky-600 text-white font-black uppercase text-[8px] py-0 px-1.5 h-4.5 rounded flex items-center gap-0.5 shadow-sm animate-pulse">
+                          <span>🌎 EXPORTAÇÃO</span>
+                          {ind.export_country && <span className="opacity-90">({ind.export_country})</span>}
+                        </Badge>
+                      )}
                       {ind.ai_score && (
                         <Badge className={cn(
                           "text-[8px] font-black uppercase py-0 px-1.5 h-4.5 rounded",

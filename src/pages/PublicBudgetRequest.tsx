@@ -130,6 +130,61 @@ export default function PublicBudgetRequest() {
     fetchData();
   }, [productId, modelId, indicatorId]);
 
+  const detectExportLead = (location: string, phone: string, obs: string) => {
+    const combined = `${location} ${phone} ${obs}`.toLowerCase();
+    
+    if (combined.includes('argentina') || combined.includes('misiones') || combined.includes('buenos aires') || combined.includes('eldorado') || combined.includes('posadas') || combined.includes('corrientes') || combined.includes('córdoba') || combined.includes('rosario')) {
+      return { isExport: true, country: 'Argentina' };
+    }
+    if (combined.includes('paraguai') || combined.includes('paraguay') || combined.includes('asuncion') || combined.includes('asunción') || combined.includes('ciudad del este')) {
+      return { isExport: true, country: 'Paraguai' };
+    }
+    if (combined.includes('uruguai') || combined.includes('uruguay') || combined.includes('montevideo')) {
+      return { isExport: true, country: 'Uruguai' };
+    }
+    if (combined.includes('chile') || combined.includes('santiago')) {
+      return { isExport: true, country: 'Chile' };
+    }
+    if (combined.includes('bolivia') || combined.includes('bolívia') || combined.includes('santa cruz de la sierra')) {
+      return { isExport: true, country: 'Bolívia' };
+    }
+    if (combined.includes('peru') || combined.includes('perú') || combined.includes('lima')) {
+      return { isExport: true, country: 'Peru' };
+    }
+    if (combined.includes('colombia') || combined.includes('colômbia') || combined.includes('bogota') || combined.includes('bogotá') || combined.includes('medellin') || combined.includes('medellín')) {
+      return { isExport: true, country: 'Colômbia' };
+    }
+    if (combined.includes('mexico') || combined.includes('méxico')) {
+      return { isExport: true, country: 'México' };
+    }
+    if (combined.includes('estados unidos') || combined.includes('usa') || combined.includes('united states') || combined.includes('miami') || combined.includes('florida')) {
+      return { isExport: true, country: 'Estados Unidos' };
+    }
+    
+    const cleanPhone = phone.replace(/\D/g, '');
+    if (phone.includes('+54') || (cleanPhone.length >= 10 && cleanPhone.startsWith('54')) || cleanPhone.startsWith('03751') || cleanPhone.startsWith('3751')) {
+      return { isExport: true, country: 'Argentina' };
+    }
+    if (phone.includes('+595') || (cleanPhone.length >= 10 && cleanPhone.startsWith('595'))) {
+      return { isExport: true, country: 'Paraguai' };
+    }
+    if (phone.includes('+598') || (cleanPhone.length >= 10 && cleanPhone.startsWith('598'))) {
+      return { isExport: true, country: 'Uruguai' };
+    }
+    if (phone.includes('+56') || (cleanPhone.length >= 10 && cleanPhone.startsWith('56'))) {
+      return { isExport: true, country: 'Chile' };
+    }
+    if (phone.includes('+1') || cleanPhone.startsWith('1')) {
+      return { isExport: true, country: 'Internacional / EUA' };
+    }
+    
+    if (combined.includes('buenos dias') || combined.includes('bueno dias') || combined.includes('podrías cotizar') || combined.includes('podrias cotizar') || combined.includes('excavadora') || combined.includes('implementos') || combined.includes('gracias')) {
+      return { isExport: true, country: 'Internacional / América Latina' };
+    }
+
+    return { isExport: false, country: '' };
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.client_name || !formData.client_phone || !formData.client_location) {
@@ -160,17 +215,28 @@ export default function PublicBudgetRequest() {
           console.error("Error on final indicator check:", e);
         }
       }
+
+      // Detect export / international lead
+      const exportCheck = detectExportLead(formData.client_location, formData.client_phone, formData.observations);
+      const isExport = exportCheck.isExport;
+      const exportCountry = exportCheck.country || 'Internacional';
+      
+      const yuryUid = "QfWBeRvpreTskZZGQxmr8cK6BIR2";
+      const yuryName = "Yury Mello";
+      const yuryEmail = "pecas@roderbrasil.com.br";
       
       const initialHistoryEntry = {
         id: Math.random().toString(36).substring(2, 11),
         type: 'system',
-        author_name: 'Sistema (Catálogo)',
+        author_name: isExport ? 'Sistema (Exportação)' : 'Sistema (Catálogo)',
         created_at: new Date().toISOString(),
-        content: `Solicitação inicial recebida via link do catálogo.\n\nEQUIPAMENTO: ${finalProductName}\n\nDESCRIÇÃO/DETALHES: ${formData.observations || 'Nenhum detalhe adicional informado pelo cliente.'}\n\nMÁQUINA BASE: ${formData.base_machine || 'Não informada'}`,
+        content: isExport 
+          ? `🌎 SOLICITAÇÃO DE EXPORTAÇÃO (${exportCountry})\nAtendimento direcionado automaticamente para o consultor de exportação: ${yuryName}.\n\nEQUIPAMENTO: ${finalProductName}\n\nDESCRIÇÃO/DETALHES: ${formData.observations || 'Nenhum detalhe adicional informado pelo cliente.'}\n\nMÁQUINA BASE: ${formData.base_machine || 'Não informada'}`
+          : `Solicitação inicial recebida via link do catálogo.\n\nEQUIPAMENTO: ${finalProductName}\n\nDESCRIÇÃO/DETALHES: ${formData.observations || 'Nenhum detalhe adicional informado pelo cliente.'}\n\nMÁQUINA BASE: ${formData.base_machine || 'Não informada'}`,
         attachments: []
       };
 
-      const indicationData = {
+      const indicationData: any = {
         external_seller_uid: finalIndicatorId,
         external_seller_name: finalIndicatorName || (isPublic ? 'Solicitação Direta (Site)' : 'Vendedor Parceiro'),
         client_name: formData.client_name,
@@ -185,12 +251,21 @@ export default function PublicBudgetRequest() {
           quantity: 1
         }],
         description: formData.observations || `Solicitação de orçamento realizada diretamente pelo cliente via link do catálogo.\nEquipamento: ${finalProductName}`,
-        status: 'pending',
+        status: isExport ? 'negotiating' : 'pending',
         negotiation_history: [initialHistoryEntry],
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        creator_type: 'client'
+        creator_type: 'client',
+        is_export: isExport,
+        export_country: isExport ? exportCountry : undefined
       };
+
+      if (isExport) {
+        indicationData.internal_seller_uid = yuryUid;
+        indicationData.internal_seller_name = yuryName;
+        indicationData.internal_seller_email = yuryEmail;
+        indicationData.duplicate_reviewed = true;
+      }
 
       await addDoc(collection(db, 'indications'), indicationData);
       

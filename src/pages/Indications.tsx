@@ -2082,6 +2082,11 @@ export default function Indications() {
                                    ind.status === 'triagem' ? 'Triagem' :
                                    ind.status === 'archived' ? 'Perdido' : 'Cancelado'}
                                 </Badge>
+                                {ind.is_export && (
+                                  <Badge className="text-[8px] h-4 font-black uppercase border-none block w-fit mt-1 bg-sky-600 text-white shadow-sm">
+                                    🌎 EXPORTAÇÃO {ind.export_country ? `(${ind.export_country})` : ''}
+                                  </Badge>
+                                )}
                                 {ind.ai_score && (
                                   <Badge className={cn(
                                     "text-[8px] h-4 font-black uppercase border-none block w-fit mt-1",
@@ -2497,6 +2502,12 @@ export default function Indications() {
                              ind.status === 'triagem' ? 'Triagem' :
                              ind.status === 'archived' ? 'Perdido' : 'Cancelado'}
                           </Badge>
+
+                          {ind.is_export && (
+                            <span className="text-[7px] font-black uppercase px-1 py-0.5 rounded shrink-0 leading-none bg-sky-600 text-white">
+                              🌎 EXPORTAÇÃO
+                            </span>
+                          )}
 
                           {ind.ai_score && (
                             <span className={cn(

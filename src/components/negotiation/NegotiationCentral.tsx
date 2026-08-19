@@ -1710,8 +1710,15 @@ export default function NegotiationCentral() {
                     <div className="flex items-center gap-1.5 min-w-0">
                       <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                       <div>
-                        <span className="text-[9px] font-black uppercase text-muted-foreground block leading-none mb-0.5">Local</span>
-                        <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 truncate max-w-[110px] block">
+                        <div className="flex items-center gap-1">
+                          <span className="text-[9px] font-black uppercase text-muted-foreground block leading-none">Local</span>
+                          {activeIndication.is_export && (
+                            <Badge className="bg-sky-600 text-white text-[7px] h-3.5 py-0 px-1 font-black uppercase shrink-0">
+                              🌎 Exportação
+                            </Badge>
+                          )}
+                        </div>
+                        <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 truncate max-w-[150px] block" title={activeIndication.client_location}>
                           {activeIndication.client_location || 'Não indicado'}
                         </span>
                       </div>

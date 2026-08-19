@@ -54,6 +54,51 @@ export const ACCESSORIES_DATA: AccessoryData[] = [
   { brand: 'XCMG', model: 'XE150D', pin: 'PINO Ø65', ponteira_biela_4: '1000.0000.0072', ponteira_biela_6: '1000.0000.0102', suporte_destocador: '1000.1256.0000', suporte_triturador: '1000.1400.0000', link_garra_biela_6: '1000.0000.0139', link_garra_biela_4: '1000.0000.0123' },
 ];
 
+/**
+ * Utility function to deduplicate accessories array by Brand + Model.
+ * Merges missing fields from duplicates so no codes or info are lost.
+ */
+export function deduplicateAccessories(items: AccessoryData[]): AccessoryData[] {
+  const map = new Map<string, AccessoryData>();
+
+  for (const item of items) {
+    if (!item.brand || !item.model) continue;
+    const brandClean = item.brand.trim().toUpperCase();
+    const modelClean = item.model.trim().toUpperCase();
+    const key = `${brandClean}__${modelClean}`;
+
+    if (!map.has(key)) {
+      map.set(key, { 
+        ...item, 
+        brand: brandClean, 
+        model: modelClean 
+      });
+    } else {
+      const existing = map.get(key)!;
+      if (!existing.pin && item.pin) existing.pin = item.pin;
+      if (!existing.ponteira_biela_4 && item.ponteira_biela_4) existing.ponteira_biela_4 = item.ponteira_biela_4;
+      if (!existing.ponteira_biela_6 && item.ponteira_biela_6) existing.ponteira_biela_6 = item.ponteira_biela_6;
+      if (!existing.suporte_destocador && item.suporte_destocador) existing.suporte_destocador = item.suporte_destocador;
+      if (!existing.suporte_triturador && item.suporte_triturador) existing.suporte_triturador = item.suporte_triturador;
+      if (!existing.link_garra_biela_4 && item.link_garra_biela_4) existing.link_garra_biela_4 = item.link_garra_biela_4;
+      if (!existing.link_garra_biela_6 && item.link_garra_biela_6) existing.link_garra_biela_6 = item.link_garra_biela_6;
+      
+      if (item.photo_urls) {
+        existing.photo_urls = {
+          ...existing.photo_urls,
+          ...item.photo_urls
+        };
+      }
+    }
+  }
+
+  return Array.from(map.values()).sort((a, b) => {
+    const bComp = a.brand.localeCompare(b.brand);
+    if (bComp !== 0) return bComp;
+    return a.model.localeCompare(b.model);
+  });
+}
+
 export interface InstallationKit {
   code: string;
   description: string;
