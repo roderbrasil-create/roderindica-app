@@ -3,7 +3,8 @@ import {
   signInWithPopup, 
   GoogleAuthProvider, 
   signInWithEmailAndPassword, 
-  sendPasswordResetEmail 
+  sendPasswordResetEmail,
+  signOut
 } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
 import { doc, getDoc, setDoc, collection, query, where, getDocs, deleteDoc, writeBatch } from 'firebase/firestore';
@@ -17,6 +18,17 @@ import { Label } from '../components/ui/label';
 
 import { Package, ClipboardEdit, Loader2, Mail, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 
+const MASTER_ADMIN_EMAILS = [
+  'roderbrasil@gmail.com',
+  'roderindica@gmail.com',
+  'gislene@roderbrasil.com.br',
+  'gislene@roder.com.br',
+  'luana@roder.com.br',
+  'luana@roderbrasil.com.br',
+  'rogerio@roderbrasil.com.br',
+  'contato@roderbrasil.com.br'
+];
+
 export default function Login() {
   const [loading, setLoading] = useState(false);
   const [showEmailLogin, setShowEmailLogin] = useState(false);
@@ -27,7 +39,8 @@ export default function Login() {
   const { user, profile } = useAuth();
 
   useEffect(() => {
-    if (user || profile) {
+    // Only navigate to dashboard if the user has an active profile registered in users collection
+    if (user && profile && profile.status === 'active') {
       navigate('/', { replace: true });
     }
   }, [user, profile, navigate]);
@@ -37,65 +50,23 @@ export default function Login() {
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
-      const user = result.user;
+      const authUser = result.user;
+      const targetEmail = (authUser.email || '').toLowerCase().trim();
+      const isMasterAdmin = MASTER_ADMIN_EMAILS.includes(targetEmail);
 
-      // Check if user exists in Firestore by UID
-      let userDocRef = doc(db, 'users', user.uid);
+      // 1. Check if user already has a document by UID
+      let userDocRef = doc(db, 'users', authUser.uid);
       let userDoc = await getDoc(userDocRef);
-      
-      if (user.email === 'comercial@ff.ind.br') {
-        const fabioName = 'Fábio';
-        await setDoc(userDocRef, {
-          uid: user.uid,
-          name: fabioName,
-          email: user.email,
-          role: 'external_seller',
-          status: 'active',
-          updated_at: new Date().toISOString()
-        }, { merge: true });
-        toast.success(`Olá, ${fabioName}! Perfil sincronizado.`);
-        navigate('/');
-        return;
-      }
+      let profileData: any = userDoc.exists() ? userDoc.data() : null;
 
-      if (user.email === 'marketing@roderbrasil.com.br' || user.email === 'franciele@roderbrasil.com.br') {
-        const mktName = 'Franciélli Lopes';
-        await setDoc(userDocRef, {
-          uid: user.uid,
-          name: mktName,
-          email: user.email,
-          phone: '(14) 99887-5110',
-          role: 'marketing',
-          status: 'active',
-          updated_at: new Date().toISOString()
-        }, { merge: true });
-        toast.success(`Olá, ${mktName}! Perfil de Marketing sincronizado.`);
-        navigate('/');
-        return;
-      }
-
-      if (user.email === 'jeferson@roderbrasil.com.br' || user.email === 'jefferson@roderbrasil.com.br') {
-        const name = 'Jeferson Roder';
-        await setDoc(userDocRef, {
-          uid: user.uid,
-          name: name,
-          email: user.email,
-          role: 'internal_seller',
-          status: 'active',
-          updated_at: new Date().toISOString()
-        }, { merge: true });
-        toast.success(`Olá, ${name}! Perfil sincronizado.`);
-        navigate('/');
-        return;
-      }
-      
-      if (!userDoc.exists()) {
-        const targetEmail = (user.email || '').toLowerCase().trim();
+      // 2. If not found by UID, search for pre-registered user in users collection by email
+      if (!profileData && targetEmail) {
         const q = query(collection(db, 'users'), where('email', '==', targetEmail));
         const querySnapshot = await getDocs(q);
         
         if (!querySnapshot.empty) {
-          // Found pre-created profile(s)! Use the first one or merge if there are multiple duplicates
+          // Found pre-created profile(s) created in Admin screen!
+          // Merge duplicates if any and link to authUser.uid
           const docs = querySnapshot.docs;
           let mergedData: any = {};
           
@@ -106,7 +77,7 @@ export default function Login() {
             const tempRoleIdx = rolesPriority.indexOf(currentData.role || '');
             const bestRole = (currentRoleIdx !== -1 && tempRoleIdx !== -1 && tempRoleIdx < currentRoleIdx)
               ? currentData.role
-              : (mergedData.role || currentData.role || 'internal_seller');
+              : (mergedData.role || currentData.role || 'external_seller');
             
             mergedData = {
               ...currentData,
@@ -122,88 +93,66 @@ export default function Login() {
           
           const batch = writeBatch(db);
           for (const d of docs) {
-            if (d.id !== user.uid) {
+            if (d.id !== authUser.uid) {
               batch.delete(doc(db, 'users', d.id));
             }
           }
           
-          batch.set(doc(db, 'users', user.uid), {
+          const finalProfile = {
             ...mergedData,
-            uid: user.uid,
-            status: 'active',
+            uid: authUser.uid,
+            status: mergedData.status || 'active',
             updated_at: new Date().toISOString()
-          });
-          
+          };
+
+          batch.set(doc(db, 'users', authUser.uid), finalProfile);
           await batch.commit();
-          
-          toast.success(`Olá, ${mergedData.name || 'Usuário'}!`);
-        } else if (user.email === 'roderbrasil@gmail.com' || user.email === 'roderindica@gmail.com') {
-          let adminName = user.displayName || 'Admin';
-          if (adminName.includes('Jefferson')) {
-            adminName = adminName.replace('Jefferson', 'Jeferson');
-          } else if (adminName === 'Admin') {
-            adminName = 'Jeferson Roder';
-          }
-          await setDoc(doc(db, 'users', user.uid), {
-            uid: user.uid,
-            name: adminName,
-            email: user.email,
-            role: 'admin',
-            status: 'active',
-            created_at: new Date().toISOString(),
-          });
-          toast.success(`Olá, ${adminName}!`);
-        } else if (user.email === 'marketing@roderbrasil.com.br') {
-          const mktName = 'Franciélli Lopes';
-          await setDoc(doc(db, 'users', user.uid), {
-            uid: user.uid,
-            name: mktName,
-            email: user.email,
-            phone: '(14) 99887-5110',
-            role: 'marketing',
-            status: 'active',
-            created_at: new Date().toISOString(),
-          });
-          toast.success(`Olá, ${mktName}! Seu perfil de Marketing foi configurado.`);
-        } else if (user.email === 'yury@roderbrasil.com.br' || user.email === 'yuri@roderbrasil.com.br') {
-          const name = 'Yury Mello';
-          await setDoc(doc(db, 'users', user.uid), {
-            uid: user.uid,
-            name: name,
-            email: user.email,
-            role: 'manager',
-            status: 'active',
-            created_at: new Date().toISOString(),
-          });
-          toast.success(`Olá, ${name}! Seu perfil de Gestão foi configurado.`);
-        } else if (user.email === 'jeferson@roderbrasil.com.br' || user.email === 'jefferson@roderbrasil.com.br') {
-          const name = 'Jeferson Roder';
-          await setDoc(doc(db, 'users', user.uid), {
-            uid: user.uid,
-            name: name,
-            email: user.email,
-            role: 'internal_seller',
-            status: 'active',
-            created_at: new Date().toISOString(),
-          });
-          toast.success(`Olá, ${name}! Seu perfil de Vendedor foi configurado.`);
-        } else {
-          // Permissão automática para domínios da empresa
-          const defaultName = user.displayName || user.email?.split('@')[0] || 'Novo Usuário';
-          const isRoder = user.email?.endsWith('@roderbrasil.com.br') || user.email?.endsWith('@roder.com.br');
-          
-          await setDoc(doc(db, 'users', user.uid), {
-            uid: user.uid,
-            name: defaultName,
-            email: user.email,
-            role: isRoder ? 'internal_seller' : 'external_seller',
-            status: 'active',
-            created_at: new Date().toISOString(),
-          });
-          toast.success(`Olá, ${defaultName}! Seu perfil foi configurado como ${isRoder ? 'Interno' : 'Externo'}.`);
+          profileData = finalProfile;
         }
       }
 
+      // 3. Fallback only for master admins if their document was deleted
+      if (!profileData && isMasterAdmin) {
+        let adminName = authUser.displayName || 'Admin';
+        if (targetEmail.includes('roderbrasil@gmail.com') || targetEmail.includes('roderindica@gmail.com')) {
+          adminName = 'Jeferson Roder';
+        } else if (targetEmail.includes('luana')) {
+          adminName = 'Luana Camargo';
+        } else if (targetEmail.includes('gislene')) {
+          adminName = 'Gislene';
+        }
+        profileData = {
+          uid: authUser.uid,
+          name: adminName,
+          email: targetEmail,
+          role: 'admin',
+          status: 'active',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        await setDoc(doc(db, 'users', authUser.uid), profileData);
+      }
+
+      // 4. STRICT ACCESS CONTROL: If user does not have a pre-registered profile in users, REJECT & SIGN OUT!
+      if (!profileData) {
+        console.warn(`[ACESSO NEGADO] Usuário não cadastrado tentou entrar com Google: ${targetEmail}`);
+        await signOut(auth);
+        toast.error(
+          `Acesso não autorizado. O e-mail (${targetEmail}) não está cadastrado na tela de usuários do Roder Indica. Solicite o cadastro à equipe de gestão (Luana ou Gislene).`,
+          { duration: 9000 }
+        );
+        return;
+      }
+
+      // 5. Inactive user check
+      if (profileData.status && profileData.status !== 'active' && !isMasterAdmin) {
+        console.warn(`[ACESSO NEGADO] Usuário inativo tentou logar: ${targetEmail}`);
+        await signOut(auth);
+        toast.error('Este usuário está inativo no sistema. Entre em contato com a equipe administrativa para reativar seu cadastro.', { duration: 7000 });
+        return;
+      }
+
+      toast.success(`Olá, ${profileData.name || 'Usuário'}! Entrada realizada com sucesso.`);
       navigate('/');
     } catch (error: any) {
       console.error("Login error:", error);
@@ -247,19 +196,67 @@ export default function Login() {
       return;
     }
 
+    const cleanEmail = email.toLowerCase().trim();
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      toast.success('Entrada realizada com sucesso!');
+      const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, password);
+      const authUser = userCredential.user;
+      const targetEmail = (authUser.email || cleanEmail).toLowerCase().trim();
+      const isMasterAdmin = MASTER_ADMIN_EMAILS.includes(targetEmail);
+
+      // Check if user has a document in 'users' collection
+      let userDoc = await getDoc(doc(db, 'users', authUser.uid));
+      let profileData: any = userDoc.exists() ? userDoc.data() : null;
+
+      // If not found by UID, search by email
+      if (!profileData && targetEmail) {
+        const q = query(collection(db, 'users'), where('email', '==', targetEmail));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const docs = snap.docs;
+          let mergedData: any = {};
+          for (const d of docs) {
+            mergedData = { ...d.data(), ...mergedData };
+            if (d.id !== authUser.uid) {
+              await deleteDoc(doc(db, 'users', d.id));
+            }
+          }
+          profileData = {
+            ...mergedData,
+            uid: authUser.uid,
+            status: mergedData.status || 'active',
+            updated_at: new Date().toISOString()
+          };
+          await setDoc(doc(db, 'users', authUser.uid), profileData);
+        }
+      }
+
+      // STRICT CHECK: user must exist in users collection
+      if (!profileData && !isMasterAdmin) {
+        console.warn(`[ACESSO NEGADO] E-mail e senha válidos mas e-mail não cadastrado na tela de usuários: ${targetEmail}`);
+        await signOut(auth);
+        toast.error(`Acesso não autorizado. O e-mail (${cleanEmail}) não está cadastrado na tela de usuários do Roder Indica. Solicite seu cadastro à equipe administrativa (Luana ou Gislene).`, { duration: 9000 });
+        return;
+      }
+
+      // Check active status
+      if (profileData && profileData.status && profileData.status !== 'active' && !isMasterAdmin) {
+        console.warn(`[ACESSO NEGADO] Usuário inativo tentou logar por e-mail: ${targetEmail}`);
+        await signOut(auth);
+        toast.error('Usuário inativo no sistema. Entre em contato com a equipe administrativa para reativar seu acesso.', { duration: 7000 });
+        return;
+      }
+
+      toast.success(`Olá, ${profileData?.name || 'Bem-vindo'}! Entrada realizada com sucesso.`);
       navigate('/');
     } catch (error: any) {
       console.error("Email login error:", error);
       if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
         toast.error('E-mail ou senha incorretos.');
       } else if (error.code === 'auth/too-many-requests') {
-        toast.error('Muitas tentativas. Tente novamente em instantes.');
+        toast.error('Muitas tentativas consecutivas. Tente novamente em alguns instantes.');
       } else {
-        toast.error('Erro ao entrar: ' + error.message);
+        toast.error('Erro ao entrar: ' + (error.message || 'Verifique suas credenciais.'));
       }
     } finally {
       setLoading(false);
@@ -392,8 +389,8 @@ export default function Login() {
                     {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                   </button>
                 </div>
-                <p className="text-[10px] text-muted-foreground uppercase font-medium leading-tight mt-1">
-                  * Primeiro acesso? Clique em "Esqueci minha senha" para criar sua conta.
+                <p className="text-[10px] text-muted-foreground font-medium leading-tight mt-1">
+                  * Utilize o seu e-mail e a senha cadastrada enviada pela equipe RODER. Caso ainda não tenha senha cadastrada ou a tenha esquecido, clique em "Esqueci minha senha" acima.
                 </p>
               </div>
               <div className="flex gap-2">

@@ -58,6 +58,8 @@ import {
   RotateCw,
   Shield,
   MapPin,
+  Star,
+  Plus,
   Printer,
   History,
   FileSearch,
@@ -1217,6 +1219,7 @@ export default function Indications() {
                           (ind as any).client_state?.toLowerCase().includes(searchLower) ||
                           ind.internal_seller_name?.toLowerCase().includes(searchLower) ||
                           ind.external_seller_name?.toLowerCase().includes(searchLower) ||
+                          ind.referring_client_name?.toLowerCase().includes(searchLower) ||
                           ind.base_machine?.toLowerCase().includes(searchLower) ||
                           ind.items?.some(i => i.product_name.toLowerCase().includes(searchLower));
 
@@ -2199,6 +2202,13 @@ export default function Indications() {
                                     </DropdownMenu>
                                   )}
                                 </div>
+
+                                {ind.referring_client_name && (
+                                  <div className="flex items-center gap-1 text-amber-600 dark:text-amber-400 text-[10px] font-bold" title={`Indicado pelo cliente ${ind.referring_client_name}`}>
+                                    <Star className="h-2.5 w-2.5 fill-amber-500 text-amber-500 shrink-0" />
+                                    <span className="truncate">Ind. Cliente: {ind.referring_client_name}</span>
+                                  </div>
+                                )}
 
                                 {ind.internal_seller_name ? (
                                   <div className="flex items-center gap-1 text-muted-foreground text-[10px] uppercase tracking-wider group/edit-internal" title="Consultor">

@@ -13,7 +13,7 @@ async function run() {
   querySnapshot.forEach((doc) => {
     products.push({ id: doc.id, ...doc.data() });
   });
-  console.log(JSON.stringify(products.map(p => ({ id: p.id, name: p.name, category: p.category, models: p.models?.map((m: any) => m.name) })), null, 2));
+  console.log(JSON.stringify(products, null, 2));
 }
 
 run().catch(console.error);

@@ -187,5 +187,34 @@ export const INSTALLATION_KITS: InstallationKit[] = [
     items: [
       { code: '1000.0000.0120', description: 'Link Garra Biela 4 para maquinas pino 80mm', quantity: 1 }
     ]
+  },
+  {
+    code: '9000.9000.9004',
+    description: 'KIT INSTALACAO CMF500/600 + LINCK EM ESCAVADEIRA - (MAQUINA COM LINHA ROMPEDOR)',
+    items: [
+      { code: '3000.5001.1188', description: 'MANGUEIRAS DE ALTA VAZAO 3/4 R12 X 1.1/16 JIC', quantity: 2 },
+      { code: '5000.1001.0016', description: 'CHICOTE DE COMANDO ELETRO-HIDRAULICO 24V', quantity: 1 },
+      { code: '1000.1040.2305', description: 'KIT ACIONAMENTO FATIA AUXILIAR 24V', quantity: 1 },
+      { code: '3000.5001.1142', description: 'MANGUEIRA DE DRENO 5/8 R2 X 7/8 JIC', quantity: 1 }
+    ]
+  },
+  {
+    code: '9000.9000.9016',
+    description: 'KIT INSTALACAO DE GARRA EM ESCAVADEIRA SEM FATIA EXTRA (DERIVACAO DA BOMBA)',
+    items: [
+      { code: '3000.5003.0152', description: 'BLOCO MANIFOLD 2 SOLENOIDES BAIXO FLUXO 24V PARA ROTATOR', quantity: 1 },
+      { code: '3000.5001.1142', description: 'MANGUEIRAS DERIVACAO DA BOMBA PRINCIPAL', quantity: 2 },
+      { code: '5000.1001.0059', description: 'MANOPLA JOYSTICK COM 2 BOTOES PULSANTES', quantity: 1 },
+      { code: '5000.1001.0016', description: 'CHICOTE ELETRICO DE COMANDO 24V', quantity: 1 }
+    ]
+  },
+  {
+    code: '9000.9000.9027',
+    description: 'KIT 3ª E 4ª FUNCAO 24V PARA PA CARREGADEIRA',
+    items: [
+      { code: '3000.5003.0152', description: 'VALVULA DIRECIONAL 3ª E 4ª FUNCAO 24V', quantity: 1 },
+      { code: '5000.1001.0059', description: 'JOYSTICK ELETRONICO 24V', quantity: 1 },
+      { code: '3000.5001.1188', description: 'MANGUEIRAS E CONEXOES DE ALTA PRESSAO', quantity: 4 }
+    ]
   }
 ];

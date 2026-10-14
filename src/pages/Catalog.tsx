@@ -433,6 +433,7 @@ function SortableProductCard({
   onSelectModels, 
   onOpenDigitalSelection,
   onIndicate, 
+  onOpenLightbox,
   isExternalSeller,
   openPdf,
   user,
@@ -520,8 +521,14 @@ function SortableProductCard({
               repeat: Infinity, 
               ease: "easeInOut" 
             }}
-            className="w-full h-full"
+            className="w-full h-full cursor-zoom-in"
             style={{ perspective: 1000 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (product.image_url && onOpenLightbox) {
+                onOpenLightbox([product.image_url], product.name);
+              }
+            }}
           >
             {product.image_url ? (
               <SmartImage 
@@ -5339,6 +5346,11 @@ export default function Catalog() {
                       onDelete={(id: string, name: string) => setProductToDelete({id, name})}
                       onSelectModels={(product: Product) => {
                         setViewingGallery(product);
+                      }}
+                      onOpenLightbox={(images: string[], title: string) => {
+                        setLightboxImages(images);
+                        setLightboxTitle(title);
+                        setIsLightboxOpen(true);
                       }}
                       onOpenDigitalSelection={(product: Product) => {
                         setIsHighTipSelectorOpen(true);

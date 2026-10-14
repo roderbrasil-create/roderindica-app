@@ -193,8 +193,8 @@ export function GarraEstufagemFicha({ onClose, defaultModelId = 'af_360' }: Garr
   const [isPrinting, setIsPrinting] = useState<boolean>(false);
 
   const printRef = useRef<HTMLDivElement>(null);
-  const { user } = useAuth();
-  const canEdit = user?.role === 'admin' || user?.role === 'manager';
+  const { user, profile, isAdmin, isManager } = useAuth();
+  const canEdit = isAdmin || isManager || profile?.role === 'admin' || profile?.role === 'manager';
 
   const selectedModel = MODELS.find(m => m.id === selectedModelId) || MODELS[0];
 

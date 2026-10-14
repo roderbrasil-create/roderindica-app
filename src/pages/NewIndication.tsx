@@ -48,11 +48,14 @@ import {
   Sparkles,
   Check,
   Layers,
-  Filter
+  Filter,
+  Building2,
+  Handshake,
+  Star
 } from 'lucide-react';
 import { transcribeAudio } from '../services/geminiService';
 import { notifyManagers } from '../services/notificationService';
-import { IndicationItem, IndicationOptions, RegisteredProduct, UserProfile, Product, ProductModel } from '../types';
+import { IndicationItem, IndicationOptions, RegisteredProduct, UserProfile, Product, ProductModel, ReferringClient } from '../types';
 import { fetchCnpjData } from '../lib/cnpj';
 import { HelpTooltip } from '../components/base/HelpTooltip';
 import { maskPhone, maskCpfCnpj } from '../lib/masks';
@@ -166,6 +169,9 @@ export default function NewIndication() {
     description: '',
     is_icms_contributor: false,
     ai_score: 'hot' as 'cold' | 'warm' | 'hot',
+    internal_seller_uid: '',
+    internal_seller_name: '',
+    internal_seller_email: '',
   });
 
   const [selectedItems, setSelectedItems] = useState<IndicationItem[]>([]);
@@ -244,7 +250,8 @@ export default function NewIndication() {
 
   const isAdmin = profile?.role === 'admin';
   const isManager = profile?.role === 'manager';
-  const isInternalSeller = profile?.role === 'internal_seller';
+  const isInternalSeller = profile?.role === 'internal_seller' || profile?.role === 'triagem';
+  const isMarketing = profile?.role === 'marketing';
   const isExternalSeller = profile?.role === 'external_seller';
   
   const canSeeIcms = isAdmin || isManager || isInternalSeller;
@@ -257,6 +264,24 @@ export default function NewIndication() {
   const [selectedExternalSeller, setSelectedExternalSeller] = useState<{uid: string, name: string} | null>(null);
   const [autoStandardSeller, setAutoStandardSeller] = useState<UserProfile | null>(null);
   const [showMachineSuggestions, setShowMachineSuggestions] = useState(false);
+
+  // Indication Origin & Referring Client states
+  const [originType, setOriginType] = useState<'client_referral' | 'direct' | 'partner'>(
+    isInternalSeller ? 'client_referral' : 'partner'
+  );
+  const [referringClientName, setReferringClientName] = useState('');
+  const [referringClientPhone, setReferringClientPhone] = useState('');
+  const [referringClientCity, setReferringClientCity] = useState('');
+  const [referringClientNotes, setReferringClientNotes] = useState('');
+  const [savedReferringClients, setSavedReferringClients] = useState<ReferringClient[]>([]);
+  const [showClientSuggestions, setShowClientSuggestions] = useState(false);
+  const [selectedReferringClient, setSelectedReferringClient] = useState<ReferringClient | null>(null);
+
+  useEffect(() => {
+    if (isInternalSeller) {
+      setOriginType('client_referral');
+    }
+  }, [isInternalSeller]);
 
   const machineTypeOptions = [
     'Escavadeira',
@@ -481,10 +506,22 @@ export default function NewIndication() {
       }
     };
 
+    const fetchReferringClients = async () => {
+      try {
+        const q = query(collection(db, 'referring_clients'), orderBy('referral_count', 'desc'));
+        const snapshot = await getDocs(q);
+        const clients = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ReferringClient));
+        setSavedReferringClients(clients);
+      } catch (error) {
+        console.error("Error fetching referring clients:", error);
+      }
+    };
+
     fetchProducts();
     fetchCatalogProducts();
     fetchExternalSellers();
     fetchStandardSellers();
+    fetchReferringClients();
   }, [isExternalSeller]);
 
   // Logic to auto-assign standard seller based on state
@@ -962,10 +999,16 @@ export default function NewIndication() {
     const missingFields: string[] = [];
     const scrollTargets: { field: string; label: string; elementId: string }[] = [];
 
-    if ((isAdmin || isManager) && !selectedExternalSeller) {
-      newErrors.partner = true;
-      missingFields.push('Parceiro Indicador (Responsável)');
-      scrollTargets.push({ field: 'partner', label: 'Parceiro Indicador (Responsável)', elementId: 'partner-wrapper' });
+    if (isAdmin || isManager || isInternalSeller) {
+      if (originType === 'client_referral' && !referringClientName.trim()) {
+        newErrors.partner = true;
+        missingFields.push('Nome do Cliente que Indicou');
+        scrollTargets.push({ field: 'partner', label: 'Nome do Cliente que Indicou', elementId: 'partner-wrapper' });
+      } else if (originType === 'partner' && !selectedExternalSeller) {
+        newErrors.partner = true;
+        missingFields.push('Parceiro Indicador Comercial');
+        scrollTargets.push({ field: 'partner', label: 'Parceiro Indicador Comercial', elementId: 'partner-wrapper' });
+      }
     }
 
     if (!formData.client_person_name) {
@@ -1062,13 +1105,38 @@ export default function NewIndication() {
           attachments: []
         };
 
+        let effectiveExtSellerUid = profile?.uid || 'anonymous';
+        let effectiveExtSellerName = profile?.name || 'Parceiro';
+
+        if (originType === 'client_referral') {
+          effectiveExtSellerUid = 'client_referral';
+          effectiveExtSellerName = `Cliente: ${referringClientName.trim()}`;
+        } else if (originType === 'direct') {
+          effectiveExtSellerUid = profile?.uid || 'direct_factory';
+          effectiveExtSellerName = `${profile?.name || 'Venda Direta'} (Fábrica)`;
+        } else if (selectedExternalSeller) {
+          effectiveExtSellerUid = selectedExternalSeller.uid;
+          effectiveExtSellerName = selectedExternalSeller.name;
+        }
+
         const indicationData = {
           ...formData,
           is_icms_contributor: formData.is_icms_contributor,
           items: selectedItems,
           options,
-          external_seller_uid: selectedExternalSeller?.uid || profile?.uid,
-          external_seller_name: selectedExternalSeller?.name || profile?.name,
+          origin_type: originType,
+          is_client_referral: originType === 'client_referral',
+          referring_client_name: originType === 'client_referral' ? referringClientName.trim() : null,
+          referring_client_phone: originType === 'client_referral' ? (referringClientPhone.trim() || null) : null,
+          referring_client_notes: originType === 'client_referral' ? (referringClientCity.trim() || null) : null,
+          external_seller_uid: effectiveExtSellerUid,
+          external_seller_name: effectiveExtSellerName,
+          internal_seller_uid: isInternalSeller ? profile?.uid : (formData.internal_seller_uid || null),
+          internal_seller_name: isInternalSeller ? profile?.name : (formData.internal_seller_name || null),
+          internal_seller_email: isInternalSeller ? profile?.email : (formData.internal_seller_email || null),
+          created_by_uid: profile?.uid || null,
+          created_by_name: profile?.name || null,
+          created_by_role: profile?.role || null,
           standard_seller_uid: autoStandardSeller?.uid || null,
           standard_seller_name: autoStandardSeller?.name || null,
           standard_seller_commission_rate: autoStandardSeller?.commission_rate || 2,
@@ -1178,14 +1246,39 @@ export default function NewIndication() {
         return acc;
       }, {} as any);
 
+      let effectiveExtSellerUid = profile?.uid || 'anonymous';
+      let effectiveExtSellerName = profile?.name || 'Parceiro';
+
+      if (originType === 'client_referral') {
+        effectiveExtSellerUid = 'client_referral';
+        effectiveExtSellerName = `Cliente: ${referringClientName.trim()}`;
+      } else if (originType === 'direct') {
+        effectiveExtSellerUid = profile?.uid || 'direct_factory';
+        effectiveExtSellerName = `${profile?.name || 'Venda Direta'} (Fábrica)`;
+      } else if (selectedExternalSeller) {
+        effectiveExtSellerUid = selectedExternalSeller.uid;
+        effectiveExtSellerName = selectedExternalSeller.name;
+      }
+
       await setDoc(indicationRef, {
         ...cleanFormData,
         id: indicationId,
         is_icms_contributor: !!formData.is_icms_contributor,
         items: selectedItems,
         options: options || [],
-        external_seller_uid: selectedExternalSeller?.uid || profile?.uid || 'anonymous',
-        external_seller_name: selectedExternalSeller?.name || profile?.name || 'Parceiro',
+        origin_type: originType,
+        is_client_referral: originType === 'client_referral',
+        referring_client_name: originType === 'client_referral' ? referringClientName.trim() : null,
+        referring_client_phone: originType === 'client_referral' ? (referringClientPhone.trim() || null) : null,
+        referring_client_notes: originType === 'client_referral' ? (referringClientCity.trim() || null) : null,
+        external_seller_uid: effectiveExtSellerUid,
+        external_seller_name: effectiveExtSellerName,
+        internal_seller_uid: isInternalSeller ? profile?.uid : (formData.internal_seller_uid || null),
+        internal_seller_name: isInternalSeller ? profile?.name : (formData.internal_seller_name || null),
+        internal_seller_email: isInternalSeller ? profile?.email : (formData.internal_seller_email || null),
+        created_by_uid: profile?.uid || null,
+        created_by_name: profile?.name || null,
+        created_by_role: profile?.role || null,
         
         // Standard Seller Auto-Assignment
         standard_seller_uid: autoStandardSeller?.uid || null,
@@ -1201,6 +1294,47 @@ export default function NewIndication() {
         updated_at: new Date().toISOString(),
         protection_expires_at: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
       });
+
+      // Auto-save referring client to 'referring_clients' collection for future suggestions and annual reports
+      if (originType === 'client_referral' && referringClientName.trim()) {
+        try {
+          const clientNameTrimmed = referringClientName.trim();
+          const slug = clientNameTrimmed
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-z0-9]/g, "_")
+            .replace(/_+/g, "_")
+            .slice(0, 60);
+
+          const refDocRef = doc(db, 'referring_clients', slug);
+          const refDocSnap = await getDoc(refDocRef);
+          if (refDocSnap.exists()) {
+            const curData = refDocSnap.data();
+            await updateDoc(refDocRef, {
+              referral_count: (curData.referral_count || 1) + 1,
+              last_referral_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              phone: referringClientPhone.trim() || curData.phone || '',
+              company_or_city: referringClientCity.trim() || curData.company_or_city || '',
+            });
+          } else {
+            await setDoc(refDocRef, {
+              id: slug,
+              name: clientNameTrimmed,
+              phone: referringClientPhone.trim() || '',
+              company_or_city: referringClientCity.trim() || '',
+              referral_count: 1,
+              created_at: new Date().toISOString(),
+              last_referral_at: new Date().toISOString(),
+              created_by_uid: profile?.uid || '',
+              created_by_name: profile?.name || '',
+            });
+          }
+        } catch (clientSaveErr) {
+          console.warn("Could not upsert referring_clients doc:", clientSaveErr);
+        }
+      }
 
       setSubmissionStatus('notifying');
       
@@ -1607,64 +1741,266 @@ export default function NewIndication() {
               <CardDescription className="text-xs text-muted-foreground">Preencha quem é o comprador de interesse para proteção do lead comercial.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Partner selection for admin/manager/triagem roles */}
-              {(isAdmin || isManager) && (
+              {/* Origin / Partner selection for internal sellers, managers and admins */}
+              {(isAdmin || isManager || isInternalSeller) && (
                 <div 
                   id="partner-wrapper"
                   className={cn(
-                    "space-y-2 p-4 rounded-xl border-2 shadow-inner transition-all duration-300",
+                    "space-y-4 p-4 rounded-2xl border-2 shadow-xs transition-all duration-300",
                     validationErrors.partner 
-                      ? "bg-red-50 dark:bg-red-950/20 border-red-500 shadow-md ring-2 ring-red-500/20" 
-                      : "bg-orange-600/10 border-orange-600/25"
+                      ? "bg-red-50 dark:bg-red-950/20 border-red-500 ring-2 ring-red-500/20" 
+                      : "bg-slate-50 dark:bg-zinc-950/60 border-slate-200 dark:border-zinc-800"
                   )}
                 >
-                  <Label className={cn(
-                    "text-xs font-black uppercase flex items-center gap-2 transition-colors",
-                    validationErrors.partner ? "text-red-500 font-extrabold animate-pulse" : "text-orange-600"
-                  )}>
-                    Parceiro Indicador (Responsável) *
-                  </Label>
-                  <Select 
-                    onValueChange={(val) => {
-                      const seller = externalSellers.find(s => s.uid === val);
-                      if (seller) setSelectedExternalSeller({ uid: seller.uid, name: seller.name });
-                      if (validationErrors.partner) {
-                        setValidationErrors(prev => ({ ...prev, partner: false }));
-                      }
-                    }}
-                    value={selectedExternalSeller?.uid || ""}
-                  >
-                    <SelectTrigger className="bg-white dark:bg-zinc-950 border-input h-11 font-semibold text-foreground">
-                      <SelectValue placeholder="Selecione quem indicou este cliente...">
-                        {selectedExternalSeller?.name}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent className="bg-card border-border max-h-[300px]">
-                      {externalSellers.map(seller => {
-                        const isInternalOrAdmin = seller.role && ['admin', 'manager', 'internal_seller', 'triagem', 'vendedor_padrao'].includes(seller.role);
-                        return (
-                          <SelectItem 
-                            key={seller.uid} 
-                            value={seller.uid} 
-                            label={seller.name}
-                            className="py-2 cursor-pointer"
-                          >
-                            <div className="flex items-center justify-between gap-2 w-full">
-                              <span className="font-semibold">{seller.name}</span>
-                              {isInternalOrAdmin && (
-                                <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 border border-amber-500/20 shrink-0">
-                                  Direto / Sem comissão
-                                </span>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
+                    <div>
+                      <Label className="text-xs font-black uppercase tracking-wider flex items-center gap-2 text-foreground">
+                        <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
+                        Origem da Indicação *
+                      </Label>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        Informe como este novo cliente chegou até a Roder.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5 p-1 bg-white dark:bg-zinc-900 rounded-xl border border-border shadow-xs">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOriginType('client_referral');
+                          if (validationErrors.partner) setValidationErrors(prev => ({ ...prev, partner: false }));
+                        }}
+                        className={cn(
+                          "px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer",
+                          originType === 'client_referral'
+                            ? "bg-amber-500 text-white shadow-xs"
+                            : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                        )}
+                      >
+                        <Star className="h-3.5 w-3.5" />
+                        Indicado por Cliente
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOriginType('direct');
+                          if (validationErrors.partner) setValidationErrors(prev => ({ ...prev, partner: false }));
+                        }}
+                        className={cn(
+                          "px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer",
+                          originType === 'direct'
+                            ? "bg-blue-600 text-white shadow-xs"
+                            : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                        )}
+                      >
+                        <Building2 className="h-3.5 w-3.5" />
+                        Venda Direta / Fábrica
+                      </button>
+
+                      {(isAdmin || isManager) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOriginType('partner');
+                            if (validationErrors.partner) setValidationErrors(prev => ({ ...prev, partner: false }));
+                          }}
+                          className={cn(
+                            "px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer",
+                            originType === 'partner'
+                              ? "bg-orange-600 text-white shadow-xs"
+                              : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                          )}
+                        >
+                          <Handshake className="h-3.5 w-3.5" />
+                          Parceiro Comercial
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Mode 1: Indicado por Cliente */}
+                  {originType === 'client_referral' && (
+                    <div className="space-y-3 bg-amber-50/60 dark:bg-amber-950/15 p-3.5 rounded-xl border border-amber-200/80 dark:border-amber-900/40">
+                      <div className="relative">
+                        <Label className={cn(
+                          "text-xs font-bold uppercase flex items-center gap-1.5 mb-1.5",
+                          validationErrors.partner ? "text-red-500" : "text-amber-900 dark:text-amber-200"
+                        )}>
+                          Nome do Cliente que Indicou *
+                          <span className="text-[10px] text-amber-600 dark:text-amber-400 font-normal lowercase">
+                            (digite para buscar na base ou cadastrar novo)
+                          </span>
+                        </Label>
+
+                        <div className="relative">
+                          <Input
+                            placeholder="Ex: João da Silva / Fazenda Santa Rita"
+                            value={referringClientName}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setReferringClientName(val);
+                              setShowClientSuggestions(true);
+                              setSelectedReferringClient(null);
+                              if (validationErrors.partner) setValidationErrors(prev => ({ ...prev, partner: false }));
+                            }}
+                            onFocus={() => setShowClientSuggestions(true)}
+                            className="bg-white dark:bg-zinc-950 border-input h-11 text-sm font-semibold rounded-xl"
+                          />
+
+                          {/* Autocomplete suggestions dropdown */}
+                          {showClientSuggestions && referringClientName.trim().length > 0 && (
+                            <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl shadow-xl overflow-hidden max-h-60 overflow-y-auto">
+                              {savedReferringClients.filter(c => 
+                                c.name.toLowerCase().includes(referringClientName.toLowerCase()) ||
+                                (c.company_or_city && c.company_or_city.toLowerCase().includes(referringClientName.toLowerCase()))
+                              ).length > 0 ? (
+                                <div>
+                                  <div className="px-3 py-1.5 bg-muted/50 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border">
+                                    Clientes já cadastrados (clique para preencher):
+                                  </div>
+                                  {savedReferringClients
+                                    .filter(c => 
+                                      c.name.toLowerCase().includes(referringClientName.toLowerCase()) ||
+                                      (c.company_or_city && c.company_or_city.toLowerCase().includes(referringClientName.toLowerCase()))
+                                    )
+                                    .map(client => (
+                                      <div
+                                        key={client.id}
+                                        onClick={() => {
+                                          setReferringClientName(client.name);
+                                          if (client.phone) setReferringClientPhone(client.phone);
+                                          if (client.company_or_city) setReferringClientCity(client.company_or_city);
+                                          setSelectedReferringClient(client);
+                                          setShowClientSuggestions(false);
+                                        }}
+                                        className="px-3.5 py-2.5 hover:bg-amber-50 dark:hover:bg-amber-950/40 cursor-pointer border-b border-border/40 last:border-0 flex items-center justify-between gap-2 text-xs transition-colors"
+                                      >
+                                        <div>
+                                          <p className="font-bold text-foreground">{client.name}</p>
+                                          <p className="text-[11px] text-muted-foreground">
+                                            {client.company_or_city || 'Cliente Roder'} {client.phone ? `• ${client.phone}` : ''}
+                                          </p>
+                                        </div>
+                                        <Badge variant="outline" className="text-[10px] font-extrabold bg-amber-500/10 text-amber-600 border-amber-500/30 shrink-0">
+                                          {client.referral_count || 1} {client.referral_count === 1 ? 'indicação' : 'indicações'}
+                                        </Badge>
+                                      </div>
+                                    ))}
+                                </div>
+                              ) : (
+                                <div className="p-3 text-xs text-muted-foreground flex items-center justify-between">
+                                  <span>Novo cliente indicador: <strong className="text-foreground">{referringClientName}</strong></span>
+                                  <Badge className="bg-emerald-600 text-white text-[10px]">Ficará salvo na base</Badge>
+                                </div>
                               )}
                             </div>
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-[10px] text-orange-600/80 font-medium">
-                    O lead ficará cadastrado de forma protegida sob o nome da pessoa ou parceiro selecionado. Indicações da gerência (Jeferson / Gislene) entram nos relatórios de resultado de vendas sem geração de comissão comercial.
-                  </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        <div>
+                          <Label className="text-xs font-bold uppercase text-muted-foreground mb-1 block">
+                            Telefone / WhatsApp do Cliente Indicador
+                          </Label>
+                          <Input
+                            placeholder="(00) 00000-0000"
+                            value={referringClientPhone}
+                            onChange={(e) => setReferringClientPhone(maskPhone(e.target.value))}
+                            className="bg-white dark:bg-zinc-950 border-input h-10 text-xs rounded-xl"
+                          />
+                        </div>
+
+                        <div>
+                          <Label className="text-xs font-bold uppercase text-muted-foreground mb-1 block">
+                            Empresa / Cidade do Cliente Indicador
+                          </Label>
+                          <Input
+                            placeholder="Ex: Madeireira Roder / Lages - SC"
+                            value={referringClientCity}
+                            onChange={(e) => setReferringClientCity(e.target.value)}
+                            className="bg-white dark:bg-zinc-950 border-input h-10 text-xs rounded-xl"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-2 bg-amber-100/70 dark:bg-amber-950/40 p-2.5 rounded-lg border border-amber-300/50 text-[11px] text-amber-900 dark:text-amber-200">
+                        <Sparkles className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+                        <span>
+                          <strong>Programa Cliente Amigo Roder:</strong> Este cliente ficará registrado na base. No final do ano teremos relatórios de indicações para beneficiar clientes promotores com descontos exclusivos em peças e serviços Roder.
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Mode 2: Venda Direta / Fábrica */}
+                  {originType === 'direct' && (
+                    <div className="p-3.5 bg-blue-50/60 dark:bg-blue-950/15 rounded-xl border border-blue-200/80 dark:border-blue-900/40 flex items-start gap-3">
+                      <Building2 className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
+                      <div className="text-xs space-y-1">
+                        <p className="font-bold text-blue-900 dark:text-blue-200">
+                          Venda Direta da Fábrica
+                        </p>
+                        <p className="text-blue-700/90 dark:text-blue-300/80 text-[11px] leading-relaxed">
+                          O lead será cadastrado internamente por <strong>{profile?.name}</strong>, sem intermediação de parceiros externos e sem cálculo de comissão de parceiro.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Mode 3: Parceiro Comercial Externo */}
+                  {originType === 'partner' && (
+                    <div className="space-y-2 p-3 bg-orange-50/60 dark:bg-orange-950/15 rounded-xl border border-orange-200/80 dark:border-orange-900/40">
+                      <Label className={cn(
+                        "text-xs font-black uppercase flex items-center gap-2 transition-colors",
+                        validationErrors.partner ? "text-red-500 font-extrabold animate-pulse" : "text-orange-600"
+                      )}>
+                        Parceiro Indicador (Responsável) *
+                      </Label>
+                      <Select 
+                        onValueChange={(val) => {
+                          const seller = externalSellers.find(s => s.uid === val);
+                          if (seller) setSelectedExternalSeller({ uid: seller.uid, name: seller.name });
+                          if (validationErrors.partner) {
+                            setValidationErrors(prev => ({ ...prev, partner: false }));
+                          }
+                        }}
+                        value={selectedExternalSeller?.uid || ""}
+                      >
+                        <SelectTrigger className="bg-white dark:bg-zinc-950 border-input h-11 font-semibold text-foreground">
+                          <SelectValue placeholder="Selecione quem indicou este cliente...">
+                            {selectedExternalSeller?.name}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent className="bg-card border-border max-h-[300px]">
+                          {externalSellers.map(seller => {
+                            const isInternalOrAdmin = seller.role && ['admin', 'manager', 'internal_seller', 'triagem', 'vendedor_padrao'].includes(seller.role);
+                            return (
+                              <SelectItem 
+                                key={seller.uid} 
+                                value={seller.uid} 
+                                label={seller.name}
+                                className="py-2 cursor-pointer"
+                              >
+                                <div className="flex items-center justify-between gap-2 w-full">
+                                  <span className="font-semibold">{seller.name}</span>
+                                  {isInternalOrAdmin && (
+                                    <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 border border-amber-500/20 shrink-0">
+                                      Direto / Sem comissão
+                                    </span>
+                                  )}
+                                </div>
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[10px] text-orange-600/80 font-medium">
+                        O lead ficará cadastrado de forma protegida sob o nome do parceiro comercial externo selecionado.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 

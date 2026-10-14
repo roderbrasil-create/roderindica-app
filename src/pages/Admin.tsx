@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { collection, query, onSnapshot, orderBy, doc, updateDoc, setDoc, deleteDoc, where, getDocs, writeBatch, Timestamp, addDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { UserProfile, UserRole, UserStatus, AITeaching } from '../types';
+import { UserProfile, UserRole, UserStatus, AITeaching, RoderApiKey } from '../types';
 import { AuditService, AuditLogEntry, AuditAction } from '../lib/AuditService';
 import { CryptoService } from '../lib/CryptoService';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -50,7 +50,13 @@ import {
   Smartphone,
   Award,
   Brain,
-  Wrench
+  Wrench,
+  MessageCircle,
+  Code2,
+  Copy,
+  Check,
+  Power,
+  BookOpen
 } from 'lucide-react';
 import { HelpTooltip } from '../components/base/HelpTooltip';
 import jsPDF from 'jspdf';
@@ -112,6 +118,193 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
       return () => unsubscribe();
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'api_keys') {
+      setLoadingApiKeys(true);
+      const q = query(collection(db, 'api_keys'), orderBy('created_at', 'desc'));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const data = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as RoderApiKey[];
+        setApiKeys(data);
+        setLoadingApiKeys(false);
+      }, (error) => {
+        console.error("Error fetching API keys:", error);
+        toast.error("Erro ao carregar chaves de API.");
+        setLoadingApiKeys(false);
+      });
+      return () => unsubscribe();
+    }
+  }, [activeTab]);
+
+  const handleGenerateApiKey = async () => {
+    if (!newKeyName.trim()) {
+      toast.error("Informe o nome do aplicativo ou sistema de destino.");
+      return;
+    }
+
+    setGeneratingKey(true);
+    try {
+      const response = await fetch('/api/v1/api-keys/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newKeyName.trim(),
+          permissions: newKeyPermissions,
+          created_by: profile?.name || profile?.email || 'Admin'
+        })
+      });
+
+      const resData = await response.json();
+      if (!response.ok || !resData.success) {
+        throw new Error(resData.error || 'Falha ao gerar chave.');
+      }
+
+      toast.success(`Chave criada com sucesso para ${newKeyName.trim()}!`);
+      setNewKeyName('');
+      setNewKeyPermissions({ stock: true, catalog: true, leads: false });
+      setIsApiKeyDialogOpen(false);
+    } catch (err: any) {
+      console.error("Error creating API key:", err);
+      toast.error(`Erro ao criar chave: ${err.message}`);
+    } finally {
+      setGeneratingKey(false);
+    }
+  };
+
+  const handleToggleApiKeyStatus = async (keyId: string, currentStatus: boolean) => {
+    try {
+      const keyRef = doc(db, 'api_keys', keyId);
+      await updateDoc(keyRef, {
+        active: !currentStatus
+      });
+      toast.success(!currentStatus ? "Chave ativada com sucesso!" : "Chave desativada. O aplicativo externo foi bloqueado.");
+    } catch (err: any) {
+      console.error("Error updating key status:", err);
+      toast.error("Erro ao alterar status da chave.");
+    }
+  };
+
+  const handleDeleteApiKey = async (keyId: string, name: string) => {
+    if (!window.confirm(`Tem certeza que deseja excluir permanentemente a chave de acesso do app "${name}"? O aplicativo externo perderá a conexão imediatamente.`)) {
+      return;
+    }
+
+    try {
+      await deleteDoc(doc(db, 'api_keys', keyId));
+      toast.success("Chave excluída com sucesso.");
+    } catch (err: any) {
+      console.error("Error deleting API key:", err);
+      toast.error("Erro ao excluir chave.");
+    }
+  };
+
+  const handleTogglePermission = async (keyId: string, permissionKey: 'stock' | 'catalog' | 'leads', currentVal: boolean) => {
+    try {
+      const keyRef = doc(db, 'api_keys', keyId);
+      await updateDoc(keyRef, {
+        [`permissions.${permissionKey}`]: !currentVal
+      });
+      toast.success("Permissões da chave atualizadas!");
+    } catch (err: any) {
+      console.error("Error updating permission:", err);
+      toast.error("Erro ao atualizar permissões.");
+    }
+  };
+
+  const copyToClipboard = (text: string, id?: string) => {
+    navigator.clipboard.writeText(text);
+    if (id) {
+      setCopiedKeyId(id);
+      setTimeout(() => setCopiedKeyId(null), 2500);
+    } else {
+      setCopiedEndpoint(true);
+      setTimeout(() => setCopiedEndpoint(false), 2500);
+    }
+    toast.success("Copiado para a área de transferência!");
+  };
+
+  const generateGuideText = (apiKey?: RoderApiKey | null) => {
+    const keyVal = apiKey?.key || 'SUA_CHAVE_AQUI';
+    const appName = apiKey?.name || 'Seu Aplicativo';
+    // Se estiver rodando no ambiente de preview/dev privado (ais-dev-*.run.app), 
+    // a URL pública/compartilhada sem autenticação do Google é ais-pre-*.run.app
+    const currentOrigin = window.location.origin;
+    const origin = currentOrigin.includes('ais-dev-')
+      ? currentOrigin.replace('ais-dev-', 'ais-pre-')
+      : currentOrigin;
+
+    return `# GUIA DE INTEGRAÇÃO - API RODER INDICA V2
+# Destinado a: ${appName}
+# Chave de Acesso (API Key): ${keyVal}
+
+============================================================
+INSTRUÇÃO IMPORTANTE:
+Copie as orientações e coloque no aplicativo que vai ler a chave.
+============================================================
+
+1. ENDPOINTS DISPONÍVEIS:
+   • Estoque Geral (Fábrica, Sinop & Peças):
+     GET ${origin}/api/v1/stock
+
+   • Catálogo Técnico de Equipamentos:
+     GET ${origin}/api/v1/catalog
+
+   (Nota: ${origin.includes('ais-pre-') ? 'Esta é a URL pública/compartilhada pública da API que NÃO exige login do Google.' : 'URL pública direta.'})
+
+2. COMO AUTENTICAR SUAS REQUISIÇÕES:
+   Opção A (Recomendada via Cabeçalho HTTP Header):
+     Header: x-api-key: ${keyVal}
+
+   Opção B (Via URL Query Parameter):
+     GET ${origin}/api/v1/stock?api_key=${keyVal}
+
+3. EXEMPLO DE REQUISIÇÃO (CURL / TERMINAL):
+   curl -X GET "${origin}/api/v1/stock" \\
+     -H "x-api-key: ${keyVal}"
+
+4. EXEMPLO DE REQUISIÇÃO (JAVASCRIPT / TYPESCRIPT):
+   const response = await fetch("${origin}/api/v1/stock", {
+     headers: {
+       "x-api-key": "${keyVal}"
+     }
+   });
+   const data = await response.json();
+   console.log("Estoque Roder:", data);
+
+5. FORMATO DA RESPOSTA (JSON):
+   {
+     "success": true,
+     "source": "Roder Indica V2",
+     "app": "${appName}",
+     "timestamp": "${new Date().toISOString()}",
+     "total_items": 45,
+     "items": [
+       {
+         "id": "item_123",
+         "name": "CMF 500",
+         "sku": "CMF-500",
+         "category": "cabeçote",
+         "unit": "un",
+         "quantity_total": 4,
+         "quantity_reserved": 1,
+         "quantity_available": 3,
+         "locations": {
+           "fabrica": 2,
+           "sinop": 1
+         },
+         "status": "in_stock"
+       }
+     ]
+   }
+
+6. OBSERVAÇÕES E BOAS PRÁTICAS:
+   • O estoque é recalculado em tempo real considerando pedidos em negociação.
+   • A chave pode ter o acesso pausado ou permissões alteradas a qualquer momento pelo painel Admin Roder.
+   • Mantenha esta chave segura em variáveis de ambiente (ex: .env) do seu aplicativo.`;
+  };
 
   const canManageAll = isAdmin || isManager || realProfile?.email === 'roderbrasil@gmail.com';
 
@@ -412,6 +605,23 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
   const [editingTeaching, setEditingTeaching] = useState<AITeaching | null>(null);
   const [isTeachingDialogOpen, setIsTeachingDialogOpen] = useState(false);
   const [teachingSearchTerm, setTeachingSearchTerm] = useState('');
+
+  // API Keys Integration State
+  const [apiKeys, setApiKeys] = useState<RoderApiKey[]>([]);
+  const [loadingApiKeys, setLoadingApiKeys] = useState(false);
+  const [isApiKeyDialogOpen, setIsApiKeyDialogOpen] = useState(false);
+  const [newKeyName, setNewKeyName] = useState('');
+  const [newKeyPermissions, setNewKeyPermissions] = useState({
+    stock: true,
+    catalog: true,
+    leads: false,
+  });
+  const [generatingKey, setGeneratingKey] = useState(false);
+  const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
+  const [copiedEndpoint, setCopiedEndpoint] = useState(false);
+  const [isGuideDialogOpen, setIsGuideDialogOpen] = useState(false);
+  const [guideSelectedKey, setGuideSelectedKey] = useState<RoderApiKey | null>(null);
+  const [copiedGuideText, setCopiedGuideText] = useState(false);
 
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [reportContent, setReportContent] = useState('');
@@ -883,19 +1093,43 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
   const handleManualResetInvite = async (user: UserProfile) => {
     if (!user.email || user.email.includes('@mobile.roder.com.br')) return;
 
-    const toastId = toast.loading('Preparando convite manual...');
+    const toastId = toast.loading('Preparando instruções de acesso...');
     try {
-      // 1. First attempt Firebase's standard reset
-      try {
-        await sendPasswordResetEmail(auth, user.email);
-      } catch (e) {
-        console.warn("Firebase reset failed, continuing with manual invite:", e);
+      const hasRegisteredPwd = !!user.initial_password;
+
+      // 1. Only attempt Firebase's standard reset if user does NOT have a registered password
+      if (!hasRegisteredPwd) {
+        try {
+          await sendPasswordResetEmail(auth, user.email);
+        } catch (e) {
+          console.warn("Firebase reset failed, continuing with manual invite:", e);
+        }
       }
 
       // 2. If SMTP is configured, send a manual email with instructions
       if (emailSettings.user && emailSettings.pass) {
         const appUrl = window.location.origin;
-        const html = `
+        const html = hasRegisteredPwd ? `
+          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+            <h1 style="color: #ff6b00; border-bottom: 2px solid #ff6b00; padding-bottom: 10px;">Acesso ao App RODER Indica V2</h1>
+            <p>Olá <strong>${user.name}</strong>,</p>
+            <p>Você foi convidado para acessar o sistema de indicações da RODER.</p>
+            <div style="background: #f4f4f5; padding: 12px 16px; border-radius: 8px; margin: 16px 0; border: 1px solid #e4e4e7;">
+              <p style="margin: 4px 0;"><strong>E-mail:</strong> ${user.email}</p>
+              <p style="margin: 4px 0;"><strong>Senha Cadastrada:</strong> <code style="font-size: 16px; font-weight: bold; color: #ff6b00;">${user.initial_password}</code></p>
+            </div>
+            <p><strong>Instruções para o seu acesso:</strong></p>
+            <ol>
+              <li>Acesse o link: <a href="${appUrl}" style="color: #ff6b00; font-weight: bold;">${appUrl}</a></li>
+              <li>Clique no botão "E-MAIL E SENHA".</li>
+              <li>Informe seu e-mail (<strong>${user.email}</strong>) e a senha informada acima.</li>
+              <li>Clique em "Entrar".</li>
+            </ol>
+            <p style="margin-top: 30px; font-size: 12px; color: #999; border-top: 1px solid #eee; padding-top: 10px;">
+              Este é um e-mail gerado pelo sistema RODER.
+            </p>
+          </div>
+        ` : `
           <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
             <h1 style="color: #ff6b00; border-bottom: 2px solid #ff6b00; padding-bottom: 10px;">Acesso ao App RODER Indica V2</h1>
             <p>Olá <strong>${user.name}</strong>,</p>
@@ -936,7 +1170,11 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
           toast.info('Instruções enviadas via Firebase, mas o servidor manual falhou: ' + data.error, { id: toastId });
         }
       } else {
-        toast.success('E-mail de recuperação enviado via Firebase!', { id: toastId });
+        if (hasRegisteredPwd) {
+          toast.success(`Usuário possui senha cadastrada: ${user.initial_password}. Envie também pelo WhatsApp via botão Compartilhar.`, { id: toastId });
+        } else {
+          toast.success('E-mail de recuperação enviado via Firebase!', { id: toastId });
+        }
       }
     } catch (error: any) {
       toast.error('Erro ao processar: ' + error.message, { id: toastId });
@@ -994,6 +1232,7 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
     is_commissionable: true,
     status: 'active' as UserStatus,
     pix_key: '',
+    initial_password: '',
     bank_info: {
       bank: '',
       agency: '',
@@ -1151,6 +1390,11 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const [passwordForUser, setPasswordForUser] = useState({ email: '', password: '', name: '' });
   const [isSettingPassword, setIsSettingPassword] = useState(false);
+  const [shareUserModal, setShareUserModal] = useState<UserProfile | null>(null);
+  const [sharePassword, setSharePassword] = useState('');
+  const [shareIncludePassword, setShareIncludePassword] = useState(true);
+  const [showSharePassword, setShowSharePassword] = useState(false);
+  const [isSharingViaWhatsApp, setIsSharingViaWhatsApp] = useState(false);
 
   useEffect(() => {
     const q = query(collection(db, 'users'), orderBy('created_at', 'desc'));
@@ -1469,18 +1713,40 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
 
       const cleanPhone = formData.phone?.replace(/\D/g, '');
       const finalEmail = (formData.email || (cleanPhone ? `${cleanPhone}@mobile.roder.com.br` : '')).toLowerCase().trim();
+      const initialPwd = formData.initial_password?.trim() || '';
 
       const userData: any = {
         ...formData,
         email: finalEmail,
         phone: cleanPhone,
+        initial_password: initialPwd || (editingUser?.initial_password || ''),
         permissions: formData.permissions,
         updated_at: new Date().toISOString(),
       };
 
       if (editingUser) {
         await updateDoc(doc(db, 'users', editingUser.uid), userData);
-        toast.success('Usuário atualizado!');
+
+        // If a password was provided or updated, sync with Firebase Auth
+        if (initialPwd && initialPwd !== editingUser.initial_password && initialPwd.length >= 6 && finalEmail && !finalEmail.endsWith('@mobile.roder.com.br')) {
+          try {
+            const token = await auth.currentUser?.getIdToken();
+            if (token) {
+              const baseUrl = getApiBaseUrl();
+              await fetch(`${baseUrl}/api/admin/set-user-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ email: finalEmail, password: initialPwd, token })
+              });
+            }
+          } catch (authErr) {
+            console.warn('Auth password sync notice:', authErr);
+          }
+        }
+
+        setUsers(prev => prev.map(u => u.uid === editingUser.uid ? { ...u, ...userData } : u));
+        toast.success('Usuário atualizado com sucesso!');
       } else {
         // Use a deterministic ID if it's a mobile-only user to avoid duplicates
         const tempId = cleanPhone ? `phone_${cleanPhone}` : `temp_${Date.now()}`;
@@ -1490,11 +1756,31 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
           uid: tempId,
           created_at: new Date().toISOString(),
         });
+
+        // If initial password was supplied, sync with Firebase Auth
+        if (initialPwd && initialPwd.length >= 6 && finalEmail && !finalEmail.endsWith('@mobile.roder.com.br')) {
+          try {
+            const token = await auth.currentUser?.getIdToken();
+            if (token) {
+              const baseUrl = getApiBaseUrl();
+              await fetch(`${baseUrl}/api/admin/set-user-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ email: finalEmail, password: initialPwd, token })
+              });
+            }
+          } catch (authErr) {
+            console.warn('Auth password sync notice on creation:', authErr);
+          }
+        }
         
         if (!formData.email) {
           toast.success('Perfil criado! O usuário pode entrar usando o número do WhatsApp.');
+        } else if (initialPwd) {
+          toast.success('Perfil criado com senha cadastrada! Você já pode compartilhar o acesso via WhatsApp.');
         } else {
-          toast.success('Perfil criado! Instrua o usuário a entrar com sua conta Google.');
+          toast.success('Perfil criado com sucesso!');
         }
       }
 
@@ -1522,6 +1808,7 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
       is_commissionable: true,
       status: 'active',
       pix_key: '',
+      initial_password: '',
       bank_info: {
         bank: '',
         agency: '',
@@ -1553,7 +1840,77 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
     }
   };
 
-  const handleSetPasswordManually = async () => {
+  const openWhatsAppUrl = (phone: string | undefined, message: string) => {
+    let cleanPhone = phone?.replace(/\D/g, '') || '';
+    if (cleanPhone && !cleanPhone.startsWith('55') && (cleanPhone.length === 10 || cleanPhone.length === 11)) {
+      cleanPhone = `55${cleanPhone}`;
+    }
+    const encodedMessage = encodeURIComponent(message);
+    const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
+  const buildWhatsAppInviteMessage = (user: UserProfile, password?: string, includePassword?: boolean) => {
+    const appUrl = window.location.origin;
+    const roleName = user.role === 'admin' ? 'Administrador' : 
+                     user.role === 'manager' ? 'Gerente Comercial' : 
+                     user.role === 'internal_seller' ? 'Vendedora Interna' :
+                     user.role === 'triagem' ? 'Triagem' :
+                     user.role === 'financial' ? 'Financeiro' :
+                     user.role === 'vendedor_padrao' ? 'Vendedor Padrão' : 'Vendedor Externo';
+
+    const isMobileOnly = user.email?.endsWith('@mobile.roder.com.br');
+    const isGoogle = user.email?.endsWith('@gmail.com') || 
+                     user.email?.endsWith('@roderbrasil.com.br') || 
+                     user.email?.endsWith('@roder.com.br');
+
+    // Effective password from explicit parameter or registered profile
+    const effectivePassword = (password !== undefined ? password : user.initial_password)?.trim();
+    const hasRegisteredPassword = !!effectivePassword && (includePassword !== false);
+
+    let loginMethodInfo = '';
+    let instructions = '';
+
+    if (isMobileOnly) {
+      loginMethodInfo = `📲 *Acesso via WhatsApp:*\n` +
+                        `• *Número de Telefone:* ${user.phone}`;
+      instructions = `1. Ao abrir o link do App, selecione a opção *"Acesso via WhatsApp"*.\n` +
+                     `2. Digite o seu número (${user.phone}) e clique em entrar.`;
+    } else if (hasRegisteredPassword) {
+      // User has a registered password: instruct login with email and password
+      loginMethodInfo = `🔑 *Dados de Acesso (Login e Senha):*\n` +
+                        `• *E-mail:* ${user.email}\n` +
+                        `• *Senha de Acesso:* ${effectivePassword}`;
+      instructions = `1. Ao abrir o link do App, selecione a opção *"E-mail e Senha"*.\n` +
+                     `2. Digite o seu e-mail (*${user.email}*) e a senha cadastrada informada acima (*${effectivePassword}*).\n` +
+                     `3. Clique no botão *"Entrar"* para acessar o sistema.`;
+      if (isGoogle) {
+        instructions += `\n\n💡 *Opção alternativa:* Se preferir, você também pode clicar no botão *"Google"* usando sua conta ${user.email}.`;
+      }
+    } else if (isGoogle) {
+      loginMethodInfo = `📧 *Acesso via Google:*\n` +
+                        `• *Conta Google:* ${user.email}`;
+      instructions = `1. Ao abrir o link do App, clique no botão *"Google"*.\n` +
+                     `2. Entre com sua conta ${user.email}.`;
+    } else {
+      loginMethodInfo = `📧 *Acesso via E-mail:*\n` +
+                        `• *E-mail:* ${user.email}`;
+      instructions = `1. Ao abrir o link do App, selecione a opção *"E-mail e Senha"*.\n` +
+                     `2. Digite o seu e-mail (*${user.email}*).\n` +
+                     `3. Caso ainda não tenha uma senha cadastrada, clique no link *"Esqueci minha senha"* para criá-la.`;
+    }
+
+    return `Olá *${user.name}*!\n\n` +
+      `Você foi cadastrado no sistema *RODER Indica V2* como *${roleName}*.\n\n` +
+      `🔗 *Link do App:* ${appUrl}\n\n` +
+      `${loginMethodInfo}\n\n` +
+      `*Instruções para o seu acesso:* \n` +
+      `${instructions}\n\n` +
+      `📌 *Dica:* No celular, toque no ícone de compartilhar e selecione "Adicionar à Tela de Início" para instalar o App.\n\n` +
+      `Qualquer dúvida, fale com a Luana!`;
+  };
+
+  const handleSetPasswordManually = async (shareAfterward = false) => {
     if (!passwordForUser.email || !passwordForUser.password || passwordForUser.password.length < 6) {
       toast.error('Informe um e-mail válido e uma senha com pelo menos 6 caracteres.');
       return;
@@ -1587,6 +1944,27 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
 
       if (data.success) {
         toast.success(data.message || 'Senha definida com sucesso!', { id: toastId });
+
+        // Update user doc in Firestore with initial_password
+        const targetUser = users.find(u => u.email?.toLowerCase().trim() === passwordForUser.email.toLowerCase().trim());
+        if (targetUser) {
+          try {
+            await updateDoc(doc(db, 'users', targetUser.uid), {
+              initial_password: passwordForUser.password,
+              updated_at: new Date().toISOString()
+            });
+            setUsers(prev => prev.map(u => u.uid === targetUser.uid ? { ...u, initial_password: passwordForUser.password } : u));
+          } catch (e) {
+            console.warn("Could not update Firestore initial_password on client:", e);
+          }
+
+          if (shareAfterward) {
+            const msg = buildWhatsAppInviteMessage(targetUser, passwordForUser.password, true);
+            openWhatsAppUrl(targetUser.phone, msg);
+            toast.success('WhatsApp aberto com a senha cadastrada!');
+          }
+        }
+
         // Small delay before closing to avoid React/DOM race conditions with sonner toast
         setTimeout(() => {
           setIsPasswordDialogOpen(false);
@@ -1602,8 +1980,6 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
       console.error("[PWD-SET] Client-side error:", error);
       toast.error('Erro ao processar: ' + (error.message || 'Erro inesperado'), { id: toastId });
     } finally {
-      // If success, we handle state reset in setTimeout
-      // If error, we need to reset loading state here
       const checkLoading = setTimeout(() => {
         setIsSettingPassword(false);
       }, 500);
@@ -1716,53 +2092,85 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
            u.email.toLowerCase().includes(searchTerm.toLowerCase());
   });
 
+  const handleConfirmShareWithPassword = async () => {
+    if (!shareUserModal) return;
+    setIsSharingViaWhatsApp(true);
+
+    try {
+      const trimmedPwd = sharePassword.trim();
+      const shouldSavePwd = shareIncludePassword && trimmedPwd.length >= 6;
+
+      // If a password was informed/changed, save it in Firestore and sync with Firebase Auth
+      if (shouldSavePwd && trimmedPwd !== shareUserModal.initial_password) {
+        // 1. Update Firestore
+        await updateDoc(doc(db, 'users', shareUserModal.uid), {
+          initial_password: trimmedPwd,
+          updated_at: new Date().toISOString()
+        });
+
+        // 2. Sync with Firebase Auth in background
+        try {
+          const token = await auth.currentUser?.getIdToken();
+          if (token && shareUserModal.email) {
+            const baseUrl = getApiBaseUrl();
+            await fetch(`${baseUrl}/api/admin/set-user-password`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                email: shareUserModal.email,
+                password: trimmedPwd,
+                token
+              })
+            });
+          }
+        } catch (authErr) {
+          console.warn('Auth sync notice:', authErr);
+        }
+
+        // Update local state
+        setUsers(prev => prev.map(u => u.uid === shareUserModal.uid ? { ...u, initial_password: trimmedPwd } : u));
+        toast.success('Senha salva e vinculada ao perfil do usuário!');
+      }
+
+      const msg = buildWhatsAppInviteMessage(shareUserModal, trimmedPwd, shareIncludePassword && trimmedPwd.length > 0);
+      openWhatsAppUrl(shareUserModal.phone, msg);
+      setShareUserModal(null);
+      toast.success('WhatsApp aberto com a mensagem de convite!');
+    } catch (err: any) {
+      toast.error('Erro ao processar: ' + err.message);
+    } finally {
+      setIsSharingViaWhatsApp(false);
+    }
+  };
+
   const handleShareAccess = (user: UserProfile) => {
-    const appUrl = window.location.origin;
-    const roleName = user.role === 'admin' ? 'Administrador' : 
-                     user.role === 'manager' ? 'Gerente Comercial' : 
-                     user.role === 'internal_seller' ? 'Vendedora Interna' :
-                     user.role === 'triagem' ? 'Triagem' :
-                     user.role === 'financial' ? 'Financeiro' :
-                     user.role === 'vendedor_padrao' ? 'Vendedor Padrão' : 'Vendedor Externo';
-
-    const cleanPhone = user.phone?.replace(/\D/g, '');
     const isMobileOnly = user.email?.endsWith('@mobile.roder.com.br');
-    const isGoogle = user.email?.endsWith('@gmail.com') || 
-                     user.email?.endsWith('@roderbrasil.com.br') || 
-                     user.email?.endsWith('@roder.com.br');
-
-    let loginMethodInfo = '';
-    let instructions = '';
 
     if (isMobileOnly) {
-      loginMethodInfo = `📲 *Acesso via WhatsApp:* Use o seu número ${user.phone}`;
-      instructions = `1. Ao abrir o link, escolha "Acesso via WhatsApp".\n` +
-                     `2. Digite seu número e entre.`;
-    } else if (isGoogle) {
-      loginMethodInfo = `📧 *Acesso via Google:* Use sua conta ${user.email}`;
-      instructions = `1. Ao abrir o link, clique no botão "Google".\n` +
-                     `2. Entre com sua conta ${user.email}.`;
-    } else {
-      loginMethodInfo = `📧 *Acesso via E-mail:* ${user.email}`;
-      instructions = `1. Ao abrir o link, selecione "E-mail e Senha".\n` +
-                     `2. Como é seu *primeiro acesso*, clique em "*Esqueci minha senha*" para criar sua senha pela primeira vez.\n` +
-                     `3. Você receberá um link no seu e-mail para definir a senha e poder entrar.`;
+      const msg = buildWhatsAppInviteMessage(user);
+      openWhatsAppUrl(user.phone, msg);
+      toast.success('Mensagem de convite gerada para WhatsApp!');
+      return;
     }
 
-    const message = `Olá *${user.name}*!\n\n` +
-      `Você foi cadastrado no sistema *RODER Indica V2* como *${roleName}*.\n\n` +
-      `🔗 *Link do App:* ${appUrl}\n\n` +
-      `${loginMethodInfo}\n\n` +
-      `*Instruções para o primeiro acesso:* \n` +
-      `${instructions}\n\n` +
-      `📌 *Dica:* No celular, toque no ícone de compartilhar e selecione "Adicionar à Tela de Início" para instalar o App.\n\n` +
-      `Qualquer dúvida, fale com a Luana!`;
-    
-    const encodedMessage = encodeURIComponent(message);
-    const whatsappUrl = `https://wa.me/${cleanPhone || ''}?text=${encodedMessage}`;
-    
-    window.open(whatsappUrl, '_blank');
-    toast.success('Mensagem de convite gerada para WhatsApp!');
+    // Only skip modal for internal Roder corporate accounts that have NO registered password
+    const isInternalRoderWithoutPassword = 
+      (user.email?.endsWith('@roderbrasil.com.br') || user.email?.endsWith('@roder.com.br')) && 
+      !user.initial_password;
+
+    if (isInternalRoderWithoutPassword) {
+      const msg = buildWhatsAppInviteMessage(user);
+      openWhatsAppUrl(user.phone, msg);
+      toast.success('Mensagem de convite gerada para WhatsApp!');
+      return;
+    }
+
+    // For all external sellers / indicators and any user with registered password:
+    setShareUserModal(user);
+    setSharePassword(user.initial_password || '');
+    setShareIncludePassword(true);
+    setShowSharePassword(false);
   };
 
   const handleResetPassword = async (email: string) => {
@@ -1966,6 +2374,19 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
                   <Brain className="h-4 w-4 shrink-0" /> <span>Cérebro IA</span>
                 </TabsTrigger>
               )}
+              {(isAdmin || isManager || realProfile?.email === 'roderbrasil@gmail.com') && (
+                <TabsTrigger 
+                  value="api_keys" 
+                  className={cn(
+                    "flex-1 flex items-center justify-center gap-2 py-3 px-4 text-[11px] md:text-xs font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer h-11",
+                    activeTab === 'api_keys' 
+                      ? "bg-emerald-600 text-white shadow-[0_4px_12px_rgba(16,185,129,0.3)] border border-emerald-600 scale-[1.02] z-10" 
+                      : "bg-transparent text-muted-foreground hover:text-foreground border border-transparent hover:bg-muted/30"
+                  )}
+                >
+                  <Code2 className="h-4 w-4 shrink-0" /> <span>Integrações (API)</span>
+                </TabsTrigger>
+              )}
             </TabsList>
           )}
           
@@ -2046,7 +2467,18 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
                                     )}
                                   </div>
                                 </div>
-                                <p className="text-[11px] text-muted-foreground truncate max-w-[150px]">{user.email}</p>
+                                <div className="flex items-center gap-1.5">
+                                  <p className="text-[11px] text-muted-foreground truncate max-w-[150px]">{user.email}</p>
+                                  {user.initial_password && (
+                                    <span 
+                                      title={`Senha cadastrada: ${user.initial_password}`} 
+                                      className="inline-flex items-center gap-0.5 px-1 py-0.2 text-[8px] font-mono bg-emerald-500/10 text-emerald-600 rounded border border-emerald-500/20 font-bold shrink-0"
+                                    >
+                                      <Key className="h-2 w-2" />
+                                      <span>Senha OK</span>
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="lg:hidden mt-0.5 flex items-center gap-1">
                                   <Badge variant="secondary" className="text-[8px] px-1 h-3 capitalize">
                                     {user.role}
@@ -2198,7 +2630,7 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
                                     size="icon" 
                                     className="h-7 w-7 text-indigo-600 hover:bg-indigo-500/10" 
                                     onClick={() => {
-                                      setPasswordForUser({ email: user.email || '', password: '', name: user.name });
+                                      setPasswordForUser({ email: user.email || '', password: user.initial_password || '', name: user.name });
                                       setIsPasswordDialogOpen(true);
                                     }}
                                     title="Definir Senha Manualmente"
@@ -2247,6 +2679,7 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
                                       is_commissionable: user.is_commissionable !== false,
                                       status: user.status || 'active',
                                       pix_key: user.pix_key || '',
+                                      initial_password: user.initial_password || '',
                                       bank_info: user.bank_info || { bank: '', agency: '', account: '' },
                                       permissions: {
                                         sidebar: user.permissions?.sidebar || {},
@@ -2278,6 +2711,7 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
                                     is_commissionable: user.is_commissionable !== false,
                                     status: user.status || 'active',
                                     pix_key: user.pix_key || '',
+                                    initial_password: user.initial_password || '',
                                     bank_info: user.bank_info || { bank: '', agency: '', account: '' },
                                     permissions: {
                                       sidebar: user.permissions?.sidebar || {},
@@ -2317,6 +2751,11 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
                             <p className={`font-bold text-[13px] ${user.status === 'inactive' ? 'text-slate-400' : 'text-foreground'} truncate leading-tight`}>{user.name}</p>
                             <div className="flex items-center gap-1 mt-0.5">
                               <p className="text-[10px] text-muted-foreground truncate">{user.email}</p>
+                              {user.initial_password && (
+                                <span title={`Senha cadastrada: ${user.initial_password}`} className="inline-flex items-center gap-0.5 px-1 text-[8px] font-mono bg-emerald-500/10 text-emerald-600 rounded border border-emerald-500/20 font-bold shrink-0">
+                                  <Key className="h-2 w-2" />
+                                </span>
+                              )}
                               <Badge className={`h-3 px-1 text-[8px] font-black ${
                                 (userActivity[user.uid]?.indications || 0) > 0 
                                   ? "bg-green-500 hover:bg-green-600" 
@@ -2387,7 +2826,7 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
                               size="icon" 
                               className="h-7 w-7 text-indigo-600" 
                               onClick={() => {
-                                setPasswordForUser({ email: user.email || '', password: '', name: user.name });
+                                setPasswordForUser({ email: user.email || '', password: user.initial_password || '', name: user.name });
                                 setIsPasswordDialogOpen(true);
                               }}
                               disabled={user.email?.endsWith('@mobile.roder.com.br')}
@@ -2412,7 +2851,7 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
                                 monthly_salary: user.monthly_salary || 0, assigned_regions: user.assigned_regions || [],
                                 is_lead_receiver: user.is_lead_receiver || false, is_commissionable: user.is_commissionable !== false,
                                 status: user.status || 'active',
-                                pix_key: user.pix_key || '', bank_info: user.bank_info || { bank: '', agency: '', account: '' },
+                                pix_key: user.pix_key || '', initial_password: user.initial_password || '', bank_info: user.bank_info || { bank: '', agency: '', account: '' },
                                 permissions: {
                                   sidebar: user.permissions?.sidebar || {},
                                   dashboard_cards: user.permissions?.dashboard_cards || {},
@@ -3689,6 +4128,290 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* ABA INTEGRAÇÕES E CHAVES DE API */}
+          <TabsContent value="api_keys" className="space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card p-6 rounded-2xl border border-border shadow-sm">
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    <Code2 className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black uppercase tracking-tight text-foreground flex items-center gap-2">
+                      Integrações & Chaves de API
+                    </h2>
+                    <p className="text-xs text-muted-foreground font-medium">
+                      Conecte outros aplicativos e sistemas externos para ler em tempo real o Estoque Roder e Catálogo.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setGuideSelectedKey(null);
+                    setIsGuideDialogOpen(true);
+                  }}
+                  className="border-emerald-600/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 font-bold h-10 px-4 rounded-xl flex items-center gap-2 shadow-sm transition-all"
+                >
+                  <BookOpen className="h-4 w-4 text-emerald-600" />
+                  <span>Orientações de Uso da Chave</span>
+                </Button>
+
+                <Button
+                  onClick={() => setIsApiKeyDialogOpen(true)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 px-4 rounded-xl flex items-center gap-2 shadow-sm transition-all"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Nova Chave de API</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Banner de Orientação para Integrações Externas */}
+            <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5">
+                  <AlertCircle className="h-5 w-5" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-amber-900 dark:text-amber-300">
+                      Instrução para conectar em outro aplicativo
+                    </h3>
+                    <Badge className="bg-amber-500/20 text-amber-800 dark:text-amber-300 border-amber-500/30 text-[10px] font-bold">
+                      Observação
+                    </Badge>
+                  </div>
+                  <p className="text-sm font-bold text-amber-950 dark:text-amber-100">
+                    Copie as orientações e coloque no aplicativo que vai ler a chave.
+                  </p>
+                  <p className="text-xs text-amber-900/80 dark:text-amber-200/80 leading-relaxed">
+                    Ao levar a chave de API para outro aplicativo, envie junto o roteiro técnico de conexão. O outro sistema precisa saber o endereço da API e o formato do cabeçalho <code className="font-mono font-bold bg-amber-500/15 px-1 py-0.5 rounded">x-api-key</code>.
+                  </p>
+                </div>
+              </div>
+
+              <div className="shrink-0 flex items-center gap-2">
+                <Button
+                  onClick={() => {
+                    setGuideSelectedKey(apiKeys[0] || null);
+                    setIsGuideDialogOpen(true);
+                  }}
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-bold h-9 px-4 rounded-xl text-xs flex items-center gap-2 shadow-sm transition-all w-full md:w-auto"
+                >
+                  <BookOpen className="h-4 w-4" />
+                  <span>Ver & Copiar Orientações</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Guia Rápido do Endpoint para Aplicativos Externos */}
+            <Card className="bg-muted/30 border-dashed border-emerald-500/30">
+              <CardContent className="p-5 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-emerald-600 text-white text-[10px] font-black uppercase">
+                      GET
+                    </Badge>
+                    <span className="font-mono text-xs font-semibold text-foreground select-all">
+                      {(window.location.origin.includes('ais-dev-') ? window.location.origin.replace('ais-dev-', 'ais-pre-') : window.location.origin)}/api/v1/stock
+                    </span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => copyToClipboard(`${(window.location.origin.includes('ais-dev-') ? window.location.origin.replace('ais-dev-', 'ais-pre-') : window.location.origin)}/api/v1/stock`)}
+                    className="h-8 text-xs font-semibold flex items-center gap-1.5"
+                  >
+                    {copiedEndpoint ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                    <span>{copiedEndpoint ? "Copiado!" : "Copiar URL Pública"}</span>
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  <strong className="text-foreground">URL Pública (sem login do Google):</strong> A URL acima utiliza o domínio público compartilhado (<code className="font-mono font-bold text-emerald-600">ais-pre-*.run.app</code>), permitindo que aplicativos externos acessem diretamente via API Key sem redirecionar para a tela de login do Google. Faça a requisição com o cabeçalho <code className="bg-background px-1.5 py-0.5 rounded text-[11px] font-mono text-emerald-600 font-bold">x-api-key: SUA_CHAVE</code>.
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Lista de Chaves Ativas */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                  <Key className="h-4 w-4 text-emerald-600" />
+                  <span>Chaves Configuradas ({apiKeys.length})</span>
+                </h3>
+              </div>
+
+              {loadingApiKeys ? (
+                <Card className="p-12 flex flex-col items-center justify-center gap-3 text-muted-foreground">
+                  <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+                  <p className="text-xs font-medium">Carregando chaves de integração...</p>
+                </Card>
+              ) : apiKeys.length === 0 ? (
+                <Card className="p-12 text-center space-y-4 border-dashed">
+                  <div className="p-3 w-fit mx-auto rounded-full bg-muted">
+                    <Key className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <h4 className="text-base font-bold text-foreground">Nenhuma chave de API gerada</h4>
+                    <p className="text-xs text-muted-foreground max-w-md mx-auto mt-1">
+                      Crie sua primeira chave para conectar o outro aplicativo. Você pode nomear o app e escolher se ele enxerga o Estoque, Catálogo ou outros dados.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => setIsApiKeyDialogOpen(true)}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
+                  >
+                    <Plus className="h-4 w-4 mr-1" /> Criar Primeira Chave
+                  </Button>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 gap-4">
+                  {apiKeys.map((k) => (
+                    <Card key={k.id} className={cn("transition-all border", !k.active && "opacity-60 bg-muted/20 border-dashed")}>
+                      <CardContent className="p-5 space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2.5 flex-wrap">
+                              <h4 className="font-black text-sm text-foreground uppercase tracking-tight">
+                                {k.name}
+                              </h4>
+                              {k.active ? (
+                                <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-[10px] font-black uppercase">
+                                  Ativa & Conectada
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary" className="text-[10px] font-black uppercase">
+                                  Pausada / Bloqueada
+                                </Badge>
+                              )}
+                              <span className="text-[11px] text-muted-foreground">
+                                Criada em {new Date(k.created_at).toLocaleDateString('pt-BR')} por {k.created_by}
+                              </span>
+                            </div>
+                            {k.last_used_at ? (
+                              <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                <Activity className="h-3 w-3 text-emerald-500" />
+                                <span>Última sincronização externa: <strong>{new Date(k.last_used_at).toLocaleString('pt-BR')}</strong></span>
+                              </p>
+                            ) : (
+                              <p className="text-[11px] text-amber-600/80 font-medium">
+                                Nenhuma requisição recebida ainda com esta chave.
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleToggleApiKeyStatus(k.id, k.active)}
+                              className={cn(
+                                "h-8 text-xs font-bold gap-1.5 transition-colors",
+                                k.active ? "hover:bg-amber-50 hover:text-amber-700" : "hover:bg-emerald-50 hover:text-emerald-700"
+                              )}
+                            >
+                              <Power className="h-3.5 w-3.5" />
+                              <span>{k.active ? "Pausar Acesso" : "Ativar Acesso"}</span>
+                            </Button>
+
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteApiKey(k.id, k.name)}
+                              className="h-8 w-8 p-0 text-muted-foreground hover:text-red-600 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Visualizador da Chave com Botão Copiar e Orientações */}
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 bg-background p-2.5 rounded-xl border border-border">
+                          <code className="font-mono text-xs text-foreground font-semibold flex-1 overflow-hidden text-ellipsis whitespace-nowrap select-all">
+                            {k.key}
+                          </code>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setGuideSelectedKey(k);
+                                setIsGuideDialogOpen(true);
+                              }}
+                              className="h-8 px-3 text-xs font-bold border-emerald-600/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 flex items-center gap-1.5"
+                            >
+                              <BookOpen className="h-3.5 w-3.5 text-emerald-600" />
+                              <span>Orientações</span>
+                            </Button>
+
+                            <Button
+                              size="sm"
+                              onClick={() => copyToClipboard(k.key, k.id)}
+                              className="h-8 px-3 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5"
+                            >
+                              {copiedKeyId === k.id ? (
+                                <>
+                                  <Check className="h-3.5 w-3.5" />
+                                  <span>Copiada!</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="h-3.5 w-3.5" />
+                                  <span>Copiar Chave</span>
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Módulos e Permissões Compartilhadas */}
+                        <div className="pt-2 border-t border-border/60 flex flex-wrap items-center gap-4 text-xs">
+                          <span className="font-bold text-muted-foreground uppercase text-[10px] tracking-wider">
+                            O que este app enxerga:
+                          </span>
+
+                          <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={k.permissions?.stock !== false}
+                              onChange={() => handleTogglePermission(k.id, 'stock', k.permissions?.stock !== false)}
+                              className="rounded border-border text-emerald-600 focus:ring-emerald-500 h-3.5 w-3.5 cursor-pointer"
+                            />
+                            <span className="font-medium text-foreground">Estoque Roder (Fábrica & Sinop)</span>
+                          </label>
+
+                          <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={!!k.permissions?.catalog}
+                              onChange={() => handleTogglePermission(k.id, 'catalog', !!k.permissions?.catalog)}
+                              className="rounded border-border text-emerald-600 focus:ring-emerald-500 h-3.5 w-3.5 cursor-pointer"
+                            />
+                            <span className="font-medium text-foreground">Catálogo de Equipamentos</span>
+                          </label>
+
+                          <label className="flex items-center gap-1.5 cursor-pointer select-none opacity-60">
+                            <input
+                              type="checkbox"
+                              checked={!!k.permissions?.leads}
+                              onChange={() => handleTogglePermission(k.id, 'leads', !!k.permissions?.leads)}
+                              className="rounded border-border text-emerald-600 focus:ring-emerald-500 h-3.5 w-3.5 cursor-pointer"
+                            />
+                            <span className="font-medium text-foreground">Indicações / Vendas</span>
+                          </label>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          </TabsContent>
         </Tabs>
 
         {/* Edit Teaching Dialog */}
@@ -3875,7 +4598,7 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-6">
                     <div className="space-y-2">
                       <Label htmlFor="company_name" className="text-[10px] md:text-xs font-black uppercase tracking-wider text-muted-foreground opacity-70">Nome Fantasia / Empresa / Revenda</Label>
                       <Input 
@@ -3904,6 +4627,19 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
                         onChange={(e) => setFormData({...formData, phone: maskPhone(e.target.value)})}
                         className="bg-background border-border text-xs md:text-sm h-10 px-3 font-bold text-foreground"
                         placeholder="(00) 00000-0000"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="initial_password" className="text-[10px] md:text-xs font-black uppercase tracking-wider text-muted-foreground opacity-70 flex items-center justify-between">
+                        <span>Senha de Acesso</span>
+                        <span className="text-[9px] lowercase text-muted-foreground font-normal">opcional</span>
+                      </Label>
+                      <Input 
+                        id="initial_password" 
+                        value={formData.initial_password} 
+                        onChange={(e) => setFormData({...formData, initial_password: e.target.value})}
+                        className="bg-background border-border text-xs md:text-sm h-10 px-3 font-mono font-semibold text-foreground"
+                        placeholder="Ex: Roder@2025"
                       />
                     </div>
                   </div>
@@ -4134,25 +4870,28 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
 
         {/* Manual Password Dialog */}
         <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
-          <DialogContent className="bg-card border-border text-card-foreground max-w-sm">
+          <DialogContent className="bg-card border-border text-card-foreground max-w-md">
             <DialogHeader>
-              <DialogTitle>Definir Senha Manual</DialogTitle>
+              <DialogTitle className="flex items-center gap-2">
+                <Key className="h-5 w-5 text-primary" />
+                <span>Definir Senha Manual</span>
+              </DialogTitle>
               <DialogDescription>
-                Esta ação criará ou atualizará o acesso de e-mail/senha para <strong>{passwordForUser.name}</strong>.
+                Defina ou atualize a senha de acesso para <strong>{passwordForUser.name}</strong>.
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="target-email">E-mail do Usuário</Label>
+            <div className="space-y-4 py-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="target-email" className="text-xs font-semibold">E-mail do Usuário</Label>
                 <Input 
                   id="target-email"
                   value={passwordForUser.email || ''}
                   disabled
-                  className="bg-muted opacity-70"
+                  className="bg-muted opacity-70 font-mono text-xs"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="manual-password">Nova Senha</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="manual-password" className="text-xs font-semibold">Senha de Acesso</Label>
                 <div className="relative">
                   <Input 
                     id="manual-password"
@@ -4160,33 +4899,399 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
                     placeholder="Mínimo 6 caracteres"
                     value={passwordForUser.password}
                     onChange={(e) => setPasswordForUser({...passwordForUser, password: e.target.value})}
-                    className="bg-background border-border"
+                    className="bg-background border-border pr-10 font-mono"
                   />
                   <button 
                     type="button"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     onClick={() => setShowPassword(!showPassword)}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
-                <p className="text-[10px] text-muted-foreground uppercase font-bold">
-                  * Informe esta senha para o usuário via WhatsApp.
-                </p>
+                {passwordForUser.password && passwordForUser.password.length >= 6 ? (
+                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+                    ✅ Senha pronta para salvar e enviar ao usuário.
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-muted-foreground">
+                    A senha deve ter no mínimo 6 caracteres.
+                  </p>
+                )}
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsPasswordDialogOpen(false)} disabled={isSettingPassword}>Cancelar</Button>
-              <Button 
-                onClick={handleSetPasswordManually} 
-                disabled={isSettingPassword || passwordForUser.password.length < 6}
-                className="bg-primary text-primary-foreground font-black uppercase tracking-widest"
-              >
-                <span className="flex items-center justify-center">
-                  {isSettingPassword ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Key className="h-4 w-4 mr-2" />}
-                  <span>Confirmar Senha</span>
-                </span>
+            <DialogFooter className="flex flex-col sm:flex-row gap-2 pt-2">
+              <Button variant="outline" onClick={() => setIsPasswordDialogOpen(false)} disabled={isSettingPassword} className="sm:w-auto w-full">
+                Cancelar
               </Button>
+              <Button 
+                variant="outline"
+                onClick={() => handleSetPasswordManually(false)} 
+                disabled={isSettingPassword || passwordForUser.password.length < 6}
+                className="border-primary text-primary font-bold uppercase text-xs sm:w-auto w-full"
+              >
+                {isSettingPassword ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Key className="h-4 w-4 mr-1.5" />}
+                <span>Apenas Salvar</span>
+              </Button>
+              <Button 
+                onClick={() => handleSetPasswordManually(true)} 
+                disabled={isSettingPassword || passwordForUser.password.length < 6}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-wider text-xs sm:w-auto w-full flex items-center justify-center gap-1.5"
+              >
+                {isSettingPassword ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <MessageCircle className="h-4 w-4 mr-1.5" />}
+                <span>Salvar e Enviar WhatsApp</span>
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* WhatsApp Access Share Dialog */}
+        <Dialog open={!!shareUserModal} onOpenChange={(open) => !open && setShareUserModal(null)}>
+          <DialogContent className="bg-card border-border text-card-foreground max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-lg">
+                <Share2 className="h-5 w-5 text-emerald-500" />
+                <span>Compartilhar Acesso via WhatsApp</span>
+              </DialogTitle>
+              <DialogDescription>
+                Enviar mensagem de convite e dados de acesso para <strong>{shareUserModal?.name}</strong>.
+              </DialogDescription>
+            </DialogHeader>
+
+            {shareUserModal && (
+              <div className="space-y-4 py-2">
+                {/* User Info card */}
+                <div className="bg-muted/40 p-3 rounded-lg border border-border space-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground font-semibold">Usuário:</span>
+                    <span className="font-bold text-foreground">{shareUserModal.name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground font-semibold">E-mail:</span>
+                    <span className="font-mono text-foreground">{shareUserModal.email}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground font-semibold">WhatsApp:</span>
+                    <span className="font-medium text-foreground">{shareUserModal.phone || 'Não informado'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground font-semibold">Papel:</span>
+                    <span className="capitalize text-foreground font-medium">{shareUserModal.role}</span>
+                  </div>
+                </div>
+
+                {/* Password options */}
+                <div className="space-y-3 p-3 bg-card rounded-lg border border-border">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="include-pwd-toggle" className="text-xs font-bold uppercase cursor-pointer">
+                        Enviar com Senha Cadastrada
+                      </Label>
+                      <p className="text-[10px] text-muted-foreground">
+                        {shareIncludePassword 
+                          ? 'O usuário receberá a senha cadastrada e entrará direto com E-mail e Senha.' 
+                          : 'O usuário receberá instrução para criar a senha pelo botão "Esqueci minha senha".'}
+                      </p>
+                    </div>
+                    <Switch
+                      id="include-pwd-toggle"
+                      checked={shareIncludePassword}
+                      onCheckedChange={setShareIncludePassword}
+                    />
+                  </div>
+
+                  {shareIncludePassword && (
+                    <div className="space-y-2 pt-2 border-t border-border">
+                      <Label htmlFor="share-pwd-input" className="text-xs font-bold">
+                        Senha Cadastrada do Usuário
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id="share-pwd-input"
+                          type={showSharePassword ? "text" : "password"}
+                          placeholder="Digite a senha cadastrada para o usuário (mínimo 6 dígitos)"
+                          value={sharePassword}
+                          onChange={(e) => setSharePassword(e.target.value)}
+                          className="bg-background border-border pr-10 font-mono text-sm"
+                        />
+                        <button
+                          type="button"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          onClick={() => setShowSharePassword(!showSharePassword)}
+                        >
+                          {showSharePassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        {shareUserModal.initial_password 
+                          ? '✅ Senha salva no cadastro deste usuário.' 
+                          : '💡 Ao enviar o convite, esta senha será salva e vinculada ao perfil do usuário.'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Message Live Preview */}
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <MessageCircle className="h-3.5 w-3.5 text-emerald-500" />
+                    <span>Prévia da Mensagem (WhatsApp)</span>
+                  </Label>
+                  <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-xs font-sans whitespace-pre-wrap text-emerald-950 dark:text-emerald-100 max-h-48 overflow-y-auto leading-relaxed select-text">
+                    {buildWhatsAppInviteMessage(
+                      shareUserModal, 
+                      sharePassword.trim(), 
+                      shareIncludePassword && sharePassword.trim().length > 0
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <DialogFooter className="flex flex-col sm:flex-row gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setShareUserModal(null)}
+                disabled={isSharingViaWhatsApp}
+                className="sm:w-auto w-full"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleConfirmShareWithPassword}
+                disabled={isSharingViaWhatsApp || (shareIncludePassword && sharePassword.trim().length < 6)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold sm:w-auto w-full flex items-center justify-center gap-2"
+              >
+                {isSharingViaWhatsApp ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Salvando...</span>
+                  </>
+                ) : (
+                  <>
+                    <MessageCircle className="h-4 w-4" />
+                    <span>Abrir WhatsApp com este Convite</span>
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal: Gerar Nova Chave de API */}
+        <Dialog open={isApiKeyDialogOpen} onOpenChange={setIsApiKeyDialogOpen}>
+          <DialogContent className="bg-card border-border text-card-foreground max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-lg font-black uppercase tracking-tight">
+                <Code2 className="h-5 w-5 text-emerald-600" />
+                <span>Nova Chave de Integração</span>
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Gere uma chave para seu outro aplicativo ler o Estoque Roder em tempo real.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Nome do Aplicativo ou Destino
+                </Label>
+                <Input
+                  placeholder="Ex: Meu App de Vendas, Sistema Externo, Portal..."
+                  value={newKeyName}
+                  onChange={(e) => setNewKeyName(e.target.value)}
+                  className="bg-background border-border"
+                />
+              </div>
+
+              <div className="space-y-2 pt-2 border-t border-border">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
+                  Permissões do Aplicativo
+                </Label>
+                <div className="space-y-2.5">
+                  <label className="flex items-start gap-2.5 p-2.5 rounded-xl border border-border/80 bg-muted/20 hover:bg-muted/40 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newKeyPermissions.stock}
+                      onChange={(e) => setNewKeyPermissions(prev => ({ ...prev, stock: e.target.checked }))}
+                      className="mt-0.5 rounded border-border text-emerald-600 focus:ring-emerald-500 h-4 w-4 cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-xs font-bold text-foreground block">Estoque Roder (Fábrica e Sinop)</span>
+                      <span className="text-[11px] text-muted-foreground block">
+                        Permite consultar todos os equipamentos, quantidades físicas e disponíveis calculadas.
+                      </span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-2.5 p-2.5 rounded-xl border border-border/80 bg-muted/20 hover:bg-muted/40 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newKeyPermissions.catalog}
+                      onChange={(e) => setNewKeyPermissions(prev => ({ ...prev, catalog: e.target.checked }))}
+                      className="mt-0.5 rounded border-border text-emerald-600 focus:ring-emerald-500 h-4 w-4 cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-xs font-bold text-foreground block">Catálogo de Equipamentos</span>
+                      <span className="text-[11px] text-muted-foreground block">
+                        Permite consultar fichas técnicas, modelos, fotos e especificações de catálogo.
+                      </span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="flex flex-col sm:flex-row gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsApiKeyDialogOpen(false)}
+                disabled={generatingKey}
+                className="sm:w-auto w-full"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleGenerateApiKey}
+                disabled={generatingKey || !newKeyName.trim()}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold sm:w-auto w-full flex items-center justify-center gap-2"
+              >
+                {generatingKey ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Gerando Chave...</span>
+                  </>
+                ) : (
+                  <>
+                    <Key className="h-4 w-4" />
+                    <span>Criar Chave de API</span>
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal: Orientações de Uso da Chave de API */}
+        <Dialog open={isGuideDialogOpen} onOpenChange={setIsGuideDialogOpen}>
+          <DialogContent className="bg-card border-border text-card-foreground max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden shadow-2xl">
+            <DialogHeader className="p-6 bg-gradient-to-r from-emerald-700 to-teal-800 text-white shrink-0">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <DialogTitle className="text-lg font-black uppercase tracking-tight flex items-center gap-2">
+                    <BookOpen className="h-5 w-5 text-emerald-300" />
+                    <span>Orientações de Uso da Chave API</span>
+                  </DialogTitle>
+                  <DialogDescription className="text-emerald-100/90 text-xs">
+                    {guideSelectedKey ? `Configuração personalizada para o app "${guideSelectedKey.name}"` : 'Instruções e documentação técnica para conectar aplicativos externos'}
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              {/* Observação solicitada pelo usuário com destaque visual */}
+              <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3">
+                <div className="p-2 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0">
+                  <AlertCircle className="h-5 w-5" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                    Atenção / Observação Importante
+                  </h4>
+                  <p className="text-xs text-amber-900 dark:text-amber-200 leading-relaxed font-semibold">
+                    Copie as orientações e coloque no aplicativo que vai ler a chave.
+                  </p>
+                  <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80 leading-relaxed">
+                    Todo desenvolvedor ou sistema precisa saber onde enviar a chave (no cabeçalho <code className="font-mono font-bold bg-amber-500/10 px-1 py-0.5 rounded">x-api-key</code>) e a URL do endpoint para conseguir consultar o estoque ou catálogo em tempo real.
+                  </p>
+                </div>
+              </div>
+
+              {/* Informações da chave atual */}
+              {guideSelectedKey && (
+                <div className="p-3 bg-muted/40 rounded-xl border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="space-y-0.5">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground block">
+                      Aplicativo / Chave Selecionada
+                    </span>
+                    <span className="text-xs font-bold text-foreground">
+                      {guideSelectedKey.name}
+                    </span>
+                  </div>
+                  <code className="font-mono text-xs text-emerald-600 dark:text-emerald-400 font-bold bg-background px-2.5 py-1.5 rounded-lg border border-border">
+                    {guideSelectedKey.key}
+                  </code>
+                </div>
+              )}
+
+              {/* Bloco de Texto Completo Pronto para Copiar */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-black uppercase tracking-wider text-muted-foreground">
+                    Texto com Orientações Técnicas (Pronto para Copiar)
+                  </Label>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      const text = generateGuideText(guideSelectedKey);
+                      navigator.clipboard.writeText(text);
+                      setCopiedGuideText(true);
+                      toast.success("Orientações copiadas com sucesso!");
+                      setTimeout(() => setCopiedGuideText(false), 2500);
+                    }}
+                    className="h-8 px-3 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5"
+                  >
+                    {copiedGuideText ? (
+                      <>
+                        <Check className="h-3.5 w-3.5" />
+                        <span>Orientações Copiadas!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3.5 w-3.5" />
+                        <span>Copiar Orientações</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                <textarea
+                  readOnly
+                  value={generateGuideText(guideSelectedKey)}
+                  className="w-full h-64 p-3.5 rounded-xl bg-muted/50 border border-border font-mono text-[11px] leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/20 text-foreground"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="p-4 bg-muted/30 border-t border-border flex flex-col sm:flex-row justify-between items-center gap-2">
+              <span className="text-[11px] text-muted-foreground italic">
+                Dica: você pode colar este texto no Prompt da IA ou no arquivo de instruções do outro app.
+              </span>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsGuideDialogOpen(false)}
+                  className="h-9 px-4 text-xs font-bold w-full sm:w-auto"
+                >
+                  Fechar
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    const text = generateGuideText(guideSelectedKey);
+                    navigator.clipboard.writeText(text);
+                    setCopiedGuideText(true);
+                    toast.success("Orientações copiadas com sucesso!");
+                    setTimeout(() => setCopiedGuideText(false), 2500);
+                  }}
+                  className="h-9 px-4 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-1.5 w-full sm:w-auto"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  <span>{copiedGuideText ? "Copiado!" : "Copiar Tudo"}</span>
+                </Button>
+              </div>
             </DialogFooter>
           </DialogContent>
         </Dialog>

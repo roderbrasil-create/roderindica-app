@@ -45,8 +45,8 @@ import { toast } from 'sonner';
 export default function IAManual() {
   const { profile, user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
-  const [accessories, setAccessories] = useState<Accessory[]>(ACCESSORIES_DATA);
-  const [kits, setKits] = useState<InstallationKit[]>(INSTALLATION_KITS);
+  const [accessories, setAccessories] = useState<any[]>(ACCESSORIES_DATA);
+  const [kits, setKits] = useState<any[]>(INSTALLATION_KITS);
   const [guidelines, setGuidelines] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'compatibility' | 'productivity' | 'hydraulics' | 'specs' | 'accessories_kits' | 'catalog' | 'guidelines' | 'prompt'>('overview');
@@ -1082,9 +1082,9 @@ REGRAS DE COMPATIBILIDADE E DIMENSIONAMENTO:
                         (acc.suporte_destocador && acc.suporte_destocador.toLowerCase().includes(term))
                       );
                     })
-                    .map((acc, aIdx) => (
+                    .map((acc: any, aIdx: number) => (
                       <div
-                        key={acc.id || aIdx}
+                        key={acc.id || `${acc.brand}-${acc.model}-${aIdx}`}
                         className="p-3.5 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 hover:border-orange-500/50 transition-all space-y-2.5 shadow-xs"
                       >
                         <div className="flex items-center justify-between">

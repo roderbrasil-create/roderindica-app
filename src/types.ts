@@ -30,6 +30,7 @@ export interface UserProfile {
   vacation_end?: string;
   contract_accepted?: boolean;
   contract_accepted_at?: string;
+  initial_password?: string;
   sidebar_order?: string[];
   created_at: string;
   updated_at?: string;
@@ -158,8 +159,33 @@ export interface Indication {
   indicator_id?: string;
   shared_by_seller_email?: string;
   shared_by_seller_name?: string;
+
+  // Origin & Referring Client (Cliente Indicador / Promotor)
+  origin_type?: 'partner' | 'client_referral' | 'direct';
+  referring_client_name?: string;
+  referring_client_phone?: string;
+  referring_client_notes?: string;
+  is_client_referral?: boolean;
+  created_by_uid?: string;
+  created_by_name?: string;
+  created_by_role?: string;
+
   created_at: string;
   updated_at: string;
+}
+
+export interface ReferringClient {
+  id: string;
+  name: string;
+  phone?: string;
+  company_or_city?: string;
+  notes?: string;
+  referral_count: number;
+  last_referral_at?: string;
+  created_by_uid?: string;
+  created_by_name?: string;
+  created_at: string;
+  updated_at?: string;
 }
 
 export interface Commission {
@@ -466,5 +492,20 @@ export interface AITeaching {
   timestamp: string;
   source: string;
   author: string;
+}
+
+export interface RoderApiKey {
+  id: string;
+  name: string;
+  key: string;
+  active: boolean;
+  created_at: string;
+  created_by?: string;
+  last_used_at?: string;
+  permissions: {
+    stock: boolean;
+    catalog?: boolean;
+    leads?: boolean;
+  };
 }
 

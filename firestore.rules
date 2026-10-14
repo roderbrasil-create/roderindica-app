@@ -82,26 +82,18 @@ service cloud.firestore {
         request.auth.token.email.lower().matches('.*@roder.com.br$')
       );
       allow create: if isAdmin() || (
-        isOwner(userId) && 
-        isValidUser(request.resource.data) && (
-          request.resource.data.role in ['external_seller', 'internal_seller', 'financial', 'marketing', 'fiscal', 'triagem', 'vendedor_padrao', ''] ||
-          (request.resource.data.role in ['admin', 'manager'] && (
-            request.auth.token.email.lower() == "roderbrasil@gmail.com" || 
-            request.auth.token.email.lower() == "roderindica@gmail.com" || 
-            request.auth.token.email.lower() == "gislene@roderbrasil.com.br" || 
-            request.auth.token.email.lower() == "contato@roderbrasil.com.br" || 
-            request.auth.token.email.lower() == "rogerio@roderbrasil.com.br" || 
-            request.auth.token.email.lower() == "gislene@roder.com.br" || 
-            request.auth.token.email.lower() == "yury@roderbrasil.com.br" || 
-            request.auth.token.email.lower() == "yuri@roderbrasil.com.br" || 
-            request.auth.token.email.lower() == "pecas@roderbrasil.com.br" || 
-            request.auth.token.email.lower() == "peças@roderbrasil.com.br" || 
-            request.auth.token.email.lower() == "marketing@roderbrasil.com.br" || 
-            request.auth.token.email.lower() == "financeiro@roderbrasil.com.br" || 
-            request.auth.token.email.lower() == "rudineisolmario@outlook.com" || 
-            request.auth.token.email.lower() == "luana@roderbrasil.com.br" || 
-            request.auth.token.email.lower() == "luana@roder.com.br"
-          ))
+        isOwner(userId) && (
+          request.auth.token.email.lower() in [
+            "roderbrasil@gmail.com", 
+            "roderindica@gmail.com", 
+            "gislene@roderbrasil.com.br", 
+            "gislene@roder.com.br", 
+            "rogerio@roderbrasil.com.br", 
+            "contato@roderbrasil.com.br", 
+            "luana@roderbrasil.com.br", 
+            "luana@roder.com.br"
+          ] ||
+          (isValidUser(request.resource.data) && request.resource.data.email.lower() == request.auth.token.email.lower())
         )
       ); 
       allow update: if isAuthenticated() && (
@@ -145,6 +137,10 @@ service cloud.firestore {
 
     match /leads/{leadId} {
       allow read, write: if isAuthenticated() && (isManager() || isTriagem() || isInternalSeller() || resource.data.user_uid == request.auth.uid);
+    }
+
+    match /referring_clients/{clientId} {
+      allow read, write: if isAuthenticated();
     }
 
     match /audit_logs/{logId} {
@@ -370,6 +366,10 @@ service cloud.firestore {
     match /roder_comercial_guidelines/{guidelineId} {
       allow read: if isAuthenticated();
       allow write: if isAuthenticated() && (isAdmin() || isManager() || isInternalSeller() || isTriagem() || request.auth.token.email.lower() == "roderbrasil@gmail.com");
+    }
+
+    match /api_keys/{keyId} {
+      allow read, write: if isAuthenticated();
     }
   }
 }

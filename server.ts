@@ -291,6 +291,242 @@ async function startServer() {
     }
   });
 
+  // =========================================================================
+  // EXTERNAL INTEGRATION API (RODER API KEYS)
+  // Endpoints consumíveis por aplicativos externos via Chave de API
+  // =========================================================================
+  
+  // Helper to validate API Key and check permissions
+  async function validateRoderApiKey(req: express.Request, requiredPermission: 'stock' | 'catalog' | 'leads') {
+    const rawKey = req.headers['x-api-key'] || req.headers['authorization'] || req.query.api_key;
+    if (!rawKey) {
+      return { valid: false, status: 401, error: 'Chave de API não fornecida. Envie via cabeçalho x-api-key ou Authorization: Bearer <chave>.' };
+    }
+
+    const token = typeof rawKey === 'string' && rawKey.startsWith('Bearer ') 
+      ? rawKey.slice(7).trim() 
+      : String(rawKey).trim();
+
+    try {
+      const keysQuery = await db.collection('api_keys')
+        .where('key', '==', token)
+        .where('active', '==', true)
+        .limit(1)
+        .get();
+
+      if (keysQuery.empty) {
+        return { valid: false, status: 403, error: 'Chave de API inválida, inativa ou revogada.' };
+      }
+
+      const keyDoc = keysQuery.docs[0];
+      const keyData = keyDoc.data();
+
+      // Check permission
+      if (requiredPermission && keyData.permissions && keyData.permissions[requiredPermission] === false) {
+        return { valid: false, status: 403, error: `Esta chave de API não possui permissão para acessar o módulo: ${requiredPermission}.` };
+      }
+
+      // Update last_used_at non-blockingly
+      keyDoc.ref.update({
+        last_used_at: new Date().toISOString()
+      }).catch(err => console.warn('[API-KEY] Error updating last_used_at:', err.message));
+
+      return { valid: true, keyData: { id: keyDoc.id, ...(keyData as any) } };
+    } catch (err: any) {
+      console.error('[API-KEY] Error validating API key:', err.message);
+      return { valid: false, status: 500, error: 'Falha ao autenticar chave de API no servidor.', keyData: null as any };
+    }
+  }
+
+  // GET /api/v1/stock - Lista completa do Estoque Roder (Fábrica, Sinop, Importações FAE)
+  app.get("/api/v1/stock", async (req, res) => {
+    // Enable CORS for third-party apps
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, x-api-key, Authorization');
+
+    const authCheck = await validateRoderApiKey(req, 'stock');
+    if (!authCheck.valid) {
+      return res.status(authCheck.status || 401).json({
+        success: false,
+        error: authCheck.error
+      });
+    }
+
+    try {
+      // Optional branch filter: 'fabrica' | 'sinop' | 'all'
+      const branchFilter = String(req.query.branch || 'all').toLowerCase();
+
+      // 1. Fetch Stock Items
+      const stockSnap = await db.collection('stock_items').get();
+      const rawStockItems = stockSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+
+      // 2. Fetch Active Reservations to compute true available stock
+      const resSnap = await db.collection('stock_reservations')
+        .where('status', '==', 'active')
+        .get();
+      const activeReservations = resSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+
+      // 3. Fetch FAE Imports
+      const faeSnap = await db.collection('stock_imports_fae').get();
+      const faeImports = faeSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+
+      // Process and structure items
+      const processedItems = rawStockItems.map(item => {
+        const itemReservations = activeReservations.filter(r => r.stock_item_id === item.id);
+        const reservedCount = itemReservations.reduce((acc, r) => acc + (Number(r.quantity_reserved) || 0), 0);
+        const physicalQty = Number(item.quantity) || 0;
+        const availableQty = Math.max(0, physicalQty - reservedCount);
+        const itemBranch = (item.branch || '').toLowerCase() === 'sinop' ? 'sinop' : 'fabrica';
+
+        return {
+          id: item.id,
+          code: item.code || '',
+          description: item.description || '',
+          physical_quantity: physicalQty,
+          available_quantity: availableQty,
+          reserved_quantity: reservedCount,
+          reservations_count: itemReservations.length,
+          branch: itemBranch,
+          branch_name: itemBranch === 'sinop' ? 'Sinop (MT)' : 'Fábrica (Matriz)',
+          source: item.source || 'roder',
+          updated_at: item.updated_at || null
+        };
+      });
+
+      // Filter by branch if requested
+      const filteredItems = processedItems.filter(item => {
+        if (branchFilter === 'fabrica') return item.branch === 'fabrica';
+        if (branchFilter === 'sinop') return item.branch === 'sinop';
+        return true;
+      });
+
+      // Group into Fábrica, Sinop and FAE
+      const fabricaItems = processedItems.filter(i => i.branch === 'fabrica');
+      const sinopItems = processedItems.filter(i => i.branch === 'sinop');
+      const faeProcessed = faeImports.map(f => ({
+        id: f.id,
+        code: f.code || '',
+        description: f.description || '',
+        quantity: Number(f.quantity) || 0,
+        embarque: f.embarque || '',
+        chegada: f.chegada || '',
+        created_at: f.created_at || null,
+        updated_at: f.updated_at || null
+      }));
+
+      return res.json({
+        success: true,
+        company: "RODER Brasil",
+        timestamp: new Date().toISOString(),
+        app_name: authCheck.keyData?.name || 'External App',
+        summary: {
+          total_fabrica_items: fabricaItems.length,
+          total_sinop_items: sinopItems.length,
+          total_fae_imports: faeProcessed.length,
+          total_active_reservations: activeReservations.length
+        },
+        data: {
+          fabrica: fabricaItems,
+          sinop: sinopItems,
+          fae_imports: faeProcessed,
+          all_items: filteredItems
+        }
+      });
+    } catch (err: any) {
+      console.error("[API-STOCK] Error reading stock data:", err.message);
+      return res.status(500).json({
+        success: false,
+        error: "Erro interno ao processar dados de estoque."
+      });
+    }
+  });
+
+  // POST /api/v1/api-keys/generate - Gerar nova Chave de API de forma segura
+  app.post("/api/v1/api-keys/generate", async (req, res) => {
+    try {
+      const { name, permissions, created_by } = req.body;
+      if (!name || typeof name !== 'string' || name.trim().length === 0) {
+        return res.status(400).json({ success: false, error: 'O nome do aplicativo ou destino é obrigatório.' });
+      }
+
+      // Generate random secure token
+      const randomHex = Array.from({ length: 24 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+      const apiKey = `rod_live_${randomHex}`;
+
+      const keyDoc = {
+        name: name.trim(),
+        key: apiKey,
+        active: true,
+        created_at: new Date().toISOString(),
+        created_by: created_by || 'Admin',
+        last_used_at: null,
+        permissions: {
+          stock: permissions?.stock !== false,
+          catalog: !!permissions?.catalog,
+          leads: !!permissions?.leads
+        }
+      };
+
+      const docRef = await db.collection('api_keys').add(keyDoc);
+
+      return res.json({
+        success: true,
+        key: {
+          id: docRef.id,
+          ...keyDoc
+        }
+      });
+    } catch (err: any) {
+      console.error("[API-KEYS] Error generating API key:", err.message);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // GET /api/v1/api-keys - Listar todas as chaves cadastradas
+  app.get("/api/v1/api-keys", async (req, res) => {
+    try {
+      const snap = await db.collection('api_keys').orderBy('created_at', 'desc').get();
+      const keys = snap.docs.map(d => ({
+        id: d.id,
+        ...d.data()
+      }));
+      return res.json({ success: true, keys });
+    } catch (err: any) {
+      console.error("[API-KEYS] Error listing API keys:", err.message);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // PATCH /api/v1/api-keys/:id - Atualizar status ou permissões da chave
+  app.patch("/api/v1/api-keys/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { active, permissions } = req.body;
+      const keyRef = db.collection('api_keys').doc(id);
+      const updateData: any = {};
+      if (typeof active === 'boolean') updateData.active = active;
+      if (permissions) updateData.permissions = permissions;
+
+      await keyRef.update(updateData);
+      return res.json({ success: true });
+    } catch (err: any) {
+      console.error("[API-KEYS] Error updating API key:", err.message);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // DELETE /api/v1/api-keys/:id - Excluir chave de API
+  app.delete("/api/v1/api-keys/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await db.collection('api_keys').doc(id).delete();
+      return res.json({ success: true });
+    } catch (err: any) {
+      console.error("[API-KEYS] Error deleting API key:", err.message);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   app.post("/api/parse-kits-pdf", async (req, res) => {
     try {
       const { fileBase64, rawText } = req.body;
@@ -298,89 +534,260 @@ async function startServer() {
 
       if (fileBase64) {
         try {
-          const pdfParse = customRequire("pdf-parse");
-          const cleanBase64 = fileBase64.replace(/^data:application\/pdf;base64,/, '');
-          const buffer = Buffer.from(cleanBase64, 'base64');
-          const pdfData = await pdfParse(buffer);
-          text = pdfData.text || "";
+          const { PDFParse } = customRequire("pdf-parse");
+          if (PDFParse) {
+            const cleanBase64 = fileBase64.replace(/^data:application\/pdf;base64,/, '');
+            const buffer = Buffer.from(cleanBase64, 'base64');
+            const parser = new PDFParse({ data: buffer });
+            const pdfData = await parser.getText();
+            text = pdfData?.text || "";
+          }
         } catch (pdfErr: any) {
           console.error("[PARSE-PDF] Error parsing PDF buffer with pdf-parse:", pdfErr.message);
+        }
+
+        // Multimodal AI Fallback if pdf-parse failed or extracted empty/sparse text
+        if (!text || text.trim().length < 20) {
+          try {
+            const ai = getGenAI();
+            if (ai) {
+              console.log("[PARSE-PDF] Triggering Gemini 2.5 Flash direct PDF multimodal parser...");
+              const cleanBase64 = fileBase64.replace(/^data:application\/pdf;base64,/, '');
+              const response = await ai.models.generateContent({
+                model: "gemini-2.5-flash",
+                contents: [
+                  {
+                    role: "user",
+                    parts: [
+                      {
+                        inlineData: {
+                          mimeType: "application/pdf",
+                          data: cleanBase64
+                        }
+                      },
+                      {
+                        text: `Você é um extrator especialista de relatórios DBCorp PCR de kits de instalação de máquinas florestais da Roder Máquinas.
+Analise com máxima precisão este documento PDF e extraia todos os Kits de Instalação e seus respectivos itens componentes.
+
+Cada kit possui:
+- code: código oficial do kit (formato XXXX.XXXX.XXXX, por exemplo 9000.9000.9000 até 9000.9000.9060 ou similar)
+- description: descrição do kit de instalação
+- items: lista de peças/itens contidos no kit, com:
+  - code: código da peça (XXXX.XXXX.XXXX)
+  - description: descrição da peça
+  - quantity: quantidade numérica (ex: 1, 2, 4)
+
+Retorne estritamente um array JSON com os kits encontrados:
+[
+  {
+    "code": "9000.9000.9000",
+    "description": "KIT INSTALACAO DESTOCADOR EM ESCAVADEIRA...",
+    "items": [
+      { "code": "5000.1001.0016", "description": "CAIXA ELETRICA...", "quantity": 1 }
+    ]
+  }
+]`
+                      }
+                    ]
+                  }
+                ],
+                config: {
+                  responseMimeType: "application/json"
+                }
+              });
+
+              const aiJson = response.text?.trim();
+              if (aiJson) {
+                const parsedAiKits = JSON.parse(aiJson);
+                if (Array.isArray(parsedAiKits) && parsedAiKits.length > 0) {
+                  console.log(`[PARSE-PDF] Gemini successfully extracted ${parsedAiKits.length} kits directly from PDF!`);
+                  return res.json({
+                    success: true,
+                    count: parsedAiKits.length,
+                    kits: parsedAiKits
+                  });
+                }
+              }
+            }
+          } catch (geminiPdfErr: any) {
+            console.error("[PARSE-PDF] Gemini direct PDF parse error:", geminiPdfErr.message);
+          }
         }
       }
 
       if (!text || text.trim().length === 0) {
-        return res.status(400).json({ error: "Nenhum texto ou arquivo PDF válido recebido." });
+        return res.status(400).json({ error: "Nenhum texto ou arquivo PDF legível recebido. Você também pode colar o texto do relatório diretamente." });
       }
 
-      // Robust kit parser
+      // Robust kit parser supporting multi-line wrapped text from DBCorp PCR reports
       const kitsMap = new Map<string, { code: string; description: string; items: { code: string; description: string; quantity: number }[] }>();
 
       const lines = text.split(/\r?\n/);
       let currentKitCode: string | null = null;
+      let pendingItem: { code: string; descParts: string[]; qty?: number } | null = null;
+
+      const flushPendingItem = () => {
+        if (pendingItem && currentKitCode && kitsMap.has(currentKitCode)) {
+          const itemCode = pendingItem.code;
+          const cleanDesc = pendingItem.descParts.join(' ').replace(/\s+/g, ' ').trim();
+          const qty = pendingItem.qty !== undefined && !isNaN(pendingItem.qty) ? pendingItem.qty : 1;
+          const currentKit = kitsMap.get(currentKitCode)!;
+          const existingIdx = currentKit.items.findIndex(it => it.code === itemCode);
+          if (existingIdx >= 0) {
+            currentKit.items[existingIdx] = { code: itemCode, description: cleanDesc || currentKit.items[existingIdx].description, quantity: qty };
+          } else {
+            currentKit.items.push({ code: itemCode, description: cleanDesc, quantity: qty });
+          }
+        }
+        pendingItem = null;
+      };
 
       for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
+        let line = lines[i].trim();
         if (!line) continue;
 
-        // Skip report metadata lines
+        // Skip report headers/footers
         if (
           line.startsWith('Roder Máquinas') ||
           line.startsWith('Quant. Item Pai') ||
           line.includes('DBCorp PCR') ||
           line.startsWith('Nível Nº Item') ||
           line.startsWith('Filtros:') ||
-          line.includes('Relatório de Estruturas')
+          line.includes('Relatório de Estruturas') ||
+          line === 'Item' || line === 'Item UN Versão' || line === 'UN' || line === 'Versão'
         ) {
           continue;
         }
 
-        // Check for kit header line, e.g. "9000.9000.9000 KIT INSTALACAO DESTOCADOR EM ESCAVADEIRA..."
-        const kitMatch = line.match(/(9000\.\d{4}\.\d{4})\s+(.+?)(?:\s+UN\s+\d+|\s+UN|$)/i);
-        if (kitMatch && !line.match(/\d{4}\.\d{4}\.\d{4}\s+.+?\s+(UN|PC|MT|PAR)\s+[\d,]+/i)) {
+        // Check for kit header line (code 9000.9000.9xxx or general kit code)
+        const kitMatch = line.match(/(9000\.\d{4}\.\d{4}|\d{4}\.\d{4}\.\d{4})\s*(.*)/i);
+        const isChildItem = line.match(/\d{4}\.\d{4}\.\d{4}\s+.+?\s+(UN|PC|MT|PAR)\s+[\d,]+/i) || line.match(/^\d+\s+\d+\s+\d{4}\.\d{4}\.\d{4}/);
+
+        if (kitMatch && !isChildItem) {
+          flushPendingItem();
           const code = kitMatch[1].trim();
-          let desc = kitMatch[2].trim();
+          let desc = (kitMatch[2] || '').trim();
           desc = desc.replace(/^Item\s+UN\s+Versão\s+/i, '').replace(/\s+UN\s*\d*$/i, '').trim();
+
+          // Check if next line is continuation of kit title (before any item line)
+          let nextLineIdx = i + 1;
+          while (nextLineIdx < lines.length) {
+            const nextL = lines[nextLineIdx].trim();
+            if (!nextL) { nextLineIdx++; continue; }
+            if (nextL.match(/^Nível/i) || nextL.match(/^\d+\s+\d+\s+\d{4}\.\d{4}\.\d{4}/) || nextL.match(/^(?:9000|\d{4})\.\d{4}\.\d{4}/)) {
+              break;
+            }
+            if (!nextL.match(/DBCorp|Roder|Quant\.|Filtros/i)) {
+              const cleanNext = nextL.replace(/\s+UN\s*\d*$/i, '').replace(/^UN\s*\d*$/i, '').trim();
+              if (cleanNext && cleanNext !== '1' && cleanNext !== 'UN') {
+                desc = (desc + ' ' + cleanNext).trim();
+              }
+            }
+            i = nextLineIdx;
+            nextLineIdx++;
+            break;
+          }
 
           currentKitCode = code;
           if (!kitsMap.has(code)) {
             kitsMap.set(code, { code, description: desc, items: [] });
-          } else if (desc && kitsMap.get(code)!.description !== desc) {
+          } else if (desc) {
             kitsMap.get(code)!.description = desc;
           }
           continue;
         }
 
-        // Check for item row line in active kit
-        if (currentKitCode && kitsMap.has(currentKitCode)) {
-          const itemMatch = line.match(/(\d{4}\.\d{4}\.\d{4})\s+(.+?)\s+(UN|PC|MT|PAR)\s+([\d]+(?:[,\.]\d+)?)/i);
-          if (itemMatch) {
-            const itemCode = itemMatch[1].trim();
-            if (itemCode !== currentKitCode) {
-              let itemDesc = itemMatch[2].trim();
-              const qty = parseFloat(itemMatch[4].replace(',', '.'));
+        // Check for item row: starts with e.g. "1 1 5000.1001.0016" or "5000.1001.0016"
+        const itemStartMatch = line.match(/(?:^|\s)(\d{4}\.\d{4}\.\d{4})\s*(.*)/);
+        if (itemStartMatch && currentKitCode) {
+          const itemCode = itemStartMatch[1].trim();
+          if (itemCode === currentKitCode) continue;
 
-              const currentKit = kitsMap.get(currentKitCode)!;
-              const existingIdx = currentKit.items.findIndex(it => it.code === itemCode);
-              if (existingIdx >= 0) {
-                currentKit.items[existingIdx] = {
-                  code: itemCode,
-                  description: itemDesc,
-                  quantity: isNaN(qty) ? 1 : qty
-                };
-              } else {
-                currentKit.items.push({
-                  code: itemCode,
-                  description: itemDesc,
-                  quantity: isNaN(qty) ? 1 : qty
-                });
-              }
-            }
+          flushPendingItem();
+          let rest = itemStartMatch[2].trim();
+          let qty: number | undefined;
+
+          const unitQtyMatch = rest.match(/(.*?)\s+(UN|PC|MT|PAR)\s+([\d]+(?:[,\.]\d+)?)/i);
+          if (unitQtyMatch) {
+            const descPart = unitQtyMatch[1].trim();
+            qty = parseFloat(unitQtyMatch[3].replace(',', '.'));
+            pendingItem = { code: itemCode, descParts: descPart ? [descPart] : [], qty };
+            flushPendingItem();
+          } else {
+            pendingItem = { code: itemCode, descParts: rest ? [rest] : [] };
+          }
+          continue;
+        }
+
+        // Continuation of pending item description or quantity
+        if (pendingItem) {
+          const unitQtyMatch = line.match(/(.*?)\s*(?:UN|PC|MT|PAR)\s+([\d]+(?:[,\.]\d+)?)/i);
+          if (unitQtyMatch) {
+            const descPart = unitQtyMatch[1].trim();
+            if (descPart) pendingItem.descParts.push(descPart);
+            pendingItem.qty = parseFloat(unitQtyMatch[2].replace(',', '.'));
+            flushPendingItem();
+          } else if (!line.match(/^\d+\/\d+\/\d{4}$/) && !line.match(/^[\d\s]+$/)) {
+            pendingItem.descParts.push(line);
           }
         }
       }
+      flushPendingItem();
 
-      const parsedKits = Array.from(kitsMap.values());
-      console.log(`[PARSE-PDF] Extracted ${parsedKits.length} kits from PDF/text.`);
+      let parsedKits = Array.from(kitsMap.values());
+      console.log(`[PARSE-PDF] Local regex extracted ${parsedKits.length} kits from text.`);
+
+      // If regex found 0 kits but we have text, trigger Gemini text structuring fallback
+      if (parsedKits.length === 0 && text.trim().length > 30) {
+        try {
+          const ai = getGenAI();
+          if (ai) {
+            console.log("[PARSE-PDF] Local regex found 0 kits. Running Gemini text structuring...");
+            const response = await ai.models.generateContent({
+              model: "gemini-2.5-flash",
+              contents: [
+                {
+                  role: "user",
+                  parts: [
+                    {
+                      text: `Abaixo está o texto de um relatório de kits de instalação da Roder Máquinas (DBCorp PCR).
+Identifique e extraia todos os Kits de Instalação e suas respectivas peças/itens componentes.
+
+Texto do relatório:
+${text.slice(0, 80000)}
+
+Retorne um array JSON no formato exato:
+[
+  {
+    "code": "9000.9000.9000",
+    "description": "KIT INSTALACAO...",
+    "items": [
+      { "code": "5000.1001.0016", "description": "CAIXA ELETRICA...", "quantity": 1 }
+    ]
+  }
+]`
+                    }
+                  ]
+                }
+              ],
+              config: {
+                responseMimeType: "application/json"
+              }
+            });
+
+            const aiJson = response.text?.trim();
+            if (aiJson) {
+              const aiKits = JSON.parse(aiJson);
+              if (Array.isArray(aiKits) && aiKits.length > 0) {
+                console.log(`[PARSE-PDF] Gemini successfully extracted ${aiKits.length} kits from text!`);
+                parsedKits = aiKits;
+              }
+            }
+          }
+        } catch (aiTextErr: any) {
+          console.error("[PARSE-PDF] Gemini text structuring error:", aiTextErr.message);
+        }
+      }
 
       res.json({
         success: true,
@@ -1529,8 +1936,9 @@ async function startServer() {
                 "CMF 600": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-cabecote-multifuncional.jpg.webp",
                 "CMF 500": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-cabecote-multifuncional.jpg.webp",
                 "CMF 800": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-cabecote-multifuncional.jpg.webp",
-                "Garra Florestal": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-garra-florestal.jpg.webp",
-                "Gavras Florestais": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-garra-florestal.jpg.webp",
+                "Garra Florestal": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Garra-florestal-1.jpg.webp",
+                "Gavras Florestais": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Garra-florestal-1.jpg.webp",
+                "Garra de Carregamento": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Garra-florestal-1.jpg.webp",
                 "Feller de Disco": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-feller-de-disco.jpg.webp",
                 "Destocador Tipo Broca": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/destocador.jpg.webp",
                 "Feller Tesoura": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Feller-Tesoura.jpg.webp",
@@ -1701,16 +2109,19 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
         - Quando citar qualquer uma dessas garras (R400, R600, R800) em suas respostas ou relatórios, você é OBRIGADO a exibir as especificações técnicas completas de cada modelo presentes no catálogo (especificando peso, abertura máxima, área de carga, diâmetro mínimo de tora e pressão de trabalho).
         - Você DEVE obrigatoriamente incluir a imagem correspondente da garra florestal Roder no texto e no relatório usando a sintaxe Markdown:
           
-          ![Garra Florestal Roder](https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-garra-florestal.jpg.webp)
+          ![Garra Florestal Roder](https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Garra-florestal-1.jpg.webp)
           
           (Insira a imagem em sua própria linha, com uma quebra de linha antes e depois, para renderizar perfeitamente no chat e no relatório).
         - **Indicação da Garra R800**: Explique que para este porte de máquina (16 toneladas), também é possível colocar a Garra R800. Destaque que alguns clientes utilizam a Garra R800 especificamente para realizar o carregamento de madeira curta de no máximo 3 metros de comprimento.
         - **Indicação da Garra R600**: Destaque que para madeiras mais longas, como por exemplo madeira de 6 metros de comprimento, a Garra R600 é uma excelente escolha técnica para a operação de carregamento, pois garante melhor equilíbrio da carga e ótima estabilidade para a máquina base de 16t.
         - **Indicação da Garra R400**: Destaque que a Garra R400, por ser um pouco menor e mais leve, é a mais indicada para realizar o abastecimento e alimentação de picadores de biomassa/madeira. Explique que o volume de madeira não pode ser excessivo para a boca de alimentação do picador, e a garra R400 por não ser tão grande trabalha de forma mais ágil e versátil, evitando bater ou colidir fisicamente com a boca/calha de alimentação do picador durante as manobras.
-   - DIRETRIZ CRÍTICA DE ROTATOR HIDRÁULICO PARA GARRAS FLORESTAIS:
-     • Quando falar ou indicar garras florestais, você deve sempre lembrar e destacar no texto que a Roder indica e dimensiona o **Rotator hidráulico** (o mecanismo que realiza o giro de 360° da garra) de acordo com o tamanho/peso operacional da MÁQUINA BASE que será utilizada, e NÃO somente verificando a compatibilidade da garra!
-     • Explique didaticamente ao vendedor: "Tão importante quanto o tamanho da garra é o tamanho/peso operacional da máquina base para o cálculo correto da recomendação do Rotator hidráulico."
-     • ATENÇÃO À GRAFIA: O termo correto é estritamente **Rotator** (com "t"). NUNCA use o termo "Rotador" sob nenhuma hipótese.
+    - DIRETRIZ CRÍTICA DE ROTATOR HIDRÁULICO PARA GARRAS FLORESTAIS:
+      • Quando falar ou indicar garras florestais, você deve sempre lembrar e destacar no texto que a Roder indica e dimensiona o **Rotator hidráulico** (o mecanismo que realiza o giro de 360° da garra) de acordo com o tamanho/peso operacional da MÁQUINA BASE que será utilizada.
+      • **CAPACIDADES E ERRO COMUM**: **NÃO existe rotor de 15 t**. Para máquinas de grande porte (20 a 22 toneladas, como CAT 320), os rotatores adequados são de **12 t ou 16 t**.
+      • **RECOMENDAÇÃO PRIORITÁRIA (16 t)**: Deve-se dar preferência absoluta ao **Rotator de 16 t**, pois possui o mesmo preço do de 12 t e é o modelo mantido em estoque com maior frequência.
+      • **Rotatores para Garras Traçadoras (Porte Médio e Grande)**: Há duas opções principais: 1) **Rotator IR10**; ou 2) **Rotor de giro livre RR550-7** (Capacidade 55t, swivel 7 passagens, giro livre ilimitado).
+      • **COMPATIBILIDADE RR550-7**: O Rotator RR550-7 é indicado estritamente para as garras **GT 600X e modelos acima**.
+      • ATENÇÃO À GRAFIA: O termo correto é estritamente **Rotator** (com "t"). NUNCA use o termo "Rotador" sob nenhuma hipótese.
    - DIRETRIZ CRÍTICA PARA INSTALAÇÃO DE GARRA EM ESCAVADEIRAS SEM FATIA EXTRA DE COMANDO (MUITO IMPORTANTE):
       • Se o vendedor perguntar sobre a instalação de garras em escavadeiras que **NÃO** possuem a fatia extra de comando original (como Komatsu PC200, Komatsu PC210, Volvo 200 ou qualquer outro modelo sem fatia extra original):
         - **Solução Técnico-Oficial**: Explique que a instalação da garra é totalmente viável utilizando o **Kit de Instalação de Garra para Máquinas sem Fatia Extra - Código 9000.9000.9016**.
@@ -1867,15 +2278,12 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
       - **Aplicação e Consulta para Vendedores**: Quando algum vendedor ou cliente perguntar qual é o suporte para o Sacador SAC 500, Feller Tesoura ou Destocador para uma escavadeira de pino de 80 mm (ou qualquer escavadeira cadastrada), você pode consultar a escavadeira base no sistema, verificar o diâmetro do pino/medidas e entregar o código de projeto baseado na tabela de **suportes de destocador** cadastrados.
       - Já o suporte para trituradores (**suporte triturador**) — específico para os trituradores italianos FAE, que a Roder representa — possui suportes específicos para cada modelo/máquina. **O suporte triturador NÃO é o mesmo suporte destocador**.
     - **Link para Garra com Biela (Instalação Prática de Garra Florestal)**:
-      - Explique ao vendedor/cliente que **SIM, é perfeitamente possível e muito recomendado instalar a garra florestal com o sistema de link** ao invés de utilizar a ponteira padrão florestal.
-      - **Objetivo/Facilidade de Intercambiabilidade**: A montagem com link é extremamente prática e facilita muito para o cliente que precisa substituir periodicamente a garra pela concha (caçamba) original da máquina (ex: para fazer serviços de terraplanagem com a concha e, quando precisar, colocar a garra para trabalhar com madeira). É um modo extremamente prático e fácil para alternar entre garra e concha.
-      - **Como funciona a montagem**: Esta montagem permite que **não seja necessária a retirada do cilindro da concha e dos links originais da concha**. O link é montado utilizando os próprios links e o cilindro da concha original, incluindo a montagem com os mesmos pinos originais da concha. O link possui uma biela que pendura a garra.
-      - **Instalação Hidráulica e Kit Específico**: Como a utilização do link para trabalhar com a garra necessita de uma dinâmica operacional diferente, a instalação hidráulica para o uso do sistema de link é diferente da instalação padrão com ponteira. O kit de instalação possui um código de cadastro específico para montagem de todas as linhas hidráulicas utilizando o link para garra florestal.
-      - **Parâmetros de Códigos de Peças (Escavadeiras de 22t com pino de 80mm)**:
-        * Código do Link para Garra Florestal: **1000.0000.0120 - Link Garra Biela 4 para maquinas pino 80mm**.
-        * Código do Kit de Instalação Hidráulica: **9000.9000.9015 - KIT INSTALACAO GARRA + LINK EM ESCAVADEIRA - (MAQUINA COM FATIA EXTRA SEM LINHA)**.
-        * **Requisito Crítico do Comando**: É estritamente obrigatório que a escavadeira possua **fatia extra com as 2 válvulas de pressão no comando hidráulico** para a perfeita regulagem.
-      - **Acoplamento e Troca das Mangueiras (Uso de Engates Rápidos)**: As quatro mangueiras hidráulicas que realizam as funções de abrir/fechar garra e a rotação do rotator são conectadas por **engates rápidos de face plana (flat-face quick couplers)**. Eles facilitam imensamente o engate e o desengate das mangueiras de forma limpa e sem perda de óleo no momento em que for necessário retirar a garra para voltar a concha (caçamba) original na máquina.
+      - **REGRA DE FILTRO**: Se o usuário NÃO perguntou especificamente sobre o "link", **NUNCA** mencione o código do link ou o kit de instalação para link. Seja direto e responda apenas o solicitado (Ponteira).
+      - **Quando o Link é Solicitado**: Explique que é possível e facilite a troca rápida com a concha original.
+      - **Códigos de Link (Escavadeiras 22t pino 80mm)**: Link **1000.0000.0120** e Kit Hidráulico **9000.9000.9015**.
+      - **Instalação com Ponteira (Padrão)**: Se a pergunta for sobre instalação com ponteira (ou se "link" não for mencionado), indique o item: **"Kit de instalação garra em escavadeira, máquina com fatia extra, sem linha"**.
+      - **Identificação de Kits**: Os kits para garra/CMF/traçadora que NÃO mencionam "link" referem-se automaticamente à montagem com ponteira.
+      - **Acoplamento**: Use engates rápidos flat-face para facilitar a troca.
     - **Compatibilidade e Diretrizes de Escavadeiras com Harvester ou Linha F (Florestal) de Fábrica**:
       - **Incompatibilidade Direta com Outros Equipamentos**: Escavadeiras configuradas/preparadas para Harvester florestal **NÃO** são compatíveis com outros acessórios florestais (garras de carregamento, garras traçadoras, cabeçotes multifuncionais, feller tesoura, feller de disco, desbastador, triturador, etc.) sem modificações profundas e irreversíveis.
       - **Como Funcionam as Linhas do Harvester**: O Harvester é alimentado por uma linha de pressão de alto fluxo com a união do fluxo das duas bombas hidráulicas da escavadeira. Essa única linha de alta pressão alimenta diretamente o Harvester, o qual possui um bloco de comando próprio no cabeçote com várias válvulas solenoides para distribuir o óleo para todas as funções do equipamento. Da escavadeira vêm apenas: 1 linha de pressão de alto fluxo, 1 linha de retorno de alto fluxo (com filtro para o tanque), 1 linha de dreno de carcaça e 1 chicote elétrico de comando. No Harvester, o rotator (giro do cabeçote) é acionado por solenoides internas no cabeçote ou, em alguns modelos, derivado da linha de escavação da caçamba da escavadeira.
@@ -1911,15 +2319,12 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
 
 14. BASE DE CONHECIMENTO ADICIONAL: GARRA CA vs CB E CONFIGURAÇÃO DE ROTATOR (CONHECIMENTO VALIOSO):
     - **Diferença entre Garras CA e CB de qualquer tamanho**:
-      • O modelo CA significa cabeçote alto, feito e fabricado especificamente para montagem com o rotator modelo IR10, da marca Indexer.
-      • As garras cabeçote baixo, modelo CB, são para montagem com rotators de 12 e 16 toneladas, podendo ser da marca Indexer ou Baltrotters, que são as duas marcas parceiras com as quais a Roder trabalha.
-      • Essa marca do rotator CB vai depender do que a Roder tiver disponível no estoque no momento. Não é uma escolha que o cliente faz por marca, mas sim o que a Roder tem de melhor e mais adequado disponível no momento da venda.
-      • **REGRA DE COMUNICAÇÃO**: Você não precisa e NÃO deve ficar explicando isso sobre a altura CA ou CB nos textos de forma espontânea. Apenas use e explique este conhecimento detalhadamente de forma direta se algum usuário perguntar explicitamente qual é o porquê ou qual a diferença entre garras CA e CB.
+      • O modelo CA significa cabeçote alto, feito e fabricado especificamente para montagem com o **Rotator modelo IR10**. (Clientes que buscam trabalho intenso geralmente preferem o IR10, mas é uma escolha do cliente ou indicação técnica).
+      • O modelo CB significa cabeçote baixo, feito especificamente para montagem com os **Rotatores de 12 e 16 toneladas**.
+      • **REGRA DE OURO**: O rotator depende do modelo que o cliente quer. Se o cliente prefere rotator IR10, a garra deve ser do Modelo CA (Cabeçote Alto). Se ele quer rotator de 12 ou 16 toneladas, a garra deve ser do padrão CB (Cabeçote Baixo).
+      • **SILÊNCIO POR PADRÃO (REGRA DE COMUNICAÇÃO)**: Você **NÃO** deve ficar falando sobre a preferência pelo IR10 ou as diferenças entre CA e CB de forma espontânea. Traga este assunto apenas se houver necessidade técnica real na indicação, se o usuário perguntar especificamente sobre o rotator ou se houver dúvidas sobre o acoplamento.
     - **Preferência e Configurações de Rotator**:
-      • Para as garras de tamanho R800 para cima (R800, R1000, R1200, R1400) acopladas em escavadeiras, normalmente o padrão preferido e ideal de mercado é o uso do Rotator IR10.
-      • Para a garra R600, a escolha do rotator varia conforme a preferência da operação do cliente: alguns clientes preferem o rotator IR10, e outros preferem o rotator normal de 12t ou 16t.
-      • Essa escolha varia por conveniência do cliente, portanto, não fique trazendo essa discussão espontaneamente. Deixe isso a cargo do vendedor interno, que fará o orçamento correto de acordo com a máquina ou disponibilidade do estoque no momento.
-      • Por exemplo: se tivermos a garra R800 CA em estoque, vamos oferecê-la para venda com o rotator IR10. Mas se não tivermos a garra CA no estoque no momento, para não perder a venda, podemos perfeitamente vender e oferecer a garra R800 CB com o rotator de 16 toneladas, que pode ser montada normalmente e funcionará perfeitamente.
+      • Deixe a escolha final a cargo do vendedor interno, que fará o orçamento correto de acordo com a máquina ou disponibilidade do estoque no momento.
 
 15. EQUIPAMENTOS PARA TRATORES, MINI SKIDDERS E CARRETAS DE ARRASTE CLAMBUNK (REGRAS CRÍTICAS DE ENGENHARIA E COMUNICAÇÃO):
     - **Atenção Máxima**: Nossos equipamentos para tratores são muito reduzidos. Não crie uma expectativa de que temos uma ampla linha de produtos para tratores.
@@ -3492,6 +3897,25 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         }
       }
 
+      // 3. Update Firestore users collection with initial_password
+      try {
+        const usersRef = db.collection('users');
+        const userQuery = await usersRef.where('email', '==', email.toLowerCase().trim()).get();
+        if (!userQuery.empty) {
+          const batch = db.batch();
+          userQuery.docs.forEach(docSnap => {
+            batch.update(docSnap.ref, {
+              initial_password: password,
+              updated_at: new Date().toISOString()
+            });
+          });
+          await batch.commit();
+          console.log(`[AUTH-ADMIN] Updated Firestore users doc for ${email} with initial_password`);
+        }
+      } catch (dbUpdateErr: any) {
+        console.warn("[AUTH-ADMIN] Non-fatal: could not update Firestore initial_password:", dbUpdateErr.message);
+      }
+
       return res.json({ success: true, message: `Senha definida com sucesso para ${email}.` });
     } catch (err: any) {
       console.error("[AUTH-ADMIN] FATAL ERROR:", err);
@@ -4474,8 +4898,8 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       const availableSellers = usersSnap.docs
         .map(d => ({ uid: d.id, ...d.data() } as any))
         .filter(u => {
-          // Check role or specific names (monali, heloisa, yury)
-          const isSellerRole = u.role === 'internal_seller' || 
+          // Check role or specific names (Monali, Heloísa, Yury)
+          const isSellerRole = u.role === 'internal_seller' || u.role === 'triagem' || 
             ['monali', 'heloisa', 'yury'].some(name => u.name?.toLowerCase().includes(name));
           
           if (!isSellerRole) return false;

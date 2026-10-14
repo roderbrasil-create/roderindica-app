@@ -55,7 +55,10 @@ function PrivateRoute({ children, roles }: { children: React.ReactNode, roles?: 
     </div>
   );
   
-  if (!user && !profile) return <Navigate to="/login" />;
+  // Strict authentication and user validation: must have both Firebase Auth user AND an active profile from users collection
+  if (!user || !profile || profile.status !== 'active') {
+    return <Navigate to="/login" replace />;
+  }
 
   // Force contract acceptance for external sellers (Skip if impersonating)
   if (!isImpersonating && profile?.role === 'external_seller' && profile.is_commissionable !== false && !profile.contract_accepted && window.location.pathname !== '/contrato') {
@@ -251,7 +254,7 @@ function AppContent() {
                 } />
 
                 <Route path="/indicacoes/nova" element={
-                  <PrivateRoute roles={['external_seller', 'admin', 'manager']}>
+                  <PrivateRoute roles={['external_seller', 'admin', 'manager', 'internal_seller', 'vendedor_padrao', 'triagem']}>
                     <NewIndication />
                   </PrivateRoute>
                 } />

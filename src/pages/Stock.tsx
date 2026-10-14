@@ -75,6 +75,7 @@ import { StockItem, StockSale, StockReservation, RegisteredProduct, StockImportF
 import { toPng } from 'html-to-image';
 import { scanStockPDF } from '../services/geminiService';
 import { notifyStockUpdate } from '../services/emailService';
+import { StockPdfExportModal } from '../components/stock/StockPdfExportModal';
 
 const DEFAULT_FAE_IMPORTS = [
   {
@@ -320,6 +321,7 @@ export default function Stock() {
   
   // Modals
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isExportPdfModalOpen, setIsExportPdfModalOpen] = useState(false);
   const [isNotifyModalOpen, setIsNotifyModalOpen] = useState(false);
   const [isSendingEmails, setIsSendingEmails] = useState(false);
   const [notifyRoles, setNotifyRoles] = useState<Record<string, boolean>>({
@@ -1535,6 +1537,19 @@ export default function Stock() {
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5 mt-0.5 lg:mt-0">
+            {(isAdmin || isManager || isInternalSeller || isTriagem || isMarketing || profile?.email === 'roderbrasil@gmail.com' || profile?.email === 'rogerio@roderbrasil.com.br' || profile?.email === 'gislene@roderbrasil.com.br') && (
+              <Button 
+                variant="default" 
+                size="sm" 
+                onClick={() => setIsExportPdfModalOpen(true)} 
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-tighter text-[8px] md:text-xs h-7.5 md:h-12 px-2.5 md:px-5 rounded-md md:rounded-xl shadow-md flex items-center gap-1.5 transition-all hover:scale-[1.02] border border-emerald-400/20"
+                title="Exportar planilha de estoque em PDF (Fábrica, Sinop, Importação FAE)"
+              >
+                <FileText className="h-3 w-3 md:h-5 md:w-5" />
+                EXPORTAR PDF
+              </Button>
+            )}
+
             {activeTab === 'fabrica' && (isAdmin || isManager || isInternalSeller || isTriagem || isMarketing || profile?.email === 'roderbrasil@gmail.com' || profile?.email === 'rogerio@roderbrasil.com.br') && (
               <Button 
                 variant="default" 
@@ -1725,7 +1740,21 @@ export default function Stock() {
           
         <div className="flex flex-col items-stretch gap-2 w-full lg:w-auto mt-2 lg:mt-0">
           {activeTab !== 'importacao_fae' && (
-            <div className="grid grid-cols-3 gap-1 md:gap-2 sm:flex sm:flex-wrap items-center w-full justify-center lg:justify-end">
+            <div className="grid grid-cols-4 gap-1 md:gap-2 sm:flex sm:flex-wrap items-center w-full justify-center lg:justify-end">
+              <div className="flex items-center gap-0.5 w-full sm:w-auto">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-8 md:h-10 w-full sm:w-auto border-emerald-600 text-emerald-700 hover:bg-emerald-600/10 shadow-md font-black uppercase tracking-widest text-[8px] md:text-[10px] px-1 md:px-3"
+                  onClick={() => setIsExportPdfModalOpen(true)}
+                  title="Exportar planilha completa de estoque em PDF"
+                >
+                  <FileText className="h-3.5 w-3.5 mr-1 md:mr-2 text-emerald-600" />
+                  <span className="truncate">EXPORTAR PDF</span>
+                </Button>
+                <HelpTooltip content="Exporta a planilha de estoque consolidada em PDF (Fábrica, Sinop, Importação FAE) para salvar ou compartilhar no WhatsApp." />
+              </div>
+
               <div className="flex items-center gap-0.5 w-full sm:w-auto">
                 <Button 
                   variant="outline" 
@@ -3763,6 +3792,16 @@ export default function Stock() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Stock PDF Export Modal */}
+      <StockPdfExportModal
+        isOpen={isExportPdfModalOpen}
+        onClose={() => setIsExportPdfModalOpen(false)}
+        items={items}
+        reservations={reservations}
+        importItems={importItems}
+        userName={profile?.name || profile?.email || 'Administrador'}
+      />
 
       {/* Fixed Bottom Navigation (Mobile Only) */}
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-slate-950 border-t border-slate-800 text-white md:hidden shadow-[0_-8px_30px_rgba(0,0,0,0.3)] pb-safe">

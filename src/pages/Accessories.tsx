@@ -32,7 +32,9 @@ import {
   AlertCircle,
   CheckCircle2,
   ArrowRight,
-  ChevronDown
+  ChevronDown,
+  Zap,
+  ClipboardPaste
 } from 'lucide-react';
 import { ACCESSORIES_DATA, INSTALLATION_KITS as DEFAULT_KITS } from '../constants';
 import { Accessory, InstallationKit, InstallationKitItem } from '../types';
@@ -182,6 +184,8 @@ export default function Accessories() {
 
   // PDF Update Modal States
   const [isUpdatePdfModalOpen, setIsUpdatePdfModalOpen] = useState(false);
+  const [pdfInputMode, setPdfInputMode] = useState<'file' | 'text'>('file');
+  const [pastedPdfText, setPastedPdfText] = useState('');
   const [isParsingPdf, setIsParsingPdf] = useState(false);
   const [isApplyingPdfSync, setIsApplyingPdfSync] = useState(false);
   const [pdfFileName, setPdfFileName] = useState<string | null>(null);
@@ -325,65 +329,161 @@ export default function Accessories() {
     setTimeout(() => setCopiedCode(null), 2000);
   };
 
-  const parseKitText = (text: string) => {
-    // Split by "Item UN Versão" which seems to be the separator between kits
+  const parseKitText = (text: string): InstallationKit[] => {
+    if (!text || !text.trim()) return [];
+
+    const kitsMap = new Map<string, { code: string; description: string; items: { code: string; description: string; quantity: number }[] }>();
+    const lines = text.split(/\r?\n/);
+    let currentKitCode: string | null = null;
+    let pendingItem: { code: string; descParts: string[]; qty?: number } | null = null;
+
+    const flushPendingItem = () => {
+      if (pendingItem && currentKitCode && kitsMap.has(currentKitCode)) {
+        const itemCode = pendingItem.code;
+        const cleanDesc = pendingItem.descParts.join(' ').replace(/\s+/g, ' ').trim();
+        const qty = pendingItem.qty !== undefined && !isNaN(pendingItem.qty) ? pendingItem.qty : 1;
+        const currentKit = kitsMap.get(currentKitCode)!;
+        const existingIdx = currentKit.items.findIndex(it => it.code === itemCode);
+        if (existingIdx >= 0) {
+          currentKit.items[existingIdx] = { code: itemCode, description: cleanDesc || currentKit.items[existingIdx].description, quantity: qty };
+        } else {
+          currentKit.items.push({ code: itemCode, description: cleanDesc, quantity: qty });
+        }
+      }
+      pendingItem = null;
+    };
+
+    for (let i = 0; i < lines.length; i++) {
+      let line = lines[i].trim();
+      if (!line) continue;
+
+      if (
+        line.startsWith('Roder Máquinas') ||
+        line.startsWith('Quant. Item Pai') ||
+        line.includes('DBCorp PCR') ||
+        line.startsWith('Nível Nº Item') ||
+        line.startsWith('Filtros:') ||
+        line.includes('Relatório de Estruturas') ||
+        line === 'Item' || line === 'Item UN Versão' || line === 'UN' || line === 'Versão'
+      ) {
+        continue;
+      }
+
+      const kitMatch = line.match(/(9000\.\d{4}\.\d{4}|\d{4}\.\d{4}\.\d{4})\s*(.*)/i);
+      const isChildItem = line.match(/\d{4}\.\d{4}\.\d{4}\s+.+?\s+(UN|PC|MT|PAR)\s+[\d,]+/i) || line.match(/^\d+\s+\d+\s+\d{4}\.\d{4}\.\d{4}/);
+
+      if (kitMatch && !isChildItem) {
+        flushPendingItem();
+        const code = kitMatch[1].trim();
+        let desc = (kitMatch[2] || '').trim();
+        desc = desc.replace(/^Item\s+UN\s+Versão\s+/i, '').replace(/\s+UN\s*\d*$/i, '').trim();
+
+        let nextLineIdx = i + 1;
+        while (nextLineIdx < lines.length) {
+          const nextL = lines[nextLineIdx].trim();
+          if (!nextL) { nextLineIdx++; continue; }
+          if (nextL.match(/^Nível/i) || nextL.match(/^\d+\s+\d+\s+\d{4}\.\d{4}\.\d{4}/) || nextL.match(/^(?:9000|\d{4})\.\d{4}\.\d{4}/)) {
+            break;
+          }
+          if (!nextL.match(/DBCorp|Roder|Quant\.|Filtros/i)) {
+            const cleanNext = nextL.replace(/\s+UN\s*\d*$/i, '').replace(/^UN\s*\d*$/i, '').trim();
+            if (cleanNext && cleanNext !== '1' && cleanNext !== 'UN') {
+              desc = (desc + ' ' + cleanNext).trim();
+            }
+          }
+          i = nextLineIdx;
+          nextLineIdx++;
+          break;
+        }
+
+        currentKitCode = code;
+        if (!kitsMap.has(code)) {
+          kitsMap.set(code, { code, description: desc, items: [] });
+        } else if (desc) {
+          kitsMap.get(code)!.description = desc;
+        }
+        continue;
+      }
+
+      const itemStartMatch = line.match(/(?:^|\s)(\d{4}\.\d{4}\.\d{4})\s*(.*)/);
+      if (itemStartMatch && currentKitCode) {
+        const itemCode = itemStartMatch[1].trim();
+        if (itemCode === currentKitCode) continue;
+
+        flushPendingItem();
+        let rest = itemStartMatch[2].trim();
+        let qty: number | undefined;
+
+        const unitQtyMatch = rest.match(/(.*?)\s+(UN|PC|MT|PAR)\s+([\d]+(?:[,\.]\d+)?)/i);
+        if (unitQtyMatch) {
+          const descPart = unitQtyMatch[1].trim();
+          qty = parseFloat(unitQtyMatch[3].replace(',', '.'));
+          pendingItem = { code: itemCode, descParts: descPart ? [descPart] : [], qty };
+          flushPendingItem();
+        } else {
+          pendingItem = { code: itemCode, descParts: rest ? [rest] : [] };
+        }
+        continue;
+      }
+
+      if (pendingItem) {
+        const unitQtyMatch = line.match(/(.*?)\s*(?:UN|PC|MT|PAR)\s+([\d]+(?:[,\.]\d+)?)/i);
+        if (unitQtyMatch) {
+          const descPart = unitQtyMatch[1].trim();
+          if (descPart) pendingItem.descParts.push(descPart);
+          pendingItem.qty = parseFloat(unitQtyMatch[2].replace(',', '.'));
+          flushPendingItem();
+        } else if (!line.match(/^\d+\/\d+\/\d{4}$/) && !line.match(/^[\d\s]+$/)) {
+          pendingItem.descParts.push(line);
+        }
+      }
+    }
+    flushPendingItem();
+
+    const result = Array.from(kitsMap.values()) as unknown as InstallationKit[];
+    if (result.length > 0) return result;
+
+    // Fallback to legacy block match if line parser found 0
     const kitBlocks = text.split(/Item UN Versão/i);
     const parsedKits: any[] = [];
-
     kitBlocks.forEach(block => {
       if (!block.trim()) return;
-
-      // Find kit header: Code + Description + UN 1
-      // Example: 9000.9000.9000 KIT INSTALACAO... UN 1
       const kitHeaderMatch = block.match(/(\d{4}\.\d{4}\.\d{4})\s+(.+?)\s+UN\s+1/);
       if (kitHeaderMatch) {
         const kitCode = kitHeaderMatch[1];
-        let kitDesc = kitHeaderMatch[2].trim();
-        
-        // Clean up description if it contains the table headers
-        kitDesc = kitDesc.split(/Nível NºItem Descrição/i)[0].trim();
-
+        let kitDesc = kitHeaderMatch[2].trim().split(/Nível NºItem Descrição/i)[0].trim();
         const items: any[] = [];
-        
-        // Find items: Pattern seems to be [Nível] [NºItem][Code] [Description] UN [Quantity]
-        // Example: 1 15000.1001.0016 CAIXA ELETRICA... UN 1,000000
-        // We look for the code pattern 0000.0000.0000
         const itemRegex = /(\d{4,5}\.\d{4}\.\d{4})\s+(.+?)\s+UN\s+([\d,.]+)/g;
         let itemMatch;
-        
         while ((itemMatch = itemRegex.exec(block)) !== null) {
           const fullCode = itemMatch[1];
-          // If the code starts with the item number (e.g. 15000.1001.0016 where 1 is item number)
-          // we need to extract the real code 5000.1001.0016
-          let realCode = fullCode;
-          if (fullCode.length > 12) {
-            // Assuming the code is always the last 12 characters if it's in 0000.0000.0000 format
-            // But wait, the format is 4.4.4 = 12 chars + 2 dots = 14 chars.
-            // 0000.0000.0000 is 14 chars.
-            // If we have 15000.1001.0016, that's 15 chars. The first '1' is the item number.
-            realCode = fullCode.slice(-14);
-          }
-
-          if (realCode === kitCode) continue; // Skip if it matched the kit code again
-
+          let realCode = fullCode.length > 12 ? fullCode.slice(-14) : fullCode;
+          if (realCode === kitCode) continue;
           items.push({
             code: realCode,
             description: itemMatch[2].trim(),
             quantity: parseFloat(itemMatch[3].replace(',', '.'))
           });
         }
-
         if (items.length > 0) {
-          parsedKits.push({
-            code: kitCode,
-            description: kitDesc,
-            items
-          });
+          parsedKits.push({ code: kitCode, description: kitDesc, items });
         }
       }
     });
 
-    return parsedKits;
+    return parsedKits as InstallationKit[];
+  };
+
+  const handleSyncOfficialRoderKits = () => {
+    const officialKits = DEFAULT_KITS as unknown as InstallationKit[];
+    const diff = computeKitsDiff(officialKits, kits);
+    setPdfDiffResult(diff);
+    setPdfFileName('Catálogo Oficial Roder (Engenharia)');
+    if (diff.added.length === 0 && diff.updated.length === 0) {
+      toast.info('Todos os kits homologados já estão 100% sincronizados com o banco de dados!');
+    } else {
+      toast.success(`${officialKits.length} kits homologados carregados (${diff.added.length} novos para adicionar, ${diff.updated.length} para atualizar).`);
+    }
   };
 
   const computeKitsDiff = (parsedKits: InstallationKit[], existingKits: InstallationKit[]) => {
@@ -402,7 +502,7 @@ export default function Accessories() {
         added.push({
           parsedKit: pKit,
           type: 'ADDED',
-          changes: ['Novo kit cadastrado no PDF']
+          changes: ['Novo kit cadastrado']
         });
       } else {
         const changes: string[] = [];
@@ -460,7 +560,7 @@ export default function Accessories() {
     setIsParsingPdf(true);
     setPdfDiffResult(null);
 
-    const loadingToast = toast.loading("Analisando relatório em PDF dos kits...");
+    const loadingToast = toast.loading(fileBase64 ? "Analisando relatório em PDF com IA e extraindo kits..." : "Processando texto do relatório...");
 
     try {
       const baseUrl = getApiBaseUrl();
@@ -472,7 +572,7 @@ export default function Accessories() {
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Falha ao processar o PDF no servidor.');
+        throw new Error(errData.error || 'Falha ao processar no servidor.');
       }
 
       const data = await res.json();
@@ -480,11 +580,16 @@ export default function Accessories() {
         throw new Error('Formato de resposta inválido.');
       }
 
-      const parsedKits: InstallationKit[] = data.kits;
+      let parsedKits: InstallationKit[] = data.kits;
+
+      if (parsedKits.length === 0 && rawText) {
+        // Fallback to client parser
+        parsedKits = parseKitText(rawText);
+      }
 
       if (parsedKits.length === 0) {
         toast.dismiss(loadingToast);
-        toast.error('Nenhum kit foi identificado no PDF. Verifique se o arquivo é o relatório DBCorp PCR da Roder.');
+        toast.error('Nenhum kit foi identificado. Verifique o arquivo ou copie e cole o texto do relatório na aba "Colar Texto".');
         setIsParsingPdf(false);
         return;
       }
@@ -493,11 +598,23 @@ export default function Accessories() {
       setPdfDiffResult(diff);
 
       toast.dismiss(loadingToast);
-      toast.success(`PDF analisado! ${parsedKits.length} kits processados (${diff.added.length} novos, ${diff.updated.length} com alterações).`);
+      toast.success(`Análise concluída! ${parsedKits.length} kits processados (${diff.added.length} novos, ${diff.updated.length} com alterações).`);
     } catch (err: any) {
       console.error(err);
+      // Client-side fallback if raw text is available
+      if (rawText && rawText.trim().length > 10) {
+        const localParsed = parseKitText(rawText);
+        if (localParsed.length > 0) {
+          const diff = computeKitsDiff(localParsed, kits);
+          setPdfDiffResult(diff);
+          toast.dismiss(loadingToast);
+          toast.success(`Processado localmente! ${localParsed.length} kits identificados (${diff.added.length} novos, ${diff.updated.length} com alterações).`);
+          setIsParsingPdf(false);
+          return;
+        }
+      }
       toast.dismiss(loadingToast);
-      toast.error(err.message || 'Erro ao analisar PDF.');
+      toast.error(err.message || 'Erro ao analisar relatório. Você também pode colar o texto do relatório na aba "Colar Texto" ou usar a sincronização direta.');
     } finally {
       setIsParsingPdf(false);
     }
@@ -1068,10 +1185,12 @@ export default function Accessories() {
                         setIsUpdatePdfModalOpen(true);
                         setPdfDiffResult(null);
                         setPdfFileName(null);
+                        setPastedPdfText('');
+                        setPdfInputMode('file');
                       }} 
                       className="h-8 gap-1.5 border-blue-500/40 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/40 font-semibold"
                     >
-                      <FileText className="h-4 w-4" /> Update PDF Kits
+                      <FileText className="h-4 w-4" /> Atualizar Kits (PDF / IA)
                     </Button>
                   </div>
                 )}
@@ -1620,31 +1739,117 @@ export default function Accessories() {
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto space-y-4 py-2 pr-1">
-            {/* File Upload Box */}
-            <div className="border-2 border-dashed border-blue-200 dark:border-blue-900/60 rounded-xl p-6 bg-blue-50/40 dark:bg-blue-950/20 text-center hover:bg-blue-50/80 transition-colors">
-              <input 
-                type="file" 
-                accept=".pdf" 
-                id="pdf-kit-upload" 
-                className="hidden" 
-                onChange={handlePdfFileSelect}
-                disabled={isParsingPdf || isApplyingPdfSync}
-              />
-              <label htmlFor="pdf-kit-upload" className="cursor-pointer flex flex-col items-center justify-center gap-2">
-                <div className="h-12 w-12 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                  {isParsingPdf ? <Loader2 className="h-6 w-6 animate-spin" /> : <FileUp className="h-6 w-6" />}
+            {/* Quick Action: Official Roder Kits */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between p-3.5 rounded-xl bg-blue-50/80 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 gap-3">
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-lg bg-blue-600 flex items-center justify-center text-white shrink-0 shadow-sm">
+                  <Zap className="h-5 w-5" />
                 </div>
                 <div>
-                  <span className="font-semibold text-foreground">Clique para selecionar o PDF</span>
-                  <p className="text-xs text-muted-foreground mt-0.5">Suporta o relatório de kits de instalação em PDF (DBCorp PCR)</p>
+                  <p className="text-xs font-bold text-blue-950 dark:text-blue-200">Kits Homologados Roder (Engenharia)</p>
+                  <p className="text-[11px] text-muted-foreground">Sincronizar os 8 kits oficiais com listas completas de peças</p>
                 </div>
-                {pdfFileName && (
-                  <Badge variant="outline" className="mt-2 bg-background border-blue-500/30 text-blue-600 font-mono">
-                    {pdfFileName}
-                  </Badge>
-                )}
-              </label>
+              </div>
+              <Button 
+                size="sm" 
+                onClick={handleSyncOfficialRoderKits}
+                disabled={isParsingPdf || isApplyingPdfSync}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shrink-0 shadow-sm"
+              >
+                <Zap className="h-3.5 w-3.5 mr-1.5" /> Sincronizar Kits Oficiais
+              </Button>
             </div>
+
+            {/* Input Mode Selector */}
+            <div className="flex items-center gap-2 border-b border-border pb-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={pdfInputMode === 'file' ? 'default' : 'ghost'}
+                onClick={() => setPdfInputMode('file')}
+                className={cn(
+                  "h-8 text-xs font-semibold gap-1.5",
+                  pdfInputMode === 'file' ? "bg-blue-600 text-white" : "text-muted-foreground"
+                )}
+              >
+                <FileUp className="h-3.5 w-3.5" /> Carregar Arquivo PDF
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={pdfInputMode === 'text' ? 'default' : 'ghost'}
+                onClick={() => setPdfInputMode('text')}
+                className={cn(
+                  "h-8 text-xs font-semibold gap-1.5",
+                  pdfInputMode === 'text' ? "bg-blue-600 text-white" : "text-muted-foreground"
+                )}
+              >
+                <ClipboardPaste className="h-3.5 w-3.5" /> Colar Texto do Relatório
+              </Button>
+            </div>
+
+            {pdfInputMode === 'file' ? (
+              /* File Upload Box */
+              <div className="border-2 border-dashed border-blue-200 dark:border-blue-900/60 rounded-xl p-6 bg-blue-50/40 dark:bg-blue-950/20 text-center hover:bg-blue-50/80 transition-colors">
+                <input 
+                  type="file" 
+                  accept=".pdf" 
+                  id="pdf-kit-upload" 
+                  className="hidden" 
+                  onChange={handlePdfFileSelect}
+                  disabled={isParsingPdf || isApplyingPdfSync}
+                />
+                <label htmlFor="pdf-kit-upload" className="cursor-pointer flex flex-col items-center justify-center gap-2">
+                  <div className="h-12 w-12 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                    {isParsingPdf ? <Loader2 className="h-6 w-6 animate-spin" /> : <FileUp className="h-6 w-6" />}
+                  </div>
+                  <div>
+                    <span className="font-semibold text-foreground">Clique para selecionar o PDF</span>
+                    <p className="text-xs text-muted-foreground mt-0.5">Suporta o relatório de kits de instalação em PDF (DBCorp PCR)</p>
+                  </div>
+                  {pdfFileName && (
+                    <Badge variant="outline" className="mt-2 bg-background border-blue-500/30 text-blue-600 font-mono">
+                      {pdfFileName}
+                    </Badge>
+                  )}
+                </label>
+              </div>
+            ) : (
+              /* Direct Text Paste Box */
+              <div className="space-y-3 p-4 rounded-xl border border-border bg-muted/20">
+                <div>
+                  <label className="text-xs font-semibold text-foreground flex items-center gap-1.5 mb-1">
+                    <ClipboardPaste className="h-3.5 w-3.5 text-blue-600" /> Cole o conteúdo do relatório DBCorp PCR abaixo:
+                  </label>
+                  <Textarea
+                    placeholder="Cole aqui o texto copiado do PDF ou do sistema DBCorp (ex: 9000.9000.9000 KIT INSTALACAO... UN 1)..."
+                    value={pastedPdfText}
+                    onChange={(e) => setPastedPdfText(e.target.value)}
+                    rows={6}
+                    className="font-mono text-xs bg-background"
+                    disabled={isParsingPdf || isApplyingPdfSync}
+                  />
+                </div>
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      if (!pastedPdfText.trim()) {
+                        toast.error('Por favor, cole o texto do relatório antes de analisar.');
+                        return;
+                      }
+                      setPdfFileName('Texto Colado');
+                      processPdfBase64OrText(undefined, pastedPdfText);
+                    }}
+                    disabled={isParsingPdf || isApplyingPdfSync || !pastedPdfText.trim()}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs gap-1.5"
+                  >
+                    {isParsingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                    Analisar Texto do Relatório
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {/* Analysis & Diff Results */}
             {pdfDiffResult && (

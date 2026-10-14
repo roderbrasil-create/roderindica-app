@@ -393,8 +393,8 @@ const DB_IMAGE_CACHE = new Map<string, string>();
 
 const normalizeProductImageUrl = (rawSrc?: string): string => {
   if (!rawSrc) return '';
-  if (rawSrc.includes('garra-florestal-roder.jpg')) {
-    return 'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-garra-florestal.jpg.webp';
+  if (rawSrc.includes('garra-florestal-roder.jpg') || rawSrc.includes('garra-de-carregamento')) {
+    return 'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Garra-florestal-1.jpg.webp';
   }
   if (rawSrc.includes('Cabecote-Multifuncional-Roder.jpg')) {
     return 'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-cabecote-multifuncional.jpg.webp';

@@ -359,7 +359,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               });
               return;
             }
-            const isExplicitAdmin = [
+            const isExplicitMasterAdmin = [
               'roderbrasil@gmail.com',
               'roderindica@gmail.com',
               'gislene@roderbrasil.com.br',
@@ -367,22 +367,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               'rogerio@roderbrasil.com.br',
               'contato@roderbrasil.com.br',
               'luana@roder.com.br',
-              'luana@roderbrasil.com.br',
-              'yury@roderbrasil.com.br',
-              'yuri@roderbrasil.com.br',
-              'marketing@roderbrasil.com.br',
-              'pecas@roderbrasil.com.br',
-              'peças@roderbrasil.com.br',
-              'vendas@roderbrasil.com.br',
-              'comercial@roderbrasil.com.br',
-              'posvenda@roderbrasil.com.br',
-              'pedidos@roderbrasil.com.br',
-              'rudineisolmario@outlook.com'
+              'luana@roderbrasil.com.br'
             ].includes(userEmail);
 
             if (profileData.status !== 'active') {
-              if (isExplicitAdmin || isVanessaOrFinance) {
-                console.log("Auto-activating status for admin/finance:", userEmail);
+              if (isExplicitMasterAdmin || isVanessaOrFinance) {
+                console.log("Auto-activating status for master admin/finance:", userEmail);
                 const { updateDoc } = await import('firebase/firestore');
                 await updateDoc(doc(db, 'users', user.uid), { 
                   status: 'active',
@@ -390,8 +380,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 });
                 // Snapshot will trigger again
               } else {
+                console.warn("[AUTH] Inactive user profile, signing out:", userEmail);
                 setProfile(null);
-                signOut(auth);
+                setImpersonatedProfile(null);
+                localStorage.removeItem('roder_impersonation');
+                localStorage.removeItem('roder_profile_cache');
+                await signOut(auth);
+                setLoading(false);
+                return;
               }
             } else {
               setProfile(profileData);
@@ -399,9 +395,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               localStorage.setItem('roder_profile_cache', JSON.stringify(profileData));
             }
           } else {
-            // Auto-create profile for explicit admins if they don't have one
-            const userEmail = user.email?.toLowerCase() || '';
-            const isExplicitAdmin = [
+            // Document does NOT exist by user.uid
+            const userEmail = user.email?.toLowerCase().trim() || '';
+            const isExplicitMasterAdmin = [
               'roderbrasil@gmail.com',
               'roderindica@gmail.com',
               'gislene@roderbrasil.com.br',
@@ -409,81 +405,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               'rogerio@roderbrasil.com.br',
               'contato@roderbrasil.com.br',
               'luana@roder.com.br',
-              'luana@roderbrasil.com.br',
-              'yury@roderbrasil.com.br',
-              'yuri@roderbrasil.com.br',
-              'marketing@roderbrasil.com.br',
-              'pecas@roderbrasil.com.br',
-              'peças@roderbrasil.com.br',
-              'vendas@roderbrasil.com.br',
-              'comercial@roderbrasil.com.br',
-              'posvenda@roderbrasil.com.br',
-              'pedidos@roderbrasil.com.br',
-              'rudineisolmario@outlook.com'
+              'luana@roderbrasil.com.br'
             ].includes(userEmail);
 
-            const isInternal = userEmail.endsWith('@roderbrasil.com.br') || userEmail.endsWith('@roder.com.br');
-            const isAutoCreateAllowed = isExplicitAdmin || 
-                                       userEmail === 'comercial@ff.ind.br' || 
-                                       isInternal ||
-                                       userEmail.includes('vanessa') ||
-                                       userEmail.includes('finance') ||
-                                       userEmail.includes('@outlook.com') ||
-                                       userEmail.includes('@gmail.com') ||
-                                       userEmail.includes('@hotmail.com');
-
-            if (isAutoCreateAllowed) {
-              console.log("Auto-creating or fixing profile for:", userEmail);
+            // Step A: Check if this user was pre-registered in users collection by email
+            let foundByEmail = false;
+            if (userEmail) {
               try {
-                let roleGuess: UserRole = 'external_seller'; 
-                
-                if (userEmail === 'comercial@ff.ind.br') {
-                  roleGuess = 'external_seller';
-                } else if (userEmail.includes('marketing')) {
-                  roleGuess = 'marketing';
-                } else if (userEmail.includes('finance') || userEmail.includes('vanessa')) {
-                  roleGuess = 'financial';
-                } else if (userEmail.includes('pecas') || userEmail.includes('peças')) {
-                  roleGuess = 'internal_seller';
-                } else if (userEmail.includes('vendas') || userEmail.includes('pedidos') || userEmail.includes('posvenda')) {
-                  roleGuess = 'internal_seller';
-                } else if (isExplicitAdmin && !isInternal) {
-                  roleGuess = 'admin';
-                } else if (userEmail === 'gislene@roderbrasil.com.br' || userEmail === 'gislene@roder.com.br' || userEmail === 'luana@roder.com.br' || userEmail === 'luana@roderbrasil.com.br' || userEmail === 'contato@roderbrasil.com.br') {
+                const q = query(collection(db, 'users'), where('email', '==', userEmail));
+                const querySnapshot = await getDocs(q);
+                if (!querySnapshot.empty) {
+                  const docs = querySnapshot.docs;
+                  let mergedData: any = {};
+                  for (const d of docs) {
+                    mergedData = { ...d.data(), ...mergedData };
+                  }
+                  const { setDoc, deleteDoc } = await import('firebase/firestore');
+                  for (const d of docs) {
+                    if (d.id !== user.uid) {
+                      await deleteDoc(doc(db, 'users', d.id));
+                    }
+                  }
+                  await setDoc(doc(db, 'users', user.uid), {
+                    ...mergedData,
+                    uid: user.uid,
+                    status: mergedData.status || 'active',
+                    updated_at: new Date().toISOString()
+                  });
+                  foundByEmail = true;
+                  return; // snapshot will trigger again with exists() = true
+                }
+              } catch (lookupErr) {
+                console.warn("[AUTH] Error checking pre-registered email:", lookupErr);
+              }
+            }
+
+            // Step B: If not pre-registered, only Master Admins are allowed to auto-initialize
+            if (isExplicitMasterAdmin) {
+              console.log("Auto-initializing master admin profile for:", userEmail);
+              try {
+                let roleGuess: UserRole = 'admin';
+                if (userEmail.includes('gislene') || userEmail.includes('luana') || userEmail.includes('contato')) {
                   roleGuess = 'manager';
-                } else if (isInternal) {
-                  roleGuess = 'internal_seller';
                 }
 
-
                 const roleDefaults: Record<string, { sidebar: string[], dashboard_cards: string[] }> = {
-                  external_seller: {
-                    sidebar: ['dashboard', 'new_indication', 'my_sales', 'catalog', 'comissoes_ext', 'profile'],
-                    dashboard_cards: ['stats', 'commissions_summary', 'recent_indications', 'equipment_banner', 'quick_actions']
-                  },
-                  vendedor_padrao: {
-                    sidebar: ['dashboard', 'new_indication', 'my_sales', 'catalog', 'comissoes_ext', 'profile'],
-                    dashboard_cards: ['stats', 'commissions_summary', 'recent_indications', 'equipment_banner', 'quick_actions']
-                  },
-                  internal_seller: {
-                    sidebar: ['dashboard', 'new_indication', 'catalog', 'products_stock', 'products_registered', 'accessories', 'my_sales', 'fairs', 'profile'],
-                    dashboard_cards: ['stats', 'funnel', 'recent_indications', 'equipment_banner', 'quick_actions']
-                  },
-                  triagem: {
-                    sidebar: ['dashboard', 'catalog', 'products_stock', 'products_registered', 'accessories', 'my_sales', 'triagem', 'comercial', 'fairs', 'users', 'profile'],
-                    dashboard_cards: ['stats', 'funnel', 'recent_indications', 'active_reservations', 'equipment_banner', 'fairs_summary']
-                  },
-                  marketing: {
-                    sidebar: ['dashboard', 'catalog', 'products_stock', 'products_registered', 'accessories', 'fairs', 'endomarketing', 'comercial', 'configurations', 'profile'],
-                    dashboard_cards: ['stats', 'funnel', 'recent_indications', 'equipment_banner', 'fairs_summary']
-                  },
                   manager: {
                     sidebar: ['dashboard', 'new_indication', 'fairs', 'finance', 'my_sales', 'catalog', 'products_stock', 'products_registered', 'accessories', 'triagem', 'comercial', 'users', 'reports', 'profile'],
                     dashboard_cards: ['stats', 'funnel', 'commissions_summary', 'active_reservations', 'goals', 'recent_indications', 'conversion_ranking', 'manager_financial', 'equipment_banner', 'quick_actions', 'fairs_summary']
                   },
-                  financial: {
-                    sidebar: ['dashboard', 'products_stock', 'products_registered', 'accessories', 'finance', 'reports', 'profile'],
-                    dashboard_cards: ['stats', 'commissions_summary', 'goals', 'recent_indications', 'conversion_ranking', 'manager_financial', 'equipment_banner', 'quick_actions']
+                  admin: {
+                    sidebar: ['dashboard', 'new_indication', 'fairs', 'finance', 'my_sales', 'catalog', 'products_stock', 'products_registered', 'accessories', 'triagem', 'comercial', 'users', 'reports', 'profile'],
+                    dashboard_cards: ['stats', 'funnel', 'commissions_summary', 'active_reservations', 'goals', 'recent_indications', 'conversion_ranking', 'manager_financial', 'equipment_banner', 'quick_actions', 'fairs_summary']
                   }
                 };
 
@@ -494,9 +467,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 };
 
                 const getInitialName = () => {
-                  if (userEmail === 'comercial@ff.ind.br') return 'Fábio';
-                  if (userEmail === 'contato@roderbrasil.com.br' || userEmail === 'luana@roderbrasil.com.br' || userEmail === 'luana@roder.com.br') return 'Luana Camargo';
-                  if (userEmail === 'gislene@roderbrasil.com.br' || userEmail === 'gislene@roder.com.br') return 'Gislene';
+                  if (userEmail.includes('luana') || userEmail.includes('contato')) return 'Luana Camargo';
+                  if (userEmail.includes('gislene')) return 'Gislene';
+                  if (userEmail.includes('roder')) return 'Jeferson Roder';
                   return user.displayName || userEmail.split('@')[0];
                 };
 
@@ -514,14 +487,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 
                 const { setDoc } = await import('firebase/firestore');
                 await setDoc(doc(db, 'users', user.uid), newProfile);
-                // snapshot will trigger again with exists() = true
-                return; // exit current snapshot callback to let the next one take over
+                return; // snapshot will trigger again with exists() = true
               } catch (e) {
-                console.error("Failed to auto-create admin profile:", e);
+                console.error("Failed to auto-create master admin profile:", e);
                 setProfile(null);
               }
             } else {
+              // CRITICAL: Block any user not pre-registered in users collection
+              console.warn("[SECURITY] Access denied: User is not registered in the users screen:", userEmail);
               setProfile(null);
+              setImpersonatedProfile(null);
+              localStorage.removeItem('roder_impersonation');
+              localStorage.removeItem('roder_profile_cache');
+              await signOut(auth);
+              setLoading(false);
+              return;
             }
           }
           // Only set loading to false if we aren't waiting for an auto-creation

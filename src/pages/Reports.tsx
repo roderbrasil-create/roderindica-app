@@ -37,7 +37,17 @@ import {
   Share2,
   Info,
   HelpCircle,
-  ArrowLeft
+  ArrowLeft,
+  Star,
+  Award,
+  Gift,
+  Search,
+  MessageCircle,
+  ChevronDown,
+  ChevronUp,
+  UserCheck,
+  ShieldCheck,
+  Building2
 } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -68,6 +78,10 @@ export default function Reports() {
   const [standardSellers, setStandardSellers] = useState<UserProfile[]>([]);
   const [stockSales, setStockSales] = useState<any[]>([]);
   const [allReservations, setAllReservations] = useState<any[]>([]);
+  const [referringClients, setReferringClients] = useState<any[]>([]);
+  const [clientSearch, setClientSearch] = useState('');
+  const [selectedYear, setSelectedYear] = useState<string>('all');
+  const [expandedClientId, setExpandedClientId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState({
     start: startOfMonth(subMonths(new Date(), 2)), // Last 3 months by default
@@ -95,11 +109,17 @@ export default function Reports() {
         const salesSnap = await getDocs(query(collection(db, 'stock_sales')));
         setStockSales(salesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
 
-        // Load all historical reservations (if implemented with history) 
-        // Note: Currently reservations are often deleted. I will simulate audit based on indications that had status 'reservation' or similar if tracked.
-        // For now, I'll fetch current reservations and indications linked to them.
+        // Load all historical reservations
         const resSnap = await getDocs(query(collection(db, 'stock_reservations')));
         setAllReservations(resSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+
+        // Load referring clients
+        try {
+          const refSnap = await getDocs(query(collection(db, 'referring_clients')));
+          setReferringClients(refSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        } catch (e) {
+          console.warn("Could not load referring_clients:", e);
+        }
 
         setLoading(false);
       } catch (error) {
@@ -387,6 +407,153 @@ export default function Reports() {
     };
   }, [indications]);
 
+  // Analytics for Clientes Indicadores (Promotores Roder)
+  const clientReferralsAnalysis = useMemo(() => {
+    let clientInds = indications.filter(ind => 
+      ind.origin_type === 'client_referral' ||
+      ind.is_client_referral === true ||
+      (ind.referring_client_name && ind.referring_client_name.trim() !== '') ||
+      (ind.external_seller_name && ind.external_seller_name.startsWith('Cliente:'))
+    );
+
+    if (selectedYear !== 'all') {
+      clientInds = clientInds.filter(ind => {
+        try {
+          const d = parseISO(ind.created_at);
+          return d.getFullYear().toString() === selectedYear;
+        } catch {
+          return true;
+        }
+      });
+    }
+
+    const clientMap: Record<string, {
+      id: string;
+      name: string;
+      phone: string;
+      company_or_city: string;
+      totalIndications: number;
+      soldCount: number;
+      negotiatingCount: number;
+      cancelledCount: number;
+      totalRevenue: number;
+      internalSellers: Set<string>;
+      leads: Array<{
+        id: string;
+        leadName: string;
+        equipment: string;
+        status: string;
+        date: string;
+        value: number;
+        sellerName?: string;
+      }>;
+    }> = {};
+
+    referringClients.forEach(c => {
+      const key = (c.name || '').trim().toLowerCase();
+      if (!key) return;
+      clientMap[key] = {
+        id: c.id || key,
+        name: c.name,
+        phone: c.phone || '',
+        company_or_city: c.company_or_city || '',
+        totalIndications: 0,
+        soldCount: 0,
+        negotiatingCount: 0,
+        cancelledCount: 0,
+        totalRevenue: 0,
+        internalSellers: new Set(),
+        leads: []
+      };
+    });
+
+    clientInds.forEach(ind => {
+      let rawClientName = ind.referring_client_name || '';
+      if (!rawClientName && ind.external_seller_name && ind.external_seller_name.startsWith('Cliente:')) {
+        rawClientName = ind.external_seller_name.replace('Cliente:', '').trim();
+      }
+      if (!rawClientName) return;
+
+      const key = rawClientName.trim().toLowerCase();
+      if (!clientMap[key]) {
+        clientMap[key] = {
+          id: key,
+          name: rawClientName.trim(),
+          phone: ind.referring_client_phone || '',
+          company_or_city: ind.referring_client_notes || '',
+          totalIndications: 0,
+          soldCount: 0,
+          negotiatingCount: 0,
+          cancelledCount: 0,
+          totalRevenue: 0,
+          internalSellers: new Set(),
+          leads: []
+        };
+      }
+
+      const entry = clientMap[key];
+      entry.totalIndications += 1;
+      if (ind.referring_client_phone && !entry.phone) entry.phone = ind.referring_client_phone;
+      if (ind.referring_client_notes && !entry.company_or_city) entry.company_or_city = ind.referring_client_notes;
+
+      if (ind.internal_seller_name) {
+        entry.internalSellers.add(ind.internal_seller_name);
+      }
+
+      if (ind.status === 'sold') {
+        entry.soldCount += 1;
+        const val = Number(ind.sale_value) || Number(ind.base_commission_value) || 0;
+        entry.totalRevenue += val;
+      } else if (ind.status === 'cancelled' || ind.status === 'archived') {
+        entry.cancelledCount += 1;
+      } else {
+        entry.negotiatingCount += 1;
+      }
+
+      const equipName = ind.items && ind.items.length > 0 
+        ? ind.items.map(i => `${i.quantity || 1}x ${i.product_name}`).join(', ')
+        : ((ind as any).equipment || 'Equipamento Roder');
+
+      entry.leads.push({
+        id: ind.id,
+        leadName: ind.client_person_name || ind.client_name || 'Cliente indicado',
+        equipment: equipName,
+        status: ind.status,
+        date: ind.created_at,
+        value: Number(ind.sale_value) || Number(ind.base_commission_value) || 0,
+        sellerName: ind.internal_seller_name
+      });
+    });
+
+    let list = Object.values(clientMap).filter(c => c.totalIndications > 0 || c.name);
+
+    if (clientSearch.trim()) {
+      const q = clientSearch.toLowerCase();
+      list = list.filter(c => 
+        c.name.toLowerCase().includes(q) || 
+        (c.company_or_city && c.company_or_city.toLowerCase().includes(q)) ||
+        (c.phone && c.phone.includes(q))
+      );
+    }
+
+    list.sort((a, b) => b.totalIndications - a.totalIndications || b.soldCount - a.soldCount);
+
+    const totalReferringClients = list.length;
+    const totalLeadsReferred = list.reduce((acc, c) => acc + c.totalIndications, 0);
+    const totalSalesFromReferrals = list.reduce((acc, c) => acc + c.soldCount, 0);
+    const totalRevenueFromReferrals = list.reduce((acc, c) => acc + c.totalRevenue, 0);
+    const conversionRate = totalLeadsReferred > 0 ? ((totalSalesFromReferrals / totalLeadsReferred) * 100).toFixed(1) : '0';
+
+    return {
+      list,
+      totalReferringClients,
+      totalLeadsReferred,
+      totalSalesFromReferrals,
+      totalRevenueFromReferrals,
+      conversionRate
+    };
+  }, [indications, referringClients, selectedYear, clientSearch]);
+
   if (loading) {
     return (
       <Layout>
@@ -477,6 +644,10 @@ export default function Reports() {
             </TabsTrigger>
             <TabsTrigger value="consultor" className="rounded-lg font-bold uppercase text-[10px] tracking-widest data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               Consultor IA
+            </TabsTrigger>
+            <TabsTrigger value="clientes_indicadores" className="rounded-lg font-bold uppercase text-[10px] tracking-widest data-[state=active]:bg-amber-600 data-[state=active]:text-white flex items-center gap-1.5 shadow-sm">
+              <Star className="h-3 w-3 fill-amber-300 text-amber-300" />
+              Clientes Indicadores
             </TabsTrigger>
           </TabsList>
 
@@ -1073,6 +1244,338 @@ export default function Reports() {
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+
+          {/* TAB: CLIENTES INDICADORES (PROMOTORES RODER) */}
+          <TabsContent value="clientes_indicadores" className="space-y-6">
+            {/* Header & Filter Controls */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-card p-5 rounded-2xl border border-border/60 shadow-sm">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500">
+                    <Award className="h-5 w-5" />
+                  </span>
+                  <h2 className="text-lg font-black uppercase tracking-tight text-foreground">
+                    Programa Clientes Indicadores (Promotores da Marca Roder)
+                  </h2>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Acompanhe clientes da carteira que indicaram novos compradores para as vendedoras internas. Ideal para conceder bonificações e descontos em peças e serviços ao final do ano.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Year Filter */}
+                <div className="flex items-center bg-muted/60 p-1 rounded-xl border border-border/50 text-xs font-bold">
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground px-2">Ano:</span>
+                  {(['all', '2026', '2025', '2024'] as const).map((year) => (
+                    <button
+                      key={year}
+                      type="button"
+                      onClick={() => setSelectedYear(year)}
+                      className={cn(
+                        "px-2.5 py-1 rounded-lg text-[10px] font-black uppercase transition-all",
+                        selectedYear === year 
+                          ? "bg-amber-600 text-white shadow-sm" 
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                      )}
+                    >
+                      {year === 'all' ? 'Histórico Geral' : year}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Search Client */}
+                <div className="relative w-full sm:w-56">
+                  <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="Buscar cliente..."
+                    value={clientSearch}
+                    onChange={(e) => setClientSearch(e.target.value)}
+                    className="w-full pl-8 pr-3 py-1.5 text-xs bg-muted/40 border border-border/60 rounded-xl focus:outline-none focus:ring-1 focus:ring-amber-500 text-foreground placeholder:text-muted-foreground"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Top Metric Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <StatCard
+                title="Clientes Indicadores"
+                value={clientReferralsAnalysis.totalReferringClients}
+                icon={Users}
+                description="Clientes promotores ativos"
+              />
+              <StatCard
+                title="Leads Indicados"
+                value={clientReferralsAnalysis.totalLeadsReferred}
+                icon={Target}
+                description="Contatos recebidos por clientes"
+              />
+              <StatCard
+                title="Vendas Fechadas"
+                value={clientReferralsAnalysis.totalSalesFromReferrals}
+                icon={Award}
+                trend={`${clientReferralsAnalysis.conversionRate}%`}
+                trendUp={Number(clientReferralsAnalysis.conversionRate) >= 20}
+                description="Negócios convertidos"
+              />
+              <StatCard
+                title="Volume Comercial"
+                value={formatCurrency(clientReferralsAnalysis.totalRevenueFromReferrals)}
+                icon={TrendingUp}
+                description="Vendas originadas de clientes"
+              />
+            </div>
+
+            {/* Incentive Policy Card */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="p-4 rounded-xl border border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-amber-500/10 flex items-start gap-3 shadow-sm">
+                <span className="text-2xl select-none">🥇</span>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <h4 className="text-xs font-black uppercase text-amber-700 dark:text-amber-400">Cliente Ouro (3+ indicações)</h4>
+                  </div>
+                  <p className="text-[11px] text-foreground/80 leading-relaxed font-medium">
+                    Sugerido: <strong className="text-foreground font-bold">10% de desconto</strong> em peças de reposição + prioridade no atendimento técnico e pós-venda.
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl border border-slate-300 dark:border-slate-700 bg-gradient-to-br from-slate-100/50 to-slate-200/30 dark:from-slate-800/40 dark:to-slate-800/20 flex items-start gap-3 shadow-sm">
+                <span className="text-2xl select-none">🥈</span>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <h4 className="text-xs font-black uppercase text-slate-700 dark:text-slate-300">Cliente Prata (2 indicações)</h4>
+                  </div>
+                  <p className="text-[11px] text-foreground/80 leading-relaxed font-medium">
+                    Sugerido: <strong className="text-foreground font-bold">5% de desconto</strong> em peças/serviços de manutenção + kit especial de brindes Roder.
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl border border-amber-700/20 bg-gradient-to-br from-amber-700/5 to-amber-700/10 flex items-start gap-3 shadow-sm">
+                <span className="text-2xl select-none">🥉</span>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <h4 className="text-xs font-black uppercase text-amber-800 dark:text-amber-500">Cliente Bronze (1 indicação)</h4>
+                  </div>
+                  <p className="text-[11px] text-foreground/80 leading-relaxed font-medium">
+                    Sugerido: Brinde corporativo Roder (boné/camisa) + agradecimento oficial da equipe comercial.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Ranking and Referral Details Table */}
+            <Card className="border-border/60 shadow-sm overflow-hidden">
+              <CardHeader className="p-5 border-b border-border/40 bg-muted/20 flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-base font-black uppercase tracking-tight flex items-center gap-2">
+                    <Star className="h-4 w-4 fill-amber-500 text-amber-500" />
+                    Ranking de Clientes Indicadores
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Listagem consolidada com histórico de leads, vendedores responsáveis e benefícios sugeridos.
+                  </CardDescription>
+                </div>
+                <Badge variant="outline" className="text-[10px] font-black uppercase bg-card text-foreground">
+                  {clientReferralsAnalysis.list.length} Clientes Encontrados
+                </Badge>
+              </CardHeader>
+
+              <CardContent className="p-0">
+                {clientReferralsAnalysis.list.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-center px-4">
+                    <div className="w-14 h-14 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center mb-3">
+                      <Star className="h-7 w-7" />
+                    </div>
+                    <h3 className="text-sm font-bold text-foreground uppercase">Nenhum cliente indicador registrado</h3>
+                    <p className="text-xs text-muted-foreground max-w-md mt-1">
+                      As indicações cadastradas pelas vendedoras internas com a opção &quot;Indicação de Cliente&quot; aparecerão automaticamente aqui, permitindo mensurar a fidelidade de cada cliente ao longo do ano.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-border/40">
+                    {clientReferralsAnalysis.list.map((client, idx) => {
+                      const isGold = client.totalIndications >= 3;
+                      const isSilver = client.totalIndications === 2;
+                      const isBronze = client.totalIndications === 1;
+                      const isExpanded = expandedClientId === client.name;
+                      const sellersList = Array.from(client.internalSellers).join(', ') || 'Venda Direta / Não informada';
+
+                      return (
+                        <div key={client.id || idx} className="hover:bg-muted/20 transition-colors">
+                          <div className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            {/* Left: Position, Name, Badge */}
+                            <div className="flex items-start sm:items-center gap-3 min-w-0">
+                              <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-black shrink-0 text-muted-foreground border border-border">
+                                {idx + 1}º
+                              </div>
+                              <div className="min-w-0 space-y-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h3 className="text-sm font-black text-foreground uppercase tracking-tight truncate">
+                                    {client.name}
+                                  </h3>
+                                  {isGold && (
+                                    <Badge className="bg-amber-500 text-white text-[9px] font-black uppercase border-none">
+                                      🥇 Cliente Ouro
+                                    </Badge>
+                                  )}
+                                  {isSilver && (
+                                    <Badge className="bg-slate-400 text-white text-[9px] font-black uppercase border-none">
+                                      🥈 Cliente Prata
+                                    </Badge>
+                                  )}
+                                  {isBronze && (
+                                    <Badge className="bg-amber-700/80 text-white text-[9px] font-black uppercase border-none">
+                                      🥉 Cliente Bronze
+                                    </Badge>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                                  {client.phone && (
+                                    <a
+                                      href={`https://wa.me/${client.phone.replace(/\D/g, '').startsWith('55') ? client.phone.replace(/\D/g, '') : '55' + client.phone.replace(/\D/g, '')}`}
+                                      target="_blank"
+                                      rel="no-referrer"
+                                      className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold hover:underline text-[11px]"
+                                      title="Falar no WhatsApp"
+                                    >
+                                      <MessageCircle className="h-3 w-3" />
+                                      {client.phone}
+                                    </a>
+                                  )}
+                                  {client.company_or_city && (
+                                    <span className="flex items-center gap-1 text-[11px]">
+                                      <Building2 className="h-3 w-3" />
+                                      {client.company_or_city}
+                                    </span>
+                                  )}
+                                  <span className="text-[11px] text-muted-foreground">
+                                    Atendido por: <strong className="text-foreground font-semibold">{sellersList}</strong>
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Right: Counters & Expand Button */}
+                            <div className="flex items-center justify-between md:justify-end gap-3 shrink-0">
+                              <div className="flex items-center gap-2 text-center">
+                                <div className="px-3 py-1 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                                  <span className="block text-xs font-black text-amber-600 dark:text-amber-400">{client.totalIndications}</span>
+                                  <span className="text-[8px] uppercase font-bold text-muted-foreground">Indicações</span>
+                                </div>
+                                <div className="px-3 py-1 rounded-xl bg-green-500/10 border border-green-500/20">
+                                  <span className="block text-xs font-black text-green-600 dark:text-green-400">{client.soldCount}</span>
+                                  <span className="text-[8px] uppercase font-bold text-muted-foreground">Vendas</span>
+                                </div>
+                                {client.totalRevenue > 0 && (
+                                  <div className="px-3 py-1 rounded-xl bg-primary/10 border border-primary/20 hidden sm:block">
+                                    <span className="block text-xs font-black text-primary">{formatCurrency(client.totalRevenue)}</span>
+                                    <span className="text-[8px] uppercase font-bold text-muted-foreground">Total Gerado</span>
+                                  </div>
+                                )}
+                              </div>
+
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setExpandedClientId(isExpanded ? null : client.name)}
+                                className="h-8 text-[10px] font-black uppercase tracking-wider gap-1 border-border"
+                              >
+                                {isExpanded ? (
+                                  <>
+                                    <span>Ocultar</span>
+                                    <ChevronUp className="h-3 w-3" />
+                                  </>
+                                ) : (
+                                  <>
+                                    <span>Ver Leads ({client.leads.length})</span>
+                                    <ChevronDown className="h-3 w-3" />
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+
+                          {/* Expanded Leads Details */}
+                          {isExpanded && (
+                            <div className="bg-muted/40 p-4 border-t border-border/40 space-y-3">
+                              <div className="flex items-center justify-between text-xs font-bold text-foreground">
+                                <span className="uppercase text-[10px] text-muted-foreground tracking-wider">
+                                  Clientes Indicados por {client.name}:
+                                </span>
+                                <span className="text-amber-600 dark:text-amber-400 text-[11px] font-bold">
+                                  Benefício Recomendado: {isGold ? '10% de desconto em Peças/Serviços' : isSilver ? '5% de desconto em Peças/Serviços' : 'Brinde Institucional Roder'}
+                                </span>
+                              </div>
+
+                              {client.leads.length === 0 ? (
+                                <p className="text-xs text-muted-foreground italic">Nenhum lead com dados detalhados encontrado no período selecionado.</p>
+                              ) : (
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-xs text-left">
+                                    <thead>
+                                      <tr className="border-b border-border/40 text-[9px] uppercase tracking-wider text-muted-foreground">
+                                        <th className="py-2 px-3">Data</th>
+                                        <th className="py-2 px-3">Novo Cliente Indicado</th>
+                                        <th className="py-2 px-3">Equipamento de Interesse</th>
+                                        <th className="py-2 px-3">Vendedora Interna</th>
+                                        <th className="py-2 px-3 text-center">Status</th>
+                                        <th className="py-2 px-3 text-right">Valor</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-border/20">
+                                      {client.leads.map((lead, lIdx) => (
+                                        <tr key={lead.id || lIdx} className="hover:bg-muted/30">
+                                          <td className="py-2 px-3 font-medium text-muted-foreground whitespace-nowrap">
+                                            {lead.date ? new Date(lead.date).toLocaleDateString('pt-BR') : '-'}
+                                          </td>
+                                          <td className="py-2 px-3 font-bold text-foreground uppercase whitespace-nowrap">
+                                            {lead.leadName}
+                                          </td>
+                                          <td className="py-2 px-3 text-muted-foreground">
+                                            {lead.equipment}
+                                          </td>
+                                          <td className="py-2 px-3 font-medium text-foreground whitespace-nowrap">
+                                            {lead.sellerName || 'Não atribuída'}
+                                          </td>
+                                          <td className="py-2 px-3 text-center whitespace-nowrap">
+                                            <Badge variant="outline" className={cn(
+                                              "text-[8px] font-bold uppercase",
+                                              lead.status === 'sold' && "bg-green-500/10 text-green-500 border-green-500/30",
+                                              lead.status === 'negotiating' && "bg-orange-500/10 text-orange-500 border-orange-500/30",
+                                              lead.status === 'pending' && "bg-blue-500/10 text-blue-500 border-blue-500/30",
+                                              lead.status === 'triagem' && "bg-purple-500/10 text-purple-500 border-purple-500/30",
+                                              (lead.status === 'cancelled' || lead.status === 'archived') && "bg-destructive/10 text-destructive border-destructive/30"
+                                            )}>
+                                              {lead.status === 'sold' ? 'Vendido' : 
+                                               lead.status === 'negotiating' ? 'Negociação' :
+                                               lead.status === 'pending' ? 'Novo' :
+                                               lead.status === 'triagem' ? 'Triagem' : 'Cancelado'}
+                                            </Badge>
+                                          </td>
+                                          <td className="py-2 px-3 text-right font-bold text-foreground whitespace-nowrap">
+                                            {lead.value > 0 ? formatCurrency(lead.value) : '-'}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>

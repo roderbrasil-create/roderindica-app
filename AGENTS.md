@@ -2,7 +2,10 @@
 
 ## Key Personnel
 - **Gislene**: Gerente Comercial.
-- **Luana**: Responsável pela triagem e gestão de leads.
+- **Luana Camargo**: Responsável pela triagem e gestão de leads.
+- **Heloísa**: Vendedora interna (Triagem).
+- **Monali**: Vendedora interna (Triagem).
+- **Yury**: Consultor de Vendas (Rapaz).
 - **Jeferson Roder**: Nosso mentor, professor, fundador da empresa, criador de toda a tecnologia e equipamentos Roder, mentor técnico e diretor técnico. **ATENÇÃO CRÍTICA**: NUNCA se refira a ele como "gerente de projeto", "gerente de projetos" ou "engenheiro". Use sempre os termos autorizados: Mentor, Fundador, Criador, Professor, Diretor Técnico ou Mentor Técnico.
 
 ## Business Rules
@@ -69,9 +72,24 @@
   - **Escavadeiras com Linha F (Padrão Florestal) de Concessionária**: Saem de fábrica equipadas com proteções de segurança física (estrutura, cabine, vidros de Lexsan, etc.). No entanto, o vendedor deve **sempre confirmar com o fabricante/concessionária qual é a configuração exata de suas linhas hidráulicas** para verificar se a máquina possui linhas bidirecionais (tanto da caçamba quanto outra linha bidirecional para acessórios auxiliares).
   - **Ausência Crítica de Cilindro e Links da Caçamba**: Ponto de atenção crucial! Escavadeiras configuradas para Harvester ou com a letra F de fábrica normalmente **NÃO vêm equipadas com o cilindro da caçamba, bielas/links e pinos originais para montagem da caçamba**. Sem esses componentes originais instalados, é **estritamente IMPOSSÍVEL instalar equipamentos que necessitam do cilindro da caçamba**, como: **feller de disco, feller tesoura, desbastador, triturador e a própria caçamba/concha da escavadeira**.
   - **Compatibilidade de Ponteiras e Bielas**: Verifique se a ponteira e a biela para pendurar o rotator são fisicamente compatíveis. A biela para acoplar nos rotatores padrão RODER deve possuir um **furo para pino de 45 mm com largura de biela de exactly 100 mm**. Oriente o vendedor/fornecedor a fornecer um vídeo detalhado das linhas até a ponta e de como estão ligadas no comando da máquina base.
-  - **Rotator - Terminologia e Giro Infinito**:
+  - **Rotatores para Garras Traçadoras (Porte Médio e Grande)**:
+  - **Opções Disponíveis**:
+    1. **Rotator IR10**.
+    2. **Rotor de giro livre RR550-7**: Capacidade de **55 toneladas**, equipado com **swivel de sete passagens internas de óleo**. Esta configuração permite que a garra traçadora tenha **giro livre ilimitado (360°)**. Indicado para as garras **GT 600X e modelos acima**.
     - **Grafia**: O termo correto é estritamente **Rotator** (com "t", NUNCA use "rotador" com "d" ou termos derivados incorretamente em áudios e transcrições de clientes/parceiros). "Giro hidráulico da garra" refere-se exatamente ao mesmo componente.
+    - **Capacidades Disponíveis**: **NÃO existe rotor de 15 t**. Para máquinas de grande porte (20 a 22 toneladas, como CAT 320), os rotatores adequados são de **12 t ou 16 t**.
+    - **Recomendação Prioritária (16 t)**: Deve-se dar preferência absoluta ao **Rotator de 16 t**, pois possui o mesmo preço do de 12 t e é o modelo mantido em estoque com maior frequência.
     - **Giro Infinito**: Todos os rotatores fabricados ou fornecidos pela RODER possuem **giro infinito / ilimitado (360°)**.
+
+- **Dependência: Rotator vs. Modelo de Garra (CA/CB)**:
+  - **Rotator IR10**: Exige obrigatoriamente a Garra **Modelo CA** (Cabeçote Alto). Geralmente preferido por clientes para trabalho intenso, mas é uma opção do cliente ou indicação técnica da Roder.
+  - **Rotator de 12 t ou 16 t**: Exige obrigatoriamente a Garra **Modelo CB** (Cabeçote Baixo).
+  - **Regra de Escolha**: O rotator depende da preferência do cliente ou disponibilidade. Se o cliente escolher o IR10, o vendedor deve selecionar a garra CA. Se escolher 12 t ou 16 t, deve selecionar a garra CB.
+  - **Diretriz de Comunicação**: **NÃO** mencione espontaneamente a preferência pelo IR10 ou a diferença CA/CB. Fale sobre isso apenas se houver necessidade real, se perguntarem especificamente sobre o rotator ou se houver dúvidas sobre o acoplamento.
+  - **Identificação Implícita**: Os kits de instalação para **garra, cabeçote multifuncional ou garra traçadora** que NÃO mencionam "link" no nome referem-se automaticamente à montagem **com ponteira**. A ponteira não é descrita no nome do kit por ser o padrão base.
+  - **Filtro de Informação (Link)**: Se o usuário NÃO perguntou especificamente sobre o "link", **NUNCA** mencione o código do link ou o kit de instalação para link. Seja direto e responda apenas o solicitado.
+  - **Quando o Link é Solicitado**: Caso a pergunta seja sobre o link, forneça o código do link e a opção do **"Kit de instalação para garra com link"**.
+  - **Instalação com Ponteira (Solicitação Direta)**: Se a pergunta for especificamente sobre o kit para montagem com ponteira, indique o item: **"Kit de instalação garra em escavadeira, máquina com fatia extra, sem linha"**.
 
 - **Garras R280 e R360/R360G em Escavadeiras Menores (7 a 10 Toneladas)**:
   - **Uso da R360 e R360G**: É fisicamente possível trabalhar com a garra R360 padrão ou R360G (unhas tipo garfo) em escavadeiras de 7 a 10 toneladas.
@@ -190,9 +208,11 @@
       * **Diferença de Preço vs. GT 360**: Existe uma diferença de valor entre a GT 360 e a GT 400X justamente porque o conjunto de corte da GT 400X é idêntico e compatível com o das traçadoras maiores (GT 600X / GT 800X) e inclui o motor de pistão Parker de 60cc.
       * **Propósito da Corrente 3/4"**: Desenvolvida para **serviço pesado / severo** e para quem necessita de **alta produtividade com correntes mais robustas**.
       * **RELEVANTE / TERMINOLOGIA OBRIGATÓRIA**: **NUNCA** diga que a corrente ou a garra é do "padrão de traçadora pesada". Diga sempre que ela é do **"padrão das traçadoras maiores"**.
-  - **Diretrizes de Comunicação**:
-    - Fornecer respostas diretas, objetivas e direcionadas. Evitar prolongar respostas.
-    - Falar exclusivamente de equipamentos pertencentes à linha oficial e catálogo de produtos Roder.
+- **Diretrizes de Comunicação e Resposta**:
+    - **Objetividade Máxima**: As respostas devem ser **70% menores** que o padrão anterior. Vá direto ao ponto técnico (código, modelo, recomendação).
+    - **Sem Linguagem de Vendas**: Elimine introduções longas ("Fala Jeff", "Excelente oportunidade"), textos persuasivos ou "encheção de linguiça". Vendedores precisam de dados rápidos para copiar e colar.
+    - **Imagens**: **NUNCA** envie imagens de equipamentos que não façam parte do assunto específico da pergunta. Se a pergunta é sobre garra florestal (R400/R600), não envie fotos de garras de pá carregadeira ou feller.
+    - **Foco Técnico**: Falar exclusivamente de equipamentos pertencentes à linha oficial e catálogo de produtos Roder.
 
 
 
