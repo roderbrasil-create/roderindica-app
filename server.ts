@@ -3926,7 +3926,11 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
   });
 
   // Find compiled build output across potential host directories (Hostinger, cPanel, Passenger, Docker, etc.)
+  const __entryDir = (() => { try { return process.argv[1] ? path.dirname(fs.realpathSync(process.argv[1])) : process.cwd(); } catch { return process.cwd(); } })();
   const candidateDistDirs = [
+    path.resolve(__entryDir, 'dist'),
+    path.resolve(__entryDir, 'build'),
+    path.resolve(__entryDir),
     path.resolve(process.cwd(), 'dist'),
     path.resolve(process.cwd(), 'build'),
     path.resolve(__appDir, 'dist'),
@@ -3938,6 +3942,14 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     path.resolve(process.cwd(), 'public_html', 'dist'),
     path.resolve(process.cwd(), 'public_html')
   ];
+
+  app.get("/api/diag-static", (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      cwd: process.cwd(), entryDir: __entryDir, appDir: __appDir, indexPath, distPath,
+      candidates: candidateDistDirs.map(c => ({ dir: c, index: fs.existsSync(path.resolve(c, 'index.html')), assets: fs.existsSync(path.resolve(c, 'assets')) })),
+    });
+  });
 
   let distPath: string | null = null;
   let indexPath: string | null = null;
@@ -4029,7 +4041,16 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         return res.sendFile(indexPath);
       }
 
-      // If indexPath is somehow gone, look dynamically for root index.html or dist/index.html
+      // If indexPath is somehow gone, re-scan every candidate build directory at request time
+      for (const candidate of candidateDistDirs) {
+        const candIndex = path.resolve(candidate, 'index.html');
+        if (fs.existsSync(candIndex) && fs.existsSync(path.resolve(candidate, 'assets'))) {
+          indexPath = candIndex;
+          distPath = candidate;
+          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+          return res.sendFile(candIndex);
+        }
+      }
       const fallbackDistIndex = path.resolve(process.cwd(), 'dist', 'index.html');
       if (fs.existsSync(fallbackDistIndex)) {
         res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
@@ -4042,6 +4063,8 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         return res.sendFile(rootIndex);
       }
 
+      console.error(`[STATIC-SERVER] index.html nao encontrado. cwd=${process.cwd()} entry=${__entryDir} indexPath=${indexPath}`);
+      res.setHeader("Cache-Control", "no-store");
       return res.status(200).send("<!DOCTYPE html><html><head><title>RODER Brasil</title><meta http-equiv='refresh' content='2'></head><body style='background:#0f172a;color:#f8fafc;font-family:sans-serif;padding:40px;text-align:center;'><h2>Iniciando RODER Brasil...</h2><p>Carregando módulos em tempo real...</p></body></html>");
     });
   } else {
