@@ -4065,7 +4065,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
 
       console.error(`[STATIC-SERVER] index.html nao encontrado. cwd=${process.cwd()} entry=${__entryDir} indexPath=${indexPath}`);
       res.setHeader("Cache-Control", "no-store");
-      return res.status(200).send("<!DOCTYPE html><html><head><title>RODER Brasil</title><meta http-equiv='refresh' content='2'></head><body style='background:#0f172a;color:#f8fafc;font-family:sans-serif;padding:40px;text-align:center;'><h2>Iniciando RODER Brasil...</h2><p>Carregando módulos em tempo real...</p></body></html>");
+      return res.status(200).send("<!DOCTYPE html><html><head><title>RODER Brasil</title></head><body style='background:#0f172a;color:#f8fafc;font-family:sans-serif;padding:40px;text-align:center;'><h2>Iniciando RODER Brasil...</h2><p>Carregando módulos em tempo real...</p><p style='font-size:11px;color:#64748b'>diag v3 | cwd=" + process.cwd() + " | entry=" + __entryDir + " | " + candidateDistDirs.map(c => c + ':' + (fs.existsSync(path.resolve(c,'index.html'))?'I':'-') + (fs.existsSync(path.resolve(c,'assets'))?'A':'-')).join(' ; ') + "</p></body></html>");
     });
   } else {
     // If no static build exists (e.g. fresh Git clone on Hostinger), start Vite server dynamically or serve index directly
