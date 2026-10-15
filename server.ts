@@ -4055,6 +4055,11 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         return res.sendFile(rootIndex);
       }
 
+      // Se a pasta desta versão sumiu (nova implantação), encerra para o Passenger subir a versão atual
+      if (!fs.existsSync(path.join(__appDir, 'server.js'))) {
+        console.warn('[STATIC-SERVER] Pasta da versão removida. Encerrando processo antigo.');
+        setTimeout(() => process.exit(0), 500);
+      }
       console.error(`[STATIC-SERVER] index.html nao encontrado. cwd=${process.cwd()} entry=${__entryDir} indexPath=${indexPath}`);
       res.setHeader("Cache-Control", "no-store");
       return res.status(200).send("<!DOCTYPE html><html><head><title>RODER Brasil</title></head><body style='background:#0f172a;color:#f8fafc;font-family:sans-serif;padding:40px;text-align:center;'><h2>Iniciando RODER Brasil...</h2><p>Carregando módulos em tempo real...</p></body></html>");
@@ -7421,6 +7426,35 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     app.listen(portNum, "0.0.0.0", onServerListen);
   }
 }
+
+// Hostinger/Passenger: após uma nova implantação, processos antigos podem continuar vivos
+// apontando para uma versão já removida e respondendo a tela de carregamento.
+// Este vigia encerra o processo quando a versão ativa (hbuilds/current) muda,
+// para o Passenger subir um novo processo com a versão atual.
+(() => {
+  try {
+    const appDir = fs.realpathSync(__appDir);
+    const marker = `${path.sep}hbuilds${path.sep}versions${path.sep}`;
+    const idx = appDir.indexOf(marker);
+    if (idx < 0) return;
+    const rest = appDir.slice(idx + marker.length).split(path.sep).slice(1).join(path.sep);
+    const currentDir = path.join(appDir.slice(0, idx), 'hbuilds', 'current', rest);
+    console.log(`[VERSION-WATCHDOG] Ativo. Esta versão: ${appDir} | versão atual: ${currentDir}`);
+    const timer = setInterval(() => {
+      let active = '';
+      try { active = fs.realpathSync(currentDir); } catch { return; }
+      const stillHere = fs.existsSync(path.join(appDir, 'server.js'));
+      if (active && (active !== appDir || !stillHere)) {
+        console.warn(`[VERSION-WATCHDOG] Nova versão ativa (${active}). Encerrando processo antigo ${appDir}.`);
+        clearInterval(timer);
+        setTimeout(() => process.exit(0), 1000);
+      }
+    }, 30000);
+    timer.unref();
+  } catch (e: any) {
+    console.warn('[VERSION-WATCHDOG] Não iniciado:', e?.message);
+  }
+})();
 
 startServer().catch(err => {
   console.error("Failed to start server:", err);
