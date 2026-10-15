@@ -51,7 +51,8 @@ import {
   FileText,
   FileDown,
   MessageCircle,
-  Mail
+  Mail,
+  DatabaseBackup
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, safeFormatDate, formatCurrency } from '../lib/utils';
@@ -428,20 +429,114 @@ export default function Fairs() {
     return fair.status;
   };
 
+  const [exporting, setExporting] = useState(false);
+
+  // Exporta todas as feiras e ações de endomarketing para migração ao Roder Vision (somente admin)
+  const handleExportAll = async () => {
+    if (!isAdmin || exporting) return;
+    setExporting(true);
+    const toastId = toast.loading('Exportando feiras e eventos...');
+    try {
+      const readAll = async (name: string) => {
+        const snap = await getDocs(collection(db, name));
+        return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      };
+      const [fairsData, expenses, expenseCategories, checklist, assets, leads, endoActions, endoCategories] = await Promise.all([
+        readAll('fairs'),
+        readAll('fair_expenses'),
+        readAll('fair_expense_categories'),
+        readAll('fair_checklist'),
+        readAll('fair_assets'),
+        readAll('fair_leads'),
+        readAll('endomarketing_actions'),
+        readAll('endomarketing_financial_categories'),
+      ]);
+      const endomarketing = await Promise.all(endoActions.map(async (a: any) => {
+        const items = await getDocs(collection(db, `endomarketing_actions/${a.id}/financial_items`));
+        return { ...a, financial_items: items.docs.map(d => ({ id: d.id, ...d.data() })) };
+      }));
+      const sum = (arr: any[], key: string) => arr.reduce((t, x) => t + (Number(x[key]) || 0), 0);
+      const payload = {
+        source: 'roder-indica',
+        version: 1,
+        exported_at: new Date().toISOString(),
+        exported_by: profile?.email || '',
+        summary: {
+          fairs: fairsData.length,
+          fair_expenses: expenses.length,
+          fair_expenses_total: sum(expenses, 'amount'),
+          fair_leads: leads.length,
+          endomarketing_actions: endomarketing.length,
+          endomarketing_items_total: endomarketing.reduce((t: number, a: any) => t + sum(a.financial_items, 'value'), 0),
+        },
+        fairs: fairsData,
+        fair_expenses: expenses,
+        fair_expense_categories: expenseCategories,
+        fair_checklist: checklist,
+        fair_assets: assets,
+        fair_leads: leads,
+        endomarketing_actions: endomarketing,
+        endomarketing_financial_categories: endoCategories,
+      };
+      const json = JSON.stringify(payload, (_k, v) => {
+        if (v && typeof v === 'object' && typeof v.toDate === 'function') return v.toDate().toISOString();
+        if (v && typeof v === 'object' && typeof v.seconds === 'number' && typeof v.nanoseconds === 'number' && Object.keys(v).length === 2) {
+          return new Date(v.seconds * 1000).toISOString();
+        }
+        return v;
+      }, 2);
+      const fileName = `roder-indica-feiras-eventos-${new Date().toISOString().slice(0, 10)}.json`;
+      const blob = new Blob([json], { type: 'application/json' });
+      const file = new File([blob], fileName, { type: 'application/json' });
+      const nav: any = navigator;
+      if (nav.canShare && nav.canShare({ files: [file] }) && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
+        await nav.share({ files: [file], title: fileName });
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+      }
+      const s = payload.summary;
+      toast.success(`Exportado: ${s.fairs} feiras, ${s.fair_expenses} despesas (${formatCurrency(s.fair_expenses_total)}), ${s.fair_leads} leads e ${s.endomarketing_actions} ações de endomarketing.`, { id: toastId, duration: 10000 });
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        toast.dismiss(toastId);
+      } else {
+        console.error('[EXPORT] Erro ao exportar feiras:', err);
+        toast.error('Não foi possível exportar: ' + (err?.message || 'erro desconhecido'), { id: toastId });
+      }
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <Layout>
       <div className="space-y-8">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-foreground">Gestão de Feiras e Eventos</h1>
             <p className="text-muted-foreground">Gerencie eventos, orçamentos e captação de leads de feiras.</p>
           </div>
-          {canManage && (
-            <Button onClick={() => { resetForm(); setIsDialogOpen(true); }} className="gap-2">
-              <Plus className="h-4 w-4" />
-              Nova Feira
-            </Button>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {isAdmin && (
+              <Button variant="outline" onClick={handleExportAll} disabled={exporting} className="gap-2">
+                <DatabaseBackup className="h-4 w-4" />
+                {exporting ? 'Exportando...' : 'Exportar feiras e eventos'}
+              </Button>
+            )}
+            {canManage && (
+              <Button onClick={() => { resetForm(); setIsDialogOpen(true); }} className="gap-2">
+                <Plus className="h-4 w-4" />
+                Nova Feira
+              </Button>
+            )}
+          </div>
         </div>
 
         {loading ? (
