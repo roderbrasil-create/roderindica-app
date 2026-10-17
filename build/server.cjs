@@ -4850,7 +4850,9 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       if (!token) return res.status(401).json({ error: "Fa\xE7a login novamente." });
       const decoded = await import_firebase_admin.default.auth().verifyIdToken(token);
       const me = (await db.collection("users").doc(decoded.uid).get()).data();
-      if (!me || !["admin", "manager"].includes(me.role)) return res.status(403).json({ error: "Somente administrador." });
+      const OWNER_EMAILS = ["jeferson@roderbrasil.com.br", "roderbrasil@gmail.com"];
+      const myEmail = String(decoded.email || me?.email || "").toLowerCase();
+      if (!me || me.role !== "admin" || !OWNER_EMAILS.includes(myEmail)) return res.status(403).json({ error: "Somente o Jeferson." });
       const cfg = (await db.collection("settings").doc("agendor").get()).data();
       const apiToken = cfg?.apiToken;
       if (!apiToken) return res.status(400).json({ error: "Token do Agendor n\xE3o encontrado nas configura\xE7\xF5es." });

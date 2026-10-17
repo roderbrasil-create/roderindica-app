@@ -5300,7 +5300,7 @@ export default function Catalog() {
                       <Layers className="h-4 w-4 mr-1 md:mr-2" /> <span>Nova Família</span>
                     </Button>
                   )}
-                  {isAdmin && (
+                  {isAdmin && ['jeferson@roderbrasil.com.br', 'roderbrasil@gmail.com'].includes(String(user?.email || '').toLowerCase()) && (
                     <Button
                       variant="outline"
                       onClick={() => setIsAgendorPhotosOpen(true)}

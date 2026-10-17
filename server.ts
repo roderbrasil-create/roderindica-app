@@ -5324,7 +5324,9 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       if (!token) return res.status(401).json({ error: "Faça login novamente." });
       const decoded = await admin.auth().verifyIdToken(token);
       const me = (await db.collection('users').doc(decoded.uid).get()).data() as any;
-      if (!me || !['admin', 'manager'].includes(me.role)) return res.status(403).json({ error: "Somente administrador." });
+      const OWNER_EMAILS = ['jeferson@roderbrasil.com.br', 'roderbrasil@gmail.com'];
+      const myEmail = String(decoded.email || me?.email || '').toLowerCase();
+      if (!me || me.role !== 'admin' || !OWNER_EMAILS.includes(myEmail)) return res.status(403).json({ error: "Somente o Jeferson." });
 
       const cfg = (await db.collection('settings').doc('agendor').get()).data() as any;
       const apiToken = cfg?.apiToken;
