@@ -548,7 +548,8 @@ export default function Indications() {
           const standardSellerRate = selectedIndication.standard_seller_commission_rate !== undefined 
             ? selectedIndication.standard_seller_commission_rate 
             : 2;
-          finalStandardSellerCommissionValue = totalSalesValue * (standardSellerRate / 100);
+          // Comissão do vendedor padrão não é controlada no Roder Indica
+          finalStandardSellerCommissionValue = 0 * standardSellerRate;
         }
       } else {
         // When there is no external seller registered, or only an internal seller is registered, there will be no commission processing for any seller.

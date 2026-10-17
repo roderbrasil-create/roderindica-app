@@ -307,7 +307,7 @@ export default function Reports() {
       
       // Fixed cost: Monthly Salary
       const monthlyCost = seller.monthly_salary || 0;
-      const totalCost = monthlyCost + totalCommission;
+      const totalCost = monthlyCost; // comissão do vendedor padrão não entra no Roder Indica
 
       return {
         uid: seller.uid,
@@ -937,7 +937,7 @@ export default function Reports() {
                       {/* Cost vs Revenue */}
                       <div className="space-y-2">
                         <div className="flex items-center justify-between text-xs">
-                          <span className="font-bold text-muted-foreground uppercase tracking-wider">Custo Total (Salário + Com.)</span>
+                          <span className="font-bold text-muted-foreground uppercase tracking-wider">Custo (Salário)</span>
                           <span className="font-mono font-black text-red-500 tracking-tighter">{maskCurrency(seller.totalCost)}</span>
                         </div>
                         <div className="flex items-center justify-between text-xs">
@@ -967,16 +967,6 @@ export default function Reports() {
                         </div>
                       </div>
 
-                      <div className="space-y-1 mt-2">
-                         <div className="flex items-center justify-between text-[10px] font-bold uppercase text-muted-foreground">
-                           <span>Comissões Próprias</span>
-                           <span className="font-mono">{maskCurrency(seller.ownCommission)}</span>
-                         </div>
-                         <div className="flex items-center justify-between text-[10px] font-bold uppercase text-muted-foreground">
-                           <span>Comissões Parceiros</span>
-                           <span className="font-mono">{maskCurrency(seller.partnerCommission)}</span>
-                         </div>
-                      </div>
                     </CardContent>
                   </Card>
                 ))}

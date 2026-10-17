@@ -1733,10 +1733,6 @@ export default function NegotiationCentral() {
                       try {
                         const ind: any = activeIndication;
                         const upd: any = { sale_value: num, updated_at: new Date().toISOString() };
-                        if (ind.standard_seller_uid && ind.standard_seller_commission_enabled !== false) {
-                          const rate = ind.standard_seller_commission_rate !== undefined ? ind.standard_seller_commission_rate : 2;
-                          upd.standard_seller_commission_value = num * (rate / 100);
-                        }
                         upd.negotiation_history = arrayUnion({
                           id: Math.random().toString(36).substring(2, 11),
                           type: 'status_change',
@@ -2008,8 +2004,8 @@ export default function NegotiationCentral() {
                     </div>
                   </div>
 
-                  {/* Vendedor Região (opcional) */}
-                  {activeIndication.standard_seller_uid && (
+                  {/* Vendedor padrão: comissão dele não aparece no Roder Indica (app só de parceiros indicadores) */}
+                  {false && activeIndication.standard_seller_uid && (
                     <div className="p-3 rounded-xl bg-orange-500/5 border border-orange-500/10 flex flex-col gap-2 shadow-sm shrink-0">
                       <div className="flex items-start justify-between min-w-0">
                         <div className="flex items-center gap-2.5 min-w-0">
