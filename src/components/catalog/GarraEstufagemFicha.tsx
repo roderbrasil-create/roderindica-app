@@ -773,7 +773,7 @@ export function GarraEstufagemFicha({ onClose, defaultModelId = 'af_360' }: Garr
                 {/* Footer Page */}
                 <div className="flex justify-between items-center border-t-2 border-slate-800 pt-2 text-slate-500 text-[7.5px] font-mono mt-auto">
                   <div>
-                    <span className="font-bold text-slate-800">RODER BRASIL INDUSTRIAL LTDA</span> • (15) 3524-1111 • comercial@roderbrasil.com.br
+                    <span className="font-bold text-slate-800">RODER MÁQUINAS E EQUIPAMENTOS LTDA</span> • (14) 3161-5110 • Pardinho/SP
                   </div>
                   <div className="text-right">
                     <span className="font-bold text-slate-800">Ref: FT-EST-2026 • Página 1 de 1</span>

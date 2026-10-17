@@ -1,3 +1,5 @@
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 import React, { useRef, useState, useEffect } from 'react';
 import { 
   X, 
@@ -50,29 +52,47 @@ export function CabecoteGmt035Ficha({ onClose }: CabecoteGmt035FichaProps) {
 
   // Image states with defaults and Ctrl+V paste support
   const [mainImageUrl, setMainImageUrl] = useState<string>(
-    'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/06/img-cabecote-florestal-poda-arvores.jpg.webp'
+    ''
   );
   const [mainImageZoom, setMainImageZoom] = useState<number>(1);
 
   const [ttcImageUrl, setTtcImageUrl] = useState<string>(
-    'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/06/img-cabecote-florestal-poda-arvores.jpg.webp'
+    ''
   );
   const [ttcImageZoom, setTtcImageZoom] = useState<number>(1);
 
   const [kitImageUrl, setKitImageUrl] = useState<string>(
-    'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/06/img-cabecote-florestal-poda-arvores.jpg.webp'
+    ''
   );
   const [kitImageZoom, setKitImageZoom] = useState<number>(1);
 
   const [operationalPhoto1Url, setOperationalPhoto1Url] = useState<string>(
-    'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/06/img-cabecote-florestal-poda-arvores.jpg.webp'
+    ''
   );
   const [operationalPhoto1Zoom, setOperationalPhoto1Zoom] = useState<number>(1);
 
   const [operationalPhoto2Url, setOperationalPhoto2Url] = useState<string>(
-    'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/06/img-cabecote-florestal-poda-arvores.jpg.webp'
+    ''
   );
   const [operationalPhoto2Zoom, setOperationalPhoto2Zoom] = useState<number>(1);
+
+  // Fotos padrão: usa a foto do próprio GMT 035 cadastrada no catálogo (antes mostrava a foto do GP 150)
+  useEffect(() => {
+    (async () => {
+      try {
+        const snap = await getDocs(collection(db, 'products'));
+        const gmt: any = snap.docs.map(d => d.data()).find((p: any) => String(p.name || '').toLowerCase().includes('gmt'));
+        const img = gmt?.image_url || (gmt?.models || []).find((m: any) => m.image_url)?.image_url || '';
+        if (img) {
+          setMainImageUrl(v => v || img);
+          setTtcImageUrl(v => v || img);
+          setKitImageUrl(v => v || img);
+          setOperationalPhoto1Url(v => v || img);
+          setOperationalPhoto2Url(v => v || img);
+        }
+      } catch {}
+    })();
+  }, []);
 
   useEffect(() => {
     const originalOverflow = document.body.style.overflow;

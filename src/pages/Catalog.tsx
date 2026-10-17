@@ -271,20 +271,8 @@ function ImageCarousel({ images, zoom = 1, objectFit = 'cover', onClick }: { ima
 const isEngateProduct = (nameOrUrl?: string) => {
   if (!nameOrUrl) return false;
   const lower = nameOrUrl.toLowerCase();
-  return lower.includes('engat') || 
-         lower.includes('engan') || 
-         lower.includes('acopl') || 
-         lower.includes('acople') || 
-         lower.includes('hitch') || 
-         lower.includes('coupler') || 
-         lower.includes('quick') || 
-         lower.includes('attach') ||
-         lower.includes('troca') ||
-         lower.includes('rápida') ||
-         lower.includes('rapida') ||
-         lower.includes('carregadeira') ||
-         lower.includes('carregadeiras') ||
-         lower.includes('loader');
+  // Só o próprio Engate Rápido (antes pegava qualquer item "para pá carregadeira", como o triturador FAE)
+  return lower.includes('engate') || lower.includes('coupler') || lower.includes('hitch');
 };
 
 const isHighTipProduct = (nameOrUrl?: string) => {
@@ -332,7 +320,7 @@ const isEstufagemProduct = (nameOrUrl?: string) => {
 const isCabecoteGmt035Product = (nameOrUrl?: string) => {
   if (!nameOrUrl) return false;
   const lower = nameOrUrl.toLowerCase();
-  return lower.includes('gmt') || lower.includes('gmt035') || lower.includes('gmt 035') || lower.includes('035');
+  return lower.includes('gmt');
 };
 
 const isCabecotePodaProduct = (nameOrUrl?: string) => {
@@ -360,7 +348,7 @@ const isAnyFichaSupported = (product: any) => {
   if (!product) return false;
   const url = (product.pdf_url || '').toLowerCase();
   const name = (product.name || '').toLowerCase();
-  const desc = (product.description || '').toLowerCase();
+  const desc = (product.description || '').toLowerCase().slice(0, 90); // só o começo, que nomeia o próprio produto
   const cat = (product.category || '').toLowerCase();
   
   // Guard for Prolongador com Concha / PCR: should not support high tip default fallbacks
@@ -377,9 +365,9 @@ const isAnyFichaSupported = (product: any) => {
   
   const containsEngateKeyword = (str: string) => {
     const s = (str || '').toLowerCase();
-    return s.includes('engat') || s.includes('rapido') || s.includes('rápido') || s.includes('acopl') || s.includes('acople') || s.includes('hitch');
+    return s.includes('engate') || s.includes('hitch') || s.includes('coupler');
   };
-  const isEngate = containsEngateKeyword(url) || containsEngateKeyword(name) || containsEngateKeyword(desc) || containsEngateKeyword(cat) ||
+  const isEngate = containsEngateKeyword(url) || containsEngateKeyword(name) ||
                     !!(product.id && (product.id.toLowerCase().includes('engate') || product.id.toLowerCase().includes('er-')));
 
   const containsHighTipKeyword = (str: string) => {
@@ -3774,7 +3762,8 @@ export default function Catalog() {
     // Context fields if present
     const lowerContextName = (productContext?.name || '').toLowerCase();
     const lowerContextCategory = (productContext?.category || '').toLowerCase();
-    const lowerContextDesc = (productContext?.description || '').toLowerCase();
+    // Só o começo da descrição (que nomeia o próprio produto); o resto cita outros equipamentos (ex.: "use com engate rápido")
+    const lowerContextDesc = (productContext?.description || '').toLowerCase().slice(0, 90);
     const lowerContextPdfUrl = (productContext?.pdf_url || '').toLowerCase();
 
     const containsLoaderTriturador = (str: string) => {
@@ -3864,7 +3853,7 @@ export default function Catalog() {
                       
     const containsEngateKeyword = (str: string) => {
       const s = (str || '').toLowerCase();
-      return s.includes('engat') || s.includes('rapido') || s.includes('rápido') || s.includes('acopl') || s.includes('acople') || s.includes('hitch') || s.includes('medida');
+      return s.includes('engate') || s.includes('hitch') || s.includes('coupler');
     };
     const isEngate = containsEngateKeyword(lowerUrl) || 
                      containsEngateKeyword(lowerModelName) || 

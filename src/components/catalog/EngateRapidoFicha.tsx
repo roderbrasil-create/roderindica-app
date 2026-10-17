@@ -674,7 +674,7 @@ export function EngateRapidoFicha({ onClose }: EngateRapidoFichaProps) {
                       <div className="font-semibold text-slate-800">Compartilhamento de Linha:</div>
                       <ul className="list-disc pl-3 space-y-0.5 text-[8px]">
                         <li><strong>Garra Frontal:</strong> Com fechamento clamp simples.</li>
-                        <li><strong>Garras de Estufagem Sem Giro:</strong> Modelos AF 360, AF 400.</li>
+                        <li><strong>Garras de Estufagem Sem Giro:</strong> Modelos AF 360, AF 600 e AF 800.</li>
                       </ul>
                     </div>
                   </div>
@@ -696,7 +696,7 @@ export function EngateRapidoFicha({ onClose }: EngateRapidoFichaProps) {
                       <div className="font-semibold text-slate-800">Implementos que exigem 4 Vias:</div>
                       <ul className="list-disc pl-3 space-y-0.5 text-[8px]">
                         <li><strong>Carregador Frontal:</strong> Com rotador pendulado.</li>
-                        <li><strong>Garras de Estufagem com Giro:</strong> Modelos AFG 600 e AFG 800.</li>
+                        <li><strong>Garras de Estufagem com Giro:</strong> Modelos AFG 360, AFG 600 e AFG 800.</li>
                       </ul>
                     </div>
                   </div>
@@ -747,7 +747,7 @@ export function EngateRapidoFicha({ onClose }: EngateRapidoFichaProps) {
             {/* PDF Footer */}
             <div className="border-t border-slate-200 pt-2 flex justify-between items-center text-[7.5px] text-slate-500 font-mono">
               <div>
-                <p className="font-bold">RODER BRASIL EQUIPAMENTOS HIDRÁULICOS LTDA</p>
+                <p className="font-bold">RODER MÁQUINAS E EQUIPAMENTOS LTDA</p>
                 <p>Contato Comercial: Gislene / Triagem de Leads: Luana</p>
               </div>
               <div className="text-right">

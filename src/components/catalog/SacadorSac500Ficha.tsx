@@ -609,7 +609,7 @@ _Dúvidas ou orçamentos? Fale com a equipe técnica Roder!_`;
               {/* 8. Roder Document Footer */}
               <div className="border-t-2 border-slate-300 pt-1.5 flex items-center justify-between text-[8.5px] text-slate-900 font-extrabold mt-0.5">
                 <div className="flex items-center gap-1.5">
-                  <span className="font-black text-slate-950">RODER COMERCIAL LTDA</span>
+                  <span className="font-black text-slate-950">RODER MÁQUINAS E EQUIPAMENTOS LTDA</span>
                   <span>•</span>
                   <span>Soluções Florestais de Alta Performance</span>
                 </div>

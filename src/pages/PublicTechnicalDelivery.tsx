@@ -902,7 +902,7 @@ export default function PublicTechnicalDelivery() {
                         <span className="text-[10px] text-slate-400 font-bold uppercase">Carregando esquema...</span>
                       )}
                     </div>
-                    <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wider mt-1.5 block text-center">EQUIPAMENTO MULTIPLICADOR RODER</span>
+                    <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wider mt-1.5 block text-center">ACOPLAMENTO DO TRITURADOR</span>
                   </div>
                 </div>
 
