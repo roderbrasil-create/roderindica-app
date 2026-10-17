@@ -48,6 +48,7 @@ import { Badge } from '../components/ui/badge';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import { HelpTooltip } from '../components/base/HelpTooltip';
+import { useVoltarFecha } from '../lib/useVoltarFecha';
 
 function DashboardBannerImage({ src, alt, className }: { src: string; alt: string; className?: string }) {
   const [resolvedSrc, setResolvedSrc] = useState('');
@@ -132,6 +133,7 @@ export default function Dashboard() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [latestEvaluations, setLatestEvaluations] = useState<any[]>([]);
   const [showFinanceModal, setShowFinanceModal] = useState(false);
+  useVoltarFecha(showFinanceModal, () => setShowFinanceModal(false));
 
   // Filter for upcoming Endomarketing actions (Planned or In Progress, or planned date not older than today)
   const upcomingEndoActions = React.useMemo(() => {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Layout from '../components/layout/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { collection, query, onSnapshot, orderBy, addDoc, updateDoc, doc, deleteDoc, getDoc, where, getDocs } from 'firebase/firestore';
@@ -95,6 +95,7 @@ import { CabecoteGmt035Ficha } from '../components/catalog/CabecoteGmt035Ficha';
 import { SacadorSac500Ficha } from '../components/catalog/SacadorSac500Ficha';
 import { EstudosComparativosModal } from '../components/catalog/EstudosComparativosModal';
 import { RODER_LOGO_BASE64 } from '../components/catalog/RoderLogo';
+import { useVoltarFecha } from '../lib/useVoltarFecha';
 
 function SmartImage({ src, alt, className, zoom = 1, objectFit = 'cover', ...props }: any) {
   const [resolvedSrc, setResolvedSrc] = useState('');
@@ -789,6 +790,7 @@ export default function Catalog() {
   const [garraEstufagemDefaultModel, setGarraEstufagemDefaultModel] = useState<string>('af-360');
   const [suspendedProductModels, setSuspendedProductModels] = useState<Product | null>(null);
   const [suspendedViewingGallery, setSuspendedViewingGallery] = useState<Product | null>(null);
+
   const [fresaSshDefaultModel, setFresaSshDefaultModel] = useState<string>('ssh-150');
   const [isHighTipSelectorOpen, setIsHighTipSelectorOpen] = useState(false);
   const [isTechnicalDeliveryOpen, setIsTechnicalDeliveryOpen] = useState(false);
@@ -920,6 +922,47 @@ export default function Catalog() {
   };
 
   const [viewingGallery, setViewingGallery] = useState<Product | null>(null);
+
+  // Lista de modelos aberta (inclusive enquanto uma ficha está por cima dela)
+  const galeriaAberta = !!(viewingGallery || suspendedViewingGallery);
+  // "Voltar" do app ou do celular fecha a lista de modelos e volta ao catálogo,
+  // em vez de sair para o dashboard
+  useVoltarFecha(galeriaAberta, () => {
+    setViewingGallery(null);
+    setSuspendedViewingGallery(null);
+  });
+  // A lista abria na altura em que o catálogo estava rolado (meio, fim...).
+  // Agora abre sempre no primeiro modelo, e ao voltar o catálogo volta onde estava.
+  const posicaoCatalogoRef = useRef(0);
+  useEffect(() => {
+    if (galeriaAberta) {
+      posicaoCatalogoRef.current = window.scrollY;
+      window.scrollTo({ top: 0, behavior: 'auto' });
+      requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'auto' }));
+    } else {
+      const y = posicaoCatalogoRef.current;
+      requestAnimationFrame(() => window.scrollTo({ top: y, behavior: 'auto' }));
+    }
+  }, [galeriaAberta]);
+
+  // Fichas técnicas abertas em tela cheia por cima do catálogo ou dos modelos:
+  // o "voltar" fecha a ficha e devolve a tela que estava embaixo
+  const fichaAberta = isHighTipFichaOpen || isFresaSshFichaOpen || isTrituradorLoaderFaeFichaOpen || isEngateRapidoFichaOpen || isGarraEstufagemFichaOpen || isCabecotePodaFichaOpen || isCabecoteGmt035FichaOpen || isSacadorSac500FichaOpen || isEstudosComparativosOpen;
+  useVoltarFecha(fichaAberta, () => {
+    setIsHighTipFichaOpen(false);
+    setIsFresaSshFichaOpen(false);
+    setIsTrituradorLoaderFaeFichaOpen(false);
+    setIsEngateRapidoFichaOpen(false);
+    setIsGarraEstufagemFichaOpen(false);
+    setIsCabecotePodaFichaOpen(false);
+    setIsCabecoteGmt035FichaOpen(false);
+    setIsSacadorSac500FichaOpen(false);
+    setIsEstudosComparativosOpen(false);
+    if (suspendedProductModels) { setSelectedProductModels(suspendedProductModels); setSuspendedProductModels(null); }
+    if (suspendedViewingGallery) { setViewingGallery(suspendedViewingGallery); setSuspendedViewingGallery(null); }
+  });
+  // Janela de modelos (computador) também fecha no "voltar"
+  useVoltarFecha(!!selectedProductModels, () => setSelectedProductModels(null));
 
   // Catalog Image Lightbox States
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
@@ -4827,9 +4870,9 @@ export default function Catalog() {
   return (
     <Layout>
       {viewingGallery ? (
-        <div className="flex flex-col min-h-screen bg-slate-50 -m-4 md:-m-8">
-          {/* Gallery Header - Fixed Sticky */}
-          <header className="sticky top-0 z-30 bg-white border-b border-border shadow-md p-3 md:p-4 flex items-center gap-3 md:gap-4">
+        <div className="flex flex-col min-h-screen bg-slate-50 -mx-4 -mb-4 md:-m-8">
+          {/* Gallery Header - para logo abaixo do cabeçalho do app (antes ficava por baixo e cortava o título) */}
+          <header style={{ top: 'var(--app-header-h, 0px)' }} className="sticky z-30 bg-white border-b border-border shadow-md p-3 md:p-4 flex items-center gap-3 md:gap-4">
             <Button 
               variant="ghost" 
               size="sm" 

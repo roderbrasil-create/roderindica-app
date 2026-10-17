@@ -57,6 +57,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
+import { useVoltarFecha } from '../lib/useVoltarFecha';
 
 interface AIQuestion {
   id: string;
@@ -108,6 +109,7 @@ export default function RoderIAReports() {
   const [indications, setIndications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedQuestion, setSelectedQuestion] = useState<AIQuestion | null>(null);
+  useVoltarFecha(!!selectedQuestion, () => setSelectedQuestion(null));
   const [improvedText, setImprovedText] = useState('');
   const [savingImprovement, setSavingImprovement] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');

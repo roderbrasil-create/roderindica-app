@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { Indication } from '../types';
+import { useVoltarFecha } from '../lib/useVoltarFecha';
 
 interface NegotiationContextType {
   activeIndication: Indication | null;
@@ -20,6 +21,8 @@ export function NegotiationProvider({ children }: { children: ReactNode }) {
   const [activeIndication, setActiveIndication] = useState<Indication | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('commercial');
+  // "Voltar" do app ou do celular fecha a negociação e volta à lista, sem sair para o dashboard
+  useVoltarFecha(isOpen, () => setIsOpen(false));
 
   // Shared faturamento states
   const [isInvoiceDialogOpen, setIsInvoiceDialogOpen] = useState(false);

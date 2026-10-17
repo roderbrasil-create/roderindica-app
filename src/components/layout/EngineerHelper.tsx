@@ -22,6 +22,7 @@ import { EngateRapidoFicha } from '../catalog/EngateRapidoFicha';
 import { GarraEstufagemFicha } from '../catalog/GarraEstufagemFicha';
 import { TrituradorLoaderFaeFicha } from '../catalog/TrituradorLoaderFaeFicha';
 import { SacadorSac500Ficha } from '../catalog/SacadorSac500Ficha';
+import { useVoltarFecha } from '../../lib/useVoltarFecha';
 
 const DEFAULT_PRODUCTIVITIES: Record<string, string> = {
   "CMF 600": `DERRUBADA (COLHEITA FLORESTAL):
@@ -1191,6 +1192,9 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
 
   // States for report modal
   const [isReportOpen, setIsReportOpen] = useState(false);
+  // "Voltar" do celular fecha primeiro o relatório e depois o consultor, em vez de sair da tela
+  useVoltarFecha(isOpen && !isFullPage, () => setIsOpenState(false));
+  useVoltarFecha(isReportOpen, () => setIsReportOpen(false));
   const [reportContent, setReportContent] = useState('');
   const [reportTitle, setReportTitle] = useState('Relatório de Dimensionamento Técnico');
   const reportRef = useRef<HTMLDivElement>(null);

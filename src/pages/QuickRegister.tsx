@@ -72,6 +72,7 @@ import { refineTranscription } from '../services/geminiService';
 import { sendThankYouEmail, notifyLuanaNewFairLead } from '../services/emailService';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { useVoltarFecha } from '../lib/useVoltarFecha';
 
 // Speech recognition type definitions
 declare global {
@@ -109,6 +110,8 @@ export default function QuickRegister() {
   const [saving, setSaving] = useState(false);
   const [processingIA, setProcessingIA] = useState(false);
   const [view, setView] = useState<'form' | 'history'>('form');
+  // "Voltar" do celular no histórico volta ao formulário, em vez de sair da página
+  useVoltarFecha(view === 'history', () => setView('form'));
   const [sellerLeads, setSellerLeads] = useState<any[]>([]);
   const [editingLeadId, setEditingLeadId] = useState<string | null>(null);
   

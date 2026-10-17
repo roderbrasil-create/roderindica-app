@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './Sidebar';
 import { Button } from '../ui/button';
 import { Menu, ChevronLeft, X, Eye, EyeOff, WifiOff, ExternalLink } from 'lucide-react';
@@ -80,12 +80,34 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const hasRightDock = isCatalog && isHelperOpen;
 
   const isHome = location.pathname === '/';
+  // Voltar para a tela anterior do app. Aberto direto por um link (sem tela anterior),
+  // o navigate(-1) sairia do app: nesse caso vai para o início.
+  const voltar = () => {
+    const st = window.history.state as any;
+    if (st?.__sub) { window.history.back(); return; } // fecha a tela interna aberta (modelos, negociação...)
+    const idx = st?.idx;
+    if (typeof idx === 'number' && idx > 0) navigate(-1);
+    else navigate('/');
+  };
 
   // Calculate dynamic header height on mobile when banners (impersonation, offline, quota) are active
   const mobileHeaderOffset = 56 
     + (isImpersonating ? 40 : 0) 
     + (isOffline ? 28 : 0) 
     + (isQuotaExceeded ? 42 : 0);
+
+  // Altura do cabeçalho do computador, para as telas internas que têm cabeçalho
+  // fixo próprio (lista de modelos) pararem logo abaixo dele e não por baixo
+  const desktopHeaderRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const el = desktopHeaderRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const aplicar = () => document.documentElement.style.setProperty('--desk-header-h', `${el.offsetHeight}px`);
+    aplicar();
+    const ro = new ResizeObserver(aplicar);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
@@ -151,7 +173,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       )}>
         {/* Style block for mobile safe area layout support */}
         <style dangerouslySetInnerHTML={{ __html: `
+          :root { --app-header-h: var(--desk-header-h, 0px); }
           @media (max-width: 767px) {
+            :root { --app-header-h: calc(${mobileHeaderOffset}px + env(safe-area-inset-top, 0px)); }
             .mobile-safe-header {
               padding-top: env(safe-area-inset-top, 0px) !important;
             }
@@ -216,7 +240,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   variant="ghost" 
                   size="icon" 
                   className="h-8 w-8 text-muted-foreground"
-                  onClick={() => navigate(-1)}
+                  onClick={voltar}
                 >
                   <ChevronLeft className="h-6 w-6" />
                 </Button>
@@ -247,14 +271,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Desktop Header */}
-        <header className="hidden md:flex items-center justify-between p-4 border-b border-border bg-background/50 backdrop-blur-sm sticky top-0 z-30">
+        <header ref={desktopHeaderRef} className="hidden md:flex items-center justify-between p-4 border-b border-border bg-background/50 backdrop-blur-sm sticky top-0 z-30">
           <div className="flex items-center gap-4">
             {!isHome && (
               <Button 
                 variant="ghost" 
                 size="sm" 
                 className="gap-2 text-muted-foreground hover:text-foreground"
-                onClick={() => navigate(-1)}
+                onClick={voltar}
               >
                 <ChevronLeft className="h-4 w-4" />
                 <span className="text-xs font-bold uppercase tracking-wider">Voltar</span>
