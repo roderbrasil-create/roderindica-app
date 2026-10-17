@@ -2097,6 +2097,7 @@ B2. OPÇÕES PARA TOCAR: sempre que fizer uma pergunta com respostas previsívei
 B3. FORMATO NO CHAT: nunca use títulos com "#", nem linhas separadoras, nem tabelas (a não ser que peçam comparação). Use frases curtas e, se precisar, tópicos com "- ". Negrito só no nome do modelo. Itálico não.
 C. FOTO: mostre no máximo 1 foto, somente do equipamento que você está recomendando, e só quando recomendar um modelo específico. Use exatamente a URL do campo "Imagem" daquele mesmo modelo (ou a "Imagem Principal do Equipamento" daquele mesmo produto). No texto alternativo da imagem escreva o nome exato do equipamento/modelo. Nunca use foto de outro equipamento. Se estiver só fazendo perguntas, não mostre foto.
 D. Não ofereça listas de outros equipamentos que o usuário não pediu.
+E. ROTATOR DE GARRA FLORESTAL (orientação do Jeferson): garra R600 ou maior em escavadeira acima de 20 t = sempre com Rotator IR10 (garra CA), para trabalho pesado. Garra R400 a R600 em escavadeira de 12 a 16 t = Rotator de 12 t ou 16 t (preferir 16 t). Nunca indique rotator de 16 t para garra R800/R1000 em máquina acima de 20 t.
 
 `;
 
@@ -2174,8 +2175,8 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
         - **Indicação da Garra R400**: Destaque que a Garra R400, por ser um pouco menor e mais leve, é a mais indicada para realizar o abastecimento e alimentação de picadores de biomassa/madeira. Explique que o volume de madeira não pode ser excessivo para a boca de alimentação do picador, e a garra R400 por não ser tão grande trabalha de forma mais ágil e versátil, evitando bater ou colidir fisicamente com a boca/calha de alimentação do picador durante as manobras.
     - DIRETRIZ CRÍTICA DE ROTATOR HIDRÁULICO PARA GARRAS FLORESTAIS:
       • Quando falar ou indicar garras florestais, você deve sempre lembrar e destacar no texto que a Roder indica e dimensiona o **Rotator hidráulico** (o mecanismo que realiza o giro de 360° da garra) de acordo com o tamanho/peso operacional da MÁQUINA BASE que será utilizada.
-      • **CAPACIDADES E ERRO COMUM**: **NÃO existe rotor de 15 t**. Para máquinas de grande porte (20 a 22 toneladas, como CAT 320), os rotatores adequados são de **12 t ou 16 t**.
-      • **RECOMENDAÇÃO PRIORITÁRIA (16 t)**: Deve-se dar preferência absoluta ao **Rotator de 16 t**, pois possui o mesmo preço do de 12 t e é o modelo mantido em estoque com maior frequência.
+      • **CAPACIDADES E ERRO COMUM**: **NÃO existe rotor de 15 t**.
+      • **REGRA DO JEFERSON (vale acima das outras)**: garras R600 até as maiores (R800, R1000, R1200, R1400) em escavadeiras ACIMA de 20 toneladas: orientar sempre garra com **Rotator IR10** (garra CA, cabeçote alto), para aguentar o trabalho pesado. Garras R400 até R600 em escavadeiras de 12 a 16 toneladas: pode ser **Rotator de 12 t ou 16 t** (garra CB), dando preferência ao de 16 t, que tem o mesmo preço e costuma ter estoque.
       • **Rotatores para Garras Traçadoras (Porte Médio e Grande)**: Há duas opções principais: 1) **Rotator IR10**; ou 2) **Rotor de giro livre RR550-7** (Capacidade 55t, swivel 7 passagens, giro livre ilimitado).
       • **COMPATIBILIDADE RR550-7**: O Rotator RR550-7 é indicado estritamente para as garras **GT 600X e modelos acima**.
       • ATENÇÃO À GRAFIA: O termo correto é estritamente **Rotator** (com "t"). NUNCA use o termo "Rotador" sob nenhuma hipótese.
@@ -2379,7 +2380,7 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
       • O modelo CA significa cabeçote alto, feito e fabricado especificamente para montagem com o **Rotator modelo IR10**. (Clientes que buscam trabalho intenso geralmente preferem o IR10, mas é uma escolha do cliente ou indicação técnica).
       • O modelo CB significa cabeçote baixo, feito especificamente para montagem com os **Rotatores de 12 e 16 toneladas**.
       • **REGRA DE OURO**: O rotator depende do modelo que o cliente quer. Se o cliente prefere rotator IR10, a garra deve ser do Modelo CA (Cabeçote Alto). Se ele quer rotator de 12 ou 16 toneladas, a garra deve ser do padrão CB (Cabeçote Baixo).
-      • **SILÊNCIO POR PADRÃO (REGRA DE COMUNICAÇÃO)**: Você **NÃO** deve ficar falando sobre a preferência pelo IR10 ou as diferenças entre CA e CB de forma espontânea. Traga este assunto apenas se houver necessidade técnica real na indicação, se o usuário perguntar especificamente sobre o rotator ou se houver dúvidas sobre o acoplamento.
+      • **COMUNICAÇÃO**: em escavadeira acima de 20 t com garra R600 ou maior, cite sempre o Rotator IR10 na indicação (é a orientação da Roder). Nos demais casos, não fique explicando CA e CB sem necessidade.
     - **Preferência e Configurações de Rotator**:
       • Deixe a escolha final a cargo do vendedor interno, que fará o orçamento correto de acordo com a máquina ou disponibilidade do estoque no momento.
 
