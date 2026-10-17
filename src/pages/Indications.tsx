@@ -518,7 +518,8 @@ export default function Indications() {
         }
       }
 
-      const totalSalesValue = unmaskCurrency(saleValue) || 0;
+      // saleValue guarda o número puro (ex.: "230000"); unmaskCurrency dividiria por 100 (bug do R$ 2.300)
+      const totalSalesValue = Number(saleValue) || 0;
       const baseValue = totalSalesValue; 
       const discPct = 0;
       const discountAmount = 0;
@@ -791,7 +792,7 @@ export default function Indications() {
       
       await notifyManagers(
         'Venda Realizada',
-        `${profile?.name} finalizou a venda de ${selectedIndication.client_name}. Valor: ${maskCurrency(unmaskCurrency(saleValue))}`,
+        `${profile?.name} finalizou a venda de ${selectedIndication.client_name}. Valor: ${maskCurrency(Number(saleValue) || 0)}`,
         `/indicacoes`,
         'success'
       );

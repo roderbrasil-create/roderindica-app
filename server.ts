@@ -251,7 +251,7 @@ async function startServer() {
 
   // API routes
   // Versão publicada (conferência de implantação). Atualizar RELEASE_LABEL a cada publicação.
-  const RELEASE_LABEL = "2026-10-16 negociacao-sem-agendor + versao";
+  const RELEASE_LABEL = "2026-10-16 negociacao-compacta + email-comissao";
   const SERVER_STARTED_AT = new Date().toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -4135,11 +4135,24 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
   
   const BR_TIMEZONE = 'America/Sao_Paulo';
   const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+  // Quem recebe a nota fiscal do parceiro quando ele responde o e-mail de comissão
+  const getFinanceReplyTo = (notif: any): string[] => {
+    const list = [notif?.finance_email || 'elizangela@roderbrasil.com.br', 'financeiro2@roderbrasil.com.br']
+      .flatMap((e: string) => String(e).split(/[,;]/)).map((e: string) => e.trim()).filter(Boolean);
+    return Array.from(new Set(list));
+  };
 
   async function getEmailTransporter() {
-    const settingsSnap = await db.collection('settings').doc('email').get();
-    if (!settingsSnap.exists) return null;
-    const settings = settingsSnap.data();
+    let settings: any = null;
+    try {
+      const settingsSnap = await db.collection('settings').doc('email').get();
+      settings = settingsSnap.exists ? settingsSnap.data() : null;
+    } catch (e: any) {
+      console.warn('[EMAIL] Não foi possível ler settings/email, usando SMTP das variáveis de ambiente:', e?.message);
+    }
+    if (!(settings?.provider === 'gmail' && settings.user && settings.pass) && process.env.SMTP_USER && process.env.SMTP_PASS) {
+      settings = { provider: 'gmail', user: process.env.SMTP_USER, pass: process.env.SMTP_PASS };
+    }
     if (settings?.provider !== 'gmail' || !settings.user || !settings.pass) return null;
 
     return nodemailer.createTransport({
@@ -4153,19 +4166,17 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     });
   }
 
-  async function sendAutomaticEmail(to: string, subject: string, html: string) {
+  async function sendAutomaticEmail(to: string, subject: string, html: string, opts: { replyTo?: string | string[]; cc?: string | string[]; fromName?: string } = {}) {
     const transporter = await getEmailTransporter();
-    if (!transporter) return;
-    
-    // Get sender email from settings
-    const settingsSnap = await db.collection('settings').doc('email').get();
-    const settings = settingsSnap.data();
-    const user = settings?.user;
+    if (!transporter) { console.warn('[EMAIL] Sem configuração de e-mail; não enviado:', subject); return; }
+    const user = (transporter.options as any)?.auth?.user;
 
     await transporter.sendMail({
-      from: `"Roder Sistema" <${user}>`,
+      from: `"${opts.fromName || 'Roder Sistema'}" <${user}>`,
       to,
       subject,
+      ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
+      ...(opts.cc ? { cc: opts.cc } : {}),
       html: `${html}<div style="margin-top:30px; font-size:10px; color:#999; border-top:1px solid #eee; padding-top:10px;">Enviado automaticamente pelo Sistema Roder Indica V2</div>`
     });
   }
@@ -4617,46 +4628,54 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       const partner = partnerData.data() as any;
       if (!partner.email || partner.email.endsWith('@mobile.roder.com.br')) continue;
 
-      const totalCommissions = (sales as any[]).reduce((acc, curr) => acc + (curr.commission_value || 0), 0);
+      const salesWithCommission = (sales as any[]).filter(x => (x.commission_value || 0) > 0);
+      const totalCommissions = salesWithCommission.reduce((acc, curr) => acc + (curr.commission_value || 0), 0);
+      if (totalCommissions <= 0) continue;
       const monthName = lastMonth.toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
+      const financeReplyTo = getFinanceReplyTo(notif);
+      const firstName = String(partner.name || '').split(' ')[0] || 'parceiro';
 
       const html = `
-        <div style="font-family: sans-serif; color: #333;">
-          <h2 style="color: #eab308;">Olá ${partner.name}, o extrato de ${monthName} já está disponível!</h2>
-          <p>Confira abaixo o resumo das suas vendas confirmadas no mês passado e o valor total para emissão da nota fiscal.</p>
-          
-          <div style="background: #eab308; color: #fff; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center;">
-            <p style="margin: 0; font-size: 14px; opacity: 0.9;">VALOR TOTAL DO MÊS</p>
-            <p style="margin: 5px 0 0 0; font-size: 32px; font-weight: 900;">${formatCurrency(totalCommissions)}</p>
+        <div style="font-family: Arial, sans-serif; color: #1f2937; max-width: 620px;">
+          <p style="font-size: 16px;">Olá, ${firstName}!</p>
+          <p style="font-size: 15px; line-height: 1.6;">É um prazer informar que as suas indicações geraram vendas em <strong>${monthName}</strong>. Muito obrigado pela parceria e pela confiança na Roder.</p>
+
+          <div style="background: #fff7ed; border: 1px solid #fed7aa; padding: 18px; border-radius: 10px; margin: 20px 0; text-align: center;">
+            <p style="margin: 0; font-size: 13px; color: #9a3412; text-transform: uppercase; letter-spacing: .05em;">Sua comissão a receber</p>
+            <p style="margin: 6px 0 0 0; font-size: 30px; font-weight: 800; color: #c2410c;">${formatCurrency(totalCommissions)}</p>
           </div>
 
-          <table style="width: 100%; border-collapse: collapse;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
             <thead>
-              <tr style="font-size: 12px; color: #666; text-align: left;">
-                <th style="padding: 10px; border-bottom: 1px solid #eee;">Cliente</th>
-                <th style="padding: 10px; border-bottom: 1px solid #eee;">Equipamento</th>
-                <th style="padding: 10px; border-bottom: 1px solid #eee;">Comissão</th>
+              <tr style="color: #6b7280; text-align: left;">
+                <th style="padding: 8px; border-bottom: 1px solid #e5e7eb;">Cliente</th>
+                <th style="padding: 8px; border-bottom: 1px solid #e5e7eb;">Equipamento</th>
+                <th style="padding: 8px; border-bottom: 1px solid #e5e7eb; text-align: right;">Comissão</th>
               </tr>
             </thead>
             <tbody>
-              ${(sales as any[]).map(s => `
-                <tr style="font-size: 13px;">
-                  <td style="padding: 10px; border-bottom: 1px solid #f9f9f9;">${s.client_name}</td>
-                  <td style="padding: 10px; border-bottom: 1px solid #f9f9f9;">${s.product_name}</td>
-                  <td style="padding: 10px; border-bottom: 1px solid #f9f9f9; font-weight: bold;">${formatCurrency(s.commission_value || 0)}</td>
+              ${salesWithCommission.map(x => `
+                <tr>
+                  <td style="padding: 8px; border-bottom: 1px solid #f3f4f6;">${x.client_name || x.client_person_name || ''}</td>
+                  <td style="padding: 8px; border-bottom: 1px solid #f3f4f6;">${x.base_machine || x.product_name || ''}</td>
+                  <td style="padding: 8px; border-bottom: 1px solid #f3f4f6; text-align: right; font-weight: bold;">${formatCurrency(x.commission_value || 0)}</td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
 
-          <div style="margin-top: 30px; padding: 15px; background: #fffbeb; border: 1px solid #fef3c7; border-radius: 8px; font-size: 14px; border-left: 4px solid #eab308;">
-            <p style="margin: 0;"><strong>ATENÇÃO: PRAZO DE NOTA FISCAL</strong></p>
-            <p style="margin: 5px 0 0 0;">Você tem até o dia <strong>05 deste mês</strong> para emitir e carregar a nota fiscal no sistema. Notas enviadas após este prazo terão o pagamento postergado para o mês seguinte.</p>
+          <div style="margin-top: 24px; padding: 16px; background: #f0fdf4; border-left: 4px solid #16a34a; border-radius: 8px; font-size: 14px; line-height: 1.6;">
+            <p style="margin: 0;"><strong>Próximo passo: nota fiscal de serviço</strong></p>
+            <p style="margin: 6px 0 0 0;">Nosso setor financeiro está aguardando a sua <strong>nota fiscal de serviço no valor de ${formatCurrency(totalCommissions)}</strong>.</p>
+            <p style="margin: 6px 0 0 0;">Basta <strong>responder este e-mail com a nota fiscal anexada</strong> até o dia <strong>05</strong>. A resposta vai direto para o nosso financeiro, e o pagamento é feito até o dia <strong>07</strong>.</p>
+            <p style="margin: 6px 0 0 0; font-size: 12px; color: #6b7280;">Se preferir, você também pode carregar a nota no Roder Indica, na tela Comissões.</p>
           </div>
+
+          <p style="font-size: 14px; margin-top: 24px;">Um abraço,<br><strong>Equipe Roder Máquinas e Equipamentos</strong></p>
         </div>
       `;
 
-      await sendAutomaticEmail(partner.email, `Extrato Mensal de Comissões - ${monthName}`, html);
+      await sendAutomaticEmail(partner.email, `Sua comissão Roder de ${monthName}: ${formatCurrency(totalCommissions)}`, html, { replyTo: financeReplyTo, fromName: 'Roder Máquinas' });
     }
   }, {
     timezone: BR_TIMEZONE
@@ -4694,14 +4713,21 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     });
 
     for (const [sid, _] of Object.entries(sellersMap)) {
-      // Check if there is an invoice uploaded for last month's commissions
-      const commissionSnap = await db.collection('commissions')
-        .where('external_seller_uid', '==', sid)
-        .where('month', '==', (lastMonth.getMonth() + 1).toString())
-        .where('year', '==', lastMonth.getFullYear().toString())
-        .get();
-
-      const needsReminder = commissionSnap.empty || commissionSnap.docs.some(d => !d.data().invoice_url);
+      // Já enviou a NF? (a NF fica em monthly_statements/{uid}_{mês}_{ano}; mês e ano são números)
+      const salesOfSeller = (sellersMap[sid] as any[]) || [];
+      const totalDue = salesOfSeller.reduce((acc, x) => acc + (x.commission_value || 0), 0);
+      if (totalDue <= 0) continue;
+      const candidates = [
+        `${sid}_${lastMonth.getMonth() + 1}_${lastMonth.getFullYear()}`,
+        `${sid}_${now.getMonth() + 1}_${now.getFullYear()}`,
+      ];
+      let alreadySent = false;
+      for (const stId of candidates) {
+        const st = await db.collection('monthly_statements').doc(stId).get();
+        const stData = st.exists ? (st.data() as any) : null;
+        if (stData && (stData.nf_url || stData.status === 'waiting_payment' || stData.status === 'paid')) { alreadySent = true; break; }
+      }
+      const needsReminder = !alreadySent;
 
       if (needsReminder) {
         const partnerData = await db.collection('users').doc(sid).get();
@@ -4720,12 +4746,12 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
               <p style="margin: 5px 0 0 0; font-size: 14px;">Conforme contrato, o não envio da NF até o dia 05 (hoje) impossibilita o pagamento neste ciclo. O valor será acumulado para o pagamento do próximo mês.</p>
             </div>
 
-            <p>Por favor, acesse o sistema e realize o upload da NF imediatamente para garantir seu recebimento.</p>
+            <p>Para garantir seu recebimento, <strong>responda este e-mail com a nota fiscal anexada</strong> (vai direto para o nosso financeiro) ou carregue a nota no sistema.</p>
             <a href="${process.env.APP_URL || 'https://roder-indica.web.app'}/comissoes" style="display: inline-block; background: #eab308; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Acessar Minhas Comissões</a>
           </div>
         `;
 
-        await sendAutomaticEmail(partner.email, `URGENTE: Último dia para Nota Fiscal`, html);
+        await sendAutomaticEmail(partner.email, `Último dia para enviar a nota fiscal da sua comissão Roder`, html, { replyTo: getFinanceReplyTo(notif), fromName: 'Roder Máquinas' });
       }
     }
   }, {

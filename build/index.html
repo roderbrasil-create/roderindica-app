@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="pt-BR" class="notranslate" translate="no">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>RODER Indica V2</title>
+    <meta name="google" content="notranslate" />
+    <!-- Cache Busting Tags -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    
+    <link rel="icon" type="image/png" href="https://roderbrasil.com.br/wp-content/uploads/2024/05/favicon.png" />
+    <link rel="apple-touch-icon" href="https://roderbrasil.com.br/wp-content/uploads/2024/05/favicon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="RODER Brasil" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#f97316" />
+    <script>
+      (function() {
+        // Prevent React DOM reconciler crashes caused by Google Translate or browser extensions modifying text nodes
+        if (typeof window !== 'undefined' && typeof Node !== 'undefined' && Node.prototype) {
+          var originalRemoveChild = Node.prototype.removeChild;
+          Node.prototype.removeChild = function(child) {
+            if (child.parentNode !== this) {
+              if (child.parentNode) {
+                return originalRemoveChild.call(child.parentNode, child);
+              }
+              return child;
+            }
+            return originalRemoveChild.call(this, child);
+          };
+
+          var originalInsertBefore = Node.prototype.insertBefore;
+          Node.prototype.insertBefore = function(newNode, referenceNode) {
+            if (referenceNode && referenceNode.parentNode !== this) {
+              if (referenceNode.parentNode) {
+                return originalInsertBefore.call(referenceNode.parentNode, newNode, referenceNode);
+              }
+              return originalInsertBefore.call(this, newNode, null);
+            }
+            return originalInsertBefore.call(this, newNode, referenceNode);
+          };
+        }
+
+        // Polyfill localStorage & sessionStorage in iframe/sandbox environments where third-party access is blocked
+        function checkAndPolyfillStorage(type) {
+          try {
+            var storage = window[type];
+            var testKey = '__storage_test__';
+            storage.setItem(testKey, testKey);
+            storage.removeItem(testKey);
+          } catch (e) {
+            console.warn('[StoragePolyfill] Redefining ' + type + ' because native access threw an error:', e);
+            var mockData = {};
+            var mockStorage = {
+              setItem: function(key, val) {
+                mockData[key] = String(val);
+              },
+              getItem: function(key) {
+                return mockData.hasOwnProperty(key) ? mockData[key] : null;
+              },
+              removeItem: function(key) {
+                delete mockData[key];
+              },
+              clear: function() {
+                mockData = {};
+              },
+              key: function(index) {
+                var keys = Object.keys(mockData);
+                return keys[index] || null;
+              }
+            };
+            Object.defineProperty(mockStorage, 'length', {
+              get: function() {
+                return Object.keys(mockData).length;
+              },
+              configurable: true
+            });
+            try {
+              Object.defineProperty(window, type, {
+                value: mockStorage,
+                writable: true,
+                configurable: true
+              });
+            } catch (err) {
+              console.error('[StoragePolyfill] Failed to define custom property on window.' + type + ':', err);
+            }
+          }
+        }
+        checkAndPolyfillStorage('localStorage');
+        checkAndPolyfillStorage('sessionStorage');
+
+        // Unregister service workers immediately in all environments to prevent caching issues
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            if (registrations.length > 0) {
+              console.log('[DevHelper] Found ' + registrations.length + ' ServiceWorkers. Clearing...');
+              for (var i = 0; i < registrations.length; i++) {
+                registrations[i].unregister().then(function(success) {
+                  if (success) {
+                    console.log('[DevHelper] ServiceWorker unregistered successfully');
+                  }
+                });
+              }
+              // If service workers were found, clear caches and reload
+              if (window.caches) {
+                caches.keys().then(function(names) {
+                  for (var name of names) {
+                    caches.delete(name);
+                  }
+                  setTimeout(function() { window.location.reload(true); }, 500);
+                });
+              } else {
+                setTimeout(function() { window.location.reload(true); }, 500);
+              }
+            }
+          }).catch(function(err) {
+            console.error('[DevHelper] Error unregistering ServiceWorker:', err);
+          });
+        }
+
+        // Also clear standard caches periodically to keep things fresh
+        if (window.caches && !sessionStorage.getItem('roder_cache_cleaned_session')) {
+          caches.keys().then(function(names) {
+            names.forEach(function(name) {
+              caches.delete(name);
+            });
+            sessionStorage.setItem('roder_cache_cleaned_session', 'true');
+            console.log('[DevHelper] Browser Caches cleared for this session.');
+          });
+        }
+
+        // Automatic update check mechanism to ensure users get the latest version immediately
+        function getPageAssetSignature(doc) {
+          var sigs = [];
+          var scripts = doc.querySelectorAll('script');
+          for (var i = 0; i < scripts.length; i++) {
+            var src = scripts[i].getAttribute('src');
+            if (src && (src.indexOf('/assets/') !== -1 || src.indexOf('index-') !== -1)) {
+              sigs.push(src);
+            }
+          }
+          var links = doc.querySelectorAll('link');
+          for (var i = 0; i < links.length; i++) {
+            var href = links[i].getAttribute('href');
+            if (href && (href.indexOf('/assets/') !== -1 || href.indexOf('index-') !== -1)) {
+              sigs.push(href);
+            }
+          }
+          return sigs.sort().join(',');
+        }
+
+        var isCheckingUpdate = false;
+        function performUpdateCheck() {
+          if (isCheckingUpdate) return;
+          if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') return;
+          
+          isCheckingUpdate = true;
+          console.log('[Updater] Checking for new app version...');
+          
+          fetch('/index.html?cb=' + Date.now(), { cache: 'no-store' })
+            .then(function(res) {
+              return res.text();
+            })
+            .then(function(html) {
+              isCheckingUpdate = false;
+              if (!html) return;
+              
+              var parser = new DOMParser();
+              var newDoc = parser.parseFromString(html, 'text/html');
+              var currentSigs = getPageAssetSignature(document);
+              var newSigs = getPageAssetSignature(newDoc);
+              
+              if (currentSigs && newSigs && currentSigs !== newSigs) {
+                console.log('[Updater] New version detected! Active:', currentSigs, 'Server:', newSigs);
+                
+                // Clear cache and reload
+                if (window.caches) {
+                  caches.keys().then(function(names) {
+                    var deletedCount = 0;
+                    var total = names.length;
+                    if (total === 0) {
+                      window.location.reload(true);
+                      return;
+                    }
+                    names.forEach(function(name) {
+                      caches.delete(name).then(function() {
+                        deletedCount++;
+                        if (deletedCount === total) {
+                          console.log('[Updater] Caches cleared. Reloading...');
+                          window.location.reload(true);
+                        }
+                      });
+                    });
+                  }).catch(function() {
+                    window.location.reload(true);
+                  });
+                } else {
+                  window.location.reload(true);
+                }
+              } else {
+                console.log('[Updater] App is up to date.');
+              }
+            })
+            .catch(function(err) {
+              isCheckingUpdate = false;
+              console.warn('[Updater] Failed to check for updates:', err);
+            });
+        }
+
+        // Run check on initial load
+        setTimeout(performUpdateCheck, 1500);
+
+        // Run check every time the app is opened/resumed (visibility change)
+        document.addEventListener('visibilitychange', function() {
+          if (document.visibilityState === 'visible') {
+            performUpdateCheck();
+          }
+        });
+
+        try {
+          var theme = localStorage.getItem('theme');
+          var supportDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (theme === 'dark' || (!theme && supportDark)) {
+            document.documentElement.classList.add('dark');
+            document.documentElement.style.backgroundColor = '#050505';
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-CpcU3ksn.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-J7VTuK7s.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
+

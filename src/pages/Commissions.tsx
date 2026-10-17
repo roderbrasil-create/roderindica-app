@@ -10,6 +10,7 @@ import {
   doc, 
   updateDoc, 
   getDocs,
+  getDoc,
   setDoc
 } from 'firebase/firestore';
 import { db, storage } from '../lib/firebase';
@@ -73,6 +74,7 @@ import {
   Cell
 } from 'recharts';
 import { MonthlyStatement } from '../types';
+import { sendEmail } from '../services/emailService';
 
 const months = [
   { value: 1, label: 'Janeiro' },
@@ -617,6 +619,26 @@ export default function Commissions() {
           year: 2026,
           updated_at: new Date().toISOString()
         }, { merge: true });
+      }
+
+      // Avisa o financeiro (Elisângela + financeiro2) que a NF do parceiro chegou
+      try {
+        let financeEmail = 'elizangela@roderbrasil.com.br';
+        try {
+          const nSnap = await getDoc(doc(db, 'settings', 'notifications'));
+          if (nSnap.exists() && (nSnap.data() as any).finance_email) financeEmail = (nSnap.data() as any).finance_email;
+        } catch {}
+        const brl = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
+        const toList = Array.from(new Set([financeEmail, 'financeiro2@roderbrasil.com.br'])).join(', ');
+        await sendEmail({
+          to: toList,
+          subject: `NF de comissão recebida: ${profile?.name || 'Parceiro'} (${String(selectedPartnerPeriod.month).padStart(2, '0')}/${selectedPartnerPeriod.year})`,
+          html: `<div style="font-family: Arial, sans-serif;"><p>O parceiro <strong>${profile?.name || ''}</strong> enviou a nota fiscal de serviço da comissão de ${String(selectedPartnerPeriod.month).padStart(2, '0')}/${selectedPartnerPeriod.year}.</p><p>Valor: <strong>${brl(selectedPartnerPeriod.total)}</strong></p>${url ? `<p><a href="${url}">Abrir nota fiscal</a></p>` : ''}<p>Pagamento previsto até o dia 07.</p></div>`,
+          replyTo: profile?.email || undefined,
+          fromName: 'Roder Indica',
+        });
+      } catch (mailErr) {
+        console.warn('Aviso ao financeiro não enviado:', mailErr);
       }
 
       toast.success('Nota fiscal confirmada com sucesso!');

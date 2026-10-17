@@ -1689,17 +1689,11 @@ export default function NegotiationCentral() {
             <div className="flex-1 overflow-y-auto lg:overflow-hidden bg-slate-50/10 p-3 lg:p-6 flex flex-col gap-4 touch-pan-y overscroll-contain">
             
             {isSold && (
-              <div className="bg-emerald-50 border-2 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-900/30 rounded-xl p-3 flex items-center justify-between shadow-sm shrink-0">
-                <div className="flex items-center gap-3">
-                  <div className="h-8 w-8 rounded-full bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                    <CheckCircle2 className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-medium uppercase text-emerald-600 dark:text-emerald-400 leading-none mb-1">Pedido Faturado & Concluído 🚀</p>
-                    <p className="text-xs font-normal text-slate-700 dark:text-slate-350 leading-tight">Este pedido já teve o faturamento finalizado e as comissões correspondentes foram devidamente liberadas na aba de comissões.</p>
-                  </div>
-                </div>
-                <Badge className="bg-emerald-600 text-white border-none font-black uppercase text-[8px] py-1 px-2.5 shrink-0">FATURADO</Badge>
+              <div className="bg-emerald-50 border border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-900/30 rounded-lg px-3 py-2 flex items-center gap-2 shrink-0">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                <p className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-300 leading-tight">
+                  Pedido faturado{orderDate ? ` em ${orderDate.split('-').reverse().join('/')}` : ''}. Comissões liberadas na aba Comissões.
+                </p>
               </div>
             )}
 
@@ -1727,6 +1721,42 @@ export default function NegotiationCentral() {
                   )}
 
                   {/* Valores do Orçamento / Pedido de Venda */}
+                  {/* Resumo somente leitura (faturado ou observador): ocupa pouco espaço */}
+                  {!isEditable ? (() => {
+                    const fmtD = (d: string) => d ? d.split('-').reverse().join('/') : '';
+                    const money = (v: string) => v && Number(v) > 0 ? maskCurrency(Number(v)) : '';
+                    const saleLooksWrong = isSold && Number(saleValue) > 0 && Number(grossBudgetValue) > 0 && Number(saleValue) * 20 < Number(grossBudgetValue);
+                    return (
+                      <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm shrink-0 grid gap-2 text-[12px]">
+                        <div className="flex items-start gap-2">
+                          <FileText className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[9px] font-bold uppercase text-muted-foreground">Orçamento enviado ao cliente</p>
+                            {grossBudgetValue || budgetNumber || budgetDate ? (
+                              <p className="font-semibold text-slate-800 dark:text-slate-100">
+                                {[budgetNumber && `Nº ${budgetNumber}`, fmtD(budgetDate), money(grossBudgetValue)].filter(Boolean).join(' · ')}
+                              </p>
+                            ) : <p className="text-muted-foreground">Ainda não enviado</p>}
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2 border-t border-slate-100 dark:border-slate-800 pt-2">
+                          <BadgeDollarSign className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[9px] font-bold uppercase text-muted-foreground">Pedido de venda</p>
+                            {saleValue && Number(saleValue) > 0 || orderNumber ? (
+                              <p className="font-semibold text-slate-800 dark:text-slate-100">
+                                {[orderNumber && `Nº ${orderNumber}`, fmtD(orderDate), money(saleValue)].filter(Boolean).join(' · ')}
+                                {deliveryDate && <span className="block text-[11px] font-normal text-muted-foreground">Entrega prevista: {fmtD(deliveryDate)}</span>}
+                              </p>
+                            ) : <p className="text-muted-foreground">Ainda não fechado</p>}
+                            {saleLooksWrong && (isAdmin || isManager) && (
+                              <p className="mt-1 text-[11px] font-semibold text-red-600">Valor do pedido parece errado (muito menor que o orçamento). Use Desfazer e fature de novo para corrigir.</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })() : (
                   <div className="relative space-y-3 p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm shrink-0">
                     {(readingBudget || readingBudgetFile) && (
                       <div className="absolute inset-0 bg-white/80 dark:bg-slate-950/80 backdrop-blur-[2px] z-20 flex flex-col items-center justify-center rounded-xl">
@@ -1881,9 +1911,10 @@ export default function NegotiationCentral() {
                       </div>
                     </div>
                   </div>
+                  )}
 
                   {/* Resumo Financeiro & Comissão do Indicador */}
-                  <div className="p-4 bg-white rounded-xl border border-slate-200 flex flex-col gap-3 justify-center shadow-sm shrink-0">
+                  <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col gap-2 justify-center shadow-sm shrink-0">
                     <div className="grid grid-cols-2 gap-4">
                       {/* Left: Commissionable Total */}
                       <div className="border-r border-slate-100 pr-2">
@@ -1948,7 +1979,7 @@ export default function NegotiationCentral() {
 
                   {/* Vendedor Região (opcional) */}
                   {activeIndication.standard_seller_uid && (
-                    <div className="p-4 rounded-xl bg-orange-500/5 border border-orange-500/10 flex flex-col gap-3 shadow-sm shrink-0">
+                    <div className="p-3 rounded-xl bg-orange-500/5 border border-orange-500/10 flex flex-col gap-2 shadow-sm shrink-0">
                       <div className="flex items-start justify-between min-w-0">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <div className="h-8 w-8 rounded-lg bg-orange-500/10 flex items-center justify-center shrink-0">
@@ -2276,21 +2307,14 @@ export default function NegotiationCentral() {
                   isMobile && activeTab !== 'timeline' ? "hidden lg:flex" : "flex"
                 )}>
                 {/* On Mobile & Desktop: Novo Acompanhamento Form goes at top of right panel */}
-                <div className="w-full flex flex-col gap-4 shrink-0">
-                  <div className="p-4 lg:p-5 bg-primary/5 rounded-2xl border border-primary/10 space-y-3 lg:space-y-4">
-                    <h4 className="text-xs font-black italic uppercase text-primary flex items-center gap-2">
-                      <Plus className="h-4 w-4" /> Novo Acompanhamento
-                    </h4>
+                <div className="w-full flex flex-col gap-3 shrink-0">
+                  <div className="p-3 bg-primary/5 rounded-xl border border-primary/10 space-y-2">
                     {!canInteract ? (
-                      <div className="bg-white/50 border border-orange-200 rounded-xl p-3 text-center">
-                        <Info className="h-6 w-6 text-orange-500 mx-auto mb-1" />
-                        <p className="text-[10px] font-black uppercase text-orange-600 mb-0.5">Acesso de Observador</p>
-                        <p className="text-[9px] text-muted-foreground leading-tight">Como esta indicação foi feita por um parceiro externo, você pode apenas observar o andamento na sua região.</p>
-                      </div>
+                      <p className="text-[11px] text-muted-foreground leading-snug flex items-center gap-1.5"><Info className="h-3.5 w-3.5 text-orange-500 shrink-0" /> Você acompanha esta negociação. As anotações são feitas pela equipe Roder.</p>
                     ) : (
                       <>
                         {/* Seletor Rápido de Tipo de Atividade / Categoria */}
-                        <div className="flex flex-wrap gap-1.5 pt-1">
+                        <div className="flex gap-1 overflow-x-auto no-scrollbar -mx-1 px-1">
                           {[
                             { id: 'nota', label: 'Nota', icon: MessageSquare, color: 'bg-slate-100 text-slate-700 hover:bg-slate-200' },
                             { id: 'ligacao', label: 'Ligação', icon: Phone, color: 'bg-blue-50 text-blue-700 hover:bg-blue-100' },
@@ -2308,10 +2332,10 @@ export default function NegotiationCentral() {
                                 type="button"
                                 onClick={() => setSelectedActivityType(cat.id as any)}
                                 className={cn(
-                                  "px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase transition-all flex items-center gap-1 border",
+                                  "px-2 h-7 rounded-full text-[10px] font-bold uppercase transition-all flex items-center gap-1 border shrink-0",
                                   isSel 
-                                    ? "bg-primary text-white border-primary shadow-sm scale-105" 
-                                    : `${cat.color} border-slate-200/70 dark:border-slate-800`
+                                    ? "bg-primary text-white border-primary" 
+                                    : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800"
                                 )}
                               >
                                 <IconComp className="h-3 w-3" />
@@ -2324,15 +2348,17 @@ export default function NegotiationCentral() {
                         <textarea 
                           value={historyNote}
                           onChange={(e) => setHistoryNote(e.target.value)}
-                          placeholder="Descreva o que foi conversado ou realizado com o cliente..."
-                          className="w-full bg-background border border-primary/20 rounded-xl p-3 text-xs min-h-[90px] lg:min-h-[110px] resize-none focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                          placeholder="O que foi conversado com o cliente? (o indicador também vê)"
+                          rows={2}
+                          className="w-full bg-background border border-primary/20 rounded-lg p-2 text-[16px] lg:text-xs min-h-[56px] resize-y focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                         />
                         
                         {/* Image Upload Area */}
                         <div className="space-y-2">
-                          <label className="flex items-center gap-2 px-3 lg:px-4 py-2 bg-background border border-border border-dashed rounded-xl cursor-pointer hover:bg-muted/30 transition-all text-[10px] font-bold uppercase text-muted-foreground">
+                          <div className="flex items-center gap-2">
+                          <label className="flex items-center justify-center gap-1.5 h-9 px-3 bg-background border border-border rounded-lg cursor-pointer hover:bg-muted/30 transition-all text-[10px] font-bold uppercase text-muted-foreground shrink-0">
                             <Camera className="h-4 w-4 text-primary shrink-0" />
-                            <span>Anexar Fotos / Capturas</span>
+                            <span>Foto</span>
                             <input 
                               type="file" 
                               multiple 
@@ -2345,6 +2371,14 @@ export default function NegotiationCentral() {
                               }}
                             />
                           </label>
+                          <Button 
+                            onClick={handleAddHistory}
+                            disabled={loading || (!historyNote.trim() && historyImages.length === 0)}
+                            className="flex-1 bg-primary hover:bg-primary/90 text-white font-bold uppercase text-[11px] h-9 rounded-lg"
+                          >
+                            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Registrar no histórico'}
+                          </Button>
+                          </div>
                           
                           {historyImages.length > 0 && (
                             <div className="flex flex-wrap gap-2">
@@ -2365,22 +2399,11 @@ export default function NegotiationCentral() {
                           )}
                         </div>
 
-                        <Button 
-                          onClick={handleAddHistory}
-                          disabled={loading || (!historyNote.trim() && historyImages.length === 0)}
-                          className="w-full bg-primary hover:bg-primary/90 text-white font-black italic uppercase text-xs h-10 lg:h-12 shadow-lg shadow-primary/20 rounded-xl"
-                        >
-                          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Registrar Histórico <ChevronRight className="ml-2 h-4 w-4" /></>}
-                        </Button>
                       </>
                     )}
                   </div>
                   
-                  <div className="hidden lg:block mt-auto p-4 bg-muted/30 rounded-2xl border border-border border-dashed">
-                    <p className="text-[9px] font-bold text-muted-foreground uppercase leading-relaxed text-center">
-                      Os acompanhamentos registrados aqui ficam visíveis para toda a equipe comercial e gestão.
-                    </p>
-                  </div>
+
                 </div>
 
                 {/* Timeline List (Linha do Tempo de Atendimento) */}
