@@ -378,7 +378,7 @@ export default function Contract() {
                   6.4. <strong>Consequência de Atraso:</strong> Ao descumprir o prazo de envio da Nota Fiscal até o dia 05, o referido pagamento será automaticamente postergado para o ciclo de pagamento do mês subsequente, condicionado ao envio da mesma.
                 </p>
                 <p>
-                  6.5. <strong>Pagamento:</strong> Após o recebimento e validação da Nota Fiscal via aplicativo, o financeiro da <strong>RODER</strong> realizará o pagamento via PIX na chave cadastrada até o dia 10 do mês, desde que o prazo da cláusula 6.3 tenha sido respeitado.
+                  6.5. <strong>Pagamento:</strong> Após o recebimento e validação da Nota Fiscal via aplicativo, o financeiro da <strong>RODER</strong> realizará o pagamento via PIX na chave cadastrada até o dia <strong>07 do mês</strong> (se o dia 07 cair em sábado, domingo ou feriado, o pagamento será feito no próximo dia útil), desde que o prazo da cláusula 6.3 tenha sido respeitado.
                 </p>
                 <p>
                   6.6. <strong>Comprovante:</strong> O financeiro anexará o comprovante de pagamento diretamente no aplicativo para consulta do <strong>PARCEIRO INDICADOR</strong>.

@@ -4667,7 +4667,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
           <div style="margin-top: 24px; padding: 16px; background: #f0fdf4; border-left: 4px solid #16a34a; border-radius: 8px; font-size: 14px; line-height: 1.6;">
             <p style="margin: 0;"><strong>Próximo passo: nota fiscal de serviço</strong></p>
             <p style="margin: 6px 0 0 0;">Nosso setor financeiro está aguardando a sua <strong>nota fiscal de serviço no valor de ${formatCurrency(totalCommissions)}</strong>.</p>
-            <p style="margin: 6px 0 0 0;">Basta <strong>responder este e-mail com a nota fiscal anexada</strong> até o dia <strong>05</strong>. A resposta vai direto para o nosso financeiro, e o pagamento é feito até o dia <strong>07</strong>.</p>
+            <p style="margin: 6px 0 0 0;">Basta <strong>responder este e-mail com a nota fiscal anexada</strong> até o dia <strong>05</strong>. A resposta vai direto para o nosso financeiro, e o pagamento é feito até o dia <strong>07</strong> (se cair em fim de semana ou feriado, no próximo dia útil).</p>
             <p style="margin: 6px 0 0 0; font-size: 12px; color: #6b7280;">Se preferir, você também pode carregar a nota no Roder Indica, na tela Comissões.</p>
           </div>
 

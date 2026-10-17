@@ -4294,7 +4294,7 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
           <div style="margin-top: 24px; padding: 16px; background: #f0fdf4; border-left: 4px solid #16a34a; border-radius: 8px; font-size: 14px; line-height: 1.6;">
             <p style="margin: 0;"><strong>Pr\xF3ximo passo: nota fiscal de servi\xE7o</strong></p>
             <p style="margin: 6px 0 0 0;">Nosso setor financeiro est\xE1 aguardando a sua <strong>nota fiscal de servi\xE7o no valor de ${formatCurrency(totalCommissions)}</strong>.</p>
-            <p style="margin: 6px 0 0 0;">Basta <strong>responder este e-mail com a nota fiscal anexada</strong> at\xE9 o dia <strong>05</strong>. A resposta vai direto para o nosso financeiro, e o pagamento \xE9 feito at\xE9 o dia <strong>07</strong>.</p>
+            <p style="margin: 6px 0 0 0;">Basta <strong>responder este e-mail com a nota fiscal anexada</strong> at\xE9 o dia <strong>05</strong>. A resposta vai direto para o nosso financeiro, e o pagamento \xE9 feito at\xE9 o dia <strong>07</strong> (se cair em fim de semana ou feriado, no pr\xF3ximo dia \xFAtil).</p>
             <p style="margin: 6px 0 0 0; font-size: 12px; color: #6b7280;">Se preferir, voc\xEA tamb\xE9m pode carregar a nota no Roder Indica, na tela Comiss\xF5es.</p>
           </div>
 

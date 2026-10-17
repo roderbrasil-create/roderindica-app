@@ -628,7 +628,7 @@ export default function Commissions() {
         await sendEmail({
           to: toList,
           subject: `NF de comissão recebida: ${profile?.name || 'Parceiro'} (${String(selectedPartnerPeriod.month).padStart(2, '0')}/${selectedPartnerPeriod.year})`,
-          html: `<div style="font-family: Arial, sans-serif;"><p>O parceiro <strong>${profile?.name || ''}</strong> enviou a nota fiscal de serviço da comissão de ${String(selectedPartnerPeriod.month).padStart(2, '0')}/${selectedPartnerPeriod.year}.</p><p>Valor: <strong>${brl(selectedPartnerPeriod.total)}</strong></p>${url ? `<p><a href="${url}">Abrir nota fiscal</a></p>` : ''}<p>Pagamento previsto até o dia 07.</p></div>`,
+          html: `<div style="font-family: Arial, sans-serif;"><p>O parceiro <strong>${profile?.name || ''}</strong> enviou a nota fiscal de serviço da comissão de ${String(selectedPartnerPeriod.month).padStart(2, '0')}/${selectedPartnerPeriod.year}.</p><p>Valor: <strong>${brl(selectedPartnerPeriod.total)}</strong></p>${url ? `<p><a href="${url}">Abrir nota fiscal</a></p>` : ''}<p>Pagamento previsto até o dia 07 (ou no próximo dia útil, se cair em fim de semana ou feriado).</p></div>`,
           replyTo: profile?.email || undefined,
           fromName: 'Roder Indica',
         });
@@ -674,7 +674,7 @@ export default function Commissions() {
     text = text + `Concluímos o fechamento das suas comissões programadas para pagamento em *${monthLabel}/${year}*.\n`;
     text = text + `O valor total de comissão calculado é de *R$ ${totalValStr}*.\n\n`;
     text = text + `*Nota explicativa sobre o cálculo:* Lembramos que o recebimento de comissões de parceiro indicador incide apenas sobre o valor líquido dos equipamentos comissionáveis de fábrica. Valores correspondentes a itens como kits extras de instalação, frete, deslocamento de entrega técnica ou serviços de instalação não contemplam a base de produtos comissionáveis. Por esse motivo, é normal e esperado que o valor total de faturamento ou da Nota Fiscal final ao cliente seja maior do que a base de comissionamento de produtos aqui especificada.\n\n`;
-    text = text + `Por favor, emita e nos envie a Nota Fiscal de serviço com este valor de R$ ${totalValStr} para darmos continuidade ao pagamento até o dia 7.\n\n`;
+    text = text + `Por favor, emita e nos envie a Nota Fiscal de serviço com este valor de R$ ${totalValStr} para darmos continuidade ao pagamento até o dia 7 (ou no próximo dia útil, se cair em fim de semana ou feriado).\n\n`;
     text = text + `*Vendas correspondentes à sua comissão:*\n`;
 
     statementComms.forEach((comm) => {
