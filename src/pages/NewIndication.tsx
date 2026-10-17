@@ -166,6 +166,7 @@ export default function NewIndication() {
     client_location: '',
     base_machine: '',
     machine_details: '',
+    machine_porte: '',
     description: '',
     is_icms_contributor: false,
     ai_score: 'hot' as 'cold' | 'warm' | 'hot',
@@ -255,6 +256,11 @@ export default function NewIndication() {
   const isExternalSeller = profile?.role === 'external_seller';
   
   const canSeeIcms = isAdmin || isManager || isInternalSeller;
+  // Equipe interna vê tudo; parceiro vê só o essencial
+  const isInternalTeam = isAdmin || isManager || isInternalSeller;
+  // Indicação em 3 passos (cliente, o que precisa, detalhes)
+  const [step, setStep] = useState(1);
+  const [machineOutra, setMachineOutra] = useState(false);
 
   const [registeredProducts, setRegisteredProducts] = useState<RegisteredProduct[]>([]);
   const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
@@ -906,6 +912,12 @@ export default function NewIndication() {
     }
   };
 
+  // Saiu do passo 3 gravando: para a gravação
+  useEffect(() => {
+    if (step !== 3 && isRecordingRef.current) stopRecording();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecordingRef.current) {
       mediaRecorderRef.current.stop();
@@ -993,6 +1005,30 @@ export default function NewIndication() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionStatus, setSubmissionStatus] = useState<'saving' | 'uploading' | 'notifying' | 'done'>('saving');
 
+  // Confere o passo atual antes de avançar
+  const goNextStep = () => {
+    const errs: Record<string, boolean> = {};
+    const faltando: string[] = [];
+    if (step === 1) {
+      if (isInternalTeam && originType === 'client_referral' && !referringClientName.trim()) { errs.partner = true; faltando.push('Quem indicou'); }
+      if (isInternalTeam && originType === 'partner' && !selectedExternalSeller) { errs.partner = true; faltando.push('Parceiro indicador'); }
+      if (!formData.client_person_name) { errs.client_person_name = true; faltando.push('Nome do cliente'); }
+      if (!formData.client_phone) { errs.client_phone = true; faltando.push('WhatsApp'); }
+      if (!city) { errs.client_city = true; faltando.push('Cidade'); }
+      if (!stateUf) { errs.client_uf = true; faltando.push('Estado'); }
+    }
+    if (step === 2 && selectedItems.length === 0) {
+      faltando.push('Equipamento de interesse');
+    }
+    if (faltando.length) {
+      setValidationErrors(prev => ({ ...prev, ...errs }));
+      toast.error(`Falta preencher: ${faltando.join(', ')}`);
+      return;
+    }
+    setStep(step + 1);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleSubmit = async () => {
     // Validate fields
     const newErrors: Record<string, boolean> = {};
@@ -1043,6 +1079,7 @@ export default function NewIndication() {
         duration: 8000
       });
 
+      setStep(1);
       // Scroll to the first missing field in a clean, smooth way
       setTimeout(() => {
         const firstTarget = scrollTargets[0];
@@ -1070,6 +1107,7 @@ export default function NewIndication() {
     }
 
     if (selectedItems.length === 0) {
+      setStep(2);
       toast.error('Selecione pelo menos um equipamento clicando nas opções abaixo.');
       return;
     }
@@ -1101,7 +1139,7 @@ export default function NewIndication() {
           type: 'system',
           author_name: profile?.name || 'Sistema',
           created_at: new Date().toISOString(),
-          content: `Indicação inicial enviada OFFLINE.\n\nSOLICITAÇÃO: ${itemsList}\n\nDESCRIÇÃO: ${formData.description}\n\nMÁQUINA BASE: ${formData.base_machine} ${formData.machine_details}`,
+          content: `Indicação inicial enviada OFFLINE.\n\nSOLICITAÇÃO: ${itemsList}\n\nDESCRIÇÃO: ${formData.description}\n\nMÁQUINA BASE: ${formData.base_machine} ${formData.machine_details}${formData.machine_porte ? ` (${formData.machine_porte})` : ''}`,
           attachments: []
         };
 
@@ -1236,7 +1274,7 @@ export default function NewIndication() {
         type: 'system',
         author_name: profile?.name || 'Sistema',
         created_at: new Date().toISOString(),
-        content: `Indicação inicial enviada.\n\nSOLICITAÇÃO: ${itemsList}\n\nDESCRIÇÃO: ${formData.description}\n\nMÁQUINA BASE: ${formData.base_machine} ${formData.machine_details}`,
+        content: `Indicação inicial enviada.\n\nSOLICITAÇÃO: ${itemsList}\n\nDESCRIÇÃO: ${formData.description}\n\nMÁQUINA BASE: ${formData.base_machine} ${formData.machine_details}${formData.machine_porte ? ` (${formData.machine_porte})` : ''}`,
         attachments: []
       };
 
@@ -1529,8 +1567,8 @@ export default function NewIndication() {
               <ChevronLeft className="h-5 w-5" />
             </Button>
             <div>
-              <h1 className="text-3xl font-black text-foreground tracking-tight">Nova Indicação</h1>
-              <p className="text-xs text-muted-foreground">Registre os dados do comprador e equipamentos solicitados em uma única tela rápida.</p>
+              <h1 className="text-2xl font-extrabold text-foreground tracking-tight">Nova indicação</h1>
+              <p className="text-xs text-muted-foreground">Leva menos de 1 minuto.</p>
             </div>
           </div>
           <div className="flex self-start sm:self-center">
@@ -1547,190 +1585,17 @@ export default function NewIndication() {
         </div>
 
         <div className="space-y-6">
-          {/* Card 1: Compact Chosen Roder Equipment List */}
-          <Card className="bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 shadow-md text-slate-900 dark:text-zinc-100 rounded-2xl overflow-hidden">
-            <CardHeader className="py-3 px-4 flex flex-row items-center justify-between gap-4 border-b border-border/50 bg-muted/20">
-              <div className="flex items-center gap-2">
-                <Package className="h-4 w-4 text-primary" />
-                <CardTitle className="text-sm font-black uppercase text-foreground">
-                  Equipamentos de Interesse *
-                </CardTitle>
-              </div>
-              <Badge variant="outline" className="text-[10px] bg-slate-250 text-slate-700 hover:bg-slate-250 border-slate-350 py-0.5 font-bold uppercase tracking-wider">
-                Obrigatório
-              </Badge>
-            </CardHeader>
-            <CardContent className="p-3.5 space-y-3">
-              {/* Selected Items List with Images & Controls */}
-              {selectedItems.length > 0 ? (
-                <div className="space-y-2">
-                  <p className="text-[10px] font-black uppercase text-primary tracking-wider pl-1 font-mono">Equipamentos Selecionados ({selectedItems.length})</p>
-                  <div className="grid grid-cols-1 gap-2">
-                    {selectedItems.map((item, id) => {
-                      const productPhoto = getProductPhoto(item);
-                      const isCustom = item.id === 'custom-item' || item.id === 'initial-item' || !productPhoto;
+          {/* Passos da indicação */}
+          <div className="sticky top-0 z-20 -mx-1 px-1 pt-1 pb-3 bg-background/95 backdrop-blur">
+            <div className="flex gap-1.5">
+              {[1, 2, 3].map(n => <div key={n} className={cn("h-1.5 flex-1 rounded-full", step >= n ? "bg-primary" : "bg-slate-200 dark:bg-zinc-800")} />)}
+            </div>
+            <p className="mt-2 text-[11px] font-extrabold tracking-wider text-primary uppercase">
+              Passo {step} de 3 · {step === 1 ? 'Cliente' : step === 2 ? 'O que ele precisa' : 'Detalhes e envio'}
+            </p>
+          </div>
 
-                      return (
-                        <div 
-                          key={id}
-                          className={cn(
-                            "flex flex-col sm:flex-row sm:items-center justify-between p-2.5 rounded-xl border-2 transition-all gap-3",
-                            isCustom 
-                              ? "bg-amber-600/5 border-amber-500/30 dark:border-amber-500/20" 
-                              : "bg-primary/5 border-primary/20 dark:border-primary/10"
-                          )}
-                        >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div 
-                              onClick={(e) => {
-                                  if (productPhoto) {
-                                    e.stopPropagation();
-                                    setLightboxImage(productPhoto);
-                                    setLightboxTitle(item.product_name);
-                                    setIsLightboxOpen(true);
-                                  }
-                                }}
-                              className={cn(
-                                "h-20 w-20 rounded-xl overflow-hidden border-2 shrink-0 flex items-center justify-center bg-background select-none shadow-sm",
-                                productPhoto ? "cursor-pointer hover:scale-105 active:scale-95 transition-transform" : "",
-                                isCustom ? "text-amber-500 border-amber-200 dark:border-amber-950/40" : "text-primary border-primary/30 dark:border-primary/20"
-                              )}
-                              title={productPhoto ? "Clique para expandir a foto" : ""}
-                            >
-                              {productPhoto ? (
-                                <SmartImage src={productPhoto} alt="" className="h-full w-full object-cover" />
-                              ) : (
-                                <Package className="h-8 w-8 opacity-60" />
-                              )}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="font-black text-sm sm:text-base text-foreground leading-snug">{item.product_name}</p>
-                              {item.code ? (
-                                <p className="text-[9px] font-mono uppercase text-muted-foreground tracking-tight mt-0.5">{item.code}</p>
-                              ) : (
-                                <p className="text-[9px] font-mono uppercase text-muted-foreground/80 tracking-tight mt-0.5">
-                                  {isCustom ? "Equipamento Personalizado" : "Equipamento do Catálogo"}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[9px] font-bold uppercase text-muted-foreground/80 font-mono">Qtd:</span>
-                              <div className="flex items-center gap-1 bg-white dark:bg-zinc-950 border border-border/80 p-0.5 rounded-lg shadow-xs">
-                                <button 
-                                  type="button"
-                                  onClick={() => handleProductQtyChange(item.product_name, -1)}
-                                  className="h-6 w-6 rounded-md bg-muted hover:bg-muted/80 text-foreground flex items-center justify-center transition-all disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
-                                  disabled={item.quantity <= 1}
-                                >
-                                  <Minus className="h-3 w-3 stroke-[2.5]" />
-                                </button>
-                                <span className="font-extrabold text-[11px] text-foreground w-5 text-center select-none">{item.quantity}</span>
-                                <button 
-                                  type="button"
-                                  onClick={() => handleProductQtyChange(item.product_name, 1)}
-                                  className="h-6 w-6 rounded-md bg-muted hover:bg-muted/80 text-foreground flex items-center justify-center transition-all cursor-pointer"
-                                >
-                                  <Plus className="h-3 w-3 stroke-[2.5]" />
-                                </button>
-                              </div>
-                            </div>
-
-                            <button 
-                              type="button" 
-                              onClick={() => setSelectedItems(prev => prev.filter((_, idx) => idx !== id))}
-                              className="h-7 w-7 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 flex items-center justify-center transition-colors cursor-pointer"
-                              title="Remover"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-5 px-3 text-center border-2 border-dashed border-border/60 rounded-xl bg-background/50 dark:bg-zinc-950/20">
-                  <Package className="h-5 w-5 text-primary/40 mb-1.5 animate-pulse" />
-                  <p className="text-xs font-bold text-foreground">Nenhum equipamento de interesse selecionado</p>
-                  <p className="text-[10px] text-muted-foreground max-w-sm mt-0.5 font-medium">Selecione pelo menos um equipamento no catálogo para prosseguir.</p>
-                </div>
-              )}
-
-              {/* Action trigger to select equipment */}
-              <div className="flex flex-col sm:flex-row gap-2 pt-1">
-                <Button 
-                  type="button"
-                  onClick={() => {
-                    setProductSearch('');
-                    setIsEquipSelectorOpen(true);
-                  }}
-                  className={cn(
-                    "flex-1 h-11 text-xs font-black uppercase tracking-wider gap-2 shadow-md rounded-xl cursor-pointer mr-0 transition-all duration-300",
-                    selectedItems.length === 0 
-                      ? "bg-primary hover:bg-primary/90 text-primary-foreground animate-pulse shadow-[0_0_20px_rgba(224,90,16,0.65)] ring-4 ring-primary/30 border-2 border-primary-foreground/10" 
-                      : "bg-white dark:bg-zinc-950 hover:bg-slate-50 dark:hover:bg-zinc-900 text-muted-foreground border border-border hover:text-foreground"
-                  )}
-                >
-                  <Layers className={cn("h-4 w-4 shrink-0", selectedItems.length === 0 && "animate-bounce")} /> 
-                  {selectedItems.length === 0 ? (
-                    <>
-                      <span className="sm:hidden">👉 SELECIONAR EQUIPAMENTO</span>
-                      <span className="hidden sm:inline">👉 CLIQUE AQUI PARA SELECIONAR EQUIPAMENTO 👈</span>
-                    </>
-                  ) : (
-                    "Selecionar Equipamento"
-                  )}
-                </Button>
-                
-                {(isAdmin || isManager) && (
-                  <Button 
-                    type="button" 
-                    onClick={() => setIsAddEquipOpen(true)}
-                    variant="outline"
-                    className="h-10 border-dashed border-2 px-4 gap-2 text-xs font-black uppercase text-primary border-primary/40 hover:bg-primary/5 rounded-xl cursor-pointer"
-                  >
-                    <Plus className="h-4 w-4" /> Cadastrar Outro Equipamento
-                  </Button>
-                )}
-              </div>
-
-              {/* Opção de equipamento personalizado / não listado no catálogo */}
-              <div className="mt-4 pt-4 border-t border-dashed border-border/80 space-y-2.5">
-                <div className="flex items-center gap-1.5">
-                  <Sparkles className="h-4 w-4 text-amber-500" />
-                  <span className="text-xs font-extrabold text-foreground">Equipamento não listado no catálogo?</span>
-                </div>
-                <p className="text-[10px] text-muted-foreground font-medium">Se você sabe que a Roder fabrica este equipamento mas ele não está no catálogo, digite o nome/descrição dele abaixo para adicioná-lo sem bloqueios:</p>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Ex: Garra Traçadora Reforçada GTR-30"
-                    value={customEquipName}
-                    onChange={(e) => setCustomEquipName(e.target.value)}
-                    className="flex-1 bg-white dark:bg-zinc-950 border-input h-10 text-xs font-semibold rounded-xl"
-                  />
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      if (!customEquipName.trim()) {
-                        toast.error("Por favor, digite o nome do equipamento!");
-                        return;
-                      }
-                      handleAddCustomEquipment(customEquipName);
-                      setCustomEquipName('');
-                    }}
-                    className="bg-amber-500 hover:bg-amber-600 text-white font-black text-xs uppercase px-4 h-10 rounded-xl shrink-0 cursor-pointer"
-                  >
-                    <Plus className="h-4 w-4 mr-1.5 shrink-0" /> Adicionar
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
+          {step === 1 && (<>
           {/* Card 2: Customer Details */}
           <Card className="bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 shadow-md text-slate-900 dark:text-zinc-100 rounded-2xl overflow-hidden">
             <CardHeader className="pb-4">
@@ -2074,6 +1939,7 @@ export default function NewIndication() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {isInternalTeam && (
                 <div className="space-y-2">
                   <Label htmlFor="client_name" className="text-xs font-bold uppercase text-muted-foreground/80">Nome da Empresa / Nome Fantasia (Opcional)</Label>
                   <Input 
@@ -2085,6 +1951,7 @@ export default function NewIndication() {
                     className="bg-white dark:bg-zinc-950 border-input h-11 font-semibold text-foreground placeholder:text-muted-foreground/60 w-full"
                   />
                 </div>
+                )}
 
                 <div className="space-y-2">
                   <Label 
@@ -2208,6 +2075,7 @@ export default function NewIndication() {
                 </div>
               </div>
 
+              {isInternalTeam && (
               <div className="space-y-2">
                 <Label htmlFor="client_email" className="text-xs font-bold uppercase text-muted-foreground/80">E-mail para Envio de Orçamentos (Opcional)</Label>
                 <Input 
@@ -2220,11 +2088,200 @@ export default function NewIndication() {
                   className="bg-white dark:bg-zinc-950 border-input h-11 font-semibold text-foreground placeholder:text-muted-foreground/60 w-full"
                 />
               </div>
+              )}
+            </CardContent>
+          </Card>
+
+          </>)}
+
+          {step === 2 && (<>
+          {/* Card 1: Compact Chosen Roder Equipment List */}
+          <Card className="bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 shadow-md text-slate-900 dark:text-zinc-100 rounded-2xl overflow-hidden">
+            <CardHeader className="py-3 px-4 flex flex-row items-center justify-between gap-4 border-b border-border/50 bg-muted/20">
+              <div className="flex items-center gap-2">
+                <Package className="h-4 w-4 text-primary" />
+                <CardTitle className="text-sm font-black uppercase text-foreground">
+                  Equipamentos de Interesse *
+                </CardTitle>
+              </div>
+              <Badge variant="outline" className="text-[10px] bg-slate-250 text-slate-700 hover:bg-slate-250 border-slate-350 py-0.5 font-bold uppercase tracking-wider">
+                Obrigatório
+              </Badge>
+            </CardHeader>
+            <CardContent className="p-3.5 space-y-3">
+              {/* Selected Items List with Images & Controls */}
+              {selectedItems.length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-[10px] font-black uppercase text-primary tracking-wider pl-1 font-mono">Equipamentos Selecionados ({selectedItems.length})</p>
+                  <div className="grid grid-cols-1 gap-2">
+                    {selectedItems.map((item, id) => {
+                      const productPhoto = getProductPhoto(item);
+                      const isCustom = item.id === 'custom-item' || item.id === 'initial-item' || !productPhoto;
+
+                      return (
+                        <div 
+                          key={id}
+                          className={cn(
+                            "flex flex-col sm:flex-row sm:items-center justify-between p-2.5 rounded-xl border-2 transition-all gap-3",
+                            isCustom 
+                              ? "bg-amber-600/5 border-amber-500/30 dark:border-amber-500/20" 
+                              : "bg-primary/5 border-primary/20 dark:border-primary/10"
+                          )}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div 
+                              onClick={(e) => {
+                                  if (productPhoto) {
+                                    e.stopPropagation();
+                                    setLightboxImage(productPhoto);
+                                    setLightboxTitle(item.product_name);
+                                    setIsLightboxOpen(true);
+                                  }
+                                }}
+                              className={cn(
+                                "h-20 w-20 rounded-xl overflow-hidden border-2 shrink-0 flex items-center justify-center bg-background select-none shadow-sm",
+                                productPhoto ? "cursor-pointer hover:scale-105 active:scale-95 transition-transform" : "",
+                                isCustom ? "text-amber-500 border-amber-200 dark:border-amber-950/40" : "text-primary border-primary/30 dark:border-primary/20"
+                              )}
+                              title={productPhoto ? "Clique para expandir a foto" : ""}
+                            >
+                              {productPhoto ? (
+                                <SmartImage src={productPhoto} alt="" className="h-full w-full object-cover" />
+                              ) : (
+                                <Package className="h-8 w-8 opacity-60" />
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-black text-sm sm:text-base text-foreground leading-snug">{item.product_name}</p>
+                              {item.code ? (
+                                <p className="text-[9px] font-mono uppercase text-muted-foreground tracking-tight mt-0.5">{item.code}</p>
+                              ) : (
+                                <p className="text-[9px] font-mono uppercase text-muted-foreground/80 tracking-tight mt-0.5">
+                                  {isCustom ? "Equipamento Personalizado" : "Equipamento do Catálogo"}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[9px] font-bold uppercase text-muted-foreground/80 font-mono">Qtd:</span>
+                              <div className="flex items-center gap-1 bg-white dark:bg-zinc-950 border border-border/80 p-0.5 rounded-lg shadow-xs">
+                                <button 
+                                  type="button"
+                                  onClick={() => handleProductQtyChange(item.product_name, -1)}
+                                  className="h-6 w-6 rounded-md bg-muted hover:bg-muted/80 text-foreground flex items-center justify-center transition-all disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                                  disabled={item.quantity <= 1}
+                                >
+                                  <Minus className="h-3 w-3 stroke-[2.5]" />
+                                </button>
+                                <span className="font-extrabold text-[11px] text-foreground w-5 text-center select-none">{item.quantity}</span>
+                                <button 
+                                  type="button"
+                                  onClick={() => handleProductQtyChange(item.product_name, 1)}
+                                  className="h-6 w-6 rounded-md bg-muted hover:bg-muted/80 text-foreground flex items-center justify-center transition-all cursor-pointer"
+                                >
+                                  <Plus className="h-3 w-3 stroke-[2.5]" />
+                                </button>
+                              </div>
+                            </div>
+
+                            <button 
+                              type="button" 
+                              onClick={() => setSelectedItems(prev => prev.filter((_, idx) => idx !== id))}
+                              className="h-7 w-7 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 flex items-center justify-center transition-colors cursor-pointer"
+                              title="Remover"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-5 px-3 text-center border-2 border-dashed border-border/60 rounded-xl bg-background/50 dark:bg-zinc-950/20">
+                  <Package className="h-5 w-5 text-primary/40 mb-1.5 animate-pulse" />
+                  <p className="text-xs font-bold text-foreground">Nenhum equipamento de interesse selecionado</p>
+                  <p className="text-[10px] text-muted-foreground max-w-sm mt-0.5 font-medium">Selecione pelo menos um equipamento no catálogo para prosseguir.</p>
+                </div>
+              )}
+
+              {/* Action trigger to select equipment */}
+              <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                <Button 
+                  type="button"
+                  onClick={() => {
+                    setProductSearch('');
+                    setIsEquipSelectorOpen(true);
+                  }}
+                  className={cn(
+                    "flex-1 h-11 text-xs font-black uppercase tracking-wider gap-2 shadow-md rounded-xl cursor-pointer mr-0 transition-all duration-300",
+                    selectedItems.length === 0 
+                      ? "bg-primary hover:bg-primary/90 text-primary-foreground animate-pulse shadow-[0_0_20px_rgba(224,90,16,0.65)] ring-4 ring-primary/30 border-2 border-primary-foreground/10" 
+                      : "bg-white dark:bg-zinc-950 hover:bg-slate-50 dark:hover:bg-zinc-900 text-muted-foreground border border-border hover:text-foreground"
+                  )}
+                >
+                  <Layers className={cn("h-4 w-4 shrink-0", selectedItems.length === 0 && "animate-bounce")} /> 
+                  {selectedItems.length === 0 ? (
+                    <>
+                      <span className="sm:hidden">👉 SELECIONAR EQUIPAMENTO</span>
+                      <span className="hidden sm:inline">👉 CLIQUE AQUI PARA SELECIONAR EQUIPAMENTO 👈</span>
+                    </>
+                  ) : (
+                    "Selecionar Equipamento"
+                  )}
+                </Button>
+                
+                {(isAdmin || isManager) && (
+                  <Button 
+                    type="button" 
+                    onClick={() => setIsAddEquipOpen(true)}
+                    variant="outline"
+                    className="h-10 border-dashed border-2 px-4 gap-2 text-xs font-black uppercase text-primary border-primary/40 hover:bg-primary/5 rounded-xl cursor-pointer"
+                  >
+                    <Plus className="h-4 w-4" /> Cadastrar Outro Equipamento
+                  </Button>
+                )}
+              </div>
+
+              {/* Opção de equipamento personalizado / não listado no catálogo */}
+              <div className="mt-4 pt-4 border-t border-dashed border-border/80 space-y-2.5">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="h-4 w-4 text-amber-500" />
+                  <span className="text-xs font-extrabold text-foreground">Equipamento não listado no catálogo?</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground font-medium">Se você sabe que a Roder fabrica este equipamento mas ele não está no catálogo, digite o nome/descrição dele abaixo para adicioná-lo sem bloqueios:</p>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Ex: Garra Traçadora Reforçada GTR-30"
+                    value={customEquipName}
+                    onChange={(e) => setCustomEquipName(e.target.value)}
+                    className="flex-1 bg-white dark:bg-zinc-950 border-input h-10 text-xs font-semibold rounded-xl"
+                  />
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      if (!customEquipName.trim()) {
+                        toast.error("Por favor, digite o nome do equipamento!");
+                        return;
+                      }
+                      handleAddCustomEquipment(customEquipName);
+                      setCustomEquipName('');
+                    }}
+                    className="bg-amber-500 hover:bg-amber-600 text-white font-black text-xs uppercase px-4 h-10 rounded-xl shrink-0 cursor-pointer"
+                  >
+                    <Plus className="h-4 w-4 mr-1.5 shrink-0" /> Adicionar
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
           {/* Card 3: proposal parameters & host machine */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className={cn("grid grid-cols-1 gap-6", isInternalTeam && "md:grid-cols-2")}>
+            {isInternalTeam && (<>
             {/* Options of Proposal */}
             <Card className="bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 shadow-md text-slate-900 dark:text-zinc-100 rounded-2xl overflow-hidden flex flex-col justify-between">
               <CardHeader className="pb-4">
@@ -2290,6 +2347,7 @@ export default function NewIndication() {
               </CardContent>
             </Card>
 
+            </>)}
             {/* Base Machine details */}
             <Card className="bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 shadow-md text-slate-900 dark:text-zinc-100 rounded-2xl overflow-hidden flex flex-col justify-between">
               <CardHeader className="pb-4">
@@ -2297,7 +2355,29 @@ export default function NewIndication() {
                 <CardDescription className="text-xs text-muted-foreground">Informe dados da máquina que receberá o equipamento Roder.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 flex-1">
-                <div className="space-y-2 relative">
+                <div className="space-y-2">
+                  <Label className="text-[13px] font-bold text-slate-700 dark:text-zinc-300">Máquina do cliente</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {['Escavadeira', 'Trator', 'Pá carregadeira', 'Outra'].map(t => (
+                      <button key={t} type="button"
+                        onClick={() => { setMachineOutra(t === 'Outra'); setFormData(prev => ({ ...prev, base_machine: t === 'Outra' ? '' : t })); }}
+                        className={cn("px-3.5 py-2.5 rounded-xl border text-sm font-semibold transition", (t === 'Outra' ? machineOutra : (formData.base_machine === t && !machineOutra)) ? "border-primary bg-orange-50 text-orange-700" : "border-slate-300 bg-white text-slate-700 dark:bg-zinc-950 dark:text-zinc-200 dark:border-zinc-700")}
+                      >{t}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[13px] font-bold text-slate-700 dark:text-zinc-300">Porte da máquina</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {['até 14 t', '16 a 22 t', 'acima de 22 t', 'não sei'].map(t => (
+                      <button key={t} type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, machine_porte: t }))}
+                        className={cn("px-3.5 py-2.5 rounded-xl border text-sm font-semibold transition", formData.machine_porte === t ? "border-primary bg-orange-50 text-orange-700" : "border-slate-300 bg-white text-slate-700 dark:bg-zinc-950 dark:text-zinc-200 dark:border-zinc-700")}
+                      >{t}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className={cn("space-y-2 relative", !machineOutra && "hidden")}>
                   <Label htmlFor="base_machine" className="text-xs font-bold uppercase text-muted-foreground/80">Tipo da Máquina (ex: Escavadeira, Trator...)</Label>
                   <Input 
                     id="base_machine" 
@@ -2334,7 +2414,7 @@ export default function NewIndication() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="machine_details" className="text-xs font-bold uppercase text-muted-foreground/80">Marca e Modelo da Máquina</Label>
+                  <Label htmlFor="machine_details" className="text-xs font-bold uppercase text-muted-foreground/80">Marca e modelo da máquina (opcional)</Label>
                   <Input 
                     id="machine_details" 
                     name="machine_details"
@@ -2348,6 +2428,9 @@ export default function NewIndication() {
             </Card>
           </div>
 
+          </>)}
+
+          {step === 3 && (<>
           {/* Card 4: Audio recording, detailed descriptions and media attachments */}
           <Card className="bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 shadow-md text-slate-900 dark:text-zinc-100 rounded-2xl overflow-hidden">
             <CardHeader className="pb-4">
@@ -2470,40 +2553,35 @@ export default function NewIndication() {
             </CardContent>
           </Card>
 
-          {/* Form Actions footer */}
-          <div className="pt-4 pb-12 flex flex-col sm:flex-row items-center justify-end gap-3">
-            <Button 
+          {/* Resumo antes de enviar */}
+          <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 text-sm leading-relaxed">
+            <p className="text-[11px] font-bold uppercase text-muted-foreground mb-1">Resumo</p>
+            <p className="font-semibold">{formData.client_person_name || 'Cliente'}{formData.client_phone ? ` · ${formData.client_phone}` : ''}{city ? ` · ${city}${stateUf ? `/${stateUf}` : ''}` : ''}</p>
+            <p className="text-muted-foreground">{selectedItems.map(i => i.product_name).join(', ') || 'Nenhum equipamento'}{formData.base_machine ? ` · ${formData.base_machine}` : ''}{formData.machine_porte ? ` ${formData.machine_porte}` : ''}</p>
+          </div>
+
+          </>)}
+
+          {/* Navegação dos passos */}
+          <div className="sticky bottom-0 z-20 -mx-1 px-1 pt-3 pb-[max(16px,env(safe-area-inset-bottom))] bg-background/95 backdrop-blur flex gap-3">
+            <Button
               type="button"
-              variant="outline" 
-              onClick={() => navigate(-1)} 
-              className="w-full sm:w-auto h-12 px-6 font-bold border-border"
+              variant="outline"
+              onClick={() => (step === 1 ? navigate(-1) : setStep(step - 1))}
+              className="h-12 px-5 font-bold border-border"
               disabled={loading}
             >
-              Cancelar
+              {step === 1 ? 'Cancelar' : 'Voltar'}
             </Button>
-            <div className="w-full sm:w-auto flex items-center gap-1.5">
-              <Button 
-                type="button"
-                onClick={handleSubmit}
-                disabled={loading}
-                className="w-full sm:w-auto h-12 px-8 bg-primary hover:bg-primary/95 text-primary-foreground font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/10 flex items-center justify-center"
-              >
-                <span key={loading ? "submitting" : "ready"} className="flex items-center justify-center">
-                  {loading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      Processando envio...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="h-4 w-4 mr-2" />
-                      Enviar Nova Indicação
-                    </>
-                  )}
-                </span>
+            {step < 3 ? (
+              <Button type="button" onClick={goNextStep} className="flex-1 h-12 font-extrabold text-base">
+                Continuar
               </Button>
-              <HelpTooltip content="Finaliza o cadastro da indicação comercial. Luana e Gislene receberão alertas instantâneos de negócios no ERP." />
-            </div>
+            ) : (
+              <Button type="button" onClick={handleSubmit} disabled={loading} className="flex-1 h-12 font-extrabold text-base">
+                {loading ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Enviando...</> : 'Enviar indicação'}
+              </Button>
+            )}
           </div>
         </div>
       </div>
