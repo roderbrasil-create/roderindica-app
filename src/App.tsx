@@ -35,6 +35,7 @@ import FairDetails from './pages/FairDetails';
 import QuickRegister from './pages/QuickRegister';
 import FairLeadsTriagem from './pages/FairLeadsTriagem';
 import PublicBudgetRequest from './pages/PublicBudgetRequest';
+import LinkCurto from './pages/LinkCurto';
 import PublicEvaluation from './pages/PublicEvaluation';
 import ComercialAvaliacoes from './pages/ComercialAvaliacoes';
 import Clientes from './pages/Clientes';
@@ -193,6 +194,7 @@ function AppContent() {
                         location.pathname.startsWith('/expo') ||
                         location.pathname.startsWith('/estoque-publico') || 
                         location.pathname.startsWith('/pedido-orcamento') ||
+                        location.pathname.startsWith('/o/') ||
                         location.pathname.startsWith('/satisfacao') ||
                         location.pathname.startsWith('/stock_holder') ||
                         location.pathname.startsWith('/consultor') ||
@@ -369,6 +371,7 @@ function AppContent() {
                 <Route path="/estoque-publico" element={<PublicStock />} />
                 <Route path="/stock_holder" element={<PublicStock />} />
                 <Route path="/pedido-orcamento" element={<PublicBudgetRequest />} />
+                <Route path="/o/:codigo" element={<LinkCurto />} />
                 <Route path="/satisfacao" element={<PublicEvaluation />} />
                 <Route path="/entrega-tecnica-fae" element={<PublicTechnicalDelivery />} />
                 <Route path="/consultor" element={<PublicConsultant />} />

@@ -4055,6 +4055,143 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     `);
   });
 
+  // ---------------------------------------------------------------------------
+  // LINK CURTO DO EQUIPAMENTO (WhatsApp): roderindica.com/o/K7P2Q
+  // O link antigo levava uid, pid e mid na URL e ocupava meia tela no WhatsApp.
+  // O código guarda os três aqui; a página /o/ abre a tela de orçamento e já
+  // entrega ao WhatsApp a foto, o nome e a descrição do equipamento (prévia do link).
+  // ---------------------------------------------------------------------------
+  const ALFABETO_LINK = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const novoCodigo = () => Array.from({ length: 5 }, () => ALFABETO_LINK[Math.floor(Math.random() * ALFABETO_LINK.length)]).join('');
+  const SITE = 'https://roderindica.com';
+  const absoluta = (u: string) => !u ? '' : (u.startsWith('http') ? u : `${SITE}${u.startsWith('/') ? '' : '/'}${u}`);
+  const escHtml = (t: string) => String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  app.post("/api/link-curto", async (req, res) => {
+    try {
+      const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+      if (!token) return res.status(401).json({ error: 'Faça login novamente.' });
+      const quem = await admin.auth().verifyIdToken(token);
+      const pid = String(req.body?.pid || '').slice(0, 80);
+      const mid = String(req.body?.mid || '').slice(0, 80);
+      if (!pid) return res.status(400).json({ error: 'Equipamento não informado.' });
+      // o mesmo vendedor compartilhando o mesmo modelo reaproveita o código
+      const existente = await db.collection('links_curtos').where('uid', '==', quem.uid).where('pid', '==', pid).where('mid', '==', mid).limit(1).get();
+      if (!existente.empty) return res.json({ codigo: existente.docs[0].id });
+      for (let tentativa = 0; tentativa < 6; tentativa++) {
+        const codigo = novoCodigo();
+        const ref = db.collection('links_curtos').doc(codigo);
+        const criado = await db.runTransaction(async (t: any) => {
+          const snap = await t.get(ref);
+          if (snap.exists) return false;
+          t.set(ref, { uid: quem.uid, pid, mid, created_at: new Date().toISOString() });
+          return true;
+        });
+        if (criado) return res.json({ codigo });
+      }
+      res.status(500).json({ error: 'Não consegui gerar o link.' });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Erro' });
+    }
+  });
+
+  app.get("/api/link-curto/:codigo", async (req, res) => {
+    try {
+      const codigo = String(req.params.codigo || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
+      const snap = await db.collection('links_curtos').doc(codigo).get();
+      if (!snap.exists) return res.status(404).json({ error: 'Link não encontrado.' });
+      const d: any = snap.data();
+      res.json({ uid: d.uid || '', pid: d.pid || '', mid: d.mid || '' });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Erro' });
+    }
+  });
+
+  // A página do link curto: o app normal, com as etiquetas que o WhatsApp lê para montar a prévia
+  app.get("/o/:codigo", async (req, res, next) => {
+    try {
+      const arquivo = indexPath && fs.existsSync(indexPath) ? indexPath : path.resolve(process.cwd(), 'dist', 'index.html');
+      if (!fs.existsSync(arquivo)) return next();
+      let html = fs.readFileSync(arquivo, 'utf8');
+      const codigo = String(req.params.codigo || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
+      let titulo = 'Roder Máquinas e Equipamentos';
+      let descricao = 'Fotos, vídeo, ficha técnica e orçamento.';
+      let imagem = `${SITE}/marca/roder-redondo-512.png`;
+      try {
+        const link = await db.collection('links_curtos').doc(codigo).get();
+        if (link.exists) {
+          const l: any = link.data();
+          const prod = await db.collection('products').doc(l.pid).get();
+          if (prod.exists) {
+            const p: any = prod.data();
+            const m: any = (p.models || []).find((x: any) => x.id === l.mid) || null;
+            titulo = `${p.name}${m && !String(p.name).includes(m.name) ? ` ${m.name}` : ''} | Roder`;
+            const base = String(m?.technical_specs?.maquina_base || '').trim();
+            descricao = base ? `Para ${/carregadeira|engate/i.test(p.name) ? 'pá carregadeira' : 'escavadeiras'} de ${base.replace(/\s*ton\.?$/i, ' t')}. Fotos, vídeo, ficha e orçamento.` : descricao;
+            const foto = (m?.images || []).find((i: string) => i && !/run\.app/.test(i)) || p.image_url;
+            if (foto && !/run\.app/.test(foto)) imagem = absoluta(foto);
+          }
+        }
+      } catch (e) { /* sem prévia, a página abre do mesmo jeito */ }
+      const meta = `<meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Roder Máquinas e Equipamentos" />
+    <meta property="og:title" content="${escHtml(titulo)}" />
+    <meta property="og:description" content="${escHtml(descricao)}" />
+    <meta property="og:image" content="${escHtml(imagem)}" />
+    <meta property="og:url" content="${SITE}/o/${codigo}" />
+    <meta name="twitter:card" content="summary_large_image" />`;
+      html = html.replace(/<title>[^<]*<\/title>/, `<title>${escHtml(titulo)}</title>\n    ${meta}`);
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.type('html').send(html);
+    } catch (e) {
+      next();
+    }
+  });
+
+  // E-mail de confirmação para o cliente que pediu orçamento pelo link e deixou o e-mail.
+  // Só envia para o e-mail gravado na própria solicitação, criada há poucos minutos e
+  // uma vez só: assim o endereço não vira um jeito de mandar e-mail para qualquer um.
+  app.post("/api/orcamento/confirmacao", async (req, res) => {
+    try {
+      const id = String(req.body?.indicationId || '').slice(0, 60);
+      if (!id) return res.status(400).json({ error: 'Solicitação não informada.' });
+      const ref = db.collection('indications').doc(id);
+      const snap = await ref.get();
+      if (!snap.exists) return res.status(404).json({ error: 'Solicitação não encontrada.' });
+      const ind: any = snap.data();
+      const email = String(ind.client_email || '').trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.json({ ok: false, motivo: 'sem e-mail' });
+      if (ind.confirmacao_cliente_enviada_em) return res.json({ ok: true, repetido: true });
+      if (Date.now() - new Date(ind.created_at).getTime() > 15 * 60 * 1000) return res.status(400).json({ error: 'Prazo encerrado.' });
+      await ref.update({ confirmacao_cliente_enviada_em: new Date().toISOString() });
+
+      const produto = String(ind.items?.[0]?.product_name || 'equipamento Roder');
+      const nome = String(ind.client_name || '').trim().split(/\s+/)[0] || '';
+      const foto = absoluta(String(req.body?.foto || '')).replace(/[^\w:/.\-?=&%~+]/g, '');
+      const link = String(req.body?.link || '').startsWith(SITE) ? String(req.body.link) : SITE;
+      const instalacao = req.body?.instalacao !== false;
+      const html = `
+<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#111">
+  <div style="background:#090909;padding:16px;text-align:center"><img src="${SITE}/marca/roder-horizontal.png" alt="Roder" style="height:36px" /></div>
+  <div style="padding:20px 18px;font-size:15px;line-height:1.55">
+    <p>Olá${nome ? `, ${escHtml(nome)}` : ''}.</p>
+    <p>Recebemos seu pedido de orçamento da <b>${escHtml(produto)}</b>.</p>
+    ${foto ? `<p style="text-align:center"><img src="${foto}" alt="" style="max-width:260px;max-height:200px" /></p>` : ''}
+    ${instalacao ? `<p>Nosso orçamento é completo e já considera:<br>• equipamento<br>• frete até a sua cidade<br>• instalação na sua máquina por um técnico Roder<br>• regulagem e orientação ao operador</p>
+    <p>Para chegar aos valores certos, um consultor Roder vai falar com você pelo WhatsApp. Ele vai pedir a marca e o modelo da sua máquina e algumas fotos do comando hidráulico, para confirmar se ela já tem fatia extra e válvula de regulagem de pressão. É com isso que a Roder prepara a instalação hidráulica completa.</p>` : `<p>Este equipamento vai pronto para você acoplar e ligar na sua máquina.</p>
+    <p>Um consultor Roder vai falar com você pelo WhatsApp para confirmar o modelo da sua máquina e fechar frete e prazo de entrega.</p>`}
+    <p>O orçamento chega neste e-mail.</p>
+    <p style="text-align:center;margin:22px 0"><a href="${link}" style="background:#facc15;color:#111;text-decoration:none;font-weight:bold;padding:13px 22px;border-radius:10px;display:inline-block">Ver vídeo e ficha técnica</a></p>
+    <p style="color:#555;font-size:13px">Roder Máquinas e Equipamentos · desde 2002<br>Pardinho, SP · roderbrasil.com.br</p>
+  </div>
+</div>`;
+      await sendAutomaticEmail(email, `Recebemos seu pedido de orçamento: ${produto}`, html, { fromName: 'Roder Máquinas e Equipamentos' });
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Erro' });
+    }
+  });
+
   app.get("/registerSW.js", (req, res) => {
     res.setHeader("Content-Type", "application/javascript");
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
@@ -5392,10 +5529,15 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
   // Só servidores conhecidos, só PDF e só para quem está logado: não vira um proxy aberto.
   app.get("/api/documento", async (req, res) => {
     try {
-      const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-      if (!token) return res.status(401).send('Faça login novamente.');
-      await admin.auth().verifyIdToken(token);
       let url = String(req.query.url || '');
+      // Fichas do site da Roder e do próprio app são públicas: o cliente abre sem login
+      // (tela de orçamento). Arquivos do Storage e do Drive continuam pedindo login.
+      const publico = /^https:\/\/(www\.)?(roderbrasil\.com\.br|roderindica\.com)\//i.test(url);
+      if (!publico) {
+        const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+        if (!token) return res.status(401).send('Entre no app para abrir este documento.');
+        await admin.auth().verifyIdToken(token);
+      }
       let host = '';
       try { host = new URL(url).hostname.toLowerCase(); } catch { return res.status(400).send('URL inválida'); }
       if (!/^https:\/\//i.test(url)) return res.status(400).send('URL inválida');

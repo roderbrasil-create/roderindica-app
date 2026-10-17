@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import Layout from '../components/layout/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { collection, query, onSnapshot, orderBy, addDoc, updateDoc, doc, deleteDoc, getDoc, where, getDocs } from 'firebase/firestore';
-import { db, storage } from '../lib/firebase';
+import { db, storage, auth } from '../lib/firebase';
 import { CryptoService } from '../lib/CryptoService';
 import { AuditService, AuditAction } from '../lib/AuditService';
 import { runSelfHealing } from '../lib/SelfHealing';
@@ -923,6 +923,33 @@ export default function Catalog() {
   };
 
   const [viewingGallery, setViewingGallery] = useState<Product | null>(null);
+  // Link curto de cada modelo (roderindica.com/o/XXXXX), buscado assim que a lista de
+  // modelos abre: o botão do WhatsApp precisa abrir na hora do toque, senão o celular
+  // bloqueia a janela.
+  const [linksCurtos, setLinksCurtos] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const prod = viewingGallery;
+    if (!prod?.id || !prod.models?.length || !auth.currentUser) return;
+    let cancelado = false;
+    (async () => {
+      try {
+        const token = await auth.currentUser!.getIdToken();
+        for (const m of prod.models!) {
+          const chave = `${prod.id}:${m.id}`;
+          if (cancelado || linksCurtos[chave]) continue;
+          const r = await fetch(`${getApiBaseUrl()}/api/link-curto`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ pid: prod.id, mid: m.id }),
+          });
+          if (!r.ok) continue;
+          const j = await r.json();
+          if (j.codigo && !cancelado) setLinksCurtos(prev => ({ ...prev, [chave]: j.codigo }));
+        }
+      } catch { /* sem link curto, o WhatsApp usa o link completo */ }
+    })();
+    return () => { cancelado = true; };
+  }, [viewingGallery?.id]);
 
   // Lista de modelos aberta (inclusive enquanto uma ficha está por cima dela)
   const galeriaAberta = !!(viewingGallery || suspendedViewingGallery);
@@ -4412,62 +4439,42 @@ export default function Catalog() {
       acumulador: 'Acumulador'
     };
 
-    const isEngateProduct = finalProductName.toLowerCase().includes('engate') || model.name.toLowerCase().includes('engate');
-
-    const specs = Object.entries(model.technical_specs || {})
-      .filter(([k, v]) => {
-        if (!v) return false;
-        const valStr = String(v).toLowerCase();
-        const keyStr = k.toLowerCase();
-        if (keyStr === 'seguranca' || valStr.includes('bloqueio mecânico') || valStr.includes('bloqueio mecanico')) {
-          return false;
-        }
-        return String(v).trim() !== '' && String(v).trim() !== '-';
-      })
-      .map(([k, v]) => {
-        const label = labelMapping[k.toLowerCase()] || k.replace(/_/g, ' ').toUpperCase();
-        const cleanedValue = cleanTextForEngate(getUnitValue(k, v), isEngateProduct);
-        return `• *${label}:* ${cleanedValue}`;
-      })
-      .filter(line => line && !line.endsWith(':* ') && !line.endsWith(':*'))
-      .join('\n');
-    
-    // Minimal params for WhatsApp sharing
-    const budgetUrl = `${window.location.origin}/pedido-orcamento?uid=${profile?.uid || user?.uid || ''}&pid=${productId || ''}&mid=${model.id || ''}`;
-
-    // Get up to 5 gallery images to include in the message (if any)
-    const galleryLinks = (model.images || [])
-      .slice(0, 3)
-      .filter((img: string) => img.startsWith('http'))
-      .map((img: string, i: number) => `Foto ${i + 1}: ${img}`)
-      .join('\n');
-
-    const productVideo = viewingGallery?.video_url || selectedProductModels?.video_url;
-
-    let extraIntro = '';
-    if (finalProductName.toLowerCase().includes('engate') || model.name.toLowerCase().includes('engate')) {
-      extraIntro = `*Apresentação:* O Engate Rápido Hidráulico Roder para pás carregadeiras é fabricado 100% sob medida para cada marca/modelo de máquina. Permite a troca rápida de implementos (caçamba original, garfo pallet, conchas e garras) de dentro da cabine em menos de 30 segundos, com segurança máxima.\n\n` +
-                   `*Instalações Hidráulicas Extras:*\n` +
-                   `• *3ª Função (2 vias):* Para acionamento do cilindro do engate rápido, ideal para caçamba ou garfo pallet.\n` +
-                   `• *3ª e 4ª Função (4 vias):* Necessária para equipamentos rotativos com giro hidráulico (como Garras AFG com giro), permitindo acionar o engate, giro e fechamento simultâneos com total agilidade operacional.\n\n`;
+    // Mensagem curta (pedido do Jeferson): nome, máquina base, 3 características e UM link.
+    // Fotos, vídeo e ficha ficam na página do link, e o WhatsApp mostra a foto como prévia.
+    const ehPa = /engate|carregadeira/i.test(finalProductName) || /engate|carregadeira/i.test(model.name || '');
+    const palavras = finalProductName.trim().split(/\s+/);
+    const ultima = palavras[palavras.length - 1] || '';
+    const nomeProduto = ultima && String(model.name || '').toUpperCase().startsWith(ultima.toUpperCase()) && ultima.length <= 4
+      ? palavras.slice(0, -1).join(' ') : finalProductName;
+    const titulo = nomeProduto.toLowerCase().includes(String(model.name || '').toLowerCase()) ? nomeProduto : `${nomeProduto} ${model.name}`.trim();
+    const specsTodas: Record<string, any> = { ...(DEFAULT_FAE_SPECS[model.id] || {}), ...(model.technical_specs || {}) };
+    const base = String(specsTodas.maquina_base || '').trim().replace(/\s*ton\.?$/i, ' t');
+    const curtos: Record<string, string> = {
+      diametro_max_tora: 'Tora até', diametro_rachamento: 'Racha toras até', diametro_corte: 'Corte até', diametro_max_corte: 'Corte até',
+      diametro_max_trituracao: 'Tritura até', diametro_max_de_trituracao_mm: 'Tritura até', abertura_maxima: 'Abertura', abertura_total: 'Abertura',
+      area_carga: 'Área', area_da_garra: 'Área', volume: 'Volume', capacidade_carga: 'Carga', capacidade_de_carga: 'Carga',
+      peso: 'Peso', peso_do_equipamento: 'Peso', peso_kg: 'Peso', peso_sem_rotator: 'Peso', largura_de_trabalho_mm: 'Largura de trabalho',
+      pressao: 'Pressão', vazao: 'Vazão',
+    };
+    const vistos = new Set<string>();
+    const destaques: string[] = [];
+    for (const k of Object.keys(curtos)) {
+      const v = specsTodas[k];
+      if (!v || String(v).trim() === '' || String(v).trim() === '-' || vistos.has(curtos[k])) continue;
+      vistos.add(curtos[k]);
+      destaques.push(`• ${curtos[k]} ${getUnitValue(k, v)}`);
+      if (destaques.length === 3) break;
     }
+    const codigo = linksCurtos[`${productId}:${model.id}`];
+    const budgetUrl = codigo
+      ? `https://roderindica.com/o/${codigo}`
+      : `${window.location.origin}/pedido-orcamento?uid=${profile?.uid || user?.uid || ''}&pid=${productId || ''}&mid=${model.id || ''}`;
 
-    const text = `*RODER BRASIL - Especificações Técnicas*\n\n` +
-      `*Equipamento:* ${finalProductName}\n` +
-      `*Modelo:* ${model.name}\n\n` +
-      (extraIntro ? extraIntro : '') +
-      `*DADOS TÉCNICOS:*\n${specs || 'Consulte o manual para mais detalhes.'}\n\n` +
-      (galleryLinks ? `*Fotos do Modelo:*\n${galleryLinks}\n\n` : '') +
-      (model.video_url ? `*Vídeo do Modelo:* ${model.video_url}\n` : '') +
-      (productVideo && productVideo !== model.video_url ? `*Vídeo do Equipamento:* ${productVideo}\n` : '') +
-      (model.pdf_url ? `*Ficha de Dimensionamento:* ${model.pdf_url}\n` : '') +
-      `*Solicite seu orçamento aqui:* ${budgetUrl}\n\n` +
-      `_Enviado via RODER Indica_`;
-    
-    const mainImage = model.images?.[0];
+    const text = `*${titulo}*\n` +
+      (base ? `Para ${ehPa ? 'pá carregadeira' : 'escavadeiras'} de ${base}\n` : '') +
+      (destaques.length ? `\n${destaques.join('\n')}\n` : '') +
+      `\nFotos, vídeo, ficha e orçamento:\n${budgetUrl}`;
 
-    // Primary choice for WhatsApp requests - Always use window.open for WhatsApp buttons 
-    // to ensure reliability and direct web redirect across all browsers, matching main card behavior.
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(whatsappUrl, '_blank');
   };

@@ -3782,6 +3782,128 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       });
     `);
   });
+  const ALFABETO_LINK = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const novoCodigo = () => Array.from({ length: 5 }, () => ALFABETO_LINK[Math.floor(Math.random() * ALFABETO_LINK.length)]).join("");
+  const SITE = "https://roderindica.com";
+  const absoluta = (u) => !u ? "" : u.startsWith("http") ? u : `${SITE}${u.startsWith("/") ? "" : "/"}${u}`;
+  const escHtml = (t) => String(t || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  app.post("/api/link-curto", async (req, res) => {
+    try {
+      const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+      if (!token) return res.status(401).json({ error: "Fa\xE7a login novamente." });
+      const quem = await import_firebase_admin.default.auth().verifyIdToken(token);
+      const pid = String(req.body?.pid || "").slice(0, 80);
+      const mid = String(req.body?.mid || "").slice(0, 80);
+      if (!pid) return res.status(400).json({ error: "Equipamento n\xE3o informado." });
+      const existente = await db.collection("links_curtos").where("uid", "==", quem.uid).where("pid", "==", pid).where("mid", "==", mid).limit(1).get();
+      if (!existente.empty) return res.json({ codigo: existente.docs[0].id });
+      for (let tentativa = 0; tentativa < 6; tentativa++) {
+        const codigo = novoCodigo();
+        const ref = db.collection("links_curtos").doc(codigo);
+        const criado = await db.runTransaction(async (t) => {
+          const snap = await t.get(ref);
+          if (snap.exists) return false;
+          t.set(ref, { uid: quem.uid, pid, mid, created_at: (/* @__PURE__ */ new Date()).toISOString() });
+          return true;
+        });
+        if (criado) return res.json({ codigo });
+      }
+      res.status(500).json({ error: "N\xE3o consegui gerar o link." });
+    } catch (e) {
+      res.status(500).json({ error: e?.message || "Erro" });
+    }
+  });
+  app.get("/api/link-curto/:codigo", async (req, res) => {
+    try {
+      const codigo = String(req.params.codigo || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
+      const snap = await db.collection("links_curtos").doc(codigo).get();
+      if (!snap.exists) return res.status(404).json({ error: "Link n\xE3o encontrado." });
+      const d = snap.data();
+      res.json({ uid: d.uid || "", pid: d.pid || "", mid: d.mid || "" });
+    } catch (e) {
+      res.status(500).json({ error: e?.message || "Erro" });
+    }
+  });
+  app.get("/o/:codigo", async (req, res, next) => {
+    try {
+      const arquivo = indexPath && import_fs.default.existsSync(indexPath) ? indexPath : import_path.default.resolve(process.cwd(), "dist", "index.html");
+      if (!import_fs.default.existsSync(arquivo)) return next();
+      let html = import_fs.default.readFileSync(arquivo, "utf8");
+      const codigo = String(req.params.codigo || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
+      let titulo = "Roder M\xE1quinas e Equipamentos";
+      let descricao = "Fotos, v\xEDdeo, ficha t\xE9cnica e or\xE7amento.";
+      let imagem = `${SITE}/marca/roder-redondo-512.png`;
+      try {
+        const link = await db.collection("links_curtos").doc(codigo).get();
+        if (link.exists) {
+          const l = link.data();
+          const prod = await db.collection("products").doc(l.pid).get();
+          if (prod.exists) {
+            const p = prod.data();
+            const m = (p.models || []).find((x) => x.id === l.mid) || null;
+            titulo = `${p.name}${m && !String(p.name).includes(m.name) ? ` ${m.name}` : ""} | Roder`;
+            const base = String(m?.technical_specs?.maquina_base || "").trim();
+            descricao = base ? `Para ${/carregadeira|engate/i.test(p.name) ? "p\xE1 carregadeira" : "escavadeiras"} de ${base.replace(/\s*ton\.?$/i, " t")}. Fotos, v\xEDdeo, ficha e or\xE7amento.` : descricao;
+            const foto = (m?.images || []).find((i) => i && !/run\.app/.test(i)) || p.image_url;
+            if (foto && !/run\.app/.test(foto)) imagem = absoluta(foto);
+          }
+        }
+      } catch (e) {
+      }
+      const meta = `<meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Roder M\xE1quinas e Equipamentos" />
+    <meta property="og:title" content="${escHtml(titulo)}" />
+    <meta property="og:description" content="${escHtml(descricao)}" />
+    <meta property="og:image" content="${escHtml(imagem)}" />
+    <meta property="og:url" content="${SITE}/o/${codigo}" />
+    <meta name="twitter:card" content="summary_large_image" />`;
+      html = html.replace(/<title>[^<]*<\/title>/, `<title>${escHtml(titulo)}</title>
+    ${meta}`);
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.type("html").send(html);
+    } catch (e) {
+      next();
+    }
+  });
+  app.post("/api/orcamento/confirmacao", async (req, res) => {
+    try {
+      const id = String(req.body?.indicationId || "").slice(0, 60);
+      if (!id) return res.status(400).json({ error: "Solicita\xE7\xE3o n\xE3o informada." });
+      const ref = db.collection("indications").doc(id);
+      const snap = await ref.get();
+      if (!snap.exists) return res.status(404).json({ error: "Solicita\xE7\xE3o n\xE3o encontrada." });
+      const ind = snap.data();
+      const email = String(ind.client_email || "").trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.json({ ok: false, motivo: "sem e-mail" });
+      if (ind.confirmacao_cliente_enviada_em) return res.json({ ok: true, repetido: true });
+      if (Date.now() - new Date(ind.created_at).getTime() > 15 * 60 * 1e3) return res.status(400).json({ error: "Prazo encerrado." });
+      await ref.update({ confirmacao_cliente_enviada_em: (/* @__PURE__ */ new Date()).toISOString() });
+      const produto = String(ind.items?.[0]?.product_name || "equipamento Roder");
+      const nome = String(ind.client_name || "").trim().split(/\s+/)[0] || "";
+      const foto = absoluta(String(req.body?.foto || "")).replace(/[^\w:/.\-?=&%~+]/g, "");
+      const link = String(req.body?.link || "").startsWith(SITE) ? String(req.body.link) : SITE;
+      const instalacao = req.body?.instalacao !== false;
+      const html = `
+<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#111">
+  <div style="background:#090909;padding:16px;text-align:center"><img src="${SITE}/marca/roder-horizontal.png" alt="Roder" style="height:36px" /></div>
+  <div style="padding:20px 18px;font-size:15px;line-height:1.55">
+    <p>Ol\xE1${nome ? `, ${escHtml(nome)}` : ""}.</p>
+    <p>Recebemos seu pedido de or\xE7amento da <b>${escHtml(produto)}</b>.</p>
+    ${foto ? `<p style="text-align:center"><img src="${foto}" alt="" style="max-width:260px;max-height:200px" /></p>` : ""}
+    ${instalacao ? `<p>Nosso or\xE7amento \xE9 completo e j\xE1 considera:<br>\u2022 equipamento<br>\u2022 frete at\xE9 a sua cidade<br>\u2022 instala\xE7\xE3o na sua m\xE1quina por um t\xE9cnico Roder<br>\u2022 regulagem e orienta\xE7\xE3o ao operador</p>
+    <p>Para chegar aos valores certos, um consultor Roder vai falar com voc\xEA pelo WhatsApp. Ele vai pedir a marca e o modelo da sua m\xE1quina e algumas fotos do comando hidr\xE1ulico, para confirmar se ela j\xE1 tem fatia extra e v\xE1lvula de regulagem de press\xE3o. \xC9 com isso que a Roder prepara a instala\xE7\xE3o hidr\xE1ulica completa.</p>` : `<p>Este equipamento vai pronto para voc\xEA acoplar e ligar na sua m\xE1quina.</p>
+    <p>Um consultor Roder vai falar com voc\xEA pelo WhatsApp para confirmar o modelo da sua m\xE1quina e fechar frete e prazo de entrega.</p>`}
+    <p>O or\xE7amento chega neste e-mail.</p>
+    <p style="text-align:center;margin:22px 0"><a href="${link}" style="background:#facc15;color:#111;text-decoration:none;font-weight:bold;padding:13px 22px;border-radius:10px;display:inline-block">Ver v\xEDdeo e ficha t\xE9cnica</a></p>
+    <p style="color:#555;font-size:13px">Roder M\xE1quinas e Equipamentos \xB7 desde 2002<br>Pardinho, SP \xB7 roderbrasil.com.br</p>
+  </div>
+</div>`;
+      await sendAutomaticEmail(email, `Recebemos seu pedido de or\xE7amento: ${produto}`, html, { fromName: "Roder M\xE1quinas e Equipamentos" });
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ error: e?.message || "Erro" });
+    }
+  });
   app.get("/registerSW.js", (req, res) => {
     res.setHeader("Content-Type", "application/javascript");
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
@@ -4906,10 +5028,13 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
   });
   app.get("/api/documento", async (req, res) => {
     try {
-      const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
-      if (!token) return res.status(401).send("Fa\xE7a login novamente.");
-      await import_firebase_admin.default.auth().verifyIdToken(token);
       let url = String(req.query.url || "");
+      const publico = /^https:\/\/(www\.)?(roderbrasil\.com\.br|roderindica\.com)\//i.test(url);
+      if (!publico) {
+        const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+        if (!token) return res.status(401).send("Entre no app para abrir este documento.");
+        await import_firebase_admin.default.auth().verifyIdToken(token);
+      }
       let host = "";
       try {
         host = new URL(url).hostname.toLowerCase();

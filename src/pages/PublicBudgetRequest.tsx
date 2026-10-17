@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { 
   collection, 
@@ -23,7 +23,10 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { Loader2, CheckCircle2, ChevronLeft, ChevronRight, Package, User, Building, Phone, Mail, FileText, MapPin, Briefcase, Settings } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn, getApiBaseUrl } from '../lib/utils';
+import { abrirDocumento } from '../lib/abrirDocumento';
+import { precisaInstalacao } from '../lib/instalacao';
+import { ImageLightbox } from '../components/ui/ImageLightbox';
 
 export default function PublicBudgetRequest() {
   const [searchParams] = useSearchParams();
@@ -44,6 +47,13 @@ export default function PublicBudgetRequest() {
   const [submissionStep, setSubmissionStep] = useState<'saving' | 'notifying'>('saving');
   const [submitted, setSubmitted] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [progresso, setProgresso] = useState(0);
+  const [mostrarExtras, setMostrarExtras] = useState(false);
+  const [fotoAberta, setFotoAberta] = useState(false);
+  const [cidades, setCidades] = useState<string[] | null>(null);
+  const [cidadeFoco, setCidadeFoco] = useState(false);
+  const [cidadeIndice, setCidadeIndice] = useState(0);
+  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     setCurrentImageIndex(0);
@@ -55,7 +65,10 @@ export default function PublicBudgetRequest() {
   const activeModel = product?.models?.find(m => m.id === selectedModelId) || model;
   const displayModelName = activeModel?.name || (urlModelName && urlModelName !== 'null' ? decodeURIComponent(urlModelName) : '');
 
-  const images = activeModel?.images?.length ? activeModel.images : (product?.image_url ? [product.image_url] : []);
+  // fotos do endereço antigo do AI Studio (run.app) não abrem mais: ficam de fora
+  const fotoValida = (u?: string) => !!u && !/\.run\.app\//.test(u);
+  const fotosModelo = (activeModel?.images || []).filter(fotoValida);
+  const images = fotosModelo.length ? fotosModelo : (fotoValida(product?.image_url) ? [product!.image_url] : []);
 
   const [formData, setFormData] = useState({
     client_name: '',
@@ -69,6 +82,8 @@ export default function PublicBudgetRequest() {
   });
 
   const maskPhone = (value: string) => {
+    // número de fora do Brasil (+54, +595...): fica como a pessoa digitou
+    if (value.trim().startsWith('+')) return value;
     let raw = value.replace(/\D/g, '');
     if (raw.length >= 12 && raw.startsWith('55')) {
       raw = raw.substring(2);
@@ -129,6 +144,52 @@ export default function PublicBudgetRequest() {
 
     fetchData();
   }, [productId, modelId, indicatorId]);
+
+  // A barra anda sozinha enquanto espera, para a pessoa ver que está enviando e não fechar
+  useEffect(() => {
+    if (!submitting) return;
+    const t = setInterval(() => setProgresso(p => (p < 92 ? p + 1 : p)), 120);
+    return () => clearInterval(t);
+  }, [submitting]);
+
+  // Lista de cidades (IBGE, 5.570 municípios), baixada só quando a pessoa toca no campo
+  const carregarCidades = async () => {
+    if (cidades) return;
+    try {
+      const txt = await (await fetch('/cidades-br.txt')).text();
+      const lista: string[] = [];
+      txt.split('\n').forEach(linha => {
+        const [uf, nomes] = linha.split(':');
+        (nomes || '').split('|').forEach(n => n && lista.push(`${n} - ${uf}`));
+      });
+      setCidades(lista);
+    } catch { setCidades([]); }
+  };
+  const semAcento = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const sugestoes = useMemo(() => {
+    const q = semAcento(formData.client_location.trim());
+    if (!cidades || q.length < 2 || / - [A-Z]{2}$/.test(formData.client_location)) return [];
+    const comeca: string[] = [], contem: string[] = [];
+    for (const c of cidades) {
+      const n = semAcento(c);
+      if (n.startsWith(q)) comeca.push(c); else if (n.includes(q)) contem.push(c);
+      if (comeca.length >= 6) break;
+    }
+    return [...comeca, ...contem].slice(0, 6);
+  }, [cidades, formData.client_location]);
+
+  // Enter passa para o próximo campo. Em Observações (último), o Enter pula linha.
+  const aoTeclar = (e: React.KeyboardEvent<HTMLFormElement>) => {
+    const alvo = e.target as HTMLElement;
+    if (e.key !== 'Enter' || alvo.tagName === 'TEXTAREA') return;
+    e.preventDefault();
+    if (alvo.id === 'client_location' && sugestoes.length && cidadeFoco) {
+      setFormData(f => ({ ...f, client_location: sugestoes[cidadeIndice] || sugestoes[0] }));
+    }
+    const campos = Array.from(formRef.current?.querySelectorAll<HTMLElement>('input, textarea') || []);
+    const i = campos.indexOf(alvo);
+    if (i >= 0 && campos[i + 1]) campos[i + 1].focus();
+  };
 
   const detectExportLead = (location: string, phone: string, obs: string) => {
     const combined = `${location} ${phone} ${obs}`.toLowerCase();
@@ -195,6 +256,7 @@ export default function PublicBudgetRequest() {
     try {
       setSubmitting(true);
       setSubmissionStep('saving');
+      setProgresso(8);
       
       const isPublic = !indicatorId || indicatorId === 'null' || indicatorId === 'undefined' || indicatorId === '';
       const finalIndicatorId = isPublic ? 'public_request' : indicatorId;
@@ -267,7 +329,8 @@ export default function PublicBudgetRequest() {
         indicationData.duplicate_reviewed = true;
       }
 
-      await addDoc(collection(db, 'indications'), indicationData);
+      const novaRef = await addDoc(collection(db, 'indications'), indicationData);
+      setProgresso(55);
       
       setSubmissionStep('notifying');
       // Send email notifications to managers (Admin, Gislene, and Luana)
@@ -320,9 +383,26 @@ export default function PublicBudgetRequest() {
         console.warn('Silent notification failure (likely unauthenticated client):', notifyErr);
       }
 
-      // We set submitted immediately after the main record is created
+      setProgresso(85);
+      // E-mail de confirmação para o cliente, quando ele deixou o e-mail
+      if (formData.client_email.trim()) {
+        try {
+          await fetch(`${getApiBaseUrl()}/api/orcamento/confirmacao`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              indicationId: novaRef.id,
+              foto: images[0] || '',
+              link: window.location.href,
+              instalacao: comInstalacao,
+            }),
+          });
+        } catch (e) { console.warn('Confirmação por e-mail não enviada:', e); }
+      }
+      setProgresso(100);
+      await new Promise(r => setTimeout(r, 450));
       setSubmitted(true);
-      toast.success('Solicitação enviada com sucesso!');
+      window.scrollTo(0, 0);
     } catch (err) {
       console.error('Error submitting budget request:', err);
       toast.error('Erro ao enviar solicitação. Por favor, tente novamente.');
@@ -331,315 +411,218 @@ export default function PublicBudgetRequest() {
     }
   };
 
+  const palavrasNome = displayProductName.trim().split(/\s+/);
+  const ultimaPalavra = palavrasNome[palavrasNome.length - 1] || '';
+  const nomeBase = ultimaPalavra.length <= 4 && displayModelName.toUpperCase().startsWith(ultimaPalavra.toUpperCase()) ? palavrasNome.slice(0, -1).join(' ') : displayProductName;
+  const tituloEquip = !displayModelName || nomeBase.toLowerCase().includes(displayModelName.toLowerCase()) ? nomeBase : `${nomeBase} ${displayModelName}`;
+  const specs: Record<string, any> = (activeModel as any)?.technical_specs || {};
+  const maquinaBase = String(specs.maquina_base || '').trim().replace(/\s*ton\.?$/i, ' t');
+  const ehPa = /engate|carregadeira/i.test(`${displayProductName} ${displayModelName}`);
+  const comInstalacao = precisaInstalacao(displayProductName, displayModelName, product?.category);
+  const destaques = ([
+    ['diametro_max_tora', 'Tora'], ['diametro_rachamento', 'Racha até'], ['diametro_corte', 'Corte'], ['diametro_max_corte', 'Corte'],
+    ['abertura_maxima', 'Abertura'], ['volume', 'Volume'], ['capacidade_carga', 'Carga'], ['peso', 'Peso'], ['peso_do_equipamento', 'Peso'], ['peso_sem_rotator', 'Peso'],
+  ] as [string, string][]).filter(([k]) => specs[k]).reduce<string[]>((acc, [k, rot]) => {
+    if (acc.length < 2 && !acc.some(a => a.startsWith(rot))) acc.push(`${rot} ${specs[k]}`);
+    return acc;
+  }, []);
+  const videoUrl = (activeModel as any)?.video_url || product?.video_url || '';
+  const fichaUrl = (activeModel as any)?.pdf_url || product?.pdf_url || '';
+  const primeiroNome = formData.client_name.trim().split(/\s+/)[0] || '';
+
+  const Cabecalho = () => (
+    <header className="bg-[#090909] flex items-center justify-center" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+      <div className="h-[54px] flex items-center"><img src="/marca/roder-horizontal.png" alt="Roder Máquinas e Equipamentos" className="h-[34px]" /></div>
+    </header>
+  );
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950">
-        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+      <div className="min-h-screen bg-[#f1f5f9]">
+        <Cabecalho />
+        <div className="flex items-center justify-center py-24"><Loader2 className="h-9 w-9 animate-spin text-slate-500" /></div>
       </div>
     );
   }
 
   if (submitted) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 p-4 text-center text-white">
-        <div className="bg-green-500/10 p-6 rounded-full mb-6">
-          <CheckCircle2 className="h-16 w-16 text-green-500" />
+      <div className="min-h-screen bg-[#f1f5f9] text-slate-900">
+        <Cabecalho />
+        <div className="max-w-md mx-auto px-5 py-6 text-center">
+          <div className="w-[70px] h-[70px] rounded-full bg-green-600 text-white flex items-center justify-center mx-auto mb-3">
+            <CheckCircle2 className="h-10 w-10" />
+          </div>
+          <h1 className="text-[22px] font-black">Solicitação enviada!</h1>
+          <p className="text-[15px] text-slate-600 mt-2 leading-relaxed">
+            Obrigado{primeiroNome ? `, ${primeiroNome}` : ''}. Recebemos seu pedido da <b className="text-slate-900">{tituloEquip}</b>.
+          </p>
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 mt-4 text-left text-[14px] leading-relaxed">
+            {comInstalacao ? (
+              <>
+                <p className="font-extrabold mb-1.5">Seu orçamento completo inclui</p>
+                <p>✔ Equipamento</p>
+                <p>✔ Frete até a sua cidade</p>
+                <p>✔ Instalação na sua máquina por técnico Roder</p>
+                <p>✔ Regulagem e orientação ao operador</p>
+                <p className="mt-2.5 text-slate-600">
+                  Para fechar os valores certos, um consultor Roder vai falar com você pelo WhatsApp <b className="text-slate-900">{formData.client_phone}</b>. Ele vai pedir a marca e o modelo da sua máquina e fotos do comando hidráulico, para confirmar se ela tem fatia extra e válvula de regulagem de pressão.
+                </p>
+              </>
+            ) : (
+              <p className="text-slate-600">
+                Este equipamento vai pronto para você acoplar na sua máquina. Um consultor Roder vai falar com você pelo WhatsApp <b className="text-slate-900">{formData.client_phone}</b> para confirmar o modelo da sua máquina e fechar frete e prazo.
+              </p>
+            )}
+            {formData.client_email.trim() && <p className="mt-2.5 text-slate-600">O orçamento também chega no e-mail <b className="text-slate-900">{formData.client_email.trim()}</b>.</p>}
+          </div>
+          {(videoUrl || fichaUrl) && (
+            <div className="flex gap-2.5 mt-4">
+              {videoUrl && <button type="button" onClick={() => abrirDocumento(videoUrl, tituloEquip)} className="flex-1 h-12 rounded-xl border border-slate-300 bg-white font-extrabold text-sm">▶ Ver vídeo</button>}
+              {fichaUrl && <button type="button" onClick={() => abrirDocumento(fichaUrl, `Ficha ${tituloEquip}`)} className="flex-1 h-12 rounded-xl border border-slate-300 bg-white font-extrabold text-sm flex items-center justify-center gap-1.5"><FileText className="h-4 w-4" /> Ver ficha</button>}
+            </div>
+          )}
+          <p className="text-xs text-slate-400 mt-6">Roder Máquinas e Equipamentos · desde 2002</p>
         </div>
-        <h1 className="text-2xl font-black mb-4 uppercase tracking-tight">Solicitação Recebida!</h1>
-        <p className="text-slate-400 max-w-md mb-8">
-          Obrigado, <span className="text-white font-bold">{formData.client_name}</span>! Nossa equipe entrará em contato em breve para apresentar a melhor solução.
-        </p>
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl mb-8 w-full max-w-sm text-left">
-          <p className="text-[10px] text-slate-500 uppercase font-black mb-2 tracking-widest text-center">Referência do Equipamento</p>
-          <p className="text-white font-bold leading-tight text-center">{displayProductName}</p>
-          <p className="text-primary font-black uppercase text-xs text-center">{displayModelName}</p>
-        </div>
-        <Button variant="ghost" className="text-slate-500" onClick={() => window.close()}>Fechar Janela</Button>
       </div>
     );
   }
 
+  const campo = "w-full h-11 rounded-[11px] border border-slate-200 bg-white px-3 text-[15px] text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-600 focus:ring-[3px] focus:ring-blue-600/15";
+  const rotulo = "block text-[11.5px] font-bold text-slate-700 mb-1";
+
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col items-center py-6 px-4">
-      {/* Submission Overlay for Public Request */}
+    <div className="min-h-screen bg-[#f1f5f9] text-slate-900">
+      <Cabecalho />
+
       {submitting && (
-        <div className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-6 text-center animate-in fade-in duration-500">
-           <div className="max-w-sm w-full space-y-8">
-              <div className="relative h-24 w-24 mx-auto">
-                <div className="absolute inset-0 rounded-full border-4 border-primary/20 animate-pulse" />
-                <div className="absolute inset-0 rounded-full border-t-4 border-l-4 border-primary animate-spin" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-primary font-black italic text-4xl">R</span>
-                </div>
-              </div>
-              <div className="space-y-3">
-                <h2 className="text-2xl font-black text-white uppercase tracking-tight">Processando</h2>
-                <p className="text-slate-400 font-medium">
-                  {submissionStep === 'saving' 
-                    ? 'Estamos registrando sua solicitação nos nossos sistemas...' 
-                    : 'Avisando nosso time comercial para te atender o mais rápido possível...'}
-                </p>
-              </div>
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex items-start gap-3">
-                <div className="p-1.5 bg-primary/10 rounded-full shrink-0">
-                  <Loader2 className="h-4 w-4 text-primary animate-spin" />
-                </div>
-                <p className="text-left text-[11px] text-slate-500 leading-relaxed">
-                  <strong>Não feche esta página</strong>. Estamos garantindo que sua mensagem chegue aos diretores da RODER com segurança.
-                </p>
-              </div>
-           </div>
+        <div className="fixed inset-0 z-[100] bg-slate-900/75 flex items-center justify-center p-6">
+          <div className="bg-white rounded-[20px] w-full max-w-[320px] px-6 py-7 text-center">
+            <Loader2 className="h-11 w-11 animate-spin text-slate-900 mx-auto mb-3.5" />
+            <p className="text-lg font-black">Enviando sua solicitação</p>
+            <p className="text-[13.5px] text-slate-600 mt-1.5">Aguarde, não feche esta tela.</p>
+            <div className="h-3 bg-slate-100 rounded-full mt-5 overflow-hidden">
+              <div className="h-full bg-yellow-400 transition-all duration-300" style={{ width: `${progresso}%` }} />
+            </div>
+            <p className="text-[13px] font-extrabold mt-2">{progresso}%</p>
+          </div>
         </div>
       )}
 
-      <div className="w-full max-w-lg">
-        {/* Roder Logo Section */}
-        <div className="flex flex-col items-center mb-10">
-          <div className="relative">
-            <div className="absolute -inset-1 bg-primary rounded-full blur opacity-25"></div>
-            <div className="relative w-20 h-20 bg-slate-900 rounded-full flex items-center justify-center border-2 border-primary shadow-2xl">
-              <span className="text-white font-black text-4xl italic select-none">R</span>
-            </div>
-          </div>
-          <div className="mt-4 text-center">
-            <h1 className="text-2xl font-black text-white uppercase tracking-tighter leading-none mb-1">Roder Brasil</h1>
-            <p className="text-primary font-black text-[10px] uppercase tracking-[0.3em]">Indica V2 • Orçamentos</p>
+      <div className="max-w-md mx-auto px-3.5 pt-2.5 pb-6">
+        {/* Equipamento */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-2.5 flex gap-3 items-center">
+          <button type="button" onClick={() => images.length && setFotoAberta(true)} className="w-32 h-32 shrink-0 flex items-center justify-center bg-white rounded-xl">
+            {images.length > 0
+              ? <img src={images[0]} alt={tituloEquip} className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+              : <Package className="h-10 w-10 text-slate-300" />}
+          </button>
+          <div className="min-w-0">
+            <p className="text-[10.5px] font-extrabold text-slate-500 tracking-[0.12em]">ORÇAMENTO</p>
+            <h1 className="text-lg font-black leading-tight">{tituloEquip}</h1>
+            {maquinaBase && (
+              <span className="inline-block mt-1.5 bg-[#111] text-yellow-400 text-xs font-extrabold px-2 py-1 rounded-md">
+                {ehPa ? 'Pá carregadeira' : 'Escavadeira'} {maquinaBase}
+              </span>
+            )}
+            {destaques.length > 0 && <p className="text-xs text-slate-600 mt-1.5">{destaques.join(' · ')}</p>}
+            {(videoUrl || fichaUrl) && (
+              <div className="flex gap-1.5 mt-2">
+                {videoUrl && <button type="button" onClick={() => abrirDocumento(videoUrl, tituloEquip)} className="px-2.5 py-1.5 rounded-full bg-slate-100 text-slate-700 text-xs font-bold">▶ Vídeo</button>}
+                {fichaUrl && <button type="button" onClick={() => abrirDocumento(fichaUrl, `Ficha ${tituloEquip}`)} className="px-2.5 py-1.5 rounded-full bg-slate-100 text-slate-700 text-xs font-bold flex items-center gap-1"><FileText className="h-3.5 w-3.5" /> Ficha</button>}
+              </div>
+            )}
           </div>
         </div>
 
-        <Card className="bg-slate-900 border-slate-800 shadow-2xl overflow-hidden">
-          {images.length > 0 && (
-            <div className="relative h-48 sm:h-64 bg-slate-950 flex items-center justify-center p-4">
-              <img 
-                src={images[currentImageIndex]} 
-                alt={displayProductName} 
-                className="max-w-full max-h-full object-contain drop-shadow-2xl"
-                referrerPolicy="no-referrer"
-              />
-              
-              {images.length > 1 && (
-                <div className="absolute inset-0 flex items-center justify-between px-2 pointer-events-none">
-                  <Button 
-                    type="button"
-                    variant="ghost" 
-                    size="icon" 
-                    onClick={() => setCurrentImageIndex(prev => prev === 0 ? images.length - 1 : prev - 1)}
-                    className="pointer-events-auto h-8 w-8 rounded-full bg-slate-900/60 text-white border border-slate-700/50 backdrop-blur-sm"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    type="button"
-                    variant="ghost" 
-                    size="icon" 
-                    onClick={() => setCurrentImageIndex(prev => prev === images.length - 1 ? 0 : prev + 1)}
-                    className="pointer-events-auto h-8 w-8 rounded-full bg-slate-900/60 text-white border border-slate-700/50 backdrop-blur-sm"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              )}
-
-              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 px-2 py-1 bg-slate-900/40 rounded-full backdrop-blur-sm border border-slate-700/20">
-                {images.map((_, i) => (
-                  <div 
-                    key={i} 
-                    className={cn(
-                      "h-1.5 rounded-full transition-all duration-300",
-                      currentImageIndex === i ? "w-4 bg-primary" : "w-1.5 bg-slate-500/50"
-                    )} 
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-          <div className="h-1.5 w-full bg-primary"></div>
-          <CardHeader className="pb-6">
-            <div className="bg-slate-800/40 p-4 rounded-xl mb-6 border border-slate-700/30">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-slate-700/50 rounded-lg">
-                  <Package className="h-5 w-5 text-primary" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-0.5">Produto de Interesse</p>
-                  <h2 className="text-lg font-black text-white uppercase leading-tight truncate">
-                    {displayProductName}
-                  </h2>
-                  <p className="text-primary font-black text-xs uppercase tracking-wider">{displayModelName}</p>
-                </div>
-              </div>
-            </div>
-            <CardTitle className="text-xl font-black text-white uppercase flex items-center gap-2">
-              <FileText className="h-5 w-5 text-primary" />
-              Solicitar Orçamento
-            </CardTitle>
-            <CardDescription className="text-slate-400">
-              Preencha os campos abaixo para que nossa equipe entre em contato.
-            </CardDescription>
-            {indicatorName && (
-              <div className="mt-4 p-3 bg-primary/5 border border-primary/20 rounded-lg flex items-center justify-between">
-                <div className="flex items-center gap-2 text-primary">
-                  <User className="h-4 w-4" />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Indicado por:</span>
-                </div>
-                <span className="text-white font-bold text-xs">{indicatorName}</span>
-              </div>
-            )}
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div className="space-y-2">
-                <Label htmlFor="client_name" className="text-[10px] uppercase font-black text-slate-500 tracking-wider">Nome Completo *</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-                  <Input 
-                    id="client_name"
-                    placeholder="Seu nome aqui"
-                    className="bg-slate-950/50 border-slate-800 pl-10 h-12 focus:ring-primary focus:border-primary text-white"
-                    value={formData.client_name}
-                    onChange={(e) => setFormData({ ...formData, client_name: e.target.value })}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-white">
-                <div className="space-y-2">
-                  <Label htmlFor="client_phone" className="text-[10px] uppercase font-black text-slate-500 tracking-wider">WhatsApp *</Label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-                    <Input 
-                      id="client_phone"
-                      placeholder="(00) 00000-0000"
-                      className="bg-slate-950/50 border-slate-800 pl-10 h-12 focus:ring-primary focus:border-primary text-white"
-                      value={formData.client_phone}
-                      onChange={(e) => setFormData({ ...formData, client_phone: maskPhone(e.target.value) })}
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="client_location" className="text-[10px] uppercase font-black text-slate-500 tracking-wider">Cidade / Estado *</Label>
-                  <div className="relative">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-                    <Input 
-                      id="client_location"
-                      placeholder="Ex: São Paulo - SP"
-                      className="bg-slate-950/50 border-slate-800 pl-10 h-12 focus:ring-primary focus:border-primary text-white"
-                      value={formData.client_location}
-                      onChange={(e) => setFormData({ ...formData, client_location: e.target.value })}
-                      required
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="company_name" className="text-[10px] uppercase font-black text-slate-500 tracking-wider">Nome da Empresa</Label>
-                <div className="relative">
-                  <Building className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-                  <Input 
-                    id="company_name"
-                    placeholder="Opcional"
-                    className="bg-slate-950/50 border-slate-800 pl-10 h-12 focus:ring-primary focus:border-primary text-white"
-                    value={formData.company_name}
-                    onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="client_cnpj" className="text-[10px] uppercase font-black text-slate-500 tracking-wider">CPF ou CNPJ (Opcional)</Label>
-                <div className="relative text-white">
-                  <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-                  <Input 
-                    id="client_cnpj"
-                    placeholder="000.000.000-00 ou CNPJ"
-                    className="bg-slate-950/50 border-slate-800 pl-10 h-12 focus:ring-primary focus:border-primary text-white font-mono"
-                    value={formData.client_cnpj}
-                    onChange={(e) => setFormData({ ...formData, client_cnpj: maskDoc(e.target.value) })}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="base_machine" className="text-[10px] uppercase font-black text-slate-500 tracking-wider">Máquina Base (Marca/Modelo)</Label>
-                <Input 
-                  id="base_machine"
-                  placeholder="Ex: Escavadeira CAT 320"
-                  className="bg-slate-950/50 border-slate-800 h-12 focus:ring-primary focus:border-primary text-white"
-                  value={formData.base_machine}
-                  onChange={(e) => setFormData({ ...formData, base_machine: e.target.value })}
-                />
-              </div>
-
-              {/* Model Selection for Product Family Shares */}
-              {product?.models && product.models.length > 0 && !modelId && (
-                <div className="space-y-2">
-                  <Label className="text-[10px] uppercase font-black text-primary tracking-wider flex items-center gap-1.5">
-                    <Settings className="h-3 w-3" /> Selecione o Modelo Desejado (Opcional)
-                  </Label>
-                  <Select 
-                    value={selectedModelId || "none"} 
-                    onValueChange={(val) => setSelectedModelId(val === "none" ? null : val)}
-                  >
-                    <SelectTrigger className="bg-slate-950/50 border-slate-800 h-12 focus:ring-primary focus:border-primary text-white">
-                      <SelectValue placeholder="Selecione um modelo..." />
-                    </SelectTrigger>
-                    <SelectContent className="bg-slate-900 border-slate-800 text-white">
-                      <SelectItem value="none" className="focus:bg-primary/20">Não tenho certeza / Ver depois</SelectItem>
-                      {product.models.map((m) => (
-                        <SelectItem key={m.id} value={m.id} className="focus:bg-primary/20">
-                          {m.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-[9px] text-slate-500 italic">Caso não saiba o modelo exato, fique tranquilo! Nossa equipe ajudará a identificar.</p>
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <Label htmlFor="observations" className="text-[10px] uppercase font-black text-slate-500 tracking-wider">Descreva sua solicitação</Label>
-                <Textarea 
-                  id="observations"
-                  placeholder="Ex: Gostaria de saber o prazo de entrega para Sinop-MT. - O preço do equipamento - Mais o ponteiro - Mais o rotor. Ou seja, descreva os acessórios que você precisa para ir com sua máquina. Também indique se você deseja que a instalação seja feita por um técnico da Roder."
-                  className="bg-slate-950/50 border-slate-800 min-h-[120px] focus:ring-primary focus:border-primary text-white resize-none"
-                  value={formData.observations}
-                  onChange={(e) => setFormData({ ...formData, observations: e.target.value })}
-                />
-              </div>
-
-              <Button 
-                type="submit" 
-                className="w-full h-14 text-lg font-black uppercase tracking-widest bg-primary hover:bg-primary/90 mt-4 shadow-xl shadow-primary/20"
-                disabled={submitting}
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Enviando...
-                  </>
-                ) : (
-                  'Enviar Solicitação'
-                )}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-        
-        {indicatorName && (
-          <div className="mt-8 text-center">
-            <p className="text-slate-600 text-[10px] uppercase font-black tracking-widest mb-2">
-              Atendimento Vinculado
-            </p>
-            <div className="inline-flex items-center gap-2 bg-slate-900 border border-slate-800 px-4 py-2 rounded-full">
-              <User className="h-3 w-3 text-primary" />
-              <span className="text-slate-300 font-bold text-xs">{indicatorName}</span>
+        {/* Escolha do modelo, quando o link é da família inteira */}
+        {product?.models && product.models.length > 1 && !modelId && (
+          <div className="mt-2.5">
+            <p className={rotulo}>Modelo</p>
+            <div className="flex flex-wrap gap-1.5">
+              {product.models.map(m => (
+                <button type="button" key={m.id} onClick={() => setSelectedModelId(m.id)}
+                  className={cn("px-3 h-9 rounded-full border text-sm font-bold", selectedModelId === m.id ? "bg-[#111] text-yellow-400 border-[#111]" : "bg-white border-slate-200 text-slate-700")}>
+                  {m.name}
+                </button>
+              ))}
             </div>
           </div>
         )}
+
+        <form ref={formRef} onSubmit={handleSubmit} onKeyDown={aoTeclar} className="mt-3" noValidate>
+          <div className="mb-2.5">
+            <label htmlFor="client_name" className={rotulo}>Nome <span className="text-red-600">*</span></label>
+            <input id="client_name" className={campo} placeholder="Seu nome" autoComplete="name" enterKeyHint="next"
+              value={formData.client_name} onChange={e => setFormData({ ...formData, client_name: e.target.value })} />
+          </div>
+          <div className="grid grid-cols-2 gap-2.5 mb-2.5">
+            <div>
+              <label htmlFor="client_phone" className={rotulo}>WhatsApp <span className="text-red-600">*</span></label>
+              <input id="client_phone" className={campo} placeholder="(00) 00000-0000" inputMode="tel" autoComplete="tel-national" enterKeyHint="next"
+                value={formData.client_phone} onChange={e => setFormData({ ...formData, client_phone: maskPhone(e.target.value) })} />
+            </div>
+            <div className="relative">
+              <label htmlFor="client_location" className={rotulo}>Cidade <span className="text-red-600">*</span></label>
+              <input id="client_location" className={campo} placeholder="Digite a cidade" autoComplete="off" enterKeyHint="next"
+                value={formData.client_location}
+                onFocus={() => { setCidadeFoco(true); carregarCidades(); }}
+                onBlur={() => setTimeout(() => setCidadeFoco(false), 150)}
+                onChange={e => { setCidadeIndice(0); setFormData({ ...formData, client_location: e.target.value }); }} />
+              {cidadeFoco && sugestoes.length > 0 && (
+                <div className="absolute right-0 top-[68px] w-[calc(100%+40px)] min-w-[220px] bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden">
+                  {sugestoes.map((c, i) => (
+                    <button type="button" key={c} onMouseDown={e => e.preventDefault()}
+                      onClick={() => { setFormData(f => ({ ...f, client_location: c })); setCidadeFoco(false); document.getElementById('base_machine')?.focus(); }}
+                      className={cn("block w-full text-left px-3 py-2.5 text-sm border-t border-slate-100 first:border-t-0", i === cidadeIndice ? "bg-blue-50" : "bg-white")}>
+                      {c.split(' - ')[0]} <span className="text-slate-500">· {c.split(' - ')[1]}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="mb-2.5">
+            <label htmlFor="base_machine" className={rotulo}>Sua máquina</label>
+            <input id="base_machine" className={campo} placeholder={ehPa ? 'Ex: Pá carregadeira Volvo L60' : 'Ex: Escavadeira CAT 320'} enterKeyHint="next"
+              value={formData.base_machine} onChange={e => setFormData({ ...formData, base_machine: e.target.value })} />
+          </div>
+
+          {mostrarExtras ? (
+            <div className="grid grid-cols-1 gap-2.5 mb-2.5">
+              <div>
+                <label htmlFor="client_email" className={rotulo}>Seu melhor e-mail para receber o orçamento</label>
+                <input id="client_email" className={campo} placeholder="nome@empresa.com.br" type="email" inputMode="email" autoComplete="email" enterKeyHint="next"
+                  value={formData.client_email} onChange={e => setFormData({ ...formData, client_email: e.target.value.trim() })} />
+              </div>
+              <div>
+                <label htmlFor="client_cnpj" className={rotulo}>CPF ou CNPJ</label>
+                <input id="client_cnpj" className={campo} placeholder="Somente números" inputMode="numeric" enterKeyHint="next"
+                  value={formData.client_cnpj} onChange={e => setFormData({ ...formData, client_cnpj: maskDoc(e.target.value) })} />
+              </div>
+            </div>
+          ) : (
+            <button type="button" onClick={() => { setMostrarExtras(true); setTimeout(() => document.getElementById('client_email')?.focus(), 50); }}
+              className="text-blue-700 font-bold text-[13.5px] mb-2.5 px-0.5">
+              ＋ E-mail e CPF/CNPJ para receber o orçamento
+            </button>
+          )}
+
+          <div className="mb-3">
+            <label htmlFor="observations" className={rotulo}>Observações (opcional)</label>
+            <textarea id="observations" rows={2} className={cn(campo, "h-auto min-h-[52px] py-2.5 resize-none")}
+              placeholder="Prazo, instalação, acessórios..."
+              value={formData.observations} onChange={e => setFormData({ ...formData, observations: e.target.value })} />
+          </div>
+
+          <button type="submit" disabled={submitting}
+            className="w-full h-[52px] rounded-[14px] bg-yellow-400 hover:bg-yellow-300 active:scale-[0.99] text-[#111] font-black text-base tracking-wide disabled:opacity-60">
+            SOLICITAR ORÇAMENTO
+          </button>
+        </form>
       </div>
+
+      <ImageLightbox isOpen={fotoAberta} onClose={() => setFotoAberta(false)} images={images} title={tituloEquip} />
     </div>
   );
 }

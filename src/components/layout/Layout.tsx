@@ -249,7 +249,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <div className="flex items-center gap-2">
                 <div className="w-9 h-9 bg-white rounded-full flex items-center justify-center p-1 shadow-sm overflow-hidden">
                   <img 
-                    src="https://roderbrasil.com.br/wp-content/uploads/2024/05/favicon.png" 
+                    src="/marca/roder-redondo-512.png" 
                     alt="Logo" 
                     className="w-full h-full object-contain"
                     referrerPolicy="no-referrer" 

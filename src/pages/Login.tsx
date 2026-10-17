@@ -285,7 +285,7 @@ export default function Login() {
             <div className="flex justify-center mb-4">
               <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center p-2 shadow-inner border border-border overflow-hidden">
                  <img 
-                   src="https://roderbrasil.com.br/wp-content/uploads/2024/05/favicon.png" 
+                   src="/marca/roder-redondo-512.png" 
                    alt="Roder Logo" 
                    referrerPolicy="no-referrer" 
                    className="max-w-full"

@@ -571,7 +571,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
             <Link to="/" className="flex items-center gap-1.5 hover:opacity-90 transition-opacity" onClick={() => isMobile && setIsOpen(false)}>
               <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center p-1 shadow-sm overflow-hidden shrink-0">
                 <img 
-                  src="https://roderbrasil.com.br/wp-content/uploads/2024/05/favicon.png" 
+                  src="/marca/roder-redondo-512.png" 
                   alt="Logo" 
                   referrerPolicy="no-referrer" 
                   onError={(e) => {

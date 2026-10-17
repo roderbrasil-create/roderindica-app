@@ -18,10 +18,10 @@ async function baixarArquivo(url: string): Promise<Arquivo> {
     r = await fetch(url);
     if (!r.ok) throw new Error('Documento não encontrado.');
   } else {
-    const token = await auth.currentUser?.getIdToken();
-    if (!token) throw new Error('Entre no app para abrir este documento.');
+    // Fichas do site da Roder abrem sem login (cliente na tela de orçamento); o servidor decide
+    const token = await auth.currentUser?.getIdToken().catch(() => '');
     r = await fetch(`${getApiBaseUrl()}/api/documento?url=${encodeURIComponent(url)}`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     if (!r.ok) throw new Error((await r.text()) || 'Não consegui abrir o documento.');
   }
