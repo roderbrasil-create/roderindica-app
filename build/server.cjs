@@ -3841,7 +3841,7 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
   const BR_TIMEZONE = "America/Sao_Paulo";
   const formatCurrency = (val) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(val);
   const getFinanceReplyTo = (notif) => {
-    const list = [notif?.finance_email || "elizangela@roderbrasil.com.br", "financeiro2@roderbrasil.com.br"].flatMap((e) => String(e).split(/[,;]/)).map((e) => e.trim()).filter(Boolean);
+    const list = ["financeiro@roderbrasil.com.br", "financeiro2@roderbrasil.com.br"].flatMap((e) => String(e).split(/[,;]/)).map((e) => e.trim()).filter(Boolean);
     return Array.from(new Set(list));
   };
   async function getEmailTransporter() {

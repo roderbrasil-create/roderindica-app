@@ -582,7 +582,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
     payment_reminder_finance: true,
     manager_emails: 'gislene@roderbrasil.com.br, contato@roderbrasil.com.br',
     director_emails: '',
-    finance_email: 'elizangela@roderbrasil.com.br'
+    finance_email: 'financeiro@roderbrasil.com.br'
   });
   const [savingEmail, setSavingEmail] = useState(false);
   const [savingNotifications, setSavingNotifications] = useState(false);
@@ -3032,10 +3032,10 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="finance_email" className="text-xs">E-mail do Financeiro (Elizangela)</Label>
+                        <Label htmlFor="finance_email" className="text-xs">E-mail do Financeiro</Label>
                         <Input 
                           id="finance_email"
-                          placeholder="elizangela@roderbrasil.com.br"
+                          placeholder="financeiro@roderbrasil.com.br"
                           value={notificationSettings.finance_email}
                           onChange={(e) => setNotificationSettings({...notificationSettings, finance_email: e.target.value})}
                           className="bg-background border-border text-xs"

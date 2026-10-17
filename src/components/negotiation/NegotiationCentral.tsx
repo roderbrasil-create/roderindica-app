@@ -1723,6 +1723,34 @@ export default function NegotiationCentral() {
                   {/* Valores do Orçamento / Pedido de Venda */}
                   {/* Resumo somente leitura (faturado ou observador): ocupa pouco espaço */}
                   {!isEditable ? (() => {
+                    const fixSaleValue = async () => {
+                      const typed = window.prompt('Valor correto do pedido (ex.: 230000 ou 230.000,00):', '');
+                      if (!typed) return;
+                      const clean = typed.replace(/[^0-9,\.]/g, '');
+                      const num = clean.includes(',') ? Number(clean.replace(/\./g, '').replace(',', '.')) : Number(clean.replace(/\.(?=\d{3}(\D|$))/g, ''));
+                      if (!num || num <= 0) { toast.error('Valor inválido.'); return; }
+                      if (!window.confirm(`Corrigir o valor do pedido para ${maskCurrency(num)}?`)) return;
+                      try {
+                        const ind: any = activeIndication;
+                        const upd: any = { sale_value: num, updated_at: new Date().toISOString() };
+                        if (ind.standard_seller_uid && ind.standard_seller_commission_enabled !== false) {
+                          const rate = ind.standard_seller_commission_rate !== undefined ? ind.standard_seller_commission_rate : 2;
+                          upd.standard_seller_commission_value = num * (rate / 100);
+                        }
+                        upd.negotiation_history = arrayUnion({
+                          id: Math.random().toString(36).substring(2, 11),
+                          type: 'status_change',
+                          author_name: profile?.name || 'Sistema',
+                          created_at: new Date().toISOString(),
+                          content: `Valor do pedido corrigido de ${maskCurrency(Number(ind.sale_value) || 0)} para ${maskCurrency(num)}.`
+                        });
+                        await updateDoc(doc(db, 'indications', ind.id), upd);
+                        setSaleValue(String(num));
+                        toast.success('Valor do pedido corrigido.');
+                      } catch (e: any) {
+                        toast.error('Erro ao corrigir: ' + (e?.message || e));
+                      }
+                    };
                     const fmtD = (d: string) => d ? d.split('-').reverse().join('/') : '';
                     const money = (v: string) => v && Number(v) > 0 ? maskCurrency(Number(v)) : '';
                     const saleLooksWrong = isSold && Number(saleValue) > 0 && Number(grossBudgetValue) > 0 && Number(saleValue) * 20 < Number(grossBudgetValue);
@@ -1750,7 +1778,10 @@ export default function NegotiationCentral() {
                               </p>
                             ) : <p className="text-muted-foreground">Ainda não fechado</p>}
                             {saleLooksWrong && (isAdmin || isManager) && (
-                              <p className="mt-1 text-[11px] font-semibold text-red-600">Valor do pedido parece errado (muito menor que o orçamento). Use Desfazer e fature de novo para corrigir.</p>
+                              <p className="mt-1 text-[11px] font-semibold text-red-600">Valor do pedido parece errado (muito menor que o orçamento).</p>
+                            )}
+                            {isSold && isAdmin && (
+                              <button type="button" onClick={fixSaleValue} className="mt-1 text-[11px] font-bold text-orange-600 underline">Corrigir valor</button>
                             )}
                           </div>
                         </div>

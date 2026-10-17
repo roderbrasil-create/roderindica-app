@@ -623,13 +623,8 @@ export default function Commissions() {
 
       // Avisa o financeiro (Elisângela + financeiro2) que a NF do parceiro chegou
       try {
-        let financeEmail = 'elizangela@roderbrasil.com.br';
-        try {
-          const nSnap = await getDoc(doc(db, 'settings', 'notifications'));
-          if (nSnap.exists() && (nSnap.data() as any).finance_email) financeEmail = (nSnap.data() as any).finance_email;
-        } catch {}
         const brl = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
-        const toList = Array.from(new Set([financeEmail, 'financeiro2@roderbrasil.com.br'])).join(', ');
+        const toList = 'financeiro@roderbrasil.com.br, financeiro2@roderbrasil.com.br';
         await sendEmail({
           to: toList,
           subject: `NF de comissão recebida: ${profile?.name || 'Parceiro'} (${String(selectedPartnerPeriod.month).padStart(2, '0')}/${selectedPartnerPeriod.year})`,
