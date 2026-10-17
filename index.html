@@ -170,7 +170,9 @@
                 
                 // Clear cache and reload
                 if (window.caches) {
-                  caches.keys().then(function(names) {
+                  caches.keys().then(function(todos) {
+                    // fotos, fichas e app guardados para usar sem internet ("roder-") ficam
+                    var names = todos.filter(function(n) { return n.indexOf('roder-') !== 0; });
                     var deletedCount = 0;
                     var total = names.length;
                     if (total === 0) {

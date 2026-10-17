@@ -170,7 +170,9 @@
                 
                 // Clear cache and reload
                 if (window.caches) {
-                  caches.keys().then(function(names) {
+                  caches.keys().then(function(todos) {
+                    // fotos, fichas e app guardados para usar sem internet ("roder-") ficam
+                    var names = todos.filter(function(n) { return n.indexOf('roder-') !== 0; });
                     var deletedCount = 0;
                     var total = names.length;
                     if (total === 0) {
@@ -222,7 +224,7 @@
         } catch (e) {}
       })();
     </script>
-    <script type="module" crossorigin src="/assets/index-B7oNtgMw.js"></script>
+    <script type="module" crossorigin src="/assets/index-D2SWe2bs.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-DenoTOv7.css">
   </head>
   <body>

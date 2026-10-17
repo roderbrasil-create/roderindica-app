@@ -5573,8 +5573,13 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       let url = String(req.query.url || '');
       // Fichas do site da Roder e do próprio app são públicas: o cliente abre sem login
       // (tela de orçamento). Arquivos do Storage e do Drive continuam pedindo login.
-      const publico = /^https:\/\/(www\.)?(roderbrasil\.com\.br|roderindica\.com)\//i.test(url);
-      if (publico && passouLimite(`doc-ip:${ipDe(req)}`, 40, 60 * 1000)) return res.status(429).send('Muitas aberturas seguidas. Tente de novo em instantes.');
+      // Link do Storage com token= já é um link de acesso por si só (quem tem o link abre direto
+      // no navegador), então passar por aqui não abre nada novo. É o caminho das fotos do
+      // catálogo guardadas para usar sem internet.
+      const publico = /^https:\/\/(www\.)?(roderbrasil\.com\.br|roderindica\.com)\//i.test(url)
+        || /^https:\/\/firebasestorage\.googleapis\.com\/[^?#]*\?(?:[^#]*&)?token=[\w-]{20,}/i.test(url);
+      // 600 por minuto: a primeira sincronização baixa centenas de fotos de uma vez
+      if (publico && passouLimite(`doc-ip:${ipDe(req)}`, 600, 60 * 1000)) return res.status(429).send('Muitas aberturas seguidas. Tente de novo em instantes.');
       if (!publico) {
         const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
         if (!token) return res.status(401).send('Entre no app para abrir este documento.');

@@ -55,8 +55,7 @@ async function baixarArquivo(url: string): Promise<Arquivo> {
 export async function guardarDocumentoOffline(url: string): Promise<boolean> {
   if (!url || typeof caches === 'undefined' || /drive\.google\.com|youtube|youtu\.be|vimeo/.test(url) || url.startsWith('db-file://')) return false;
   try {
-    const c = await caches.open(CACHE_FICHAS);
-    if (await c.match(chaveCache(url))) return true;
+    // baixa sempre: ficha que mudou no site é atualizada; sem internet, a guardada continua
     await baixarArquivo(url);
     return true;
   } catch { return false; }

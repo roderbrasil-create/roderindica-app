@@ -5068,8 +5068,8 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
   app.get("/api/documento", async (req, res) => {
     try {
       let url = String(req.query.url || "");
-      const publico = /^https:\/\/(www\.)?(roderbrasil\.com\.br|roderindica\.com)\//i.test(url);
-      if (publico && passouLimite(`doc-ip:${ipDe(req)}`, 40, 60 * 1e3)) return res.status(429).send("Muitas aberturas seguidas. Tente de novo em instantes.");
+      const publico = /^https:\/\/(www\.)?(roderbrasil\.com\.br|roderindica\.com)\//i.test(url) || /^https:\/\/firebasestorage\.googleapis\.com\/[^?#]*\?(?:[^#]*&)?token=[\w-]{20,}/i.test(url);
+      if (publico && passouLimite(`doc-ip:${ipDe(req)}`, 600, 60 * 1e3)) return res.status(429).send("Muitas aberturas seguidas. Tente de novo em instantes.");
       if (!publico) {
         const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
         if (!token) return res.status(401).send("Entre no app para abrir este documento.");

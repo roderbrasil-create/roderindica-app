@@ -198,7 +198,20 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
         });
       });
       const tarefas: (() => Promise<any>)[] = [
-        ...Array.from(fotos).map(u => () => fetch(u, { mode: u.startsWith('/') || u.startsWith(location.origin) ? 'same-origin' : 'no-cors' }).catch(() => null)),
+        // Grava direto na mesma gaveta que o /roder-sw.js lê ("roder-fotos"). Foto de outro site
+        // vem pelo nosso servidor: baixada direto ela chega "opaca", e o Chrome conta cada uma
+        // como 7 MB, estourando o espaço do celular com poucas dezenas de fotos.
+        ...Array.from(fotos).map(u => async () => {
+          try {
+            if (typeof caches === 'undefined') return;
+            const chave = new URL(u, location.origin).href;
+            const c = await caches.open('roder-fotos');
+            if (await c.match(chave, { ignoreVary: true })) return;
+            const mesma = chave.startsWith(location.origin);
+            const r = await fetch(mesma ? chave : `/api/documento?url=${encodeURIComponent(chave)}`);
+            if (r.ok && (r.headers.get('content-type') || '').startsWith('image/')) await c.put(chave, r);
+          } catch { /* sem espaço ou sem internet: segue */ }
+        }),
         ...Array.from(fichas).map(u => async () => {
           const { guardarDocumentoOffline } = await import('../components/documento/LeitorDocumento');
           return guardarDocumentoOffline(u);
