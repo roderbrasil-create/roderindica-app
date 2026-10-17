@@ -902,3 +902,34 @@ export async function notifyLeadAssignment(
     return { success: false, error: err.message };
   }
 }
+
+// Aviso ao financeiro: venda concluída gera comissão a pagar ao parceiro indicador
+export async function notifyFinanceCommissionScheduled(ind: any, opts: { commissionValue?: number; orderNumber?: string; orderDate?: string } = {}) {
+  const brl = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
+  const partner = ind.external_seller_name || 'parceiro indicador';
+  const equip = ind.base_machine || (ind.items && ind.items[0]?.product_name) || 'equipamento';
+  const order = opts.orderNumber || ind.sale_order_number || '';
+  const date = (opts.orderDate || ind.sale_order_date || ind.sale_date || '').split('-').reverse().join('/');
+  const commission = opts.commissionValue ?? ind.commission_value ?? 0;
+  const html = `
+    <div style="font-family: Arial, sans-serif; color: #1f2937; max-width: 620px; font-size: 14px; line-height: 1.6;">
+      <p>Olá, equipe do financeiro!</p>
+      <p>Este é um aviso automático do <strong>Roder Indica</strong>.</p>
+      <p>Haverá uma programação de pagamento de comissão para o parceiro indicador <strong>${partner}</strong>, referente à venda concluída abaixo:</p>
+      <table style="border-collapse: collapse; font-size: 14px; margin: 12px 0;">
+        <tr><td style="padding: 4px 12px 4px 0; color: #6b7280;">Cliente</td><td><strong>${ind.client_name || ''}</strong></td></tr>
+        <tr><td style="padding: 4px 12px 4px 0; color: #6b7280;">Equipamento</td><td><strong>${equip}</strong></td></tr>
+        <tr><td style="padding: 4px 12px 4px 0; color: #6b7280;">Pedido de venda</td><td><strong>${order ? 'nº ' + order : 'não informado'}</strong>${date ? ' de ' + date : ''}</td></tr>
+        <tr><td style="padding: 4px 12px 4px 0; color: #6b7280;">Comissão prevista</td><td><strong>${brl(commission)}</strong></td></tr>
+      </table>
+      <p>Não é preciso fazer nada agora. No início do próximo mês, vocês receberão um e-mail com o valor e a data de pagamento da comissão desta venda e de outras vendas de parceiros indicadores, caso aconteçam.</p>
+      <p>O parceiro indicador também receberá um e-mail automático pedindo a emissão da nota fiscal de serviço pela parceria no Roder Indica.</p>
+      <p style="margin-top: 20px;">Roder Indica</p>
+    </div>`;
+  return sendEmail({
+    to: 'financeiro@roderbrasil.com.br, financeiro2@roderbrasil.com.br',
+    subject: `Roder Indica: comissão a programar para ${partner} (pedido ${order || ind.client_name || ''})`,
+    html,
+    fromName: 'Roder Indica',
+  });
+}

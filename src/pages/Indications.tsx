@@ -78,7 +78,7 @@ import {
 } from 'lucide-react';
 import { transcribeAudio, generateAISummary, analyzeDetailedBudget, analyzePDFDocument } from '../services/geminiService';
 import { notifyManagers, notifyInternalSeller, notifyExternalSeller, createNotification } from '../services/notificationService';
-import { notifyClosedOrder } from '../services/emailService';
+import { notifyClosedOrder, notifyFinanceCommissionScheduled } from '../services/emailService';
 import { 
   Dialog, 
   DialogContent, 
@@ -760,6 +760,12 @@ export default function Indications() {
           created_at: new Date().toISOString()
         };
         await addDoc(collection(db, 'commissions'), commissionDocData);
+      }
+
+      // Aviso automático ao financeiro (financeiro@ e financeiro2@)
+      if (selectedIndication.external_seller_uid && isPartnerCommissionable && finalCommissionValue > 0) {
+        notifyFinanceCommissionScheduled({ ...selectedIndication, ...updateData }, { commissionValue: finalCommissionValue, orderDate: saleDate })
+          .catch(err => console.warn('Aviso ao financeiro não enviado:', err));
       }
 
       // Notify Indicator and Managers
