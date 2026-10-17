@@ -398,6 +398,37 @@ const parseConsultantOptions = (content: string): { text: string; options: strin
   return { text: (content || '').replace(re, '').trim(), options };
 };
 
+// Relatório: tira perguntas e frases de conversa, que não fazem sentido no papel
+const cleanReportText = (text: string): string => {
+  return parseConsultantOptions(text || '').text
+    .split('\n')
+    .filter(l => !/\?\s*\**\s*$/.test(l.trim()))
+    .filter(l => !/^\s*\*?(você gostaria|quer que eu|se quiser|posso te|me avise|deseja saber)/i.test(l.trim()))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+};
+
+// Mostra a folha A4 (794px) inteira em qualquer tela, reduzindo só a visualização
+const ReportScaler: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const boxRef = React.useRef<HTMLDivElement>(null);
+  const [scale, setScale] = React.useState(1);
+  React.useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const update = () => setScale(Math.min(1, el.clientWidth / 794));
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <div ref={boxRef} className="w-full max-w-[794px] mx-auto">
+      <div style={{ zoom: scale } as any} className="shadow-lg">{children}</div>
+    </div>
+  );
+};
+
 const DB_IMAGE_CACHE = new Map<string, string>();
 
 const normalizeProductImageUrl = (rawSrc?: string): string => {
@@ -1364,9 +1395,9 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
         pixelRatio: 2, // Enhances text clarity
         backgroundColor: '#ffffff',
         style: {
-          width: '800px',
+          width: '794px',
           maxWidth: 'none',
-          padding: '32px',
+          zoom: '1',
           transform: 'scale(1)',
           transformOrigin: 'top left',
         }
@@ -1419,9 +1450,9 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
         pixelRatio: 2,
         backgroundColor: '#ffffff',
         style: {
-          width: '800px',
+          width: '794px',
           maxWidth: 'none',
-          padding: '32px',
+          zoom: '1',
           transform: 'scale(1)',
           transformOrigin: 'top left',
         }
@@ -4603,108 +4634,58 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
               <div className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-6 bg-slate-950/40 flex justify-center items-start w-full overflow-x-hidden">
                 
                 {/* Visual Report Container - Responsive on mobile, full 800px max width on desktop */}
-                <div className="overflow-hidden rounded-xl shadow-lg border border-slate-200 w-full max-w-[800px] bg-white">
-                  <div 
+                <ReportScaler>
+                  <div
                     ref={reportRef}
-                    className="bg-white text-slate-900 w-full p-4 sm:p-8 flex flex-col font-sans box-border"
-                    style={{ minHeight: '500px' }}
+                    className="bg-white text-[#111] box-border flex flex-col"
+                    style={{ width: '794px', minHeight: '1123px', padding: '40px 48px 28px', fontFamily: 'Arial, "Liberation Sans", Helvetica, sans-serif' }}
                   >
-                    {/* Roder Logo Section */}
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b-2 border-amber-500 pb-3 mb-4 gap-2">
-                      <div className="flex items-center gap-2.5">
-                        <img 
-                          src={RODER_LOGO_BASE64} 
-                          alt="Roder Logo" 
-                          className="h-7 sm:h-9 object-contain brightness-0 opacity-85" 
-                          referrerPolicy="no-referrer"
-                        />
-                        <div className="border-l-2 border-slate-300 pl-2.5">
-                          <h1 className="text-xs sm:text-sm font-black tracking-tight text-slate-900 uppercase leading-none">Consultoria Técnica Roder</h1>
-                          <p className="text-[7.5px] sm:text-[8.5px] font-black text-amber-600 uppercase tracking-widest font-mono mt-1 leading-none">Relatório de Dimensionamento e Compatibilidade</p>
-                        </div>
-                      </div>
-                      <div className="text-left sm:text-right text-[7.5px] sm:text-[8px] font-mono text-slate-500 font-semibold space-y-0.5 leading-tight">
-                        <p className="uppercase">Data: {new Date().toLocaleDateString('pt-BR')}</p>
-                        <p className="uppercase text-amber-600">Sistema: Roder Indica V2</p>
-                        <p className="uppercase">Validade Proposta: 60 Dias</p>
-                      </div>
+                    {/* Cabeçalho padrão Roder (igual às fichas técnicas) */}
+                    <div className="flex justify-end">
+                      <img src="/roder-logo-ficha.png" alt="Roder" style={{ height: '46px' }} />
+                    </div>
+                    <div className="mt-4 bg-black text-white text-center font-bold uppercase" style={{ fontSize: '17px', padding: '9px 12px', letterSpacing: '0.02em' }}>
+                      {reportTitle.replace(/^Relatório de Análise Técnica\s*-\s*/i, 'Relatório Técnico · ')}
+                    </div>
+                    <p className="text-right text-[#666]" style={{ fontSize: '11px', marginTop: '6px' }}>Emitido em {new Date().toLocaleDateString('pt-BR')}</p>
+
+                    <div className="flex-1" style={{ fontSize: '13px', lineHeight: 1.6, marginTop: '10px' }}>
+                      <ReactMarkdown
+                        urlTransform={(url) => url}
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          h1: ({ children }) => <h3 className="font-bold flex items-center gap-2" style={{ fontSize: '15px', margin: '18px 0 8px' }}><span style={{ width: 4, height: 16, background: '#F5B400', display: 'inline-block' }} />{children}</h3>,
+                          h2: ({ children }) => <h3 className="font-bold flex items-center gap-2" style={{ fontSize: '15px', margin: '18px 0 8px' }}><span style={{ width: 4, height: 16, background: '#F5B400', display: 'inline-block' }} />{children}</h3>,
+                          h3: ({ children }) => <h3 className="font-bold flex items-center gap-2" style={{ fontSize: '14px', margin: '16px 0 6px' }}><span style={{ width: 4, height: 14, background: '#F5B400', display: 'inline-block' }} />{children}</h3>,
+                          h4: ({ children }) => <p className="font-bold" style={{ margin: '10px 0 4px' }}>{children}</p>,
+                          p: ({ children }) => <p style={{ margin: '0 0 8px' }}>{children}</p>,
+                          ul: ({ children }) => <ul style={{ listStyle: 'disc', paddingLeft: 20, margin: '0 0 8px' }}>{children}</ul>,
+                          ol: ({ children }) => <ol style={{ listStyle: 'decimal', paddingLeft: 20, margin: '0 0 8px' }}>{children}</ol>,
+                          li: ({ children }) => <li style={{ margin: '2px 0' }}>{children}</li>,
+                          strong: ({ children }) => <strong className="font-bold">{children}</strong>,
+                          em: ({ children }) => <span>{children}</span>,
+                          hr: () => null,
+                          table: ({ children }) => <table className="w-full border-collapse" style={{ fontSize: '12px', margin: '8px 0 12px' }}>{children}</table>,
+                          thead: ({ children }) => <thead style={{ background: '#111', color: '#fff' }}>{children}</thead>,
+                          th: ({ children }) => <th className="text-left font-bold" style={{ padding: '6px 8px' }}>{children}</th>,
+                          td: ({ children }) => <td style={{ padding: '6px 8px', borderBottom: '1px solid #ddd' }}>{children}</td>,
+                          tr: ({ children }) => <tr className="even:bg-[#f3f3f3]">{children}</tr>,
+                          img: ({ node, ...props }) => <span className="block my-3 text-center"><MarkdownImage isLightReport {...props} /></span>,
+                          a: ({ node, children }) => <span className="font-bold">{children}</span>
+                        }}
+                      >
+                        {cleanReportText(reportContent)}
+                      </ReactMarkdown>
                     </div>
 
-                    {/* Report Main Content Area */}
-                    <div className="flex-1 min-h-[300px]">
-                      <h2 className="text-xs font-black text-slate-900 uppercase tracking-wider mb-3 border-b border-slate-100 pb-1 flex items-center gap-1.5 leading-none">
-                        <span className="h-2 w-2 rounded-full bg-amber-500"></span>
-                        Especificações Técnicas & Recomendações
-                      </h2>
-                      
-                      <div className="prose prose-slate text-xs max-w-none text-slate-800 leading-relaxed space-y-3 font-medium break-words">
-                        <ReactMarkdown
-                          urlTransform={(url) => url}
-                          remarkPlugins={[remarkGfm]}
-                          components={{
-                            h1: ({ children }) => <h1 className="text-xs sm:text-sm font-black text-slate-900 mt-4 mb-2 border-b border-amber-300 pb-1 clear-both break-words">{children}</h1>,
-                            h2: ({ children }) => <h2 className="text-xs font-black text-slate-900 mt-3 mb-2 border-b border-amber-200 pb-0.5 clear-both flex items-center gap-1.5 break-words"><span className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"></span>{children}</h2>,
-                            h3: ({ children }) => <h3 className="text-[11px] sm:text-[11.5px] font-extrabold text-amber-700 mt-3 mb-1 clear-both break-words">{children}</h3>,
-                            h4: ({ children }) => <h4 className="text-[10.5px] sm:text-[11px] font-bold text-slate-900 mt-2 mb-1 clear-both break-words">{children}</h4>,
-                            p: ({ children }) => <div className="mb-3 text-slate-800 leading-relaxed font-medium clear-both flow-root break-words">{children}</div>,
-                            ul: ({ children }) => <ul className="list-disc list-inside space-y-2 mb-3 text-slate-800 font-medium clear-both break-words">{children}</ul>,
-                            ol: ({ children }) => <ol className="list-decimal list-inside space-y-2 mb-3 text-slate-800 font-medium clear-both break-words">{children}</ol>,
-                            li: ({ children }) => <li className="mb-2 text-slate-800 leading-relaxed font-medium clear-both flow-root break-words">{children}</li>,
-                            hr: () => <hr className="my-3 border-slate-200 clear-both" />,
-                            table: ({ children }) => (
-                              <div className="overflow-x-auto my-3 rounded-lg border border-amber-500/30 bg-amber-50/20 shadow-xs clear-both max-w-full">
-                                <table className="w-full text-[9.5px] sm:text-[10px] text-left text-slate-900 border-collapse">{children}</table>
-                              </div>
-                            ),
-                            thead: ({ children }) => (
-                              <thead className="bg-amber-500 text-slate-950 font-black uppercase text-[8.5px] sm:text-[9px] tracking-wider border-b-2 border-amber-600">{children}</thead>
-                            ),
-                            th: ({ children }) => (
-                              <th className="px-2 sm:px-2.5 py-1.5 border-r last:border-r-0 border-amber-600/30 font-black whitespace-normal break-words">{children}</th>
-                            ),
-                            td: ({ children }) => (
-                              <td className="px-2 sm:px-2.5 py-1.5 border-r last:border-r-0 border-b border-slate-200 text-slate-800 font-medium whitespace-normal break-words">{children}</td>
-                            ),
-                            tr: ({ children }) => (
-                              <tr className="even:bg-slate-100/70 hover:bg-amber-500/5 transition-colors">{children}</tr>
-                            ),
-                            img: ({ node, ...props }) => {
-                              return <MarkdownImage isLightReport {...props} />;
-                            },
-                            a: ({ node, children, href, ...props }) => {
-                              if (!href) return <span className="text-slate-700 underline font-semibold">{children}</span>;
-                              return (
-                                <button
-                                  type="button"
-                                  onClick={() => openTechnicalSheet(href)}
-                                  className="text-amber-600 hover:text-amber-700 underline font-extrabold cursor-pointer inline-flex items-center gap-1 bg-amber-500/10 hover:bg-amber-500/20 px-1.5 py-0.5 rounded transition my-0.5"
-                                >
-                                  <FileText className="h-3 w-3 inline text-amber-600" />
-                                  {children}
-                                </button>
-                              );
-                            }
-                          }}
-                        >
-                          {reportContent}
-                        </ReactMarkdown>
-                      </div>
-                    </div>
-
-                    {/* Decorative stamp watermark and formal footer */}
-                    <div className="mt-6 pt-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 text-[8px] font-mono text-slate-400 font-semibold">
-                        <span>© {new Date().getFullYear()} Roder Brasil</span>
-                        <span className="h-1 w-1 rounded-full bg-slate-300"></span>
-                        <span>Equipamentos Florestais e Industriais</span>
-                      </div>
-                      <div className="bg-amber-500/10 border border-amber-500/30 text-amber-700 text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-wider font-mono">
-                        Equipamento Oficial Roder ✅
-                      </div>
+                    {/* Rodapé padrão Roder */}
+                    <div className="mt-6 pt-2 flex items-center justify-between text-[#444]" style={{ borderTop: '1px solid #999', fontSize: '11px' }}>
+                      <span style={{ width: 20 }} />
+                      <span>www.roderbrasil.com.br</span>
+                      <span>1</span>
                     </div>
                   </div>
-                </div>
-
+                </ReportScaler>
               </div>
 
               {/* Informative Help Footer inside Modal */}
