@@ -6023,7 +6023,7 @@ export default function Catalog() {
                             onClick={() => openPlainFile(selectedModel.parts_manual_url || '')}
                             disabled={!selectedModel.parts_manual_url}
                           >
-                            <Package className="h-4 w-4 text-orange-500" /> Manual de Peças (PDF)
+                            <Package className="h-4 w-4 text-orange-500" /> Catálogo de Peças
                           </Button>
                           <Button
                             variant="outline"
@@ -6920,7 +6920,7 @@ export default function Catalog() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-[10px] uppercase">Manual de Peças (Link Drive)</Label>
+                    <Label className="text-[10px] uppercase">Catálogo de peças (PDF, link do Drive ou do Roder Vision)</Label>
                     <Input 
                       className="h-9 text-xs"
                       value={editingModelData.parts_manual_url} 
