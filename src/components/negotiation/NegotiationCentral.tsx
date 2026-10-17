@@ -2013,6 +2013,7 @@ export default function NegotiationCentral() {
                         try {
                           const r: any = await notifyFinanceCommissionScheduled(activeIndication, { orderNumber: orderNumber, orderDate: orderDate });
                           if (r && r.success === false) throw new Error(r.error || 'falha no envio');
+                          await updateDoc(doc(db, 'indications', activeIndication.id), { finance_notice_pending: false, finance_notice_sent_at: new Date().toISOString() }).catch(() => {});
                           toast.success('Aviso enviado ao financeiro.', { id: t });
                         } catch (e: any) {
                           toast.error('Não foi possível enviar: ' + (e?.message || e), { id: t });

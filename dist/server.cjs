@@ -4370,6 +4370,43 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
   }, {
     timezone: BR_TIMEZONE
   });
+  import_node_cron.default.schedule("20 * * * *", async () => {
+    try {
+      const snap = await db.collection("indications").where("finance_notice_pending", "==", true).get();
+      const nowIso = (/* @__PURE__ */ new Date()).toISOString();
+      for (const d of snap.docs) {
+        const ind = d.data();
+        if (ind.status !== "sold" || ind.finance_notice_sent_at) {
+          await d.ref.update({ finance_notice_pending: false });
+          continue;
+        }
+        if (!ind.finance_notice_due_at || ind.finance_notice_due_at > nowIso) continue;
+        const partner = ind.external_seller_name || "parceiro indicador";
+        const equip = ind.base_machine || ind.items && ind.items[0]?.product_name || "equipamento";
+        const order = ind.sale_order_number || "";
+        const date = String(ind.sale_order_date || ind.sale_date || "").split("-").reverse().join("/");
+        const html = `
+          <div style="font-family: Arial, sans-serif; color: #1f2937; max-width: 620px; font-size: 14px; line-height: 1.6;">
+            <p>Ol\xE1, equipe do financeiro!</p>
+            <p>Este \xE9 um aviso autom\xE1tico do <strong>Roder Indica</strong>.</p>
+            <p>Haver\xE1 uma programa\xE7\xE3o de pagamento de comiss\xE3o para o parceiro indicador <strong>${partner}</strong>, referente \xE0 venda conclu\xEDda abaixo:</p>
+            <table style="border-collapse: collapse; font-size: 14px; margin: 12px 0;">
+              <tr><td style="padding: 4px 12px 4px 0; color: #6b7280;">Cliente</td><td><strong>${ind.client_name || ""}</strong></td></tr>
+              <tr><td style="padding: 4px 12px 4px 0; color: #6b7280;">Equipamento</td><td><strong>${equip}</strong></td></tr>
+              <tr><td style="padding: 4px 12px 4px 0; color: #6b7280;">Pedido de venda</td><td><strong>${order ? "n\xBA " + order : "n\xE3o informado"}</strong>${date ? " de " + date : ""}</td></tr>
+              <tr><td style="padding: 4px 12px 4px 0; color: #6b7280;">Comiss\xE3o prevista</td><td><strong>${formatCurrency(ind.commission_value || 0)}</strong></td></tr>
+            </table>
+            <p>N\xE3o \xE9 preciso fazer nada agora. No in\xEDcio do pr\xF3ximo m\xEAs, voc\xEAs receber\xE3o um e-mail com o valor e a data de pagamento da comiss\xE3o desta venda e de outras vendas de parceiros indicadores, caso aconte\xE7am.</p>
+            <p>O parceiro indicador tamb\xE9m receber\xE1 um e-mail autom\xE1tico pedindo a emiss\xE3o da nota fiscal de servi\xE7o pela parceria no Roder Indica.</p>
+          </div>`;
+        await sendAutomaticEmail("financeiro@roderbrasil.com.br, financeiro2@roderbrasil.com.br", `Roder Indica: comiss\xE3o a programar para ${partner} (pedido ${order || ind.client_name || ""})`, html, { fromName: "Roder Indica" });
+        await d.ref.update({ finance_notice_pending: false, finance_notice_sent_at: nowIso });
+        console.log(`[FINANCE-NOTICE] Aviso enviado: ${d.id}`);
+      }
+    } catch (e) {
+      console.error("[FINANCE-NOTICE] Erro:", e?.message);
+    }
+  }, { timezone: "America/Sao_Paulo" });
   import_node_cron.default.schedule("0 8 7 * *", async () => {
     console.log("[Schedule] Generating Day 7 Finance Reminders...");
     const notifSnap = await db.collection("settings").doc("notifications").get();

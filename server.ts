@@ -4758,6 +4758,42 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     timezone: BR_TIMEZONE
   });
 
+  // Aviso ao financeiro 2 dias depois do faturamento (dá tempo da vendedora corrigir/estornar)
+  cron.schedule('20 * * * *', async () => {
+    try {
+      const snap = await db.collection('indications').where('finance_notice_pending', '==', true).get();
+      const nowIso = new Date().toISOString();
+      for (const d of snap.docs) {
+        const ind: any = d.data();
+        if (ind.status !== 'sold' || ind.finance_notice_sent_at) { await d.ref.update({ finance_notice_pending: false }); continue; }
+        if (!ind.finance_notice_due_at || ind.finance_notice_due_at > nowIso) continue;
+        const partner = ind.external_seller_name || 'parceiro indicador';
+        const equip = ind.base_machine || (ind.items && ind.items[0]?.product_name) || 'equipamento';
+        const order = ind.sale_order_number || '';
+        const date = String(ind.sale_order_date || ind.sale_date || '').split('-').reverse().join('/');
+        const html = `
+          <div style="font-family: Arial, sans-serif; color: #1f2937; max-width: 620px; font-size: 14px; line-height: 1.6;">
+            <p>Olá, equipe do financeiro!</p>
+            <p>Este é um aviso automático do <strong>Roder Indica</strong>.</p>
+            <p>Haverá uma programação de pagamento de comissão para o parceiro indicador <strong>${partner}</strong>, referente à venda concluída abaixo:</p>
+            <table style="border-collapse: collapse; font-size: 14px; margin: 12px 0;">
+              <tr><td style="padding: 4px 12px 4px 0; color: #6b7280;">Cliente</td><td><strong>${ind.client_name || ''}</strong></td></tr>
+              <tr><td style="padding: 4px 12px 4px 0; color: #6b7280;">Equipamento</td><td><strong>${equip}</strong></td></tr>
+              <tr><td style="padding: 4px 12px 4px 0; color: #6b7280;">Pedido de venda</td><td><strong>${order ? 'nº ' + order : 'não informado'}</strong>${date ? ' de ' + date : ''}</td></tr>
+              <tr><td style="padding: 4px 12px 4px 0; color: #6b7280;">Comissão prevista</td><td><strong>${formatCurrency(ind.commission_value || 0)}</strong></td></tr>
+            </table>
+            <p>Não é preciso fazer nada agora. No início do próximo mês, vocês receberão um e-mail com o valor e a data de pagamento da comissão desta venda e de outras vendas de parceiros indicadores, caso aconteçam.</p>
+            <p>O parceiro indicador também receberá um e-mail automático pedindo a emissão da nota fiscal de serviço pela parceria no Roder Indica.</p>
+          </div>`;
+        await sendAutomaticEmail('financeiro@roderbrasil.com.br, financeiro2@roderbrasil.com.br', `Roder Indica: comissão a programar para ${partner} (pedido ${order || ind.client_name || ''})`, html, { fromName: 'Roder Indica' });
+        await d.ref.update({ finance_notice_pending: false, finance_notice_sent_at: nowIso });
+        console.log(`[FINANCE-NOTICE] Aviso enviado: ${d.id}`);
+      }
+    } catch (e: any) {
+      console.error('[FINANCE-NOTICE] Erro:', e?.message);
+    }
+  }, { timezone: 'America/Sao_Paulo' });
+
   // Day 7: Payment Reminder to Finance
   cron.schedule('0 8 7 * *', async () => {
     console.log("[Schedule] Generating Day 7 Finance Reminders...");

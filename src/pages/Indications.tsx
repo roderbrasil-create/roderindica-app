@@ -78,7 +78,7 @@ import {
 } from 'lucide-react';
 import { transcribeAudio, generateAISummary, analyzeDetailedBudget, analyzePDFDocument } from '../services/geminiService';
 import { notifyManagers, notifyInternalSeller, notifyExternalSeller, createNotification } from '../services/notificationService';
-import { notifyClosedOrder, notifyFinanceCommissionScheduled } from '../services/emailService';
+import { notifyClosedOrder } from '../services/emailService';
 import { 
   Dialog, 
   DialogContent, 
@@ -613,7 +613,11 @@ export default function Indications() {
         commission_rate_applied: commissionRate,
         commissionable_value: commissionableValue,
         standard_seller_commission_value: finalStandardSellerCommissionValue,
-        sale_date: saleDate, // Store the physical retroactive date of the sale
+        sale_date: saleDate,
+        // Aviso ao financeiro sai sozinho 2 dias depois (servidor), se a venda continuar faturada
+        ...((selectedIndication as any).finance_notice_sent_at || !(selectedIndication.external_seller_uid && isPartnerCommissionable && finalCommissionValue > 0)
+          ? {}
+          : { finance_notice_pending: true, finance_notice_due_at: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString() }), // Store the physical retroactive date of the sale
         updated_at: new Date().toISOString(),
         negotiation_history: arrayUnion({
           id: Math.random().toString(36).substring(2, 11),
@@ -760,12 +764,6 @@ export default function Indications() {
           created_at: new Date().toISOString()
         };
         await addDoc(collection(db, 'commissions'), commissionDocData);
-      }
-
-      // Aviso automático ao financeiro (financeiro@ e financeiro2@)
-      if (selectedIndication.external_seller_uid && isPartnerCommissionable && finalCommissionValue > 0) {
-        notifyFinanceCommissionScheduled({ ...selectedIndication, ...updateData }, { commissionValue: finalCommissionValue, orderDate: saleDate })
-          .catch(err => console.warn('Aviso ao financeiro não enviado:', err));
       }
 
       // Notify Indicator and Managers
