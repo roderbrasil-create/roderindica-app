@@ -1256,7 +1256,7 @@ export default function Catalog() {
       const ficha = '/catalogo/gr/Ficha_Garra_Rachadora_GR600.pdf';
       await addDoc(collection(db, 'products'), {
         name: 'Garra Rachadora GR',
-        description: 'A Garra Rachadora Roder (GR) racha toras e movimenta a madeira com o mesmo equipamento, sem precisar de rachador separado. Projeto robusto para alta produtividade, durabilidade e segurança nas operações florestais. Indicação por escavadeira: GR600 para escavadeiras de 12 a 22 toneladas e GR800 para escavadeiras de 20 a 30 toneladas. Modelo GR600: racha toras de até 600 mm de diâmetro, abertura máxima de 762 mm, altura com a garra aberta de 1.444 mm, peso de 821 kg sem rotator e 896 kg com rotator, rotator de 16 t e pressão de trabalho de 180 a 240 bar.',
+        description: 'A Garra Rachadora Roder (GR) racha toras e movimenta a madeira com o mesmo equipamento, sem precisar de rachador separado. Projeto robusto para alta produtividade, durabilidade e segurança nas operações florestais. Indicação por escavadeira: GR600 para escavadeiras de 12 a 22 toneladas e GR800 para escavadeiras de 20 a 30 toneladas. Modelo GR600: racha toras de até 600 mm de diâmetro, abertura máxima de 762 mm, altura com a garra aberta de 1.444 mm, peso de 821 kg sem rotator e 896 kg com rotator, rotator de 16 t e pressão de trabalho de 180 a 240 bar. Modelo GR800 (código 1000.2089.0000): racha toras de grande diâmetro, até 800 mm, abertura de 1.107 mm entre as pontas das unhas, capacidade de carga de 7.000 kg, altura com a garra aberta de 1.574 mm, peso de 900 kg, rotator IR10, pressão de trabalho de 180 a 280 bar, vazão máxima de até 200 l/min para abrir e fechar e hidráulica de 4 linhas (abre, fecha e giro).',
         category: 'Garras Florestais',
         image_url: img,
         video_url: '',
@@ -1275,6 +1275,22 @@ export default function Catalog() {
               peso_com_rotator: '896 kg',
               rotator: '16 t',
               pressao: '180 a 240 bar',
+            },
+          },
+          {
+            id: 'gr-800', name: 'GR800', base_value: 0, images: ['/catalogo/gr/gr800-produto.jpg'], pdf_url: '/catalogo/gr/Ficha_Garra_Rachadora_GR800.pdf',
+            technical_specs: {
+              codigo_roder: '1000.2089.0000',
+              maquina_base: '20 a 30 Ton.',
+              diametro_max_tora: '800 mm',
+              abertura_maxima: '1.107 mm',
+              capacidade_carga: '7.000 kg',
+              altura_garra_aberta: '1.574 mm',
+              peso: '900 kg',
+              rotator: 'IR10',
+              pressao: '180 a 280 bar',
+              vazao: 'Até 200 l/min (abre e fecha)',
+              hidraulica: '4 linhas (abre, fecha e giro)',
             },
           },
         ],
@@ -4320,6 +4336,9 @@ export default function Catalog() {
       altura_garra_aberta: "Altura (garra aberta)",
       peso_sem_rotator: "Peso sem rotator",
       peso_com_rotator: "Peso com rotator",
+      diametro_max_tora: "Diâmetro máx. de tora",
+      codigo_roder: "Código Roder",
+      hidraulica: "Hidráulica",
       instalacao_hidraulica: 'Instalação Hidráulica',
                            acionamento: 'Acionamento',
                            tempo_de_ciclo: 'Tempo de Ciclo',
@@ -4999,7 +5018,10 @@ export default function Catalog() {
                           diametro_rachamento: 'Diâmetro máx. de rachamento',
                           altura_garra_aberta: 'Altura (garra aberta)',
                           peso_sem_rotator: 'Peso sem rotator',
-                          peso_com_rotator: 'Peso com rotator'
+                          peso_com_rotator: 'Peso com rotator',
+                          diametro_max_tora: 'Diâmetro máx. de tora',
+                          codigo_roder: 'Código Roder',
+                          hidraulica: 'Hidráulica'
                         };
                         const label = specLabels[kMapping] || key.replace(/_/g, ' ');
                         const isGiro360 = kMapping === 'giro_360';
