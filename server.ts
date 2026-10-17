@@ -54,6 +54,31 @@ try {
   console.warn('[FIREBASE-ADMIN] Could not load firebase-applet-config.json:', e.message);
 }
 
+// Consultor técnico: garante que a foto mostrada é do equipamento citado no texto da imagem (máx. 1 foto)
+function fixConsultantImages(text: string, index: { label: string; url: string }[]): string {
+  const norm = (v: string) => String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const STOP = new Set(['de', 'da', 'do', 'das', 'dos', 'para', 'com', 'e', 'o', 'a', 'roder', 'modelo', 'equipamento', 'foto', 'imagem']);
+  const tokens = (v: string) => norm(v).split(/[^a-z0-9]+/).filter(t => t.length >= 2 && !STOP.has(t));
+  const knownUrls = new Set(index.map(i => i.url));
+  let shown = 0;
+  const used = new Set<string>();
+  return text.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (_m, alt: string, url: string) => {
+    const altTokens = tokens(alt);
+    let best: { url: string; score: number } | null = null;
+    for (const entry of index) {
+      const lt = new Set(tokens(entry.label));
+      let score = 0;
+      for (const t of altTokens) if (lt.has(t)) score += /\d/.test(t) ? 3 : 1;
+      if (score > 0 && (!best || score > best.score)) best = { url: entry.url, score };
+    }
+    const finalUrl = best ? best.url : (knownUrls.has(url) ? url : '');
+    if (!finalUrl || used.has(finalUrl) || shown >= 1) return '';
+    used.add(finalUrl);
+    shown++;
+    return `![${alt}](${finalUrl})`;
+  }).replace(/\n{3,}/g, '\n\n');
+}
+
 let adminApp: admin.app.App;
 
 if (admin.apps.length === 0) {
@@ -1900,6 +1925,8 @@ Retorne um array JSON no formato exato:
           // Initialize contexts
           let improvedKnowledgeContext = "";
           let productsContext = "";
+          // Índice de fotos do catálogo (nome do equipamento/modelo -> foto), usado para corrigir foto errada na resposta
+          const catalogImageIndex: { label: string; url: string }[] = [];
           let stockContext = "";
           let accessoriesContext = "";
           let kitsContext = "";
@@ -1968,9 +1995,11 @@ Retorne um array JSON no formato exato:
                     .map(([k, v]) => `${k}: ${v}`)
                     .join(", ");
                   const modelImg = (m.images && m.images.length > 0) ? m.images[0] : (productImg || FALLBACK_PRODUCT_IMAGES[m.name] || "");
+                  if (modelImg) catalogImageIndex.push({ label: `${data.name || ''} ${m.name || ''}`, url: modelImg });
                   return `- Modelo: ${m.name || 'S/N'} (ID: ${m.id || 'S/I'})${m.productivity_text ? ` | Produtividade: ${m.productivity_text}` : ''}${modelImg ? ` | Imagem: ${modelImg}` : ''} | Specs: [${specStr}]`;
                 }).join("\n  ");
                 
+                if (productImg) catalogImageIndex.push({ label: String(data.name || ''), url: productImg });
                 productsList.push(`Equipamento: ${data.name}\nCategoria: ${data.category}\nDescrição: ${data.description}${productImg ? `\nImagem Principal do Equipamento: ${productImg}` : ''}\nModelos:\n  ${modelsList || "Nenhum modelo cadastrado"}`);
               });
               
@@ -2051,7 +2080,20 @@ Retorne um array JSON no formato exato:
 
           const contents: any[] = [];
           
-          const systemInstruction = `Você é o "Consultor Técnico RODER" (ou simplesmente "Roder"). Você é o consultor técnico oficial da Roder Máquinas e Equipamentos.
+          const PRIORITY_RULES = `REGRAS PRIORITÁRIAS DE ATENDIMENTO (valem ACIMA de qualquer outra regra deste texto, inclusive regras que pedem respostas completas):
+A. SEJA CURTO E DIRETO: no chat, responda em até 120 palavras. Primeiro a resposta (o modelo indicado), depois no máximo 3 a 5 tópicos curtos com o essencial. Não use títulos com "#", não repita a pergunta, não faça introduções. Só escreva relatório completo, ficha detalhada ou proposta quando o usuário pedir explicitamente ("relatório", "detalhe", "ficha completa", "explique mais").
+B. PERGUNTE QUANDO FALTAR INFORMAÇÃO: se faltar um dado que muda a recomendação, NÃO adivinhe. Faça de 1 a 2 perguntas curtas e objetivas e espere a resposta. Exemplos de dados essenciais:
+   - Cabeçote multifuncional (CMF): porte/modelo da escavadeira, aplicação (derrubada, traçamento, rebrota) e diâmetro das árvores (eucalipto/pinus de reflorestamento ou árvores grandes/mata nativa).
+   - Garra florestal: tipo e porte da máquina base, aplicação (carregamento de toras, alimentação de picador, pátio) e se a máquina já tem linha hidráulica extra.
+   - Triturador/desbastador: tipo da máquina (escavadeira, trator ou pá carregadeira), porte ou potência, vazão hidráulica se souber, e diâmetro do material.
+   - Engate rápido, caçamba High Tip, garra frontal, garfo: marca e modelo exato da pá carregadeira.
+   Quando já houver um padrão seguro (ex.: escavadeira de 13 a 22 t para eucalipto = CMF 600), indique o padrão em uma frase E faça a pergunta de confirmação que pode mudar a indicação (ex.: "Para 16 t o indicado é o CMF 600. As árvores são de reflorestamento (até ~60 cm)? Se forem maiores, avaliamos o CMF 800.").
+C. FOTO: mostre no máximo 1 foto, somente do equipamento que você está recomendando, e só quando recomendar um modelo específico. Use exatamente a URL do campo "Imagem" daquele mesmo modelo (ou a "Imagem Principal do Equipamento" daquele mesmo produto). No texto alternativo da imagem escreva o nome exato do equipamento/modelo. Nunca use foto de outro equipamento. Se estiver só fazendo perguntas, não mostre foto.
+D. Não ofereça listas de outros equipamentos que o usuário não pediu.
+
+`;
+
+          const systemInstruction = PRIORITY_RULES + `Você é o "Consultor Técnico RODER" (ou simplesmente "Roder"). Você é o consultor técnico oficial da Roder Máquinas e Equipamentos.
 
 Você é, simbolicamente, o "filho" e pupilo do seu criador e mentor, Jeferson Roder (professor, mentor, fundador da empresa, criador de toda a tecnologia e equipamentos Roder, diretor técnico e mentor técnico, carinhosamente conhecido também como "Jeff Roder" ou simplesmente "Jeff" por vendedores e parceiros mais próximos). Jeferson Roder lhe ensinou tudo o que você sabe sobre os produtos e o desenvolvimento técnico da Roder, e é com ele que você continua aprendendo e evoluindo constantemente a cada dia. Mesmo quando ele não puder responder diretamente aos vendedores em campo, você está aqui para responder e falar por ele com total precisão e dedicação técnica. **ATENÇÃO CRÍTICA**: Nunca se refira a Jeferson Roder como "gerente de projeto", "gerente de projetos" ou "engenheiro" (ele prefere e deve ser chamado estritamente de Mentor, Fundador, Criador, Professor, Diretor Técnico ou Mentor Técnico).
 
@@ -2885,7 +2927,7 @@ ${kitsContext || "Não há kits de instalação cadastrados."}${improvedKnowledg
 - Sinta-se à vontade para ser mais técnico e usar termos de revenda, comissão, estoque e especificações de montagem e instalação.`;
           }
 
-          const finalSystemInstruction = systemInstruction + userTypeInstruction;
+          const finalSystemInstruction = systemInstruction + userTypeInstruction + `\n\nLEMBRETE FINAL (PRIORIDADE MÁXIMA): siga as REGRAS PRIORITÁRIAS A, B, C e D do início. Resposta curta e direta; se faltar dado essencial, pergunte antes; no máximo 1 foto e só do equipamento recomendado.`;
 
           const startTime = Date.now();
           const response = await generateContentWithRetry(ai, {
@@ -2893,12 +2935,13 @@ ${kitsContext || "Não há kits de instalação cadastrados."}${improvedKnowledg
             contents: contents,
             config: {
               systemInstruction: finalSystemInstruction,
-              temperature: 0.7
+              temperature: 0.3
             }
           });
 
           const responseTimeMs = Date.now() - startTime;
           result = response.text || "Desculpe, não consegui calcular ou analisar sua dúvida técnica no momento.";
+          try { result = fixConsultantImages(result, catalogImageIndex); } catch (imgErr: any) { console.warn('[engineerHelper] fixConsultantImages:', imgErr?.message); }
 
           // Save interaction to Firestore for metrics & reporting!
           try {

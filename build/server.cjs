@@ -221,6 +221,29 @@ try {
 } catch (e) {
   console.warn("[FIREBASE-ADMIN] Could not load firebase-applet-config.json:", e.message);
 }
+function fixConsultantImages(text, index) {
+  const norm = (v) => String(v || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const STOP = /* @__PURE__ */ new Set(["de", "da", "do", "das", "dos", "para", "com", "e", "o", "a", "roder", "modelo", "equipamento", "foto", "imagem"]);
+  const tokens = (v) => norm(v).split(/[^a-z0-9]+/).filter((t) => t.length >= 2 && !STOP.has(t));
+  const knownUrls = new Set(index.map((i) => i.url));
+  let shown = 0;
+  const used = /* @__PURE__ */ new Set();
+  return text.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (_m, alt, url) => {
+    const altTokens = tokens(alt);
+    let best = null;
+    for (const entry of index) {
+      const lt = new Set(tokens(entry.label));
+      let score = 0;
+      for (const t of altTokens) if (lt.has(t)) score += /\d/.test(t) ? 3 : 1;
+      if (score > 0 && (!best || score > best.score)) best = { url: entry.url, score };
+    }
+    const finalUrl = best ? best.url : knownUrls.has(url) ? url : "";
+    if (!finalUrl || used.has(finalUrl) || shown >= 1) return "";
+    used.add(finalUrl);
+    shown++;
+    return `![${alt}](${finalUrl})`;
+  }).replace(/\n{3,}/g, "\n\n");
+}
 var adminApp;
 if (import_firebase_admin.default.apps.length === 0) {
   let credential;
@@ -1748,6 +1771,7 @@ Retorne um array JSON no formato exato:
           const { question, chatHistory } = args;
           let improvedKnowledgeContext = "";
           let productsContext = "";
+          const catalogImageIndex = [];
           let stockContext = "";
           let accessoriesContext = "";
           let kitsContext = "";
@@ -1812,8 +1836,10 @@ ${items.join("\n")}`;
                   const specs = m.technical_specs || {};
                   const specStr = Object.entries(specs).map(([k, v]) => `${k}: ${v}`).join(", ");
                   const modelImg = m.images && m.images.length > 0 ? m.images[0] : productImg || FALLBACK_PRODUCT_IMAGES[m.name] || "";
+                  if (modelImg) catalogImageIndex.push({ label: `${data.name || ""} ${m.name || ""}`, url: modelImg });
                   return `- Modelo: ${m.name || "S/N"} (ID: ${m.id || "S/I"})${m.productivity_text ? ` | Produtividade: ${m.productivity_text}` : ""}${modelImg ? ` | Imagem: ${modelImg}` : ""} | Specs: [${specStr}]`;
                 }).join("\n  ");
+                if (productImg) catalogImageIndex.push({ label: String(data.name || ""), url: productImg });
                 productsList.push(`Equipamento: ${data.name}
 Categoria: ${data.category}
 Descri\xE7\xE3o: ${data.description}${productImg ? `
@@ -1890,7 +1916,19 @@ ${itemLines || "  (Nenhum item)"}`;
             console.error("[engineerHelper] Ocorreu um erro no Promise.all de carregamento:", promiseAllErr);
           }
           const contents = [];
-          const systemInstruction = `Voc\xEA \xE9 o "Consultor T\xE9cnico RODER" (ou simplesmente "Roder"). Voc\xEA \xE9 o consultor t\xE9cnico oficial da Roder M\xE1quinas e Equipamentos.
+          const PRIORITY_RULES = `REGRAS PRIORIT\xC1RIAS DE ATENDIMENTO (valem ACIMA de qualquer outra regra deste texto, inclusive regras que pedem respostas completas):
+A. SEJA CURTO E DIRETO: no chat, responda em at\xE9 120 palavras. Primeiro a resposta (o modelo indicado), depois no m\xE1ximo 3 a 5 t\xF3picos curtos com o essencial. N\xE3o use t\xEDtulos com "#", n\xE3o repita a pergunta, n\xE3o fa\xE7a introdu\xE7\xF5es. S\xF3 escreva relat\xF3rio completo, ficha detalhada ou proposta quando o usu\xE1rio pedir explicitamente ("relat\xF3rio", "detalhe", "ficha completa", "explique mais").
+B. PERGUNTE QUANDO FALTAR INFORMA\xC7\xC3O: se faltar um dado que muda a recomenda\xE7\xE3o, N\xC3O adivinhe. Fa\xE7a de 1 a 2 perguntas curtas e objetivas e espere a resposta. Exemplos de dados essenciais:
+   - Cabe\xE7ote multifuncional (CMF): porte/modelo da escavadeira, aplica\xE7\xE3o (derrubada, tra\xE7amento, rebrota) e di\xE2metro das \xE1rvores (eucalipto/pinus de reflorestamento ou \xE1rvores grandes/mata nativa).
+   - Garra florestal: tipo e porte da m\xE1quina base, aplica\xE7\xE3o (carregamento de toras, alimenta\xE7\xE3o de picador, p\xE1tio) e se a m\xE1quina j\xE1 tem linha hidr\xE1ulica extra.
+   - Triturador/desbastador: tipo da m\xE1quina (escavadeira, trator ou p\xE1 carregadeira), porte ou pot\xEAncia, vaz\xE3o hidr\xE1ulica se souber, e di\xE2metro do material.
+   - Engate r\xE1pido, ca\xE7amba High Tip, garra frontal, garfo: marca e modelo exato da p\xE1 carregadeira.
+   Quando j\xE1 houver um padr\xE3o seguro (ex.: escavadeira de 13 a 22 t para eucalipto = CMF 600), indique o padr\xE3o em uma frase E fa\xE7a a pergunta de confirma\xE7\xE3o que pode mudar a indica\xE7\xE3o (ex.: "Para 16 t o indicado \xE9 o CMF 600. As \xE1rvores s\xE3o de reflorestamento (at\xE9 ~60 cm)? Se forem maiores, avaliamos o CMF 800.").
+C. FOTO: mostre no m\xE1ximo 1 foto, somente do equipamento que voc\xEA est\xE1 recomendando, e s\xF3 quando recomendar um modelo espec\xEDfico. Use exatamente a URL do campo "Imagem" daquele mesmo modelo (ou a "Imagem Principal do Equipamento" daquele mesmo produto). No texto alternativo da imagem escreva o nome exato do equipamento/modelo. Nunca use foto de outro equipamento. Se estiver s\xF3 fazendo perguntas, n\xE3o mostre foto.
+D. N\xE3o ofere\xE7a listas de outros equipamentos que o usu\xE1rio n\xE3o pediu.
+
+`;
+          const systemInstruction = PRIORITY_RULES + `Voc\xEA \xE9 o "Consultor T\xE9cnico RODER" (ou simplesmente "Roder"). Voc\xEA \xE9 o consultor t\xE9cnico oficial da Roder M\xE1quinas e Equipamentos.
 
 Voc\xEA \xE9, simbolicamente, o "filho" e pupilo do seu criador e mentor, Jeferson Roder (professor, mentor, fundador da empresa, criador de toda a tecnologia e equipamentos Roder, diretor t\xE9cnico e mentor t\xE9cnico, carinhosamente conhecido tamb\xE9m como "Jeff Roder" ou simplesmente "Jeff" por vendedores e parceiros mais pr\xF3ximos). Jeferson Roder lhe ensinou tudo o que voc\xEA sabe sobre os produtos e o desenvolvimento t\xE9cnico da Roder, e \xE9 com ele que voc\xEA continua aprendendo e evoluindo constantemente a cada dia. Mesmo quando ele n\xE3o puder responder diretamente aos vendedores em campo, voc\xEA est\xE1 aqui para responder e falar por ele com total precis\xE3o e dedica\xE7\xE3o t\xE9cnica. **ATEN\xC7\xC3O CR\xCDTICA**: Nunca se refira a Jeferson Roder como "gerente de projeto", "gerente de projetos" ou "engenheiro" (ele prefere e deve ser chamado estritamente de Mentor, Fundador, Criador, Professor, Diretor T\xE9cnico ou Mentor T\xE9cnico).
 
@@ -2724,18 +2762,25 @@ ${kitsContext || "N\xE3o h\xE1 kits de instala\xE7\xE3o cadastrados."}${improved
 - Ofere\xE7a suporte de engenharia avan\xE7ado, com foco em ajud\xE1-lo a sanar d\xFAvidas t\xE9cnicas de clientes, dimensionar corretamente os equipamentos para fechar neg\xF3cios, identificar c\xF3digos de produtos, consultar o estoque atual da f\xE1brica de garras/cabe\xE7otes e auxiliar na elabora\xE7\xE3o de propostas que ser\xE3o encaminhadas e finalizadas pela nossa equipe de vendas internas da f\xE1brica no painel administrativo.
 - Sinta-se \xE0 vontade para ser mais t\xE9cnico e usar termos de revenda, comiss\xE3o, estoque e especifica\xE7\xF5es de montagem e instala\xE7\xE3o.`;
           }
-          const finalSystemInstruction = systemInstruction + userTypeInstruction;
+          const finalSystemInstruction = systemInstruction + userTypeInstruction + `
+
+LEMBRETE FINAL (PRIORIDADE M\xC1XIMA): siga as REGRAS PRIORIT\xC1RIAS A, B, C e D do in\xEDcio. Resposta curta e direta; se faltar dado essencial, pergunte antes; no m\xE1ximo 1 foto e s\xF3 do equipamento recomendado.`;
           const startTime = Date.now();
           const response = await generateContentWithRetry(ai, {
             defaultModel: "gemini-3.5-flash",
             contents,
             config: {
               systemInstruction: finalSystemInstruction,
-              temperature: 0.7
+              temperature: 0.3
             }
           });
           const responseTimeMs = Date.now() - startTime;
           result = response.text || "Desculpe, n\xE3o consegui calcular ou analisar sua d\xFAvida t\xE9cnica no momento.";
+          try {
+            result = fixConsultantImages(result, catalogImageIndex);
+          } catch (imgErr) {
+            console.warn("[engineerHelper] fixConsultantImages:", imgErr?.message);
+          }
           try {
             const userInfo2 = args.userInfo || {};
             const topic = await classifyQuestionTopic(ai, question);

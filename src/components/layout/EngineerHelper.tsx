@@ -2706,7 +2706,7 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
 
   // Parse assistant text to find matched catalog products & models
   const detectEquipmentInMessage = (content: string) => {
-    const detected: { prod: Product; model: ProductModel }[] = [];
+    const detected: { prod: Product; model: ProductModel; pos?: number }[] = [];
     if (!content || !catalogProducts || catalogProducts.length === 0) return detected;
     
     // To prevent duplicate detections of the same model in a single message
@@ -2721,9 +2721,10 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
           const escapedName = model.name.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
           const regex = new RegExp(`\\b${escapedName}\\b`, 'i');
           
-          if (regex.test(content) && !matchedModelIds.has(model.id)) {
+          const found = content.search(regex);
+          if (found >= 0 && !matchedModelIds.has(model.id)) {
             matchedModelIds.add(model.id);
-            detected.push({ prod, model });
+            detected.push({ prod, model, pos: found });
           }
         });
       }
@@ -2732,6 +2733,8 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
     // Filtering logic to respect user intent:
     // If the message is specifically about Cabeçote/Caçamba Multifuncional (CMF),
     // and CMF 600 is matched, we only show CMF 600 to prevent user confusion.
+    // Mostra só os equipamentos citados primeiro (o recomendado), no máximo 2, para não aparecer foto de equipamento errado
+    detected.sort((x, y) => (x.pos ?? 0) - (y.pos ?? 0));
     const hasCmf600 = detected.some(item => (item.model.name || '').toUpperCase().includes('CMF 600'));
     if (hasCmf600) {
       return detected.filter(item => {
@@ -2740,10 +2743,10 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
           return false;
         }
         return true;
-      });
+      }).slice(0, 2);
     }
 
-    return detected;
+    return detected.slice(0, 2);
   };
 
   const isCatalog = location.pathname === '/catalogo';
