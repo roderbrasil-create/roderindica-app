@@ -3524,8 +3524,13 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                                 );
                               })()}
 
-                              {/* 3. Generate Report button */}
-                              {idx > 0 && (
+                              {/* 3. Generate Report button: só em respostas técnicas completas (não em perguntas e respostas curtas) */}
+                              {idx > 0 && (() => {
+                                const c = msg.content || '';
+                                const specLines = (c.match(/^\s*[-•*]\s+.+:\s*.+$/gm) || []).length;
+                                const asksQuestion = /\?\s*$/.test(c.trim()) && c.length < 700;
+                                return !asksQuestion && c.length >= 600 && (matchedEquip.length > 0 || specLines >= 4);
+                              })() && (
                                 <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-800/40">
                                   <button
                                     onClick={() => handleOpenReport(msg.content, `Relatório de Análise Técnica - ${matchedEquip.length > 0 ? matchedEquip[0].model.name : 'Dimensionamento'}`)}
