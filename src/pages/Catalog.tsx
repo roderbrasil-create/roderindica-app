@@ -3753,6 +3753,48 @@ export default function Catalog() {
     return cleaned.trim();
   };
 
+  // Abre o arquivo direto, sem escolher ficha pelo nome do produto (usado no Manual de Peças)
+  const openPlainFile = (url: string) => {
+    if (!url) return;
+    if (url.startsWith('db-file://')) {
+      const openDbFile = async () => {
+        const fileId = url.replace('db-file://', '');
+        toast.loading('Abrindo documento...', { id: 'open-pdf' });
+        try {
+          const docSnap = await getDoc(doc(db, 'app_files', fileId));
+          if (docSnap.exists()) {
+            const fileData = docSnap.data();
+            const base64Response = await fetch(fileData.data);
+            const blob = await base64Response.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            
+            // For blob URLs, we often have to navigate on mobile or use a safe method
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => document.body.removeChild(a), 100);
+            
+            toast.dismiss('open-pdf');
+          } else {
+            toast.error('Arquivo não encontrado no banco de dados.', { id: 'open-pdf' });
+          }
+        } catch (err) {
+          console.error('Error opening DB file:', err);
+          toast.dismiss('open-pdf');
+          toast.error('Erro ao abrir arquivo.');
+        }
+      };
+      openDbFile();
+      return;
+    }
+
+    // Standard URL - Use direct link to avoid popup blockers
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
   const openPdf = (url: string, modelName?: string, productContext?: any) => {
     const lowerUrl = (url || '').toLowerCase();
     const lowerModelName = (modelName || '').toLowerCase();
@@ -4937,7 +4979,7 @@ export default function Catalog() {
                               variant="outline" 
                               size="sm"
                               className="w-full h-5 md:h-12 uppercase px-0 border-slate-200 text-foreground shadow-sm leading-none"
-                              onClick={() => openPdf(model.parts_manual_url || viewingGallery?.parts_manual_url || '')}
+                              onClick={() => openPlainFile(model.parts_manual_url || viewingGallery?.parts_manual_url || '')}
                               disabled={!(model.parts_manual_url || viewingGallery?.parts_manual_url)}
                             >
                               <Package className="!h-2.5 !w-2.5 md:!h-4 md:!w-4 mb-0.5 md:mb-0 md:mr-0.5 text-orange-500" />
@@ -5847,7 +5889,7 @@ export default function Catalog() {
                           <Button 
                             variant="outline" 
                             className="flex-1 justify-start gap-2 border-border h-11"
-                            onClick={() => openPdf(selectedModel.parts_manual_url || '')}
+                            onClick={() => openPlainFile(selectedModel.parts_manual_url || '')}
                             disabled={!selectedModel.parts_manual_url}
                           >
                             <Package className="h-4 w-4 text-orange-500" /> Manual de Peças (PDF)
