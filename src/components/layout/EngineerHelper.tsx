@@ -389,6 +389,15 @@ interface MarkdownImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   isLightReport?: boolean;
 }
 
+// O consultor pode terminar a resposta com [[OPCOES: a | b | c]]: vira botões para o vendedor tocar
+const parseConsultantOptions = (content: string): { text: string; options: string[] } => {
+  const re = /\[\[\s*OP[CÇ][OÕ]ES\s*:\s*([^\]]+)\]\]/i;
+  const m = (content || '').match(re);
+  if (!m) return { text: content || '', options: [] };
+  const options = m[1].split('|').map(o => o.trim()).filter(Boolean).slice(0, 6);
+  return { text: (content || '').replace(re, '').trim(), options };
+};
+
 const DB_IMAGE_CACHE = new Map<string, string>();
 
 const normalizeProductImageUrl = (rawSrc?: string): string => {
@@ -3085,7 +3094,7 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
                   className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in duration-200`}
                 >
                   <div
-                    className={`max-w-[85%] rounded-2xl p-3 text-[17.5px] sm:text-[14.5px] leading-relaxed ${
+                    className={`max-w-[88%] rounded-2xl p-3 text-[15.5px] sm:text-[14px] leading-relaxed ${
                       msg.role === 'user'
                         ? 'bg-primary text-white rounded-tr-none'
                         : 'bg-slate-850 text-slate-100 border border-slate-800 rounded-tl-none'
@@ -3093,11 +3102,23 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
                   >
                     {msg.role === 'assistant' ? (
                       <div className="space-y-3">
-                        <div className="prose prose-invert max-w-none text-[17.5px] sm:text-[14.5px] text-slate-200 space-y-2 markdown-body">
+                        <div className="max-w-none text-[15.5px] sm:text-[14px] leading-relaxed text-slate-200 space-y-2 markdown-body">
                           <ReactMarkdown
                             urlTransform={(url) => url}
                             remarkPlugins={[remarkGfm]}
                             components={{
+                              // Tudo no mesmo tamanho: título vira só uma linha em negrito
+                              h1: ({ children }) => <p className="font-bold text-amber-400 mt-2">{children}</p>,
+                              h2: ({ children }) => <p className="font-bold text-amber-400 mt-2">{children}</p>,
+                              h3: ({ children }) => <p className="font-bold text-amber-400 mt-2">{children}</p>,
+                              h4: ({ children }) => <p className="font-bold mt-2">{children}</p>,
+                              p: ({ children }) => <p className="my-1.5">{children}</p>,
+                              ul: ({ children }) => <ul className="list-disc pl-5 space-y-1 my-1.5">{children}</ul>,
+                              ol: ({ children }) => <ol className="list-decimal pl-5 space-y-1 my-1.5">{children}</ol>,
+                              li: ({ children }) => <li className="pl-0.5">{children}</li>,
+                              strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+                              em: ({ children }) => <em className="not-italic text-slate-300">{children}</em>,
+                              hr: () => null,
                               table: ({ children }) => (
                                 <div className="overflow-x-auto my-3 rounded-xl border border-slate-700 bg-slate-900/90 shadow-lg">
                                   <table className="w-full text-xs text-left text-slate-200 border-collapse">{children}</table>
@@ -3146,9 +3167,31 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
                               }
                             }}
                           >
-                            {msg.content}
+                            {parseConsultantOptions(msg.content).text}
                           </ReactMarkdown>
                         </div>
+
+                        {/* Opções para tocar quando o consultor pergunta algo */}
+                        {(() => {
+                          const { options } = parseConsultantOptions(msg.content);
+                          if (!options.length) return null;
+                          const isLast = idx === messages.length - 1;
+                          return (
+                            <div className="flex flex-wrap gap-2 pt-1">
+                              {options.map(opt => (
+                                <button
+                                  key={opt}
+                                  type="button"
+                                  disabled={!isLast || loading}
+                                  onClick={() => handleSend(opt)}
+                                  className="px-3.5 py-2 rounded-full border border-amber-500/60 bg-amber-500/10 text-amber-300 text-[14px] font-semibold active:scale-95 transition disabled:opacity-40"
+                                >
+                                  {opt}
+                                </button>
+                              ))}
+                            </div>
+                          );
+                        })()}
                         
                         {/* Dynamic Quick Action Buttons */}
                         {(() => {
@@ -3238,7 +3281,8 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
                             );
                           }
 
-                          const matchedEquip = detectEquipmentInMessage(msg.content);
+                          // Enquanto está perguntando (com opções), não mostra cartões de equipamento
+                          const matchedEquip = parseConsultantOptions(msg.content).options.length ? [] : detectEquipmentInMessage(msg.content);
                           const isArraste = 
                             msg.content.toLowerCase().includes('arraste') ||
                             msg.content.toLowerCase().includes('pinça') ||
@@ -3528,12 +3572,12 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                               {idx > 0 && (() => {
                                 const c = msg.content || '';
                                 const specLines = (c.match(/^\s*[-•*]\s+.+:\s*.+$/gm) || []).length;
-                                const asksQuestion = /\?\s*$/.test(c.trim()) && c.length < 700;
+                                const asksQuestion = parseConsultantOptions(c).options.length > 0 || (/\?\s*$/.test(c.trim()) && c.length < 700);
                                 return !asksQuestion && c.length >= 600 && (matchedEquip.length > 0 || specLines >= 4);
                               })() && (
                                 <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-800/40">
                                   <button
-                                    onClick={() => handleOpenReport(msg.content, `Relatório de Análise Técnica - ${matchedEquip.length > 0 ? matchedEquip[0].model.name : 'Dimensionamento'}`)}
+                                    onClick={() => handleOpenReport(parseConsultantOptions(msg.content).text, `Relatório de Análise Técnica - ${matchedEquip.length > 0 ? matchedEquip[0].model.name : 'Dimensionamento'}`)}
                                     className="flex items-center gap-1 text-green-400 hover:text-green-300 font-extrabold text-[9.5px] uppercase tracking-wide transition hover:underline cursor-pointer"
                                     title="Gerar e salvar imagem do relatório técnico oficial"
                                   >
