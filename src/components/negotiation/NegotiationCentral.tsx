@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, useDragControls } from 'motion/react';
-import { 
+import {
+  ChevronDown, 
   X, 
   MessageSquare, 
   DollarSign, 
@@ -92,6 +93,12 @@ import { ptBR } from 'date-fns/locale';
 import { maskCurrency, unmaskCurrency } from '../../lib/masks';
 import { compressFileToDataURL, compressImage } from '../../lib/imageUtils';
 
+
+// Integração com o Agendor desligada (out/2026). O CRM passa a ser o do Roder Vision.
+const AGENDOR_DISABLED = true;
+// Itens que não entram na comissão do indicador (além dos kits com código 9000)
+const NON_COMMISSIONABLE_RE = /m[ãa]o\s*de\s*obra|frete|transporte|instala[çc][ãa]o|montagem|entrega\s*t[ée]cnica|deslocamento|kit\s+de\s+instala/i;
+
 export default function NegotiationCentral() {
   const { 
     activeIndication, 
@@ -115,7 +122,8 @@ export default function NegotiationCentral() {
   const [isMobile, setIsMobile] = useState(false);
 
   // Agendor CRM Integration Local States
-  const [agendorEnabled, setAgendorEnabled] = useState(false);
+  const [agendorEnabledSetting, setAgendorEnabled] = useState(false);
+  const agendorEnabled = !AGENDOR_DISABLED && agendorEnabledSetting;
   const [syncingAgendor, setSyncingAgendor] = useState(false);
   const [importingFiles, setImportingFiles] = useState(false);
   const [showRelinkBox, setShowRelinkBox] = useState(false);
@@ -255,6 +263,7 @@ export default function NegotiationCentral() {
   };
 
   useEffect(() => {
+    if (AGENDOR_DISABLED) return;
     if (isOpen && activeIndication?.id) {
       if (!activeIndication.agendor_synced || !activeIndication.agendor_deal_id) {
         // Automatic sync to Agendor CRM when opening negotiation central if deal not synced
@@ -356,6 +365,7 @@ export default function NegotiationCentral() {
     searchParams?: { cnpj?: string; phone?: string; name?: string; code?: string },
     isSilent: boolean = false
   ) => {
+    if (AGENDOR_DISABLED) return;
     if (!isSilent) {
       setIsSearchingCRM(true);
     }
@@ -852,7 +862,8 @@ export default function NegotiationCentral() {
           for (const item of result.items) {
             if (!item.code) continue;
             
-            const isKit = item.code.startsWith('9000');
+            // Comissão só sobre equipamento: fora kit (9000), mão de obra, frete e instalação
+            const isKit = item.code.startsWith('9000') || NON_COMMISSIONABLE_RE.test(item.name || '');
             const registered = registeredProducts.find(p => p.code === item.code);
             
             if (registered) {
@@ -1041,7 +1052,8 @@ export default function NegotiationCentral() {
           for (const item of result.items) {
             if (!item.code) continue;
             
-            const isKit = item.code.startsWith('9000');
+            // Comissão só sobre equipamento: fora kit (9000), mão de obra, frete e instalação
+            const isKit = item.code.startsWith('9000') || NON_COMMISSIONABLE_RE.test(item.name || '');
             const registered = registeredProducts.find(p => p.code === item.code);
             
             if (registered) {
@@ -1464,8 +1476,8 @@ export default function NegotiationCentral() {
       setHistoryImages([]);
       toast.success('Acompanhamento adicionado com sucesso!');
 
-      // Push note & new attachments to Agendor CRM in background asynchronously
-      fetch('/api/agendor/add-comment', {
+      // Agendor desligado: a nota fica só no Roder Indica
+      if (!AGENDOR_DISABLED) fetch('/api/agendor/add-comment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1590,7 +1602,7 @@ export default function NegotiationCentral() {
                 </div>
                 <div className="min-w-0">
                   <h3 className="font-bold italic text-sm lg:text-lg leading-tight uppercase flex items-center gap-1.5 text-slate-800 truncate">
-                    CENTRAL DE NEGOCIAÇÃO <Badge className="text-[8px] lg:text-[10px] bg-slate-100 text-slate-500 border-slate-200 py-0 h-4 lg:h-5 shrink-0">PLANILHA</Badge>
+                    Negociação
                   </h3>
                 </div>
               </div>
@@ -1620,146 +1632,54 @@ export default function NegotiationCentral() {
                         ? commissionedProducts.map((p: any) => `${p.quantity || 1}x ${p.name}`).join(', ')
                         : 'Equipamento Roder'));
 
+              const tempLabel = activeIndication.ai_score === 'hot' ? 'Quente' : activeIndication.ai_score === 'cold' ? 'Frio' : activeIndication.ai_score ? 'Morno' : null;
+              const tempClass = activeIndication.ai_score === 'hot' ? 'bg-red-500' : activeIndication.ai_score === 'cold' ? 'bg-blue-500' : 'bg-amber-500';
               return (
-                <div className="bg-slate-100/80 dark:bg-slate-900/50 px-4 lg:px-6 py-2.5 border-b border-border flex flex-col lg:flex-row lg:items-center justify-between gap-3 shrink-0">
-                  <div className="flex flex-wrap items-center gap-3 lg:gap-4 min-w-0">
-                    {/* Cliente */}
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="h-8 w-8 rounded-full bg-primary/10 text-primary font-black flex items-center justify-center shrink-0 text-xs">
-                        {clientDisplayName.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 mb-0.5">
-                          <span className="text-[9px] font-black uppercase text-muted-foreground tracking-wider leading-none">Cliente</span>
-                          {activeIndication.ai_score && (
-                            <Badge className={cn(
-                              "text-[7px] lg:text-[8px] h-3.5 font-bold uppercase border-none py-0 px-1",
-                              activeIndication.ai_score === 'hot' ? "bg-red-500 text-white" : activeIndication.ai_score === 'cold' ? "bg-blue-500 text-white" : "bg-amber-500 text-white"
-                            )}>
-                              {activeIndication.ai_score === 'hot' ? '🔥 Quente' : activeIndication.ai_score === 'cold' ? '❄️ Frio' : '⚖️ Morno'}
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <p className="text-xs lg:text-sm font-black uppercase tracking-tight text-slate-900 dark:text-slate-100 truncate max-w-[160px] sm:max-w-xs">
-                            {clientDisplayName}
-                          </p>
-                          {activeIndication.client_phone && (
-                            <a 
-                              href={`https://wa.me/55${activeIndication.client_phone.replace(/\D/g, '')}`} 
-                              target="_blank" 
-                              rel="noreferrer"
-                              className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30 flex items-center gap-1 transition-all"
-                            >
-                              <Phone className="h-2.5 w-2.5" />
-                              <span>{activeIndication.client_phone}</span>
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <Separator orientation="vertical" className="hidden sm:block h-7 bg-border" />
-
-                    {/* Indicador / Parceiro */}
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <div className="h-7 w-7 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0">
-                        <Crown className="h-3.5 w-3.5 text-amber-500" />
-                      </div>
-                      <div>
-                        <span className="text-[9px] font-black uppercase text-muted-foreground block leading-none mb-0.5">Indicador</span>
-                        <span className="text-xs font-bold text-amber-600 dark:text-amber-400 truncate max-w-[130px] block">
-                          {indicatorDisplayName}
-                        </span>
-                      </div>
-                    </div>
-
-                    <Separator orientation="vertical" className="hidden sm:block h-7 bg-border" />
-
-                    {/* Consultor / Vendedor Interno */}
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                        <Headphones className="h-3.5 w-3.5 text-primary" />
-                      </div>
-                      <div>
-                        <span className="text-[9px] font-black uppercase text-muted-foreground block leading-none mb-0.5">Consultor</span>
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate max-w-[130px] block">
-                          {consultantDisplayName}
-                        </span>
-                      </div>
-                    </div>
-
-                    <Separator orientation="vertical" className="hidden sm:block h-7 bg-border" />
-
-                    {/* Equipamento Solicitado */}
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <div className="h-7 w-7 rounded-full bg-orange-500/10 flex items-center justify-center shrink-0">
-                        <Package className="h-3.5 w-3.5 text-orange-500" />
-                      </div>
-                      <div>
-                        <span className="text-[9px] font-black uppercase text-muted-foreground block leading-none mb-0.5">Equipamento</span>
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate max-w-[170px] block">
-                          {equipmentRequestedText}
-                        </span>
-                      </div>
-                    </div>
-
-                    <Separator orientation="vertical" className="hidden sm:block h-7 bg-border" />
-
-                    {/* Localização */}
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      <div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-[9px] font-black uppercase text-muted-foreground block leading-none">Local</span>
-                          {activeIndication.is_export && (
-                            <Badge className="bg-sky-600 text-white text-[7px] h-3.5 py-0 px-1 font-black uppercase shrink-0">
-                              🌎 Exportação
-                            </Badge>
-                          )}
-                        </div>
-                        <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 truncate max-w-[150px] block" title={activeIndication.client_location}>
-                          {activeIndication.client_location || 'Não indicado'}
-                        </span>
-                      </div>
-                    </div>
+                <div className="bg-slate-50 dark:bg-slate-900/50 px-4 lg:px-6 py-2 border-b border-border shrink-0 flex flex-col gap-1">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <p className="text-sm lg:text-base font-black uppercase tracking-tight text-slate-900 dark:text-slate-100 truncate min-w-0" title={clientDisplayName}>
+                      {clientDisplayName}
+                    </p>
+                    {tempLabel && (
+                      <span className={cn("text-[9px] font-bold uppercase text-white rounded px-1.5 py-0.5 shrink-0", tempClass)}>{tempLabel}</span>
+                    )}
+                    {activeIndication.is_export && (
+                      <span className="text-[9px] font-bold uppercase text-white bg-sky-600 rounded px-1.5 py-0.5 shrink-0">Exportação</span>
+                    )}
+                    {activeIndication.client_phone && (
+                      <a
+                        href={`https://wa.me/55${activeIndication.client_phone.replace(/\D/g, '')}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="ml-auto lg:ml-2 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-1 rounded-md border border-emerald-500/30 flex items-center gap-1 shrink-0"
+                      >
+                        <Phone className="h-3 w-3" />
+                        <span className="hidden sm:inline">{activeIndication.client_phone}</span>
+                        <span className="sm:hidden">WhatsApp</span>
+                      </a>
+                    )}
                   </div>
-
-                  {/* Right side buttons */}
-                  <div className="flex items-center gap-2 justify-end shrink-0">
-                    <span className="hidden lg:inline-flex items-center gap-1.5 text-[10px] font-black uppercase text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full shrink-0">
-                      <LayoutDashboard className="h-3.5 w-3.5 text-emerald-600" /> Tela Cheia (Lado a Lado)
-                    </span>
-                    <div className="flex lg:hidden items-center gap-1.5">
-                      <Button 
-                        variant={activeTab === 'commercial' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setActiveTab('commercial')}
-                        className={cn(
-                          "gap-1 font-bold italic uppercase text-[8px] tracking-wider h-7 px-2 rounded-full transition-all border",
-                          activeTab === 'commercial' 
-                            ? "bg-primary text-white border-primary shadow-md shadow-primary/10" 
-                            : "bg-white text-muted-foreground border-border hover:border-primary/50 hover:bg-muted"
-                        )}
-                      >
-                        <Package className="h-3 w-3 shrink-0" />
-                        <span>Comercial</span>
-                      </Button>
-                      <Button 
-                        variant={activeTab === 'timeline' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setActiveTab('timeline')}
-                        className={cn(
-                          "gap-1 font-bold italic uppercase text-[8px] tracking-wider h-7 px-2 rounded-full transition-all border",
-                          activeTab === 'timeline' 
-                            ? "bg-primary text-white border-primary shadow-md shadow-primary/10" 
-                            : "bg-white text-muted-foreground border-border hover:border-primary/50 hover:bg-muted"
-                        )}
-                      >
-                        <History className="h-3 w-3 shrink-0" />
-                        <span>Acompanhamento</span>
-                      </Button>
-                    </div>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground min-w-0">
+                    <span className="truncate max-w-full">Indicador: <b className="font-semibold text-amber-600 dark:text-amber-400">{indicatorDisplayName}</b></span>
+                    <span className="truncate max-w-full">Consultor: <b className="font-semibold text-slate-700 dark:text-slate-200">{consultantDisplayName}</b></span>
+                    <span className="truncate max-w-full" title={equipmentRequestedText}>Equipamento: <b className="font-semibold text-slate-700 dark:text-slate-200">{equipmentRequestedText}</b></span>
+                    <span className="flex items-center gap-0.5 truncate max-w-full" title={activeIndication.client_location}><MapPin className="h-3 w-3 shrink-0" />{activeIndication.client_location || 'Local não indicado'}</span>
+                  </div>
+                  <div className="flex lg:hidden mt-1 bg-white dark:bg-slate-900 border border-border rounded-lg p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('commercial')}
+                      className={cn("flex-1 flex items-center justify-center gap-1.5 text-[11px] font-bold uppercase h-8 rounded-md transition-all", activeTab === 'commercial' ? "bg-primary text-white" : "text-muted-foreground")}
+                    >
+                      <Package className="h-3.5 w-3.5" /> Orçamento e pedido
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('timeline')}
+                      className={cn("flex-1 flex items-center justify-center gap-1.5 text-[11px] font-bold uppercase h-8 rounded-md transition-all", activeTab === 'timeline' ? "bg-primary text-white" : "text-muted-foreground")}
+                    >
+                      <History className="h-3.5 w-3.5" /> Histórico
+                    </button>
                   </div>
                 </div>
               );
@@ -1768,143 +1688,6 @@ export default function NegotiationCentral() {
             {/* Content Area */}
             <div className="flex-1 overflow-y-auto lg:overflow-hidden bg-slate-50/10 p-3 lg:p-6 flex flex-col gap-4 touch-pan-y overscroll-contain">
             
-            {/* Agendor CRM Sync Status Banner */}
-            {agendorEnabled && (
-              <div className={cn(
-                "border rounded-xl p-3 flex flex-col gap-2 shadow-sm shrink-0 transition-all",
-                activeIndication?.agendor_synced 
-                  ? "bg-emerald-500/5 border-emerald-500/10" 
-                  : "bg-slate-500/5 border-border"
-              )}>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className={cn(
-                      "h-8 w-8 rounded-full flex items-center justify-center shrink-0",
-                      activeIndication?.agendor_synced 
-                        ? "bg-emerald-500/10 text-emerald-600" 
-                        : "bg-slate-500/10 text-slate-500"
-                    )}>
-                      {activeIndication?.agendor_synced ? (
-                        <CheckCircle2 className="h-4 w-4" />
-                      ) : (
-                        <Settings className="h-4 w-4" />
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className={cn(
-                          "text-[10px] font-black uppercase leading-none",
-                          activeIndication?.agendor_synced ? "text-emerald-600" : "text-muted-foreground"
-                        )}>
-                          {activeIndication?.agendor_synced ? "Sincronizado no Agendor CRM" : "Não Sincronizado no Agendor"}
-                        </p>
-                        {activeIndication?.agendor_synced_at && (
-                          <span className="text-[8px] text-muted-foreground">
-                            {new Date(activeIndication.agendor_synced_at).toLocaleDateString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-slate-600 leading-tight mt-1 truncate max-w-md">
-                        {activeIndication?.agendor_synced 
-                          ? `Esta indicação está vinculada ao negócio #${activeIndication.agendor_deal_id} no CRM.` 
-                          : "A integração com o Agendor CRM está ativa. Você pode sincronizar este lead manualmente."}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2 shrink-0">
-                    {activeIndication?.agendor_synced && (
-                      <a 
-                        href={`https://web.agendor.com.br/negocios/${activeIndication.agendor_deal_id}`} 
-                        target="_blank" 
-                        referrerPolicy="no-referrer"
-                        className="text-[10px] font-bold text-slate-700 hover:text-slate-900 flex items-center gap-1 bg-white border border-border px-3 py-1.5 rounded-lg shadow-sm transition-all hover:bg-slate-50"
-                      >
-                        Ver no Agendor <ExternalLink className="h-3 w-3" />
-                      </a>
-                    )}
-
-                    {activeIndication?.agendor_synced && canInteract && !isSold && (
-                      <Button 
-                        size="sm"
-                        variant="outline"
-                        onClick={handleImportFromAgendor}
-                        disabled={importingFiles}
-                        className="h-8 text-[10px] font-bold uppercase gap-1.5 border-primary text-primary hover:bg-primary/5 bg-white"
-                      >
-                        <RotateCw className={cn("h-3.5 w-3.5", importingFiles && "animate-spin")} />
-                        {importingFiles ? 'Importando...' : 'Importar do CRM'}
-                      </Button>
-                    )}
-
-                    {canInteract && !isSold && (
-                      <Button 
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setShowRelinkBox(!showRelinkBox)}
-                        className="h-8 text-[10px] font-bold uppercase gap-1.5 border-amber-500/50 text-amber-700 dark:text-amber-300 bg-amber-50/80 hover:bg-amber-100 dark:bg-amber-950/30"
-                      >
-                        <Settings className="h-3.5 w-3.5" />
-                        <span>{showRelinkBox ? 'Fechar Re-vinculação' : 'Alterar ID / Re-vincular'}</span>
-                      </Button>
-                    )}
-
-                    {!activeIndication?.agendor_synced && (
-                      <Button 
-                        size="sm"
-                        variant="outline"
-                        onClick={handleSyncToAgendor}
-                        disabled={syncingAgendor}
-                        className="h-8 text-[10px] font-bold uppercase gap-1.5 border-border bg-white"
-                      >
-                        <RotateCw className={cn("h-3.5 w-3.5", syncingAgendor && "animate-spin")} />
-                        {syncingAgendor ? 'Sincronizando...' : 'Sincronizar CRM'}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Inline Re-link Box */}
-                {showRelinkBox && (
-                  <div className="w-full mt-1 pt-2 border-t border-amber-500/20 flex flex-col gap-2 bg-amber-500/10 p-3 rounded-lg animate-in fade-in slide-in-from-top-1 duration-200">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-extrabold uppercase text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
-                        <Settings className="h-3.5 w-3.5 text-amber-600" />
-                        Vincular a um Novo Negócio do Agendor:
-                      </span>
-                      <button 
-                        type="button" 
-                        onClick={() => setShowRelinkBox(false)}
-                        className="text-[10px] text-slate-500 hover:text-slate-700 font-bold uppercase"
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Input 
-                        value={relinkInput}
-                        onChange={(e) => setRelinkInput(e.target.value)}
-                        placeholder="Cole aqui o novo ID (ex: 44477683), Link da URL do Agendor ou Email de redirecionamento"
-                        className="bg-white dark:bg-slate-900 text-xs h-8 border-amber-500/40 flex-1 font-mono text-slate-900 dark:text-slate-100"
-                      />
-                      <Button 
-                        size="sm"
-                        disabled={!relinkInput.trim() || isRelinking}
-                        onClick={handleDirectRelinkAgendor}
-                        className="h-8 text-[9px] uppercase font-bold bg-amber-600 hover:bg-amber-700 text-white shrink-0 shadow-sm"
-                      >
-                        {isRelinking ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RotateCw className="h-3 w-3 mr-1" />}
-                        {isRelinking ? 'Sincronizando...' : 'Salvar & Re-sincronizar'}
-                      </Button>
-                    </div>
-                    <p className="text-[9px] text-amber-800/80 dark:text-amber-300 leading-tight">
-                      💡 <b>Como funciona:</b> Se um negócio foi cancelado e recriado no Agendor por Luana ou outro consultor, cole aqui o novo ID (ex: <code>44477683</code>), link completo ou e-mail de redirecionamento (ex: <code>sdr-163494n44477683@to.agendor.com.br</code>) para vincular e puxar todo o histórico automaticamente.
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
             {isSold && (
               <div className="bg-emerald-50 border-2 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-900/30 rounded-xl p-3 flex items-center justify-between shadow-sm shrink-0">
                 <div className="flex items-center gap-3">
@@ -1920,29 +1703,6 @@ export default function NegotiationCentral() {
               </div>
             )}
 
-            <AnimatePresence>
-              {activeTab === 'commercial' && (isAdmin || isManager) && commissionedProducts.some(p => p.base_value <= 0) && (
-                <motion.div 
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="shrink-0"
-                >
-                  <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-3 flex items-center justify-between shadow-sm">
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600">
-                        <BadgeDollarSign className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-medium uppercase text-amber-600 leading-none mb-1">Ação Requerida</p>
-                        <p className="text-xs font-normal text-amber-900 leading-tight">Existem itens sem valor base cadastrado. A comissão não será calculada corretamente.</p>
-                      </div>
-                    </div>
-                    <Badge className="bg-amber-500 text-white border-none text-[8px] font-black uppercase py-0.5 px-2">Atenção</Badge>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
 
             {/* DESKTOP SPLIT SCREEN / MOBILE SINGLE TAB CONTAINER */}
             <div className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden">
@@ -1953,26 +1713,21 @@ export default function NegotiationCentral() {
                   "lg:col-span-5 order-2 lg:order-2 flex flex-col gap-4 overflow-y-auto pl-1 lg:border-l border-slate-200/80 dark:border-slate-800 lg:pl-5 h-full min-h-0",
                   isMobile && activeTab !== 'commercial' ? "hidden lg:flex" : "flex"
                 )}>
-                  {/* Luana / Gislene warning for missing base commission value */}
-                  {(isAdmin || isManager) && activeIndication?.status === 'negotiating' && (!activeIndication.base_commission_value || activeIndication.base_commission_value <= 0) && (
-                    <motion.div 
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className="p-3 bg-amber-50/90 dark:bg-amber-950/40 border-2 border-amber-300/65 dark:border-amber-900/50 rounded-xl flex flex-col gap-1.5 shadow-sm shrink-0"
-                    >
-                      <div className="flex items-center gap-2">
-                        <AlertTriangle className="h-4 w-4 text-amber-600 animate-pulse" />
-                        <span className="text-[9px] font-black uppercase text-amber-700 tracking-wider">Aviso para Luana / Gislene</span>
-                      </div>
-                      <p className="text-[11px] font-bold text-amber-900 dark:text-amber-200 leading-snug">
-                        Esta indicação está em <b className="underline">Andamento</b>, mas não possui <b className="underline">Valor de Comissão Base</b>. Carregue o Orçamento ou Pedido de Venda para sincronizar produtos comissionáveis.
+                  {/* Aviso único para gestão: falta base de comissão */}
+                  {(isAdmin || isManager) && !isSold && (
+                    (activeIndication?.status === 'negotiating' && (!activeIndication.base_commission_value || activeIndication.base_commission_value <= 0)) ||
+                    commissionedProducts.some(p => p.base_value <= 0)
+                  ) && (
+                    <div className="px-3 py-2 bg-amber-50 dark:bg-amber-950/40 border border-amber-300/70 dark:border-amber-900/50 rounded-lg flex items-start gap-2 shrink-0">
+                      <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                      <p className="text-[11px] font-semibold text-amber-900 dark:text-amber-200 leading-snug">
+                        Falta valor base de comissão. Carregue o orçamento ou o pedido de venda, ou preencha o valor dos itens.
                       </p>
-                    </motion.div>
+                    </div>
                   )}
 
                   {/* Valores do Orçamento / Pedido de Venda */}
-                  <div className="relative space-y-4 p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm shrink-0">
+                  <div className="relative space-y-3 p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm shrink-0">
                     {(readingBudget || readingBudgetFile) && (
                       <div className="absolute inset-0 bg-white/80 dark:bg-slate-950/80 backdrop-blur-[2px] z-20 flex flex-col items-center justify-center rounded-xl">
                         <div className="w-48 h-2 bg-muted rounded-full overflow-hidden mb-3">
@@ -1989,10 +1744,10 @@ export default function NegotiationCentral() {
                     )}
 
                     {/* Section 1: Orçamento */}
-                    <div className="space-y-3">
+                    <div className="space-y-2.5">
                       <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
                         <h4 className="text-[10px] font-extrabold italic uppercase text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                          <FileText className="h-3.5 w-3.5 text-orange-500" /> 1. Valores do Orçamento
+                          <FileText className="h-3.5 w-3.5 text-orange-500" /> 1. Orçamento enviado ao cliente
                         </h4>
                         {isEditable && (
                           <label className="cursor-pointer">
@@ -2048,7 +1803,7 @@ export default function NegotiationCentral() {
                       {budgetLoaded && (
                         <div className="p-2 bg-green-500/10 border border-green-500/20 rounded-md flex items-center justify-between text-[9px] text-green-700 font-semibold uppercase leading-none">
                           <span className="flex items-center gap-1">
-                            <CheckCircle2 className="h-3 w-3 text-green-500" /> Orçamento Realizado/Carregado
+                            <CheckCircle2 className="h-3 w-3 text-green-500" /> Orçamento enviado ao cliente{budgetDate ? ` em ${budgetDate.split('-').reverse().join('/')}` : ''}
                           </span>
                           <span className="text-[8px] italic">
                             Validade: 60 dias de proteção
@@ -2058,10 +1813,10 @@ export default function NegotiationCentral() {
                     </div>
 
                     {/* Section 2: Pedido de Venda */}
-                    <div className="space-y-3 pt-2 border-t border-slate-150 dark:border-slate-850">
+                    <div className="space-y-2.5 pt-2 border-t border-slate-150 dark:border-slate-850">
                       <div className="flex items-center justify-between pb-1">
                         <h4 className="text-[10px] font-extrabold italic uppercase text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                          <BadgeDollarSign className="h-3.5 w-3.5 text-primary" /> 2. Valores de Venda / Pedido
+                          <BadgeDollarSign className="h-3.5 w-3.5 text-primary" /> 2. Pedido de venda (base da comissão)
                         </h4>
                         {isEditable && (
                           <label className="cursor-pointer">
@@ -2079,9 +1834,9 @@ export default function NegotiationCentral() {
                         )}
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3.5">
+                      <div className="grid grid-cols-2 gap-2">
                         <div className="space-y-1 col-span-2">
-                          <Label className="text-[8px] font-bold uppercase text-muted-foreground">Valor do Pedido de Venda (Definitivo R$)</Label>
+                          <Label className="text-[8px] font-bold uppercase text-muted-foreground">Valor do pedido (R$)</Label>
                           <Input 
                             disabled={!isEditable}
                             value={saleValue ? maskCurrency(Number(saleValue)) : ''}
@@ -2092,35 +1847,35 @@ export default function NegotiationCentral() {
                         </div>
 
                         <div className="space-y-1">
-                          <Label className="text-[9px] font-bold uppercase text-muted-foreground dark:text-slate-400">Nº do Pedido</Label>
+                          <Label className="text-[8px] font-bold uppercase text-muted-foreground">Nº do pedido</Label>
                           <Input 
                             disabled={!isEditable}
                             value={orderNumber}
                             onChange={(e) => setOrderNumber(e.target.value)}
                             placeholder="Ex: 9414"
-                            className="bg-slate-50 dark:bg-slate-800 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-semibold text-xs h-8 border-slate-200 focus:border-primary transition-all rounded-lg"
+                            className="bg-slate-50 dark:bg-slate-800 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-semibold text-[11px] h-7 px-1.5 border-slate-200 focus:border-primary transition-all"
                           />
                         </div>
 
                         <div className="space-y-1">
-                          <Label className="text-[9px] font-bold uppercase text-muted-foreground dark:text-slate-400">Data do Pedido</Label>
+                          <Label className="text-[8px] font-bold uppercase text-muted-foreground">Data do pedido</Label>
                           <Input 
                             type="date"
                             disabled={!isEditable}
                             value={orderDate}
                             onChange={(e) => setOrderDate(e.target.value)}
-                            className="bg-slate-50 dark:bg-slate-800 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-semibold text-xs h-8 border-slate-200 focus:border-primary transition-all rounded-lg"
+                            className="bg-slate-50 dark:bg-slate-800 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-semibold text-[11px] h-7 px-1.5 border-slate-200 focus:border-primary transition-all"
                           />
                         </div>
 
                         <div className="space-y-1 col-span-2">
-                          <Label className="text-[9px] font-bold uppercase text-muted-foreground dark:text-slate-450">Data Coleta / Entrega</Label>
+                          <Label className="text-[8px] font-bold uppercase text-muted-foreground">Data coleta / entrega</Label>
                           <Input 
                             type="date"
                             disabled={!isEditable}
                             value={deliveryDate}
                             onChange={(e) => setDeliveryDate(e.target.value)}
-                            className="bg-slate-50 dark:bg-slate-800 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-semibold text-xs h-8 border-slate-200 focus:border-primary transition-all rounded-lg"
+                            className="bg-slate-50 dark:bg-slate-800 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-semibold text-[11px] h-7 px-1.5 border-slate-200 focus:border-primary transition-all"
                           />
                         </div>
                       </div>
@@ -2239,7 +1994,12 @@ export default function NegotiationCentral() {
                     </div>
                   )}
 
-                  {/* Planilha de Produtos Comissionáveis */}
+                  {/* Planilha de Produtos Comissionáveis (recolhível) */}
+                  <details className="group shrink-0 w-full" open={!isMobile}>
+                  <summary className="cursor-pointer list-none flex items-center justify-between px-3 py-2 bg-white dark:bg-card border border-slate-200 dark:border-slate-800 rounded-xl text-[11px] font-bold uppercase text-slate-600 dark:text-slate-300 group-open:rounded-b-none">
+                    <span>Itens do pedido ({commissionedProducts.length})</span>
+                    <span className="text-primary normal-case">{maskCurrency(Number(totalCommissionable))} comissionável <ChevronDown className="inline h-3.5 w-3.5 transition-transform group-open:rotate-180" /></span>
+                  </summary>
                   <div className="flex flex-col bg-white dark:bg-card border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm shrink-0 w-full">
                     <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-2 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
                       <h4 className="text-[10px] font-bold italic uppercase flex items-center gap-2 text-slate-600 dark:text-slate-350">
@@ -2507,6 +2267,7 @@ export default function NegotiationCentral() {
                     </table>
                   </div>
                 </div>
+                  </details>
               </div>
 
                 {/* LEFT PANEL: ACOMPANHAMENTO & LINHA DO TEMPO (7 SPANS, LEFT SIDE - AGENDOR CRM STYLE) */}
@@ -2648,7 +2409,7 @@ export default function NegotiationCentral() {
                         >
                           Todos
                         </button>
-                        <button
+                        {false && (<button
                           type="button"
                           onClick={() => setTimelineFilter('agendor')}
                           className={cn(
@@ -2657,7 +2418,7 @@ export default function NegotiationCentral() {
                           )}
                         >
                           Agendor CRM
-                        </button>
+                        </button>)}
                         <button
                           type="button"
                           onClick={() => setTimelineFilter('roder')}

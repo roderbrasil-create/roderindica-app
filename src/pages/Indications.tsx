@@ -534,7 +534,8 @@ export default function Indications() {
         commissionableValue = (selectedIndication.commissioned_products || []).reduce(
           (acc, p) => {
             const is9000 = p.code && p.code.trim().startsWith('9000');
-            const isCommissionable = p.is_commissionable !== false && !is9000;
+            const isService = /m[ãa]o\s*de\s*obra|frete|transporte|instala[çc][ãa]o|montagem|entrega\s*t[ée]cnica|deslocamento|kit\s+de\s+instala/i.test(p.name || '');
+            const isCommissionable = p.is_commissionable !== false && !is9000 && !isService;
             return acc + (isCommissionable ? (p.base_value || 0) * (p.quantity || 0) : 0);
           }, 
           0

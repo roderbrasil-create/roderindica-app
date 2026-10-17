@@ -5192,6 +5192,17 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     timezone: BR_TIMEZONE
   });
 
+  // --- AGENDOR CRM: INTEGRAÇÃO DESLIGADA (out/2026) ---
+  // A sincronização com o Agendor criava negócios no lugar errado e duplicados.
+  // Todas as rotas abaixo respondem "desligado" sem chamar o Agendor. O código fica
+  // guardado apenas para referência; para religar, mude AGENDOR_DISABLED para false.
+  const AGENDOR_DISABLED = true;
+  if (AGENDOR_DISABLED) {
+    app.use(['/api/agendor', '/api/webhooks/agendor'], (req, res) => {
+      res.status(200).json({ success: false, disabled: true, message: 'Integração com o Agendor desligada.' });
+    });
+  }
+
   // --- AGENDOR CRM INTEGRATION ROUTES ---
 
   // Helper function to call Agendor API
@@ -7139,6 +7150,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
 
   // Periodic Agendor CRM background sync every 15 minutes for all active linked deals
   cron.schedule('*/15 * * * *', async () => {
+    if (AGENDOR_DISABLED) return;
     try {
       const settingsSnap = await db.collection("settings").doc("agendor").get();
       if (!settingsSnap.exists) return;

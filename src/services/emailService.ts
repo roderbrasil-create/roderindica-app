@@ -736,7 +736,7 @@ export async function notifyLeadAssignment(
         
         <div style="padding: 24px; line-height: 1.6;">
           <p style="font-size: 15px; margin-top: 0;">Olá <strong>${seller.name}</strong>,</p>
-          <p style="font-size: 15px; color: #475569;">Um novo lead vindo do canal de indicações da RODER foi direcionado para você. Você deve dar continuidade ao atendimento técnico-comercial e registrar o progresso através do <strong>CRM Agendor</strong>.</p>
+          <p style="font-size: 15px; color: #475569;">Um novo lead vindo do canal de indicações da RODER foi direcionado para você. Você deve dar continuidade ao atendimento técnico-comercial e registrar o progresso no <strong>Roder Indica</strong>.</p>
           
           <!-- Client Card -->
           <div style="background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 18px; margin: 20px 0; border-radius: 4px;">

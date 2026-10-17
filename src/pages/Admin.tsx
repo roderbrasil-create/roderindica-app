@@ -3065,8 +3065,8 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                 </Card>
               </div>
 
-              {/* Coluna 2: Integração Agendor CRM */}
-              <div className="flex flex-col gap-6">
+              {/* Coluna 2: Integração Agendor CRM (desligada em out/2026) */}
+              <div className="hidden">
                 <Card className="bg-card border-border shadow-sm">
                   <CardHeader>
                     <CardTitle className="text-xl font-bold flex items-center gap-2">
