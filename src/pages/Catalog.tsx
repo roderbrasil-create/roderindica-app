@@ -1108,6 +1108,11 @@ export default function Catalog() {
           addGarraClamshell();
         }
 
+        // Garra Rachadora GR: cria uma vez (GR800 entra depois como novo modelo)
+        if ((isAdmin || isManager) && data.length > 0 && !data.some(p => (p.name || '').toLowerCase().includes('rachadora'))) {
+          addGarraRachadora();
+        }
+
         const fellerDisco = data.find(p => p.name === 'Feller de Disco');
         if (!fellerDisco && data.length > 0) {
           addFellerDeDisco();
@@ -1239,6 +1244,43 @@ export default function Catalog() {
       toast.success('Garra Clamshell GCR adicionada ao catálogo.');
     } catch (err) {
       console.error('Erro ao criar Garra Clamshell GCR:', err);
+    }
+  };
+
+  const addGarraRachadora = async () => {
+    try {
+      const q = query(collection(db, 'products'), where('name', '==', 'Garra Rachadora GR'));
+      const snap = await getDocs(q);
+      if (!snap.empty) return;
+      const img = '/catalogo/gr/gr600-produto.jpg';
+      const ficha = '/catalogo/gr/Ficha_Garra_Rachadora_GR600.pdf';
+      await addDoc(collection(db, 'products'), {
+        name: 'Garra Rachadora GR',
+        description: 'A Garra Rachadora Roder (GR) racha toras e movimenta a madeira com o mesmo equipamento, sem precisar de rachador separado. Projeto robusto para alta produtividade, durabilidade e segurança nas operações florestais. Modelo GR600: racha toras de até 600 mm de diâmetro, abertura máxima de 762 mm, altura com a garra aberta de 1.444 mm, peso de 821 kg sem rotator e 896 kg com rotator, rotator de 16 t e pressão de trabalho de 180 a 240 bar.',
+        category: 'Garras Florestais',
+        image_url: img,
+        video_url: '',
+        pdf_url: ficha,
+        is_blocked: false,
+        created_at: new Date().toISOString(),
+        models: [
+          {
+            id: 'gr-600', name: 'GR600', base_value: 0, images: [img], pdf_url: ficha,
+            technical_specs: {
+              diametro_rachamento: '600 mm',
+              abertura_maxima: '762 mm',
+              altura_garra_aberta: '1.444 mm',
+              peso_sem_rotator: '821 kg',
+              peso_com_rotator: '896 kg',
+              rotator: '16 t',
+              pressao: '180 a 240 bar',
+            },
+          },
+        ],
+      });
+      toast.success('Garra Rachadora GR adicionada ao catálogo.');
+    } catch (err) {
+      console.error('Erro ao criar Garra Rachadora GR:', err);
     }
   };
 
@@ -4273,6 +4315,10 @@ export default function Catalog() {
       volume: "Volume",
       escavadeira_cavaco: "Escavadeira p/ cavaco",
       escavadeira_areia: "Escavadeira p/ areia",
+      diametro_rachamento: "Diâmetro máx. de rachamento",
+      altura_garra_aberta: "Altura (garra aberta)",
+      peso_sem_rotator: "Peso sem rotator",
+      peso_com_rotator: "Peso com rotator",
       instalacao_hidraulica: 'Instalação Hidráulica',
                            acionamento: 'Acionamento',
                            tempo_de_ciclo: 'Tempo de Ciclo',
@@ -4948,7 +4994,11 @@ export default function Catalog() {
                           capacidade_diametro: 'Capacidade Máx. Diâmetro',
                           volume: 'Volume',
                           escavadeira_cavaco: 'Escavadeira p/ cavaco',
-                          escavadeira_areia: 'Escavadeira p/ areia'
+                          escavadeira_areia: 'Escavadeira p/ areia',
+                          diametro_rachamento: 'Diâmetro máx. de rachamento',
+                          altura_garra_aberta: 'Altura (garra aberta)',
+                          peso_sem_rotator: 'Peso sem rotator',
+                          peso_com_rotator: 'Peso com rotator'
                         };
                         const label = specLabels[kMapping] || key.replace(/_/g, ' ');
                         const isGiro360 = kMapping === 'giro_360';
