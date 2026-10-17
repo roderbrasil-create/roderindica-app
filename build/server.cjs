@@ -4921,7 +4921,18 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       if (!permitidos.includes(host)) return res.status(403).send("Este endere\xE7o n\xE3o pode ser aberto dentro do app.");
       const drive = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:export=\w+&)?id=)([\w-]{10,})/);
       if (drive) url = `https://drive.google.com/uc?export=download&id=${drive[1]}`;
-      const r = await fetch(url, { redirect: "follow", headers: { "User-Agent": "Mozilla/5.0 (RoderIndica)" } });
+      const destinos = [...permitidos, "drive.usercontent.google.com", "doc-0s-docs.googleusercontent.com"];
+      let r = null;
+      for (let salto = 0; salto < 5; salto++) {
+        r = await fetch(url, { redirect: "manual", headers: { "User-Agent": "Mozilla/5.0 (RoderIndica)" } });
+        if (r.status >= 300 && r.status < 400 && r.headers.get("location")) {
+          url = new URL(r.headers.get("location"), url).toString();
+          const h = new URL(url).hostname.toLowerCase();
+          if (!destinos.includes(h) && !h.endsWith(".googleusercontent.com")) return res.status(403).send("Este endere\xE7o n\xE3o pode ser aberto dentro do app.");
+          continue;
+        }
+        break;
+      }
       if (!r.ok) return res.status(502).send("N\xE3o consegui baixar o documento.");
       const buf = Buffer.from(await r.arrayBuffer());
       if (buf.length > 40 * 1024 * 1024) return res.status(413).send("Documento grande demais");

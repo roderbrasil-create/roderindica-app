@@ -47,6 +47,8 @@ export default function LeitorDocumento() {
   const [zoom, setZoom] = useState(1);
   const [arquivo, setArquivo] = useState<Arquivo | null>(null);
   const [imagemUrl, setImagemUrl] = useState('');
+  // Link do Drive: tenta ler como PDF/foto; se não for (vídeo, planilha), usa a prévia do Drive
+  const [drivePrevia, setDrivePrevia] = useState(false);
   const paginasRef = useRef<HTMLDivElement>(null);
   const docRef = useRef<any>(null);
 
@@ -55,23 +57,36 @@ export default function LeitorDocumento() {
     return ouvirDocumentos(p => { setPedido(p); setZoom(1); });
   }, []);
 
-  const fechar = () => setPedido(null);
+  const limpar = () => {
+    try { docRef.current?.destroy?.(); } catch { /* já liberado */ }
+    docRef.current = null;
+    setArquivo(null);
+    setImagemUrl('');
+    setDrivePrevia(false);
+    setEstado('carregando');
+  };
+  // Ao fechar, solta o PDF da memória (no iPhone, vários PDFs abertos recarregavam o app)
+  const fechar = () => { limpar(); setPedido(null); };
   useVoltarFecha(!!pedido, fechar);
 
-  const ehPlayer = pedido && pedido.tipo !== 'pdf';
+  const ehPlayer = !!pedido && (pedido.tipo === 'video' || pedido.tipo === 'youtube' || pedido.tipo === 'vimeo' || (pedido.tipo === 'drive' && drivePrevia));
 
   // Carrega o arquivo (PDF ou foto)
   useEffect(() => {
-    if (!pedido || pedido.tipo !== 'pdf') return;
-    let cancelado = false;
-    setEstado('carregando');
+    if (!pedido) return;
+    limpar();
     setErro('');
-    setArquivo(null);
-    setImagemUrl('');
-    docRef.current = null;
+    if (pedido.tipo !== 'pdf' && pedido.tipo !== 'drive') return;
+    let cancelado = false;
     (async () => {
       try {
-        const arq = await baixarArquivo(pedido.url);
+        let arq: Arquivo;
+        try {
+          arq = await baixarArquivo(pedido.url);
+        } catch (e) {
+          if (pedido.tipo === 'drive') { if (!cancelado) setDrivePrevia(true); return; }
+          throw e;
+        }
         if (cancelado) return;
         const img = tipoImagem(arq.dados, arq.tipo);
         if (img) {
@@ -80,6 +95,7 @@ export default function LeitorDocumento() {
           setEstado('pronto');
           return;
         }
+        if (!comecaCom(arq.dados, '%PDF-') && pedido.tipo === 'drive') { setDrivePrevia(true); return; }
         if (!comecaCom(arq.dados, '%PDF-')) {
           throw new Error(comecaCom(arq.dados, '<html') || comecaCom(arq.dados, '<!DOCTYPE') || comecaCom(arq.dados, '<!doctype')
             ? 'Este documento não foi encontrado no endereço cadastrado.'
@@ -167,7 +183,7 @@ export default function LeitorDocumento() {
   let player: React.ReactNode = null;
   if (pedido.tipo === 'video') {
     player = <video src={pedido.url} controls autoPlay playsInline className="w-full max-h-full bg-black" />;
-  } else if (pedido.tipo === 'youtube' || pedido.tipo === 'vimeo' || pedido.tipo === 'drive') {
+  } else if (pedido.tipo === 'youtube' || pedido.tipo === 'vimeo' || (pedido.tipo === 'drive' && drivePrevia)) {
     const src = pedido.tipo === 'youtube'
       ? `https://www.youtube.com/embed/${idYoutube(pedido.url)}?autoplay=1&playsinline=1&rel=0`
       : pedido.tipo === 'vimeo'
@@ -185,7 +201,7 @@ export default function LeitorDocumento() {
   }
 
   return (
-    <div className={`fixed inset-0 z-[300] flex flex-col ${ehPlayer ? 'bg-black' : 'bg-slate-200'}`} style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+    <div className={`fixed inset-0 z-[2147483000] flex flex-col ${ehPlayer ? 'bg-black' : 'bg-slate-200'}`} style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
       <header className="bg-white border-b border-slate-200 shadow-sm flex items-center gap-2 px-2 h-14 shrink-0">
         <button
           type="button"
@@ -200,6 +216,9 @@ export default function LeitorDocumento() {
             <button type="button" aria-label="Diminuir" onClick={() => setZoom(z => Math.max(1, +(z - 0.5).toFixed(1)))} className="h-11 w-11 rounded-lg border border-slate-300 text-slate-800 flex items-center justify-center shrink-0"><Minus className="h-4 w-4" /></button>
             <button type="button" aria-label="Aumentar" onClick={() => setZoom(z => Math.min(3, +(z + 0.5).toFixed(1)))} className="h-11 w-11 rounded-lg border border-slate-300 text-slate-800 flex items-center justify-center shrink-0"><Plus className="h-4 w-4" /></button>
           </>
+        )}
+        {ehPlayer && (
+          <button type="button" aria-label="Abrir no navegador" onClick={() => abrirForaDoApp(pedido.url)} className="h-11 w-11 rounded-lg border border-slate-300 text-slate-800 flex items-center justify-center shrink-0"><ExternalLink className="h-4 w-4" /></button>
         )}
         {estado === 'pronto' && arquivo && !ehPlayer && (
           <button type="button" aria-label="Baixar ou compartilhar" onClick={baixar} className="h-11 w-11 rounded-lg border border-slate-300 text-slate-800 flex items-center justify-center shrink-0"><Download className="h-4 w-4" /></button>

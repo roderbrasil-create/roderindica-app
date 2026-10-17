@@ -8,9 +8,18 @@ import { useVoltarFecha } from "@/lib/useVoltarFecha"
 
 // Toda janela do app fecha com o "voltar" do celular (e com o voltar do cabeçalho),
 // em vez de o voltar trocar de página por trás dela e cair no dashboard.
-function Dialog({ open, onOpenChange, ...props }: DialogPrimitive.Root.Props) {
-  useVoltarFecha(!!open, () => (onOpenChange as any)?.(false, undefined))
-  return <DialogPrimitive.Root data-slot="dialog" open={open} onOpenChange={onOpenChange} {...props} />
+function Dialog({ open, defaultOpen, onOpenChange, ...props }: DialogPrimitive.Root.Props) {
+  // janela sem "open" vindo de fora (aberta pelo próprio botão): o estado fica aqui,
+  // para o voltar conseguir fechá-la também
+  const [interno, setInterno] = React.useState(!!defaultOpen)
+  const controlado = open !== undefined
+  const aberto = controlado ? open : interno
+  const mudar = (v: boolean, detalhes?: any) => {
+    if (!controlado) setInterno(v)
+    ;(onOpenChange as any)?.(v, detalhes)
+  }
+  useVoltarFecha(!!aberto, () => mudar(false, undefined))
+  return <DialogPrimitive.Root data-slot="dialog" open={aberto} onOpenChange={mudar as any} {...props} />
 }
 
 function DialogTrigger({ asChild, children, ...props }: DialogPrimitive.Trigger.Props & { asChild?: boolean }) {

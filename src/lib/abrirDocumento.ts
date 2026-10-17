@@ -31,7 +31,13 @@ export function tipoDaMidia(url: string): TipoMidia | null {
   if (idDrive(url)) return 'drive';
   if (/\.(mp4|webm|mov|m4v)($|[?#])/.test(u)) return 'video';
   if (u.startsWith('blob:') || u.startsWith('data:application/pdf') || /\.pdf($|[?#])/.test(u) || u.includes('.pdf%')) return 'pdf';
-  if (u.includes('firebasestorage.googleapis.com') || u.includes('storage.googleapis.com')) return 'pdf';
+  if (u.includes('firebasestorage.googleapis.com') || u.includes('storage.googleapis.com')) {
+    // Arquivo do Storage: só PDF e foto abrem no leitor; planilha, Word e áudio abrem fora
+    const caminho = decodeURIComponent(u.split('?')[0]);
+    const ext = (caminho.match(/\.([a-z0-9]{2,5})$/) || [])[1];
+    if (ext && !['pdf', 'jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext)) return null;
+    return 'pdf';
+  }
   return null;
 }
 

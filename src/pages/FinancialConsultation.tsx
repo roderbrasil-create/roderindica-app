@@ -157,7 +157,7 @@ export default function FinancialConsultation() {
   const [recentConsultations, setRecentConsultations] = useState<any[]>([]);
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const [showPdfModal, setShowPdfModal] = useState(false);
-  useVoltarFecha(!!showPdfModal, () => setShowPdfModal(false));
+  useVoltarFecha(!!showPdfModal, () => handleClosePdfModal());
 
   const [searchTerm, setSearchTerm] = useState('');
   const [clearedDocs, setClearedDocs] = useState<string[]>([]);
