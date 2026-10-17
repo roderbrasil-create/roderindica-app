@@ -1103,6 +1103,11 @@ export default function Catalog() {
           updateDoc(doc(db, 'products', miniSkidder.id), { is_blocked: false });
         }
 
+        // Garra Clamshell GCR: cria uma vez (não sobrescreve edições feitas depois)
+        if ((isAdmin || isManager) && data.length > 0 && !data.some(p => (p.name || '').toLowerCase().includes('clamshell'))) {
+          addGarraClamshell();
+        }
+
         const fellerDisco = data.find(p => p.name === 'Feller de Disco');
         if (!fellerDisco && data.length > 0) {
           addFellerDeDisco();
@@ -1200,6 +1205,39 @@ export default function Catalog() {
         console.error('Error saving order:', error);
         toast.error('Erro ao salvar nova ordem');
       }
+    }
+  };
+
+  const addGarraClamshell = async () => {
+    try {
+      const q = query(collection(db, 'products'), where('name', '==', 'Garra Clamshell GCR'));
+      const snap = await getDocs(q);
+      if (!snap.empty) return;
+      const img = '/catalogo/gcr/gcr-produto.jpg';
+      const imgOp = '/catalogo/gcr/gcr-operacao.jpg';
+      const ficha = '/catalogo/gcr/Ficha_Garra_Clamshell_GCR.pdf';
+      const video = 'https://drive.google.com/file/d/15Xkn6YgurLQ0Oplm_MBipIgrXCQkxleV/view';
+      const modelo = (id: string, name: string, specs: Record<string, string>) => ({
+        id, name, base_value: 0, images: [img, imgOp], pdf_url: ficha, video_url: video, technical_specs: specs
+      });
+      await addDoc(collection(db, 'products'), {
+        name: 'Garra Clamshell GCR',
+        description: 'A linha de Garras Clamshell Roder (GCR) foi desenvolvida para movimentar cavaco de madeira, areia, brita, terra e outros materiais a granel. Fabricada em aço Strenx®, com pinos em aço SAE 4140 com tratamento térmico, oferece alta capacidade de carga, durabilidade e baixo custo operacional. Modelos GCR1000 (1,0 m³), GCR1500 (1,5 m³) e GCR2500 (2,5 m³). Indicação por escavadeira: para cavaco de madeira (até 500 kg/m³) GCR1000 em 12 a 16 t, GCR1500 em 14 a 20 t e GCR2500 em 20 a 25 t; para areia (1.600 a 1.900 kg/m³) GCR1000 em 14 a 20 t, GCR1500 em 20 a 25 t e GCR2500 em 30 a 36 t, trabalhando a até 6 m de raio. Confirmar sempre na tabela de capacidade de levantamento da escavadeira.',
+        category: 'Movimentação de Materiais',
+        image_url: img,
+        video_url: video,
+        pdf_url: ficha,
+        is_blocked: false,
+        created_at: new Date().toISOString(),
+        models: [
+          modelo('gcr-1000', 'GCR1000', { volume: '1,0 m³', peso: '650 kg', abertura_maxima: '2.000 mm', dimensoes: '905 x 1.715 x 1.365 mm (C x L x A)', escavadeira_cavaco: '12 a 16 ton', escavadeira_areia: '14 a 20 ton' }),
+          modelo('gcr-1500', 'GCR1500', { volume: '1,5 m³', peso: '1.050 kg', abertura_maxima: '2.000 mm', dimensoes: '1.300 x 1.715 x 1.465 mm (C x L x A)', escavadeira_cavaco: '14 a 20 ton', escavadeira_areia: '20 a 25 ton' }),
+          modelo('gcr-2500', 'GCR2500', { volume: '2,5 m³', peso: '1.555 kg', abertura_maxima: '2.000 mm', dimensoes: '2.050 x 1.715 x 1.465 mm (C x L x A)', escavadeira_cavaco: '20 a 25 ton', escavadeira_areia: '30 a 36 ton' }),
+        ],
+      });
+      toast.success('Garra Clamshell GCR adicionada ao catálogo.');
+    } catch (err) {
+      console.error('Erro ao criar Garra Clamshell GCR:', err);
     }
   };
 
@@ -4231,6 +4269,9 @@ export default function Catalog() {
     const finalProductName = productName || viewingGallery?.name || selectedProductModels?.name || 'Equipamento Roder';
 
     const labelMapping: Record<string, string> = {
+      volume: "Volume",
+      escavadeira_cavaco: "Escavadeira p/ cavaco",
+      escavadeira_areia: "Escavadeira p/ areia",
       instalacao_hidraulica: 'Instalação Hidráulica',
                            acionamento: 'Acionamento',
                            tempo_de_ciclo: 'Tempo de Ciclo',
@@ -4903,7 +4944,10 @@ export default function Catalog() {
                           largura_total: 'Largura Total',
                           comprimento_util_garfo: 'Comprimento Útil do Garfo',
                           dimensoes: 'Dimensões Físicas',
-                          capacidade_diametro: 'Capacidade Máx. Diâmetro'
+                          capacidade_diametro: 'Capacidade Máx. Diâmetro',
+                          volume: 'Volume',
+                          escavadeira_cavaco: 'Escavadeira p/ cavaco',
+                          escavadeira_areia: 'Escavadeira p/ areia'
                         };
                         const label = specLabels[kMapping] || key.replace(/_/g, ' ');
                         const isGiro360 = kMapping === 'giro_360';
