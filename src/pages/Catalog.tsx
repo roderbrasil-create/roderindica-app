@@ -738,6 +738,8 @@ function SortableProductCard({
 }
 
 
+let rachadoraEmAndamento = false;
+
 export default function Catalog() {
   const { user, profile, realProfile, isManager, isAdmin, isExternalSeller, isMarketing, auth } = useAuth();
   const navigate = useNavigate();
@@ -1108,9 +1110,15 @@ export default function Catalog() {
           addGarraClamshell();
         }
 
-        // Garra Rachadora GR: cria uma vez (GR800 entra depois como novo modelo)
-        if ((isAdmin || isManager) && data.length > 0 && !data.some(p => (p.name || '').toLowerCase().includes('rachadora'))) {
-          addGarraRachadora();
+        // Garra Rachadora GR: cria se não existir; se o card já existir (criado na tela),
+        // completa só os modelos GR600/GR800 que faltam, sem apagar o que já foi editado
+        if ((isAdmin || isManager) && data.length > 0) {
+          const rach = data.filter(p => (p.name || '').toLowerCase().includes('rachadora'));
+          const alvo = rach.find(p => (p.name || '').toLowerCase().includes('garra')) || rach[0];
+          const nomes = (alvo?.models || []).map((m: any) => String(m.name || '').toUpperCase().replace(/\s/g, ''));
+          if (!alvo || !nomes.includes('GR600') || !nomes.includes('GR800')) {
+            addGarraRachadora(alvo);
+          }
         }
 
         const fellerDisco = data.find(p => p.name === 'Feller de Disco');
@@ -1247,23 +1255,15 @@ export default function Catalog() {
     }
   };
 
-  const addGarraRachadora = async () => {
+  const addGarraRachadora = async (existente?: Product) => {
+    // o catálogo escuta em tempo real: sem esta trava, dois avisos seguidos gravariam os modelos duas vezes
+    if (rachadoraEmAndamento) return;
+    rachadoraEmAndamento = true;
     try {
-      const q = query(collection(db, 'products'), where('name', '==', 'Garra Rachadora GR'));
-      const snap = await getDocs(q);
-      if (!snap.empty) return;
       const img = '/catalogo/gr/gr600-produto.jpg';
       const ficha = '/catalogo/gr/Ficha_Garra_Rachadora_GR600.pdf';
-      await addDoc(collection(db, 'products'), {
-        name: 'Garra Rachadora GR',
-        description: 'A Garra Rachadora Roder (GR) racha toras e movimenta a madeira com o mesmo equipamento, sem precisar de rachador separado. Projeto robusto para alta produtividade, durabilidade e segurança nas operações florestais. Indicação por escavadeira: GR600 para escavadeiras de 12 a 22 toneladas e GR800 para escavadeiras de 20 a 30 toneladas. Modelo GR600: racha toras de até 600 mm de diâmetro, abertura máxima de 762 mm, altura com a garra aberta de 1.444 mm, peso de 821 kg sem rotator e 896 kg com rotator, rotator de 16 t e pressão de trabalho de 180 a 240 bar. Modelo GR800 (código 1000.2089.0000): racha toras de grande diâmetro, até 800 mm, abertura de 1.107 mm entre as pontas das unhas, capacidade de carga de 7.000 kg, altura com a garra aberta de 1.574 mm, peso de 900 kg, rotator IR10, pressão de trabalho de 180 a 280 bar, vazão máxima de até 200 l/min para abrir e fechar e hidráulica de 4 linhas (abre, fecha e giro).',
-        category: 'Garras Florestais',
-        image_url: img,
-        video_url: '',
-        pdf_url: ficha,
-        is_blocked: false,
-        created_at: new Date().toISOString(),
-        models: [
+      const descricao = 'A Garra Rachadora Roder (GR) racha toras e movimenta a madeira com o mesmo equipamento, sem precisar de rachador separado. Projeto robusto para alta produtividade, durabilidade e segurança nas operações florestais. Indicação por escavadeira: GR600 para escavadeiras de 12 a 22 toneladas e GR800 para escavadeiras de 20 a 30 toneladas. Modelo GR600: racha toras de até 600 mm de diâmetro, abertura máxima de 762 mm, altura com a garra aberta de 1.444 mm, peso de 821 kg sem rotator e 896 kg com rotator, rotator de 16 t e pressão de trabalho de 180 a 240 bar. Modelo GR800 (código 1000.2089.0000): racha toras de grande diâmetro, até 800 mm, abertura de 1.107 mm entre as pontas das unhas, capacidade de carga de 7.000 kg, altura com a garra aberta de 1.574 mm, peso de 900 kg, rotator IR10, pressão de trabalho de 180 a 280 bar, vazão máxima de até 200 l/min para abrir e fechar e hidráulica de 4 linhas (abre, fecha e giro).';
+      const modelos: any[] = [
           {
             id: 'gr-600', name: 'GR600', base_value: 0, images: [img], pdf_url: ficha,
             technical_specs: {
@@ -1293,11 +1293,41 @@ export default function Catalog() {
               hidraulica: '4 linhas (abre, fecha e giro)',
             },
           },
-        ],
+      ];
+      if (existente) {
+        const atuais = [...(existente.models || [])];
+        const nomes = atuais.map((m: any) => String(m.name || '').toUpperCase().replace(/\s/g, ''));
+        const faltam = modelos.filter(m => !nomes.includes(m.name));
+        if (!faltam.length) return;
+        const update: any = { models: [...atuais, ...faltam] };
+        if (!existente.image_url) update.image_url = img;
+        if (!existente.pdf_url) update.pdf_url = ficha;
+        const d = String(existente.description || '');
+        if (!d.includes('GR600')) update.description = d.trim() ? `${d.trim()} ${descricao}` : descricao;
+        if (existente.is_blocked) update.is_blocked = false;
+        await updateDoc(doc(db, 'products', existente.id), update);
+        toast.success(`Garra Rachadora: ${faltam.map(m => m.name).join(' e ')} adicionada(s).`);
+        return;
+      }
+      const q = query(collection(db, 'products'), where('name', '==', 'Garra Rachadora GR'));
+      const snap = await getDocs(q);
+      if (!snap.empty) return;
+      await addDoc(collection(db, 'products'), {
+        name: 'Garra Rachadora GR',
+        description: descricao,
+        category: 'Garras Florestais',
+        image_url: img,
+        video_url: '',
+        pdf_url: ficha,
+        is_blocked: false,
+        created_at: new Date().toISOString(),
+        models: modelos,
       });
       toast.success('Garra Rachadora GR adicionada ao catálogo.');
     } catch (err) {
       console.error('Erro ao criar Garra Rachadora GR:', err);
+    } finally {
+      rachadoraEmAndamento = false;
     }
   };
 
