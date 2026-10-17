@@ -3782,6 +3782,16 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       });
     `);
   });
+  const limites = /* @__PURE__ */ new Map();
+  const passouLimite = (chave, max, janelaMs) => {
+    const agora = Date.now();
+    const lista = (limites.get(chave) || []).filter((t) => agora - t < janelaMs);
+    lista.push(agora);
+    limites.set(chave, lista);
+    if (limites.size > 5e3) limites.clear();
+    return lista.length > max;
+  };
+  const ipDe = (req) => String(req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "").split(",")[0].trim();
   const ALFABETO_LINK = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   const novoCodigo = () => Array.from({ length: 5 }, () => ALFABETO_LINK[Math.floor(Math.random() * ALFABETO_LINK.length)]).join("");
   const SITE = "https://roderindica.com";
@@ -3857,7 +3867,7 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
     <meta property="og:image" content="${escHtml(imagem)}" />
     <meta property="og:url" content="${SITE}/o/${codigo}" />
     <meta name="twitter:card" content="summary_large_image" />`;
-      html = html.replace(/<title>[^<]*<\/title>/, `<title>${escHtml(titulo)}</title>
+      html = html.replace(/<title>[^<]*<\/title>/, () => `<title>${escHtml(titulo)}</title>
     ${meta}`);
       res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       res.type("html").send(html);
@@ -3867,21 +3877,36 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
   });
   app.post("/api/orcamento/confirmacao", async (req, res) => {
     try {
+      if (passouLimite(`conf-ip:${ipDe(req)}`, 5, 60 * 60 * 1e3)) return res.status(429).json({ error: "Muitas solicita\xE7\xF5es." });
       const id = String(req.body?.indicationId || "").slice(0, 60);
       if (!id) return res.status(400).json({ error: "Solicita\xE7\xE3o n\xE3o informada." });
       const ref = db.collection("indications").doc(id);
-      const snap = await ref.get();
-      if (!snap.exists) return res.status(404).json({ error: "Solicita\xE7\xE3o n\xE3o encontrada." });
-      const ind = snap.data();
-      const email = String(ind.client_email || "").trim();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.json({ ok: false, motivo: "sem e-mail" });
-      if (ind.confirmacao_cliente_enviada_em) return res.json({ ok: true, repetido: true });
-      if (Date.now() - new Date(ind.created_at).getTime() > 15 * 60 * 1e3) return res.status(400).json({ error: "Prazo encerrado." });
-      await ref.update({ confirmacao_cliente_enviada_em: (/* @__PURE__ */ new Date()).toISOString() });
+      let ind = null;
+      const liberado = await db.runTransaction(async (t) => {
+        const snap = await t.get(ref);
+        if (!snap.exists) return "nao_existe";
+        ind = snap.data();
+        if (ind.creator_type !== "client") return "nao_cliente";
+        if (ind.confirmacao_cliente_enviada_em) return "repetido";
+        const criadoEm = snap.createTime ? snap.createTime.toMillis() : 0;
+        if (!criadoEm || Date.now() - criadoEm > 15 * 60 * 1e3) return "prazo";
+        t.update(ref, { confirmacao_cliente_enviada_em: (/* @__PURE__ */ new Date()).toISOString() });
+        return "ok";
+      });
+      if (liberado === "repetido") return res.json({ ok: true, repetido: true });
+      if (liberado !== "ok") return res.status(400).json({ error: "Solicita\xE7\xE3o inv\xE1lida." });
+      const email = String(ind.client_email || "").trim().toLowerCase();
+      if (!/^[^\s@"<>]+@[^\s@"<>]+\.[^\s@"<>]+$/.test(email)) return res.json({ ok: false, motivo: "sem e-mail" });
+      if (passouLimite(`conf-mail:${email}`, 3, 24 * 60 * 60 * 1e3)) return res.status(429).json({ error: "Muitas solicita\xE7\xF5es." });
       const produto = String(ind.items?.[0]?.product_name || "equipamento Roder");
       const nome = String(ind.client_name || "").trim().split(/\s+/)[0] || "";
       const foto = absoluta(String(req.body?.foto || "")).replace(/[^\w:/.\-?=&%~+]/g, "");
-      const link = String(req.body?.link || "").startsWith(SITE) ? String(req.body.link) : SITE;
+      let link = SITE;
+      try {
+        const u = new URL(String(req.body?.link || ""));
+        if (u.origin === SITE) link = escHtml(u.toString());
+      } catch {
+      }
       const instalacao = req.body?.instalacao !== false;
       const html = `
 <div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#111">
@@ -5030,6 +5055,7 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
     try {
       let url = String(req.query.url || "");
       const publico = /^https:\/\/(www\.)?(roderbrasil\.com\.br|roderindica\.com)\//i.test(url);
+      if (publico && passouLimite(`doc-ip:${ipDe(req)}`, 40, 60 * 1e3)) return res.status(429).send("Muitas aberturas seguidas. Tente de novo em instantes.");
       if (!publico) {
         const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
         if (!token) return res.status(401).send("Entre no app para abrir este documento.");
@@ -5059,7 +5085,29 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
         break;
       }
       if (!r.ok) return res.status(502).send("N\xE3o consegui baixar o documento.");
-      const buf = Buffer.from(await r.arrayBuffer());
+      const LIMITE = 40 * 1024 * 1024;
+      if (Number(r.headers.get("content-length") || 0) > LIMITE) return res.status(413).send("Documento grande demais");
+      const partes = [];
+      let total = 0;
+      const leitor = r.body?.getReader ? r.body.getReader() : null;
+      if (leitor) {
+        for (; ; ) {
+          const { done, value } = await leitor.read();
+          if (done) break;
+          total += value.length;
+          if (total > LIMITE) {
+            try {
+              await leitor.cancel();
+            } catch {
+            }
+            return res.status(413).send("Documento grande demais");
+          }
+          partes.push(Buffer.from(value));
+        }
+      } else {
+        partes.push(Buffer.from(await r.arrayBuffer()));
+      }
+      const buf = Buffer.concat(partes);
       if (buf.length > 40 * 1024 * 1024) return res.status(413).send("Documento grande demais");
       const ehPdfArq = buf.subarray(0, 1024).toString("latin1").includes("%PDF-");
       const tipoOrigem = String(r.headers.get("content-type") || "").toLowerCase();

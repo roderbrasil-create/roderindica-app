@@ -927,9 +927,11 @@ export default function Catalog() {
   // modelos abre: o botão do WhatsApp precisa abrir na hora do toque, senão o celular
   // bloqueia a janela.
   const [linksCurtos, setLinksCurtos] = useState<Record<string, string>>({});
+  const [usuarioPronto, setUsuarioPronto] = useState(!!auth.currentUser);
+  useEffect(() => auth.onAuthStateChanged(u => setUsuarioPronto(!!u)), []);
   useEffect(() => {
-    const prod = viewingGallery;
-    if (!prod?.id || !prod.models?.length || !auth.currentUser) return;
+    const prod = viewingGallery || selectedProductModels;
+    if (!prod?.id || !prod.models?.length || !usuarioPronto) return;
     let cancelado = false;
     (async () => {
       try {
@@ -949,7 +951,7 @@ export default function Catalog() {
       } catch { /* sem link curto, o WhatsApp usa o link completo */ }
     })();
     return () => { cancelado = true; };
-  }, [viewingGallery?.id]);
+  }, [viewingGallery?.id, selectedProductModels?.id, usuarioPronto]);
 
   // Lista de modelos aberta (inclusive enquanto uma ficha está por cima dela)
   const galeriaAberta = !!(viewingGallery || suspendedViewingGallery);

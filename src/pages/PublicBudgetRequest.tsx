@@ -28,6 +28,15 @@ import { abrirDocumento } from '../lib/abrirDocumento';
 import { precisaInstalacao } from '../lib/instalacao';
 import { ImageLightbox } from '../components/ui/ImageLightbox';
 
+// Faixa preta com a logo horizontal da Roder, abaixo da hora e da bateria do celular
+function Cabecalho() {
+  return (
+    <header className="bg-[#090909] flex items-center justify-center" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+      <div className="h-[54px] flex items-center"><img src="/marca/roder-horizontal.png" alt="Roder Máquinas e Equipamentos" className="h-[34px]" /></div>
+    </header>
+  );
+}
+
 export default function PublicBudgetRequest() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -181,7 +190,7 @@ export default function PublicBudgetRequest() {
   // Enter passa para o próximo campo. Em Observações (último), o Enter pula linha.
   const aoTeclar = (e: React.KeyboardEvent<HTMLFormElement>) => {
     const alvo = e.target as HTMLElement;
-    if (e.key !== 'Enter' || alvo.tagName === 'TEXTAREA') return;
+    if (e.key !== 'Enter' || alvo.tagName === 'TEXTAREA' || alvo.tagName === 'BUTTON') return;
     e.preventDefault();
     if (alvo.id === 'client_location' && sugestoes.length && cidadeFoco) {
       setFormData(f => ({ ...f, client_location: sugestoes[cidadeIndice] || sugestoes[0] }));
@@ -191,58 +200,25 @@ export default function PublicBudgetRequest() {
     if (i >= 0 && campos[i + 1]) campos[i + 1].focus();
   };
 
+  // Cliente de fora do Brasil vai direto para o consultor de exportação.
+  // Antes qualquer telefone começando com 1 (DDD 11 a 19) e cidades como Limeira (lima),
+  // Peruíbe (peru), Eldorado e Santiago caíam como exportação. Agora: telefone só conta
+  // quando vem com + e código de outro país, e texto só pelo nome inteiro do país.
   const detectExportLead = (location: string, phone: string, obs: string) => {
-    const combined = `${location} ${phone} ${obs}`.toLowerCase();
-    
-    if (combined.includes('argentina') || combined.includes('misiones') || combined.includes('buenos aires') || combined.includes('eldorado') || combined.includes('posadas') || combined.includes('corrientes') || combined.includes('córdoba') || combined.includes('rosario')) {
-      return { isExport: true, country: 'Argentina' };
+    const tel = phone.replace(/\s/g, '');
+    const porDdi: [string, string][] = [['+54', 'Argentina'], ['+595', 'Paraguai'], ['+598', 'Uruguai'], ['+56', 'Chile'], ['+591', 'Bolívia'], ['+51', 'Peru'], ['+57', 'Colômbia'], ['+52', 'México'], ['+1', 'Internacional / EUA']];
+    if (tel.startsWith('+') && !tel.startsWith('+55')) {
+      const achado = porDdi.find(([ddi]) => tel.startsWith(ddi));
+      return { isExport: true, country: achado ? achado[1] : 'Internacional' };
     }
-    if (combined.includes('paraguai') || combined.includes('paraguay') || combined.includes('asuncion') || combined.includes('asunción') || combined.includes('ciudad del este')) {
-      return { isExport: true, country: 'Paraguai' };
-    }
-    if (combined.includes('uruguai') || combined.includes('uruguay') || combined.includes('montevideo')) {
-      return { isExport: true, country: 'Uruguai' };
-    }
-    if (combined.includes('chile') || combined.includes('santiago')) {
-      return { isExport: true, country: 'Chile' };
-    }
-    if (combined.includes('bolivia') || combined.includes('bolívia') || combined.includes('santa cruz de la sierra')) {
-      return { isExport: true, country: 'Bolívia' };
-    }
-    if (combined.includes('peru') || combined.includes('perú') || combined.includes('lima')) {
-      return { isExport: true, country: 'Peru' };
-    }
-    if (combined.includes('colombia') || combined.includes('colômbia') || combined.includes('bogota') || combined.includes('bogotá') || combined.includes('medellin') || combined.includes('medellín')) {
-      return { isExport: true, country: 'Colômbia' };
-    }
-    if (combined.includes('mexico') || combined.includes('méxico')) {
-      return { isExport: true, country: 'México' };
-    }
-    if (combined.includes('estados unidos') || combined.includes('usa') || combined.includes('united states') || combined.includes('miami') || combined.includes('florida')) {
-      return { isExport: true, country: 'Estados Unidos' };
-    }
-    
-    const cleanPhone = phone.replace(/\D/g, '');
-    if (phone.includes('+54') || (cleanPhone.length >= 10 && cleanPhone.startsWith('54')) || cleanPhone.startsWith('03751') || cleanPhone.startsWith('3751')) {
-      return { isExport: true, country: 'Argentina' };
-    }
-    if (phone.includes('+595') || (cleanPhone.length >= 10 && cleanPhone.startsWith('595'))) {
-      return { isExport: true, country: 'Paraguai' };
-    }
-    if (phone.includes('+598') || (cleanPhone.length >= 10 && cleanPhone.startsWith('598'))) {
-      return { isExport: true, country: 'Uruguai' };
-    }
-    if (phone.includes('+56') || (cleanPhone.length >= 10 && cleanPhone.startsWith('56'))) {
-      return { isExport: true, country: 'Chile' };
-    }
-    if (phone.includes('+1') || cleanPhone.startsWith('1')) {
-      return { isExport: true, country: 'Internacional / EUA' };
-    }
-    
-    if (combined.includes('buenos dias') || combined.includes('bueno dias') || combined.includes('podrías cotizar') || combined.includes('podrias cotizar') || combined.includes('excavadora') || combined.includes('implementos') || combined.includes('gracias')) {
-      return { isExport: true, country: 'Internacional / América Latina' };
-    }
-
+    const texto = ` ${`${location} ${obs}`.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')} `;
+    const paises: [RegExp, string][] = [
+      [/\bargentina\b/, 'Argentina'], [/\bparagua[iy]\b/, 'Paraguai'], [/\burugua[iy]\b/, 'Uruguai'],
+      [/\bchile\b/, 'Chile'], [/\bbolivia\b/, 'Bolívia'], [/\bperu\b/, 'Peru'], [/\bcolombia\b/, 'Colômbia'],
+      [/\bmexico\b/, 'México'], [/\bestados unidos\b|\bunited states\b/, 'Estados Unidos'],
+    ];
+    for (const [r, pais] of paises) if (r.test(texto)) return { isExport: true, country: pais };
+    if (/\bpodrias cotizar\b|\bexcavadora\b|\bgracias\b|\bbuenos dias\b/.test(texto)) return { isExport: true, country: 'Internacional / América Latina' };
     return { isExport: false, country: '' };
   };
 
@@ -338,7 +314,9 @@ export default function PublicBudgetRequest() {
         const { notifyNewIndication } = await import('../services/emailService');
         const primaryItem = finalProductName || 'Equipamento';
         const locationStr = formData.client_location || '';
-        const locationParts = locationStr.includes('-') ? locationStr.split('-') : [locationStr, ''];
+        // "Ji-Paraná - RO": separa pelo último " - ", senão a cidade virava "Ji"
+        const corte = locationStr.lastIndexOf(' - ');
+        const locationParts = corte > 0 ? [locationStr.slice(0, corte), locationStr.slice(corte + 3)] : [locationStr, ''];
 
         const emailIndicationData = {
           client_name: formData.client_name,
@@ -429,12 +407,6 @@ export default function PublicBudgetRequest() {
   const videoUrl = (activeModel as any)?.video_url || product?.video_url || '';
   const fichaUrl = (activeModel as any)?.pdf_url || product?.pdf_url || '';
   const primeiroNome = formData.client_name.trim().split(/\s+/)[0] || '';
-
-  const Cabecalho = () => (
-    <header className="bg-[#090909] flex items-center justify-center" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
-      <div className="h-[54px] flex items-center"><img src="/marca/roder-horizontal.png" alt="Roder Máquinas e Equipamentos" className="h-[34px]" /></div>
-    </header>
-  );
 
   if (loading) {
     return (
