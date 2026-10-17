@@ -826,24 +826,26 @@ export async function notifyLeadAssignment(
 
     // 2. Send email to the partner indicator (external seller)
     if (partner.email && !partner.email.endsWith('@mobile.roder.com.br')) {
-      const partnerSubject = `🎉 Sua indicação de ${indication.client_name || 'Cliente'} já está com vendedor responsável!`;
+      // Texto pensado para o parceiro NÃO achar que perdeu a indicação: ela foi recebida,
+      // continua no nome dele, e um vendedor da Roder está dando andamento.
+      const partnerSubject = `✅ Sua indicação de ${indication.client_name || 'Cliente'} foi recebida e está em andamento`;
       
       const partnerHtml = `
         <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); background-color: #ffffff;">
           <div style="background-color: #10b981; color: white; padding: 24px; text-align: center;">
             <img src="https://roderbrasil.com.br/wp-content/uploads/2024/05/Logo-Roder-Horizontal.png" alt="Roder" style="height: 35px; filter: brightness(0) invert(1); margin-bottom: 10px;">
-            <h2 style="margin: 0; text-transform: uppercase; font-size: 20px; font-weight: bold; letter-spacing: 0.5px;">Indicação em Atendimento!</h2>
-            <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;">Seu lead já foi encaminhado para o setor comercial da fábrica</p>
+            <h2 style="margin: 0; text-transform: uppercase; font-size: 20px; font-weight: bold; letter-spacing: 0.5px;">Indicação recebida!</h2>
+            <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;">Ela está registrada no seu nome e já está em andamento</p>
           </div>
           
           <div style="padding: 24px; line-height: 1.6;">
             <p style="font-size: 15px; margin-top: 0;">Olá <strong>${partner.name}</strong>,</p>
-            <p style="font-size: 15px; color: #475569;">Gostaríamos de informar que a sua indicação para o cliente <strong>${indication.client_name || 'Cliente'}</strong> já foi distribuída e está sob os cuidados de um de nossos vendedores internos da fábrica!</p>
+            <p style="font-size: 15px; color: #475569;">Sua indicação do cliente <strong>${indication.client_name || 'Cliente'}</strong> foi recebida e continua registrada no seu nome. Um vendedor da Roder já está dando andamento na solicitação e vai entrar em contato com o cliente.</p>
             
             <!-- Seller Info Card -->
             <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 18px; margin: 20px 0; border-radius: 8px;">
               <h3 style="margin: 0 0 10px 0; color: #166534; font-size: 15px; text-transform: uppercase; font-weight: 800; border-bottom: 1px solid #bbf7d0; padding-bottom: 4px;">
-                Vendedor Interno Designado
+                Vendedor(a) que está atendendo
               </h3>
               <table style="font-size: 13px; border-collapse: collapse; width: 100%;">
                 <tr>

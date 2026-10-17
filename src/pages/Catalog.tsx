@@ -930,26 +930,37 @@ export default function Catalog() {
   const [linksCurtos, setLinksCurtos] = useState<Record<string, string>>({});
   const [usuarioPronto, setUsuarioPronto] = useState(!!auth.currentUser);
   useEffect(() => auth.onAuthStateChanged(u => setUsuarioPronto(!!u)), []);
+  // Modelo cujo link curto está sendo criado agora (o botão mostra "Criando link...")
+  const [criandoLinkDe, setCriandoLinkDe] = useState<string | null>(null);
+  const linksCurtosRef = useRef<Record<string, string>>({});
+  const obterLinkCurto = async (pid: string, mid: string): Promise<string | null> => {
+    const chave = `${pid}:${mid}`;
+    if (linksCurtosRef.current[chave]) return linksCurtosRef.current[chave];
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) return null;
+      const r = await fetch(`${getApiBaseUrl()}/api/link-curto`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ pid, mid }),
+      });
+      if (!r.ok) return null;
+      const j = await r.json();
+      if (!j.codigo) return null;
+      linksCurtosRef.current[chave] = j.codigo;
+      setLinksCurtos(prev => ({ ...prev, [chave]: j.codigo }));
+      return j.codigo;
+    } catch { return null; }
+  };
   useEffect(() => {
     const prod = viewingGallery || selectedProductModels;
     if (!prod?.id || !prod.models?.length || !usuarioPronto) return;
     let cancelado = false;
     (async () => {
-      try {
-        const token = await auth.currentUser!.getIdToken();
-        for (const m of prod.models!) {
-          const chave = `${prod.id}:${m.id}`;
-          if (cancelado || linksCurtos[chave]) continue;
-          const r = await fetch(`${getApiBaseUrl()}/api/link-curto`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ pid: prod.id, mid: m.id }),
-          });
-          if (!r.ok) continue;
-          const j = await r.json();
-          if (j.codigo && !cancelado) setLinksCurtos(prev => ({ ...prev, [chave]: j.codigo }));
-        }
-      } catch { /* sem link curto, o WhatsApp usa o link completo */ }
+      for (const m of prod.models!) {
+        if (cancelado) return;
+        await obterLinkCurto(prod.id, m.id);
+      }
     })();
     return () => { cancelado = true; };
   }, [viewingGallery?.id, selectedProductModels?.id, usuarioPronto]);
@@ -4467,7 +4478,20 @@ export default function Catalog() {
       destaques.push(`• ${curtos[k]} ${getUnitValue(k, v)}`);
       if (destaques.length === 3) break;
     }
-    const codigo = linksCurtos[`${productId}:${model.id}`];
+    // Sem o link curto ainda: abre a janela do WhatsApp já no toque (senão o celular bloqueia),
+    // mostra "Criando link..." no botão e espera o link ficar pronto. O link comprido só vai
+    // se o servidor não responder em 8 segundos.
+    let codigo = linksCurtosRef.current[`${productId}:${model.id}`] || linksCurtos[`${productId}:${model.id}`];
+    let janela: Window | null = null;
+    if (!codigo && productId) {
+      janela = window.open('', '_blank');
+      setCriandoLinkDe(model.id);
+      codigo = await Promise.race([
+        obterLinkCurto(productId, model.id),
+        new Promise<null>(r => setTimeout(() => r(null), 8000)),
+      ]) || undefined;
+      setCriandoLinkDe(null);
+    }
     const budgetUrl = codigo
       ? `https://roderindica.com/o/${codigo}`
       : `${window.location.origin}/pedido-orcamento?uid=${profile?.uid || user?.uid || ''}&pid=${productId || ''}&mid=${model.id || ''}`;
@@ -4478,7 +4502,8 @@ export default function Catalog() {
       `\nFotos, vídeo, ficha e orçamento:\n${budgetUrl}`;
 
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
-    window.open(whatsappUrl, '_blank');
+    if (janela && !janela.closed) janela.location.href = whatsappUrl;
+    else window.open(whatsappUrl, '_blank');
   };
 
   const sharePartsManualOnWhatsApp = (productName: string, model: any) => {
@@ -5103,9 +5128,10 @@ export default function Catalog() {
                     size="sm"
                     className={cn(botaoSec, "border-[#128C7E]/30 text-[#075E54]")}
                     onClick={() => shareModelOnWhatsApp(viewingGallery?.name || '', model)}
+                    disabled={criandoLinkDe === model.id}
                   >
-                    <MessageCircle className="!h-4 !w-4" />
-                    <span>WhatsApp</span>
+                    {criandoLinkDe === model.id ? <Loader2 className="!h-4 !w-4 animate-spin" /> : <MessageCircle className="!h-4 !w-4" />}
+                    <span>{criandoLinkDe === model.id ? 'Criando link...' : 'WhatsApp'}</span>
                   </Button>
                   {temFicha && (
                     <Button
@@ -6032,8 +6058,11 @@ export default function Catalog() {
                           variant="outline" 
                           className="w-full justify-start gap-2 border-border h-11 bg-green-500/5 hover:bg-green-500/10 border-green-500/20"
                           onClick={() => shareModelOnWhatsApp(selectedProductModels?.name || '', selectedModel)}
+                          disabled={criandoLinkDe === selectedModel.id}
                         >
-                          <MessageCircle className="h-4 w-4 text-green-500" /> WhatsApp (Ficha + Vídeo)
+                          {criandoLinkDe === selectedModel.id
+                            ? <><Loader2 className="h-4 w-4 animate-spin text-green-600" /> Criando link...</>
+                            : <><MessageCircle className="h-4 w-4 text-green-500" /> WhatsApp</>}
                         </Button>
                         {['fae-uml-ex-vt', 'fae-uml-s-ex-vt', 'fae-umm-ex-vt'].includes(selectedModel.id) && (
                           <Button 
