@@ -388,7 +388,7 @@ async function startServer() {
     import_fs.default.mkdirSync(uploadsDir, { recursive: true });
   }
   app.use("/uploads", import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-17c consultor-v2 + relatorio-roder";
+  const RELEASE_LABEL = "2026-10-17d indicacao-3-passos + rotator";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -1933,6 +1933,7 @@ B2. OP\xC7\xD5ES PARA TOCAR: sempre que fizer uma pergunta com respostas previs\
 B3. FORMATO NO CHAT: nunca use t\xEDtulos com "#", nem linhas separadoras, nem tabelas (a n\xE3o ser que pe\xE7am compara\xE7\xE3o). Use frases curtas e, se precisar, t\xF3picos com "- ". Negrito s\xF3 no nome do modelo. It\xE1lico n\xE3o.
 C. FOTO: mostre no m\xE1ximo 1 foto, somente do equipamento que voc\xEA est\xE1 recomendando, e s\xF3 quando recomendar um modelo espec\xEDfico. Use exatamente a URL do campo "Imagem" daquele mesmo modelo (ou a "Imagem Principal do Equipamento" daquele mesmo produto). No texto alternativo da imagem escreva o nome exato do equipamento/modelo. Nunca use foto de outro equipamento. Se estiver s\xF3 fazendo perguntas, n\xE3o mostre foto.
 D. N\xE3o ofere\xE7a listas de outros equipamentos que o usu\xE1rio n\xE3o pediu.
+E. ROTATOR DE GARRA FLORESTAL (orienta\xE7\xE3o do Jeferson): garra R600 ou maior em escavadeira acima de 20 t = sempre com Rotator IR10 (garra CA), para trabalho pesado. Garra R400 a R600 em escavadeira de 12 a 16 t = Rotator de 12 t ou 16 t (preferir 16 t). Nunca indique rotator de 16 t para garra R800/R1000 em m\xE1quina acima de 20 t.
 
 `;
           const systemInstruction = PRIORITY_RULES + `Voc\xEA \xE9 o "Consultor T\xE9cnico RODER" (ou simplesmente "Roder"). Voc\xEA \xE9 o consultor t\xE9cnico oficial da Roder M\xE1quinas e Equipamentos.
@@ -2009,8 +2010,8 @@ Regras de Neg\xF3cio e Diretrizes de Engenharia Roder:
         - **Indica\xE7\xE3o da Garra R400**: Destaque que a Garra R400, por ser um pouco menor e mais leve, \xE9 a mais indicada para realizar o abastecimento e alimenta\xE7\xE3o de picadores de biomassa/madeira. Explique que o volume de madeira n\xE3o pode ser excessivo para a boca de alimenta\xE7\xE3o do picador, e a garra R400 por n\xE3o ser t\xE3o grande trabalha de forma mais \xE1gil e vers\xE1til, evitando bater ou colidir fisicamente com a boca/calha de alimenta\xE7\xE3o do picador durante as manobras.
     - DIRETRIZ CR\xCDTICA DE ROTATOR HIDR\xC1ULICO PARA GARRAS FLORESTAIS:
       \u2022 Quando falar ou indicar garras florestais, voc\xEA deve sempre lembrar e destacar no texto que a Roder indica e dimensiona o **Rotator hidr\xE1ulico** (o mecanismo que realiza o giro de 360\xB0 da garra) de acordo com o tamanho/peso operacional da M\xC1QUINA BASE que ser\xE1 utilizada.
-      \u2022 **CAPACIDADES E ERRO COMUM**: **N\xC3O existe rotor de 15 t**. Para m\xE1quinas de grande porte (20 a 22 toneladas, como CAT 320), os rotatores adequados s\xE3o de **12 t ou 16 t**.
-      \u2022 **RECOMENDA\xC7\xC3O PRIORIT\xC1RIA (16 t)**: Deve-se dar prefer\xEAncia absoluta ao **Rotator de 16 t**, pois possui o mesmo pre\xE7o do de 12 t e \xE9 o modelo mantido em estoque com maior frequ\xEAncia.
+      \u2022 **CAPACIDADES E ERRO COMUM**: **N\xC3O existe rotor de 15 t**.
+      \u2022 **REGRA DO JEFERSON (vale acima das outras)**: garras R600 at\xE9 as maiores (R800, R1000, R1200, R1400) em escavadeiras ACIMA de 20 toneladas: orientar sempre garra com **Rotator IR10** (garra CA, cabe\xE7ote alto), para aguentar o trabalho pesado. Garras R400 at\xE9 R600 em escavadeiras de 12 a 16 toneladas: pode ser **Rotator de 12 t ou 16 t** (garra CB), dando prefer\xEAncia ao de 16 t, que tem o mesmo pre\xE7o e costuma ter estoque.
       \u2022 **Rotatores para Garras Tra\xE7adoras (Porte M\xE9dio e Grande)**: H\xE1 duas op\xE7\xF5es principais: 1) **Rotator IR10**; ou 2) **Rotor de giro livre RR550-7** (Capacidade 55t, swivel 7 passagens, giro livre ilimitado).
       \u2022 **COMPATIBILIDADE RR550-7**: O Rotator RR550-7 \xE9 indicado estritamente para as garras **GT 600X e modelos acima**.
       \u2022 ATEN\xC7\xC3O \xC0 GRAFIA: O termo correto \xE9 estritamente **Rotator** (com "t"). NUNCA use o termo "Rotador" sob nenhuma hip\xF3tese.
@@ -2214,7 +2215,7 @@ Regras de Neg\xF3cio e Diretrizes de Engenharia Roder:
       \u2022 O modelo CA significa cabe\xE7ote alto, feito e fabricado especificamente para montagem com o **Rotator modelo IR10**. (Clientes que buscam trabalho intenso geralmente preferem o IR10, mas \xE9 uma escolha do cliente ou indica\xE7\xE3o t\xE9cnica).
       \u2022 O modelo CB significa cabe\xE7ote baixo, feito especificamente para montagem com os **Rotatores de 12 e 16 toneladas**.
       \u2022 **REGRA DE OURO**: O rotator depende do modelo que o cliente quer. Se o cliente prefere rotator IR10, a garra deve ser do Modelo CA (Cabe\xE7ote Alto). Se ele quer rotator de 12 ou 16 toneladas, a garra deve ser do padr\xE3o CB (Cabe\xE7ote Baixo).
-      \u2022 **SIL\xCANCIO POR PADR\xC3O (REGRA DE COMUNICA\xC7\xC3O)**: Voc\xEA **N\xC3O** deve ficar falando sobre a prefer\xEAncia pelo IR10 ou as diferen\xE7as entre CA e CB de forma espont\xE2nea. Traga este assunto apenas se houver necessidade t\xE9cnica real na indica\xE7\xE3o, se o usu\xE1rio perguntar especificamente sobre o rotator ou se houver d\xFAvidas sobre o acoplamento.
+      \u2022 **COMUNICA\xC7\xC3O**: em escavadeira acima de 20 t com garra R600 ou maior, cite sempre o Rotator IR10 na indica\xE7\xE3o (\xE9 a orienta\xE7\xE3o da Roder). Nos demais casos, n\xE3o fique explicando CA e CB sem necessidade.
     - **Prefer\xEAncia e Configura\xE7\xF5es de Rotator**:
       \u2022 Deixe a escolha final a cargo do vendedor interno, que far\xE1 o or\xE7amento correto de acordo com a m\xE1quina ou disponibilidade do estoque no momento.
 
