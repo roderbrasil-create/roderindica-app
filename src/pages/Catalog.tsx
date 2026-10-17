@@ -41,7 +41,8 @@ import {
   GripVertical,
   Megaphone,
   Layers,
-  ClipboardCheck
+  ClipboardCheck,
+  Image as ImageIcon
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import {
@@ -87,6 +88,7 @@ import { MulcherTechnicalDelivery } from '../components/catalog/MulcherTechnical
 import { FresaSshFicha } from '../components/catalog/FresaSshFicha';
 import { TrituradorLoaderFaeFicha } from '../components/catalog/TrituradorLoaderFaeFicha';
 import { EngateRapidoFicha } from '../components/catalog/EngateRapidoFicha';
+import { AgendorPhotosDialog } from '../components/catalog/AgendorPhotosDialog';
 import { GarraEstufagemFicha } from '../components/catalog/GarraEstufagemFicha';
 import { CabecotePodaFicha } from '../components/catalog/CabecotePodaFicha';
 import { CabecoteGmt035Ficha } from '../components/catalog/CabecoteGmt035Ficha';
@@ -776,6 +778,7 @@ export default function Catalog() {
   const [isTrituradorLoaderFaeFichaOpen, setIsTrituradorLoaderFaeFichaOpen] = useState(false);
   const [trituradorLoaderFaeDefaultModel, setTrituradorLoaderFaeDefaultModel] = useState<string>('fae-uml-ssl-vt-175');
   const [isEngateRapidoFichaOpen, setIsEngateRapidoFichaOpen] = useState(false);
+  const [isAgendorPhotosOpen, setIsAgendorPhotosOpen] = useState(false);
   const [isGarraEstufagemFichaOpen, setIsGarraEstufagemFichaOpen] = useState(false);
   const [isCabecotePodaFichaOpen, setIsCabecotePodaFichaOpen] = useState(false);
   const [isCabecoteGmt035FichaOpen, setIsCabecoteGmt035FichaOpen] = useState(false);
@@ -5297,6 +5300,15 @@ export default function Catalog() {
                       <Layers className="h-4 w-4 mr-1 md:mr-2" /> <span>Nova Família</span>
                     </Button>
                   )}
+                  {isAdmin && (
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsAgendorPhotosOpen(true)}
+                      className="flex-1 md:flex-none h-9 px-3 text-[10px] md:h-10 md:px-4 md:text-xs"
+                    >
+                      <ImageIcon className="h-4 w-4 mr-1 md:mr-2" /> <span>Fotos do Agendor</span>
+                    </Button>
+                  )}
                   <div className="hidden md:flex gap-2">
                     {(isAdmin || isManager) && !products.some(p => p.name === 'Cabeçote Multifuncional') && (
                       <Button 
@@ -7062,6 +7074,7 @@ export default function Catalog() {
           />
         )}
 
+        <AgendorPhotosDialog open={isAgendorPhotosOpen} onClose={() => setIsAgendorPhotosOpen(false)} products={products} />
         {isTrituradorLoaderFaeFichaOpen && (
           <TrituradorLoaderFaeFicha 
             onClose={() => {

@@ -5316,6 +5316,58 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     });
   }
 
+  // Fotos dos produtos cadastrados no Agendor (só leitura), para preencher equipamentos sem foto no catálogo.
+  // Fica fora de /api/agendor de propósito: a sincronização de negócios continua desligada.
+  app.get("/api/admin/agendor-fotos", async (req, res) => {
+    try {
+      const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+      if (!token) return res.status(401).json({ error: "Faça login novamente." });
+      const decoded = await admin.auth().verifyIdToken(token);
+      const me = (await db.collection('users').doc(decoded.uid).get()).data() as any;
+      if (!me || !['admin', 'manager'].includes(me.role)) return res.status(403).json({ error: "Somente administrador." });
+
+      const cfg = (await db.collection('settings').doc('agendor').get()).data() as any;
+      const apiToken = cfg?.apiToken;
+      if (!apiToken) return res.status(400).json({ error: "Token do Agendor não encontrado nas configurações." });
+
+      const out: any[] = [];
+      for (let page = 1; page <= 20; page++) {
+        const r: any = await callAgendor(`products?per_page=100&page=${page}`, "GET", apiToken);
+        const arr = Array.isArray(r) ? r : (r?.data || []);
+        for (const p of arr) {
+          const img = p.imageUrl || p.image_url || p.picture || '';
+          if (img) out.push({ name: p.name || '', code: p.code || '', imageUrl: img });
+        }
+        if (arr.length < 100) break;
+      }
+      res.json({ products: out });
+    } catch (e: any) {
+      console.error('[AGENDOR-FOTOS]', e?.message);
+      res.status(500).json({ error: e?.message || 'Erro ao buscar fotos do Agendor.' });
+    }
+  });
+
+  // Baixa a foto do Agendor para o app gravar no próprio armazenamento (link do Agendor pode expirar)
+  app.get("/api/admin/agendor-foto", async (req, res) => {
+    try {
+      const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+      if (!token) return res.status(401).send('Faça login novamente.');
+      await admin.auth().verifyIdToken(token);
+      const url = String(req.query.url || '');
+      if (!/^https:\/\//i.test(url)) return res.status(400).send('URL inválida');
+      const r = await fetch(url, { redirect: 'follow' });
+      if (!r.ok) return res.status(502).send('Falha ao baixar a foto');
+      const type = r.headers.get('content-type') || 'image/jpeg';
+      if (!/^image\//i.test(type)) return res.status(415).send('Não é imagem');
+      const buf = Buffer.from(await r.arrayBuffer());
+      res.setHeader('Content-Type', type);
+      res.setHeader('Cache-Control', 'no-store');
+      res.send(buf);
+    } catch (e: any) {
+      res.status(500).send(e?.message || 'Erro');
+    }
+  });
+
   // --- AGENDOR CRM INTEGRATION ROUTES ---
 
   // Helper function to call Agendor API

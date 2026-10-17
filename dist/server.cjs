@@ -4844,6 +4844,51 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       res.status(200).json({ success: false, disabled: true, message: "Integra\xE7\xE3o com o Agendor desligada." });
     });
   }
+  app.get("/api/admin/agendor-fotos", async (req, res) => {
+    try {
+      const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+      if (!token) return res.status(401).json({ error: "Fa\xE7a login novamente." });
+      const decoded = await import_firebase_admin.default.auth().verifyIdToken(token);
+      const me = (await db.collection("users").doc(decoded.uid).get()).data();
+      if (!me || !["admin", "manager"].includes(me.role)) return res.status(403).json({ error: "Somente administrador." });
+      const cfg = (await db.collection("settings").doc("agendor").get()).data();
+      const apiToken = cfg?.apiToken;
+      if (!apiToken) return res.status(400).json({ error: "Token do Agendor n\xE3o encontrado nas configura\xE7\xF5es." });
+      const out = [];
+      for (let page = 1; page <= 20; page++) {
+        const r = await callAgendor(`products?per_page=100&page=${page}`, "GET", apiToken);
+        const arr = Array.isArray(r) ? r : r?.data || [];
+        for (const p of arr) {
+          const img = p.imageUrl || p.image_url || p.picture || "";
+          if (img) out.push({ name: p.name || "", code: p.code || "", imageUrl: img });
+        }
+        if (arr.length < 100) break;
+      }
+      res.json({ products: out });
+    } catch (e) {
+      console.error("[AGENDOR-FOTOS]", e?.message);
+      res.status(500).json({ error: e?.message || "Erro ao buscar fotos do Agendor." });
+    }
+  });
+  app.get("/api/admin/agendor-foto", async (req, res) => {
+    try {
+      const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+      if (!token) return res.status(401).send("Fa\xE7a login novamente.");
+      await import_firebase_admin.default.auth().verifyIdToken(token);
+      const url = String(req.query.url || "");
+      if (!/^https:\/\//i.test(url)) return res.status(400).send("URL inv\xE1lida");
+      const r = await fetch(url, { redirect: "follow" });
+      if (!r.ok) return res.status(502).send("Falha ao baixar a foto");
+      const type = r.headers.get("content-type") || "image/jpeg";
+      if (!/^image\//i.test(type)) return res.status(415).send("N\xE3o \xE9 imagem");
+      const buf = Buffer.from(await r.arrayBuffer());
+      res.setHeader("Content-Type", type);
+      res.setHeader("Cache-Control", "no-store");
+      res.send(buf);
+    } catch (e) {
+      res.status(500).send(e?.message || "Erro");
+    }
+  });
   async function callAgendor(endpoint, method, apiToken, body) {
     const url = `https://api.agendor.com.br/v3/${endpoint}`;
     const headers = {
