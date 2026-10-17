@@ -2098,6 +2098,13 @@ B3. FORMATO NO CHAT: nunca use títulos com "#", nem linhas separadoras, nem tab
 C. FOTO: mostre no máximo 1 foto, somente do equipamento que você está recomendando, e só quando recomendar um modelo específico. Use exatamente a URL do campo "Imagem" daquele mesmo modelo (ou a "Imagem Principal do Equipamento" daquele mesmo produto). No texto alternativo da imagem escreva o nome exato do equipamento/modelo. Nunca use foto de outro equipamento. Se estiver só fazendo perguntas, não mostre foto.
 D. Não ofereça listas de outros equipamentos que o usuário não pediu.
 E. ROTATOR DE GARRA FLORESTAL (orientação do Jeferson): garra R600 ou maior em escavadeira acima de 20 t = sempre com Rotator IR10 (garra CA), para trabalho pesado. Garra R400 a R600 em escavadeira de 12 a 16 t = Rotator de 12 t ou 16 t (preferir 16 t). Nunca indique rotator de 16 t para garra R800/R1000 em máquina acima de 20 t.
+F. INSTALAÇÃO (o que entra na venda, orientação do Jeferson). 95% das vendas são completas: equipamento, frete, instalação pelo técnico Roder na cidade do cliente, regulagem e orientação ao operador. Nunca prometa instalação onde ela não existe:
+   - ESCAVADEIRA (garras florestais e traçadoras, garra rachadora, Clamshell, cabeçotes CMF, feller tesoura e de disco, destocador, sacador, trituradores FAE de escavadeira): instalação hidráulica completa, adequação e regulagem de pressão. O vendedor pede marca, modelo e fotos do comando para confirmar se a máquina tem fatia extra e válvula de regulagem de pressão na fatia extra.
+   - PÁ CARREGADEIRA: Engate Rápido hidráulico precisa da 3ª função (linha extra) para engatar e desengatar; vendemos junto o adaptador para a concha original do cliente. Garra Frontal / Top Clamp, Triturador FAE p/ pá e Carregador Frontal CFR precisam de 3ª e 4ª função (CFR: giro horário/anti-horário do rotator e abre/fecha da garra = 4 mangueiras).
+   - Caçamba High Tip e Prolongador com Concha: precisam de uma linha extra bidirecional (3ª função) para o basculante. Se a pá NÃO tem engate rápido nem linha extra, a Roder instala engate + 3ª função (com 3ª e 4ª função o operador não precisa trocar a função entre engate e basculante). Se a pá JÁ tem engate rápido original e linha extra bidirecional, não precisa de instalação: a Roder fabrica o equipamento com o gancho traseiro na medida do engate original.
+   - Garfo Paleteiro GPR 4500 / GPR 7000: só mecânico, sem instalação (vai no lugar dos pinos). Normalmente é vendido com o engate rápido, e o garfo já vai com o gancho do engate para o operador trocar entre concha e garfo sem descer da máquina.
+   - TRATOR: Mini Skidder MSR 600 / MSR 1000, carreta de arrasto e Clambank: sem instalação, o cliente acopla e liga as mangueiras que já vão prontas. Fresa FAE SSH e trituradores FAE de trator (TDP): a Roder entrega, acompanha a primeira instalação no trator e orienta o operador no início, porque é um equipamento mais técnico.
+   - GUINDASTE: Cabeçote GMT 035 vai em guindaste (Munck), grua em caminhão ou grua florestal em trator, NÃO em escavadeira. Cabeçote de Poda GP 150 vai SOMENTE em cesto aéreo (braço isolado em caminhão): tira o cesto de fibra e parafusa o cabeçote no lugar; o cesto aéreo precisa vir preparado pelo próprio fornecedor com 3 linhas bidirecionais (6 mangueiras), normalmente já no controle remoto do braço.
 
 `;
 
@@ -4194,7 +4201,16 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       const foto = absoluta(String(req.body?.foto || '')).replace(/[^\w:/.\-?=&%~+]/g, '');
       let link = SITE;
       try { const u = new URL(String(req.body?.link || '')); if (u.origin === SITE) link = escHtml(u.toString()); } catch { /* fica o site */ }
-      const instalacao = req.body?.instalacao !== false;
+      // Mesmos textos de src/lib/instalacao.ts (tela final do cliente). Mudou lá, muda aqui.
+      const PERFIS: Record<string, { itens: string[]; consultor: string }> = {
+        completa: { itens: ['equipamento', 'frete até a sua cidade', 'instalação hidráulica na sua máquina por técnico Roder', 'regulagem e orientação ao operador'], consultor: 'Ele vai pedir a marca e o modelo da sua máquina e fotos do comando hidráulico, para confirmar se ela tem fatia extra e válvula de regulagem de pressão. É com isso que a Roder prepara a instalação hidráulica completa.' },
+        linha_extra: { itens: ['equipamento com o encaixe do engate da sua pá carregadeira', 'frete até a sua cidade', 'instalação da linha extra (3ª função), se a sua máquina ainda não tiver'], consultor: 'Ele vai confirmar o modelo da sua pá carregadeira e se ela já tem engate rápido e linha extra bidirecional (3ª função). Se já tiver, não precisa de instalação. Se não tiver, a Roder instala.' },
+        garfo: { itens: ['equipamento', 'frete até a sua cidade'], consultor: 'Ele vai confirmar o modelo da sua pá carregadeira e se ela usa engate rápido, para o garfo ir com o encaixe certo.' },
+        trator_tecnico: { itens: ['equipamento', 'frete até a sua cidade', 'técnico Roder acompanha a primeira instalação no trator', 'orientação de trabalho ao operador no início'], consultor: 'Ele vai confirmar o modelo e a potência do seu trator.' },
+        trator: { itens: ['equipamento pronto para acoplar no trator', 'frete até a sua cidade'], consultor: 'Ele vai confirmar o modelo do seu trator e fechar frete e prazo de entrega.' },
+        guindaste: { itens: ['equipamento', 'frete até a sua cidade'], consultor: 'Ele vai confirmar o modelo do seu guindaste, grua ou cesto aéreo e as linhas hidráulicas que ele já tem preparadas para o equipamento.' },
+      };
+      const perfilTxt = PERFIS[String(req.body?.perfil || '')] || PERFIS.completa;
       const html = `
 <div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#111">
   <div style="background:#090909;padding:16px;text-align:center"><img src="${SITE}/marca/roder-horizontal.png" alt="Roder" style="height:36px" /></div>
@@ -4202,9 +4218,8 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     <p>Olá${nome ? `, ${escHtml(nome)}` : ''}.</p>
     <p>Recebemos seu pedido de orçamento da <b>${escHtml(produto)}</b>.</p>
     ${foto ? `<p style="text-align:center"><img src="${foto}" alt="" style="max-width:260px;max-height:200px" /></p>` : ''}
-    ${instalacao ? `<p>Nosso orçamento é completo e já considera:<br>• equipamento<br>• frete até a sua cidade<br>• instalação na sua máquina por um técnico Roder<br>• regulagem e orientação ao operador</p>
-    <p>Para chegar aos valores certos, um consultor Roder vai falar com você pelo WhatsApp. Ele vai pedir a marca e o modelo da sua máquina e algumas fotos do comando hidráulico, para confirmar se ela já tem fatia extra e válvula de regulagem de pressão. É com isso que a Roder prepara a instalação hidráulica completa.</p>` : `<p>Este equipamento vai pronto para você acoplar e ligar na sua máquina.</p>
-    <p>Um consultor Roder vai falar com você pelo WhatsApp para confirmar o modelo da sua máquina e fechar frete e prazo de entrega.</p>`}
+    <p>Seu orçamento inclui:<br>${perfilTxt.itens.map((i: string) => `• ${i}`).join('<br>')}</p>
+    <p>Para chegar aos valores certos, um consultor Roder vai falar com você pelo WhatsApp. ${perfilTxt.consultor}</p>
     <p>O orçamento chega neste e-mail.</p>
     <p style="text-align:center;margin:22px 0"><a href="${link}" style="background:#facc15;color:#111;text-decoration:none;font-weight:bold;padding:13px 22px;border-radius:10px;display:inline-block">Ver vídeo e ficha técnica</a></p>
     <p style="color:#555;font-size:13px">Roder Máquinas e Equipamentos · desde 2002<br>Pardinho, SP · roderbrasil.com.br</p>

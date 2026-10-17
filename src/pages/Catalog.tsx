@@ -96,6 +96,7 @@ import { SacadorSac500Ficha } from '../components/catalog/SacadorSac500Ficha';
 import { EstudosComparativosModal } from '../components/catalog/EstudosComparativosModal';
 import { RODER_LOGO_BASE64 } from '../components/catalog/RoderLogo';
 import { useVoltarFecha } from '../lib/useVoltarFecha';
+import { perfilInstalacao, frasePara } from '../lib/instalacao';
 import { abrirDocumento } from '../lib/abrirDocumento';
 
 function SmartImage({ src, alt, className, zoom = 1, objectFit = 'cover', ...props }: any) {
@@ -4443,14 +4444,13 @@ export default function Catalog() {
 
     // Mensagem curta (pedido do Jeferson): nome, máquina base, 3 características e UM link.
     // Fotos, vídeo e ficha ficam na página do link, e o WhatsApp mostra a foto como prévia.
-    const ehPa = /engate|carregadeira/i.test(finalProductName) || /engate|carregadeira/i.test(model.name || '');
     const palavras = finalProductName.trim().split(/\s+/);
     const ultima = palavras[palavras.length - 1] || '';
     const nomeProduto = ultima && String(model.name || '').toUpperCase().startsWith(ultima.toUpperCase()) && ultima.length <= 4
       ? palavras.slice(0, -1).join(' ') : finalProductName;
     const titulo = nomeProduto.toLowerCase().includes(String(model.name || '').toLowerCase()) ? nomeProduto : `${nomeProduto} ${model.name}`.trim();
     const specsTodas: Record<string, any> = { ...(DEFAULT_FAE_SPECS[model.id] || {}), ...(model.technical_specs || {}) };
-    const base = String(specsTodas.maquina_base || '').trim().replace(/\s*ton\.?$/i, ' t');
+    const paraMaquina = frasePara(perfilInstalacao(`${finalProductName} ${model.name}`, specsTodas), `${finalProductName} ${model.name}`, specsTodas.maquina_base);
     const curtos: Record<string, string> = {
       diametro_max_tora: 'Tora até', diametro_rachamento: 'Racha toras até', diametro_corte: 'Corte até', diametro_max_corte: 'Corte até',
       diametro_max_trituracao: 'Tritura até', diametro_max_de_trituracao_mm: 'Tritura até', abertura_maxima: 'Abertura', abertura_total: 'Abertura',
@@ -4473,7 +4473,7 @@ export default function Catalog() {
       : `${window.location.origin}/pedido-orcamento?uid=${profile?.uid || user?.uid || ''}&pid=${productId || ''}&mid=${model.id || ''}`;
 
     const text = `*${titulo}*\n` +
-      (base ? `Para ${ehPa ? 'pá carregadeira' : 'escavadeiras'} de ${base}\n` : '') +
+      (paraMaquina ? `${paraMaquina}\n` : '') +
       (destaques.length ? `\n${destaques.join('\n')}\n` : '') +
       `\nFotos, vídeo, ficha e orçamento:\n${budgetUrl}`;
 

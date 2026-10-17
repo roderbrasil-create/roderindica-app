@@ -1934,6 +1934,13 @@ B3. FORMATO NO CHAT: nunca use t\xEDtulos com "#", nem linhas separadoras, nem t
 C. FOTO: mostre no m\xE1ximo 1 foto, somente do equipamento que voc\xEA est\xE1 recomendando, e s\xF3 quando recomendar um modelo espec\xEDfico. Use exatamente a URL do campo "Imagem" daquele mesmo modelo (ou a "Imagem Principal do Equipamento" daquele mesmo produto). No texto alternativo da imagem escreva o nome exato do equipamento/modelo. Nunca use foto de outro equipamento. Se estiver s\xF3 fazendo perguntas, n\xE3o mostre foto.
 D. N\xE3o ofere\xE7a listas de outros equipamentos que o usu\xE1rio n\xE3o pediu.
 E. ROTATOR DE GARRA FLORESTAL (orienta\xE7\xE3o do Jeferson): garra R600 ou maior em escavadeira acima de 20 t = sempre com Rotator IR10 (garra CA), para trabalho pesado. Garra R400 a R600 em escavadeira de 12 a 16 t = Rotator de 12 t ou 16 t (preferir 16 t). Nunca indique rotator de 16 t para garra R800/R1000 em m\xE1quina acima de 20 t.
+F. INSTALA\xC7\xC3O (o que entra na venda, orienta\xE7\xE3o do Jeferson). 95% das vendas s\xE3o completas: equipamento, frete, instala\xE7\xE3o pelo t\xE9cnico Roder na cidade do cliente, regulagem e orienta\xE7\xE3o ao operador. Nunca prometa instala\xE7\xE3o onde ela n\xE3o existe:
+   - ESCAVADEIRA (garras florestais e tra\xE7adoras, garra rachadora, Clamshell, cabe\xE7otes CMF, feller tesoura e de disco, destocador, sacador, trituradores FAE de escavadeira): instala\xE7\xE3o hidr\xE1ulica completa, adequa\xE7\xE3o e regulagem de press\xE3o. O vendedor pede marca, modelo e fotos do comando para confirmar se a m\xE1quina tem fatia extra e v\xE1lvula de regulagem de press\xE3o na fatia extra.
+   - P\xC1 CARREGADEIRA: Engate R\xE1pido hidr\xE1ulico precisa da 3\xAA fun\xE7\xE3o (linha extra) para engatar e desengatar; vendemos junto o adaptador para a concha original do cliente. Garra Frontal / Top Clamp, Triturador FAE p/ p\xE1 e Carregador Frontal CFR precisam de 3\xAA e 4\xAA fun\xE7\xE3o (CFR: giro hor\xE1rio/anti-hor\xE1rio do rotator e abre/fecha da garra = 4 mangueiras).
+   - Ca\xE7amba High Tip e Prolongador com Concha: precisam de uma linha extra bidirecional (3\xAA fun\xE7\xE3o) para o basculante. Se a p\xE1 N\xC3O tem engate r\xE1pido nem linha extra, a Roder instala engate + 3\xAA fun\xE7\xE3o (com 3\xAA e 4\xAA fun\xE7\xE3o o operador n\xE3o precisa trocar a fun\xE7\xE3o entre engate e basculante). Se a p\xE1 J\xC1 tem engate r\xE1pido original e linha extra bidirecional, n\xE3o precisa de instala\xE7\xE3o: a Roder fabrica o equipamento com o gancho traseiro na medida do engate original.
+   - Garfo Paleteiro GPR 4500 / GPR 7000: s\xF3 mec\xE2nico, sem instala\xE7\xE3o (vai no lugar dos pinos). Normalmente \xE9 vendido com o engate r\xE1pido, e o garfo j\xE1 vai com o gancho do engate para o operador trocar entre concha e garfo sem descer da m\xE1quina.
+   - TRATOR: Mini Skidder MSR 600 / MSR 1000, carreta de arrasto e Clambank: sem instala\xE7\xE3o, o cliente acopla e liga as mangueiras que j\xE1 v\xE3o prontas. Fresa FAE SSH e trituradores FAE de trator (TDP): a Roder entrega, acompanha a primeira instala\xE7\xE3o no trator e orienta o operador no in\xEDcio, porque \xE9 um equipamento mais t\xE9cnico.
+   - GUINDASTE: Cabe\xE7ote GMT 035 vai em guindaste (Munck), grua em caminh\xE3o ou grua florestal em trator, N\xC3O em escavadeira. Cabe\xE7ote de Poda GP 150 vai SOMENTE em cesto a\xE9reo (bra\xE7o isolado em caminh\xE3o): tira o cesto de fibra e parafusa o cabe\xE7ote no lugar; o cesto a\xE9reo precisa vir preparado pelo pr\xF3prio fornecedor com 3 linhas bidirecionais (6 mangueiras), normalmente j\xE1 no controle remoto do bra\xE7o.
 
 `;
           const systemInstruction = PRIORITY_RULES + `Voc\xEA \xE9 o "Consultor T\xE9cnico RODER" (ou simplesmente "Roder"). Voc\xEA \xE9 o consultor t\xE9cnico oficial da Roder M\xE1quinas e Equipamentos.
@@ -3907,7 +3914,15 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
         if (u.origin === SITE) link = escHtml(u.toString());
       } catch {
       }
-      const instalacao = req.body?.instalacao !== false;
+      const PERFIS = {
+        completa: { itens: ["equipamento", "frete at\xE9 a sua cidade", "instala\xE7\xE3o hidr\xE1ulica na sua m\xE1quina por t\xE9cnico Roder", "regulagem e orienta\xE7\xE3o ao operador"], consultor: "Ele vai pedir a marca e o modelo da sua m\xE1quina e fotos do comando hidr\xE1ulico, para confirmar se ela tem fatia extra e v\xE1lvula de regulagem de press\xE3o. \xC9 com isso que a Roder prepara a instala\xE7\xE3o hidr\xE1ulica completa." },
+        linha_extra: { itens: ["equipamento com o encaixe do engate da sua p\xE1 carregadeira", "frete at\xE9 a sua cidade", "instala\xE7\xE3o da linha extra (3\xAA fun\xE7\xE3o), se a sua m\xE1quina ainda n\xE3o tiver"], consultor: "Ele vai confirmar o modelo da sua p\xE1 carregadeira e se ela j\xE1 tem engate r\xE1pido e linha extra bidirecional (3\xAA fun\xE7\xE3o). Se j\xE1 tiver, n\xE3o precisa de instala\xE7\xE3o. Se n\xE3o tiver, a Roder instala." },
+        garfo: { itens: ["equipamento", "frete at\xE9 a sua cidade"], consultor: "Ele vai confirmar o modelo da sua p\xE1 carregadeira e se ela usa engate r\xE1pido, para o garfo ir com o encaixe certo." },
+        trator_tecnico: { itens: ["equipamento", "frete at\xE9 a sua cidade", "t\xE9cnico Roder acompanha a primeira instala\xE7\xE3o no trator", "orienta\xE7\xE3o de trabalho ao operador no in\xEDcio"], consultor: "Ele vai confirmar o modelo e a pot\xEAncia do seu trator." },
+        trator: { itens: ["equipamento pronto para acoplar no trator", "frete at\xE9 a sua cidade"], consultor: "Ele vai confirmar o modelo do seu trator e fechar frete e prazo de entrega." },
+        guindaste: { itens: ["equipamento", "frete at\xE9 a sua cidade"], consultor: "Ele vai confirmar o modelo do seu guindaste, grua ou cesto a\xE9reo e as linhas hidr\xE1ulicas que ele j\xE1 tem preparadas para o equipamento." }
+      };
+      const perfilTxt = PERFIS[String(req.body?.perfil || "")] || PERFIS.completa;
       const html = `
 <div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#111">
   <div style="background:#090909;padding:16px;text-align:center"><img src="${SITE}/marca/roder-horizontal.png" alt="Roder" style="height:36px" /></div>
@@ -3915,9 +3930,8 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
     <p>Ol\xE1${nome ? `, ${escHtml(nome)}` : ""}.</p>
     <p>Recebemos seu pedido de or\xE7amento da <b>${escHtml(produto)}</b>.</p>
     ${foto ? `<p style="text-align:center"><img src="${foto}" alt="" style="max-width:260px;max-height:200px" /></p>` : ""}
-    ${instalacao ? `<p>Nosso or\xE7amento \xE9 completo e j\xE1 considera:<br>\u2022 equipamento<br>\u2022 frete at\xE9 a sua cidade<br>\u2022 instala\xE7\xE3o na sua m\xE1quina por um t\xE9cnico Roder<br>\u2022 regulagem e orienta\xE7\xE3o ao operador</p>
-    <p>Para chegar aos valores certos, um consultor Roder vai falar com voc\xEA pelo WhatsApp. Ele vai pedir a marca e o modelo da sua m\xE1quina e algumas fotos do comando hidr\xE1ulico, para confirmar se ela j\xE1 tem fatia extra e v\xE1lvula de regulagem de press\xE3o. \xC9 com isso que a Roder prepara a instala\xE7\xE3o hidr\xE1ulica completa.</p>` : `<p>Este equipamento vai pronto para voc\xEA acoplar e ligar na sua m\xE1quina.</p>
-    <p>Um consultor Roder vai falar com voc\xEA pelo WhatsApp para confirmar o modelo da sua m\xE1quina e fechar frete e prazo de entrega.</p>`}
+    <p>Seu or\xE7amento inclui:<br>${perfilTxt.itens.map((i) => `\u2022 ${i}`).join("<br>")}</p>
+    <p>Para chegar aos valores certos, um consultor Roder vai falar com voc\xEA pelo WhatsApp. ${perfilTxt.consultor}</p>
     <p>O or\xE7amento chega neste e-mail.</p>
     <p style="text-align:center;margin:22px 0"><a href="${link}" style="background:#facc15;color:#111;text-decoration:none;font-weight:bold;padding:13px 22px;border-radius:10px;display:inline-block">Ver v\xEDdeo e ficha t\xE9cnica</a></p>
     <p style="color:#555;font-size:13px">Roder M\xE1quinas e Equipamentos \xB7 desde 2002<br>Pardinho, SP \xB7 roderbrasil.com.br</p>

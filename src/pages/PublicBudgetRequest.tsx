@@ -25,7 +25,7 @@ import {
 import { Loader2, CheckCircle2, ChevronLeft, ChevronRight, Package, User, Building, Phone, Mail, FileText, MapPin, Briefcase, Settings } from 'lucide-react';
 import { cn, getApiBaseUrl } from '../lib/utils';
 import { abrirDocumento } from '../lib/abrirDocumento';
-import { precisaInstalacao } from '../lib/instalacao';
+import { perfilInstalacao, TEXTOS_INSTALACAO, frasePara } from '../lib/instalacao';
 import { ImageLightbox } from '../components/ui/ImageLightbox';
 
 // Faixa preta com a logo horizontal da Roder, abaixo da hora e da bateria do celular
@@ -372,7 +372,7 @@ export default function PublicBudgetRequest() {
               indicationId: novaRef.id,
               foto: images[0] || '',
               link: window.location.href,
-              instalacao: comInstalacao,
+              perfil,
             }),
           });
         } catch (e) { console.warn('Confirmação por e-mail não enviada:', e); }
@@ -394,9 +394,11 @@ export default function PublicBudgetRequest() {
   const nomeBase = ultimaPalavra.length <= 4 && displayModelName.toUpperCase().startsWith(ultimaPalavra.toUpperCase()) ? palavrasNome.slice(0, -1).join(' ') : displayProductName;
   const tituloEquip = !displayModelName || nomeBase.toLowerCase().includes(displayModelName.toLowerCase()) ? nomeBase : `${nomeBase} ${displayModelName}`;
   const specs: Record<string, any> = (activeModel as any)?.technical_specs || {};
-  const maquinaBase = String(specs.maquina_base || '').trim().replace(/\s*ton\.?$/i, ' t');
-  const ehPa = /engate|carregadeira/i.test(`${displayProductName} ${displayModelName}`);
-  const comInstalacao = precisaInstalacao(displayProductName, displayModelName, product?.category);
+  const nomeCompleto = `${displayProductName} ${displayModelName}`;
+  const perfil = perfilInstalacao(nomeCompleto, specs);
+  const textoInstalacao = TEXTOS_INSTALACAO[perfil];
+  const paraMaquina = frasePara(perfil, nomeCompleto, specs.maquina_base);
+  const ehPa = /pá carregadeira/.test(paraMaquina) || /engate|carregadeira/i.test(nomeCompleto);
   const destaques = ([
     ['diametro_max_tora', 'Tora'], ['diametro_rachamento', 'Racha até'], ['diametro_corte', 'Corte'], ['diametro_max_corte', 'Corte'],
     ['abertura_maxima', 'Abertura'], ['volume', 'Volume'], ['capacidade_carga', 'Carga'], ['peso', 'Peso'], ['peso_do_equipamento', 'Peso'], ['peso_sem_rotator', 'Peso'],
@@ -430,22 +432,11 @@ export default function PublicBudgetRequest() {
             Obrigado{primeiroNome ? `, ${primeiroNome}` : ''}. Recebemos seu pedido da <b className="text-slate-900">{tituloEquip}</b>.
           </p>
           <div className="bg-white border border-slate-200 rounded-2xl p-4 mt-4 text-left text-[14px] leading-relaxed">
-            {comInstalacao ? (
-              <>
-                <p className="font-extrabold mb-1.5">Seu orçamento completo inclui</p>
-                <p>✔ Equipamento</p>
-                <p>✔ Frete até a sua cidade</p>
-                <p>✔ Instalação na sua máquina por técnico Roder</p>
-                <p>✔ Regulagem e orientação ao operador</p>
-                <p className="mt-2.5 text-slate-600">
-                  Para fechar os valores certos, um consultor Roder vai falar com você pelo WhatsApp <b className="text-slate-900">{formData.client_phone}</b>. Ele vai pedir a marca e o modelo da sua máquina e fotos do comando hidráulico, para confirmar se ela tem fatia extra e válvula de regulagem de pressão.
-                </p>
-              </>
-            ) : (
-              <p className="text-slate-600">
-                Este equipamento vai pronto para você acoplar na sua máquina. Um consultor Roder vai falar com você pelo WhatsApp <b className="text-slate-900">{formData.client_phone}</b> para confirmar o modelo da sua máquina e fechar frete e prazo.
-              </p>
-            )}
+            <p className="font-extrabold mb-1.5">Seu orçamento inclui</p>
+            {textoInstalacao.itens.map(i => <p key={i}>✔ {i}</p>)}
+            <p className="mt-2.5 text-slate-600">
+              Para fechar os valores certos, um consultor Roder vai falar com você pelo WhatsApp <b className="text-slate-900">{formData.client_phone}</b>. {textoInstalacao.consultor}
+            </p>
             {formData.client_email.trim() && <p className="mt-2.5 text-slate-600">O orçamento também chega no e-mail <b className="text-slate-900">{formData.client_email.trim()}</b>.</p>}
           </div>
           {(videoUrl || fichaUrl) && (
@@ -492,9 +483,9 @@ export default function PublicBudgetRequest() {
           <div className="min-w-0">
             <p className="text-[10.5px] font-extrabold text-slate-500 tracking-[0.12em]">ORÇAMENTO</p>
             <h1 className="text-lg font-black leading-tight">{tituloEquip}</h1>
-            {maquinaBase && (
+            {paraMaquina && (
               <span className="inline-block mt-1.5 bg-[#111] text-yellow-400 text-xs font-extrabold px-2 py-1 rounded-md">
-                {ehPa ? 'Pá carregadeira' : 'Escavadeira'} {maquinaBase}
+                {paraMaquina}
               </span>
             )}
             {destaques.length > 0 && <p className="text-xs text-slate-600 mt-1.5">{destaques.join(' · ')}</p>}
