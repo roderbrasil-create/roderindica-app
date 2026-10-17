@@ -166,7 +166,7 @@ export function SacadorSac500Ficha({ onClose }: SacadorSac500FichaProps) {
 • *Máquina Base:* EXCLUSIVO para Escavadeiras de Esteira de 20 a 30 Toneladas
 • *Linha Hidráulica:* 1 Linha Bidirecional (2 Mangueiras) c/ Sequência Automática
 • *Dimensões:* 1.904 mm (A) x 1.600 mm (L) x 1.555 mm (P)
-• *Capacidade Máx. Diâmetro:* Até 45 cm (Sacador / Seringueira) | 12 a 35 cm (Eucalipto)
+• *Capacidade Máx. Diâmetro:* Até 450 mm (Sacador / Seringueira) | 12 a 35 cm (Eucalipto)
 • *Pressão / Vazão:* 320 a 350 bar | 180 a 250 L/min
 • *Cilindros Hidráulicos:* 2 cilindros (1 garra + 1 torre) operados por 1 linha
 • *Acumulador:* Não possui
@@ -176,7 +176,7 @@ export function SacadorSac500Ficha({ onClose }: SacadorSac500FichaProps) {
 • Ao acionar a linha, a garra fecha na árvore. Assim que prensa o tronco, a pressão se eleva no acionamento automático e o cilindro da torre avança para arrancar a árvore com toco e raízes.
 
 🪵 *Placas Frontais de Série:*
-• *Seringueira e Teca:* Ø 450 a 500 mm (Placa Dentada)
+• *Seringueira e Teca:* Ø até 450 mm (Placa Dentada)
 • *Eucalipto:* Ø 100 a 300/350 mm (Placa em V)
 
 ⚡ *Produtividade Estimada (Com Toco e Raízes):*
@@ -452,8 +452,8 @@ _Dúvidas ou orçamentos? Fale com a equipe técnica Roder!_`;
                         </tr>
                         <tr className="bg-amber-50/70">
                           <td className="py-0.5 px-2.5 font-bold text-slate-950 border-r border-slate-200">Capacidade Máx. de Diâmetro</td>
-                          <td className="py-0.5 px-2.5 font-black text-amber-950 border-r border-slate-200 text-[8.5px] leading-tight break-words whitespace-normal">Até 45 cm (Seringueira) | 12 a 35 cm (Eucalipto)</td>
-                          <td className="py-0.5 px-2.5 text-slate-800 font-semibold text-[8px] leading-tight">Sacador: Placa Dentada 45 cm / Placa V: 12-35 cm</td>
+                          <td className="py-0.5 px-2.5 font-black text-amber-950 border-r border-slate-200 text-[8.5px] leading-tight break-words whitespace-normal">Até 450 mm (Seringueira) | 12 a 35 cm (Eucalipto)</td>
+                          <td className="py-0.5 px-2.5 text-slate-800 font-semibold text-[8px] leading-tight">Sacador: Placa Dentada até 450 mm / Placa V: 12-35 cm</td>
                         </tr>
                         <tr className="bg-slate-50">
                           <td className="py-0.5 px-2.5 font-bold text-slate-950 border-r border-slate-200">Pressão de Trabalho / Vazão</td>
@@ -489,7 +489,7 @@ _Dúvidas ou orçamentos? Fale com a equipe técnica Roder!_`;
                         </div>
                         <p className="text-[10px] font-black text-slate-950">Madeiras Não Fibrosas (Seringueira / Teca)</p>
                         <p className="text-[9.5px] text-slate-900 mt-0.5">
-                          <strong>Diâmetro:</strong> Até <strong>450 a 500 mm (45 a 50 cm)</strong>.
+                          <strong>Diâmetro:</strong> Até <strong>450 mm (45 cm)</strong>.
                         </p>
                         <p className="text-[9px] text-slate-800 font-medium mt-0.5 leading-tight">
                           Os cravos perfuram a casca e travam o tronco sem deslizar.
