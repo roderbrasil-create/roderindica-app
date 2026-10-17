@@ -4899,6 +4899,35 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       res.status(500).send(e?.message || "Erro");
     }
   });
+  app.get("/api/documento", async (req, res) => {
+    try {
+      const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+      if (!token) return res.status(401).send("Fa\xE7a login novamente.");
+      await import_firebase_admin.default.auth().verifyIdToken(token);
+      let url = String(req.query.url || "");
+      let host = "";
+      try {
+        host = new URL(url).hostname.toLowerCase();
+      } catch {
+        return res.status(400).send("URL inv\xE1lida");
+      }
+      if (!/^https:\/\//i.test(url)) return res.status(400).send("URL inv\xE1lida");
+      const permitidos = ["firebasestorage.googleapis.com", "storage.googleapis.com", "roderbrasil.com.br", "www.roderbrasil.com.br", "drive.google.com", "docs.google.com", "roderindica.com", "www.roderindica.com"];
+      if (!permitidos.includes(host)) return res.status(403).send("Endere\xE7o n\xE3o permitido");
+      const drive = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:export=\w+&)?id=)([\w-]{10,})/);
+      if (drive) url = `https://drive.google.com/uc?export=download&id=${drive[1]}`;
+      const r = await fetch(url, { redirect: "follow" });
+      if (!r.ok) return res.status(502).send("N\xE3o consegui baixar o documento");
+      const buf = Buffer.from(await r.arrayBuffer());
+      if (buf.length > 40 * 1024 * 1024) return res.status(413).send("Documento grande demais");
+      if (buf.subarray(0, 5).toString("latin1") !== "%PDF-") return res.status(415).send("N\xE3o \xE9 PDF");
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Cache-Control", "private, max-age=300");
+      res.send(buf);
+    } catch (e) {
+      res.status(500).send(e?.message || "Erro");
+    }
+  });
   async function callAgendor(endpoint, method, apiToken, body) {
     const url = `https://api.agendor.com.br/v3/${endpoint}`;
     const headers = {

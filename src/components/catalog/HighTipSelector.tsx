@@ -32,6 +32,7 @@ import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
 import { db } from '../../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { abrirDocumento } from '../../lib/abrirDocumento';
 
 const BUCKET_DIMENSIONS: Record<string, { a: string, b: string, c: string }> = {
   '2.0': { a: '900', b: '2.400', c: '1.600' },
@@ -282,7 +283,7 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
       try {
         const blob = pdf.output('blob');
         const blobURL = URL.createObjectURL(blob);
-        window.open(blobURL, '_blank');
+        abrirDocumento(blobURL, 'Ficha High Tip');
       } catch (e) {
         console.warn("Could not open PDF in new window (possibly blocked by popup blocker), but download started.", e);
       }

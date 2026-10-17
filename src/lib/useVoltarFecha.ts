@@ -24,6 +24,23 @@ function aoVoltar() {
   if (!topo) return;
   topo.voltou = true;
   topo.fechar();
+  // Caiu numa entrada que sobrou de uma tela já fechada (mesma página): passa direto,
+  // senão a pessoa aperta "voltar" e nada acontece
+  if (entradaSobrando()) {
+    voltasNossas++;
+    window.history.back();
+  }
+}
+
+function entradaSobrando() {
+  const sub = (window.history.state as any)?.__sub;
+  return !!sub && !pilha.some(i => i.marca === sub);
+}
+
+// Há alguma tela interna aberta? O botão voltar do app usa isto para fechar a tela
+// em vez de trocar de página.
+export function temTelaAberta() {
+  return pilha.length > 0;
 }
 
 export function useVoltarFecha(aberto: boolean, fechar: () => void) {
@@ -46,7 +63,8 @@ export function useVoltarFecha(aberto: boolean, fechar: () => void) {
       // fechou pelo botão da própria tela: tira a entrada extra, senão o próximo
       // "voltar" ficaria parado na mesma página. Só se ainda estivermos nela:
       // se a pessoa navegou para outra rota, não se mexe no histórico.
-      if (!item.voltou && window.history.state?.__sub === marca) {
+      const atual = window.history.state?.__sub;
+      if (!item.voltou && atual && (atual === marca || entradaSobrando())) {
         voltasNossas++;
         window.history.back();
       }

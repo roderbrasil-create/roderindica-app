@@ -260,7 +260,7 @@ export function EngateRapidoFicha({ onClose }: EngateRapidoFichaProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex flex-col items-center overflow-hidden antialiased">
+    <div style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 0.5rem)' }} className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex flex-col items-center overflow-hidden antialiased">
       
       {/* Top Navbar / Header Controls */}
       <header className="w-full bg-slate-900 border-b border-slate-800 px-4 py-3 shrink-0 flex flex-wrap items-center justify-between gap-3 shadow-xl z-20">

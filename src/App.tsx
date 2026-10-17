@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocat
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NegotiationProvider } from './contexts/NegotiationContext';
 import { PWAProvider } from './contexts/PWAContext';
+import LeitorDocumento from './components/documento/LeitorDocumento';
 import NegotiationManager from './components/negotiation/NegotiationManager';
 import { Toaster } from './components/ui/sonner';
 import { ThemeProvider } from 'next-themes';
@@ -422,6 +423,7 @@ function AppContent() {
       </Suspense>
       <Toaster position="top-right" richColors closeButton />
       {!isPublicRoute && <NegotiationManager />}
+      <LeitorDocumento />
       {!isPublicRoute && <PWAInstallBanner />}
     </>
   );

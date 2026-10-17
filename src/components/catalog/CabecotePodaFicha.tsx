@@ -193,7 +193,7 @@ export function CabecotePodaFicha({ onClose }: CabecotePodaFichaProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-2 sm:p-4 overflow-y-auto backdrop-blur-sm">
+    <div style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 0.5rem)' }} className="fixed inset-0 z-50 flex items-start md:items-center justify-center bg-black/80 p-2 sm:p-4 overflow-y-auto backdrop-blur-sm">
       <div className="relative w-full max-w-[920px] h-[90vh] sm:h-[92vh] max-h-[960px] bg-slate-900 border border-slate-800 rounded-xl shadow-2xl overflow-hidden flex flex-col">
         
         {/* Modal Header Controls */}

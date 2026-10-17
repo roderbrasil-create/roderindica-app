@@ -23,6 +23,7 @@ import { GarraEstufagemFicha } from '../catalog/GarraEstufagemFicha';
 import { TrituradorLoaderFaeFicha } from '../catalog/TrituradorLoaderFaeFicha';
 import { SacadorSac500Ficha } from '../catalog/SacadorSac500Ficha';
 import { useVoltarFecha } from '../../lib/useVoltarFecha';
+import { abrirDocumento } from '../../lib/abrirDocumento';
 
 const DEFAULT_PRODUCTIVITIES: Record<string, string> = {
   "CMF 600": `DERRUBADA (COLHEITA FLORESTAL):
@@ -680,10 +681,8 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
       return;
     }
 
-    // Fallback: If it's a standard URL, open in a new tab safely
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      window.open(url, '_blank', 'noopener,noreferrer');
-    }
+    // Abre dentro do app, com botão de voltar (fichas em /catalogo/... antes nem abriam aqui)
+    if (url) abrirDocumento(url, 'Ficha técnica');
   };
 
   // Only accessible to administrators and commercial managers

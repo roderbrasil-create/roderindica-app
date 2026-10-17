@@ -75,6 +75,7 @@ import {
 } from 'recharts';
 import { MonthlyStatement } from '../types';
 import { sendEmail } from '../services/emailService';
+import { abrirDocumento } from '../lib/abrirDocumento';
 
 const months = [
   { value: 1, label: 'Janeiro' },
@@ -1462,7 +1463,7 @@ export default function Commissions() {
                                   </Badge>
                                 )}
                                 {isWaitingPayment && (
-                                  <div className="flex flex-col items-center gap-0.5" onClick={(e) => { e.stopPropagation(); if (statement.nf_url) window.open(statement.nf_url, '_blank'); }}>
+                                  <div className="flex flex-col items-center gap-0.5" onClick={(e) => { e.stopPropagation(); if (statement.nf_url) abrirDocumento(statement.nf_url, 'Nota fiscal'); }}>
                                     <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20 uppercase font-black tracking-wider text-[8px] px-2 py-0.5 flex items-center gap-1 cursor-pointer hover:bg-blue-500/25">
                                       Ver NF Anexa ↗
                                     </Badge>
@@ -1755,7 +1756,7 @@ export default function Commissions() {
                              <Button 
                               variant="outline" 
                               className="flex-1 text-xs h-8 border-border"
-                              onClick={() => window.open(statement.nf_url, '_blank')}
+                              onClick={() => abrirDocumento(statement.nf_url, 'Nota fiscal')}
                              >
                                <FileText className="h-3.5 w-3.5 mr-2" /> Ver NF
                              </Button>
@@ -1777,7 +1778,7 @@ export default function Commissions() {
                             <Button 
                               variant="outline" 
                               className="flex-1 text-xs h-8 border-green-500/30 text-green-500"
-                              onClick={() => window.open(statement.payment_receipt_url, '_blank')}
+                              onClick={() => abrirDocumento(statement.payment_receipt_url, 'Comprovante de pagamento')}
                             >
                                <CheckCircle2 className="h-3.5 w-3.5 mr-2" /> Recibo
                             </Button>
@@ -1917,7 +1918,7 @@ export default function Commissions() {
                                         <button
                                           onClick={(e) => {
                                             e.stopPropagation();
-                                            window.open(period.nf_url, '_blank');
+                                            abrirDocumento(period.nf_url, 'Nota fiscal');
                                           }}
                                           className="text-[9.5px] p-0.5 text-primary hover:underline font-bold uppercase rounded flex items-center gap-0.5 shrink-0"
                                         >

@@ -417,7 +417,7 @@ export function GarraEstufagemFicha({ onClose, defaultModelId = 'af_360' }: Garr
   const mainImgToRender = formatFichaImageUrl(customMainImageUrl || defaultMainImage);
 
   return (
-    <div className="fixed inset-0 z-[99999] overflow-hidden bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-6 no-print-backdrop">
+    <div style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 0.5rem)' }} className="fixed inset-0 z-[99999] overflow-hidden bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-6 no-print-backdrop">
       <div className="bg-card text-card-foreground w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden border border-border flex flex-col h-[96vh]">
         
         {/* Modal Topbar Controls */}

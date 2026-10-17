@@ -5378,6 +5378,39 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     }
   });
 
+  // Leitor de documentos dentro do app. No app instalado no celular, abrir um PDF em
+  // "nova aba" abria a ficha sem botão de voltar: a pessoa ficava presa e tinha de fechar
+  // o app. Agora o PDF é mostrado dentro do app, e este endereço busca o arquivo para o
+  // leitor (o navegador não consegue ler direto do Storage/Drive por CORS).
+  // Só servidores conhecidos, só PDF e só para quem está logado: não vira um proxy aberto.
+  app.get("/api/documento", async (req, res) => {
+    try {
+      const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+      if (!token) return res.status(401).send('Faça login novamente.');
+      await admin.auth().verifyIdToken(token);
+      let url = String(req.query.url || '');
+      let host = '';
+      try { host = new URL(url).hostname.toLowerCase(); } catch { return res.status(400).send('URL inválida'); }
+      if (!/^https:\/\//i.test(url)) return res.status(400).send('URL inválida');
+      const permitidos = ['firebasestorage.googleapis.com', 'storage.googleapis.com', 'roderbrasil.com.br', 'www.roderbrasil.com.br', 'drive.google.com', 'docs.google.com', 'roderindica.com', 'www.roderindica.com'];
+      if (!permitidos.includes(host)) return res.status(403).send('Endereço não permitido');
+      // Link de visualização do Drive vira link de download do arquivo
+      const drive = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:export=\w+&)?id=)([\w-]{10,})/);
+      if (drive) url = `https://drive.google.com/uc?export=download&id=${drive[1]}`;
+      const r = await fetch(url, { redirect: 'follow' });
+      if (!r.ok) return res.status(502).send('Não consegui baixar o documento');
+      const buf = Buffer.from(await r.arrayBuffer());
+      if (buf.length > 40 * 1024 * 1024) return res.status(413).send('Documento grande demais');
+      // confere pelo conteúdo, porque o Drive e o Storage às vezes mandam o tipo errado
+      if (buf.subarray(0, 5).toString('latin1') !== '%PDF-') return res.status(415).send('Não é PDF');
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Cache-Control', 'private, max-age=300');
+      res.send(buf);
+    } catch (e: any) {
+      res.status(500).send(e?.message || 'Erro');
+    }
+  });
+
   // --- AGENDOR CRM INTEGRATION ROUTES ---
 
   // Helper function to call Agendor API

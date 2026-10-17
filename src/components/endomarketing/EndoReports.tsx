@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useAuth } from '../../contexts/AuthContext';
+import { abrirDocumento } from '../../lib/abrirDocumento';
 
 // Helper to draw horizontal budget bar chart
 const drawBudgetCategoryChart = (actions: EndomarketingAction[]): string => {
@@ -920,7 +921,7 @@ export default function EndoReports() {
       try {
         const pdfBlob = doc.output('blob');
         const blobUrl = URL.createObjectURL(pdfBlob);
-        window.open(blobUrl, '_blank');
+        abrirDocumento(blobUrl, 'Dossiê do evento');
       } catch (openErr) {
         console.warn('Popup blocker or sandbox prevented automatically opening the tab:', openErr);
       }

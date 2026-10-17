@@ -95,6 +95,7 @@ import { ptBR } from 'date-fns/locale';
 import { maskCurrency, unmaskCurrency } from '../../lib/masks';
 import { notifyFinanceCommissionScheduled } from '../../services/emailService';
 import { compressFileToDataURL, compressImage } from '../../lib/imageUtils';
+import { abrirDocumento } from '../../lib/abrirDocumento';
 
 
 // Integração com o Agendor desligada (out/2026). O CRM passa a ser o do Roder Vision.
@@ -2568,7 +2569,7 @@ export default function NegotiationCentral() {
                                             size="sm" 
                                             variant="ghost" 
                                             className="h-7 px-2 text-xs text-primary hover:text-primary"
-                                            onClick={() => window.open(file.url, '_blank')}
+                                            onClick={() => abrirDocumento(file.url, file.name || 'Documento')}
                                           >
                                             <ExternalLink className="h-3.5 w-3.5" />
                                           </Button>

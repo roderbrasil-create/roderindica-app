@@ -96,6 +96,7 @@ import { SacadorSac500Ficha } from '../components/catalog/SacadorSac500Ficha';
 import { EstudosComparativosModal } from '../components/catalog/EstudosComparativosModal';
 import { RODER_LOGO_BASE64 } from '../components/catalog/RoderLogo';
 import { useVoltarFecha } from '../lib/useVoltarFecha';
+import { abrirDocumento } from '../lib/abrirDocumento';
 
 function SmartImage({ src, alt, className, zoom = 1, objectFit = 'cover', ...props }: any) {
   const [resolvedSrc, setResolvedSrc] = useState('');
@@ -934,7 +935,11 @@ export default function Catalog() {
   // A lista abria na altura em que o catálogo estava rolado (meio, fim...).
   // Agora abre sempre no primeiro modelo, e ao voltar o catálogo volta onde estava.
   const posicaoCatalogoRef = useRef(0);
+  const galeriaJaAbriuRef = useRef(false);
   useEffect(() => {
+    // na primeira montagem não mexe: deixa o navegador devolver a rolagem de quando a pessoa saiu
+    if (!galeriaAberta && !galeriaJaAbriuRef.current) return;
+    galeriaJaAbriuRef.current = true;
     if (galeriaAberta) {
       posicaoCatalogoRef.current = window.scrollY;
       window.scrollTo({ top: 0, behavior: 'auto' });
@@ -962,7 +967,7 @@ export default function Catalog() {
     if (suspendedViewingGallery) { setViewingGallery(suspendedViewingGallery); setSuspendedViewingGallery(null); }
   });
   // Janela de modelos (computador) também fecha no "voltar"
-  useVoltarFecha(!!selectedProductModels, () => setSelectedProductModels(null));
+  useVoltarFecha(!!(selectedProductModels || suspendedProductModels), () => { setSelectedProductModels(null); setSuspendedProductModels(null); });
 
   // Catalog Image Lightbox States
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
@@ -1226,7 +1231,7 @@ export default function Catalog() {
       if (foundProduct) {
         setViewingGallery(foundProduct);
         // Clean up state so it doesn't open again on page refresh
-        window.history.replaceState({}, document.title);
+        navigate(location.pathname, { replace: true, state: null });
       }
     }
   }, [location.state, products]);
@@ -3942,14 +3947,8 @@ export default function Catalog() {
             const blob = await base64Response.blob();
             const blobUrl = URL.createObjectURL(blob);
             
-            // For blob URLs, we often have to navigate on mobile or use a safe method
-            const a = document.createElement('a');
-            a.href = blobUrl;
-            a.target = '_blank';
-            a.rel = 'noopener noreferrer';
-            document.body.appendChild(a);
-            a.click();
-            setTimeout(() => document.body.removeChild(a), 100);
+            // Abre dentro do app, com botão de voltar (no celular, nova aba deixava a pessoa presa)
+            abrirDocumento(blobUrl, fileData.name || 'Documento');
             
             toast.dismiss('open-pdf');
           } else {
@@ -3965,8 +3964,8 @@ export default function Catalog() {
       return;
     }
 
-    // Standard URL - Use direct link to avoid popup blockers
-    window.open(url, '_blank', 'noopener,noreferrer');
+    // Abre dentro do app, com botão de voltar. Link de sistema externo (Roder Vision) abre fora.
+    abrirDocumento(url, 'Catálogo de peças');
   };
 
   const openPdf = (url: string, modelName?: string, productContext?: any) => {
@@ -4286,14 +4285,8 @@ export default function Catalog() {
             const blob = await base64Response.blob();
             const blobUrl = URL.createObjectURL(blob);
             
-            // For blob URLs, we often have to navigate on mobile or use a safe method
-            const a = document.createElement('a');
-            a.href = blobUrl;
-            a.target = '_blank';
-            a.rel = 'noopener noreferrer';
-            document.body.appendChild(a);
-            a.click();
-            setTimeout(() => document.body.removeChild(a), 100);
+            // Abre dentro do app, com botão de voltar (no celular, nova aba deixava a pessoa presa)
+            abrirDocumento(blobUrl, fileData.name || 'Documento');
             
             toast.dismiss('open-pdf');
           } else {
@@ -4310,7 +4303,7 @@ export default function Catalog() {
     }
 
     // Standard URL - Use direct link to avoid popup blockers
-    window.open(url, '_blank', 'noopener,noreferrer');
+    abrirDocumento(url, modelName ? `Ficha ${modelName}` : 'Ficha técnica');
   };
 
   const shareFile = async (url: string, fileName: string) => {
@@ -4921,128 +4914,13 @@ export default function Catalog() {
 
           {/* Models List - Compact Bento Style */}
           <div className="flex-1 px-6 py-4 md:px-3 md:py-6 max-w-[1440px] mx-auto w-full space-y-4 md:space-y-4">
-            {viewingGallery.models?.map((model: any, idx: number) => (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                key={model.id || `gallery-model-${idx}`}
-                className="bg-white rounded-xl border border-border shadow-sm overflow-hidden flex flex-row h-auto min-h-[140px] md:min-h-[252px]"
-              >
-                {/* Left side: Compact Image */}
-                <div className="w-32 sm:w-40 md:w-[280px] bg-muted/10 relative border-r border-border shrink-0">
-                  <div className="absolute inset-0">
-                    {model.images && model.images.length > 0 ? (
-                      <ImageCarousel 
-                        images={model.images} 
-                        zoom={model.image_zoom || 1} 
-                        onClick={() => {
-                          setLightboxImages(model.images);
-                          setLightboxTitle(model.name);
-                          setIsLightboxOpen(true);
-                        }}
-                      />
-                    ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground/30">
-                        <Package className="h-6 w-6 md:h-11 md:w-11" />
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Floating YouTube Button - Compact */}
-                  {model.video_url && (
-                    <div className="absolute bottom-1.5 left-1.5 z-10">
-                      <Button
-                        size="icon"
-                        className="h-8 w-8 md:h-10 md:w-10 rounded-full shadow-lg bg-red-600 hover:bg-red-700 text-white flex flex-col items-center justify-center gap-0"
-                        onClick={() => window.open(model.video_url, '_blank')}
-                        title="Ver Vídeo"
-                      >
-                        <Video className="h-3.5 w-3.5 md:h-5 md:w-5" />
-                        <span className="text-[6.5px] md:hidden font-bold leading-none uppercase">VÍDEO</span>
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Right side: Compact Info */}
-                <div className="flex-1 p-2 md:p-6 flex flex-col min-w-0">
-                  <div className="flex items-start justify-between gap-1 mb-1 md:mb-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1 flex-wrap">
-                        <h3 className="!text-[14px] md:!text-2xl font-black text-slate-500 tracking-tighter uppercase truncate leading-none">
-                          {model.name}
-                        </h3>
-                      </div>
-                      {!isExternalSeller && typeof model.base_value === 'number' && model.base_value > 0 ? (
-                        <p className="font-bold text-primary !text-[11px] md:!text-xl mt-0.5">
-                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(model.base_value)}
-                        </p>
-                      ) : null}
-                    </div>
-
-                    {(isManager || isAdmin) && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground hover:text-primary"
-                        onClick={() => {
-                          const modelIndex = viewingGallery.models?.findIndex((m: any) => m.id === model.id);
-                          if (modelIndex !== undefined && modelIndex !== -1) {
-                            setEditingModelData({ ...model });
-                            setEditingModelIndex(modelIndex);
-                            setIsEditingFromProductDialog(false);
-                            setIsModelEditOpen(true);
-                          }
-                        }}
-                      >
-                        <Edit className="h-3 w-3 md:h-4 md:w-4" />
-                      </Button>
-                    )}
-                  </div>
-
-                  {/* Specs Grid - Bento Style boxes with Units */}
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1 md:gap-2.5 mb-1.5 md:mb-4">
-                    {Object.entries({
-                      ...(DEFAULT_FAE_SPECS[model.id] || {}),
-                      ...(model.technical_specs || {})
-                    })
-                      .filter(([key, value]) => {
-                        if (viewingGallery?.name === 'Mini Skidder') {
-                          const excluded = ['diametro_corte', 'sabre', 'corrente', 'motor', 'peso_operacional'];
-                          if (excluded.some(ex => key.toLowerCase().includes(ex))) return false;
-                        }
-                        return value && String(value).trim() !== '' && String(value).trim() !== '-';
-                      })
-                      .sort(([a], [b]) => {
-                        const order = [
-                          'maquina_base', 'peso_do_equipamento', 'peso', 'peso_operacional',
-                          'diametro_max_trituracao', 'diametro_max_de_trituracao_mm', 'diametro_max_corte', 'diametro_corte',
-                          'pressao', 'pressao_trabalho', 'vazao', 'vazão',
-                          'instalacao_hidraulica', 'acionamento', 'tempo_de_ciclo', 'compatibilidade', 'seguranca', 'giro_360',
-                          'n_facas', 'acumulador', 'area_carga', 'area_da_garra', 
-                          'abertura_maxima', 'diametro_minimo', 'carregadeira',
-                          'escavadeira', 'potencia_do_trator', 
-                          'capacidade_de_carga', 'capacidade_carga',
-                          'altura_total', 'largura_total', 'comprimento_util_garfo',
-                          'dimensoes', 'capacidade_diametro', 'tipo_dente', 'tipo_material'
-                        ];
-                        const idxA = order.indexOf(a.toLowerCase());
-                        const idxB = order.indexOf(b.toLowerCase());
-                        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-                        return (idxA !== -1 ? -1 : (idxB !== -1 ? 1 : a.localeCompare(b)));
-                      })
-                      .slice(0, 12)
-                      .map(([key, value]: any) => {
-                        // Helper to format units
-                        let displayValue = String(value);
-                        const k = key.toLowerCase();
-                        if ((k.includes('peso') || k.includes('capacidade')) && !k.includes('operacional') && !k.includes('diametro') && !displayValue.toLowerCase().includes('kg') && !displayValue.toLowerCase().includes('ton') && !displayValue.toLowerCase().includes('cm')) displayValue += ' kg';
-                        if ((k.includes('medida') || k.includes('abertura') || (k.includes('diametro') && !k.includes('capacidade')) || k.includes('altura') || k.includes('largura') || k.includes('comprimento')) && !k.includes('dimensoes') && !displayValue.toLowerCase().includes('mm') && !displayValue.toLowerCase().includes('cm')) displayValue += ' mm';
-                        if ((k.includes('pressao') || k.includes('pressão')) && !displayValue.toLowerCase().includes('bar')) displayValue += ' bar';
-                        if ((k.includes('vazao') || k.includes('vazão')) && !displayValue.toLowerCase().includes('l/min') && !displayValue.toLowerCase().includes('lmin')) displayValue += ' L/min';
-                        
-                        const kMapping = key.toLowerCase();
-                        const specLabels: Record<string, string> = {
+            {viewingGallery.models?.map((model: any, idx: number) => {
+              // Card B (aprovado pelo Jeferson): foto quadrada de tamanho fixo ao lado do nome,
+              // máquina base em destaque e as características numa tabela limpa
+              const todasSpecs: Record<string, any> = { ...(DEFAULT_FAE_SPECS[model.id] || {}), ...(model.technical_specs || {}) };
+              const ehPa = isEngateProduct(viewingGallery?.name) || isEngateProduct(model.name) || (viewingGallery?.name || '').toLowerCase().includes('carregadeira') || (model.name || '').toLowerCase().includes('carregadeira');
+              const maquinaBase = String(todasSpecs.maquina_base || '').trim();
+              const specLabels: Record<string, string> = {
                           trator: 'Pá Carregadeira',
                           peso: 'Peso Equipamento',
                           area_carga: 'Área Carga',
@@ -5096,144 +4974,194 @@ export default function Catalog() {
                           codigo_roder: 'Código Roder',
                           hidraulica: 'Hidráulica'
                         };
-                        const label = specLabels[kMapping] || key.replace(/_/g, ' ');
-                        const isGiro360 = kMapping === 'giro_360';
-                        const isTipoMaterial = kMapping === 'tipo_material';
-                        const isDimensoes = kMapping === 'dimensoes';
-                        const isCapacidadeDiametro = kMapping === 'capacidade_diametro';
-
-                        return (
-                            <div key={key} className={cn(
-                              "min-w-0 border rounded-md p-1 md:p-2 flex flex-col justify-center overflow-hidden transition-colors",
-                              isGiro360 
-                                ? "bg-orange-500/10 border-orange-500/30 shadow-orange-500/10" 
-                                : "bg-slate-50/80 border-slate-200",
-                              (isTipoMaterial || isDimensoes || isCapacidadeDiametro) && "col-span-2 md:col-span-2"
-                            )}>
-                              <p className={cn(
-                                "!text-[6px] md:!text-[10px] font-bold uppercase leading-none mb-0.5 truncate italic",
-                                isGiro360 ? "text-orange-700" : "text-slate-900"
-                              )}>
-                                {label}
-                              </p>
-                              <p className={cn(
-                                "!text-[9px] md:!text-[13px] font-bold",
-                                (isTipoMaterial || isDimensoes || isCapacidadeDiametro) 
-                                  ? "whitespace-normal break-words leading-tight !text-[8px] md:!text-[10.5px]" 
-                                  : "truncate leading-none",
-                                isGiro360 ? "text-orange-600" : "text-primary"
-                              )}>
-                                {displayValue}
-                              </p>
-                            </div>
-                        );
-                      })}
+              const order = [
+                          'maquina_base', 'peso_do_equipamento', 'peso', 'peso_operacional',
+                          'diametro_max_trituracao', 'diametro_max_de_trituracao_mm', 'diametro_max_corte', 'diametro_corte',
+                          'pressao', 'pressao_trabalho', 'vazao', 'vazão',
+                          'instalacao_hidraulica', 'acionamento', 'tempo_de_ciclo', 'compatibilidade', 'seguranca', 'giro_360',
+                          'n_facas', 'acumulador', 'area_carga', 'area_da_garra', 
+                          'abertura_maxima', 'diametro_minimo', 'carregadeira',
+                          'escavadeira', 'potencia_do_trator', 
+                          'capacidade_de_carga', 'capacidade_carga',
+                          'altura_total', 'largura_total', 'comprimento_util_garfo',
+                          'dimensoes', 'capacidade_diametro', 'tipo_dente', 'tipo_material'
+                        ];
+              const linhas = Object.entries(todasSpecs)
+                .filter(([key, value]) => {
+                  if (key.toLowerCase() === 'maquina_base') return false;
+                  if (viewingGallery?.name === 'Mini Skidder') {
+                    const excluded = ['diametro_corte', 'sabre', 'corrente', 'motor', 'peso_operacional'];
+                    if (excluded.some(ex => key.toLowerCase().includes(ex))) return false;
+                  }
+                  return value && String(value).trim() !== '' && String(value).trim() !== '-';
+                })
+                .sort(([a], [b]) => {
+                  const idxA = order.indexOf(a.toLowerCase());
+                  const idxB = order.indexOf(b.toLowerCase());
+                  if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                  return (idxA !== -1 ? -1 : (idxB !== -1 ? 1 : a.localeCompare(b)));
+                })
+                .slice(0, 12)
+                .map(([key, value]: any) => {
+                  let v = String(value);
+                  const k = key.toLowerCase();
+                  const lv = v.toLowerCase();
+                  if ((k.includes('peso') || k.includes('capacidade')) && !k.includes('operacional') && !k.includes('diametro') && !lv.includes('kg') && !lv.includes('ton') && !lv.includes('cm')) v += ' kg';
+                  if ((k.includes('medida') || k.includes('abertura') || (k.includes('diametro') && !k.includes('capacidade')) || k.includes('altura') || k.includes('largura') || k.includes('comprimento')) && !k.includes('dimensoes') && !lv.includes('mm') && !lv.includes('cm')) v += ' mm';
+                  if ((k.includes('pressao') || k.includes('pressão')) && !lv.includes('bar')) v += ' bar';
+                  if ((k.includes('vazao') || k.includes('vazão')) && !lv.includes('l/min') && !lv.includes('lmin')) v += ' L/min';
+                  return { key, label: specLabels[k] || key.replace(/_/g, ' '), value: v, destaque: k === 'giro_360' };
+                });
+              const temFicha = (model.pdf_url || viewingGallery?.pdf_url || isEngateProduct(model.name) || isEngateProduct(viewingGallery?.name) || isHighTipProduct(model.name) || isHighTipProduct(viewingGallery?.name) || isFresaProduct(model.name) || isFresaProduct(viewingGallery?.name) || isLoaderTrituradorProduct(model.name) || isLoaderTrituradorProduct(viewingGallery?.name));
+              const pecasUrl = model.parts_manual_url || viewingGallery?.parts_manual_url || '';
+              const temEntrega = ['fae-uml-ex-vt', 'fae-uml-s-ex-vt', 'fae-umm-ex-vt'].includes(model.id?.toLowerCase());
+              const botaoSec = "flex-1 min-w-0 h-11 md:h-12 px-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-800 font-bold shadow-sm rounded-lg flex flex-col md:flex-row items-center justify-center gap-0.5 md:gap-1.5 !text-[11px] md:!text-sm leading-none";
+              return (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                key={model.id || `gallery-model-${idx}`}
+                className="bg-white rounded-2xl border border-border shadow-sm p-3 md:p-5"
+              >
+                <div className="flex gap-3 md:gap-5 items-center">
+                  {/* Foto: quadro quadrado fixo, a máquina inteira aparece (sem cortar as laterais) */}
+                  <div className="relative w-28 h-28 sm:w-32 sm:h-32 md:w-48 md:h-48 shrink-0 rounded-xl border border-slate-100 bg-white overflow-hidden">
+                    {model.images && model.images.length > 0 ? (
+                      <ImageCarousel
+                        images={model.images}
+                        zoom={model.image_zoom || 1}
+                        objectFit="contain"
+                        onClick={() => {
+                          setLightboxImages(model.images);
+                          setLightboxTitle(model.name);
+                          setIsLightboxOpen(true);
+                        }}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-muted-foreground/30">
+                        <Package className="h-8 w-8 md:h-11 md:w-11" />
+                      </div>
+                    )}
+                    {model.video_url && (
+                      <button
+                        type="button"
+                        className="absolute bottom-1.5 left-1.5 z-10 bg-red-600 hover:bg-red-700 text-white rounded-full px-2 py-1 flex items-center gap-1 shadow-md !text-[10px] md:!text-xs font-black uppercase"
+                        onClick={(e) => { e.stopPropagation(); window.open(model.video_url, '_blank'); }}
+                        title="Ver vídeo"
+                      >
+                        <Video className="h-3 w-3 md:h-4 md:w-4" /> Vídeo
+                      </button>
+                    )}
                   </div>
 
-                  {/* Documentation & Actions - Ultra Compact Single Row */}
-                  <div className="mt-auto pt-0.5 border-t border-border/50">
-                    <div className={cn(
-                      "grid gap-0.5 md:gap-2.5 pt-2",
-                      ['fae-uml-ex-vt', 'fae-uml-s-ex-vt', 'fae-umm-ex-vt'].includes(model.id?.toLowerCase()) 
-                        ? "grid-cols-5" 
-                        : "grid-cols-4"
-                    )}>
-                       <div className="flex items-center gap-0.5 md:gap-1">
-                        <Button 
-                          size="sm"
-                          className="w-full bg-white border border-[#128C7E]/20 hover:bg-slate-50 text-[#075E54] font-black h-7 md:h-12 uppercase px-0 shadow-sm tracking-tighter leading-none flex flex-col md:flex-row items-center justify-center pt-0.5 md:pt-0"
-                          onClick={() => shareModelOnWhatsApp(viewingGallery?.name || '', model)}
-                        >
-                          <MessageCircle className="!h-2.5 !w-2.5 md:!h-4 md:!w-4 mb-0.5 md:mb-0 md:mr-0.5" />
-                          <span className="hidden sm:inline">WhatsApp</span>
-                          <span className="inline sm:hidden !text-[7px]">WHATS</span>
-                        </Button>
-                       </div>
-                       
-                       <div className="flex items-center gap-0.5 md:gap-1">
-                        <Button 
-                          variant="outline"
-                          size="sm"
-                          className={cn(
-                            "w-full h-5 md:h-12 uppercase px-0 border-slate-200 text-foreground shadow-sm leading-none",
-                            !(model.pdf_url || viewingGallery?.pdf_url || isEngateProduct(model.name) || isEngateProduct(viewingGallery?.name) || isHighTipProduct(model.name) || isHighTipProduct(viewingGallery?.name) || isFresaProduct(model.name) || isFresaProduct(viewingGallery?.name) || isLoaderTrituradorProduct(model.name) || isLoaderTrituradorProduct(viewingGallery?.name)) && "hidden"
-                          )}
-                          onClick={() => openPdf(model.pdf_url || viewingGallery?.pdf_url || '', model.name, viewingGallery)}
-                          disabled={!(model.pdf_url || viewingGallery?.pdf_url || isEngateProduct(model.name) || isEngateProduct(viewingGallery?.name) || isHighTipProduct(model.name) || isHighTipProduct(viewingGallery?.name) || isFresaProduct(model.name) || isFresaProduct(viewingGallery?.name) || isLoaderTrituradorProduct(model.name) || isLoaderTrituradorProduct(viewingGallery?.name))}
-                        >
-                          <FileText className="!h-2.5 !w-2.5 md:!h-4 md:!w-4 mb-0.5 md:mb-0 md:mr-0.5 text-red-500" />
-                          <span className="hidden sm:inline">Ficha</span>
-                          <span className="inline sm:hidden !text-[7px]">FICHA</span>
-                        </Button>
-                       </div>
-
-                       {model.parts_manual_url ? (
-                           <div className="flex items-center gap-0.5 md:gap-1 font-bold">
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              className="w-full h-5 md:h-12 uppercase px-0 border-slate-200 text-foreground shadow-sm leading-none"
-                              onClick={() => openPlainFile(model.parts_manual_url || viewingGallery?.parts_manual_url || '')}
-                              disabled={!(model.parts_manual_url || viewingGallery?.parts_manual_url)}
-                            >
-                              <Package className="!h-2.5 !w-2.5 md:!h-4 md:!w-4 mb-0.5 md:mb-0 md:mr-0.5 text-orange-500" />
-                              <span className="hidden sm:inline">Manual</span>
-                              <span className="inline sm:hidden !text-[7px]">MANU</span>
-                            </Button>
-                           </div>
-                       ) : (
-                           <div className="flex items-center gap-0.5 md:gap-1 opacity-40">
-                             <Button 
-                                disabled
-                                variant="outline" 
-                                size="sm"
-                                className="w-full h-5 md:h-12 !text-[5px] md:!text-[12px] uppercase px-0 border-slate-200 text-foreground grayscale shadow-sm"
-                             >
-                               <Package className="!h-1.5 !w-1.5 md:!h-4 md:!w-4 mr-0.5" />
-                               <span className="hidden sm:inline">Manual</span>
-                               <span className="inline sm:hidden">MANU</span>
-                             </Button>
-                           </div>
-                       )}
-
-                       {/* Ficha de Entrega Técnica - Only for FAE UML/EX/VT, UML/S/EX/VT, UMM/EX/VT */}
-                       {['fae-uml-ex-vt', 'fae-uml-s-ex-vt', 'fae-umm-ex-vt'].includes(model.id?.toLowerCase()) && (
-                         <div className="flex items-center gap-0.5 md:gap-1">
-                          <Button 
-                            variant="outline"
-                            size="sm"
-                            className="w-full h-5 md:h-12 uppercase px-0 border-amber-500/30 text-amber-700 bg-amber-500/5 hover:bg-amber-500/10 shadow-sm leading-none flex flex-col md:flex-row items-center justify-center font-bold"
-                            onClick={() => {
-                              setSelectedModel(model);
-                              setIsTechnicalDeliveryOpen(true);
-                            }}
-                          >
-                            <ClipboardCheck className="!h-2.5 !w-2.5 md:!h-4 md:!w-4 mb-0.5 md:mb-0 md:mr-0.5 text-amber-500" />
-                            <span className="hidden sm:inline">Entrega</span>
-                            <span className="inline sm:hidden !text-[7.5px]">OPER</span>
-                          </Button>
-                         </div>
-                       )}
-
-                       <div className="flex items-center gap-0.5 md:gap-1">
-                        <Button 
-                          size="sm"
-                          className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-black h-5 md:h-12 uppercase px-0 shadow-sm leading-none !text-[11px] md:!text-[18px]"
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-1">
+                      <h3 className="!text-xl md:!text-3xl font-black text-slate-900 tracking-tight uppercase leading-tight break-words min-w-0">
+                        {model.name}
+                      </h3>
+                      {(isManager || isAdmin) && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 shrink-0 text-muted-foreground hover:text-primary"
                           onClick={() => {
-                            const fullName = `${viewingGallery.name} ${model.name}`;
-                            navigate('/indicacoes/nova', { state: { product_name: fullName } });
+                            const modelIndex = viewingGallery.models?.findIndex((m: any) => m.id === model.id);
+                            if (modelIndex !== undefined && modelIndex !== -1) {
+                              setEditingModelData({ ...model });
+                              setEditingModelIndex(modelIndex);
+                              setIsEditingFromProductDialog(false);
+                              setIsModelEditOpen(true);
+                            }
                           }}
                         >
-                          <span className="hidden sm:inline">INDICAR</span>
-                          <span className="inline sm:hidden">INDICAR</span>
+                          <Edit className="h-4 w-4" />
                         </Button>
-                       </div>
-
-                     </div>
+                      )}
+                    </div>
+                    {maquinaBase && (
+                      <div className="mt-1.5">
+                        <p className="!text-[10px] md:!text-xs font-bold uppercase tracking-widest text-slate-500 leading-none">{ehPa ? 'Pá carregadeira' : 'Máquina base'}</p>
+                        <p className="!text-base md:!text-xl font-black text-primary leading-tight mt-0.5 break-words">{maquinaBase}</p>
+                      </div>
+                    )}
+                    {!isExternalSeller && typeof model.base_value === 'number' && model.base_value > 0 ? (
+                      <p className="font-bold text-slate-700 !text-sm md:!text-lg mt-1">
+                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(model.base_value)}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
+
+                {/* Características */}
+                {linhas.length > 0 && (
+                  <div className="mt-3 border-t border-slate-100 md:grid md:grid-cols-2 md:gap-x-8">
+                    {linhas.map(l => (
+                      <div key={l.key} className="flex items-baseline justify-between gap-3 py-2 border-b border-slate-100">
+                        <span className={cn("!text-[13px] md:!text-sm shrink-0 max-w-[55%]", l.destaque ? "text-orange-700 font-bold" : "text-slate-500")}>{l.label}</span>
+                        <span className={cn("!text-[13px] md:!text-sm font-bold text-right break-words min-w-0", l.destaque ? "text-orange-600" : "text-slate-900")}>{l.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Botões: Peças e Entrega só aparecem quando existem */}
+                <div className="flex gap-1.5 md:gap-2.5 mt-3">
+                  <Button
+                    size="sm"
+                    className={cn(botaoSec, "border-[#128C7E]/30 text-[#075E54]")}
+                    onClick={() => shareModelOnWhatsApp(viewingGallery?.name || '', model)}
+                  >
+                    <MessageCircle className="!h-4 !w-4" />
+                    <span>WhatsApp</span>
+                  </Button>
+                  {temFicha && (
+                    <Button
+                      size="sm"
+                      className={botaoSec}
+                      onClick={() => openPdf(model.pdf_url || viewingGallery?.pdf_url || '', model.name, viewingGallery)}
+                    >
+                      <FileText className="!h-4 !w-4 text-red-500" />
+                      <span>Ficha</span>
+                    </Button>
+                  )}
+                  {pecasUrl && (
+                    <Button
+                      size="sm"
+                      className={botaoSec}
+                      onClick={() => openPlainFile(pecasUrl)}
+                      title="Catálogo de peças"
+                    >
+                      <Package className="!h-4 !w-4 text-orange-500" />
+                      <span>Peças</span>
+                    </Button>
+                  )}
+                  {temEntrega && (
+                    <Button
+                      size="sm"
+                      className={cn(botaoSec, "border-amber-500/30 text-amber-700 bg-amber-500/5")}
+                      onClick={() => {
+                        setSelectedModel(model);
+                        setIsTechnicalDeliveryOpen(true);
+                      }}
+                    >
+                      <ClipboardCheck className="!h-4 !w-4 text-amber-500" />
+                      <span>Entrega</span>
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    className="flex-[1.5] min-w-0 h-11 md:h-12 bg-[#25D366] hover:bg-[#128C7E] text-white font-black uppercase shadow-sm rounded-lg !text-sm md:!text-lg"
+                    onClick={() => {
+                      const fullName = `${viewingGallery.name} ${model.name}`;
+                      navigate('/indicacoes/nova', { state: { product_name: fullName } });
+                    }}
+                  >
+                    Indicar
+                  </Button>
+                </div>
               </motion.div>
-            ))}
+              );
+            })}
 
             {/* Seção Informativa de Engate Rápido */}
             {isEngateProduct(viewingGallery.name) && (

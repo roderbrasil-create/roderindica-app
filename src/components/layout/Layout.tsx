@@ -8,6 +8,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { usePWA } from '../../contexts/PWAContext';
 import { AnimatePresence, motion } from 'motion/react';
 import { cn } from '../../lib/utils';
+import { temTelaAberta } from '../../lib/useVoltarFecha';
 import EngineerHelper from './EngineerHelper';
 
 const getPageTitle = (path: string): string => {
@@ -83,9 +84,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // Voltar para a tela anterior do app. Aberto direto por um link (sem tela anterior),
   // o navigate(-1) sairia do app: nesse caso vai para o início.
   const voltar = () => {
-    const st = window.history.state as any;
-    if (st?.__sub) { window.history.back(); return; } // fecha a tela interna aberta (modelos, negociação...)
-    const idx = st?.idx;
+    if (temTelaAberta()) { window.history.back(); return; } // fecha a tela interna aberta (modelos, negociação...)
+    const idx = (window.history.state as any)?.idx;
     if (typeof idx === 'number' && idx > 0) navigate(-1);
     else navigate('/');
   };
@@ -110,7 +110,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
+    <div className="min-h-screen bg-background text-foreground overflow-x-clip">
       {/* Desktop Banners (Hidden on mobile; mobile banners are inside the fixed mobile safe container) */}
       <div className="hidden md:block">
         <AnimatePresence>

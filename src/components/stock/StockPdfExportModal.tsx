@@ -30,6 +30,7 @@ import { toast } from 'sonner';
 import { StockItem, StockReservation, StockImportFAE } from '../../types';
 import { generateStockPdf } from '../../utils/generateStockPdf';
 import { cn, safeFormatDate } from '../../lib/utils';
+import { abrirDocumento } from '../../lib/abrirDocumento';
 
 interface StockPdfExportModalProps {
   isOpen: boolean;
@@ -138,7 +139,7 @@ export function StockPdfExportModal({
       setIsGenerating(true);
       const { blob } = getPdfData();
       const blobUrl = URL.createObjectURL(blob);
-      window.open(blobUrl, '_blank');
+      abrirDocumento(blobUrl, 'Estoque');
       toast.success('PDF aberto para visualização!');
     } catch (error) {
       console.error('Error previewing stock PDF:', error);

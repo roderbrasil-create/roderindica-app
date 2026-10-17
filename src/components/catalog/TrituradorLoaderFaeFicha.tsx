@@ -380,7 +380,7 @@ export function TrituradorLoaderFaeFicha({ onClose, defaultModelId = 'fae-uml-ss
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4 md:p-6 overflow-y-auto">
+    <div style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 0.5rem)' }} className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start md:items-center justify-center z-50 p-2 sm:p-4 md:p-6 overflow-y-auto">
       <div 
         id="triturador-loader-ficha-modal"
         className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl shadow-2xl flex flex-col h-[90vh]"
