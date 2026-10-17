@@ -273,7 +273,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
-      {location.pathname !== "/indicacoes/nova" && <EngineerHelper />}
+      {!location.pathname.startsWith("/indicacoes/nova") && <EngineerHelper />}
     </div>
   );
 }

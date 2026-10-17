@@ -260,6 +260,7 @@ export default function NewIndication() {
   const isInternalTeam = isAdmin || isManager || isInternalSeller;
   // Indicação em 3 passos (cliente, o que precisa, detalhes)
   const [step, setStep] = useState(1);
+  const [machineOutra, setMachineOutra] = useState(false);
 
   const [registeredProducts, setRegisteredProducts] = useState<RegisteredProduct[]>([]);
   const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
@@ -911,6 +912,12 @@ export default function NewIndication() {
     }
   };
 
+  // Saiu do passo 3 gravando: para a gravação
+  useEffect(() => {
+    if (step !== 3 && isRecordingRef.current) stopRecording();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecordingRef.current) {
       mediaRecorderRef.current.stop();
@@ -1072,6 +1079,7 @@ export default function NewIndication() {
         duration: 8000
       });
 
+      setStep(1);
       // Scroll to the first missing field in a clean, smooth way
       setTimeout(() => {
         const firstTarget = scrollTargets[0];
@@ -1099,6 +1107,7 @@ export default function NewIndication() {
     }
 
     if (selectedItems.length === 0) {
+      setStep(2);
       toast.error('Selecione pelo menos um equipamento clicando nas opções abaixo.');
       return;
     }
@@ -2353,8 +2362,8 @@ export default function NewIndication() {
                   <div className="flex flex-wrap gap-2">
                     {['Escavadeira', 'Trator', 'Pá carregadeira', 'Outra'].map(t => (
                       <button key={t} type="button"
-                        onClick={() => setFormData(prev => ({ ...prev, base_machine: t === 'Outra' ? '' : t }))}
-                        className={cn("px-3.5 py-2.5 rounded-xl border text-sm font-semibold transition", formData.base_machine === t ? "border-primary bg-orange-50 text-orange-700" : "border-slate-300 bg-white text-slate-700 dark:bg-zinc-950 dark:text-zinc-200 dark:border-zinc-700")}
+                        onClick={() => { setMachineOutra(t === 'Outra'); setFormData(prev => ({ ...prev, base_machine: t === 'Outra' ? '' : t })); }}
+                        className={cn("px-3.5 py-2.5 rounded-xl border text-sm font-semibold transition", (t === 'Outra' ? machineOutra : (formData.base_machine === t && !machineOutra)) ? "border-primary bg-orange-50 text-orange-700" : "border-slate-300 bg-white text-slate-700 dark:bg-zinc-950 dark:text-zinc-200 dark:border-zinc-700")}
                       >{t}</button>
                     ))}
                   </div>
@@ -2370,7 +2379,7 @@ export default function NewIndication() {
                     ))}
                   </div>
                 </div>
-                <div className={cn("space-y-2 relative", !['', 'Outra'].includes(formData.base_machine) && ['Escavadeira', 'Trator', 'Pá carregadeira'].includes(formData.base_machine) && "hidden")}>
+                <div className={cn("space-y-2 relative", !machineOutra && "hidden")}>
                   <Label htmlFor="base_machine" className="text-xs font-bold uppercase text-muted-foreground/80">Tipo da Máquina (ex: Escavadeira, Trator...)</Label>
                   <Input 
                     id="base_machine" 
