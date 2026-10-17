@@ -38,7 +38,8 @@ import {
   Search,
   Crown,
   Headphones,
-  Sparkles
+  Sparkles,
+  Paperclip
 } from 'lucide-react';
 import { useNegotiation } from '../../contexts/NegotiationContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -118,6 +119,7 @@ export default function NegotiationCentral() {
 
   const dragControls = useDragControls();
   const [activeTab, setActiveTab] = useState<'commercial' | 'timeline'>('commercial');
+  const [fixingValue, setFixingValue] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -1665,22 +1667,6 @@ export default function NegotiationCentral() {
                     <span className="truncate max-w-full" title={equipmentRequestedText}>Equipamento: <b className="font-semibold text-slate-700 dark:text-slate-200">{equipmentRequestedText}</b></span>
                     <span className="flex items-center gap-0.5 truncate max-w-full" title={activeIndication.client_location}><MapPin className="h-3 w-3 shrink-0" />{activeIndication.client_location || 'Local não indicado'}</span>
                   </div>
-                  <div className="flex lg:hidden mt-1 bg-white dark:bg-slate-900 border border-border rounded-lg p-0.5">
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('commercial')}
-                      className={cn("flex-1 flex items-center justify-center gap-1.5 text-[11px] font-bold uppercase h-8 rounded-md transition-all", activeTab === 'commercial' ? "bg-primary text-white" : "text-muted-foreground")}
-                    >
-                      <Package className="h-3.5 w-3.5" /> Orçamento e pedido
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('timeline')}
-                      className={cn("flex-1 flex items-center justify-center gap-1.5 text-[11px] font-bold uppercase h-8 rounded-md transition-all", activeTab === 'timeline' ? "bg-primary text-white" : "text-muted-foreground")}
-                    >
-                      <History className="h-3.5 w-3.5" /> Histórico
-                    </button>
-                  </div>
                 </div>
               );
             })()}
@@ -1700,12 +1686,11 @@ export default function NegotiationCentral() {
 
             {/* DESKTOP SPLIT SCREEN / MOBILE SINGLE TAB CONTAINER */}
             <div className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden">
-              <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 min-h-0">
+              <div className="lg:h-full grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 min-h-0">
                 
                 {/* RIGHT PANEL: COMERCIAL & PRODUTOS (5 SPANS, RIGHT SIDE) */}
                 <div className={cn(
-                  "lg:col-span-5 order-2 lg:order-2 flex flex-col gap-4 overflow-y-auto pl-1 lg:border-l border-slate-200/80 dark:border-slate-800 lg:pl-5 h-full min-h-0",
-                  isMobile && activeTab !== 'commercial' ? "hidden lg:flex" : "flex"
+                  "lg:col-span-5 order-1 lg:order-2 flex flex-col gap-3 lg:overflow-y-auto lg:border-l border-slate-200/80 dark:border-slate-800 lg:pl-5 lg:h-full min-h-0"
                 )}>
                   {/* Aviso único para gestão: falta base de comissão */}
                   {(isAdmin || isManager) && !isSold && (
@@ -1724,10 +1709,7 @@ export default function NegotiationCentral() {
                   {/* Resumo somente leitura (faturado ou observador): ocupa pouco espaço */}
                   {!isEditable ? (() => {
                     const fixSaleValue = async () => {
-                      const typed = window.prompt('Valor correto do pedido (ex.: 230000 ou 230.000,00):', '');
-                      if (!typed) return;
-                      const clean = typed.replace(/[^0-9,\.]/g, '');
-                      const num = clean.includes(',') ? Number(clean.replace(/\./g, '').replace(',', '.')) : Number(clean.replace(/\.(?=\d{3}(\D|$))/g, ''));
+                      const num = Number(fixingValue) || 0;
                       if (!num || num <= 0) { toast.error('Valor inválido.'); return; }
                       if (!window.confirm(`Corrigir o valor do pedido para ${maskCurrency(num)}?`)) return;
                       try {
@@ -1742,6 +1724,7 @@ export default function NegotiationCentral() {
                         });
                         await updateDoc(doc(db, 'indications', ind.id), upd);
                         setSaleValue(String(num));
+                        setFixingValue(null);
                         toast.success('Valor do pedido corrigido.');
                       } catch (e: any) {
                         toast.error('Erro ao corrigir: ' + (e?.message || e));
@@ -1776,9 +1759,22 @@ export default function NegotiationCentral() {
                             {saleLooksWrong && (isAdmin || isManager) && (
                               <p className="mt-1 text-[11px] font-semibold text-red-600">Valor do pedido parece errado (muito menor que o orçamento).</p>
                             )}
-                            {isSold && isAdmin && (
-                              <button type="button" onClick={fixSaleValue} className="mt-1 text-[11px] font-bold text-orange-600 underline">Corrigir valor</button>
-                            )}
+                            {isSold && isAdmin && (fixingValue === null ? (
+                              <button type="button" onClick={() => setFixingValue('')} className="mt-1 text-[11px] font-bold text-orange-600 underline">Corrigir valor</button>
+                            ) : (
+                              <div className="mt-1 flex items-center gap-1.5">
+                                <Input
+                                  autoFocus
+                                  inputMode="numeric"
+                                  value={fixingValue ? maskCurrency(Number(fixingValue)) : ''}
+                                  onChange={(e) => setFixingValue(String(unmaskCurrency(e.target.value)))}
+                                  placeholder="R$ 0,00"
+                                  className="h-8 text-[16px] lg:text-[13px] font-bold flex-1"
+                                />
+                                <Button type="button" size="sm" className="h-8 px-3 text-[11px] font-bold" onClick={fixSaleValue}>Salvar</Button>
+                                <Button type="button" size="sm" variant="ghost" className="h-8 px-2 text-[11px]" onClick={() => setFixingValue(null)}>Cancelar</Button>
+                              </div>
+                            ))}
                           </div>
                         </div>
                       </div>
@@ -1827,6 +1823,7 @@ export default function NegotiationCentral() {
                           <Label className="text-[8px] font-bold uppercase text-muted-foreground">Valor Orçamento (R$)</Label>
                           <Input 
                             disabled={!isEditable}
+                            inputMode="numeric"
                             value={grossBudgetValue ? maskCurrency(Number(grossBudgetValue)) : ''}
                             onChange={(e) => setGrossBudgetValue(unmaskCurrency(e.target.value).toString())}
                             placeholder="0,00"
@@ -1896,6 +1893,7 @@ export default function NegotiationCentral() {
                           <Label className="text-[8px] font-bold uppercase text-muted-foreground">Valor do pedido (R$)</Label>
                           <Input 
                             disabled={!isEditable}
+                            inputMode="numeric"
                             value={saleValue ? maskCurrency(Number(saleValue)) : ''}
                             onChange={(e) => setSaleValue(unmaskCurrency(e.target.value).toString())}
                             placeholder="0,00"
@@ -2066,6 +2064,27 @@ export default function NegotiationCentral() {
                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{commissionedProducts.length} itens</span>
                   </div>
                   
+                  {!isEditable ? (
+                    <div className="divide-y divide-slate-100 dark:divide-slate-800 dark:bg-slate-900">
+                      {commissionedProducts.map((prod, index) => {
+                        const isNonComm = prod.is_commissionable === false;
+                        const qty = Number(prod.quantity) || 1;
+                        return (
+                          <div key={`${prod.uniqueId || prod.code || 'item'}-ro-${index}`} className="px-3 py-1.5 flex items-start gap-2 text-[12px]">
+                            <div className="flex-1 min-w-0">
+                              <p className={cn("leading-snug", isNonComm ? "text-red-500" : "text-slate-800 dark:text-slate-100")}>{prod.name}</p>
+                              <p className="text-[10px] text-muted-foreground font-mono">{prod.code}{qty > 1 ? ` · ${qty} un` : ''}{isNonComm ? ' · não comissionável' : ''}</p>
+                            </div>
+                            <span className={cn("font-bold whitespace-nowrap", isNonComm ? "text-red-500" : "text-slate-900 dark:text-slate-100")}>{Number(prod.base_value) > 0 ? maskCurrency(Number(prod.base_value) * qty) : '—'}</span>
+                          </div>
+                        );
+                      })}
+                      <div className="px-3 py-1.5 flex justify-between text-[12px] font-bold bg-slate-50 dark:bg-slate-800/50">
+                        <span>Total comissionável</span>
+                        <span className="text-primary">{maskCurrency(Number(totalCommissionable))}</span>
+                      </div>
+                    </div>
+                  ) : (
                   <div className="flex-1 overflow-auto dark:bg-slate-900 min-h-[320px] lg:min-h-0">
                     <table className="w-full text-left border-collapse min-w-[500px]">
                       <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800 backdrop-blur-sm z-10">
@@ -2129,6 +2148,7 @@ export default function NegotiationCentral() {
                                   {isEditable ? (
                                     <div className="relative group/base w-full">
                                       <Input 
+                                        inputMode="numeric"
                                         value={maskCurrency(Number(prod.base_value))}
                                         onChange={(e) => handleUpdateProduct(index, 'base_value', unmaskCurrency(e.target.value))}
                                         className={cn(
@@ -2324,14 +2344,14 @@ export default function NegotiationCentral() {
                       </tfoot>
                     </table>
                   </div>
+                  )}
                 </div>
                   </details>
               </div>
 
                 {/* LEFT PANEL: ACOMPANHAMENTO & LINHA DO TEMPO (7 SPANS, LEFT SIDE - AGENDOR CRM STYLE) */}
                 <div className={cn(
-                  "lg:col-span-7 order-1 lg:order-1 flex flex-col gap-4 overflow-y-auto pr-1 lg:pr-4 h-full min-h-0",
-                  isMobile && activeTab !== 'timeline' ? "hidden lg:flex" : "flex"
+                  "lg:col-span-7 order-2 lg:order-1 flex flex-col gap-3 lg:overflow-y-auto lg:pr-4 lg:h-full min-h-0"
                 )}>
                 {/* On Mobile & Desktop: Novo Acompanhamento Form goes at top of right panel */}
                 <div className="w-full flex flex-col gap-3 shrink-0">
@@ -2482,8 +2502,8 @@ export default function NegotiationCentral() {
                       </div>
                     </div>
                     
-                    <div className="p-4 lg:p-6 overflow-y-auto flex-1 min-h-[200px]">
-                      <div className="space-y-6 lg:space-y-8 relative before:absolute before:left-[17px] before:top-2 before:bottom-2 before:w-px before:bg-border">
+                    <div className="p-2 lg:p-3 overflow-y-auto flex-1">
+                      <div className="space-y-1.5">
                         {activeIndication.negotiation_history
                           ?.slice()
                           .reverse()
@@ -2492,28 +2512,21 @@ export default function NegotiationCentral() {
                             if (timelineFilter === 'roder') return !entry.author_name?.toLowerCase().includes('agendor') && !entry.content?.includes('[AGENDOR]');
                             return true;
                           })
-                          .map((entry, idx) => (
-                          <div key={entry.id || `hist-${idx}-${entry.created_at || ''}`} className="relative pl-10">
-                            <div className={cn(
-                              "absolute left-0 w-8 h-8 lg:w-9 lg:h-9 rounded-full border-2 border-background flex items-center justify-center z-10 shadow-sm",
-                              entry.type === 'system' ? "bg-slate-100 text-slate-500" :
-                              entry.type === 'note' ? "bg-primary/10 text-primary" :
-                              "bg-blue-500 text-white"
-                            )}>
-                              {entry.type === 'system' ? <LayoutDashboard className="h-3.5 w-3.5 lg:h-4 lg:w-4" /> :
-                               entry.type === 'note' ? <MessageSquare className="h-3.5 w-3.5 lg:h-4 lg:w-4" /> :
-                               <Clock className="h-3.5 w-3.5 lg:h-4 lg:w-4" />}
-                            </div>
-                            
-                            <div className="bg-white dark:bg-slate-900 rounded-2xl p-3 lg:p-4 border border-border/50 group hover:border-primary/20 transition-colors shadow-sm">
-                              <div className="flex flex-wrap items-center justify-between gap-1 mb-2">
-                                <span className="text-[10px] font-black italic uppercase text-primary tracking-wider">{entry.author_name}</span>
-                                <span className="text-[9px] lg:text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1">
-                                  <Calendar className="h-3 w-3" /> {entry.created_at ? format(new Date(entry.created_at), "dd/MM/yy 'às' HH:mm", { locale: ptBR }) : 'Data n/i'}
-                                </span>
-                              </div>
-                              <p className="text-xs lg:text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap mb-2">{cleanHistoryContent(entry.content)}</p>
-                              
+                          .map((entry, idx) => {
+                            const txt = cleanHistoryContent(entry.content) || '';
+                            const firstLine = txt.split('\n').find((l: string) => l.trim()) || '';
+                            const nAtt = entry.attachments?.length || 0;
+                            return (
+                          <details key={entry.id || `hist-${idx}-${entry.created_at || ''}`} className="group bg-white dark:bg-slate-900 rounded-lg border border-border/60 open:border-primary/30">
+                            <summary className="list-none cursor-pointer px-2.5 py-2 flex items-center gap-2 min-w-0">
+                              <span className={cn("h-2 w-2 rounded-full shrink-0", entry.type === 'system' || entry.type === 'status_change' ? "bg-slate-400" : entry.type === 'note' ? "bg-primary" : "bg-blue-500")} />
+                              <span className="flex-1 min-w-0 truncate text-[12px] text-slate-800 dark:text-slate-200 group-open:whitespace-normal">{firstLine}</span>
+                              {nAtt > 0 && <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />}
+                              <span className="text-[10px] text-muted-foreground shrink-0 whitespace-nowrap">{entry.created_at ? format(new Date(entry.created_at), "dd/MM", { locale: ptBR }) : ''} · {(entry.author_name || '').split(' ')[0]}</span>
+                            </summary>
+                            <div className="px-3 pb-3 pt-1 border-t border-border/40">
+                              <p className="text-[10px] text-muted-foreground mb-1">{entry.author_name} · {entry.created_at ? format(new Date(entry.created_at), "dd/MM/yy 'às' HH:mm", { locale: ptBR }) : ''}</p>
+                              <p className="text-[13px] text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap mb-2">{txt}</p>
                               {entry.attachments && entry.attachments.length > 0 && (
                                 <div className="flex flex-wrap gap-2 pt-2 border-t border-border/30">
                                   {entry.attachments.map((file, fIdx) => {
@@ -2563,9 +2576,11 @@ export default function NegotiationCentral() {
                                   })}
                                 </div>
                               )}
+
                             </div>
-                          </div>
-                        ))}
+                          </details>
+                            );
+                          })}
                         
                         {!activeIndication.negotiation_history?.length && (
                           <div className="flex flex-col items-center justify-center py-12 text-muted-foreground opacity-50">

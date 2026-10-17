@@ -1,3 +1,4 @@
+import { maskCurrency, unmaskCurrency } from '../lib/masks';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
@@ -1831,7 +1832,7 @@ export default function FairDetails() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Valor (R$)*</Label>
-                    <Input type="number" step="0.01" required value={expenseForm.amount} onChange={e => setExpenseForm(p => ({...p, amount: e.target.value}))} />
+                    <Input inputMode="numeric" required placeholder="R$ 0,00" value={expenseForm.amount ? maskCurrency(Number(expenseForm.amount)) : ''} onChange={e => setExpenseForm(p => ({...p, amount: String(unmaskCurrency(e.target.value))}))} />
                   </div>
                   <div className="space-y-2">
                     <Label>Data*</Label>
