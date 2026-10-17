@@ -1869,7 +1869,6 @@ export default function NewIndication() {
                 </div>
               )}
 
-              {isInternalTeam && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="client_cnpj" className="text-xs font-bold uppercase text-muted-foreground/80">CNPJ (Opcional)</Label>
@@ -1938,7 +1937,6 @@ export default function NewIndication() {
                   </div>
                 )}
               </div>
-              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {isInternalTeam && (
