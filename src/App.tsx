@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NegotiationProvider } from './contexts/NegotiationContext';
 import { PWAProvider } from './contexts/PWAContext';
 import LeitorDocumento from './components/documento/LeitorDocumento';
+import AvisoConexao from './components/system/AvisoConexao';
 import NegotiationManager from './components/negotiation/NegotiationManager';
 import { Toaster } from './components/ui/sonner';
 import { ThemeProvider } from 'next-themes';
@@ -427,6 +428,7 @@ function AppContent() {
       <Toaster position="top-right" richColors closeButton />
       {!isPublicRoute && <NegotiationManager />}
       <LeitorDocumento />
+      <AvisoConexao />
       {!isPublicRoute && <PWAInstallBanner />}
     </>
   );

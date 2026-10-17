@@ -3957,7 +3957,7 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       // sem isto, abrir /catalogo redirecionava para /catalogo/
       redirect: false,
       setHeaders: (res, filePath) => {
-        if (filePath.endsWith(".html")) {
+        if (filePath.endsWith(".html") || filePath.endsWith("roder-sw.js")) {
           res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
           res.setHeader("Pragma", "no-cache");
           res.setHeader("Expires", "0");

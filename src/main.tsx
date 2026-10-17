@@ -53,6 +53,14 @@ window.addEventListener('unhandledrejection', (event) => {
   }
 });
 
+// Modo sem internet: guarda o app, as fotos e as fichas no celular (public/roder-sw.js)
+if ('serviceWorker' in navigator && import.meta.env.PROD && (/roderindica\.com$/.test(location.hostname) || location.hostname === 'localhost')) {
+  const registrar = () => navigator.serviceWorker.register('/roder-sw.js').catch(err => console.warn('[SW] não registrado', err));
+  // o app às vezes termina de carregar antes deste código rodar: aí registra na hora
+  if (document.readyState === 'complete') registrar();
+  else window.addEventListener('load', registrar);
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

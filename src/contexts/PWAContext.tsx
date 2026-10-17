@@ -174,13 +174,48 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
         { name: 'users', label: 'Usuários' }
       ];
 
+      let produtos: any[] = [];
       for (let i = 0; i < collectionsToSync.length; i++) {
         const col = collectionsToSync[i];
         // Fetching will automatically populate Firestore persistence cache
-        await getDocs(query(collection(db, col.name), limit(500)));
-        const progress = Math.round(((i + 1) / collectionsToSync.length) * 100);
+        const snap = await getDocs(query(collection(db, col.name), limit(500)));
+        if (col.name === 'products') produtos = snap.docs.map(d => d.data());
+        const progress = Math.round(((i + 1) / collectionsToSync.length) * 30);
         setDownloadProgress(progress);
       }
+
+      // Fotos e fichas do catálogo também ficam no celular, para mostrar ao cliente sem internet.
+      // As fotos passam pelo /roder-sw.js (que guarda tudo o que é baixado); as fichas pelo leitor.
+      const valido = (u: any) => typeof u === 'string' && u && !u.startsWith('db-file://') && !/\.run\.app\//.test(u);
+      const fotos = new Set<string>();
+      const fichas = new Set<string>();
+      produtos.filter(p => !p.is_blocked).forEach(p => {
+        if (valido(p.image_url)) fotos.add(p.image_url);
+        if (valido(p.pdf_url)) fichas.add(p.pdf_url);
+        (p.models || []).forEach((m: any) => {
+          (m.images || []).forEach((im: string) => valido(im) && fotos.add(im));
+          if (valido(m.pdf_url)) fichas.add(m.pdf_url);
+        });
+      });
+      const tarefas: (() => Promise<any>)[] = [
+        ...Array.from(fotos).map(u => () => fetch(u, { mode: u.startsWith('/') || u.startsWith(location.origin) ? 'same-origin' : 'no-cors' }).catch(() => null)),
+        ...Array.from(fichas).map(u => async () => {
+          const { guardarDocumentoOffline } = await import('../components/documento/LeitorDocumento');
+          return guardarDocumentoOffline(u);
+        }),
+      ];
+      let feitas = 0;
+      const total = tarefas.length || 1;
+      const trabalhador = async () => {
+        while (tarefas.length) {
+          const t = tarefas.shift()!;
+          await t();
+          feitas++;
+          setDownloadProgress(30 + Math.round((feitas / total) * 70));
+          if (toastId && feitas % 10 === 0) toast.loading('Baixando fotos e fichas...', { id: toastId, description: `${feitas} de ${total}` });
+        }
+      };
+      await Promise.all([trabalhador(), trabalhador(), trabalhador(), trabalhador()]);
 
       // Store sync timestamp
       localStorage.setItem('roder_last_offline_sync_time', Date.now().toString());
@@ -188,7 +223,7 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
       if (!isSilent) {
         toast.success(isFirstTime ? 'Conteúdo offline instalado!' : 'Sincronização concluída!', {
           id: toastId,
-          description: 'Todos os catálogos, novidades e estoque estão salvos localmente.'
+          description: 'Catálogo com fotos e fichas, estoque e indicações salvos no celular para usar sem internet.'
         });
       }
     } catch (error: any) {

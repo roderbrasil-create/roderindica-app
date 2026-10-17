@@ -4048,7 +4048,8 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     }
   }
 
-  // Global Service Worker cleanup handlers (both dev and production)
+  // Desliga os service workers ANTIGOS (/sw.js e /service-worker.js) que deram problema de cache.
+  // O do modo sem internet é outro arquivo: /roder-sw.js (public/roder-sw.js).
   app.get(["/sw.js", "/service-worker.js"], (req, res) => {
     res.setHeader("Content-Type", "application/javascript");
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
@@ -4249,7 +4250,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       // sem isto, abrir /catalogo redirecionava para /catalogo/
       redirect: false,
       setHeaders: (res, filePath) => {
-        if (filePath.endsWith('.html')) {
+        if (filePath.endsWith('.html') || filePath.endsWith('roder-sw.js')) {
           res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
           res.setHeader("Pragma", "no-cache");
           res.setHeader("Expires", "0");

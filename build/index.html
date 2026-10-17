@@ -93,43 +93,34 @@
         checkAndPolyfillStorage('localStorage');
         checkAndPolyfillStorage('sessionStorage');
 
-        // Unregister service workers immediately in all environments to prevent caching issues
+        // Remove só os service workers ANTIGOS (os que deram problema de cache).
+        // O /roder-sw.js atual é o do modo sem internet e fica. Os caches "roder-" (app, fotos e
+        // fichas para usar sem internet) também ficam.
         if ('serviceWorker' in navigator) {
           navigator.serviceWorker.getRegistrations().then(function(registrations) {
-            if (registrations.length > 0) {
-              console.log('[DevHelper] Found ' + registrations.length + ' ServiceWorkers. Clearing...');
-              for (var i = 0; i < registrations.length; i++) {
-                registrations[i].unregister().then(function(success) {
-                  if (success) {
-                    console.log('[DevHelper] ServiceWorker unregistered successfully');
-                  }
-                });
-              }
-              // If service workers were found, clear caches and reload
+            var antigos = registrations.filter(function(r) {
+              var w = r.active || r.waiting || r.installing;
+              // sem worker ainda (registrando agora): não mexe
+              return !!w && !/\/roder-sw\.js$/.test(w.scriptURL);
+            });
+            if (antigos.length > 0) {
+              antigos.forEach(function(r) { r.unregister(); });
               if (window.caches) {
                 caches.keys().then(function(names) {
-                  for (var name of names) {
-                    caches.delete(name);
-                  }
-                  setTimeout(function() { window.location.reload(true); }, 500);
+                  names.forEach(function(n) { if (n.indexOf('roder-') !== 0) caches.delete(n); });
+                  setTimeout(function() { window.location.reload(); }, 500);
                 });
-              } else {
-                setTimeout(function() { window.location.reload(true); }, 500);
               }
             }
-          }).catch(function(err) {
-            console.error('[DevHelper] Error unregistering ServiceWorker:', err);
-          });
+          }).catch(function() {});
         }
 
-        // Also clear standard caches periodically to keep things fresh
         if (window.caches && !sessionStorage.getItem('roder_cache_cleaned_session')) {
           caches.keys().then(function(names) {
             names.forEach(function(name) {
-              caches.delete(name);
+              if (name.indexOf('roder-') !== 0) caches.delete(name);
             });
             sessionStorage.setItem('roder_cache_cleaned_session', 'true');
-            console.log('[DevHelper] Browser Caches cleared for this session.');
           });
         }
 
@@ -231,8 +222,8 @@
         } catch (e) {}
       })();
     </script>
-    <script type="module" crossorigin src="/assets/index-DOWGrXH3.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-DiVPXi6d.css">
+    <script type="module" crossorigin src="/assets/index-B7oNtgMw.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DenoTOv7.css">
   </head>
   <body>
     <div id="root"></div>

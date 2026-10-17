@@ -76,6 +76,10 @@ export function instalarInterceptor() {
       abrirDocumento(u, nomeDoLink(u));
       return null;
     }
+    if (u && navigator.onLine === false && /^https?:/.test(u)) {
+      window.dispatchEvent(new CustomEvent('roder:sem-internet', { detail: 'Não tem internet. Esta função precisa de conexão.' }));
+      return null;
+    }
     return abrirOriginal!(url as any, target, features);
   }) as typeof window.open;
 

@@ -11,21 +11,55 @@ import { useVoltarFecha } from '../../lib/useVoltarFecha';
 
 type Arquivo = { dados: ArrayBuffer; tipo: string };
 
-async function baixarArquivo(url: string): Promise<Arquivo> {
+// Fichas e PDFs abertos ficam guardados no celular, para abrir sem internet
+const CACHE_FICHAS = 'roder-fichas';
+const chaveCache = (url: string) => new URL(`/__ficha__/${encodeURIComponent(url)}`, window.location.origin).toString();
+
+async function baixarDaRede(url: string): Promise<Response> {
   const mesmaOrigem = url.startsWith('/') || url.startsWith(window.location.origin);
-  let r: Response;
   if (url.startsWith('blob:') || url.startsWith('data:') || mesmaOrigem) {
-    r = await fetch(url);
+    const r = await fetch(url);
     if (!r.ok) throw new Error('Documento não encontrado.');
-  } else {
-    // Fichas do site da Roder abrem sem login (cliente na tela de orçamento); o servidor decide
-    const token = await auth.currentUser?.getIdToken().catch(() => '');
-    r = await fetch(`${getApiBaseUrl()}/api/documento?url=${encodeURIComponent(url)}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (!r.ok) throw new Error((await r.text()) || 'Não consegui abrir o documento.');
+    return r;
   }
-  return { dados: await r.arrayBuffer(), tipo: r.headers.get('content-type') || '' };
+  // Fichas do site da Roder abrem sem login (cliente na tela de orçamento); o servidor decide
+  const token = await auth.currentUser?.getIdToken().catch(() => '');
+  const r = await fetch(`${getApiBaseUrl()}/api/documento?url=${encodeURIComponent(url)}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!r.ok) throw new Error((await r.text()) || 'Não consegui abrir o documento.');
+  return r;
+}
+
+async function baixarArquivo(url: string): Promise<Arquivo> {
+  const podeGuardar = typeof caches !== 'undefined' && !url.startsWith('blob:') && !url.startsWith('data:');
+  try {
+    const r = await baixarDaRede(url);
+    const dados = await r.arrayBuffer();
+    const tipo = r.headers.get('content-type') || '';
+    if (podeGuardar) {
+      caches.open(CACHE_FICHAS).then(c => c.put(chaveCache(url), new Response(dados.slice(0), { headers: { 'Content-Type': tipo } }))).catch(() => {});
+    }
+    return { dados, tipo };
+  } catch (e) {
+    if (podeGuardar) {
+      const salvo = await caches.open(CACHE_FICHAS).then(c => c.match(chaveCache(url))).catch(() => undefined);
+      if (salvo) return { dados: await salvo.arrayBuffer(), tipo: salvo.headers.get('content-type') || '' };
+    }
+    if (navigator.onLine === false) throw new Error('Não tem internet e esta ficha ainda não foi baixada no celular.');
+    throw e;
+  }
+}
+
+// Usado pelo "Baixar conteúdo offline": guarda a ficha sem abrir a tela
+export async function guardarDocumentoOffline(url: string): Promise<boolean> {
+  if (!url || typeof caches === 'undefined' || /drive\.google\.com|youtube|youtu\.be|vimeo/.test(url) || url.startsWith('db-file://')) return false;
+  try {
+    const c = await caches.open(CACHE_FICHAS);
+    if (await c.match(chaveCache(url))) return true;
+    await baixarArquivo(url);
+    return true;
+  } catch { return false; }
 }
 
 const comecaCom = (buf: ArrayBuffer, txt: string) =>
@@ -54,7 +88,14 @@ export default function LeitorDocumento() {
 
   useEffect(() => {
     instalarInterceptor();
-    return ouvirDocumentos(p => { setPedido(p); setZoom(1); });
+    return ouvirDocumentos(p => {
+      // Vídeo do YouTube/Vimeo/Drive não abre sem internet: só avisa
+      if (p.tipo !== 'pdf' && p.tipo !== 'video' && navigator.onLine === false) {
+        window.dispatchEvent(new CustomEvent('roder:sem-internet', { detail: 'Não tem internet. O vídeo precisa de conexão.' }));
+        return;
+      }
+      setPedido(p); setZoom(1);
+    });
   }, []);
 
   const limpar = () => {

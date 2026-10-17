@@ -93,7 +93,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // Calculate dynamic header height on mobile when banners (impersonation, offline, quota) are active
   const mobileHeaderOffset = 56 
     + (isImpersonating ? 40 : 0) 
-    + (isOffline ? 28 : 0) 
     + (isQuotaExceeded ? 42 : 0);
 
   // Altura do cabeçalho do computador, para as telas internas que têm cabeçalho
@@ -133,17 +132,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </motion.div>
           )}
 
-          {isOffline && (
-            <motion.div 
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="bg-red-600 text-white px-4 py-1.5 flex items-center justify-center gap-2 sticky top-0 z-[70] shadow-md"
-            >
-              <WifiOff className="h-3.5 w-3.5 animate-pulse" />
-              <span className="text-[10px] font-black uppercase tracking-widest">Modo Offline Ativado - Usando Dados Locais</span>
-            </motion.div>
-          )}
         </AnimatePresence>
 
         {isImpersonating && (
@@ -197,12 +185,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </div>
           )}
 
-          {isOffline && (
-            <div className="bg-red-600 text-white px-3 py-1 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest">
-              <WifiOff className="h-3 w-3 animate-pulse" />
-              <span>Modo Offline Ativado</span>
-            </div>
-          )}
 
           {isImpersonating && (
             <div className="bg-orange-600 text-white px-3 py-1.5 flex items-center justify-between text-xs font-bold shadow-md border-b border-orange-700/50">
