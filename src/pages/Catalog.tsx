@@ -1216,7 +1216,8 @@ export default function Catalog() {
       const img = '/catalogo/gcr/gcr-produto.jpg';
       const imgOp = '/catalogo/gcr/gcr-operacao.jpg';
       const ficha = '/catalogo/gcr/Ficha_Garra_Clamshell_GCR.pdf';
-      const video = 'https://drive.google.com/file/d/15Xkn6YgurLQ0Oplm_MBipIgrXCQkxleV/view';
+      // Vídeo hospedado no próprio Roder Indica: abre para qualquer pessoa pelo link (WhatsApp)
+      const video = 'https://roderindica.com/catalogo/gcr/Garra-Clamshell-Roder.mp4';
       const modelo = (id: string, name: string, specs: Record<string, string>) => ({
         id, name, base_value: 0, images: [img, imgOp], pdf_url: ficha, video_url: video, technical_specs: specs
       });
