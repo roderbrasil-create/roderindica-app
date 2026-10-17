@@ -21,6 +21,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useAuth } from '../../contexts/AuthContext';
 import { compressFileToDataURL } from '../../lib/imageUtils';
 import { getApiBaseUrl } from '../../lib/utils';
+import { useVoltarFecha } from '../../lib/useVoltarFecha';
 
 
 interface HighTipFichaProps {
@@ -28,6 +29,8 @@ interface HighTipFichaProps {
 }
 
 export function HighTipFicha({ onClose }: HighTipFichaProps) {
+  // "Voltar" do celular fecha a ficha e volta para a tela de onde ela foi aberta
+  useVoltarFecha(true, onClose);
   const { isAdmin, isManager, isTriagem, isMarketing, isInternalSeller } = useAuth();
   const canEdit = isAdmin || isManager || isTriagem || isMarketing || isInternalSeller;
   const printRef = useRef<HTMLDivElement>(null);

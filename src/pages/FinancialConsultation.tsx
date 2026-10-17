@@ -45,6 +45,7 @@ import { cn } from '../lib/utils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { fetchCnpjData } from '../lib/cnpj';
+import { useVoltarFecha } from '../lib/useVoltarFecha';
 
 interface Socio {
   nome: string;
@@ -156,6 +157,7 @@ export default function FinancialConsultation() {
   const [recentConsultations, setRecentConsultations] = useState<any[]>([]);
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const [showPdfModal, setShowPdfModal] = useState(false);
+  useVoltarFecha(!!showPdfModal, () => setShowPdfModal(false));
 
   const [searchTerm, setSearchTerm] = useState('');
   const [clearedDocs, setClearedDocs] = useState<string[]>([]);

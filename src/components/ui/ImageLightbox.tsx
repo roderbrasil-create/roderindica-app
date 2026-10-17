@@ -4,6 +4,7 @@ import { X, ChevronLeft, ChevronRight, MessageSquare, Loader2, ImageOff } from '
 import { toast } from 'sonner';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import { useVoltarFecha } from '../../lib/useVoltarFecha';
 
 interface ImageLightboxProps {
   isOpen: boolean;
@@ -168,6 +169,9 @@ export function ImageLightbox({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose, resolvedImages.length]);
 
+  // "Voltar" do celular fecha a foto e fica na tela de onde ela foi aberta
+  useVoltarFecha(isOpen && rawList.length > 0, onClose);
+
   if (!isOpen || rawList.length === 0) return null;
 
   const currentRawUrl = resolvedImages[currentIndex] || rawList[currentIndex] || '';
@@ -300,7 +304,7 @@ export function ImageLightbox({
         onClick={onClose}
       >
         {/* Header Toolbar */}
-        <div className="absolute top-3 left-4 right-4 z-20 flex items-center justify-between text-white pointer-events-none">
+        <div style={{ top: 'calc(env(safe-area-inset-top, 0px) + 12px)' }} className="absolute left-4 right-4 z-20 flex items-center justify-between text-white pointer-events-none">
           <div className="max-w-[70%] drop-shadow-lg pointer-events-auto">
             <h3 className="font-extrabold text-base md:text-lg leading-tight truncate text-white">{title}</h3>
             {resolvedImages.length > 1 && (

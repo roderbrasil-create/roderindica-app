@@ -4,9 +4,13 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { XIcon } from "lucide-react"
+import { useVoltarFecha } from "@/lib/useVoltarFecha"
 
-function Dialog({ ...props }: DialogPrimitive.Root.Props) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />
+// Toda janela do app fecha com o "voltar" do celular (e com o voltar do cabeçalho),
+// em vez de o voltar trocar de página por trás dela e cair no dashboard.
+function Dialog({ open, onOpenChange, ...props }: DialogPrimitive.Root.Props) {
+  useVoltarFecha(!!open, () => (onOpenChange as any)?.(false, undefined))
+  return <DialogPrimitive.Root data-slot="dialog" open={open} onOpenChange={onOpenChange} {...props} />
 }
 
 function DialogTrigger({ asChild, children, ...props }: DialogPrimitive.Trigger.Props & { asChild?: boolean }) {

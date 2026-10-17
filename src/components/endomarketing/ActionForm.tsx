@@ -17,6 +17,7 @@ import { Badge } from '../ui/badge';
 import imageCompression from 'browser-image-compression';
 import { Plus, Trash2, Save, X, Calculator, Paperclip, Info, Zap, ChevronLeft, HelpCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useVoltarFecha } from '../../lib/useVoltarFecha';
 
 interface ActionFormProps {
   action: EndomarketingAction | null;
@@ -27,6 +28,7 @@ export default function ActionForm({ action, onClose }: ActionFormProps) {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
   const [showHelp, setShowHelp] = useState(false);
+  useVoltarFecha(!!showHelp, () => setShowHelp(false));
   const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
   const [formData, setFormData] = useState<Partial<EndomarketingAction>>({
     name: '',

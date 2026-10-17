@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import { db } from '../../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { getApiBaseUrl } from '../../lib/utils';
+import { useVoltarFecha } from '../../lib/useVoltarFecha';
 
 interface EngateRapidoFichaProps {
   onClose: () => void;
@@ -49,6 +50,8 @@ const formatFichaImageUrl = (url: string | null) => {
 };
 
 export function EngateRapidoFicha({ onClose }: EngateRapidoFichaProps) {
+  // "Voltar" do celular fecha a ficha e volta para a tela de onde ela foi aberta
+  useVoltarFecha(true, onClose);
   const page1Ref = useRef<HTMLDivElement>(null);
   const page2Ref = useRef<HTMLDivElement>(null);
   const [customMainImageUrl, setCustomMainImageUrl] = useState<string | null>(null);

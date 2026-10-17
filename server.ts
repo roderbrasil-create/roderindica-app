@@ -4068,6 +4068,9 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     app.use('/assets', express.static(path.resolve(distPath, 'assets'), { maxAge: '1y', immutable: true }));
     app.use(express.static(distPath, { 
       index: false,
+      // a pasta dist/catalogo (fotos, fichas e vídeos) tem o mesmo nome da tela /catalogo:
+      // sem isto, abrir /catalogo redirecionava para /catalogo/
+      redirect: false,
       setHeaders: (res, filePath) => {
         if (filePath.endsWith('.html')) {
           res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
@@ -4078,7 +4081,10 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     }));
     
     // Serve index.html with strict NO-CACHE headers for all navigation routes
-    app.get('*', (req, res) => {
+    app.get('*', (req, res, next) => {
+      // As rotas /api registradas mais abaixo no arquivo (Agendor, fotos, leitor de documento)
+      // nunca eram alcançadas: este coringa respondia com a página do app antes delas.
+      if (req.path.startsWith('/api/')) return next();
       // Check if request is for a missing asset file (e.g. old JS bundle from cached HTML)
       const isAssetRequest = /\.(js|css|woff2?|ttf|png|jpg|jpeg|gif|svg|ico|json|map)$/i.test(req.path);
       if (isAssetRequest) {
@@ -4144,7 +4150,8 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         app.use(express.static(path.resolve(process.cwd(), 'dist')));
       }
 
-      app.get('*', (req, res) => {
+      app.get('*', (req, res, next) => {
+        if (req.path.startsWith('/api/')) return next();
         const fallbackDistIndex = path.resolve(process.cwd(), 'dist', 'index.html');
         if (fs.existsSync(fallbackDistIndex)) {
           return res.sendFile(fallbackDistIndex);
@@ -5393,17 +5400,21 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       try { host = new URL(url).hostname.toLowerCase(); } catch { return res.status(400).send('URL inválida'); }
       if (!/^https:\/\//i.test(url)) return res.status(400).send('URL inválida');
       const permitidos = ['firebasestorage.googleapis.com', 'storage.googleapis.com', 'roderbrasil.com.br', 'www.roderbrasil.com.br', 'drive.google.com', 'docs.google.com', 'roderindica.com', 'www.roderindica.com'];
-      if (!permitidos.includes(host)) return res.status(403).send('Endereço não permitido');
+      if (!permitidos.includes(host)) return res.status(403).send('Este endereço não pode ser aberto dentro do app.');
       // Link de visualização do Drive vira link de download do arquivo
       const drive = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:export=\w+&)?id=)([\w-]{10,})/);
       if (drive) url = `https://drive.google.com/uc?export=download&id=${drive[1]}`;
-      const r = await fetch(url, { redirect: 'follow' });
-      if (!r.ok) return res.status(502).send('Não consegui baixar o documento');
+      const r = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0 (RoderIndica)' } });
+      if (!r.ok) return res.status(502).send('Não consegui baixar o documento.');
       const buf = Buffer.from(await r.arrayBuffer());
       if (buf.length > 40 * 1024 * 1024) return res.status(413).send('Documento grande demais');
-      // confere pelo conteúdo, porque o Drive e o Storage às vezes mandam o tipo errado
-      if (buf.subarray(0, 5).toString('latin1') !== '%PDF-') return res.status(415).send('Não é PDF');
-      res.setHeader('Content-Type', 'application/pdf');
+      // confere pelo conteúdo, porque o Drive e o Storage às vezes mandam o tipo errado.
+      // Aceita PDF e foto (nota fiscal e comprovante às vezes são foto).
+      const ehPdfArq = buf.subarray(0, 1024).toString('latin1').includes('%PDF-');
+      const tipoOrigem = String(r.headers.get('content-type') || '').toLowerCase();
+      const ehFoto = /^image\/(jpeg|png|webp|gif)/.test(tipoOrigem) || (buf[0] === 0xff && buf[1] === 0xd8) || (buf[0] === 0x89 && buf[1] === 0x50);
+      if (!ehPdfArq && !ehFoto) return res.status(415).send('Este arquivo não é PDF nem foto.');
+      res.setHeader('Content-Type', ehPdfArq ? 'application/pdf' : (tipoOrigem.startsWith('image/') ? tipoOrigem : 'image/jpeg'));
       res.setHeader('Cache-Control', 'private, max-age=300');
       res.send(buf);
     } catch (e: any) {

@@ -31,12 +31,15 @@ import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
 import { EditableImage } from './EditableImage';
 import { useAuth } from '../../contexts/AuthContext';
+import { useVoltarFecha } from '../../lib/useVoltarFecha';
 
 interface CabecoteGmt035FichaProps {
   onClose: () => void;
 }
 
 export function CabecoteGmt035Ficha({ onClose }: CabecoteGmt035FichaProps) {
+  // "Voltar" do celular fecha a ficha e volta para a tela de onde ela foi aberta
+  useVoltarFecha(true, onClose);
   const { isAdmin, isManager, isTriagem, isMarketing, isInternalSeller } = useAuth();
   const canEdit = isAdmin || isManager || isTriagem || isMarketing || isInternalSeller;
   

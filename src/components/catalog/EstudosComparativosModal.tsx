@@ -25,6 +25,7 @@ import { RODER_LOGO_BASE64 } from './RoderLogo';
 import { toast } from 'sonner';
 import { jsPDF } from 'jspdf';
 import { toPng } from 'html-to-image';
+import { useVoltarFecha } from '../../lib/useVoltarFecha';
 
 interface EstudosComparativosModalProps {
   isOpen?: boolean;
@@ -45,6 +46,8 @@ interface EstudoDocument {
 }
 
 export function EstudosComparativosModal({ onClose, initialSearch = '' }: EstudosComparativosModalProps) {
+  // "Voltar" do celular fecha a ficha e volta para a tela de onde ela foi aberta
+  useVoltarFecha(true, onClose);
   const [searchTerm, setSearchTerm] = useState<string>(initialSearch);
   const [selectedCategory, setSelectedCategory] = useState<string>('Todas');
   const [selectedDocId, setSelectedDocId] = useState<string>('regras-comerciais-gislene');

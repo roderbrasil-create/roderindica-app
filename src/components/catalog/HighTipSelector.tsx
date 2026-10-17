@@ -33,6 +33,7 @@ import { toast } from 'sonner';
 import { db } from '../../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { abrirDocumento } from '../../lib/abrirDocumento';
+import { useVoltarFecha } from '../../lib/useVoltarFecha';
 
 const BUCKET_DIMENSIONS: Record<string, { a: string, b: string, c: string }> = {
   '2.0': { a: '900', b: '2.400', c: '1.600' },
@@ -68,6 +69,7 @@ export function HighTipSelector({ onSelectModel, onViewFicha, embedded = false, 
   } | null>(null);
   const [selectedBucket, setSelectedBucket] = useState<string>('');
   const [isReportOpen, setIsReportOpen] = useState(false);
+  useVoltarFecha(!!isReportOpen, () => setIsReportOpen(false));
   const [copied, setCopied] = useState(false);
   const [useTurnSafety, setUseTurnSafety] = useState<boolean>(false);
   const reportRef = useRef<HTMLDivElement>(null);

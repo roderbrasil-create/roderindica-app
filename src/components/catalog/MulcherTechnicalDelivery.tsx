@@ -25,6 +25,7 @@ import { EditableImage } from './EditableImage';
 import { toast } from 'sonner';
 import { db } from '../../lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { useVoltarFecha } from '../../lib/useVoltarFecha';
 
 interface MulcherTechnicalDeliveryProps {
   modelId: string;
@@ -34,6 +35,8 @@ interface MulcherTechnicalDeliveryProps {
 }
 
 export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }: MulcherTechnicalDeliveryProps) {
+  // "Voltar" do celular fecha a ficha e volta para a tela de onde ela foi aberta
+  useVoltarFecha(!!isOpen, onClose);
   // Form state
   const [clientName, setClientName] = useState('');
   const [operatorName, setOperatorName] = useState('');

@@ -62,6 +62,7 @@ import {
 } from 'lucide-react';
 import { differenceInDays, addDays, format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useVoltarFecha } from '../lib/useVoltarFecha';
 
 interface EvaluationItem {
   id: string;
@@ -120,6 +121,7 @@ export default function ComercialAvaliacoes() {
 
   // Email Config States
   const [showConfigEmailsModal, setShowConfigEmailsModal] = useState(false);
+  useVoltarFecha(!!showConfigEmailsModal, () => setShowConfigEmailsModal(false));
   const [recipientEmails, setRecipientEmails] = useState<string[]>([
     'jeferson@roderbrasil.com.br',
     'gislene@roderbrasil.com.br',
@@ -129,6 +131,7 @@ export default function ComercialAvaliacoes() {
 
   // Manual evaluation scheduling modal & states
   const [showManualModal, setShowManualModal] = useState(false);
+  useVoltarFecha(!!showManualModal, () => setShowManualModal(false));
   const [manualName, setManualName] = useState('');
   const [manualPhone, setManualPhone] = useState('');
   const [manualEquipment, setManualEquipment] = useState('');
@@ -141,6 +144,7 @@ export default function ComercialAvaliacoes() {
 
   // Edit evaluation modal & states
   const [showEditModal, setShowEditModal] = useState(false);
+  useVoltarFecha(!!showEditModal, () => setShowEditModal(false));
   const [editingId, setEditingId] = useState('');
   const [editClientName, setEditClientName] = useState('');
   const [editClientPhone, setEditClientPhone] = useState('');
@@ -155,6 +159,7 @@ export default function ComercialAvaliacoes() {
 
   // Monthly A4 report generator states
   const [showReportModal, setShowReportModal] = useState(false);
+  useVoltarFecha(!!showReportModal, () => setShowReportModal(false));
   const [reportSelectedMonth, setReportSelectedMonth] = useState<string>(
     new Date().toISOString().substring(0, 7) // Ex: "2026-05"
   );

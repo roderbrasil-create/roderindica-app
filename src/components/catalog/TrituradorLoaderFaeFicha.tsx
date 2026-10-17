@@ -29,6 +29,7 @@ import { Button } from '../ui/button';
 import { useAuth } from '../../contexts/AuthContext';
 import { db } from '../../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { useVoltarFecha } from '../../lib/useVoltarFecha';
 
 interface TrituradorLoaderFaeFichaProps {
   onClose: () => void;
@@ -50,6 +51,8 @@ interface ModelSpec {
 }
 
 export function TrituradorLoaderFaeFicha({ onClose, defaultModelId = 'fae-uml-ssl-vt-175' }: TrituradorLoaderFaeFichaProps) {
+  // "Voltar" do celular fecha a ficha e volta para a tela de onde ela foi aberta
+  useVoltarFecha(true, onClose);
   const { isAdmin, isManager, isTriagem, isMarketing, isInternalSeller } = useAuth();
   const canEdit = isAdmin || isManager || isTriagem || isMarketing || isInternalSeller;
   const printRef = useRef<HTMLDivElement>(null);

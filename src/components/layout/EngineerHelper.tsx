@@ -1194,6 +1194,8 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   // "Voltar" do celular fecha primeiro o relatório e depois o consultor, em vez de sair da tela
   useVoltarFecha(isOpen && !isFullPage, () => setIsOpenState(false));
   useVoltarFecha(isReportOpen, () => setIsReportOpen(false));
+  useVoltarFecha(isShareModalOpen, () => setIsShareModalOpen(false));
+  useVoltarFecha(isBudgetFormOpen, () => setIsBudgetFormOpen(false));
   const [reportContent, setReportContent] = useState('');
   const [reportTitle, setReportTitle] = useState('Relatório de Dimensionamento Técnico');
   const reportRef = useRef<HTMLDivElement>(null);
@@ -4584,7 +4586,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
       {/* Real Roder Image Report Modal */}
       <AnimatePresence>
         {isReportOpen && (
-          <div className="fixed inset-0 z-[99999] overflow-y-auto bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-6 no-print-backdrop">
+          <div style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 0.5rem)' }} className="fixed inset-0 z-[99999] overflow-y-auto bg-slate-950/80 backdrop-blur-md flex items-start md:items-center justify-center p-2 sm:p-4 md:p-6 no-print-backdrop">
             <div className="bg-slate-900 border border-slate-880 text-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] animate-in fade-in zoom-in-95 duration-200">
               
               {/* Header Controls */}

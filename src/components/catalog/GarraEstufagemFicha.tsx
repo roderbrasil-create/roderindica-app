@@ -27,6 +27,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useAuth } from '../../contexts/AuthContext';
 import { compressFileToDataURL } from '../../lib/imageUtils';
 import { getApiBaseUrl } from '../../lib/utils';
+import { useVoltarFecha } from '../../lib/useVoltarFecha';
 
 interface GarraEstufagemFichaProps {
   onClose: () => void;
@@ -187,6 +188,8 @@ const MODELS: ModelDetails[] = [
 ];
 
 export function GarraEstufagemFicha({ onClose, defaultModelId = 'af_360' }: GarraEstufagemFichaProps) {
+  // "Voltar" do celular fecha a ficha e volta para a tela de onde ela foi aberta
+  useVoltarFecha(true, onClose);
   const [selectedModelId, setSelectedModelId] = useState<string>(defaultModelId);
   const [customMainImageUrl, setCustomMainImageUrl] = useState<string | null>(null);
   const [loadingMedia, setLoadingMedia] = useState<boolean>(false);

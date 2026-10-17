@@ -950,22 +950,6 @@ export default function Catalog() {
     }
   }, [galeriaAberta]);
 
-  // Fichas técnicas abertas em tela cheia por cima do catálogo ou dos modelos:
-  // o "voltar" fecha a ficha e devolve a tela que estava embaixo
-  const fichaAberta = isHighTipFichaOpen || isFresaSshFichaOpen || isTrituradorLoaderFaeFichaOpen || isEngateRapidoFichaOpen || isGarraEstufagemFichaOpen || isCabecotePodaFichaOpen || isCabecoteGmt035FichaOpen || isSacadorSac500FichaOpen || isEstudosComparativosOpen;
-  useVoltarFecha(fichaAberta, () => {
-    setIsHighTipFichaOpen(false);
-    setIsFresaSshFichaOpen(false);
-    setIsTrituradorLoaderFaeFichaOpen(false);
-    setIsEngateRapidoFichaOpen(false);
-    setIsGarraEstufagemFichaOpen(false);
-    setIsCabecotePodaFichaOpen(false);
-    setIsCabecoteGmt035FichaOpen(false);
-    setIsSacadorSac500FichaOpen(false);
-    setIsEstudosComparativosOpen(false);
-    if (suspendedProductModels) { setSelectedProductModels(suspendedProductModels); setSuspendedProductModels(null); }
-    if (suspendedViewingGallery) { setViewingGallery(suspendedViewingGallery); setSuspendedViewingGallery(null); }
-  });
   // Janela de modelos (computador) também fecha no "voltar"
   useVoltarFecha(!!(selectedProductModels || suspendedProductModels), () => { setSelectedProductModels(null); setSuspendedProductModels(null); });
 

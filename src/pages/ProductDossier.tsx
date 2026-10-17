@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useVoltarFecha } from '../lib/useVoltarFecha';
 import Layout from '../components/layout/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../lib/firebase';
@@ -179,6 +180,7 @@ export default function ProductDossier() {
 
   // Full Printable Commercial Report Modal
   const [isCommercialReportOpen, setIsCommercialReportOpen] = useState(false);
+  useVoltarFecha(!!isCommercialReportOpen, () => setIsCommercialReportOpen(false));
 
   // Fetch commercial guidelines
   useEffect(() => {

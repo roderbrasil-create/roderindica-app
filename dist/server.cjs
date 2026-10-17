@@ -3792,6 +3792,9 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
     app.use("/assets", import_express.default.static(import_path.default.resolve(distPath, "assets"), { maxAge: "1y", immutable: true }));
     app.use(import_express.default.static(distPath, {
       index: false,
+      // a pasta dist/catalogo (fotos, fichas e vídeos) tem o mesmo nome da tela /catalogo:
+      // sem isto, abrir /catalogo redirecionava para /catalogo/
+      redirect: false,
       setHeaders: (res, filePath) => {
         if (filePath.endsWith(".html")) {
           res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
@@ -3800,7 +3803,8 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
         }
       }
     }));
-    app.get("*", (req, res) => {
+    app.get("*", (req, res, next) => {
+      if (req.path.startsWith("/api/")) return next();
       const isAssetRequest = /\.(js|css|woff2?|ttf|png|jpg|jpeg|gif|svg|ico|json|map)$/i.test(req.path);
       if (isAssetRequest) {
         return res.status(404).send("File not found");
@@ -3854,7 +3858,8 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       if (import_fs.default.existsSync(import_path.default.resolve(process.cwd(), "dist"))) {
         app.use(import_express.default.static(import_path.default.resolve(process.cwd(), "dist")));
       }
-      app.get("*", (req, res) => {
+      app.get("*", (req, res, next) => {
+        if (req.path.startsWith("/api/")) return next();
         const fallbackDistIndex = import_path.default.resolve(process.cwd(), "dist", "index.html");
         if (import_fs.default.existsSync(fallbackDistIndex)) {
           return res.sendFile(fallbackDistIndex);
@@ -4913,15 +4918,18 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       }
       if (!/^https:\/\//i.test(url)) return res.status(400).send("URL inv\xE1lida");
       const permitidos = ["firebasestorage.googleapis.com", "storage.googleapis.com", "roderbrasil.com.br", "www.roderbrasil.com.br", "drive.google.com", "docs.google.com", "roderindica.com", "www.roderindica.com"];
-      if (!permitidos.includes(host)) return res.status(403).send("Endere\xE7o n\xE3o permitido");
+      if (!permitidos.includes(host)) return res.status(403).send("Este endere\xE7o n\xE3o pode ser aberto dentro do app.");
       const drive = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:export=\w+&)?id=)([\w-]{10,})/);
       if (drive) url = `https://drive.google.com/uc?export=download&id=${drive[1]}`;
-      const r = await fetch(url, { redirect: "follow" });
-      if (!r.ok) return res.status(502).send("N\xE3o consegui baixar o documento");
+      const r = await fetch(url, { redirect: "follow", headers: { "User-Agent": "Mozilla/5.0 (RoderIndica)" } });
+      if (!r.ok) return res.status(502).send("N\xE3o consegui baixar o documento.");
       const buf = Buffer.from(await r.arrayBuffer());
       if (buf.length > 40 * 1024 * 1024) return res.status(413).send("Documento grande demais");
-      if (buf.subarray(0, 5).toString("latin1") !== "%PDF-") return res.status(415).send("N\xE3o \xE9 PDF");
-      res.setHeader("Content-Type", "application/pdf");
+      const ehPdfArq = buf.subarray(0, 1024).toString("latin1").includes("%PDF-");
+      const tipoOrigem = String(r.headers.get("content-type") || "").toLowerCase();
+      const ehFoto = /^image\/(jpeg|png|webp|gif)/.test(tipoOrigem) || buf[0] === 255 && buf[1] === 216 || buf[0] === 137 && buf[1] === 80;
+      if (!ehPdfArq && !ehFoto) return res.status(415).send("Este arquivo n\xE3o \xE9 PDF nem foto.");
+      res.setHeader("Content-Type", ehPdfArq ? "application/pdf" : tipoOrigem.startsWith("image/") ? tipoOrigem : "image/jpeg");
       res.setHeader("Cache-Control", "private, max-age=300");
       res.send(buf);
     } catch (e) {
