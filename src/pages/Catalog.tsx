@@ -1256,7 +1256,7 @@ export default function Catalog() {
       const ficha = '/catalogo/gr/Ficha_Garra_Rachadora_GR600.pdf';
       await addDoc(collection(db, 'products'), {
         name: 'Garra Rachadora GR',
-        description: 'A Garra Rachadora Roder (GR) racha toras e movimenta a madeira com o mesmo equipamento, sem precisar de rachador separado. Projeto robusto para alta produtividade, durabilidade e segurança nas operações florestais. Modelo GR600: racha toras de até 600 mm de diâmetro, abertura máxima de 762 mm, altura com a garra aberta de 1.444 mm, peso de 821 kg sem rotator e 896 kg com rotator, rotator de 16 t e pressão de trabalho de 180 a 240 bar.',
+        description: 'A Garra Rachadora Roder (GR) racha toras e movimenta a madeira com o mesmo equipamento, sem precisar de rachador separado. Projeto robusto para alta produtividade, durabilidade e segurança nas operações florestais. Indicação por escavadeira: GR600 para escavadeiras de 12 a 22 toneladas e GR800 para escavadeiras de 20 a 30 toneladas. Modelo GR600: racha toras de até 600 mm de diâmetro, abertura máxima de 762 mm, altura com a garra aberta de 1.444 mm, peso de 821 kg sem rotator e 896 kg com rotator, rotator de 16 t e pressão de trabalho de 180 a 240 bar.',
         category: 'Garras Florestais',
         image_url: img,
         video_url: '',
@@ -1267,6 +1267,7 @@ export default function Catalog() {
           {
             id: 'gr-600', name: 'GR600', base_value: 0, images: [img], pdf_url: ficha,
             technical_specs: {
+              maquina_base: '12 a 22 Ton.',
               diametro_rachamento: '600 mm',
               abertura_maxima: '762 mm',
               altura_garra_aberta: '1.444 mm',
