@@ -388,7 +388,7 @@ async function startServer() {
     import_fs.default.mkdirSync(uploadsDir, { recursive: true });
   }
   app.use("/uploads", import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-17e garra-clamshell-gcr";
+  const RELEASE_LABEL = "2026-10-17f garra-rachadora-gr600-gr800";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
