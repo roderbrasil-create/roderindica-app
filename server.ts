@@ -250,6 +250,14 @@ async function startServer() {
   app.use("/uploads", express.static(uploadsDir));
 
   // API routes
+  // Versão publicada (conferência de implantação). Atualizar RELEASE_LABEL a cada publicação.
+  const RELEASE_LABEL = "2026-10-16 negociacao-sem-agendor + versao";
+  const SERVER_STARTED_AT = new Date().toISOString();
+  app.get("/api/version", (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ release: RELEASE_LABEL, started_at: SERVER_STARTED_AT });
+  });
+
   app.get("/api/health", async (req, res) => {
     const hasGeminiKey = !!process.env.GEMINI_API_KEY;
     const hasServiceAccount = !!(process.env.FIREBASE_SERVICE_ACCOUNT || fs.existsSync(path.join(process.cwd(), 'firebase-service-account.json')));
