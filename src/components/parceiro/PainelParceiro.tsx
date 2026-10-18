@@ -68,13 +68,16 @@ export default function PainelParceiro() {
     const vistos = new Set<string>();
     for (const item of estoque) {
       const cod = so(item.code);
-      const desc = so(item.description);
+      const desc = ` ${String(item.description || '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ')} `;
       for (const p of produtos) {
         if (p.is_blocked) continue;
         for (const m of (p.models || [])) {
           const codModelo = so(m.technical_specs?.codigo_roder || m.codigo_roder);
-          const nomeModelo = so(m.name);
-          const casou = (codModelo && cod && codModelo === cod) || (nomeModelo.length >= 4 && desc.includes(nomeModelo) && /\d/.test(nomeModelo));
+          // nome inteiro, com fronteira: "CMF 50" não casa com "CMF500", "R250" não casa com "R2500"
+          const partes = String(m.name || '').toUpperCase().match(/[A-Z]+|\d+/g) || [];
+          const nomeOk = partes.length > 0 && /\d/.test(partes.join('')) && partes.join('').length >= 4;
+          const casouNome = nomeOk && new RegExp(`(^|[^A-Z0-9])${partes.join('\\s*')}([^A-Z0-9]|$)`).test(desc);
+          const casou = (codModelo && cod && codModelo === cod) || casouNome;
           if (!casou) continue;
           const chave = `${p.id}:${m.id}`;
           if (vistos.has(chave)) continue;

@@ -4256,7 +4256,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       const snap = await db.collection('users').where('email', '==', email).limit(1).get();
       const u: any = snap.empty ? null : snap.docs[0].data();
       const equipe = ['admin', 'manager', 'internal_seller', 'triagem', 'financial', 'marketing', 'fiscal'];
-      if (!u || !equipe.includes(String(u.role)) || u.status === 'inactive' || u.status === 'blocked') {
+      if (!u || !equipe.includes(String(u.role)) || u.status !== 'active') {
         return res.status(403).json({ error: 'Este e-mail não está cadastrado na equipe Roder.' });
       }
       res.json({ ok: true, name: u.name || 'Equipe Roder', role: u.role });
@@ -4268,9 +4268,9 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
   app.post("/api/orcamento/registrar-link", async (req, res) => {
     try {
       if (passouLimite(`reglink-ip:${ipDe(req)}`, 10, 60 * 60 * 1000)) return res.status(429).json({ error: 'Muitas solicitações.' });
-      const id = String(req.body?.indicationId || '').slice(0, 60);
+      const id = String(req.body?.indicationId || '');
       const codigo = String(req.body?.codigo || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
-      if (!id) return res.status(400).json({ error: 'Solicitação não informada.' });
+      if (!/^[A-Za-z0-9]{1,40}$/.test(id)) return res.status(400).json({ error: 'Solicitação inválida.' });
       const ref = db.collection('indications').doc(id);
       let ind: any = null;
       const ok = await db.runTransaction(async (t: any) => {
@@ -4291,16 +4291,20 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       const p: any = parceiro.data();
       const extra: any = {};
       if (p.name && (!ind.external_seller_name || /^(Vendedor Parceiro|Indicador)$/i.test(ind.external_seller_name))) extra.external_seller_name = p.name;
+      // Só avisa o parceiro quando o pedido veio de um link curto DELE: sem isso, qualquer um
+      // criaria pedidos falsos para fazer aparecer aviso no app de um parceiro.
+      let linkDele = false;
       if (codigo) {
         const l = await db.collection('links_curtos').doc(codigo).get();
-        if (l.exists && (l.data() as any).uid === uid) extra.link_curto = codigo;
+        if (l.exists && (l.data() as any).uid === uid) { extra.link_curto = codigo; linkDele = true; }
       }
       if (Object.keys(extra).length) await ref.update(extra);
+      if (!linkDele) return res.json({ ok: true });
       const produto = String(ind.items?.[0]?.product_name || ind.product_name || 'equipamento Roder');
       await db.collection('notifications').add({
         user_uid: uid,
         title: 'Pedido gerado pelo seu link!',
-        message: `${String(ind.client_name || 'Um cliente').slice(0, 80)} pediu orçamento de ${produto.slice(0, 80)} pelo seu link. A indicação está no seu nome.`,
+        message: `${String(ind.client_name || 'Um cliente').replace(/[^\p{L}\p{N} .,&'-]/gu, '').slice(0, 60)} pediu orçamento de ${produto.slice(0, 80)} pelo seu link. A indicação está no seu nome.`,
         type: 'success',
         read: false,
         link: '/indicacoes',

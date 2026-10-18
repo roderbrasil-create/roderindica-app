@@ -620,7 +620,7 @@ export default function Commissions() {
         await setDoc(doc(db, 'monthly_statements', 'mecanica_dias_id'), {
           id: 'mecanica_dias_id',
           seller_name: mecanicaProfile?.name || 'Mecânica Dias',
-          seller_uid: mecanicaProfile?.uid || 'mecanica_dias_uid',
+          seller_uid: profile?.uid || mecanicaProfile?.uid || 'mecanica_dias_uid',
           total_value: 2267.07,
           status: 'waiting_payment',
           month: 5,

@@ -95,7 +95,7 @@ function DashboardBannerImage({ src, alt, className }: { src: string; alt: strin
 // Assim o parceiro também não baixa usuários, feiras e reservas que ele nem vê.
 export default function Dashboard() {
   const { isExternalSeller, isAdmin, isManager, isInternalSeller, isTriagem } = useAuth();
-  if (isExternalSeller && !isAdmin && !isManager && !isInternalSeller && !isTriagem) return <PainelParceiro />;
+  if (isExternalSeller && !isAdmin && !isManager && !isInternalSeller && !isTriagem) return <Layout><PainelParceiro /></Layout>;
   return <DashboardCompleto />;
 }
 

@@ -3956,7 +3956,7 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       const snap = await db.collection("users").where("email", "==", email).limit(1).get();
       const u = snap.empty ? null : snap.docs[0].data();
       const equipe = ["admin", "manager", "internal_seller", "triagem", "financial", "marketing", "fiscal"];
-      if (!u || !equipe.includes(String(u.role)) || u.status === "inactive" || u.status === "blocked") {
+      if (!u || !equipe.includes(String(u.role)) || u.status !== "active") {
         return res.status(403).json({ error: "Este e-mail n\xE3o est\xE1 cadastrado na equipe Roder." });
       }
       res.json({ ok: true, name: u.name || "Equipe Roder", role: u.role });
@@ -3967,9 +3967,9 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
   app.post("/api/orcamento/registrar-link", async (req, res) => {
     try {
       if (passouLimite(`reglink-ip:${ipDe(req)}`, 10, 60 * 60 * 1e3)) return res.status(429).json({ error: "Muitas solicita\xE7\xF5es." });
-      const id = String(req.body?.indicationId || "").slice(0, 60);
+      const id = String(req.body?.indicationId || "");
       const codigo = String(req.body?.codigo || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
-      if (!id) return res.status(400).json({ error: "Solicita\xE7\xE3o n\xE3o informada." });
+      if (!/^[A-Za-z0-9]{1,40}$/.test(id)) return res.status(400).json({ error: "Solicita\xE7\xE3o inv\xE1lida." });
       const ref = db.collection("indications").doc(id);
       let ind = null;
       const ok = await db.runTransaction(async (t) => {
@@ -3990,16 +3990,21 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       const p = parceiro.data();
       const extra = {};
       if (p.name && (!ind.external_seller_name || /^(Vendedor Parceiro|Indicador)$/i.test(ind.external_seller_name))) extra.external_seller_name = p.name;
+      let linkDele = false;
       if (codigo) {
         const l = await db.collection("links_curtos").doc(codigo).get();
-        if (l.exists && l.data().uid === uid) extra.link_curto = codigo;
+        if (l.exists && l.data().uid === uid) {
+          extra.link_curto = codigo;
+          linkDele = true;
+        }
       }
       if (Object.keys(extra).length) await ref.update(extra);
+      if (!linkDele) return res.json({ ok: true });
       const produto = String(ind.items?.[0]?.product_name || ind.product_name || "equipamento Roder");
       await db.collection("notifications").add({
         user_uid: uid,
         title: "Pedido gerado pelo seu link!",
-        message: `${String(ind.client_name || "Um cliente").slice(0, 80)} pediu or\xE7amento de ${produto.slice(0, 80)} pelo seu link. A indica\xE7\xE3o est\xE1 no seu nome.`,
+        message: `${String(ind.client_name || "Um cliente").replace(/[^\p{L}\p{N} .,&'-]/gu, "").slice(0, 60)} pediu or\xE7amento de ${produto.slice(0, 80)} pelo seu link. A indica\xE7\xE3o est\xE1 no seu nome.`,
         type: "success",
         read: false,
         link: "/indicacoes",

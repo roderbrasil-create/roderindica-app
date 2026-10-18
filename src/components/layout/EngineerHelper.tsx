@@ -1545,12 +1545,12 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   }, [messages]);
 
   // Outras telas abrem o consultor já com uma pergunta (perguntas prontas da tela inicial do parceiro)
-  const perguntaPendente = useRef<string | null>(null);
+  const [perguntaPendente, setPerguntaPendente] = useState<{ texto: string; n: number } | null>(null);
   useEffect(() => {
     const abrir = (e: Event) => {
       const pergunta = String((e as CustomEvent).detail?.pergunta || '').trim();
       setIsOpen(true);
-      if (pergunta) perguntaPendente.current = pergunta;
+      if (pergunta) setPerguntaPendente({ texto: pergunta, n: Date.now() });
     };
     window.addEventListener('roder:abrir-consultor', abrir);
     return () => window.removeEventListener('roder:abrir-consultor', abrir);
@@ -1684,7 +1684,8 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     setSelectedCacambaModel(null);
     setRecommendedCacambaCap('');
 
-    if (!user) {
+    // equipe Roder do link /consultor-equipe continua liberada ao limpar a conversa
+    if (!user && !(publicUser as any)?.equipe) {
       localStorage.removeItem('roder_public_user_profile');
       setPublicUser(null);
       setOnboardingStep('SELECT_ROLE');
@@ -1812,7 +1813,8 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     setRecommendedCacambaCap('');
     setIsOpen(false);
 
-    if (!user) {
+    // equipe Roder do link /consultor-equipe continua liberada ao limpar a conversa
+    if (!user && !(publicUser as any)?.equipe) {
       localStorage.removeItem('roder_public_user_profile');
       setPublicUser(null);
       setOnboardingStep('SELECT_ROLE');
@@ -2809,12 +2811,16 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
   };
 
   // pergunta pronta vinda de outra tela: manda assim que o consultor abre
+  // handleSend pela referência da última renderização (sem conversa velha por cima da nova)
+  const handleSendRef = useRef(handleSend);
+  handleSendRef.current = handleSend;
   useEffect(() => {
-    if (!isOpen || !perguntaPendente.current || loading) return;
-    const p = perguntaPendente.current;
-    perguntaPendente.current = null;
-    setTimeout(() => handleSend(p), 300);
-  }, [isOpen, loading]);
+    if (!isOpen || !perguntaPendente || loading) return;
+    const p = perguntaPendente.texto;
+    setPerguntaPendente(null);
+    const t = setTimeout(() => handleSendRef.current(p), 300);
+    return () => clearTimeout(t);
+  }, [isOpen, perguntaPendente, loading]);
 
   const isCatalog = location.pathname === '/catalogo';
   const hasRightDock = isCatalog && isOpen;
