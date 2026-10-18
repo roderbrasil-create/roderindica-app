@@ -42,7 +42,8 @@ import {
   Megaphone,
   Layers,
   ClipboardCheck,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Play,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import {
@@ -98,13 +99,16 @@ import { RODER_LOGO_BASE64 } from '../components/catalog/RoderLogo';
 import { useVoltarFecha } from '../lib/useVoltarFecha';
 import { perfilInstalacao, frasePara } from '../lib/instalacao';
 import { abrirDocumento } from '../lib/abrirDocumento';
+import { EnvioDeVideo } from '../components/catalog/EnvioDeVideo';
 
 function SmartImage({ src, alt, className, zoom = 1, objectFit = 'cover', ...props }: any) {
   const [resolvedSrc, setResolvedSrc] = useState('');
   const [attempts, setAttempts] = useState<string[]>([]);
   const [attemptIndex, setAttemptIndex] = useState(0);
+  const [falhou, setFalhou] = useState(false);
 
   useEffect(() => {
+    setFalhou(false);
     if (!src) {
       setResolvedSrc('');
       setAttempts([]);
@@ -124,11 +128,13 @@ function SmartImage({ src, alt, className, zoom = 1, objectFit = 'cover', ...pro
           setResolvedSrc('');
           setAttempts([]);
           setAttemptIndex(0);
+          setFalhou(true);
         }
       }).catch(() => {
         setResolvedSrc('');
         setAttempts([]);
         setAttemptIndex(0);
+        setFalhou(true);
       });
     } else {
       // Build high-availability hierarchy of attempts
@@ -159,23 +165,8 @@ function SmartImage({ src, alt, className, zoom = 1, objectFit = 'cover', ...pro
         }
       }
 
-      // Attempt 4: Clean, themed high-quality Unsplash machinery and logging fallbacks
-      let fallbackUnsplash = 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?q=80&w=800&auto=format&fit=crop'; // excavator fallback
-      
-      const lowercaseAlt = (alt || '').toLowerCase();
-      const lowercaseSrc = src.toLowerCase();
-
-      if (lowercaseAlt.includes('fae') || lowercaseSrc.includes('fae') || lowercaseAlt.includes('triturador') || lowercaseAlt.includes('desbastador') || lowercaseAlt.includes('florestal')) {
-        fallbackUnsplash = 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?q=80&w=800&auto=format&fit=crop'; // forest logging environment
-      } else if (lowercaseAlt.includes('garra') || lowercaseSrc.includes('garra')) {
-        fallbackUnsplash = 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?q=80&w=800&auto=format&fit=crop'; // metal claw/mechanic
-      } else if (lowercaseAlt.includes('feller') || lowercaseSrc.includes('feller')) {
-        fallbackUnsplash = 'https://images.unsplash.com/photo-1473448912268-2022ce9509d8?q=80&w=800&auto=format&fit=crop'; // forestry/woods
-      } else if (lowercaseAlt.includes('skidder') || lowercaseSrc.includes('skidder') || lowercaseAlt.includes('mini')) {
-        fallbackUnsplash = 'https://images.unsplash.com/photo-1448375240586-882707db888b?q=80&w=800&auto=format&fit=crop'; // heavy forest path
-      }
-
-      list.push(fallbackUnsplash);
+      // Sem foto de banco de imagens no lugar (floresta, máquina de outra marca): no catálogo
+      // ela parecia o equipamento Roder. Se a foto não abrir, aparece o quadro RODER EQUIPAMENTOS.
 
       setAttempts(list);
       setResolvedSrc(list[0]);
@@ -188,10 +179,12 @@ function SmartImage({ src, alt, className, zoom = 1, objectFit = 'cover', ...pro
       const nextIndex = attemptIndex + 1;
       setAttemptIndex(nextIndex);
       setResolvedSrc(attempts[nextIndex]);
+    } else {
+      setFalhou(true);
     }
   };
 
-  const isFailed = attemptIndex >= attempts.length - 1 && attempts.length > 0 && !resolvedSrc;
+  const isFailed = falhou;
 
   return (
     <div className={cn("overflow-hidden flex items-center justify-center bg-slate-900 relative border border-border/10", className)}>
@@ -802,6 +795,7 @@ export default function Catalog() {
   const [editingModelIndex, setEditingModelIndex] = useState<number | null>(null);
   const [modelVideoFile, setModelVideoFile] = useState<File | null>(null);
   const [productVideoFile, setProductVideoFile] = useState<File | null>(null);
+  const [videoEnviando, setVideoEnviando] = useState(false);
   const [isEditingFromProductDialog, setIsEditingFromProductDialog] = useState(false);
   const [productToDelete, setProductToDelete] = useState<{id: string, name: string} | null>(null);
   const [applyImageToOtherModels, setApplyImageToOtherModels] = useState<string[]>([]);
@@ -5063,6 +5057,16 @@ export default function Catalog() {
                     {model.video_url && (
                       <button
                         type="button"
+                        onClick={(e) => { e.stopPropagation(); abrirDocumento(model.video_url, `${model.name} · vídeo`); }}
+                        className="absolute left-1.5 bottom-1.5 z-20 h-8 pl-2 pr-2.5 rounded-full bg-black/75 text-white text-[11px] font-bold flex items-center gap-1 active:scale-95"
+                        aria-label="Ver vídeo"
+                      >
+                        <Play className="h-3.5 w-3.5 fill-white" /> Vídeo
+                      </button>
+                    )}
+                    {model.video_url && (
+                      <button
+                        type="button"
                         className="absolute bottom-1.5 left-1.5 z-10 bg-red-600 hover:bg-red-700 text-white rounded-full px-2 py-1 flex items-center gap-1 shadow-md !text-[10px] md:!text-xs font-black uppercase"
                         onClick={(e) => { e.stopPropagation(); window.open(model.video_url, '_blank'); }}
                         title="Ver vídeo"
@@ -6294,40 +6298,13 @@ export default function Catalog() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="video">Vídeo (Link YouTube ou Upload)</Label>
-                  <div className="flex gap-2">
-                    <Input 
-                      id="video" 
-                      value={formData.video_url} 
-                      onChange={(e) => setFormData({...formData, video_url: e.target.value})}
-                      className="bg-background border-border flex-1"
-                      placeholder="Link do YouTube"
-                    />
-                    <div className="relative">
-                      <Input 
-                        type="file"
-                        accept="video/*"
-                        className="absolute inset-0 opacity-0 cursor-pointer w-10"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            setProductVideoFile(file);
-                            toast.success('Vídeo selecionado!');
-                          }
-                        }}
-                      />
-                      <Button type="button" variant="outline" size="icon" className="h-10 w-10 shrink-0">
-                        <Video className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                  {productVideoFile && (
-                    <div className="flex items-center justify-between bg-primary/10 p-2 rounded border border-primary/20">
-                      <span className="text-[10px] font-medium truncate max-w-[150px]">{productVideoFile.name}</span>
-                      <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500" onClick={() => setProductVideoFile(null)}>
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  )}
+                  <EnvioDeVideo
+                    valor={formData.video_url || ''}
+                    aoMudar={(url) => setFormData(f => ({ ...f, video_url: url }))}
+                    pasta="product_videos"
+                    titulo={formData.name}
+                    aoEnviando={setVideoEnviando}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="pdf">Link do PDF / Ficha Técnica</Label>
@@ -6540,9 +6517,9 @@ export default function Catalog() {
             </div>
             <DialogFooter className="gap-2">
               <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="border-border" disabled={submitting || modelUploading}>Cancelar</Button>
-              <Button onClick={handleSaveProduct} disabled={submitting || modelUploading} className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold">
+              <Button onClick={handleSaveProduct} disabled={submitting || modelUploading || videoEnviando} className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold">
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                {modelUploading ? 'Aguarde o upload...' : 'Salvar Produto'}
+                {videoEnviando ? 'Aguarde o vídeo terminar de subir' : modelUploading ? 'Aguarde o upload...' : 'Salvar Produto'}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -7010,42 +6987,13 @@ export default function Catalog() {
 
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase">Vídeo do Modelo (Link YouTube ou Upload)</Label>
-                    <div className="flex flex-col gap-3">
-                      <div className="flex items-center gap-2">
-                        <Input 
-                          id="video-url" 
-                          value={editingModelData.video_url || ''} 
-                          onChange={(e) => setEditingModelData({ ...editingModelData, video_url: e.target.value })}
-                          placeholder="Link do YouTube"
-                          className="h-9 text-xs flex-1"
-                        />
-                        <div className="relative">
-                          <Input 
-                            type="file"
-                            accept="video/*"
-                            className="absolute inset-0 opacity-0 cursor-pointer w-10"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                setModelVideoFile(file);
-                                toast.success('Vídeo selecionado para upload!');
-                              }
-                            }}
-                          />
-                          <Button type="button" variant="outline" size="icon" className="h-9 w-9">
-                            <Video className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                      {modelVideoFile && (
-                        <div className="flex items-center justify-between bg-primary/10 p-2 rounded border border-primary/20">
-                          <span className="text-[10px] font-medium truncate max-w-[150px]">{modelVideoFile.name}</span>
-                          <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500" onClick={() => setModelVideoFile(null)}>
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
+                    <EnvioDeVideo
+                      valor={editingModelData.video_url || ''}
+                      aoMudar={(url) => setEditingModelData((d: any) => d ? ({ ...d, video_url: url }) : d)}
+                      pasta="model_videos"
+                      titulo={editingModelData.name}
+                      aoEnviando={setVideoEnviando}
+                    />
                   </div>
 
                   <div className="space-y-2">
@@ -7167,9 +7115,9 @@ export default function Catalog() {
                 setModelVideoFile(null); 
                 setApplyImageToOtherModels([]);
               }}>Cancelar</Button>
-              <Button type="button" onClick={handleSaveModel} disabled={submitting || modelUploading} className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold">
+              <Button type="button" onClick={handleSaveModel} disabled={submitting || modelUploading || videoEnviando} className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold">
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                Salvar Alterações do Modelo
+                {videoEnviando ? 'Aguarde o vídeo terminar de subir' : 'Salvar Alterações do Modelo'}
               </Button>
             </DialogFooter>
           </DialogContent>

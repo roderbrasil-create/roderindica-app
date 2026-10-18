@@ -76,8 +76,10 @@ export default function PublicBudgetRequest() {
 
   // fotos do endereço antigo do AI Studio (run.app) não abrem mais: ficam de fora
   const fotoValida = (u?: string) => !!u && !/\.run\.app\//.test(u);
-  const fotosModelo = (activeModel?.images || []).filter(fotoValida);
-  const images = fotosModelo.length ? fotosModelo : (fotoValida(product?.image_url) ? [product!.image_url] : []);
+  // foto guardada no banco (db-file://) vem pelo servidor como imagem normal
+  const urlDaFoto = (u: string) => u.startsWith('db-file://') ? `/api/foto/${encodeURIComponent(u.slice(10))}` : u;
+  const fotosModelo = (activeModel?.images || []).filter(fotoValida).map(urlDaFoto);
+  const images = fotosModelo.length ? fotosModelo : (fotoValida(product?.image_url) ? [urlDaFoto(product!.image_url)] : []);
 
   const [formData, setFormData] = useState({
     client_name: '',

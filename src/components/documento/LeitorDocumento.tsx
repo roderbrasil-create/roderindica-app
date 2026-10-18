@@ -82,6 +82,7 @@ export default function LeitorDocumento() {
   const [imagemUrl, setImagemUrl] = useState('');
   // Link do Drive: tenta ler como PDF/foto; se não for (vídeo, planilha), usa a prévia do Drive
   const [drivePrevia, setDrivePrevia] = useState(false);
+  const [videoComErro, setVideoComErro] = useState('');
   const paginasRef = useRef<HTMLDivElement>(null);
   const docRef = useRef<any>(null);
 
@@ -222,7 +223,15 @@ export default function LeitorDocumento() {
 
   let player: React.ReactNode = null;
   if (pedido.tipo === 'video') {
-    player = <video src={pedido.url} controls autoPlay playsInline className="w-full max-h-full bg-black" />;
+    // Vídeo gravado no iPhone (.mov, formato HEVC) não toca em alguns Android: avisa e deixa baixar
+    player = videoComErro === pedido.url ? (
+      <div className="text-center text-white/90 px-6">
+        <p className="text-sm font-bold">Este celular não conseguiu tocar o vídeo aqui.</p>
+        <a href={pedido.url} target="_blank" rel="noreferrer" className="inline-block mt-3 px-4 py-2.5 rounded-lg bg-white text-black text-sm font-bold">Abrir o vídeo</a>
+      </div>
+    ) : (
+      <video src={pedido.url} controls autoPlay playsInline preload="metadata" onError={() => setVideoComErro(pedido.url)} className="w-full max-h-full bg-black" />
+    );
   } else if (pedido.tipo === 'youtube' || pedido.tipo === 'vimeo' || (pedido.tipo === 'drive' && drivePrevia)) {
     const src = pedido.tipo === 'youtube'
       ? `https://www.youtube.com/embed/${idYoutube(pedido.url)}?autoplay=1&playsinline=1&rel=0`

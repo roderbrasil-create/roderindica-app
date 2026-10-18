@@ -48,17 +48,8 @@ function getFallbackList(src: string, title: string = ''): string[] {
     }
   }
 
-  const lowerTitle = (title || '').toLowerCase();
-  if (lowerTitle.includes('fae') || lowerTitle.includes('triturador') || lowerTitle.includes('desbastador')) {
-    list.push('https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?q=80&w=1200&auto=format&fit=crop');
-  } else if (lowerTitle.includes('garra') || lowerTitle.includes('gt') || lowerTitle.includes('r280') || lowerTitle.includes('r360')) {
-    list.push('https://images.unsplash.com/photo-1504384308090-c894fdcc538d?q=80&w=1200&auto=format&fit=crop');
-  } else if (lowerTitle.includes('feller') || lowerTitle.includes('cfta') || lowerTitle.includes('cfd')) {
-    list.push('https://images.unsplash.com/photo-1473448912268-2022ce9509d8?q=80&w=1200&auto=format&fit=crop');
-  } else {
-    list.push('https://images.unsplash.com/photo-1541888946425-d81bb19240f5?q=80&w=1200&auto=format&fit=crop');
-  }
-
+  // Sem foto de banco de imagens no lugar: mostrar floresta ou máquina de outra marca como se
+  // fosse o equipamento Roder engana o cliente. Se a foto não abrir, aparece o aviso.
   return list;
 }
 
@@ -113,14 +104,11 @@ export function ImageLightbox({
                 DB_IMAGE_CACHE.set(fileId, base64Data);
                 results.push(base64Data);
               } else {
-                // Fallback unsplash if file not found in db
-                const fallback = getFallbackList('', title)[0];
-                results.push(fallback);
+                results.push('erro://foto-apagada');
               }
             } catch (err) {
               console.warn('Error fetching db-file image:', item, err);
-              const fallback = getFallbackList('', title)[0];
-              results.push(fallback);
+              results.push('erro://sem-conexao');
             }
           }
         } else {
@@ -130,6 +118,8 @@ export function ImageLightbox({
 
       if (isMounted) {
         setResolvedImages(results.filter(Boolean));
+        // zera de novo: um erro da tentativa anterior pode ter chegado durante a busca
+        setImageErrorStates({});
         setIsResolving(false);
       }
     };
@@ -174,9 +164,12 @@ export function ImageLightbox({
 
   if (!isOpen || rawList.length === 0) return null;
 
+  // Foto guardada no banco (db-file://) ainda não buscada: espera, nunca vai direto para o <img>.
+  // Antes ia, o navegador dava erro na hora e a foto boa, quando chegava, já estava marcada como falha.
   const currentRawUrl = resolvedImages[currentIndex] || rawList[currentIndex] || '';
+  const aindaBuscando = isResolving || currentRawUrl.startsWith('db-file://');
   const currentAttempt = imageErrorStates[currentIndex] || 0;
-  const candidateList = getFallbackList(currentRawUrl, title);
+  const candidateList = currentRawUrl.startsWith('erro://') ? [] : getFallbackList(currentRawUrl, title);
   const activeImageUrl = candidateList[currentAttempt] || candidateList[0] || currentRawUrl;
   const isFailed = currentAttempt >= candidateList.length;
 
@@ -332,7 +325,7 @@ export function ImageLightbox({
         >
           {/* Main Display Image Frame */}
           <div className="relative w-full h-full flex items-center justify-center rounded-2xl overflow-hidden border border-white/15 bg-neutral-950/90 shadow-2xl p-2 sm:p-4">
-            {isResolving ? (
+            {aindaBuscando ? (
               <div className="flex flex-col items-center justify-center gap-3 text-white">
                 <Loader2 className="h-10 w-10 animate-spin text-primary" />
                 <span className="text-sm font-medium text-neutral-300">Carregando imagem em alta resolução...</span>
@@ -344,8 +337,16 @@ export function ImageLightbox({
                 </div>
                 <h4 className="font-bold text-base text-white">{title}</h4>
                 <p className="text-xs text-neutral-400 max-w-sm">
-                  Esta foto está sendo atualizada no catálogo da Roder. Visualize o PDF técnico ou entre em contato com nosso time de vendas.
+                  {currentRawUrl === 'erro://sem-conexao'
+                    ? 'Não consegui carregar esta foto. Confira a internet e abra de novo.'
+                    : 'Esta foto está sendo atualizada no catálogo da Roder. Visualize o PDF técnico ou entre em contato com nosso time de vendas.'}
                 </p>
+                {!currentRawUrl.startsWith('erro://') && <button
+                  onClick={(e) => { e.stopPropagation(); setImageErrorStates(prev => ({ ...prev, [currentIndex]: 0 })); }}
+                  className="mt-1 h-10 px-4 rounded-lg border border-white/20 text-white text-xs font-bold uppercase tracking-wider"
+                >
+                  Tentar de novo
+                </button>}
               </div>
             ) : (
               <motion.div

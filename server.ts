@@ -4084,7 +4084,26 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
   const ALFABETO_LINK = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const novoCodigo = () => Array.from({ length: 5 }, () => ALFABETO_LINK[Math.floor(Math.random() * ALFABETO_LINK.length)]).join('');
   const SITE = 'https://roderindica.com';
-  const absoluta = (u: string) => !u ? '' : (u.startsWith('http') ? u : `${SITE}${u.startsWith('/') ? '' : '/'}${u}`);
+  const absoluta = (u: string) => !u ? '' : u.startsWith('db-file://') ? `${SITE}/api/foto/${encodeURIComponent(u.slice(10))}` : (u.startsWith('http') ? u : `${SITE}${u.startsWith('/') ? '' : '/'}${u}`);
+
+  // Foto guardada no banco (db-file://): vira um endereço de imagem normal. Sem isto a foto
+  // nova de um modelo não aparecia na página que o cliente abre pelo WhatsApp nem na prévia
+  // do link (o navegador não sabe abrir "db-file://"). Os arquivos já são de leitura pública.
+  app.get("/api/foto/:id", async (req, res) => {
+    try {
+      const id = String(req.params.id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
+      if (!id) return res.status(400).send('Foto inválida');
+      const snap = await db.collection('app_files').doc(id).get();
+      const dados = String((snap.exists && (snap.data() as any)?.data) || '');
+      const m = dados.match(/^data:(image\/(?:jpeg|png|webp|gif));base64,(.+)$/s);
+      if (!m) return res.status(404).send('Foto não encontrada');
+      res.setHeader('Content-Type', m[1]);
+      res.setHeader('Cache-Control', 'public, max-age=604800');
+      res.send(Buffer.from(m[2], 'base64'));
+    } catch (e: any) {
+      res.status(500).send('Erro');
+    }
+  });
   const escHtml = (t: string) => String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
   app.post("/api/link-curto", async (req, res) => {
