@@ -4243,6 +4243,56 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
   // E-mail de confirmação para o cliente que pediu orçamento pelo link e deixou o e-mail.
   // Só envia para o e-mail gravado na própria solicitação, criada há poucos minutos e
   // uma vez só: assim o endereço não vira um jeito de mandar e-mail para qualquer um.
+  // Pedido feito pelo cliente no link do parceiro: o navegador do cliente não está logado e não
+  // consegue avisar o parceiro nem ler o nome dele. O servidor faz isso: grava o nome certo,
+  // o link usado e manda o aviso "Pedido gerado pelo seu link!" para o parceiro.
+  app.post("/api/orcamento/registrar-link", async (req, res) => {
+    try {
+      if (passouLimite(`reglink-ip:${ipDe(req)}`, 10, 60 * 60 * 1000)) return res.status(429).json({ error: 'Muitas solicitações.' });
+      const id = String(req.body?.indicationId || '').slice(0, 60);
+      const codigo = String(req.body?.codigo || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
+      if (!id) return res.status(400).json({ error: 'Solicitação não informada.' });
+      const ref = db.collection('indications').doc(id);
+      let ind: any = null;
+      const ok = await db.runTransaction(async (t: any) => {
+        const snap = await t.get(ref);
+        if (!snap.exists) return false;
+        ind = snap.data();
+        if (ind.creator_type !== 'client' || ind.link_registrado_em) return false;
+        const criadoEm = snap.createTime ? snap.createTime.toMillis() : 0;
+        if (!criadoEm || Date.now() - criadoEm > 15 * 60 * 1000) return false;
+        t.update(ref, { link_registrado_em: new Date().toISOString() });
+        return true;
+      });
+      if (!ok) return res.json({ ok: false });
+      const uid = String(ind.external_seller_uid || '');
+      if (!uid || uid === 'public_request') return res.json({ ok: true });
+      const parceiro = await db.collection('users').doc(uid).get();
+      if (!parceiro.exists) return res.json({ ok: true });
+      const p: any = parceiro.data();
+      const extra: any = {};
+      if (p.name && (!ind.external_seller_name || /^(Vendedor Parceiro|Indicador)$/i.test(ind.external_seller_name))) extra.external_seller_name = p.name;
+      if (codigo) {
+        const l = await db.collection('links_curtos').doc(codigo).get();
+        if (l.exists && (l.data() as any).uid === uid) extra.link_curto = codigo;
+      }
+      if (Object.keys(extra).length) await ref.update(extra);
+      const produto = String(ind.items?.[0]?.product_name || ind.product_name || 'equipamento Roder');
+      await db.collection('notifications').add({
+        user_uid: uid,
+        title: 'Pedido gerado pelo seu link!',
+        message: `${String(ind.client_name || 'Um cliente').slice(0, 80)} pediu orçamento de ${produto.slice(0, 80)} pelo seu link. A indicação está no seu nome.`,
+        type: 'success',
+        read: false,
+        link: '/indicacoes',
+        created_at: new Date().toISOString(),
+      });
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ error: 'Erro' });
+    }
+  });
+
   app.post("/api/orcamento/confirmacao", async (req, res) => {
     try {
       if (passouLimite(`conf-ip:${ipDe(req)}`, 5, 60 * 60 * 1000)) return res.status(429).json({ error: 'Muitas solicitações.' });

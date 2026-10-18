@@ -348,20 +348,19 @@ export default function PublicBudgetRequest() {
           created_at: new Date().toISOString()
         });
 
-        if (!isPublic && indicatorId) {
-          await addDoc(collection(db, 'notifications'), {
-            user_uid: indicatorId,
-            title: 'Pedido gerado pelo seu link!',
-            message: `O cliente ${formData.client_name} acabou de pedir um orçamento para ${finalProductName} usando seu link.`,
-            type: 'success',
-            read: false,
-            link: '/indicacoes',
-            created_at: new Date().toISOString()
-          });
-        }
+        // o aviso ao parceiro agora sai pelo servidor (/api/orcamento/registrar-link)
       } catch (notifyErr) {
         console.warn('Silent notification failure (likely unauthenticated client):', notifyErr);
       }
+
+      // o servidor avisa o parceiro, grava o nome dele e o link usado
+      try {
+        await fetch(`${getApiBaseUrl()}/api/orcamento/registrar-link`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ indicationId: novaRef.id, codigo: searchParams.get('c') || '' }),
+        });
+      } catch { /* o pedido já está salvo */ }
 
       setProgresso(85);
       // E-mail de confirmação para o cliente, quando ele deixou o e-mail

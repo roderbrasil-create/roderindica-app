@@ -166,14 +166,21 @@ export default function Commissions() {
     return mecanicaProfile?.pix_key || '12345678000199';
   }, [mecanicaProfile]);
 
+  // O fechamento de Maio/2026 (EUCAZIN, pedido 9414) é da Mecânica Dias (Odair). Antes ele
+  // aparecia para TODO parceiro, como se fosse comissão dele.
+  const ehMecanicaDias = React.useMemo(() => {
+    const n = (profile?.name || '').toLowerCase();
+    return n.includes('odair') || n.includes('mecânica dias') || n.includes('mecanica dias');
+  }, [profile?.name]);
+
   const partnerPeriods = React.useMemo(() => {
     if (!profile || profile.role !== 'external_seller') return [];
 
     // Base mock & real periods that Odair / partner indicators are used to seeing
-    const defaultPeriods: { month: number; year: number; label: string; type: string; value: number; status: string; paid_at?: string }[] = [
+    const defaultPeriods: { month: number; year: number; label: string; type: string; value: number; status: string; paid_at?: string }[] = ehMecanicaDias ? [
       { month: 5, year: 2026, label: "Maio/2026", type: "previous", value: 2267.07, status: 'waiting_nf' },
       { month: 6, year: 2026, label: "Junho/2026", type: "current", value: 0, status: "in_progress" }
-    ];
+    ] : [];
 
     const grouped: Record<string, { total: number; commissions: Commission[]; statement?: MonthlyStatement; customStatus?: string }> = {};
 
@@ -250,7 +257,7 @@ export default function Commissions() {
       }
 
       // Connect simulation of Maio/2026 for Mecânica Dias
-      if (m === 5 && y === 2026) {
+      if (ehMecanicaDias && m === 5 && y === 2026) {
         if (!item.statement) {
           status = mecanicaNfStatus;
           paid_at = mecanicaPaidDate;
@@ -275,7 +282,7 @@ export default function Commissions() {
       // Sort chronologically (oldest to newest) as requested
       return (a.year - b.year) !== 0 ? (a.year - b.year) : (a.month - b.month);
     });
-  }, [profile, allCommissions, monthlyStatements, mecanicaNfStatus, mecanicaPaidDate]);
+  }, [profile, allCommissions, monthlyStatements, mecanicaNfStatus, mecanicaPaidDate, ehMecanicaDias]);
 
   // Listener for general monthly filtering select
   useEffect(() => {
@@ -608,7 +615,7 @@ export default function Commissions() {
       }
 
       // Sync the simulation of Maio/2026 for Mecânica Dias
-      if (selectedPartnerPeriod.month === 5 && selectedPartnerPeriod.year === 2026) {
+      if (ehMecanicaDias && selectedPartnerPeriod.month === 5 && selectedPartnerPeriod.year === 2026) {
         setMecanicaNfStatus('waiting_payment');
         await setDoc(doc(db, 'monthly_statements', 'mecanica_dias_id'), {
           id: 'mecanica_dias_id',
@@ -1984,12 +1991,12 @@ export default function Commissions() {
                                           Composição da comissão - {period.label}
                                         </h5>
                                         <Badge className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-black text-[9px] uppercase px-2 py-0.5">
-                                          {period.month === 5 && period.year === 2026 ? "Simulação Detalhada" : `${period.commissions.length} Vendas Registradas`}
+                                          {ehMecanicaDias && period.month === 5 && period.year === 2026 ? "Simulação Detalhada" : `${period.commissions.length} Vendas Registradas`}
                                         </Badge>
                                       </div>
 
                                       {/* Sub-table detail */}
-                                      {period.month === 5 && period.year === 2026 ? (
+                                      {ehMecanicaDias && period.month === 5 && period.year === 2026 ? (
                                         /* Simulated beautiful detail breakdown for Maio/2026 */
                                         <div className="space-y-4">
                                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">

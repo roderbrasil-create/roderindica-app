@@ -279,7 +279,9 @@ interface FirestoreErrorInfo {
 }
 
 export default function Stock() {
-  const { auth, profile, isAdmin, isManager, isMarketing, isInternalSeller, isTriagem } = useAuth();
+  const { auth, profile, isAdmin, isManager, isMarketing, isInternalSeller, isTriagem, isExternalSeller } = useAuth();
+  // Parceiro não registra venda (baixava a quantidade do estoque da fábrica): ele reserva ou indica
+  const parceiroNaoVende = isExternalSeller && !isAdmin && !isManager && !isInternalSeller && !isTriagem;
   
   const handleFirestoreError = (error: unknown, operationType: OperationType, path: string | null) => {
     const errInfo: FirestoreErrorInfo = {
@@ -2276,6 +2278,7 @@ export default function Stock() {
                                     setIsSaleModalOpen(true);
                                   }}
                                   title="VENDER"
+                                  hidden={parceiroNaoVende}
                                 >
                                   <ShoppingCart className="h-3.5 w-3.5" />
                                 </Button>
@@ -2575,6 +2578,7 @@ export default function Stock() {
                           });
                           setIsSaleModalOpen(true);
                         }}
+                        hidden={parceiroNaoVende}
                       >
                         <ShoppingCart className="h-3 w-3" /> VENDER
                       </Button>
@@ -2807,6 +2811,7 @@ export default function Stock() {
                           });
                           setIsSaleModalOpen(true);
                         }}
+                        hidden={parceiroNaoVende}
                       >
                         <ShoppingCart className="h-3 w-3" /> VENDER
                       </Button>
