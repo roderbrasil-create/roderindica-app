@@ -477,7 +477,7 @@ export default function PublicBudgetRequest() {
       <div className="max-w-md mx-auto px-3.5 pt-2.5 pb-6">
         {/* Equipamento */}
         <div className="bg-white rounded-2xl border border-slate-200 p-2.5 flex gap-3 items-center">
-          <button type="button" onClick={() => images.length && setFotoAberta(true)} className="w-32 h-32 shrink-0 flex items-center justify-center bg-white rounded-xl">
+          <button type="button" onClick={() => images.length && setFotoAberta(true)} className="w-[154px] h-[154px] shrink-0 flex items-center justify-center bg-white rounded-xl">
             {images.length > 0
               ? <img src={images[0]} alt={tituloEquip} className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
               : <Package className="h-10 w-10 text-slate-300" />}

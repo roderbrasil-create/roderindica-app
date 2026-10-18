@@ -4502,7 +4502,7 @@ export default function Catalog() {
       if (!v || String(v).trim() === '' || String(v).trim() === '-' || vistos.has(curtos[k])) continue;
       vistos.add(curtos[k]);
       destaques.push(`• ${curtos[k]} ${getUnitValue(k, v)}`);
-      if (destaques.length === 3) break;
+      if (destaques.length === 4) break;
     }
     // Sem o link curto ainda: abre a janela do WhatsApp já no toque (senão o celular bloqueia),
     // mostra "Criando link..." no botão e espera o link ficar pronto. O link comprido só vai
@@ -4525,7 +4525,7 @@ export default function Catalog() {
     const text = `*${titulo} - RODER*\n` +
       (paraMaquina ? `${paraMaquina}\n` : '') +
       (destaques.length ? `\n${destaques.join('\n')}\n` : '') +
-      `\nFotos, vídeo, ficha e orçamento:\n${budgetUrl}`;
+      `\n${budgetUrl}\n👆 Fotos, vídeo, ficha e orçamento`;
 
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
     // Foto + texto pelo menu de compartilhar do celular (a pessoa escolhe o WhatsApp).

@@ -289,8 +289,10 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
       window.location.pathname.includes('/pedido-orcamento') ||
       window.location.pathname.includes('/cadastro-rapido') ||
       window.location.pathname.includes('/f') ||
-      window.location.pathname.includes('/expo')
+      window.location.pathname.includes('/expo') ||
+      window.location.pathname.startsWith('/o/')
     ) {
+      // páginas que o CLIENTE abre (link do WhatsApp): nada de baixar catálogo no celular dele
       return;
     }
 
@@ -307,6 +309,8 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
     if (!lastSync) {
       console.log('[PWA] Launching automatic first-time offline database sync...');
       timerId = setTimeout(() => {
+        // o link curto (/o/...) vira /pedido-orcamento nesse meio tempo: confere de novo
+        if (/^\/(o\/|pedido-orcamento)/.test(window.location.pathname)) return;
         syncDataLocally(false);
       }, 3000);
     } else {
@@ -314,6 +318,7 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
       if (elapsedSinceLastSync > 1000 * 60 * 60 * 4) {
         console.log('[PWA] Syncing updates silently in background (elapsed time since last sync exceeded 4h)...');
         timerId = setTimeout(() => {
+          if (/^\/(o\/|pedido-orcamento)/.test(window.location.pathname)) return;
           syncDataLocally(true);
         }, 4500);
       }
