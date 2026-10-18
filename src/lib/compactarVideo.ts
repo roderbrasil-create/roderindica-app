@@ -21,7 +21,7 @@ export async function compactarVideo(
   if (original.size < 12 * 1024 * 1024 && /mp4$/i.test(original.type || original.name)) return semCompactar('já é pequeno');
 
   // arquivo próprio em /libs (como o pdf.js): fora do pacote principal do app, que ficaria 700 KB maior
-  const mb: typeof import('mediabunny') = await import(/* @vite-ignore */ `${window.location.origin}/libs/mediabunny-1.60.0.min.mjs`);
+  const mb: any = await import(/* @vite-ignore */ `${window.location.origin}/libs/mediabunny-1.60.0.min.mjs`);
   const entrada = new mb.Input({ source: new mb.BlobSource(original), formats: mb.ALL_FORMATS });
   try {
     const trilha = await entrada.getPrimaryVideoTrack();

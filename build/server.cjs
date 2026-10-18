@@ -388,7 +388,7 @@ async function startServer() {
     import_fs.default.mkdirSync(uploadsDir, { recursive: true });
   }
   app.use("/uploads", import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-18a video-mp4";
+  const RELEASE_LABEL = "2026-10-18b video-mp4";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
