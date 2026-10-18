@@ -27,6 +27,11 @@ export function EnvioDeVideo({ valor, aoMudar, pasta, aoEnviando, titulo }: {
   const cancelarCompactacao = useRef<(() => void) | null>(null);
   const cancelado = useRef(false);
   const [parado, setParado] = useState(false);
+  // Depois de escolher o vídeo, o iPhone leva vários segundos preparando o arquivo antes de
+  // entregá-lo ao app, e a tela ficava parada sem sinal nenhum. Agora aparece "Abrindo o vídeo".
+  const [abrindo, setAbrindo] = useState(false);
+  const vigiaAbrindo = useRef<any>(null);
+  const pararAbrindo = () => { setAbrindo(false); clearTimeout(vigiaAbrindo.current); };
 
   // fechou a tela no meio do envio: cancela e libera o botão Salvar
   useEffect(() => () => { cancelado.current = true; cancelarCompactacao.current?.(); tarefa.current?.cancel(); aoEnviando?.(false); }, []);
@@ -107,8 +112,16 @@ export function EnvioDeVideo({ valor, aoMudar, pasta, aoEnviando, titulo }: {
 
   return (
     <div className="flex flex-col gap-2">
+      {abrindo && !progresso && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 flex items-center gap-2.5">
+          <span className="h-4 w-4 rounded-full border-2 border-blue-600 border-t-transparent animate-spin shrink-0" />
+          <span className="text-xs font-bold text-blue-900">Abrindo o vídeo escolhido... pode levar alguns segundos</span>
+        </div>
+      )}
+
+      {/* fica montado enquanto a galeria está aberta (só escondido), senão o arquivo escolhido se perde */}
       {!progresso && (
-        <div className="flex items-center gap-2">
+        <div className={abrindo ? 'hidden' : 'flex items-center gap-2'}>
           <Input
             value={ehArquivo ? '' : (valor || '')}
             onChange={(e) => aoMudar(e.target.value)}
@@ -122,11 +135,20 @@ export function EnvioDeVideo({ valor, aoMudar, pasta, aoEnviando, titulo }: {
               type="file"
               accept="video/*"
               className="hidden"
+              onClick={() => {
+                setAbrindo(true);
+                // se a pessoa fechar a galeria sem escolher, o aviso some sozinho
+                clearTimeout(vigiaAbrindo.current);
+                vigiaAbrindo.current = setTimeout(() => setAbrindo(false), 120000);
+              }}
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 e.target.value = '';
+                pararAbrindo();
                 if (f) escolher(f);
               }}
+              // evento "cancel" do seletor (Safari 16.4+, Chrome 113+): fechou sem escolher
+              ref={(el) => { if (el && !(el as any).__cancel) { (el as any).__cancel = true; el.addEventListener('cancel', pararAbrindo); } }}
             />
           </label>
         </div>

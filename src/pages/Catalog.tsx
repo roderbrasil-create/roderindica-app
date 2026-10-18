@@ -5054,26 +5054,6 @@ export default function Catalog() {
                         <Package className="h-8 w-8 md:h-11 md:w-11" />
                       </div>
                     )}
-                    {model.video_url && (
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); abrirDocumento(model.video_url, `${model.name} · vídeo`); }}
-                        className="absolute left-1.5 bottom-1.5 z-20 h-8 pl-2 pr-2.5 rounded-full bg-black/75 text-white text-[11px] font-bold flex items-center gap-1 active:scale-95"
-                        aria-label="Ver vídeo"
-                      >
-                        <Play className="h-3.5 w-3.5 fill-white" /> Vídeo
-                      </button>
-                    )}
-                    {model.video_url && (
-                      <button
-                        type="button"
-                        className="absolute bottom-1.5 left-1.5 z-10 bg-red-600 hover:bg-red-700 text-white rounded-full px-2 py-1 flex items-center gap-1 shadow-md !text-[10px] md:!text-xs font-black uppercase"
-                        onClick={(e) => { e.stopPropagation(); window.open(model.video_url, '_blank'); }}
-                        title="Ver vídeo"
-                      >
-                        <Video className="h-3 w-3 md:h-4 md:w-4" /> Vídeo
-                      </button>
-                    )}
                   </div>
 
                   <div className="min-w-0 flex-1">
@@ -5105,6 +5085,16 @@ export default function Catalog() {
                         <p className="!text-[10px] md:!text-xs font-bold uppercase tracking-widest text-slate-500 leading-none">{ehPa ? 'Pá carregadeira' : 'Máquina base'}</p>
                         <p className="!text-base md:!text-xl font-black text-primary leading-tight mt-0.5 break-words">{maquinaBase}</p>
                       </div>
+                    )}
+                    {/* Vídeo fora da foto: em cima dela tampava o equipamento */}
+                    {model.video_url && (
+                      <button
+                        type="button"
+                        onClick={() => abrirDocumento(model.video_url, `${model.name} · vídeo`)}
+                        className="mt-2 h-9 pl-2.5 pr-3 rounded-full bg-[#FF0000] text-white text-xs md:text-sm font-bold flex items-center gap-1.5 shadow-sm active:scale-95"
+                      >
+                        <Play className="h-3.5 w-3.5 fill-white" /> Ver vídeo
+                      </button>
                     )}
                     {!isExternalSeller && typeof model.base_value === 'number' && model.base_value > 0 ? (
                       <p className="font-bold text-slate-700 !text-sm md:!text-lg mt-1">

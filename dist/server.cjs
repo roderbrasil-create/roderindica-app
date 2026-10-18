@@ -3834,6 +3834,26 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       res.status(500).send("Erro");
     }
   });
+  async function fotoAbre(u) {
+    try {
+      if (u.startsWith("db-file://")) {
+        const snap = await db.collection("app_files").doc(u.slice(10)).get();
+        return /^data:image\/(jpeg|png|webp|gif);base64,/.test(String(snap.data()?.data || ""));
+      }
+      if (u.startsWith("/")) return true;
+      const ctl = new AbortController();
+      const t = setTimeout(() => ctl.abort(), 3e3);
+      const r = await fetch(u, { method: "GET", headers: { Range: "bytes=0-1023" }, signal: ctl.signal });
+      clearTimeout(t);
+      try {
+        await r.body?.cancel();
+      } catch {
+      }
+      return (r.ok || r.status === 206) && /^image\//i.test(r.headers.get("content-type") || "");
+    } catch {
+      return false;
+    }
+  }
   const escHtml = (t) => String(t || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   app.post("/api/link-curto", async (req, res) => {
     try {
@@ -3892,8 +3912,13 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
             titulo = `${p.name}${m && !String(p.name).includes(m.name) ? ` ${m.name}` : ""} | Roder`;
             const base = String(m?.technical_specs?.maquina_base || "").trim();
             descricao = base ? `Para ${/carregadeira|engate/i.test(p.name) ? "p\xE1 carregadeira" : "escavadeiras"} de ${base.replace(/\s*ton\.?$/i, " t")}. Fotos, v\xEDdeo, ficha e or\xE7amento.` : descricao;
-            const foto = (m?.images || []).find((i) => i && !/run\.app/.test(i)) || p.image_url;
-            if (foto && !/run\.app/.test(foto)) imagem = absoluta(foto);
+            const candidatas = [...m?.images || [], p.image_url].filter((i) => typeof i === "string" && i && !/run\.app/.test(i));
+            for (const c of candidatas.slice(0, 6)) {
+              if (await fotoAbre(c)) {
+                imagem = absoluta(c);
+                break;
+              }
+            }
           }
         }
       } catch (e) {

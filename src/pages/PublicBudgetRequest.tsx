@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
-import { Loader2, CheckCircle2, ChevronLeft, ChevronRight, Package, User, Building, Phone, Mail, FileText, MapPin, Briefcase, Settings } from 'lucide-react';
+import { Play, Loader2, CheckCircle2, ChevronLeft, ChevronRight, Package, User, Building, Phone, Mail, FileText, MapPin, Briefcase, Settings } from 'lucide-react';
 import { cn, getApiBaseUrl } from '../lib/utils';
 import { abrirDocumento } from '../lib/abrirDocumento';
 import { perfilInstalacao, TEXTOS_INSTALACAO, frasePara } from '../lib/instalacao';
@@ -493,7 +493,7 @@ export default function PublicBudgetRequest() {
             {destaques.length > 0 && <p className="text-xs text-slate-600 mt-1.5">{destaques.join(' · ')}</p>}
             {(videoUrl || fichaUrl) && (
               <div className="flex gap-1.5 mt-2">
-                {videoUrl && <button type="button" onClick={() => abrirDocumento(videoUrl, tituloEquip)} className="px-2.5 py-1.5 rounded-full bg-slate-100 text-slate-700 text-xs font-bold">▶ Vídeo</button>}
+                {videoUrl && <button type="button" onClick={() => abrirDocumento(videoUrl, tituloEquip)} className="px-3 py-1.5 rounded-full bg-[#FF0000] text-white text-xs font-bold flex items-center gap-1"><Play className="h-3.5 w-3.5 fill-white" /> Vídeo</button>}
                 {fichaUrl && <button type="button" onClick={() => abrirDocumento(fichaUrl, `Ficha ${tituloEquip}`)} className="px-2.5 py-1.5 rounded-full bg-slate-100 text-slate-700 text-xs font-bold flex items-center gap-1"><FileText className="h-3.5 w-3.5" /> Ficha</button>}
               </div>
             )}

@@ -4123,6 +4123,21 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       res.status(500).send('Erro');
     }
   });
+  async function fotoAbre(u: string): Promise<boolean> {
+    try {
+      if (u.startsWith('db-file://')) {
+        const snap = await db.collection('app_files').doc(u.slice(10)).get();
+        return /^data:image\/(jpeg|png|webp|gif);base64,/.test(String((snap.data() as any)?.data || ''));
+      }
+      if (u.startsWith('/')) return true;
+      const ctl = new AbortController();
+      const t = setTimeout(() => ctl.abort(), 3000);
+      const r = await fetch(u, { method: 'GET', headers: { Range: 'bytes=0-1023' }, signal: ctl.signal });
+      clearTimeout(t);
+      try { await r.body?.cancel(); } catch { /* nada */ }
+      return (r.ok || r.status === 206) && /^image\//i.test(r.headers.get('content-type') || '');
+    } catch { return false; }
+  }
   const escHtml = (t: string) => String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
   app.post("/api/link-curto", async (req, res) => {
@@ -4186,8 +4201,13 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
             titulo = `${p.name}${m && !String(p.name).includes(m.name) ? ` ${m.name}` : ''} | Roder`;
             const base = String(m?.technical_specs?.maquina_base || '').trim();
             descricao = base ? `Para ${/carregadeira|engate/i.test(p.name) ? 'pá carregadeira' : 'escavadeiras'} de ${base.replace(/\s*ton\.?$/i, ' t')}. Fotos, vídeo, ficha e orçamento.` : descricao;
-            const foto = (m?.images || []).find((i: string) => i && !/run\.app/.test(i)) || p.image_url;
-            if (foto && !/run\.app/.test(foto)) imagem = absoluta(foto);
+            // A prévia do WhatsApp só mostra a foto se o endereço responder com uma imagem.
+            // Foto morta (endereço antigo do AI Studio, Storage que não existia) deixava a
+            // mensagem sem foto: agora usa a primeira que realmente abre.
+            const candidatas: string[] = [...(m?.images || []), p.image_url].filter((i: any) => typeof i === 'string' && i && !/run\.app/.test(i));
+            for (const c of candidatas.slice(0, 6)) {
+              if (await fotoAbre(c)) { imagem = absoluta(c); break; }
+            }
           }
         }
       } catch (e) { /* sem prévia, a página abre do mesmo jeito */ }

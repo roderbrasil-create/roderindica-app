@@ -49,6 +49,7 @@ export async function compactarVideo(
         bitrate: TAXA_VIDEO,
         frameRate: 30,
         forceTranscode: true,
+        hardwareAcceleration: 'prefer-hardware', // chip de vídeo do celular: bem mais rápido
       },
       // áudio do iPhone (AAC) é copiado como está; outro formato vira AAC
       audio: { codec: 'aac' },
