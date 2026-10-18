@@ -4246,6 +4246,25 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
   // Pedido feito pelo cliente no link do parceiro: o navegador do cliente não está logado e não
   // consegue avisar o parceiro nem ler o nome dele. O servidor faz isso: grava o nome certo,
   // o link usado e manda o aviso "Pedido gerado pelo seu link!" para o parceiro.
+  // Link do consultor para a equipe Roder (/consultor-equipe): entra só com o e-mail cadastrado.
+  // A conferência é aqui no servidor, porque o navegador sem login não pode ler os usuários.
+  app.post("/api/consultor/equipe", async (req, res) => {
+    try {
+      if (passouLimite(`consequipe-ip:${ipDe(req)}`, 10, 15 * 60 * 1000)) return res.status(429).json({ error: 'Muitas tentativas. Espere alguns minutos.' });
+      const email = String(req.body?.email || '').trim().toLowerCase().slice(0, 120);
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'E-mail inválido.' });
+      const snap = await db.collection('users').where('email', '==', email).limit(1).get();
+      const u: any = snap.empty ? null : snap.docs[0].data();
+      const equipe = ['admin', 'manager', 'internal_seller', 'triagem', 'financial', 'marketing', 'fiscal'];
+      if (!u || !equipe.includes(String(u.role)) || u.status === 'inactive' || u.status === 'blocked') {
+        return res.status(403).json({ error: 'Este e-mail não está cadastrado na equipe Roder.' });
+      }
+      res.json({ ok: true, name: u.name || 'Equipe Roder', role: u.role });
+    } catch {
+      res.status(500).json({ error: 'Erro ao conferir o e-mail.' });
+    }
+  });
+
   app.post("/api/orcamento/registrar-link", async (req, res) => {
     try {
       if (passouLimite(`reglink-ip:${ipDe(req)}`, 10, 60 * 60 * 1000)) return res.status(429).json({ error: 'Muitas solicitações.' });

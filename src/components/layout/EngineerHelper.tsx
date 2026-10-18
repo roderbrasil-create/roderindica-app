@@ -2109,7 +2109,9 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     }
 
     // Spy Protection / Usage Limits check
-    const isVisitor = !user || !profile?.role || (profile.role as string) === 'client' || (profile.role as string) === 'visitor';
+    // equipe Roder que entrou pelo link /consultor-equipe (e-mail conferido no servidor) não tem limite
+    const equipePeloLink = publicUser?.userType === 'vendedor' && (publicUser as any)?.equipe === true;
+    const isVisitor = !equipePeloLink && (!user || !profile?.role || (profile.role as string) === 'client' || (profile.role as string) === 'visitor');
     if (isVisitor) {
       const textUpper = queryText.toUpperCase();
       const categoriesMatched: string[] = [];

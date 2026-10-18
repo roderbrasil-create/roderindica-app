@@ -290,7 +290,8 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
       window.location.pathname.includes('/cadastro-rapido') ||
       window.location.pathname.includes('/f') ||
       window.location.pathname.includes('/expo') ||
-      window.location.pathname.startsWith('/o/')
+      window.location.pathname.startsWith('/o/') ||
+      window.location.pathname.startsWith('/consultor')
     ) {
       // páginas que o CLIENTE abre (link do WhatsApp): nada de baixar catálogo no celular dele
       return;

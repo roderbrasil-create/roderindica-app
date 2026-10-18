@@ -3948,6 +3948,22 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       next();
     }
   });
+  app.post("/api/consultor/equipe", async (req, res) => {
+    try {
+      if (passouLimite(`consequipe-ip:${ipDe(req)}`, 10, 15 * 60 * 1e3)) return res.status(429).json({ error: "Muitas tentativas. Espere alguns minutos." });
+      const email = String(req.body?.email || "").trim().toLowerCase().slice(0, 120);
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: "E-mail inv\xE1lido." });
+      const snap = await db.collection("users").where("email", "==", email).limit(1).get();
+      const u = snap.empty ? null : snap.docs[0].data();
+      const equipe = ["admin", "manager", "internal_seller", "triagem", "financial", "marketing", "fiscal"];
+      if (!u || !equipe.includes(String(u.role)) || u.status === "inactive" || u.status === "blocked") {
+        return res.status(403).json({ error: "Este e-mail n\xE3o est\xE1 cadastrado na equipe Roder." });
+      }
+      res.json({ ok: true, name: u.name || "Equipe Roder", role: u.role });
+    } catch {
+      res.status(500).json({ error: "Erro ao conferir o e-mail." });
+    }
+  });
   app.post("/api/orcamento/registrar-link", async (req, res) => {
     try {
       if (passouLimite(`reglink-ip:${ipDe(req)}`, 10, 60 * 60 * 1e3)) return res.status(429).json({ error: "Muitas solicita\xE7\xF5es." });

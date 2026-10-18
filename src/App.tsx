@@ -46,6 +46,7 @@ import ProductDossier from './pages/ProductDossier';
 import RoderIAReports from './pages/RoderIAReports';
 import IAManual from './pages/IAManual';
 import PublicConsultant from './pages/PublicConsultant';
+import ConsultorEquipe from './pages/ConsultorEquipe';
 import PublicEngateRapidoFicha from './pages/PublicEngateRapidoFicha';
 
 function PrivateRoute({ children, roles }: { children: React.ReactNode, roles?: string[] }) {
@@ -375,6 +376,7 @@ function AppContent() {
                 <Route path="/o/:codigo" element={<LinkCurto />} />
                 <Route path="/satisfacao" element={<PublicEvaluation />} />
                 <Route path="/entrega-tecnica-fae" element={<PublicTechnicalDelivery />} />
+                <Route path="/consultor-equipe" element={<ConsultorEquipe />} />
                 <Route path="/consultor" element={<PublicConsultant />} />
                 <Route path="/consultor-tecnico" element={<PublicConsultant />} />
                 <Route path="/ficha/engate-rapido" element={<PublicEngateRapidoFicha />} />
