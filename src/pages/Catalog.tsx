@@ -97,7 +97,7 @@ import { SacadorSac500Ficha } from '../components/catalog/SacadorSac500Ficha';
 import { EstudosComparativosModal } from '../components/catalog/EstudosComparativosModal';
 import { RODER_LOGO_BASE64 } from '../components/catalog/RoderLogo';
 import { useVoltarFecha } from '../lib/useVoltarFecha';
-import { perfilInstalacao, frasePara } from '../lib/instalacao';
+import { perfilInstalacao, frasePara, maquinasDoProduto, NOME_MAQUINA, type TipoMaquina } from '../lib/instalacao';
 import { abrirDocumento } from '../lib/abrirDocumento';
 import { EnvioDeVideo } from '../components/catalog/EnvioDeVideo';
 
@@ -747,6 +747,8 @@ export default function Catalog() {
   const [modelUploading, setModelUploading] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  // "Qual a máquina do seu cliente?" da tela inicial chega aqui como filtro
+  const [filtroMaquina, setFiltroMaquina] = useState<TipoMaquina | null>(() => ((window.history.state?.usr as any)?.maquina as TipoMaquina) || null);
   const [selectedProductModels, setSelectedProductModels] = useState<Product | null>(null);
   const [selectedModel, setSelectedModel] = useState<any>(null);
 
@@ -5415,6 +5417,12 @@ export default function Catalog() {
                 </div>
               </div>
 
+              {filtroMaquina && (
+                <div className="flex items-center justify-between gap-2 rounded-xl bg-[#111] text-white px-3 py-2">
+                  <span className="text-sm font-bold">Equipamentos para <span className="text-[#facc15]">{NOME_MAQUINA[filtroMaquina]}</span></span>
+                  <button type="button" onClick={() => setFiltroMaquina(null)} className="h-8 px-3 rounded-lg bg-white/10 text-xs font-bold">Ver todos</button>
+                </div>
+              )}
               <div className="flex flex-col md:flex-row gap-2 items-center">
                 <div className="relative w-full md:max-w-md">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -5546,6 +5554,7 @@ export default function Catalog() {
                     p.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
                     p.category.toLowerCase().includes(searchTerm.toLowerCase())
                   )
+                  .filter(p => !filtroMaquina || maquinasDoProduto(p).has(filtroMaquina))
                   .map((product) => (
                     <SortableProductCard 
                       key={product.id}

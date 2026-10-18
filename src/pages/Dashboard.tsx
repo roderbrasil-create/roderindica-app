@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import PainelParceiro from '../components/parceiro/PainelParceiro';
 import ReactMarkdown from 'react-markdown';
 import Layout from '../components/layout/Layout';
 import FinanceDashboard from '../components/FinanceDashboard';
@@ -90,7 +91,15 @@ function DashboardBannerImage({ src, alt, className }: { src: string; alt: strin
   );
 }
 
+// Parceiro (indicador, vendedor parceiro) tem tela própria; a equipe Roder continua com a completa.
+// Assim o parceiro também não baixa usuários, feiras e reservas que ele nem vê.
 export default function Dashboard() {
+  const { isExternalSeller, isAdmin, isManager, isInternalSeller, isTriagem } = useAuth();
+  if (isExternalSeller && !isAdmin && !isManager && !isInternalSeller && !isTriagem) return <PainelParceiro />;
+  return <DashboardCompleto />;
+}
+
+function DashboardCompleto() {
   const { 
     user, 
     profile, 

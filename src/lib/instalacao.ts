@@ -63,3 +63,27 @@ export function frasePara(perfil: PerfilInstalacao, nome: string, maquinaBase: s
   if (!base) return '';
   return /^\d/.test(base) ? `Para ${nomeMaquinaBase(perfil, nome)} de ${base}` : `Para ${base}`;
 }
+
+// "Qual a máquina do seu cliente?": em quais máquinas cada equipamento do catálogo trabalha
+export type TipoMaquina = 'escavadeira' | 'pa' | 'trator' | 'guindaste';
+export const NOME_MAQUINA: Record<TipoMaquina, string> = { escavadeira: 'escavadeira', pa: 'pá carregadeira', trator: 'trator', guindaste: 'guindaste, Munck ou cesto aéreo' };
+export function maquinasDoProduto(p: { name?: string; models?: any[] }): Set<TipoMaquina> {
+  const r = new Set<TipoMaquina>();
+  const modelos = (p.models && p.models.length) ? p.models : [{ name: '', technical_specs: {} }];
+  for (const m of modelos) {
+    const nome = `${p.name || ''} ${m?.name || ''}`;
+    const specs = m?.technical_specs || {};
+    const perfil = perfilInstalacao(nome, specs);
+    const base = nomeMaquinaBase(perfil, nome);
+    const textoBase = String(specs.maquina_base || specs.trator || '').toLowerCase();
+    if (base === 'tratores') r.add('trator');
+    else if (base === 'guindastes') r.add('guindaste');
+    else if (base === 'pá carregadeira') r.add('pa');
+    else r.add('escavadeira');
+    if (/p[áa]\s*carregadeira|carregadeira/.test(textoBase)) r.add('pa');
+    if (/escavadeira/.test(textoBase)) r.add('escavadeira');
+    if (/trator/.test(textoBase)) r.add('trator');
+    if (/guindaste|munck|grua|cesto/.test(textoBase)) r.add('guindaste');
+  }
+  return r;
+}

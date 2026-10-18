@@ -1544,6 +1544,18 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     } catch (e) {}
   }, [messages]);
 
+  // Outras telas abrem o consultor já com uma pergunta (perguntas prontas da tela inicial do parceiro)
+  const perguntaPendente = useRef<string | null>(null);
+  useEffect(() => {
+    const abrir = (e: Event) => {
+      const pergunta = String((e as CustomEvent).detail?.pergunta || '').trim();
+      setIsOpen(true);
+      if (pergunta) perguntaPendente.current = pergunta;
+    };
+    window.addEventListener('roder:abrir-consultor', abrir);
+    return () => window.removeEventListener('roder:abrir-consultor', abrir);
+  }, []);
+
   useEffect(() => {
     try {
       sessionStorage.setItem('roder_helper_selectedProduct', JSON.stringify(selectedProduct));
@@ -2795,6 +2807,14 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
 
     return detected.slice(0, 2);
   };
+
+  // pergunta pronta vinda de outra tela: manda assim que o consultor abre
+  useEffect(() => {
+    if (!isOpen || !perguntaPendente.current || loading) return;
+    const p = perguntaPendente.current;
+    perguntaPendente.current = null;
+    setTimeout(() => handleSend(p), 300);
+  }, [isOpen, loading]);
 
   const isCatalog = location.pathname === '/catalogo';
   const hasRightDock = isCatalog && isOpen;
