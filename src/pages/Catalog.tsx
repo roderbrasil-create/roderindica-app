@@ -4490,7 +4490,7 @@ export default function Catalog() {
       ? `https://roderindica.com/o/${codigo}`
       : `${window.location.origin}/pedido-orcamento?uid=${profile?.uid || user?.uid || ''}&pid=${productId || ''}&mid=${model.id || ''}`;
 
-    const text = `*${titulo}*\n` +
+    const text = `*${titulo} - RODER*\n` +
       (paraMaquina ? `${paraMaquina}\n` : '') +
       (destaques.length ? `\n${destaques.join('\n')}\n` : '') +
       `\nFotos, vídeo, ficha e orçamento:\n${budgetUrl}`;

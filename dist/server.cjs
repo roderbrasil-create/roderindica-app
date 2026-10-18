@@ -383,6 +383,10 @@ async function startServer() {
     allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "Cache-Control", "Pragma"]
   }));
   app.use(import_express.default.json({ limit: "50mb" }));
+  app.use("/api/", (_req, res, next) => {
+    res.setHeader("Cache-Control", "no-store");
+    next();
+  });
   const uploadsDir = import_path.default.join(process.cwd(), "uploads");
   if (!import_fs.default.existsSync(uploadsDir)) {
     import_fs.default.mkdirSync(uploadsDir, { recursive: true });
@@ -3834,6 +3838,7 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       res.status(500).send("Erro");
     }
   });
+  const fotoDaPrevia = /* @__PURE__ */ new Map();
   async function fotoAbre(u) {
     try {
       if (u.startsWith("db-file://")) {
@@ -3842,7 +3847,7 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       }
       if (u.startsWith("/")) return true;
       const ctl = new AbortController();
-      const t = setTimeout(() => ctl.abort(), 3e3);
+      const t = setTimeout(() => ctl.abort(), 1500);
       const r = await fetch(u, { method: "GET", headers: { Range: "bytes=0-1023" }, signal: ctl.signal });
       clearTimeout(t);
       try {
@@ -3913,11 +3918,16 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
             const base = String(m?.technical_specs?.maquina_base || "").trim();
             descricao = base ? `Para ${/carregadeira|engate/i.test(p.name) ? "p\xE1 carregadeira" : "escavadeiras"} de ${base.replace(/\s*ton\.?$/i, " t")}. Fotos, v\xEDdeo, ficha e or\xE7amento.` : descricao;
             const candidatas = [...m?.images || [], p.image_url].filter((i) => typeof i === "string" && i && !/run\.app/.test(i));
-            for (const c of candidatas.slice(0, 6)) {
-              if (await fotoAbre(c)) {
-                imagem = absoluta(c);
-                break;
+            const guardada = fotoDaPrevia.get(codigo);
+            if (guardada && guardada.ate > Date.now()) imagem = guardada.url;
+            else {
+              for (const c of candidatas.slice(0, 3)) {
+                if (await fotoAbre(c)) {
+                  imagem = absoluta(c);
+                  break;
+                }
               }
+              fotoDaPrevia.set(codigo, { url: imagem, ate: Date.now() + 36e5 });
             }
           }
         }

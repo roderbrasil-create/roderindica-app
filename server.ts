@@ -265,6 +265,12 @@ async function startServer() {
   }));
 
   app.use(express.json({ limit: '50mb' }));
+  // A CDN da Hostinger guardava respostas da API (a conferência de versão mostrava a de
+  // ontem). Resposta de API nunca é guardada, exceto as que pedirem cache (fotos).
+  app.use('/api/', (_req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store');
+    next();
+  });
 
   // Ensure local uploads directory exists for robust image fallback
   const uploadsDir = path.join(process.cwd(), "uploads");
@@ -4123,6 +4129,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       res.status(500).send('Erro');
     }
   });
+  const fotoDaPrevia = new Map<string, { url: string; ate: number }>();
   async function fotoAbre(u: string): Promise<boolean> {
     try {
       if (u.startsWith('db-file://')) {
@@ -4131,7 +4138,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       }
       if (u.startsWith('/')) return true;
       const ctl = new AbortController();
-      const t = setTimeout(() => ctl.abort(), 3000);
+      const t = setTimeout(() => ctl.abort(), 1500);
       const r = await fetch(u, { method: 'GET', headers: { Range: 'bytes=0-1023' }, signal: ctl.signal });
       clearTimeout(t);
       try { await r.body?.cancel(); } catch { /* nada */ }
@@ -4205,8 +4212,15 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
             // Foto morta (endereço antigo do AI Studio, Storage que não existia) deixava a
             // mensagem sem foto: agora usa a primeira que realmente abre.
             const candidatas: string[] = [...(m?.images || []), p.image_url].filter((i: any) => typeof i === 'string' && i && !/run\.app/.test(i));
-            for (const c of candidatas.slice(0, 6)) {
-              if (await fotoAbre(c)) { imagem = absoluta(c); break; }
+            // a prévia do WhatsApp desiste se a página demora: no máximo 3 fotos testadas, e a
+            // escolha fica guardada por 1 hora para os próximos envios do mesmo link
+            const guardada = fotoDaPrevia.get(codigo);
+            if (guardada && guardada.ate > Date.now()) imagem = guardada.url;
+            else {
+              for (const c of candidatas.slice(0, 3)) {
+                if (await fotoAbre(c)) { imagem = absoluta(c); break; }
+              }
+              fotoDaPrevia.set(codigo, { url: imagem, ate: Date.now() + 3600_000 });
             }
           }
         }
