@@ -946,6 +946,34 @@ export default function Catalog() {
       return j.codigo;
     } catch { return null; }
   };
+  // Foto de cada modelo já pronta como arquivo, para o botão WhatsApp mandar FOTO + texto.
+  // A prévia do link pelo WhatsApp não aparecia (testado em 18/10 com vários equipamentos):
+  // mandando a foto junto, ela chega sempre.
+  const fotosParaEnviar = useRef<Record<string, File>>({});
+  const prepararFoto = async (chave: string, imagens: string[] | undefined, nome: string) => {
+    if (fotosParaEnviar.current[chave]) return;
+    for (const src of (imagens || []).filter(i => typeof i === 'string' && i && !/\.run\.app\//.test(i)).slice(0, 3)) {
+      try {
+        let blob: Blob | null = null;
+        if (src.startsWith('db-file://')) {
+          const snap = await getDoc(doc(db, 'app_files', src.slice(10)));
+          const dados = String(snap.data()?.data || '');
+          if (dados.startsWith('data:image/')) blob = await (await fetch(dados)).blob();
+        } else {
+          const abs = new URL(src, window.location.origin).href;
+          const mesma = abs.startsWith(window.location.origin);
+          const r = await fetch(mesma ? abs : `/api/documento?url=${encodeURIComponent(abs)}`);
+          if (r.ok) blob = await r.blob();
+        }
+        if (blob && blob.size > 1000 && blob.type.startsWith('image/')) {
+          const ext = blob.type.includes('png') ? 'png' : blob.type.includes('webp') ? 'webp' : 'jpg';
+          const nomeArq = `${nome}`.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '') || 'roder';
+          fotosParaEnviar.current[chave] = new File([blob], `${nomeArq}-RODER.${ext}`, { type: blob.type });
+          return;
+        }
+      } catch { /* tenta a próxima foto */ }
+    }
+  };
   useEffect(() => {
     const prod = viewingGallery || selectedProductModels;
     if (!prod?.id || !prod.models?.length || !usuarioPronto) return;
@@ -954,6 +982,10 @@ export default function Catalog() {
       for (const m of prod.models!) {
         if (cancelado) return;
         await obterLinkCurto(prod.id, m.id);
+      }
+      for (const m of prod.models!) {
+        if (cancelado) return;
+        await prepararFoto(`${prod.id}:${m.id}`, m.images?.length ? m.images : [prod.image_url], m.name || prod.name);
       }
     })();
     return () => { cancelado = true; };
@@ -4496,6 +4528,18 @@ export default function Catalog() {
       `\nFotos, vídeo, ficha e orçamento:\n${budgetUrl}`;
 
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    // Foto + texto pelo menu de compartilhar do celular (a pessoa escolhe o WhatsApp).
+    // Só quando a foto e o link já estavam prontos: o celular exige que o menu abra logo
+    // depois do toque. Sem isso, vai só o texto, como antes.
+    const foto = productId ? fotosParaEnviar.current[`${productId}:${model.id}`] : undefined;
+    if (!janela && foto && codigo && typeof navigator.share === 'function' && navigator.canShare?.({ files: [foto] })) {
+      try {
+        await navigator.share({ files: [foto], text });
+        return;
+      } catch (e: any) {
+        if (e?.name === 'AbortError') return; // fechou o menu sem escolher
+      }
+    }
     if (janela && !janela.closed) janela.location.href = whatsappUrl;
     else window.open(whatsappUrl, '_blank');
   };
