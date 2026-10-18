@@ -22,6 +22,7 @@ export function EnvioDeVideo({ valor, aoMudar, pasta, aoEnviando, titulo }: {
 }) {
   const [progresso, setProgresso] = useState<{ pct: number; enviado: number; total: number; nome: string } | null>(null);
   const tarefa = useRef<UploadTask | null>(null);
+  const [parado, setParado] = useState(false);
 
   // fechou a tela no meio do envio: cancela e libera o botão Salvar
   useEffect(() => () => { tarefa.current?.cancel(); aoEnviando?.(false); }, []);
@@ -40,15 +41,21 @@ export function EnvioDeVideo({ valor, aoMudar, pasta, aoEnviando, titulo }: {
     const t = uploadBytesResumable(destino, arquivo, { contentType: arquivo.type || 'video/mp4', cacheControl: 'public, max-age=31536000' });
     tarefa.current = t;
     setProgresso({ pct: 0, enviado: 0, total: arquivo.size, nome: arquivo.name });
+    setParado(false);
+    // nada saiu em 30 s: avisa, em vez de deixar a barra parada em 0% sem explicação
+    const vigia = setTimeout(() => { if (tarefa.current === t && t.snapshot.bytesTransferred === 0) setParado(true); }, 30000);
+    const fim = () => { clearTimeout(vigia); setParado(false); };
     t.on('state_changed',
       (s) => setProgresso({ pct: Math.floor((s.bytesTransferred / s.totalBytes) * 100), enviado: s.bytesTransferred, total: s.totalBytes, nome: arquivo.name }),
       (erro: any) => {
+        fim();
         tarefa.current = null;
         setProgresso(null);
         if (erro?.code === 'storage/canceled') { toast('Envio do vídeo cancelado.'); return; }
         toast.error('O vídeo não subiu. Confira a internet e tente de novo.' + (erro?.code ? ` (${erro.code})` : ''));
       },
       async () => {
+        fim();
         try {
           const url = await getDownloadURL(t.snapshot.ref);
           aoMudar(url);
@@ -109,6 +116,11 @@ export function EnvioDeVideo({ valor, aoMudar, pasta, aoEnviando, titulo }: {
           <p className="mt-1.5 text-[11px] text-blue-900/80">
             {mb(progresso.enviado)} de {mb(progresso.total)} MB · não feche esta tela até terminar
           </p>
+          {parado && (
+            <p className="mt-1.5 text-[11px] font-bold text-red-700">
+              O envio não começou. Pode ser a internet ou o armazenamento de vídeos do app. Cancele e tente de novo no Wi-Fi.
+            </p>
+          )}
         </div>
       )}
 

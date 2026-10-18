@@ -1103,6 +1103,22 @@ Retorne um array JSON no formato exato:
     }
   });
   let gcsDisabled = false;
+  app.get("/api/diagnostico/armazenamento", async (_req, res) => {
+    const resultado = [];
+    for (const nome of [config.storageBucket, `${config.projectId}.appspot.com`].filter(Boolean)) {
+      try {
+        const [existe] = await Promise.race([
+          (0, import_storage.getStorage)(adminApp).bucket(nome).exists(),
+          new Promise((_, rej) => setTimeout(() => rej(new Error("sem resposta em 8 s")), 8e3))
+        ]);
+        resultado.push({ bucket: nome, existe });
+      } catch (e) {
+        resultado.push({ bucket: nome, erro: String(e?.message || e).slice(0, 160) });
+      }
+    }
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ resultado });
+  });
   app.post("/api/upload-image", async (req, res) => {
     try {
       const { fileBase64, fileName, contentType, folder = "installation_kits", docName } = req.body;

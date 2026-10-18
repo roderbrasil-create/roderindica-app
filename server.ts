@@ -1128,6 +1128,25 @@ Retorne um array JSON no formato exato:
   // Keep track of GCS availability. If it times out or fails once, bypass it for future uploads to prevent UX freezes.
   let gcsDisabled = false;
 
+  // Diz se o armazenamento de arquivos (Firebase Storage) existe e responde. Vídeo da galeria
+  // sobe para lá; sem ele, o envio fica parado em 0%. Não mostra nenhum arquivo nem segredo.
+  app.get("/api/diagnostico/armazenamento", async (_req, res) => {
+    const resultado: any[] = [];
+    for (const nome of [config.storageBucket, `${config.projectId}.appspot.com`].filter(Boolean)) {
+      try {
+        const [existe] = await Promise.race([
+          getStorage(adminApp).bucket(nome).exists(),
+          new Promise<any>((_, rej) => setTimeout(() => rej(new Error('sem resposta em 8 s')), 8000)),
+        ]);
+        resultado.push({ bucket: nome, existe });
+      } catch (e: any) {
+        resultado.push({ bucket: nome, erro: String(e?.message || e).slice(0, 160) });
+      }
+    }
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ resultado });
+  });
+
   // Upload image to Firebase Storage on the server-side, with full local disk fallback
   app.post("/api/upload-image", async (req, res) => {
     try {
