@@ -6,12 +6,14 @@ import { Button } from '../ui/button';
 import { Video, Play, Trash2, X, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { abrirDocumento } from '../../lib/abrirDocumento';
+import { compactarVideo } from '../../lib/compactarVideo';
 
 // Vídeo do equipamento: link do YouTube ou arquivo da galeria do celular.
 // O arquivo começa a subir assim que é escolhido, com a porcentagem na tela. Antes ele só subia
 // ao tocar em Salvar, sem nenhum sinal: num vídeo grande pelo 4G o botão ficava girando
 // minutos e parecia travado.
-const LIMITE_MB = 500;
+const LIMITE_MB = 500;          // depois de compactado
+const LIMITE_ORIGINAL_MB = 3000; // antes de compactar
 
 export function EnvioDeVideo({ valor, aoMudar, pasta, aoEnviando, titulo }: {
   valor: string;
@@ -20,33 +22,67 @@ export function EnvioDeVideo({ valor, aoMudar, pasta, aoEnviando, titulo }: {
   aoEnviando?: (enviando: boolean) => void;
   titulo?: string;
 }) {
-  const [progresso, setProgresso] = useState<{ pct: number; enviado: number; total: number; nome: string } | null>(null);
+  const [progresso, setProgresso] = useState<{ etapa: 'compactando' | 'enviando'; pct: number; enviado: number; total: number; nome: string; antes?: number } | null>(null);
   const tarefa = useRef<UploadTask | null>(null);
+  const cancelarCompactacao = useRef<(() => void) | null>(null);
+  const cancelado = useRef(false);
   const [parado, setParado] = useState(false);
 
   // fechou a tela no meio do envio: cancela e libera o botão Salvar
-  useEffect(() => () => { tarefa.current?.cancel(); aoEnviando?.(false); }, []);
+  useEffect(() => () => { cancelado.current = true; cancelarCompactacao.current?.(); tarefa.current?.cancel(); aoEnviando?.(false); }, []);
   useEffect(() => { aoEnviando?.(!!progresso); }, [!!progresso]);
 
   const mb = (b: number) => (b / 1024 / 1024).toFixed(b > 100 * 1024 * 1024 ? 0 : 1);
   const ehArquivo = /firebasestorage\.googleapis\.com/.test(valor || '');
 
-  const escolher = (arquivo: File) => {
-    if (arquivo.size > LIMITE_MB * 1024 * 1024) {
-      toast.error(`Vídeo grande demais (${mb(arquivo.size)} MB). O limite é ${LIMITE_MB} MB. Corte o vídeo no celular ou use um link do YouTube.`);
+  const cancelar = () => {
+    cancelado.current = true;
+    if (cancelarCompactacao.current) { cancelarCompactacao.current(); cancelarCompactacao.current = null; setProgresso(null); toast('Envio do vídeo cancelado.'); return; }
+    tarefa.current?.cancel();
+  };
+
+  const escolher = async (original: File) => {
+    if (original.size > LIMITE_ORIGINAL_MB * 1024 * 1024) {
+      toast.error(`Vídeo grande demais (${mb(original.size)} MB). Corte o vídeo no celular ou use um link do YouTube.`);
       return;
     }
+    cancelado.current = false;
+    // 1) compacta no celular
+    setProgresso({ etapa: 'compactando', pct: 0, enviado: 0, total: original.size, nome: original.name });
+    let arquivo = original;
+    try {
+      const r = await compactarVideo(
+        original,
+        (f) => setProgresso(p => p && p.etapa === 'compactando' ? { ...p, pct: Math.floor(f * 100) } : p),
+        (c) => { cancelarCompactacao.current = c; },
+      );
+      arquivo = r.arquivo;
+      if (!r.compactou) console.info('[vídeo] enviado sem compactar:', r.motivo);
+    } catch (e) {
+      if (cancelado.current) return;
+      console.warn('[vídeo] compactação falhou, vai o original', e);
+    } finally {
+      cancelarCompactacao.current = null;
+    }
+    if (cancelado.current) return;
+    if (arquivo.size > LIMITE_MB * 1024 * 1024) {
+      setProgresso(null);
+      toast.error(`Mesmo compactado o vídeo ficou com ${mb(arquivo.size)} MB. O limite é ${LIMITE_MB} MB. Corte o vídeo no celular ou use um link do YouTube.`);
+      return;
+    }
+    // 2) envia
     const nomeLimpo = arquivo.name.replace(/[^a-zA-Z0-9.]/g, '_').slice(-60);
     const destino = ref(storage, `${pasta}/${Date.now()}_${nomeLimpo}`);
     const t = uploadBytesResumable(destino, arquivo, { contentType: arquivo.type || 'video/mp4', cacheControl: 'public, max-age=31536000' });
     tarefa.current = t;
-    setProgresso({ pct: 0, enviado: 0, total: arquivo.size, nome: arquivo.name });
+    const antes = arquivo !== original ? original.size : undefined;
+    setProgresso({ etapa: 'enviando', pct: 0, enviado: 0, total: arquivo.size, nome: arquivo.name, antes });
     setParado(false);
     // nada saiu em 30 s: avisa, em vez de deixar a barra parada em 0% sem explicação
     const vigia = setTimeout(() => { if (tarefa.current === t && t.snapshot.bytesTransferred === 0) setParado(true); }, 30000);
     const fim = () => { clearTimeout(vigia); setParado(false); };
     t.on('state_changed',
-      (s) => setProgresso({ pct: Math.floor((s.bytesTransferred / s.totalBytes) * 100), enviado: s.bytesTransferred, total: s.totalBytes, nome: arquivo.name }),
+      (s) => setProgresso({ etapa: 'enviando', pct: Math.floor((s.bytesTransferred / s.totalBytes) * 100), enviado: s.bytesTransferred, total: s.totalBytes, nome: arquivo.name, antes }),
       (erro: any) => {
         fim();
         tarefa.current = null;
@@ -100,11 +136,12 @@ export function EnvioDeVideo({ valor, aoMudar, pasta, aoEnviando, titulo }: {
         <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-bold text-blue-900">
-              Enviando vídeo {progresso.pct}%
+              {progresso.etapa === 'compactando' ? 'Compactando vídeo' : 'Enviando vídeo'} {progresso.pct}%
+              <span className="ml-1.5 font-semibold text-blue-900/60">{progresso.etapa === 'compactando' ? '(1 de 2)' : '(2 de 2)'}</span>
             </span>
             <button
               type="button"
-              onClick={() => tarefa.current?.cancel()}
+              onClick={cancelar}
               className="h-8 px-2 flex items-center gap-1 text-[11px] font-bold text-slate-600"
             >
               <X className="h-3.5 w-3.5" /> Cancelar
@@ -114,9 +151,11 @@ export function EnvioDeVideo({ valor, aoMudar, pasta, aoEnviando, titulo }: {
             <div className="h-full bg-blue-600 transition-all duration-300" style={{ width: `${Math.max(2, progresso.pct)}%` }} />
           </div>
           <p className="mt-1.5 text-[11px] text-blue-900/80">
-            {mb(progresso.enviado)} de {mb(progresso.total)} MB · não feche esta tela até terminar
+            {progresso.etapa === 'compactando'
+              ? `Deixando o vídeo mais leve (${mb(progresso.total)} MB) · não feche esta tela`
+              : `${mb(progresso.enviado)} de ${mb(progresso.total)} MB${progresso.antes ? ` (era ${mb(progresso.antes)} MB)` : ''} · não feche esta tela`}
           </p>
-          {parado && (
+          {parado && progresso.etapa === 'enviando' && (
             <p className="mt-1.5 text-[11px] font-bold text-red-700">
               O envio não começou. Pode ser a internet ou o armazenamento de vídeos do app. Cancele e tente de novo no Wi-Fi.
             </p>
