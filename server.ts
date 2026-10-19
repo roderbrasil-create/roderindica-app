@@ -5397,6 +5397,116 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     }
   }, { timezone: 'America/Sao_Paulo' });
 
+  // Cancelamento automático das negociações com a proteção de 60 dias vencida.
+  // Morava no navegador (Indications.tsx) e por isso: rodava na tela de qualquer pessoa logada,
+  // inclusive parceiro; ignorava a renovação manual (protection_expires_at); cancelava negociação
+  // que já tinha pedido de venda carregado; e não avisava o parceiro. Aqui roda uma vez por dia,
+  // com trava por dia em cron_locks para que dois processos do servidor não cancelem em dobro.
+  cron.schedule('10 3 * * *', async () => {
+    const jobName = 'auto_cancel_60d';
+    const dayKey = new Date().toLocaleDateString('en-CA', { timeZone: BR_TIMEZONE }); // AAAA-MM-DD
+    try {
+      await db.collection('cron_locks').doc(`${jobName}_${dayKey}`).create({
+        job: jobName,
+        day: dayKey,
+        started_at: new Date().toISOString()
+      });
+    } catch (lockErr: any) {
+      // ALREADY_EXISTS (código 6): outro processo já pegou o dia
+      if (lockErr?.code === 6) {
+        console.log(`[AUTO-CANCEL-60D] Já executado ou em execução hoje (${dayKey}).`);
+      } else {
+        console.error('[AUTO-CANCEL-60D] Não consegui criar a trava do dia:', lockErr?.message);
+      }
+      return;
+    }
+
+    const SESSENTA_DIAS = 60 * 24 * 60 * 60 * 1000;
+    const expiryOf = (ind: any): number | null => {
+      // Renovação manual mora em protection_expires_at e manda; sem ela, conta do envio do orçamento
+      if (ind.protection_expires_at) {
+        const t = new Date(ind.protection_expires_at).getTime();
+        return Number.isFinite(t) ? t : null;
+      }
+      if (ind.budget_sent_at) {
+        const t = new Date(ind.budget_sent_at).getTime();
+        return Number.isFinite(t) ? t + SESSENTA_DIAS : null;
+      }
+      return null; // sem data nenhuma não dá para saber se venceu: não cancela
+    };
+    const hasSalesOrder = (ind: any) => !!(ind.sale_order_number && String(ind.sale_order_number).trim());
+
+    let cancelled = 0;
+    try {
+      const snap = await db.collection('indications').where('status', '==', 'negotiating').get();
+      const nowMs = Date.now();
+      for (const d of snap.docs) {
+        const pre: any = d.data();
+        if (hasSalesOrder(pre)) continue;
+        const preExpiry = expiryOf(pre);
+        if (preExpiry === null || preExpiry > nowMs) continue;
+
+        try {
+          // Confere de novo dentro da transação: alguém pode ter carregado o pedido ou renovado agora
+          const done = await db.runTransaction(async (tx) => {
+            const fresh = await tx.get(d.ref);
+            if (!fresh.exists) return null;
+            const ind: any = fresh.data();
+            if (ind.status !== 'negotiating' || hasSalesOrder(ind)) return null;
+            const exp = expiryOf(ind);
+            if (exp === null || exp > Date.now()) return null;
+            const nowIso = new Date().toISOString();
+            tx.update(d.ref, {
+              status: 'cancelled',
+              cancellation_reason: 'Prazo expirado',
+              cancellation_details: 'Lead cancelado automaticamente após 60 dias de validade da proposta, sem pedido de venda carregado.',
+              cancelled_automatically_at: nowIso,
+              updated_at: nowIso,
+              negotiation_history: admin.firestore.FieldValue.arrayUnion({
+                id: crypto.randomBytes(6).toString('hex'),
+                type: 'status_change',
+                author_name: 'Sistema',
+                created_at: nowIso,
+                content: `Cancelamento automático: a proteção de 60 dias venceu em ${new Date(exp).toLocaleDateString('pt-BR', { timeZone: BR_TIMEZONE })} sem pedido de venda carregado. Pode ser renovada se o interesse do cliente for comprovado.`,
+                attachments: []
+              })
+            });
+            return ind;
+          });
+          if (!done) continue;
+          cancelled++;
+
+          const nowIso = new Date().toISOString();
+          const client = done.client_name || 'cliente';
+          const recipients = Array.from(new Set([done.external_seller_uid, done.internal_seller_uid].filter(Boolean)));
+          for (const uid of recipients) {
+            const isPartner = uid === done.external_seller_uid;
+            await db.collection('notifications').add({
+              user_uid: uid,
+              title: 'Negociação expirada',
+              message: isPartner
+                ? `A proteção de 60 dias da sua indicação ${client} venceu sem pedido de venda e a negociação foi cancelada. Se o cliente ainda tiver interesse, fale com a Roder para renovar.`
+                : `A negociação com ${client} foi cancelada automaticamente: a proteção de 60 dias venceu sem pedido de venda.`,
+              type: 'warning',
+              read: false,
+              link: '/indicacoes',
+              created_at: nowIso
+            });
+          }
+        } catch (docErr: any) {
+          console.error(`[AUTO-CANCEL-60D] Erro na indicação ${d.id}:`, docErr?.message);
+        }
+      }
+      await db.collection('cron_locks').doc(`${jobName}_${dayKey}`).set({
+        finished_at: new Date().toISOString(),
+        cancelled
+      }, { merge: true });
+      console.log(`[AUTO-CANCEL-60D] ${cancelled} negociação(ões) cancelada(s).`);
+    } catch (e: any) {
+      console.error('[AUTO-CANCEL-60D] Erro:', e?.message);
+    }
+  }, { timezone: BR_TIMEZONE });
+
   // Day 7: Payment Reminder to Finance
   cron.schedule('0 8 7 * *', async () => {
     console.log("[Schedule] Generating Day 7 Finance Reminders...");
