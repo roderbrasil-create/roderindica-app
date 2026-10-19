@@ -1185,8 +1185,8 @@ Retorne um array JSON no formato exato:
       if (!ehEquipe(await quemChama(req))) {
         return res.status(401).json({ error: "Entre no app para enviar arquivos." });
       }
-      if (!/\.(jpe?g|png|webp|gif|pdf)$/i.test(String(fileName))) {
-        return res.status(400).json({ error: "Envie uma imagem (jpg, png, webp) ou PDF." });
+      if (!/\.(jpe?g|jfif|png|webp|gif|heic|heif|pdf|webm|m4a|mp3|ogg|wav|docx?|xlsx?)$/i.test(String(fileName))) {
+        return res.status(400).json({ error: "Tipo de arquivo não aceito (html e scripts não entram)." });
       }
       if (docName && !/^[a-z0-9_-]{1,80}$/i.test(String(docName))) {
         return res.status(400).json({ error: "Documento inválido." });
@@ -1317,11 +1317,16 @@ Retorne um array JSON no formato exato:
       if (!token || token.length < 100) return null;
       const dec: any = await admin.auth().verifyIdToken(token);
       if (dec.firebase?.sign_in_provider === 'anonymous') return null;
-      const u = await db.collection('users').doc(dec.uid).get();
-      return { uid: dec.uid, email: (dec.email || '').toLowerCase(), role: String(u.data()?.role || '') };
+      const email = (dec.email || '').toLowerCase();
+      let role = '';
+      try { role = String((await db.collection('users').doc(dec.uid).get()).data()?.role || ''); } catch { /* sem banco: fica só o e-mail */ }
+      // diretoria reconhecida pelo e-mail verificado, mesmo se o cadastro estiver com outro papel
+      if (dec.email_verified && ['roderbrasil@gmail.com', 'roderindica@gmail.com', 'jeferson@roderbrasil.com.br'].includes(email)) role = 'admin';
+      return { uid: dec.uid, email, role };
     } catch { return null; }
   }
-  const EQUIPE_RODER = ['admin', 'manager', 'triagem', 'internal_seller', 'financial', 'marketing'];
+  const envioPublicoPorIp = new Map<string, number[]>();
+  const EQUIPE_RODER = ['admin', 'manager', 'triagem', 'internal_seller', 'financial', 'finance', 'fiscal', 'marketing', 'assistant', 'vendedor_padrao'];
   const ehEquipe = (q: any) => !!q && EQUIPE_RODER.includes(q.role);
   const ehGestao = (q: any) => !!q && (q.role === 'admin' || q.role === 'manager');
 
@@ -1502,16 +1507,35 @@ Retorne um array JSON no formato exato:
 
       // Sem login da equipe, só pode mandar para a Roder ou para quem já tem cadastro no app.
       // Antes, qualquer pessoa mandava e-mail pela conta da Roder para qualquer endereço.
+      // Sem login (páginas públicas, tablet da feira): só Roder e cadastrados no app, mais UM
+      // endereço de fora (o agradecimento ao visitante), com limite por rede. Antes, qualquer pessoa
+      // mandava e-mail pela conta da Roder para qualquer lista de endereços.
+      let destinoFinal: any = to;
       const quem = await quemChama(req);
       if (!quem) {
         const destinos = (Array.isArray(to) ? to : String(to || '').split(','))
           .map((e: string) => String(e).trim().toLowerCase()).filter(Boolean);
-        if (destinos.length === 0 || destinos.length > 10) return res.status(400).json({ error: "Destinatário inválido." });
+        if (destinos.length === 0 || destinos.length > 15) return res.status(400).json({ error: "Destinatário inválido." });
+        const internos: string[] = [];
+        const externos: string[] = [];
         for (const d of destinos) {
-          if (d.endsWith('@roderbrasil.com.br') || d === 'roderbrasil@gmail.com' || d === 'roderindica@gmail.com') continue;
-          const achou = await db.collection('users').where('email', '==', d).limit(1).get();
-          if (achou.empty) return res.status(403).json({ error: "Envio não permitido para este destinatário." });
+          if (d.endsWith('@roderbrasil.com.br') || d === 'roderbrasil@gmail.com' || d === 'roderindica@gmail.com') { internos.push(d); continue; }
+          const achou = await db.collection('users').where('email', '==', d).limit(1).get().catch(() => null);
+          if (achou && !achou.empty) internos.push(d); else externos.push(d);
         }
+        let permitidos = internos;
+        if (externos.length === 1 && internos.length === 0) {
+          const ip = String(req.ip || req.socket?.remoteAddress || '');
+          const agora = Date.now();
+          const lista = (envioPublicoPorIp.get(ip) || []).filter(t => agora - t < 3600_000);
+          if (lista.length >= 8) return res.status(429).json({ error: "Muitos envios. Tente mais tarde." });
+          lista.push(agora); envioPublicoPorIp.set(ip, lista);
+          if (envioPublicoPorIp.size > 2000) envioPublicoPorIp.clear();
+          permitidos = externos;
+        }
+        if (permitidos.length === 0) return res.status(403).json({ error: "Envio não permitido para este destinatário." });
+        destinoFinal = permitidos.join(', ');
+      }
       }
 
       // Only try to read from DB if settings weren't passed in the body
@@ -1565,9 +1589,9 @@ Retorne um array JSON no formato exato:
         const resend = new Resend(settings.apiKey);
         const fromEmail = settings.senderEmail || 'vendas@roderbrasil.com.br';
         
-        const toArray = typeof to === 'string'
-          ? to.split(',').map((e: string) => e.trim()).filter((e: string) => e !== '')
-          : Array.isArray(to) ? to : [to];
+        const toArray = typeof destinoFinal === 'string'
+          ? destinoFinal.split(',').map((e: string) => e.trim()).filter((e: string) => e !== '')
+          : Array.isArray(destinoFinal) ? destinoFinal : [destinoFinal];
 
         const { data, error } = await resend.emails.send({
           from: fromName ? `${fromName} <${fromEmail}>` : `RODER Indica <${fromEmail}>`,
@@ -1611,7 +1635,7 @@ Retorne um array JSON no formato exato:
 
         const mailOptions = {
           from: fromName ? `"${fromName}" <${settings.user}>` : `"RODER Indica" <${settings.user}>`,
-          to: to,
+          to: destinoFinal,
           subject: subject,
           html: `${html}${footer}`,
           replyTo: replyTo || settings.user,
@@ -4064,7 +4088,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
           userRecord = await admin.auth().createUser({
             email: email,
             password: password,
-            emailVerified: false
+            emailVerified: true
           });
           console.log(`[AUTH-ADMIN] User created successfully with password: ${email}`);
         } else {

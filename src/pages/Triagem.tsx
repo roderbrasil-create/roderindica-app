@@ -289,6 +289,8 @@ export default function Triagem() {
     try {
       const prevSellerUid = selectedIndication.internal_seller_uid;
       const prevSellerName = selectedIndication.internal_seller_name;
+      // redistribuição é tirar de quem JÁ estava atendendo; lead pendente pode nascer com vendedora gravada
+      const ehRedistribuicao = !!prevSellerUid && selectedIndication.status !== 'pending' && prevSellerUid !== targetUid;
       let sellerEmail = internalSellers.find(u => u.uid === targetUid)?.email || '';
       let sellerPhone = internalSellers.find(u => u.uid === targetUid)?.phone || '';
       if (!sellerEmail) {
@@ -386,13 +388,13 @@ export default function Triagem() {
           }
         }
 
-        if (sellerEmail) {
+        if (sellerEmail || partnerEmail) {
           const { notifyLeadAssignment } = await import('../services/emailService');
           await notifyLeadAssignment(
             selectedIndication,
             { name: targetName, email: sellerEmail, phone: sellerPhone },
             // redistribuição não manda de novo ao parceiro o "sua indicação foi recebida"
-            { name: partnerName, email: prevSellerUid ? '' : partnerEmail, phone: partnerPhone }
+            { name: partnerName, email: ehRedistribuicao ? '' : partnerEmail, phone: partnerPhone }
           );
         }
       } catch (assignEmailErr) {

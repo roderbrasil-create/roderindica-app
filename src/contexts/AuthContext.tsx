@@ -594,13 +594,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // roder_impersonation no navegador para qualquer um ver as telas de admin.
   useEffect(() => {
     if (!impersonatedProfile || !profile) return;
-    const podeVerComo = profile.role === 'admin' || profile.role === 'manager' ||
-      ['roderbrasil@gmail.com', 'roderindica@gmail.com', 'jeferson@roderbrasil.com.br'].includes((profile.email || '').toLowerCase());
+    // a mesma lista de startImpersonation, mais a triagem
+    const podeVerComo = ['admin', 'manager', 'triagem'].includes(String(profile.role)) ||
+      ['roderbrasil@gmail.com', 'roderindica@gmail.com', 'jeferson@roderbrasil.com.br', 'gislene@roderbrasil.com.br',
+       'gislene@roder.com.br', 'contato@roderbrasil.com.br', 'rogerio@roderbrasil.com.br', 'luana@roder.com.br',
+       'luana@roderbrasil.com.br'].includes(String(user?.email || profile.email || '').toLowerCase());
     if (!podeVerComo) {
       setImpersonatedProfile(null);
       try { localStorage.removeItem('roder_impersonation'); } catch { /* sem armazenamento */ }
     }
-  }, [impersonatedProfile, profile]);
+  }, [impersonatedProfile, profile, user]);
 
   const activeProfile = impersonatedProfile || profile;
 

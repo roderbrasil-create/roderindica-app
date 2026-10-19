@@ -808,7 +808,7 @@ export async function notifyLeadAssignment(
     `;
 
     // Send to seller
-    await sendEmail({
+    if (seller.email) await sendEmail({
       to: seller.email,
       subject: sellerSubject,
       html: sellerHtml,

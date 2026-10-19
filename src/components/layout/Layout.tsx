@@ -47,9 +47,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const ehParceiro = useEhParceiro();
   // um sino só: com os dois montados (um escondido por CSS) eram dois ouvintes e dois sons
-  const [celular, setCelular] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches);
+  const [celular, setCelular] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767.98px)').matches);
   useEffect(() => {
-    const mq = window.matchMedia('(max-width: 767px)');
+    const mq = window.matchMedia('(max-width: 767.98px)');
     const mudou = () => setCelular(mq.matches);
     mq.addEventListener('change', mudou);
     return () => mq.removeEventListener('change', mudou);
@@ -172,7 +172,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {/* Style block for mobile safe area layout support */}
         <style dangerouslySetInnerHTML={{ __html: `
           :root { --app-header-h: var(--desk-header-h, 0px); }
-          @media (max-width: 767px) {
+          @media (max-width: 767.98px) {
             :root { --app-header-h: calc(${mobileHeaderOffset}px + env(safe-area-inset-top, 0px)); }
             .mobile-safe-header {
               padding-top: env(safe-area-inset-top, 0px) !important;
@@ -291,7 +291,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </div>
       {ehParceiro && <BarraParceiro abrirMenu={() => setSidebarOpen(true)} />}
       {/* botão flutuante do consultor sobe para não ficar atrás da barra de baixo do parceiro */}
-      {ehParceiro && <style>{`@media (max-width: 767px) { .roder-botao-consultor { bottom: calc(84px + env(safe-area-inset-bottom, 0px)) !important; } }`}</style>}
+      {ehParceiro && <style>{`@media (max-width: 767.98px) { .roder-botao-consultor { bottom: calc(84px + env(safe-area-inset-bottom, 0px)) !important; } }`}</style>}
       {!location.pathname.startsWith("/indicacoes/nova") && <EngineerHelper />}
     </div>
   );
