@@ -54,7 +54,7 @@ export function MenuParceiro({ fechar, celular }: { fechar: () => void; celular:
       { nome: 'Minhas indicações', icone: ListChecks, para: '/indicacoes' },
     ]),
     ...(isRegionalSeller || desligado('comissoes_ext') ? [] : [{ nome: 'Meus ganhos', icone: Wallet, para: '/comissoes' }]),
-    ...(desligado('products_stock') ? [] : [{ nome: 'Pronta entrega', icone: Package, para: '/estoque' }]),
+    { nome: 'Pronta entrega', icone: Package, para: '/estoque' }, // sempre: vitrine do parceiro
     ...(desligado('technical_consultant_parent') ? [] : [{ nome: 'Consultor Roder', icone: Bot, acao: () => abrirConsultor() }]),
     { nome: 'Minha conta', icone: User, para: '/perfil' },
   ] as { nome: string; icone: any; para?: string; acao?: () => void }[];

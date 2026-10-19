@@ -229,8 +229,9 @@ export default function PainelParceiro() {
       )}
 
       {/* Pronta entrega */}
-      {/* respeita o que o admin desligou para este parceiro (igual ao menu) */}
-      {profile?.permissions?.sidebar?.products_stock !== false && prontaEntrega.length > 0 && (
+      {/* pronta entrega aparece sempre para o parceiro: é a vitrine para ele mandar ao cliente
+          (o cadastro antigo de vários parceiros vinha com o estoque desligado) */}
+      {prontaEntrega.length > 0 && (
         <section className="pt-5">
           <div className="flex justify-between items-baseline px-4 md:px-8 mb-2.5">
             <h2 className={tituloSecao}>Pronta entrega</h2>
