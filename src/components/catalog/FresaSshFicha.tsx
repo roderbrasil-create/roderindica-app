@@ -8,14 +8,14 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { RODER_LOGO_BASE64 } from './RoderLogo';
-import { toPng } from 'html-to-image';
-import { jsPDF } from 'jspdf';
+import { pdfDasFolhas, entregarPdf, nomeArquivoFicha, usePodeEnviarFicha } from './fichaPdf';
 import { toast } from 'sonner';
 import { EditableImage } from './EditableImage';
 import { useAuth } from '../../contexts/AuthContext';
 import { db } from '../../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { useVoltarFecha } from '../../lib/useVoltarFecha';
+import { BotaoEnviarFicha } from './BotaoEnviarFicha';
 
 // Cores da ficha técnica Roder (grafite, laranja e laranja claro)
 const COR_G = '#1B1E22';
@@ -44,6 +44,8 @@ const dentesCurto = (s: string) => s.match(/^\s*(\d+\s*\+\s*\d+)/)?.[1].replace(
 interface FresaSshFichaProps {
   onClose: () => void;
   defaultModelId?: string;
+  // aberta pelo "Enviar ficha": destaca o botão Enviar
+  enviar?: boolean;
 }
 
 interface ModelSpec {
@@ -58,11 +60,12 @@ interface ModelSpec {
   dentes_tipo: string;
 }
 
-export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshFichaProps) {
+export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150', enviar = false }: FresaSshFichaProps) {
   // "Voltar" do celular fecha a ficha e volta para a tela de onde ela foi aberta
   useVoltarFecha(true, onClose);
   const { isAdmin, isManager, isTriagem, isMarketing, isInternalSeller } = useAuth();
   const canEdit = isAdmin || isManager || isTriagem || isMarketing || isInternalSeller;
+  const podeEnviar = usePodeEnviarFicha();
   const printRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [selectedModelId, setSelectedModelId] = useState<string>(defaultModelId);
@@ -317,7 +320,7 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshF
   const sp = selectedModel.specs;
   const tratorFaixa = faixaTrator(sp.trator_hp);
 
-  const handleDownloadPdf = async () => {
+  const handleDownloadPdf = async (modo: 'baixar' | 'enviar' = 'baixar') => {
     const element = printRef.current;
     if (!element) return;
 
@@ -350,45 +353,15 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshF
       // 5. Cada folha vira uma página A4 própria: a folha 2 sempre começa numa página nova.
       // Os botões marcados com no-print (site, vídeo) ficam fora do PDF.
       const folhas = [folha1Ref.current, folha2Ref.current].filter(Boolean) as HTMLDivElement[];
-      const pdf = new jsPDF('p', 'mm', 'a4');
-
-      for (let i = 0; i < folhas.length; i++) {
-        const folha = folhas[i];
-        const altura = folha.offsetHeight || folha.scrollHeight;
-        const dataUrl = await toPng(folha, {
-          quality: 0.98,
-          pixelRatio: 2.0, // High quality, crisp text
-          backgroundColor: '#ffffff',
-          width: 840,
-          height: altura,
-          style: { transform: 'none', margin: '0', boxShadow: 'none', borderRadius: '0' },
-          filter: (node: HTMLElement) => !(node.classList && node.classList.contains('no-print')),
-        });
-
-        const img = new Image();
-        img.src = dataUrl;
-        await new Promise<void>((resolve, reject) => {
-          img.onload = () => resolve();
-          img.onerror = () => reject(new Error("Failed to load generated image"));
-        });
-
-        // Ocupa a largura do A4; se a folha passar da altura, reduz para caber inteira na página
-        let largura = 210;
-        let alturaMm = (img.height * largura) / img.width;
-        if (alturaMm > 297) {
-          alturaMm = 297;
-          largura = (img.width * alturaMm) / img.height;
-        }
-        if (i > 0) pdf.addPage();
-        pdf.addImage(dataUrl, 'PNG', (210 - largura) / 2, 0, largura, alturaMm, undefined, 'FAST');
-      }
+      const pdf = await pdfDasFolhas(folhas);
 
       // Restore printing state immediately
       setIsPrinting(false);
 
-      const docName = `Ficha_Tecnica_FAE_SSH_${selectedModel.name.replace(/\s+/g, '_')}.pdf`;
-      pdf.save(docName);
-      toast.success("PDF gerado e baixado com sucesso!", { id: toastId });
+      const docName = modo === 'enviar' ? nomeArquivoFicha(`FAE ${selectedModel.name}`) : `Ficha_Tecnica_FAE_SSH_${selectedModel.name.replace(/\s+/g, '_')}.pdf`;
+      toast.dismiss(toastId);
+      await entregarPdf(pdf, docName, modo, `Ficha técnica Fresa FAE ${selectedModel.name}`);
+      if (modo === 'baixar') toast.success("PDF gerado e baixado com sucesso!");
     } catch (error) {
       console.error("Error generating PDF with html-to-image:", error);
 
@@ -604,20 +577,25 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshF
       <div className="bg-card text-card-foreground w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden border border-border flex flex-col h-[96vh]">
 
         {/* Header Controls */}
-        <div className="bg-muted px-6 py-4 flex items-center justify-between border-b border-border no-print shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="p-1 rounded-lg bg-orange-500/10 text-orange-500">
+        <div className="bg-muted px-3 sm:px-6 py-4 flex items-center justify-between gap-2 border-b border-border no-print shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="p-1 rounded-lg bg-orange-500/10 text-orange-500 shrink-0">
               <ShieldCheck className="h-5 w-5" />
             </span>
-            <span className="font-extrabold text-sm tracking-tight text-foreground">Ficha Técnica Oficial - FRESA FAE SSH</span>
+            <span className="font-extrabold text-sm tracking-tight text-foreground truncate">Ficha Técnica Oficial - FRESA FAE SSH</span>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleDownloadPdf}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-black text-xs transition-all shadow-sm"
-            >
-              <Download className="h-3.5 w-3.5" /> Salvar PDF
-            </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {podeEnviar && (
+              <>
+                <button
+                  onClick={() => handleDownloadPdf('baixar')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-black text-xs transition-all shadow-sm"
+                >
+                  <Download className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Salvar PDF</span><span className="sm:hidden">PDF</span>
+                </button>
+                <BotaoEnviarFicha onClick={() => handleDownloadPdf('enviar')} destaque={enviar} />
+              </>
+            )}
             <button
               onClick={onClose}
               className="p-1.5 rounded-lg hover:bg-muted-foreground/10 text-muted-foreground transition-all"

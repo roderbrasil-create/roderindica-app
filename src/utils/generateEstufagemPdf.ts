@@ -76,8 +76,9 @@ async function getLoadedImage(url: string, zoomFactor = 1.28): Promise<{ dataUrl
 export async function generateEstufagemPdfDirect({
   selectedModel,
   allModels,
-  mainImageUrl
-}: GenerateEstufagemPdfOptions) {
+  mainImageUrl,
+  entregar
+}: GenerateEstufagemPdfOptions & { entregar?: (doc: jsPDF) => Promise<void> }) {
   // Strict Single-Page A4: 210mm x 297mm
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -469,6 +470,8 @@ export async function generateEstufagemPdfDirect({
   doc.text('Ficha Técnica Oficial Ref: FT-EST-2026  •  Página 1 de 1', pageWidth - margin, footerY + 1.5, { align: 'right' });
 
   // Save the single-page PDF directly
+  // "Enviar" entrega o mesmo PDF para compartilhar, em vez de baixar
+  if (entregar) { await entregar(doc); return; }
   const cleanModelName = selectedModel.name.replace(/\s+/g, '_');
   doc.save(`Ficha_Tecnica_Garra_Estufagem_${cleanModelName}.pdf`);
 }

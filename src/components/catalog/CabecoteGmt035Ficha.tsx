@@ -25,6 +25,8 @@ import {
   Radio,
   Box
 } from 'lucide-react';
+import { entregarPdf, nomeArquivoFicha, usePodeEnviarFicha } from './fichaPdf';
+import { BotaoEnviarFicha } from './BotaoEnviarFicha';
 import { RODER_LOGO_BASE64 } from './RoderLogo';
 import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
@@ -35,9 +37,12 @@ import { useVoltarFecha } from '../../lib/useVoltarFecha';
 
 interface CabecoteGmt035FichaProps {
   onClose: () => void;
+  // aberta pelo "Enviar ficha": destaca o botão Enviar
+  enviar?: boolean;
 }
 
-export function CabecoteGmt035Ficha({ onClose }: CabecoteGmt035FichaProps) {
+export function CabecoteGmt035Ficha({ onClose, enviar = false }: CabecoteGmt035FichaProps) {
+  const podeEnviar = usePodeEnviarFicha();
   // "Voltar" do celular fecha a ficha e volta para a tela de onde ela foi aberta
   useVoltarFecha(true, onClose);
   const { isAdmin, isManager, isTriagem, isMarketing, isInternalSeller } = useAuth();
@@ -148,7 +153,7 @@ export function CabecoteGmt035Ficha({ onClose }: CabecoteGmt035FichaProps) {
     };
   }, [isPrinting, activeTab]);
 
-  const handleDownloadPdf = async () => {
+  const handleDownloadPdf = async (modo: 'baixar' | 'enviar' = 'baixar') => {
     setActiveTab('all');
     setIsPrinting(true);
     toast.loading('Gerando PDF Completo GMT 035 em 2 Páginas A4...', { id: 'pdf-toast' });
@@ -187,8 +192,9 @@ export function CabecoteGmt035Ficha({ onClose }: CabecoteGmt035FichaProps) {
       });
       pdf.addImage(dataUrl2, 'PNG', 0, 0, pdfWidth, pdfHeight);
 
-      pdf.save('Ficha_Tecnica_Cabecote_GMT035_Roder.pdf');
-      toast.success('PDF baixado com sucesso em 2 páginas A4!', { id: 'pdf-toast' });
+      toast.dismiss('pdf-toast');
+      await entregarPdf(pdf, modo === 'enviar' ? nomeArquivoFicha('Cabecote GMT035') : 'Ficha_Tecnica_Cabecote_GMT035_Roder.pdf', modo, 'Ficha técnica Cabeçote GMT 035');
+      if (modo === 'baixar') toast.success('PDF baixado com sucesso em 2 páginas A4!');
     } catch (err) {
       console.error('Erro ao gerar PDF GMT 035:', err);
       toast.error('Não foi possível gerar o PDF.', { id: 'pdf-toast' });
@@ -247,6 +253,8 @@ export function CabecoteGmt035Ficha({ onClose }: CabecoteGmt035FichaProps) {
               </button>
             </div>
 
+            {podeEnviar && (
+            <>
             <button
               onClick={handleShareWhatsapp}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors"
@@ -257,13 +265,16 @@ export function CabecoteGmt035Ficha({ onClose }: CabecoteGmt035FichaProps) {
             </button>
 
             <button
-              onClick={handleDownloadPdf}
+              onClick={() => handleDownloadPdf('baixar')}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-colors"
               title="Baixar PDF Completo (2 Páginas)"
             >
               <Download className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Baixar PDF</span>
             </button>
+            <BotaoEnviarFicha onClick={() => handleDownloadPdf('enviar')} destaque={enviar} />
+            </>
+            )}
 
             <button
               onClick={onClose}

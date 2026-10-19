@@ -94,6 +94,7 @@ import { GarraEstufagemFicha } from '../components/catalog/GarraEstufagemFicha';
 import { CabecotePodaFicha } from '../components/catalog/CabecotePodaFicha';
 import { CabecoteGmt035Ficha } from '../components/catalog/CabecoteGmt035Ficha';
 import { SacadorSac500Ficha } from '../components/catalog/SacadorSac500Ficha';
+import { FichaPadrao } from '../components/catalog/FichaPadrao';
 import { EstudosComparativosModal } from '../components/catalog/EstudosComparativosModal';
 import { RODER_LOGO_BASE64 } from '../components/catalog/RoderLogo';
 import { useVoltarFecha } from '../lib/useVoltarFecha';
@@ -783,6 +784,8 @@ export default function Catalog() {
   const [isCabecotePodaFichaOpen, setIsCabecotePodaFichaOpen] = useState(false);
   const [isCabecoteGmt035FichaOpen, setIsCabecoteGmt035FichaOpen] = useState(false);
   const [isSacadorSac500FichaOpen, setIsSacadorSac500FichaOpen] = useState(false);
+  // Ficha padrão em PDF (modelo sem ficha própria)
+  const [fichaPadrao, setFichaPadrao] = useState<{ product: any; model: any } | null>(null);
   const [isEstudosComparativosOpen, setIsEstudosComparativosOpen] = useState(false);
   const [garraEstufagemDefaultModel, setGarraEstufagemDefaultModel] = useState<string>('af-360');
   const [suspendedProductModels, setSuspendedProductModels] = useState<Product | null>(null);
@@ -4021,7 +4024,7 @@ export default function Catalog() {
     abrirDocumento(url, 'Catálogo de peças');
   };
 
-  const openPdf = (url: string, modelName?: string, productContext?: any) => {
+  const openPdf = (url: string, modelName?: string, productContext?: any, padrao?: { product: any; model: any }) => {
     const lowerUrl = (url || '').toLowerCase();
     const lowerModelName = (modelName || '').toLowerCase();
     const lowerViewingName = (viewingGallery?.name || '').toLowerCase();
@@ -4294,9 +4297,25 @@ export default function Catalog() {
       return;
     }
 
-    if (!url) return;
+    const ehFresa = isFresaProduct(url) || isFresaProduct(modelName) || isFresaProduct(viewingGallery?.name) || isFresaProduct(selectedProductModels?.name) || isFresaProduct(lowerContextName) || isFresaProduct(lowerContextCategory) || isFresaProduct(lowerContextDesc) || isFresaProduct(lowerContextPdfUrl);
 
-    if (isFresaProduct(url) || isFresaProduct(modelName) || isFresaProduct(viewingGallery?.name) || isFresaProduct(selectedProductModels?.name) || isFresaProduct(lowerContextName) || isFresaProduct(lowerContextCategory) || isFresaProduct(lowerContextDesc) || isFresaProduct(lowerContextPdfUrl)) {
+    // "Ficha" do modelo sem ficha própria: a ficha padrão em PDF (o PDF do site fica num link dentro dela)
+    if (padrao && !ehFresa) {
+      if (selectedProductModels) {
+        setSuspendedProductModels(selectedProductModels);
+        setSelectedProductModels(null);
+      }
+      if (viewingGallery) {
+        setSuspendedViewingGallery(viewingGallery);
+        setViewingGallery(null);
+      }
+      setFichaPadrao(padrao);
+      return;
+    }
+
+    if (!url && !ehFresa) return;
+
+    if (ehFresa) {
       if (selectedProductModels) {
         setSuspendedProductModels(selectedProductModels);
         setSelectedProductModels(null);
@@ -5070,7 +5089,6 @@ export default function Catalog() {
                   if ((k.includes('vazao') || k.includes('vazão')) && !lv.includes('l/min') && !lv.includes('lmin')) v += ' L/min';
                   return { key, label: specLabels[k] || key.replace(/_/g, ' '), value: v, destaque: k === 'giro_360' };
                 });
-              const temFicha = (model.pdf_url || viewingGallery?.pdf_url || isEngateProduct(model.name) || isEngateProduct(viewingGallery?.name) || isHighTipProduct(model.name) || isHighTipProduct(viewingGallery?.name) || isFresaProduct(model.name) || isFresaProduct(viewingGallery?.name) || isLoaderTrituradorProduct(model.name) || isLoaderTrituradorProduct(viewingGallery?.name));
               const pecasUrl = model.parts_manual_url || viewingGallery?.parts_manual_url || '';
               const temEntrega = ['fae-uml-ex-vt', 'fae-uml-s-ex-vt', 'fae-umm-ex-vt'].includes(model.id?.toLowerCase());
               const botaoSec = "flex-1 min-w-0 h-11 md:h-12 px-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-800 font-bold shadow-sm rounded-lg flex flex-col md:flex-row items-center justify-center gap-0.5 md:gap-1.5 !text-[11px] md:!text-sm leading-none";
@@ -5173,16 +5191,15 @@ export default function Catalog() {
                     {criandoLinkDe === model.id ? <Loader2 className="!h-4 !w-4 animate-spin" /> : <MessageCircle className="!h-4 !w-4" />}
                     <span>{criandoLinkDe === model.id ? 'Criando link...' : 'WhatsApp'}</span>
                   </Button>
-                  {temFicha && (
-                    <Button
-                      size="sm"
-                      className={botaoSec}
-                      onClick={() => openPdf(model.pdf_url || viewingGallery?.pdf_url || '', model.name, viewingGallery)}
-                    >
-                      <FileText className="!h-4 !w-4 text-red-500" />
-                      <span>Ficha</span>
-                    </Button>
-                  )}
+                  {/* Toda ficha abre: a própria quando existe, senão a ficha padrão em PDF */}
+                  <Button
+                    size="sm"
+                    className={botaoSec}
+                    onClick={() => openPdf(model.pdf_url || viewingGallery?.pdf_url || '', model.name, viewingGallery, { product: viewingGallery, model })}
+                  >
+                    <FileText className="!h-4 !w-4 text-red-500" />
+                    <span>Ficha</span>
+                  </Button>
                   {pecasUrl && (
                     <Button
                       size="sm"
@@ -7286,6 +7303,24 @@ export default function Catalog() {
                 setSuspendedViewingGallery(null);
               }
             }} 
+          />
+        )}
+
+        {fichaPadrao && (
+          <FichaPadrao
+            product={fichaPadrao.product}
+            model={fichaPadrao.model}
+            onClose={() => {
+              setFichaPadrao(null);
+              if (suspendedProductModels) {
+                setSelectedProductModels(suspendedProductModels);
+                setSuspendedProductModels(null);
+              }
+              if (suspendedViewingGallery) {
+                setViewingGallery(suspendedViewingGallery);
+                setSuspendedViewingGallery(null);
+              }
+            }}
           />
         )}
 

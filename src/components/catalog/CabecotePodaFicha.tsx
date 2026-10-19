@@ -18,6 +18,8 @@ import {
   Play,
   Layers
 } from 'lucide-react';
+import { entregarPdf, nomeArquivoFicha, usePodeEnviarFicha } from './fichaPdf';
+import { BotaoEnviarFicha } from './BotaoEnviarFicha';
 import { RODER_LOGO_BASE64 } from './RoderLogo';
 import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
@@ -28,9 +30,12 @@ import { useVoltarFecha } from '../../lib/useVoltarFecha';
 
 interface CabecotePodaFichaProps {
   onClose: () => void;
+  // aberta pelo "Enviar ficha": destaca o botão Enviar
+  enviar?: boolean;
 }
 
-export function CabecotePodaFicha({ onClose }: CabecotePodaFichaProps) {
+export function CabecotePodaFicha({ onClose, enviar = false }: CabecotePodaFichaProps) {
+  const podeEnviar = usePodeEnviarFicha();
   // "Voltar" do celular fecha a ficha e volta para a tela de onde ela foi aberta
   useVoltarFecha(true, onClose);
   const { isAdmin, isManager, isTriagem, isMarketing, isInternalSeller } = useAuth();
@@ -127,7 +132,7 @@ export function CabecotePodaFicha({ onClose }: CabecotePodaFichaProps) {
     };
   }, [isPrinting]);
 
-  const handleDownloadPdf = async () => {
+  const handleDownloadPdf = async (modo: 'baixar' | 'enviar' = 'baixar') => {
     if (!page1Ref.current || !page2Ref.current || !page3Ref.current) return;
     setIsPrinting(true);
     toast.loading('Gerando PDF Completo em 3 Páginas A4...', { id: 'pdf-toast' });
@@ -170,8 +175,9 @@ export function CabecotePodaFicha({ onClose }: CabecotePodaFichaProps) {
       });
       pdf.addImage(dataUrl3, 'PNG', 0, 0, pdfWidth, pdfHeight);
 
-      pdf.save('Ficha_Tecnica_e_Procedimentos_Poda_GP150_Roder.pdf');
-      toast.success('PDF baixado com sucesso em 3 páginas A4!', { id: 'pdf-toast' });
+      toast.dismiss('pdf-toast');
+      await entregarPdf(pdf, modo === 'enviar' ? nomeArquivoFicha('Cabecote de Poda GP150') : 'Ficha_Tecnica_e_Procedimentos_Poda_GP150_Roder.pdf', modo, 'Ficha técnica Cabeçote de Poda GP150');
+      if (modo === 'baixar') toast.success('PDF baixado com sucesso em 3 páginas A4!');
     } catch (err) {
       console.error('Erro ao gerar PDF:', err);
       toast.error('Não foi possível gerar o PDF.', { id: 'pdf-toast' });
@@ -218,6 +224,8 @@ export function CabecotePodaFicha({ onClose }: CabecotePodaFichaProps) {
               <ExternalLink className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Link do Artifact</span>
             </a>
+            {podeEnviar && (
+            <>
             <button
               onClick={handleShareWhatsapp}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors"
@@ -227,13 +235,16 @@ export function CabecotePodaFicha({ onClose }: CabecotePodaFichaProps) {
               <span className="hidden sm:inline">WhatsApp</span>
             </button>
             <button
-              onClick={handleDownloadPdf}
+              onClick={() => handleDownloadPdf('baixar')}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-colors"
               title="Baixar PDF Completo (3 Páginas)"
             >
               <Download className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Baixar PDF (3 Páginas A4)</span>
             </button>
+            <BotaoEnviarFicha onClick={() => handleDownloadPdf('enviar')} destaque={enviar} />
+            </>
+            )}
             <button
               onClick={onClose}
               className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
