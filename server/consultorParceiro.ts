@@ -1,8 +1,10 @@
 // CONSULTOR DO PARCEIRO: link pessoal sem senha e indicação pela conversa.
 //
 // O parceiro (indicador) recebe um link só dele: roderindica.com/consultor?p=<token>.
-// O token mora aqui no servidor (consultor_links/{token}) e aponta para o cadastro dele em users.
-// Gerar um novo desliga o anterior. O navegador do parceiro não tem login: tudo que ele faz em
+// O token mora SÓ aqui no servidor (consultor_links/{token}, fechado para o navegador) e aponta para
+// o cadastro dele em users. Ele NÃO fica em users/{uid}: esse documento a equipe inteira lê pelas
+// regras do Firestore, e quem lesse o token falaria em nome do parceiro. Só parceiro externo
+// (external_seller) recebe link. Gerar um novo desliga o anterior. O navegador do parceiro não tem login: tudo que ele faz em
 // nome dele (indicar, gerar link para o cliente) passa por estas rotas, que conferem o token.
 // Quem está logado no app usa o próprio login (o token do Firebase vale mais que o link).
 import crypto from 'crypto';
@@ -21,10 +23,14 @@ export interface DepsConsultorParceiro {
   enviarEmail?: (to: string, subject: string, html: string) => Promise<any>;
   sincronizarAgendor?: (id: string, dados: any) => Promise<any>;
   agora?: () => Date;
+  // FieldValue.delete() do Firestore: apaga o token antigo que versões anteriores gravavam em users/{uid}
+  campoApagado?: () => any;
 }
 
 // Admin e gerentes (Jeferson, Gislene e Luana): só eles geram o link do parceiro
 const GESTAO_LINK = ['admin', 'manager'];
+// Só o parceiro externo (indicador) tem link pessoal: equipe usa o próprio login
+const PAPEL_DO_LINK = 'external_seller';
 const EQUIPE = ['admin', 'manager', 'triagem', 'internal_seller', 'financial', 'finance', 'fiscal', 'marketing', 'assistant'];
 export const LIMITE_DIA = 20;
 
@@ -38,29 +44,40 @@ export function criarRotasConsultorParceiro(deps: DepsConsultorParceiro) {
   const agora = () => (deps.agora ? deps.agora() : new Date());
 
   // ---- link pessoal ----------------------------------------------------------------------
-  async function linkDoUsuario(uid: string, regenerar: boolean, criadoPor: string) {
+  // Links ativos do usuário. Consulta só por uid (sem índice composto) e filtra o "ativo" aqui.
+  async function linksAtivosDe(uid: string) {
+    const snap = await db.collection('consultor_links').where('uid', '==', uid).get();
+    return snap.docs.filter((d: any) => d.data()?.ativo === true)
+      .sort((a: any, b: any) => String(b.data()?.criado_em || '').localeCompare(String(a.data()?.criado_em || '')));
+  }
+
+  async function linkDoUsuario(uid: string, regenerar: boolean, criadoPor: string): Promise<{ token: string; nome: string } | { erro: number; msg: string }> {
     const userRef = db.collection('users').doc(uid);
     const userSnap = await userRef.get();
-    if (!userSnap.exists) return null;
+    if (!userSnap.exists) return { erro: 404, msg: 'Usuário não encontrado.' };
     const u: any = userSnap.data() || {};
-    const atual = String(u.consultor_link_token || '');
-    if (!regenerar && TOKEN_LINK_VALIDO.test(atual)) {
-      const l = await db.collection('consultor_links').doc(atual).get();
-      if (l.exists && l.data()?.ativo === true && l.data()?.uid === uid) return { token: atual, nome: u.name || '' };
-    }
-    const token = novoToken();
+    if (u.role !== PAPEL_DO_LINK) return { erro: 400, msg: 'O link do consultor é só para parceiro externo (indicador).' };
     const iso = agora().toISOString();
     const lote = db.batch();
-    if (TOKEN_LINK_VALIDO.test(atual)) {
-      lote.set(db.collection('consultor_links').doc(atual), { ativo: false, desativado_em: iso }, { merge: true });
+    // limpeza: versões anteriores gravavam o token em users/{uid}, legível pela equipe
+    const limpaUsuario: any = 'consultor_link_token' in u && deps.campoApagado ? { consultor_link_token: deps.campoApagado() } : {};
+    const ativos = await linksAtivosDe(uid);
+    const atual = ativos.find((d: any) => TOKEN_LINK_VALIDO.test(String(d.id)));
+    if (!regenerar && atual) {
+      if (Object.keys(limpaUsuario).length) { lote.set(userRef, limpaUsuario, { merge: true }); await lote.commit(); }
+      return { token: String(atual.id), nome: u.name || '' };
     }
+    const token = novoToken();
+    // gerar um novo desliga TODOS os anteriores (não só o último)
+    for (const d of ativos) lote.set(db.collection('consultor_links').doc(d.id), { ativo: false, desativado_em: iso }, { merge: true });
     lote.set(db.collection('consultor_links').doc(token), { uid, nome: u.name || '', criado_em: iso, criado_por: criadoPor, ativo: true });
-    lote.set(userRef, { consultor_link_token: token, consultor_link_em: iso }, { merge: true });
+    lote.set(userRef, { ...limpaUsuario, consultor_link_em: iso }, { merge: true });
     await lote.commit();
     return { token, nome: u.name || '' };
   }
 
-  // Dono de um token ativo, com o cadastro ativo. Nulo para desconhecido, desligado ou inativo.
+  // Dono de um token ativo, parceiro externo com o cadastro ativo. Nulo para desconhecido, desligado,
+  // inativo ou de outro papel. Vale só consultor_links: o token antigo em users/{uid} não autentica.
   async function donoDoToken(token: string) {
     if (!TOKEN_LINK_VALIDO.test(token)) return null;
     const l = await db.collection('consultor_links').doc(token).get();
@@ -70,8 +87,8 @@ export function criarRotasConsultorParceiro(deps: DepsConsultorParceiro) {
     const u = await db.collection('users').doc(String(ld.uid)).get();
     if (!u.exists) return null;
     const ud: any = u.data() || {};
-    if (ud.status !== 'active' || ud.consultor_link_token !== token) return null;
-    return { uid: String(ld.uid), nome: String(ud.name || ''), email: String(ud.email || '').toLowerCase(), role: String(ud.role || 'external_seller') };
+    if (ud.status !== 'active' || ud.role !== PAPEL_DO_LINK) return null;
+    return { uid: String(ld.uid), nome: String(ud.name || ''), email: String(ud.email || '').toLowerCase(), role: PAPEL_DO_LINK };
   }
 
   // Quem está pedindo: o login (se houver) vale mais que o link
@@ -98,7 +115,7 @@ export function criarRotasConsultorParceiro(deps: DepsConsultorParceiro) {
       if (!/^[A-Za-z0-9_-]{1,128}$/.test(uid)) return res.status(400).json({ error: 'Usuário inválido.' });
       if (passouLimite(`conslink:${q.uid}`, 60, 60 * 60 * 1000)) return res.status(429).json({ error: 'Muitos pedidos. Espere alguns minutos.' });
       const r = await linkDoUsuario(uid, req.body?.novo === true, q.uid);
-      if (!r) return res.status(404).json({ error: 'Usuário não encontrado.' });
+      if ('erro' in r) return res.status(r.erro).json({ error: r.msg });
       res.json({ ok: true, token: r.token, caminho: `/consultor?p=${r.token}`, nome: r.nome, primeiroNome: primeiroNome(r.nome) });
     } catch {
       res.status(500).json({ error: 'Não consegui gerar o link.' });

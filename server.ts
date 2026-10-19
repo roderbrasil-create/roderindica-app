@@ -4767,6 +4767,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
   // Link pessoal do parceiro no consultor e indicação pela conversa (server/consultorParceiro.ts)
   registrarConsultorParceiro(app, {
     db, quemChama, passouLimite, ipDe, criarLinkCurto,
+    campoApagado: () => admin.firestore.FieldValue.delete(),
     enviarEmail: (to, subject, html) => sendAutomaticEmail(to, subject, html),
     sincronizarAgendor: async (id, dados) => {
       const ag: any = (await db.collection('settings').doc('agendor').get()).data() || {};

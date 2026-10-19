@@ -76,47 +76,62 @@ function generateConsultantIcon(): string {
 
 // Link pessoal do parceiro (/consultor?p=<token>): o servidor diz de quem é o link. O token fica
 // guardado no aparelho, então reabrir /consultor ou o app instalado continua sabendo quem é.
-// Link desligado ou trocado (gerar novo desliga o antigo) apaga a identidade guardada.
-function lerParceiroGuardado(): { token: string } | null {
+// O token novo é guardado ANTES de perguntar ao servidor (com "pendente"), porque a barra de
+// endereço é limpa na hora: se a internet cair no primeiro acesso, o link não se perde e a
+// conferência é refeita na próxima abertura. Enquanto pendente, o consultor segue como visitante.
+// Só um 404 (link desligado ou trocado: gerar novo desliga o antigo) apaga a identidade guardada.
+type ParceiroGuardado = { token: string; nome?: string; primeiroNome?: string; pendente?: boolean };
+function lerParceiroGuardado(): ParceiroGuardado | null {
   try {
     const p = JSON.parse(localStorage.getItem(CHAVE_PARCEIRO_LINK) || 'null');
     return p && TOKEN_LINK_VALIDO.test(String(p.token || '')) ? p : null;
   } catch { return null; }
 }
+function guardarParceiro(p: ParceiroGuardado) {
+  try { localStorage.setItem(CHAVE_PARCEIRO_LINK, JSON.stringify(p)); } catch { /* navegador sem armazenamento */ }
+}
 
 function useParceiroDoLink(tokenUrl: string | null) {
   const [pronto, setPronto] = useState(() => !tokenUrl && !lerParceiroGuardado());
   useEffect(() => {
-    const guardado = lerParceiroGuardado();
-    const token = tokenUrl && TOKEN_LINK_VALIDO.test(tokenUrl) ? tokenUrl : guardado?.token;
+    const anterior = lerParceiroGuardado();
+    const tokenNovo = tokenUrl && TOKEN_LINK_VALIDO.test(tokenUrl) ? tokenUrl : null;
+    if (tokenNovo && anterior?.token !== tokenNovo) {
+      // guarda primeiro: a barra de endereço é limpa logo abaixo
+      guardarParceiro({ token: tokenNovo, pendente: true });
+    }
     if (tokenUrl) {
       // o token não fica na barra de endereço (nem no histórico de quem pegar o celular)
       try { const u = new URL(window.location.href); u.searchParams.delete('p'); window.history.replaceState(window.history.state, '', u.pathname + u.search + u.hash); } catch { /* segue */ }
     }
+    const guardado = lerParceiroGuardado();
+    const token = tokenNovo || guardado?.token;
     if (!token) { setPronto(true); return; }
     const ctl = new AbortController();
     let vivo = true;
     const espera = setTimeout(() => ctl.abort(), 5000);
     fetch(`${getApiBaseUrl()}/api/consultor/parceiro/${encodeURIComponent(token)}`, { signal: ctl.signal })
       .then(async r => {
-        if (!vivo) return;
         if (r.status === 404) {
-          try { localStorage.removeItem(CHAVE_PARCEIRO_LINK); } catch { /* sem armazenamento */ }
-          toast.error('Este link do consultor não vale mais. Peça um novo ao comercial da Roder.');
+          // resposta definitiva: só apaga se ainda for o mesmo token guardado
+          try { if (lerParceiroGuardado()?.token === token) localStorage.removeItem(CHAVE_PARCEIRO_LINK); } catch { /* sem armazenamento */ }
+          if (vivo) toast.error('Este link do consultor não vale mais. Peça um novo ao comercial da Roder.');
           return;
         }
-        if (!r.ok) return; // servidor fora: mantém o que estava guardado
+        if (!r.ok) return; // servidor fora ou erro: mantém o guardado (pendente tenta de novo na próxima abertura)
         const j = await r.json();
-        try {
-          if (guardado?.token !== token) {
-            // outro parceiro (ou primeiro acesso): começa uma conversa nova, sem o "Quem é você?"
+        const atual = lerParceiroGuardado();
+        if (atual && atual.token !== token) return; // outro link chegou no meio do caminho
+        if (!atual || atual.pendente || !atual.nome) {
+          // outro parceiro ou primeiro acesso: começa uma conversa nova, sem o "Quem é você?"
+          try {
             sessionStorage.removeItem('roder_helper_messages');
             sessionStorage.removeItem('roder_helper_fluxo_ind');
-          }
-          localStorage.setItem(CHAVE_PARCEIRO_LINK, JSON.stringify({ token, nome: j.nome || '', primeiroNome: j.primeiroNome || '' }));
-        } catch { /* navegador sem armazenamento */ }
+          } catch { /* sem armazenamento */ }
+        }
+        guardarParceiro({ token, nome: j.nome || '', primeiroNome: j.primeiroNome || '' });
       })
-      .catch(() => { /* sem internet: segue com o que estava guardado */ })
+      .catch(() => { /* sem internet ou demorou: segue com o que estava guardado e tenta na próxima */ })
       .finally(() => { clearTimeout(espera); if (vivo) setPronto(true); });
     return () => { vivo = false; clearTimeout(espera); ctl.abort(); };
   }, [tokenUrl]);

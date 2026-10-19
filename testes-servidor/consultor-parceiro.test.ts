@@ -4,8 +4,10 @@ import { test } from 'node:test';
 import { criarRotasConsultorParceiro } from '../server/consultorParceiro.ts';
 import { querIndicar, validarTelefoneBR, lerCidadeUf, validarCnpj } from '../src/lib/consultorIndicar.ts';
 
+const APAGAR = Symbol('apagar');
+
 function bancoFalso(inicial: Record<string, Record<string, any>>) {
-  const dados: Record<string, Record<string, any>> = JSON.parse(JSON.stringify(inicial));
+  const dados: Record<string, Record<string, any>> = structuredClone(inicial);
   let seq = 0;
   const col = (nome: string) => (dados[nome] ||= {});
   const docRef = (nome: string, id?: string): any => {
@@ -13,7 +15,11 @@ function bancoFalso(inicial: Record<string, Record<string, any>>) {
     return {
       id: did,
       get: async () => ({ exists: did in col(nome), id: did, data: () => col(nome)[did] }),
-      set: async (v: any, o?: any) => { col(nome)[did] = o?.merge ? { ...(col(nome)[did] || {}), ...v } : v; },
+      set: async (v: any, o?: any) => {
+        const novo = o?.merge ? { ...(col(nome)[did] || {}), ...v } : { ...v };
+        for (const k of Object.keys(novo)) if (novo[k] === APAGAR) delete novo[k]; // FieldValue.delete()
+        col(nome)[did] = novo;
+      },
     };
   };
   const consulta = (nome: string, filtros: [string, string, any][]): any => ({
@@ -47,9 +53,12 @@ function montar(quem: any = null) {
       lua: { name: 'Luana Camargo', role: 'manager', status: 'active', email: 'luana@roderbrasil.com.br' },
       hel: { name: 'Heloisa', role: 'internal_seller', status: 'active', email: 'heloisa@x.com' },
       car: { name: 'Carlos Pereira', role: 'external_seller', status: 'active', email: 'carlos@gmail.com' },
+      // cadastro de uma versão antiga: token ainda gravado em users (legível pela equipe)
+      vel: { name: 'Velho Parceiro', role: 'external_seller', status: 'active', email: 'vel@gmail.com', consultor_link_token: 'L'.repeat(32) },
       ina: { name: 'Inativo', role: 'external_seller', status: 'inactive', email: 'ina@gmail.com' },
       reg: { name: 'Regional MT', role: 'vendedor_padrao', status: 'active', assigned_regions: ['MT'] },
     },
+    consultor_links: { ['L'.repeat(32)]: { uid: 'vel', nome: 'Velho Parceiro', ativo: true, criado_em: '2026-01-01T00:00:00.000Z' } },
     products: { p3: { name: 'Cabeçotes Multifuncionais', models: [{ id: 'm4', name: 'CMF 500' }, { id: 'm5', name: 'CMF 600' }] } },
     settings: { notifications: { manager_emails: 'x@roderbrasil.com.br' } },
   });
@@ -57,6 +66,7 @@ function montar(quem: any = null) {
   const quemAtual = { v: quem };
   const r = criarRotasConsultorParceiro({
     db, quemChama: async () => quemAtual.v, passouLimite: () => false, ipDe: () => '1.1.1.1',
+    campoApagado: () => APAGAR,
     criarLinkCurto: async (uid, pid, mid) => `C${uid}${pid}${mid}`.slice(0, 8).toUpperCase(),
     enviarEmail: async (to) => { emails.push(to); },
   });
@@ -110,7 +120,14 @@ test('só a gestão gera link; regenerar desliga o antigo', async () => {
   const t2 = res.corpo.token;
   assert.notEqual(t2, t1);
   assert.equal(db.dados.consultor_links[t1].ativo, false);
-  assert.equal(db.dados.users.car.consultor_link_token, t2);
+  // o token não fica no cadastro do usuário (a equipe lê users pelas regras do Firestore)
+  assert.equal('consultor_link_token' in db.dados.users.car, false);
+  assert.ok(db.dados.users.car.consultor_link_em);
+  assert.equal(JSON.stringify(db.dados.users.car).includes(t2), false);
+  assert.equal(db.dados.consultor_links[t2].uid, 'car');
+  // pedir de novo (sem regenerar) acha o ativo pelo consultor_links
+  res = await chamar(r.rotaLink, { params: { uid: 'car' }, body: {} });
+  assert.equal(res.corpo.token, t2);
   pub = await chamar(r.rotaResolver, { params: { token: t1 } });
   assert.equal(pub.statusCode, 404);
   pub = await chamar(r.rotaResolver, { params: { token: t2 } });
@@ -184,4 +201,54 @@ test('login vale mais que o link; equipe vira venda direta; link para o cliente'
   assert.equal(lc.statusCode, 401);
   lc = await chamar(r.rotaLinkCliente, { body: { p: tok, pid: 'nao-existe' } });
   assert.equal(lc.statusCode, 404);
+});
+
+test('link só para parceiro externo; token de outro papel não autentica', async () => {
+  const { db, r, quemAtual } = montar({ uid: 'gis', email: 'g', role: 'manager' });
+  for (const uid of ['hel', 'lua', 'reg']) {
+    const res = await chamar(r.rotaLink, { params: { uid }, body: {} });
+    assert.equal(res.statusCode, 400, uid);
+  }
+  assert.equal(Object.values(db.dados.consultor_links).filter((l: any) => l.uid !== 'vel').length, 0);
+  // link ativo apontando para alguém da equipe (gravado à mão ou papel trocado depois)
+  const tok = 'H'.repeat(32);
+  db.dados.consultor_links[tok] = { uid: 'hel', ativo: true };
+  assert.equal((await chamar(r.rotaResolver, { params: { token: tok } })).statusCode, 404);
+  quemAtual.v = null;
+  const corpo = { p: tok, equipamento: { nome: 'Garra' }, cliente: 'Cliente Y', telefone: '14 99811-5111', cidade: 'Botucatu SP' };
+  assert.equal((await chamar(r.rotaIndicacao, { body: corpo })).statusCode, 401);
+  assert.equal((await chamar(r.rotaLinkCliente, { body: { p: tok, pid: 'p3', mid: 'm5' } })).statusCode, 401);
+  // parceiro que virou equipe: o link dele para de valer
+  quemAtual.v = { uid: 'gis', email: 'g', role: 'manager' };
+  const tc = (await chamar(r.rotaLink, { params: { uid: 'car' }, body: {} })).corpo.token;
+  assert.equal((await chamar(r.rotaResolver, { params: { token: tc } })).statusCode, 200);
+  db.dados.users.car.role = 'internal_seller';
+  assert.equal((await chamar(r.rotaResolver, { params: { token: tc } })).statusCode, 404);
+});
+
+test('cadastro antigo com token em users: vale só o consultor_links, e o campo some ao passar pela rota', async () => {
+  const { db, r, quemAtual } = montar({ uid: 'gis', email: 'g', role: 'manager' });
+  const velho = 'L'.repeat(32);
+  // o link antigo ainda ativo em consultor_links continua valendo
+  assert.equal((await chamar(r.rotaResolver, { params: { token: velho } })).statusCode, 200);
+  // token só no cadastro do usuário, sem consultor_links ativo: não autentica
+  const soNoUsuario = 'Z'.repeat(32);
+  db.dados.users.car.consultor_link_token = soNoUsuario;
+  quemAtual.v = null;
+  assert.equal((await chamar(r.rotaResolver, { params: { token: soNoUsuario } })).statusCode, 404);
+  assert.equal((await chamar(r.rotaIndicacao, { body: { p: soNoUsuario, equipamento: { nome: 'Garra' }, cliente: 'Cliente Z', telefone: '14 99811-5111', cidade: 'Botucatu SP' } })).statusCode, 401);
+  // a gestão pede o link: devolve o mesmo token ativo e apaga o campo antigo do cadastro
+  quemAtual.v = { uid: 'gis', email: 'g', role: 'manager' };
+  let res = await chamar(r.rotaLink, { params: { uid: 'vel' }, body: {} });
+  assert.equal(res.corpo.token, velho);
+  assert.equal('consultor_link_token' in db.dados.users.vel, false);
+  // regenerar desliga o antigo
+  res = await chamar(r.rotaLink, { params: { uid: 'vel' }, body: { novo: true } });
+  assert.notEqual(res.corpo.token, velho);
+  assert.equal(db.dados.consultor_links[velho].ativo, false);
+  assert.equal((await chamar(r.rotaResolver, { params: { token: velho } })).statusCode, 404);
+  // o mesmo para o car (token só no usuário): gera um novo e limpa o campo
+  res = await chamar(r.rotaLink, { params: { uid: 'car' }, body: {} });
+  assert.notEqual(res.corpo.token, soNoUsuario);
+  assert.equal('consultor_link_token' in db.dados.users.car, false);
 });

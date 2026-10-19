@@ -351,7 +351,8 @@ interface FluxoIndicar {
 function lerParceiroLink(): { token: string; nome: string; primeiroNome: string } | null {
   try {
     const p = JSON.parse(localStorage.getItem(CHAVE_PARCEIRO_LINK) || 'null');
-    if (!p || !TOKEN_LINK_VALIDO.test(String(p.token || ''))) return null;
+    // pendente: o servidor ainda não confirmou o link (internet caiu no primeiro acesso). Segue como visitante.
+    if (!p || p.pendente || !TOKEN_LINK_VALIDO.test(String(p.token || ''))) return null;
     return { token: String(p.token), nome: String(p.nome || ''), primeiroNome: String(p.primeiroNome || primeiroNome(p.nome)) };
   } catch { return null; }
 }
@@ -646,17 +647,20 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   const navigate = useNavigate();
   const location = useLocation();
   const { user, profile, isAdmin, isManager, isTriagem, isImpersonating } = useAuth();
+  // Sessão anônima do Firebase (estoque público, cadastro rápido) NÃO é uma pessoa logada:
+  // sem isto o parceiro do link e o visitante perdiam o fluxo deles nesse mesmo navegador.
+  const logado = !!user && !user.isAnonymous;
   
   // Only registered sellers/partners should have sharing access
-  const isRegisteredUser = user && profile?.role && !['client', 'visitor'].includes(profile.role);
+  const isRegisteredUser = logado && profile?.role && !['client', 'visitor'].includes(profile.role);
   // "Compartilhar consultor": só Jeferson, Gislene e Luana (admin e gerentes)
-  const podeCompartilhar = !!user && !!(isAdmin || isManager);
+  const podeCompartilhar = logado && !!(isAdmin || isManager);
 
   // Parceiro pelo link pessoal (sem senha). Se houver login no app, o login vale mais.
   const [parceiroLink] = useState(lerParceiroLink);
-  const parceiroViaLink = !user ? parceiroLink : null;
+  const parceiroViaLink = !logado ? parceiroLink : null;
   // Quem pode indicar pela conversa: o parceiro do link e quem cria indicação no app
-  const podeIndicar = !!parceiroViaLink || (!!user && !!profile && !isImpersonating && PAPEIS_QUE_INDICAM.includes(String(profile.role)));
+  const podeIndicar = !!parceiroViaLink || (logado && !!profile && !isImpersonating && PAPEIS_QUE_INDICAM.includes(String(profile.role)));
   const saudacaoParceiro = (nome: string) => `Olá, **${primeiroNome(nome) || 'parceiro'}**! Pergunte sobre um equipamento ou faça uma indicação.`;
   
   // If a registered seller or partner logged in, clear any external referral code
@@ -994,10 +998,10 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
 
   // Skip onboarding if user is logged in
   useEffect(() => {
-    if (user && profile) {
+    if (logado && profile) {
       setOnboardingStep('COMPLETED');
     }
-  }, [user, profile]);
+  }, [logado, profile]);
   
   // --- SPY PROTECTION, SHARING & LEAD/BUDGET CAPTURE STATES ---
   const [askedTopics, setAskedTopics] = useState<string[]>(() => {
@@ -1774,11 +1778,11 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
 
   // Quem está logado não passa pelo "Quem é você?": troca a saudação de visitante pela de sempre
   useEffect(() => {
-    if (!user || !profile) return;
+    if (!logado || !profile) return;
     setMessages(prev => (prev.length === 1 && prev[0].role === 'assistant' && /Quem é você\?/.test(prev[0].content))
       ? [{ id: prev[0].id, role: 'assistant', content: 'Olá! Sou o **Consultor Técnico RODER** 🛠️. Como posso te ajudar hoje?' }]
       : prev);
-  }, [user, profile]);
+  }, [logado, profile]);
 
   useEffect(() => {
     try {
@@ -1894,7 +1898,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
         role: 'assistant',
         content: parceiroViaLink
           ? saudacaoParceiro(parceiroViaLink.nome)
-          : !user
+          : !logado
           ? 'Olá! Conversa limpa. Sou o **Consultor Técnico RODER** 🛠️.\n\nPara que eu possa te dar o melhor atendimento personalizado e registrar seu contato, por favor, me informe:\n\n**Quem é você?**'
           : 'Olá! Conversa limpa. Sou o **Consultor Técnico RODER** 🛠️. Como posso te ajudar hoje?'
       }
@@ -1912,7 +1916,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     setFluxoInd(null);
 
     // equipe Roder do link /consultor-equipe (e o parceiro do link pessoal) continua liberada ao limpar a conversa
-    if (!user && !(publicUser as any)?.equipe && !parceiroViaLink) {
+    if (!logado && !(publicUser as any)?.equipe && !parceiroViaLink) {
       localStorage.removeItem('roder_public_user_profile');
       setPublicUser(null);
       setOnboardingStep('SELECT_ROLE');
@@ -2026,7 +2030,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
         role: 'assistant',
         content: parceiroViaLink
           ? saudacaoParceiro(parceiroViaLink.nome)
-          : !user
+          : !logado
           ? 'Olá! Sou o **Consultor Técnico RODER** 🛠️.\n\nPara que eu possa te dar o melhor atendimento personalizado e registrar seu contato, por favor, me informe:\n\n**Quem é você?**'
           : 'Olá! Sou o **Consultor Técnico RODER** 🛠️. Estou aqui para ajudar você a dimensionar e indicar o equipamento ideal para a sua escavadeira ou pá carregadeira, além de calcular produtividade. Como posso ajudar hoje?'
       }
@@ -2044,7 +2048,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     setFluxoInd(null);
 
     // equipe Roder do link /consultor-equipe (e o parceiro do link pessoal) continua liberada ao limpar a conversa
-    if (!user && !(publicUser as any)?.equipe && !parceiroViaLink) {
+    if (!logado && !(publicUser as any)?.equipe && !parceiroViaLink) {
       localStorage.removeItem('roder_public_user_profile');
       setPublicUser(null);
       setOnboardingStep('SELECT_ROLE');
@@ -2345,7 +2349,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     setFolhaEquip(false);
     setMenuCel(false);
     if (!podeIndicar) {
-      falaInd(user
+      falaInd(logado
         ? 'Para fazer uma indicação, use a tela **Nova indicação** do app Roder Indica.'
         : `As indicações são feitas por parceiros cadastrados, pelo link exclusivo de cada um.\n\nSe você quer um orçamento, me diga o equipamento ou fale com o comercial da Roder no WhatsApp: [${WHATS_COMERCIAL_TEXTO}](https://wa.me/${WHATS_COMERCIAL}).`);
       return;
@@ -2594,7 +2598,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     // Spy Protection / Usage Limits check
     // equipe Roder que entrou pelo link /consultor-equipe (e-mail conferido no servidor) não tem limite
     const equipePeloLink = publicUser?.userType === 'vendedor' && (publicUser as any)?.equipe === true;
-    const isVisitor = !equipePeloLink && !parceiroViaLink && (!user || !profile?.role || (profile.role as string) === 'client' || (profile.role as string) === 'visitor');
+    const isVisitor = !equipePeloLink && !parceiroViaLink && (!logado || !profile?.role || (profile.role as string) === 'client' || (profile.role as string) === 'visitor');
     if (isVisitor) {
       const textUpper = queryText.toUpperCase();
       const categoriesMatched: string[] = [];
@@ -2654,7 +2658,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
         queryText,
         updatedMessages.slice(1, -1).filter(m => !m.indicar).map(({ role, content }) => ({ role, content })),
         {
-          uid: user?.uid,
+          uid: logado ? user?.uid : undefined,
           name: (profile?.name || parceiroViaLink?.nome || publicUser?.name || user?.displayName || user?.email || 'Anônimo').replace('Jefferson', 'Jeferson'),
           email: profile?.email || publicUser?.email || user?.email || '',
           role: profile?.role || (parceiroViaLink ? 'external_seller' : publicUser?.userType) || 'visitor',
@@ -2726,7 +2730,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
         queryText,
         history,
         {
-          uid: user?.uid,
+          uid: logado ? user?.uid : undefined,
           name: (profile?.name || parceiroViaLink?.nome || publicUser?.name || user?.displayName || user?.email || 'Anônimo').replace('Jefferson', 'Jeferson'),
           email: profile?.email || publicUser?.email || user?.email || '',
           role: profile?.role || (parceiroViaLink ? 'external_seller' : publicUser?.userType) || 'visitor',
@@ -3019,7 +3023,7 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
       equipEscolhido(nomeEquip(prod, model), { etapa: 'equip_lista' });
       return;
     }
-    const isVisitor = !user || !profile?.role || (profile.role as string) === 'client' || (profile.role as string) === 'visitor';
+    const isVisitor = !logado || !profile?.role || (profile.role as string) === 'client' || (profile.role as string) === 'visitor';
     if (isVisitor) {
       setBudgetEquipName(productFullName);
       setIsBudgetFormOpen(true);
@@ -4917,8 +4921,8 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
     const v = model.video_url || prod.video_url || PRODUCT_VIDEOS[model.name || ''] || PRODUCT_VIDEOS[prod.name || ''];
     return v && /^https?:\/\//.test(v) && !v.toLowerCase().includes('t_8n_nlf2xk') ? v : '';
   };
-  const nomeUsuario = (profile?.name || (user ? '' : (parceiroViaLink?.nome || publicUser?.name)) || '').replace('Jefferson', 'Jeferson').split(' ').slice(0, 2).join(' ');
-  const papelUsuario = user && profile
+  const nomeUsuario = (profile?.name || (logado ? '' : (parceiroViaLink?.nome || publicUser?.name)) || '').replace('Jefferson', 'Jeferson').split(' ').slice(0, 2).join(' ');
+  const papelUsuario = logado && profile
     ? (podeEnviarFicha ? 'Equipe' : (profile.role as string) === 'external_seller' ? 'Parceiro' : '')
     : parceiroViaLink ? 'Parceiro'
     : (publicUser as any)?.equipe ? 'Equipe'
