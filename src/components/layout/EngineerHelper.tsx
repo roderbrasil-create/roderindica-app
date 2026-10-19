@@ -587,7 +587,10 @@ export function abrirConsultorEmJanela(pergunta?: string): boolean {
     if (!janela) return false;
     let jaNoConsultor = false;
     try { jaNoConsultor = janela.location.pathname.startsWith('/consultor'); } catch { /* outra origem */ }
-    if (!jaNoConsultor) {
+    // janela recém-aberta ainda carregando: ninguém escuta o evento, então navega com a pergunta
+    let carregando = false;
+    try { carregando = janela.document.readyState !== 'complete'; } catch { /* outra origem */ }
+    if (!jaNoConsultor || (pergunta && carregando)) {
       janela.location.href = destino;
     } else if (pergunta) {
       const Evento = (janela as any).CustomEvent || CustomEvent;
@@ -4479,7 +4482,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
         <div className="rounded-2xl border border-[#F1DFA6] bg-[#FFF8DB] px-4 py-3.5">
           <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#8A6500]">Pergunte ao cliente</p>
           <ul className="mt-2 space-y-1.5 list-disc pl-5 text-[14px] leading-snug text-[#1B1E22]">
-            {painelAtual.perguntas.map(p => <li key={p}>{p}</li>)}
+            {painelAtual.perguntas.map((p, i) => <li key={i}>{p}</li>)}
           </ul>
         </div>
       )}
@@ -4488,8 +4491,8 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
         <div>
           <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#5B6168]">Alternativas que servem</p>
           <div className="mt-1.5 divide-y divide-[#E1E4E8] border-y border-[#E1E4E8]">
-            {painelAtual.alternativas.map(a => (
-              <div key={a.nome} className="flex items-center justify-between gap-3 py-2.5">
+            {painelAtual.alternativas.map((a, i) => (
+              <div key={`${i}-${a.nome}`} className="flex items-center justify-between gap-3 py-2.5">
                 <span className="text-[14.5px] font-bold text-[#1B1E22]">{a.nome}</span>
                 {a.obs && <span className="shrink-0 rounded-md bg-[#E3F5E8] px-2 py-0.5 text-[11.5px] font-extrabold text-[#157F3C]">{a.obs}</span>}
               </div>
