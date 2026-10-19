@@ -442,7 +442,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-19j ficha-original";
+  const RELEASE_LABEL = "2026-10-19k consultor-pc";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -3208,9 +3208,20 @@ ${consulta}` : `
 
 CONSULTA DO TRATOR NA INTERNET: n\xE3o foi poss\xEDvel consultar agora. N\xE3o afirme a transmiss\xE3o do trator; use a refer\xEAncia de CVT do Brasil e pe\xE7a ao vendedor para confirmar com o cliente se o trator \xE9 a vers\xE3o CVT e se a TDP tem 1000 rpm.`;
           }
+          const querPainel = args.painel === true;
+          const instrucaoPainel = querPainel ? `
+
+PAINEL ESCONDIDO (obrigat\xF3rio quando houver dado): no fim de TODA resposta, depois de todo o texto (e depois do [[OPCOES]] se houver), acrescente um bloco escondido exatamente neste formato, numa linha s\xF3, com JSON v\xE1lido:
+<painel>{"maquina":{"nome":"","tipo":"","potencia":"","transmissao":"","serve":"sim|nao|verificar","motivo":""},"perguntas":["..."],"alternativas":[{"nome":"","obs":""}],"produto":"<nome do modelo Roder principal>"}</painel>
+- Coloque s\xF3 os campos que se aplicam \xE0 conversa; os outros ficam fora do JSON.
+- "maquina": a m\xE1quina base ou o trator do cliente citado na conversa (nome com marca e modelo; tipo ou transmiss\xE3o, ex.: "Powershift, n\xE3o \xE9 CVT"; pot\xEAncia ou porte, ex.: "220 cv" ou "20 t"; "serve" diz se ela atende o equipamento indicado: "sim", "nao" ou "verificar"; "motivo" em at\xE9 8 palavras).
+- "perguntas": no m\xE1ximo 3 perguntas curtas que o vendedor deve fazer ao cliente para confirmar a indica\xE7\xE3o.
+- "alternativas": no m\xE1ximo 3 op\xE7\xF5es que servem (m\xE1quinas, tratores ou modelos Roder), com "obs" de at\xE9 4 palavras (ex.: "CVT de s\xE9rie").
+- "produto": o nome exato do modelo Roder principal da resposta, como est\xE1 no cat\xE1logo (ex.: "SSH 150", "R400", "CMF 600").
+- Se nada disso se aplica (ex.: sauda\xE7\xE3o), n\xE3o escreva o bloco. Nunca mencione o bloco no texto e nunca escreva <painel> em outro lugar da resposta. O texto da resposta continua curto, em portugu\xEAs, seguindo todas as regras acima.` : "";
           const finalSystemInstruction = systemInstruction + userTypeInstruction + contextoTrator + `
 
-LEMBRETE FINAL (PRIORIDADE M\xC1XIMA): siga as REGRAS PRIORIT\xC1RIAS A, B, C e D do in\xEDcio. Resposta curta e direta; se faltar dado essencial, pergunte antes; no m\xE1ximo 1 foto e s\xF3 do equipamento recomendado.`;
+LEMBRETE FINAL (PRIORIDADE M\xC1XIMA): siga as REGRAS PRIORIT\xC1RIAS A, B, C e D do in\xEDcio. Resposta curta e direta; se faltar dado essencial, pergunte antes; no m\xE1ximo 1 foto e s\xF3 do equipamento recomendado.` + instrucaoPainel;
           const startTime = Date.now();
           const response = await generateContentWithRetry(ai, {
             defaultModel: "gemini-3.5-flash",
@@ -3222,17 +3233,36 @@ LEMBRETE FINAL (PRIORIDADE M\xC1XIMA): siga as REGRAS PRIORIT\xC1RIAS A, B, C e 
           });
           const responseTimeMs = Date.now() - startTime;
           result = response.text || "Desculpe, n\xE3o consegui calcular ou analisar sua d\xFAvida t\xE9cnica no momento.";
+          let painelJson = "";
+          {
+            const blocos = Array.from(String(result).matchAll(/<\s*painel\s*>([\s\S]*?)<\s*\/\s*painel\s*>/gi));
+            if (blocos.length) painelJson = blocos[blocos.length - 1][1].trim();
+            result = String(result).replace(/<\s*painel\s*>[\s\S]*?<\s*\/\s*painel\s*>/gi, "").replace(/<\s*painel\b[\s\S]*$/i, "").trim();
+          }
           try {
             result = fixConsultantImages(result, catalogImageIndex);
           } catch (imgErr) {
             console.warn("[engineerHelper] fixConsultantImages:", imgErr?.message);
           }
+          const textoParaGuardar = result;
+          let painelValido = "";
+          if (painelJson) {
+            try {
+              const obj = JSON.parse(painelJson);
+              if (obj && typeof obj === "object") painelValido = JSON.stringify(obj);
+            } catch {
+            }
+          }
+          if (querPainel && painelValido) result = `${result}
+
+<painel>${painelValido}</painel>`;
           try {
             const userInfo2 = args.userInfo || {};
             const topic = await classifyQuestionTopic(ai, question);
             await db.collection("roder_ai_questions").add({
               question,
-              answer: result,
+              answer: textoParaGuardar,
+              ...painelValido ? { painel: painelValido } : {},
               timestamp: (/* @__PURE__ */ new Date()).toISOString(),
               userUid: userInfo2.uid || "unauthenticated",
               userName: userInfo2.name || "An\xF4nimo",
