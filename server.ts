@@ -8497,9 +8497,16 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     try {
       await trava.create({ job: 'backfill_dono_indicacoes_v1', started_at: new Date().toISOString() });
     } catch (e: any) {
-      if (e?.code === 6) return; // ALREADY_EXISTS: já rodou (ou outro processo está rodando)
+      if (e?.code === 6) {
+        // já rodou, ou outro processo está rodando. Trava velha sem fim (processo morto no meio): retoma
+        const t: any = (await trava.get()).data() || {};
+        const velha = !t.finished_at && t.started_at && Date.now() - new Date(t.started_at).getTime() > 30 * 60 * 1000;
+        if (!velha) return;
+        await trava.set({ started_at: new Date().toISOString(), retomada: true }, { merge: true });
+      } else {
       console.error('[BACKFILL-DONO] Não consegui criar a trava:', e?.message);
       return;
+      }
     }
     try {
       const normalizar = (v: any) => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -8521,7 +8528,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         return s && s.size === 1 ? Array.from(s)[0] : null;
       };
 
-      const indicacoes = await db.collection('indications').get();
+      const indicacoes = await db.collection('indications').select('external_seller_uid', 'external_seller_email', 'external_seller_name', 'indicator_name').get(); // só os campos usados: o histórico inteiro não cabe na memória
       let lote = db.batch();
       let noLote = 0;
       const n = { porEmail: 0, porNome: 0, emailMinusculo: 0, ambiguo: 0, semPar: 0 };

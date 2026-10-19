@@ -589,7 +589,7 @@ function DashboardCompleto() {
       if (filters.length > 0) {
         q = query(indicationsRef, or(...filters));
       } else {
-        q = query(indicationsRef, limit(50));
+        q = query(indicationsRef, where('external_seller_uid', '==', '__nenhum__')); // sem regra prevista, não vê nada
       }
     }
 
