@@ -1536,7 +1536,6 @@ Retorne um array JSON no formato exato:
         if (permitidos.length === 0) return res.status(403).json({ error: "Envio não permitido para este destinatário." });
         destinoFinal = permitidos.join(', ');
       }
-      }
 
       // Only try to read from DB if settings weren't passed in the body
       if (!settings) {
