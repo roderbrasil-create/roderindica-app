@@ -1330,6 +1330,25 @@ Retorne um array JSON no formato exato:
   const ehEquipe = (q: any) => !!q && EQUIPE_RODER.includes(q.role);
   const ehGestao = (q: any) => !!q && (q.role === 'admin' || q.role === 'manager');
 
+  // Vendedores regionais ativos, só com o que a tela de indicação precisa (nome e estados).
+  // O parceiro não pode mais ler o cadastro de usuários (lá tem telefone, PIX e senha inicial),
+  // mas a indicação dele precisa achar o regional do estado do cliente.
+  app.get("/api/usuarios/regionais", async (req, res) => {
+    try {
+      const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+      const dec: any = token ? await admin.auth().verifyIdToken(token).catch(() => null) : null;
+      if (!dec || dec.firebase?.sign_in_provider === 'anonymous') return res.status(401).json({ ok: false });
+      const snap = await db.collection('users').where('role', '==', 'vendedor_padrao').where('status', '==', 'active').get();
+      const lista = snap.docs.map(d => {
+        const u: any = d.data();
+        return { uid: d.id, name: u.name || '', email: u.email || '', role: 'vendedor_padrao', assigned_regions: u.assigned_regions || [] };
+      });
+      return res.json({ ok: true, lista });
+    } catch (e: any) {
+      return res.status(500).json({ ok: false });
+    }
+  });
+
   // PRIMEIRO ACESSO. O admin pré-cadastra a pessoa (users/temp_...) e, no primeiro login, o
   // cadastro passa para o uid dela. Isso era feito no navegador, apagando o cadastro provisório
   // e criando o definitivo com o papel; com as regras novas o navegador não pode mais dar papel a

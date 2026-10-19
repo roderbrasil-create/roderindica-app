@@ -512,19 +512,28 @@ export default function QuickRegister() {
     if (!sellerInfo.name && !profile && !user) return;
     
     // We filter by salesperson_uid OR salesperson_email if logged in
-    const salespersonUid = profile?.uid || user?.uid || 'anonymous';
+    const salespersonUid = profile?.uid || user?.uid || auth.currentUser?.uid || 'anonymous';
     const salespersonEmail = profile?.email || user?.email || sellerInfo.email;
     
     // Fetch all leads for this fair to be resilient to indexing issues with complex OR queries
     // Filtering in memory is fine for fair lead volumes
-    const qFairLeads = query(
-      collection(db, 'fair_leads'), 
-      where('fair_id', '==', selectedFairId),
-      orderBy('created_at', 'desc')
-    );
+    // Tablet anônimo só pode ler os próprios atendimentos (regras do Firebase), então a busca
+    // vai pelo identificador dele; a feira e a ordem são filtradas aqui, sem precisar de índice.
+    const tabletAnonimo = !!auth.currentUser?.isAnonymous;
+    const qFairLeads = tabletAnonimo
+      ? query(collection(db, 'fair_leads'), where('salesperson_uid', '==', auth.currentUser!.uid))
+      : query(
+          collection(db, 'fair_leads'), 
+          where('fair_id', '==', selectedFairId),
+          orderBy('created_at', 'desc')
+        );
 
     const unsubscribeLeads = onSnapshot(qFairLeads, (snapshot) => {
       let leads = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+      if (tabletAnonimo) {
+        leads = leads.filter(l => l.fair_id === selectedFairId)
+          .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+      }
       
       // Filter by the current performer
       const filteredLeads = leads.filter(l => {
@@ -645,7 +654,7 @@ export default function QuickRegister() {
     const capturedEditingId = editingLeadId;
     const capturedTemperature = leadTemperature;
     const salespersonInfo = {
-      uid: profile?.uid || user?.uid || 'anonymous',
+      uid: profile?.uid || user?.uid || auth.currentUser?.uid || 'anonymous', // o tablet anônimo grava o próprio uid para poder completar o atendimento depois
       name: profile?.name || sellerInfo.name || 'Vendedor Autônomo',
       email: profile?.email || sellerInfo.email || ''
     };
@@ -1074,15 +1083,21 @@ export default function QuickRegister() {
 
     // Real-time listener for current seller's leads in the selected fair
     // This ensures that as soon as a lead is saved, it appears in the "Meus Atendimentos" view
-    const q = query(
-      collection(db, 'fair_leads'),
-      where('fair_id', '==', selectedFairId),
-      where('salesperson_name', '==', sellerInfo.name),
-      orderBy('created_at', 'desc')
-    );
+    const q = auth.currentUser?.isAnonymous
+      ? query(collection(db, 'fair_leads'), where('salesperson_uid', '==', auth.currentUser.uid))
+      : query(
+          collection(db, 'fair_leads'),
+          where('fair_id', '==', selectedFairId),
+          where('salesperson_name', '==', sellerInfo.name),
+          orderBy('created_at', 'desc')
+        );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const leads = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FairLead));
+      let leads = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FairLead));
+      if (auth.currentUser?.isAnonymous) {
+        leads = leads.filter((l: any) => l.fair_id === selectedFairId)
+          .sort((a: any, b: any) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+      }
       setSellerLeads(leads);
     }, (error) => {
       console.error("Error listening to fair leads:", error);

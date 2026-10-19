@@ -1,19 +1,45 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Fotos do tablet da feira: o tablet entra anônimo, então pode só ENVIAR foto nova
-    // (até 20 MB), nunca apagar nem trocar arquivo que já existe.
-    match /fair_leads/{fairId}/{allPaths=**} {
-      allow create: if request.auth != null && request.resource.size < 20 * 1024 * 1024;
-      allow read: if request.auth != null;
-      allow update, delete: if request.auth != null && request.auth.token.firebase.sign_in_provider != 'anonymous';
+
+    function logado() {
+      return request.auth != null && request.auth.token.firebase.sign_in_provider != 'anonymous';
     }
-    // Todo o resto (vídeos, notas, orçamentos): só quem tem login de verdade grava ou apaga.
-    match /{allPaths=**} {
+
+    // Equipe Roder: papel no cadastro do app, ou e-mail @roderbrasil.com.br.
+    function equipe() {
+      return logado() && (
+        string(request.auth.token.get('email', '')).lower().matches('.*@roderbrasil[.]com[.]br$') ||
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('role', '') in
+          ['admin', 'manager', 'triagem', 'internal_seller', 'financial', 'finance', 'fiscal', 'marketing', 'assistant']
+      );
+    }
+
+    function tamanhoOk(mb) {
+      return request.resource == null || request.resource.size < mb * 1024 * 1024;
+    }
+
+    // Fotos do tablet da feira: o tablet entra anônimo, então pode só ENVIAR foto nova.
+    match /fair_leads/{fairId}/{allPaths=**} {
+      allow create: if request.auth != null && tamanhoOk(20);
       allow read: if request.auth != null;
-      allow write: if request.auth != null
-        && request.auth.token.firebase.sign_in_provider != 'anonymous'
-        && (request.resource == null || request.resource.size < 600 * 1024 * 1024);
+      allow update, delete: if equipe();
+    }
+
+    // Nota fiscal de comissão: o parceiro envia só a dele (o nome começa com monthly_<uid>_).
+    match /commissions_nf/{arquivo} {
+      allow read: if logado();
+      allow create: if logado() && tamanhoOk(30) &&
+        (equipe() || arquivo.matches('^monthly_' + request.auth.uid + '_.*'));
+      allow update, delete: if equipe();
+    }
+
+    // Todo o resto (vídeos, orçamentos, documentos): quem tem login de verdade lê e envia;
+    // trocar ou apagar arquivo que já existe, só a equipe.
+    match /{allPaths=**} {
+      allow read: if logado();
+      allow create: if logado() && tamanhoOk(600);
+      allow update, delete: if equipe() && tamanhoOk(600);
     }
   }
 }

@@ -503,6 +503,13 @@ export default function NewIndication() {
 
     const fetchStandardSellers = async () => {
       try {
+        // pelo servidor: o parceiro não lê o cadastro de usuários direto
+        const r = await fetch('/api/usuarios/regionais');
+        const j = await r.json().catch(() => ({}));
+        if (r.ok && Array.isArray(j.lista)) {
+          setStandardSellers(j.lista as UserProfile[]);
+          return;
+        }
         const q = query(collection(db, 'users'), where('role', '==', 'vendedor_padrao'), where('status', '==', 'active'));
         const snapshot = await getDocs(q);
         const sellers = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));

@@ -114,7 +114,11 @@ service cloud.firestore {
         ((isManager() || isTriagem()) && !isOwner(userId) &&
          papelQueGestaoDa(resource.data.get('role', '')) &&
          papelQueGestaoDa(request.resource.data.get('role', ''))) ||
-        (isOwner(userId) && naoMexeEmPoder());
+        (isOwner(userId) && naoMexeEmPoder()) ||
+        // a triagem liga "recebe lead" e marca férias de qualquer um da equipe, inclusive gestão
+        ((isManager() || isTriagem()) &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+           ['is_lead_receiver', 'vacation_start', 'vacation_end', 'updated_at']));
       allow delete: if isAdmin() ||
         ((isManager() || isTriagem()) && papelQueGestaoDa(resource.data.get('role', '')));
 
@@ -130,7 +134,10 @@ service cloud.firestore {
       // a tela do parceiro passar a buscar só pelo identificador dele (próxima etapa).
       allow read: if naoAnonimo();
       // O pedido de orçamento do site e o tablet da feira criam sem login.
-      allow create: if true;
+      // Sem login só nasce lead novo, nunca venda pronta com comissão.
+      allow create: if isEquipe() ||
+        (request.resource.data.get('status', 'pending') in ['pending', 'negotiating', 'new', 'triagem'] &&
+         !request.resource.data.keys().hasAny(['sale_value', 'commission_value', 'base_commission_value', 'commission_rate_applied']));
       allow update: if isEquipe() ||
         (isParceiro() && resource.data.get('external_seller_uid', '') == request.auth.uid &&
          resource.data.status == 'pending' &&
@@ -178,6 +185,7 @@ service cloud.firestore {
       allow update: if isManager() || isFinanceiro() || isInternalSeller() ||
         // o parceiro só anexa a nota e passa para "aguardando pagamento"
         (naoAnonimo() && resource.data.external_seller_uid == request.auth.uid &&
+         resource.data.get('status', '') != 'paid' &&
          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nf_url', 'nf_uploaded_at', 'updated_at', 'status']) &&
          request.resource.data.get('status', '') in [resource.data.get('status', ''), 'waiting_payment']);
       allow delete: if isManager() || isFinanceiro() || isInternalSeller();
@@ -292,7 +300,8 @@ service cloud.firestore {
       // a equipe cria a pesquisa antes e o cliente responde por cima, uma vez só
       allow update: if isEquipe() ||
         (resource.data.get('status', '') != 'completed' &&
-         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['indication_id', 'seller_uid', 'created_by']));
+         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['seller_uid', 'created_by']) &&
+         request.resource.data.get('indication_id', '') in [resource.data.get('indication_id', ''), evaluationId]);
       allow delete: if isManager();
     }
 
@@ -353,6 +362,7 @@ service cloud.firestore {
         request.resource.data.seller_uid == request.auth.uid &&
         request.resource.data.status == 'waiting_payment';
       allow update: if naoAnonimo() && resource.data.seller_uid == request.auth.uid &&
+        resource.data.get('status', '') != 'paid' &&
         request.resource.data.seller_uid == request.auth.uid &&
         request.resource.data.status == 'waiting_payment' &&
         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['total_value', 'commission_ids']);
@@ -367,8 +377,10 @@ service cloud.firestore {
     // (que passa a valer para todo mundo) é só da gestão.
     match /roder_ai_questions/{questionId} {
       allow read: if isEquipe();
-      allow create: if isAuthenticated();
-      allow update: if isManager() ||
+      allow create: if isInternalSeller() ||
+        (isAuthenticated() && request.resource.data.get('isImproved', false) != true &&
+         !('improvedAnswer' in request.resource.data));
+      allow update: if isInternalSeller() ||
         (isEquipe() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isImproved', 'improvedAnswer']));
       allow delete: if isManager();
     }
