@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { getGTProductivityData } from '../../lib/produtividadeGt';
-import { Sparkles, MessageSquare, X, Minus, Send, Calculator, Wrench, HelpCircle, AlertTriangle, Play, RefreshCw, Trash2, ChevronLeft, ChevronRight, CheckCircle, Package, Layers, Tractor, FileText, Mic, Square, Loader2, Brain, BookOpen, ExternalLink, Share2, Video, Phone, QrCode, Bot, User, Briefcase, ChevronDown, EllipsisVertical, RotateCcw, Menu, Search } from 'lucide-react';
+import { Sparkles, MessageSquare, X, Minus, Send, Calculator, Wrench, HelpCircle, AlertTriangle, Play, RefreshCw, Trash2, ChevronLeft, ChevronRight, CheckCircle, Package, Layers, Tractor, FileText, Mic, Square, Loader2, Brain, BookOpen, ExternalLink, Share2, Video, Phone, QrCode, Bot, User, Briefcase, ChevronDown, EllipsisVertical, RotateCcw, Menu, Search, UserPlus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { cn, getApiBaseUrl } from '../../lib/utils';
@@ -31,6 +31,10 @@ import { ehFichaPropria } from '../../lib/fichaPropria';
 import { CartaoFicha } from '../catalog/CartaoFicha';
 import { useVoltarFecha } from '../../lib/useVoltarFecha';
 import { abrirDocumento } from '../../lib/abrirDocumento';
+import {
+  CHAVE_PARCEIRO_LINK, PAPEIS_QUE_INDICAM, TOKEN_LINK_VALIDO, WHATS_COMERCIAL, WHATS_COMERCIAL_TEXTO,
+  lerCidadeUf, primeiroNome, querIndicar, textoLinkCliente, validarCnpj, validarTelefoneBR,
+} from '../../lib/consultorIndicar';
 
 const DEFAULT_PRODUCTIVITIES: Record<string, string> = {
   "CMF 600": `DERRUBADA (COLHEITA FLORESTAL):
@@ -315,6 +319,41 @@ interface Message {
   content: string;
   // dados do painel "Nesta conversa" (computador), já separados do texto
   painel?: PainelConversa | null;
+  // passo da indicação pela conversa (não vai para a IA)
+  indicar?: PassoIndicar;
+}
+
+// ---- Indicação pela conversa: roteiro fixo, sem passar pela IA ----
+interface OpcaoIndicar { rotulo: string; valor: string; destaque?: boolean }
+interface EquipIndicar { nome: string; pid?: string; mid?: string }
+interface ResumoIndicar { equipamento: string; cliente: string; telefone: string; cidade: string; cnpj: string }
+interface PassoIndicar {
+  opcoes?: OpcaoIndicar[];
+  resumo?: ResumoIndicar;
+  ok?: boolean;
+  whats?: string;
+}
+type EtapaIndicar = 'equip_confirma' | 'equip_lista' | 'equip_modelo' | 'modo' | 'nome' | 'telefone' | 'cidade' | 'cnpj' | 'resumo' | 'corrigir' | 'enviando';
+interface FluxoIndicar {
+  etapa: EtapaIndicar;
+  equip?: EquipIndicar;
+  candidato?: EquipIndicar;
+  familia?: string; // id do produto cujos modelos estão sendo oferecidos
+  modo?: 'dados' | 'link';
+  cliente?: string;
+  telefone?: string;
+  cidade?: string;
+  cnpj?: string;
+  voltarResumo?: boolean;
+}
+
+// Parceiro que abriu pelo link pessoal (gravado por PublicConsultant)
+function lerParceiroLink(): { token: string; nome: string; primeiroNome: string } | null {
+  try {
+    const p = JSON.parse(localStorage.getItem(CHAVE_PARCEIRO_LINK) || 'null');
+    if (!p || !TOKEN_LINK_VALIDO.test(String(p.token || ''))) return null;
+    return { token: String(p.token), nome: String(p.nome || ''), primeiroNome: String(p.primeiroNome || primeiroNome(p.nome)) };
+  } catch { return null; }
 }
 
 interface MarkdownImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
@@ -606,10 +645,19 @@ export function abrirConsultorEmJanela(pergunta?: string): boolean {
 export default function EngineerHelper({ isFullPage = false }: { isFullPage?: boolean } = {}) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, profile, isAdmin, isManager } = useAuth();
+  const { user, profile, isAdmin, isManager, isTriagem, isImpersonating } = useAuth();
   
   // Only registered sellers/partners should have sharing access
   const isRegisteredUser = user && profile?.role && !['client', 'visitor'].includes(profile.role);
+  // "Compartilhar consultor": só Jeferson, Gislene e Luana (admin, gerente e triagem)
+  const podeCompartilhar = !!user && !!(isAdmin || isManager || isTriagem);
+
+  // Parceiro pelo link pessoal (sem senha). Se houver login no app, o login vale mais.
+  const [parceiroLink] = useState(lerParceiroLink);
+  const parceiroViaLink = !user ? parceiroLink : null;
+  // Quem pode indicar pela conversa: o parceiro do link e quem cria indicação no app
+  const podeIndicar = !!parceiroViaLink || (!!user && !!profile && !isImpersonating && PAPEIS_QUE_INDICAM.includes(String(profile.role)));
+  const saudacaoParceiro = (nome: string) => `Olá, **${primeiroNome(nome) || 'parceiro'}**! Pergunte sobre um equipamento ou faça uma indicação.`;
   
   // If a registered seller or partner logged in, clear any external referral code
   useEffect(() => {
@@ -872,6 +920,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   const [onboardingStep, setOnboardingStep] = useState<
     'SELECT_ROLE' | 'CLIENT_NAME' | 'CLIENT_PHONE' | 'CLIENT_CITY' | 'CLIENT_MACHINE' | 'SELLER_EMAIL' | 'SELLER_PHONE' | 'SELLER_NOT_FOUND' | 'COMPLETED'
   >(() => {
+    if (parceiroViaLink) return 'COMPLETED';
     try {
       const saved = localStorage.getItem('roder_public_user_profile');
       if (saved) {
@@ -895,6 +944,8 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
         }
       }
     } catch {}
+
+    if (parceiroViaLink) return [{ id: 'initial-welcome', role: 'assistant', content: saudacaoParceiro(parceiroViaLink.nome) }];
 
     // Dynamic initial message based on saved profile
     try {
@@ -929,6 +980,17 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
       }
     ];
   });
+
+  // Indicação pela conversa em andamento (guardada na aba: recarregar não perde o que foi digitado)
+  const [fluxoInd, setFluxoInd] = useState<FluxoIndicar | null>(() => {
+    try { return JSON.parse(sessionStorage.getItem('roder_helper_fluxo_ind') || 'null'); } catch { return null; }
+  });
+  useEffect(() => {
+    try {
+      if (fluxoInd) sessionStorage.setItem('roder_helper_fluxo_ind', JSON.stringify(fluxoInd));
+      else sessionStorage.removeItem('roder_helper_fluxo_ind');
+    } catch { /* sem armazenamento */ }
+  }, [fluxoInd]);
 
   // Skip onboarding if user is logged in
   useEffect(() => {
@@ -1701,6 +1763,15 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   // explorador minimizado (ou pergunta enviada): a folha de equipamentos fecha
   useEffect(() => { if (explorerMinimized) setFolhaEquip(false); }, [explorerMinimized]);
 
+  // Parceiro do link também não passa pelo "Quem é você?"
+  useEffect(() => {
+    if (!parceiroViaLink) return;
+    setOnboardingStep('COMPLETED');
+    setMessages(prev => (prev.length === 1 && prev[0].role === 'assistant' && /Quem é você\?/.test(prev[0].content))
+      ? [{ id: prev[0].id, role: 'assistant', content: saudacaoParceiro(parceiroViaLink.nome) }]
+      : prev);
+  }, [parceiroViaLink?.token]);
+
   // Quem está logado não passa pelo "Quem é você?": troca a saudação de visitante pela de sempre
   useEffect(() => {
     if (!user || !profile) return;
@@ -1821,7 +1892,9 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
       {
         id: `clear-${Date.now()}`,
         role: 'assistant',
-        content: !user
+        content: parceiroViaLink
+          ? saudacaoParceiro(parceiroViaLink.nome)
+          : !user
           ? 'Olá! Conversa limpa. Sou o **Consultor Técnico RODER** 🛠️.\n\nPara que eu possa te dar o melhor atendimento personalizado e registrar seu contato, por favor, me informe:\n\n**Quem é você?**'
           : 'Olá! Conversa limpa. Sou o **Consultor Técnico RODER** 🛠️. Como posso te ajudar hoje?'
       }
@@ -1836,9 +1909,10 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     setSelectedCacambaBrand('');
     setSelectedCacambaModel(null);
     setRecommendedCacambaCap('');
+    setFluxoInd(null);
 
-    // equipe Roder do link /consultor-equipe continua liberada ao limpar a conversa
-    if (!user && !(publicUser as any)?.equipe) {
+    // equipe Roder do link /consultor-equipe (e o parceiro do link pessoal) continua liberada ao limpar a conversa
+    if (!user && !(publicUser as any)?.equipe && !parceiroViaLink) {
       localStorage.removeItem('roder_public_user_profile');
       setPublicUser(null);
       setOnboardingStep('SELECT_ROLE');
@@ -1950,7 +2024,9 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
       {
         id: `end-${Date.now()}`,
         role: 'assistant',
-        content: !user
+        content: parceiroViaLink
+          ? saudacaoParceiro(parceiroViaLink.nome)
+          : !user
           ? 'Olá! Sou o **Consultor Técnico RODER** 🛠️.\n\nPara que eu possa te dar o melhor atendimento personalizado e registrar seu contato, por favor, me informe:\n\n**Quem é você?**'
           : 'Olá! Sou o **Consultor Técnico RODER** 🛠️. Estou aqui para ajudar você a dimensionar e indicar o equipamento ideal para a sua escavadeira ou pá carregadeira, além de calcular produtividade. Como posso ajudar hoje?'
       }
@@ -1965,9 +2041,10 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     setSelectedCacambaModel(null);
     setRecommendedCacambaCap('');
     setIsOpen(false);
+    setFluxoInd(null);
 
-    // equipe Roder do link /consultor-equipe continua liberada ao limpar a conversa
-    if (!user && !(publicUser as any)?.equipe) {
+    // equipe Roder do link /consultor-equipe (e o parceiro do link pessoal) continua liberada ao limpar a conversa
+    if (!user && !(publicUser as any)?.equipe && !parceiroViaLink) {
       localStorage.removeItem('roder_public_user_profile');
       setPublicUser(null);
       setOnboardingStep('SELECT_ROLE');
@@ -2004,21 +2081,16 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
         { id: userMsgId, role: 'user', content: 'Sou Vendedor / Parceiro Cadastrado' } as Message
       ];
       setMessages(updated);
-      setOnboardingStep('SELLER_EMAIL');
-      setPublicUser({ userType: 'vendedor' });
-
+      // A conferência por e-mail e telefone lia o cadastro de usuários direto do navegador, sem
+      // login, e a regra do Firebase recusa (users só é lido pela equipe ou pelo próprio dono):
+      // o parceiro recebia "Erro ao verificar cadastro". Agora o parceiro entra pelo link pessoal.
       setTimeout(() => {
-        setMessages(prev => [
-          ...prev,
-          {
-            id: `assistant-seller-email-${Date.now()}`,
-            role: 'assistant',
-            content: 'Excelente! Para validar o seu acesso completo como Vendedor/Parceiro Roder, por favor me diga qual o seu **E-mail cadastrado**:'
-          }
-        ]);
+        setMessages(prev => [...prev, { id: `assistant-seller-link-${Date.now()}`, role: 'assistant', content: msgParceiroUseLink }]);
       }, 300);
     }
   };
+
+  const msgParceiroUseLink = `Parceiros entram pelo **link exclusivo** do Consultor Roder, que já abre com o seu nome, sem senha.\n\nAinda não tem o seu? Peça ao comercial da Roder no WhatsApp: [${WHATS_COMERCIAL_TEXTO}](https://wa.me/${WHATS_COMERCIAL}?text=${encodeURIComponent('Olá! Sou parceiro da Roder e quero o meu link do Consultor Roder.')}).\n\nSe você é cliente, toque em **Sou Cliente**.`;
 
   const handleRetrySellerEmail = () => {
     setOnboardingStep('SELLER_EMAIL');
@@ -2175,88 +2247,320 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
         setLoading(false);
       }
     } 
-    else if (onboardingStep === 'SELLER_EMAIL') {
-      const email = text.toLowerCase().trim();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        setTimeout(() => {
-          setMessages(prev => [
-            ...prev,
-            {
-              id: `assistant-email-invalid-${Date.now()}`,
-              role: 'assistant',
-              content: 'Ops! O e-mail informado parece inválido. Por favor, digite um e-mail válido (ex: seu.nome@email.com):'
-            }
-          ]);
-        }, 300);
+    else if (onboardingStep === 'SELLER_EMAIL' || onboardingStep === 'SELLER_PHONE' || onboardingStep === 'SELLER_NOT_FOUND') {
+      setOnboardingStep('SELECT_ROLE');
+      setTimeout(() => {
+        setMessages(prev => [...prev, { id: `assistant-seller-link-${Date.now()}`, role: 'assistant', content: msgParceiroUseLink }]);
+      }, 300);
+    }
+  };
+
+
+  // ---------------------------------------------------------------------------------------
+  // INDICAÇÃO PELA CONVERSA. Roteiro fixo, decidido aqui (nunca pela IA): equipamento, como
+  // prefere (dados ou link para o cliente), dados do cliente, conferência e envio.
+  // ---------------------------------------------------------------------------------------
+  const CANCELAR_IND: OpcaoIndicar = { rotulo: 'Cancelar indicação', valor: 'cancelar' };
+  const novoIdInd = () => `ind-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const falaInd = (content: string, passo: PassoIndicar = {}) =>
+    setMessages(prev => [...prev, { id: novoIdInd(), role: 'assistant', content, indicar: passo }]);
+  const usuarioInd = (content: string) =>
+    setMessages(prev => [...prev, { id: novoIdInd(), role: 'user', content, indicar: {} }]);
+
+  const nomeEquip = (prod: Product, model?: ProductModel | null): EquipIndicar =>
+    model ? { nome: `${prod.name} - ${model.name}`, pid: prod.id, mid: model.id } : { nome: prod.name, pid: prod.id };
+  const semAcentoInd = (t: string) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  // "cabeçote" acha "Cabeçotes Multifuncionais"; "fresa" acha "Fresas FAE SSH". Só vale se for uma família só.
+  const familiaNoTexto = (texto: string): Product | null => {
+    const t = semAcentoInd(texto);
+    const achados = catalogProducts.filter(p => {
+      const primeira = semAcentoInd(p.name || '').split(/\s+/)[0] || '';
+      const raiz = primeira.replace(/(oes|aes|es|s)$/, '');
+      return raiz.length >= 4 && new RegExp(`\\b${raiz.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(t);
+    });
+    return achados.length === 1 ? achados[0] : null;
+  };
+  const rotuloModelo = (m: ProductModel) => {
+    const base = String((m as any).technical_specs?.maquina_base || '').trim();
+    return base && base.length <= 22 ? `${m.name} (${base})` : m.name;
+  };
+
+  const perguntarModelo = (prod: Product, fluxo: FluxoIndicar) => {
+    setFluxoInd({ ...fluxo, etapa: 'equip_modelo', familia: prod.id });
+    falaInd(`Certo! Qual modelo de **${prod.name}**?`, {
+      opcoes: [
+        ...(prod.models || []).map(m => ({ rotulo: rotuloModelo(m), valor: `m:${prod.id}:${m.id}` })),
+        { rotulo: 'Não sei, a Roder ajuda a escolher', valor: `nm:${prod.id}` },
+        CANCELAR_IND,
+      ],
+    });
+  };
+  const perguntarListaEquip = (fluxo: FluxoIndicar, texto = 'Qual equipamento?') => {
+    setFluxoInd({ ...fluxo, etapa: 'equip_lista' });
+    falaInd(`${texto} Toque numa opção ou escreva o nome.`, {
+      opcoes: [...catalogProducts.map(p => ({ rotulo: p.name, valor: `p:${p.id}` })), CANCELAR_IND],
+    });
+  };
+  const perguntaDado: Record<'nome' | 'telefone' | 'cidade' | 'cnpj', [string, OpcaoIndicar[]]> = {
+    nome: ['Qual o **nome do cliente** ou da fazenda?', [CANCELAR_IND]],
+    telefone: ['**Telefone** (WhatsApp) do cliente, com DDD?', [CANCELAR_IND]],
+    cidade: ['**Cidade** e estado do cliente? (ex.: Sorriso MT)', [CANCELAR_IND]],
+    cnpj: ['**CNPJ** do cliente, se souber.', [{ rotulo: 'Pular', valor: 'pular' }, CANCELAR_IND]],
+  };
+  const perguntarDado = (etapa: 'nome' | 'telefone' | 'cidade' | 'cnpj', fluxo: FluxoIndicar, aviso = '') => {
+    setFluxoInd({ ...fluxo, etapa });
+    const [texto, opcoes] = perguntaDado[etapa];
+    falaInd(aviso ? `${aviso}\n\n${texto}` : texto, { opcoes });
+  };
+  const mostrarResumo = (fluxo: FluxoIndicar) => {
+    setFluxoInd({ ...fluxo, etapa: 'resumo', voltarResumo: true });
+    falaInd('Tudo certo? Confira antes de enviar.', {
+      resumo: {
+        equipamento: fluxo.equip?.nome || '',
+        cliente: fluxo.cliente || '',
+        telefone: fluxo.telefone || '',
+        cidade: fluxo.cidade || '',
+        cnpj: fluxo.cnpj || '',
+      },
+    });
+  };
+
+  // Equipamento definido: segue para "como prefere" (ou volta ao resumo, ou já gera o link)
+  const equipEscolhido = (equip: EquipIndicar, fluxo: FluxoIndicar) => {
+    const f: FluxoIndicar = { ...fluxo, equip, candidato: undefined, familia: undefined };
+    if (f.modo === 'link') { gerarLinkClienteInd(f); return; }
+    if (f.voltarResumo) { mostrarResumo(f); return; }
+    setFluxoInd({ ...f, etapa: 'modo' });
+    falaInd('Ótimo. Como prefere?', {
+      opcoes: [
+        { rotulo: 'Eu passo os dados do cliente', valor: 'dados', destaque: true },
+        { rotulo: 'Mandar um link para o cliente preencher', valor: 'link' },
+        CANCELAR_IND,
+      ],
+    });
+  };
+
+  const iniciarIndicacao = (texto = '') => {
+    setExplorerMinimized(true);
+    setFolhaEquip(false);
+    setMenuCel(false);
+    if (!podeIndicar) {
+      falaInd(user
+        ? 'Para fazer uma indicação, use a tela **Nova indicação** do app Roder Indica.'
+        : `As indicações são feitas por parceiros cadastrados, pelo link exclusivo de cada um.\n\nSe você quer um orçamento, me diga o equipamento ou fale com o comercial da Roder no WhatsApp: [${WHATS_COMERCIAL_TEXTO}](https://wa.me/${WHATS_COMERCIAL}).`);
+      return;
+    }
+    const inicio: FluxoIndicar = { etapa: 'equip_lista' };
+    // 1) equipamento citado no próprio pedido; 2) família citada; 3) o equipamento desta conversa
+    const citado = texto ? detectEquipmentInMessage(texto)[0] : undefined;
+    const familia = !citado && texto ? familiaNoTexto(texto) : null;
+    const candidato = citado ? nomeEquip(citado.prod, citado.model)
+      : !familia && equipAtual ? nomeEquip(equipAtual.prod, equipAtual.model) : null;
+    if (candidato) {
+      setFluxoInd({ ...inicio, etapa: 'equip_confirma', candidato });
+      falaInd(`Vamos indicar. É o **${candidato.nome.replace(/^.* - /, '')}**?`, {
+        opcoes: [{ rotulo: 'Sim', valor: 'sim', destaque: true }, { rotulo: 'Outro equipamento', valor: 'outro' }, CANCELAR_IND],
+      });
+      return;
+    }
+    if (familia && (familia.models || []).length > 1) { perguntarModelo(familia, inicio); return; }
+    if (familia) { equipEscolhido(nomeEquip(familia, (familia.models || [])[0]), inicio); return; }
+    perguntarListaEquip(inicio, 'Vamos indicar! Qual equipamento?');
+  };
+
+  const cancelarInd = () => {
+    setFluxoInd(null);
+    falaInd('Indicação cancelada. Pode continuar perguntando.');
+  };
+
+  const gerarLinkClienteInd = async (f: FluxoIndicar) => {
+    if (!f.equip?.pid) {
+      perguntarListaEquip({ ...f, modo: 'link' }, 'Para mandar o link, escolha o equipamento do catálogo.');
+      return;
+    }
+    setFluxoInd({ ...f, etapa: 'enviando' });
+    setLoading(true);
+    try {
+      const r = await fetch(`${getApiBaseUrl()}/api/consultor/link-cliente`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p: parceiroViaLink?.token || undefined, pid: f.equip.pid, mid: f.equip.mid || '' }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.codigo) throw new Error(j.error || 'Não consegui gerar o link.');
+      const link = `${window.location.origin}/o/${j.codigo}`;
+      const nome = f.equip.nome.replace(/^.* - /, '');
+      setFluxoInd(null);
+      falaInd(`Link do **${nome}** pronto para o cliente.`, { whats: textoLinkCliente(nome, link) });
+      falaInd('Quando o cliente preencher, a indicação fica no seu nome.');
+    } catch (e: any) {
+      setFluxoInd({ ...f, etapa: 'modo' });
+      falaInd(`${e?.message || 'Não consegui gerar o link.'} Quer tentar de novo?`, {
+        opcoes: [{ rotulo: 'Mandar um link para o cliente preencher', valor: 'link', destaque: true }, { rotulo: 'Eu passo os dados do cliente', valor: 'dados' }, CANCELAR_IND],
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const enviarIndicacaoInd = async (f: FluxoIndicar) => {
+    setFluxoInd({ ...f, etapa: 'enviando' });
+    setLoading(true);
+    try {
+      const r = await fetch(`${getApiBaseUrl()}/api/consultor/indicacao`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          p: parceiroViaLink?.token || undefined,
+          equipamento: f.equip,
+          cliente: f.cliente,
+          telefone: f.telefone,
+          cidade: f.cidade,
+          cnpj: f.cnpj || '',
+        }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) throw new Error(j.error || 'Não consegui enviar a indicação.');
+      setFluxoInd(null);
+      falaInd(`A equipe Roder vai entrar em contato com ${f.cliente}. Ela fica no seu nome.`, { ok: true });
+      falaInd('Quer indicar outro equipamento ou tirar alguma dúvida?', {
+        opcoes: [{ rotulo: 'Indicar outro', valor: 'nova' }],
+      });
+    } catch (e: any) {
+      setFluxoInd({ ...f, etapa: 'resumo' });
+      falaInd(`${e?.message || 'Não consegui enviar a indicação.'}`, {
+        opcoes: [{ rotulo: 'Tentar de novo', valor: 'enviar', destaque: true }, { rotulo: 'Corrigir', valor: 'corrigir' }, CANCELAR_IND],
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Uma resposta (opção tocada ou texto digitado) para o passo atual
+  const responderInd = (texto: string, valor?: string) => {
+    const f = fluxoInd;
+    if (!f) {
+      if (valor === 'nova') iniciarIndicacao();
+      return;
+    }
+    const t = texto.trim();
+    if (valor === 'cancelar' || (!valor && /^(cancelar|cancela|parar|sair)( indica[cç][aã]o)?\.?$/i.test(t))) { cancelarInd(); return; }
+    if (f.etapa === 'enviando') return;
+
+    switch (f.etapa) {
+      case 'equip_confirma': {
+        if (valor === 'sim' || (!valor && /^(sim|s|isso|é|e esse|esse mesmo|correto)\b/i.test(t))) { equipEscolhido(f.candidato!, f); return; }
+        if (valor === 'outro' || (!valor && /^(n[aã]o|outro)/i.test(t))) { perguntarListaEquip(f); return; }
+        // escreveu outro equipamento direto
+        const achado = detectEquipmentInMessage(t)[0];
+        if (achado) { equipEscolhido(nomeEquip(achado.prod, achado.model), f); return; }
+        perguntarListaEquip(f);
         return;
       }
-
-      const updatedUser = { ...publicUser, email, userType: 'vendedor' as const };
-      setPublicUser(updatedUser);
-      setOnboardingStep('SELLER_PHONE');
-
-      setTimeout(() => {
-        setMessages(prev => [
-          ...prev,
-          {
-            id: `assistant-seller-phone-${Date.now()}`,
-            role: 'assistant',
-            content: `Perfeito! Para confirmação de identidade de parceiro, por favor, me informe o seu **Telefone de contato (WhatsApp)** cadastrado:`
-          }
-        ]);
-      }, 300);
-    } 
-    else if (onboardingStep === 'SELLER_PHONE') {
-      setLoading(true);
-      try {
-        const emailToSearch = publicUser?.email || '';
-        const q = query(collection(db, 'users'), where('email', '==', emailToSearch));
-        const snap = await getDocs(q);
-
-        if (!snap.empty) {
-          const uDoc = snap.docs[0].data();
-          const finalUser = {
-            userType: 'vendedor' as const,
-            email: emailToSearch,
-            phone: text,
-            name: uDoc.name || 'Parceiro Roder',
-            role: uDoc.role || 'external_seller'
-          };
-          setPublicUser(finalUser);
-          localStorage.setItem('roder_public_user_profile', JSON.stringify(finalUser));
-          setOnboardingStep('COMPLETED');
-
-          setTimeout(() => {
-            setMessages(prev => [
-              ...prev,
-              {
-                id: `assistant-welcome-seller-${Date.now()}`,
-                role: 'assistant',
-                content: `Acesso de Parceiro Liberado! 🌟\n\nBem-vindo de volta, **${finalUser.name}**! Verificamos o seu cadastro como **${finalUser.role === 'external_seller' ? 'Indicador/Vendedor Externo' : 'Equipe Roder'}** com sucesso.\n\nVocê tem acesso total e irrestrito ao Consultor Técnico. Como posso apoiar você e o seu cliente hoje?`
-              }
-            ]);
-          }, 300);
-
-        } else {
-          setOnboardingStep('SELLER_NOT_FOUND');
-          setTimeout(() => {
-            setMessages(prev => [
-              ...prev,
-              {
-                id: `assistant-seller-not-found-${Date.now()}`,
-                role: 'assistant',
-                content: `⚠️ Não localizamos nenhum parceiro cadastrado com o e-mail **${emailToSearch}** em nosso banco de dados de vendedores ativos.\n\nPor favor, escolha uma das opções abaixo:`
-              }
-            ]);
-          }, 300);
+      case 'equip_lista': {
+        if (valor?.startsWith('p:')) {
+          const prod = catalogProducts.find(p => p.id === valor.slice(2));
+          if (!prod) { perguntarListaEquip(f); return; }
+          const modelos = prod.models || [];
+          if (modelos.length > 1) perguntarModelo(prod, f);
+          else equipEscolhido(nomeEquip(prod, modelos[0]), f);
+          return;
         }
-      } catch (err: any) {
-        console.error("Error verifying seller email:", err);
-        toast.error("Erro ao verificar cadastro do vendedor. Tente novamente.");
-      } finally {
-        setLoading(false);
+        const achado = detectEquipmentInMessage(t)[0];
+        if (achado) { equipEscolhido(nomeEquip(achado.prod, achado.model), f); return; }
+        const fam = familiaNoTexto(t) || catalogProducts.find(p => semAcentoInd(p.name) === semAcentoInd(t)) || null;
+        if (fam && (fam.models || []).length > 1) { perguntarModelo(fam, f); return; }
+        if (fam) { equipEscolhido(nomeEquip(fam, (fam.models || [])[0]), f); return; }
+        if (t.length >= 2 && f.modo !== 'link') { equipEscolhido({ nome: t.slice(0, 120) }, f); return; }
+        perguntarListaEquip(f);
+        return;
+      }
+      case 'equip_modelo': {
+        const prod = catalogProducts.find(p => p.id === f.familia);
+        if (valor?.startsWith('m:') && prod) {
+          const mid = valor.split(':')[2];
+          const m = (prod.models || []).find(x => x.id === mid);
+          if (m) { equipEscolhido(nomeEquip(prod, m), f); return; }
+        }
+        if ((valor?.startsWith('nm:') || (!valor && /n[aã]o sei/i.test(t))) && prod) { equipEscolhido(nomeEquip(prod), f); return; }
+        const achado = detectEquipmentInMessage(t)[0];
+        if (achado) { equipEscolhido(nomeEquip(achado.prod, achado.model), f); return; }
+        if (prod) { perguntarModelo(prod, f); return; }
+        perguntarListaEquip(f);
+        return;
+      }
+      case 'modo': {
+        const modo = valor === 'link' || (!valor && /link/i.test(t)) ? 'link'
+          : valor === 'dados' || (!valor && /dados|eu passo/i.test(t)) ? 'dados' : null;
+        if (modo === 'link') { gerarLinkClienteInd({ ...f, modo: 'link' }); return; }
+        if (modo === 'dados') { perguntarDado('nome', { ...f, modo: 'dados' }); return; }
+        equipEscolhido(f.equip!, f);
+        return;
+      }
+      case 'nome': {
+        if (t.length < 2) { perguntarDado('nome', f, 'Preciso do nome do cliente ou da fazenda.'); return; }
+        const g = { ...f, cliente: t.slice(0, 120) };
+        if (f.voltarResumo) mostrarResumo(g); else perguntarDado('telefone', g);
+        return;
+      }
+      case 'telefone': {
+        const tel = validarTelefoneBR(t);
+        if (!tel.ok) { perguntarDado('telefone', f, 'Esse telefone não parece válido. Escreva com DDD, ex.: (66) 99999-1234.'); return; }
+        const g = { ...f, telefone: tel.formatado };
+        if (f.voltarResumo) mostrarResumo(g); else perguntarDado('cidade', g);
+        return;
+      }
+      case 'cidade': {
+        const local = lerCidadeUf(t);
+        if (!local) { perguntarDado('cidade', f, 'Não entendi o estado. Escreva a cidade e a sigla do estado.'); return; }
+        const g = { ...f, cidade: `${local.cidade}, ${local.uf}` };
+        if (f.voltarResumo) mostrarResumo(g); else perguntarDado('cnpj', g);
+        return;
+      }
+      case 'cnpj': {
+        if (valor === 'pular' || (!valor && /^(pular|pula|n[aã]o sei|n[aã]o tenho|sem cnpj|n[aã]o)\b/i.test(t))) { mostrarResumo({ ...f, cnpj: '' }); return; }
+        const c = validarCnpj(t);
+        if (!c.ok) { perguntarDado('cnpj', f, 'Esse CNPJ não confere. Confira os números ou toque em Pular.'); return; }
+        mostrarResumo({ ...f, cnpj: c.formatado });
+        return;
+      }
+      case 'resumo': {
+        if (valor === 'enviar' || (!valor && /^(enviar|envia|sim|ok|pode enviar)\b/i.test(t))) { enviarIndicacaoInd(f); return; }
+        if (valor === 'corrigir' || (!valor && /corrig/i.test(t))) {
+          setFluxoInd({ ...f, etapa: 'corrigir' });
+          falaInd('O que você quer corrigir?', {
+            opcoes: [
+              { rotulo: 'Equipamento', valor: 'c:equip' }, { rotulo: 'Cliente', valor: 'c:nome' },
+              { rotulo: 'Telefone', valor: 'c:telefone' }, { rotulo: 'Cidade', valor: 'c:cidade' },
+              { rotulo: 'CNPJ', valor: 'c:cnpj' }, CANCELAR_IND,
+            ],
+          });
+          return;
+        }
+        mostrarResumo(f);
+        return;
+      }
+      case 'corrigir': {
+        const alvo = valor?.slice(2) || (/equip/i.test(t) ? 'equip' : /tel/i.test(t) ? 'telefone' : /cidade|estado/i.test(t) ? 'cidade' : /cnpj/i.test(t) ? 'cnpj' : /cliente|nome|fazenda/i.test(t) ? 'nome' : '');
+        if (alvo === 'equip') { perguntarListaEquip(f); return; }
+        if (alvo === 'nome' || alvo === 'telefone' || alvo === 'cidade' || alvo === 'cnpj') { perguntarDado(alvo, f); return; }
+        mostrarResumo(f);
+        return;
       }
     }
+  };
+
+  // Toque numa opção: aparece como resposta do usuário e segue o roteiro
+  const escolherOpcaoInd = (op: OpcaoIndicar) => {
+    if (loading) return;
+    usuarioInd(op.rotulo);
+    responderInd(op.rotulo, op.valor);
+  };
+  const tocarIndicar = () => {
+    if (loading) return;
+    if (fluxoInd) { falaInd('Já estamos fazendo uma indicação. Responda a pergunta acima ou cancele.', { opcoes: [CANCELAR_IND] }); return; }
+    usuarioInd('Quero fazer uma indicação');
+    iniciarIndicacao();
   };
 
   const handleSend = async (textToSend?: string) => {
@@ -2275,10 +2579,22 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
       return;
     }
 
+    // Indicação pela conversa: com o roteiro aberto, o texto responde o passo atual
+    if (fluxoInd) {
+      usuarioInd(queryText);
+      responderInd(queryText);
+      return;
+    }
+    if (querIndicar(queryText)) {
+      usuarioInd(queryText);
+      iniciarIndicacao(queryText);
+      return;
+    }
+
     // Spy Protection / Usage Limits check
     // equipe Roder que entrou pelo link /consultor-equipe (e-mail conferido no servidor) não tem limite
     const equipePeloLink = publicUser?.userType === 'vendedor' && (publicUser as any)?.equipe === true;
-    const isVisitor = !equipePeloLink && (!user || !profile?.role || (profile.role as string) === 'client' || (profile.role as string) === 'visitor');
+    const isVisitor = !equipePeloLink && !parceiroViaLink && (!user || !profile?.role || (profile.role as string) === 'client' || (profile.role as string) === 'visitor');
     if (isVisitor) {
       const textUpper = queryText.toUpperCase();
       const categoriesMatched: string[] = [];
@@ -2336,12 +2652,12 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
       // Ask backend Gemini
       const response = await askEngineerHelper(
         queryText,
-        updatedMessages.slice(1, -1).map(({ role, content }) => ({ role, content })),
+        updatedMessages.slice(1, -1).filter(m => !m.indicar).map(({ role, content }) => ({ role, content })),
         {
           uid: user?.uid,
-          name: (profile?.name || publicUser?.name || user?.displayName || user?.email || 'Anônimo').replace('Jefferson', 'Jeferson'),
+          name: (profile?.name || parceiroViaLink?.nome || publicUser?.name || user?.displayName || user?.email || 'Anônimo').replace('Jefferson', 'Jeferson'),
           email: profile?.email || publicUser?.email || user?.email || '',
-          role: profile?.role || publicUser?.userType || 'visitor',
+          role: profile?.role || (parceiroViaLink ? 'external_seller' : publicUser?.userType) || 'visitor',
           baseMachine: publicUser?.baseMachine || '',
           referredBy: localStorage.getItem('roder_consultant_ref') || ''
         }
@@ -2397,7 +2713,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     const queryText = messages[userMsgIdx].content;
     
     // O histórico é composto por todas as mensagens anteriores à pergunta do usuário (pulando o primeiro item se for saudação)
-    const history = messages.slice(1, userMsgIdx).map(({ role, content }) => ({ role, content }));
+    const history = messages.slice(1, userMsgIdx).filter(m => !m.indicar).map(({ role, content }) => ({ role, content }));
 
     // Remove a mensagem de erro e as mensagens seguintes do chat para manter a interface limpa
     const cleanedMessages = messages.slice(0, errorMsgIndex);
@@ -2411,9 +2727,9 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
         history,
         {
           uid: user?.uid,
-          name: (profile?.name || publicUser?.name || user?.displayName || user?.email || 'Anônimo').replace('Jefferson', 'Jeferson'),
+          name: (profile?.name || parceiroViaLink?.nome || publicUser?.name || user?.displayName || user?.email || 'Anônimo').replace('Jefferson', 'Jeferson'),
           email: profile?.email || publicUser?.email || user?.email || '',
-          role: profile?.role || publicUser?.userType || 'visitor',
+          role: profile?.role || (parceiroViaLink ? 'external_seller' : publicUser?.userType) || 'visitor',
           baseMachine: publicUser?.baseMachine || '',
           referredBy: localStorage.getItem('roder_consultant_ref') || ''
         }
@@ -2694,6 +3010,15 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
   // Handle equipment redirection
   const handleMakeIndication = (prod: Product, model: ProductModel) => {
     const productFullName = `${prod.name} - ${model.name}`;
+    // parceiro do link pessoal: indica pela própria conversa, já com este equipamento
+    if (parceiroViaLink) {
+      if (loading) return;
+      setExplorerMinimized(true);
+      setFolhaEquip(false);
+      usuarioInd(`Indicar ${model.name}`);
+      equipEscolhido(nomeEquip(prod, model), { etapa: 'equip_lista' });
+      return;
+    }
     const isVisitor = !user || !profile?.role || (profile.role as string) === 'client' || (profile.role as string) === 'visitor';
     if (isVisitor) {
       setBudgetEquipName(productFullName);
@@ -3111,6 +3436,7 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                   className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in duration-200`}
                 >
                   <div
+                    style={msg.indicar?.ok ? { background: '#EAF7EE', borderColor: '#A7DDB7', borderWidth: 1.5 } : undefined}
                     className={`${msg.role === 'user' ? 'msg-usuario' : 'msg-consultor'} max-w-[88%] rounded-2xl p-3 text-[15.5px] sm:text-[14px] leading-relaxed ${
                       msg.role === 'user'
                         ? 'bg-primary text-white rounded-tr-none'
@@ -3119,6 +3445,7 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                   >
                     {msg.role === 'assistant' ? (
                       <div className="space-y-3">
+                        {msg.indicar?.ok && <p className="fonte-titulo m-0 text-[16px] font-extrabold text-[#15803D]">Indicação enviada!</p>}
                         <div className="max-w-none text-[15.5px] sm:text-[14px] leading-relaxed text-slate-200 space-y-2 markdown-body">
                           <ReactMarkdown
                             urlTransform={(url) => url}
@@ -3187,6 +3514,74 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                             {parseConsultantOptions(msg.content).text}
                           </ReactMarkdown>
                         </div>
+
+                        {/* Indicação pela conversa: opções, conferência e mensagem para o cliente */}
+                        {msg.indicar && (() => {
+                          const passo = msg.indicar!;
+                          const ultima = idx === messages.length - 1;
+                          const ativo = ultima && !loading;
+                          return (
+                            <>
+                              {passo.opcoes && passo.opcoes.length > 0 && (
+                                <div className={cn('pt-1 gap-2', passo.opcoes.length > 6 ? 'flex flex-wrap' : 'flex flex-col')}>
+                                  {passo.opcoes.map(op => (
+                                    <button
+                                      key={op.valor}
+                                      type="button"
+                                      disabled={!ativo}
+                                      onClick={() => escolherOpcaoInd(op)}
+                                      className={cn('min-h-[44px] h-auto px-3.5 py-2 rounded-xl border-[1.5px] text-[14.5px] font-bold leading-snug transition active:scale-[0.98] disabled:opacity-45',
+                                        passo.opcoes!.length > 6 ? 'text-left' : 'w-full text-center',
+                                        op.valor === 'cancelar' ? 'border-[#DADDE1] bg-white text-[#5B6168] font-semibold'
+                                          : op.destaque ? 'border-[#F6C400] bg-[#F6C400] text-[#1B1E22]' : 'border-[#1B1E22] bg-white text-[#1B1E22]')}
+                                    >
+                                      {op.rotulo}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                              {passo.resumo && (
+                                <div className="rounded-[14px] border-2 border-[#F6C400] bg-white px-3.5 py-3">
+                                  <p className="m-0 mb-1 text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#7A5F00]">Confira a indicação</p>
+                                  {([['Equipamento', passo.resumo.equipamento], ['Cliente', passo.resumo.cliente], ['Telefone', passo.resumo.telefone], ['Cidade', passo.resumo.cidade], ['CNPJ', passo.resumo.cnpj || 'Não informado']] as const).map(([rot, val]) => (
+                                    <div key={rot} className="flex items-start justify-between gap-3 py-1.5 border-b border-[#F1F2F4] last:border-b-0 text-[14px]">
+                                      <span className="text-[#5E6672] shrink-0">{rot}</span>
+                                      <b className="font-extrabold text-right break-words min-w-0 text-[#1B1E22]">{val}</b>
+                                    </div>
+                                  ))}
+                                  <div className="mt-2.5 grid grid-cols-2 gap-2">
+                                    <button type="button" disabled={!ativo || fluxoInd?.etapa !== 'resumo'} onClick={() => escolherOpcaoInd({ rotulo: 'Corrigir', valor: 'corrigir' })} className="min-h-[44px] rounded-[10px] border-[1.5px] border-[#1B1E22] bg-white text-[14.5px] font-extrabold text-[#1B1E22] disabled:opacity-45">
+                                      Corrigir
+                                    </button>
+                                    <button type="button" disabled={!ativo || fluxoInd?.etapa !== 'resumo'} onClick={() => escolherOpcaoInd({ rotulo: 'Enviar indicação', valor: 'enviar' })} className="min-h-[44px] rounded-[10px] bg-[#F6C400] text-[14.5px] font-extrabold text-[#1B1E22] flex items-center justify-center gap-1.5 disabled:opacity-45">
+                                      {loading && ultima ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Enviar indicação
+                                    </button>
+                                  </div>
+                                  {ultima && fluxoInd?.etapa === 'resumo' && (
+                                    <button type="button" disabled={loading} onClick={() => escolherOpcaoInd(CANCELAR_IND)} className="mt-1.5 w-full min-h-[44px] text-[14px] font-semibold text-[#5B6168] underline-offset-2 hover:underline">
+                                      Cancelar indicação
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                              {passo.whats && (
+                                <div className="rounded-[14px] border border-[#E2E5E8] bg-white px-3 py-2.5">
+                                  <p className="m-0 mb-1.5 text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#5E6672]">Mensagem para o cliente</p>
+                                  <p className="m-0 mb-2.5 rounded-[10px] bg-[#E7F8DE] px-3 py-2 text-[14px] leading-snug text-[#1B1E22] break-words">{passo.whats}</p>
+                                  <p className="m-0 mb-2 text-[13.5px] leading-snug text-[#5B6168]">Toque no botão, escolha o cliente no seu WhatsApp e envie a mensagem pronta.</p>
+                                  <a
+                                    href={`https://wa.me/?text=${encodeURIComponent(passo.whats)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[10px] bg-[#1FA855] text-[15px] font-extrabold text-[#fff] no-underline"
+                                  >
+                                    <Phone className="h-4 w-4" /> Enviar no WhatsApp
+                                  </a>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
 
                         {/* Opções para tocar quando o consultor pergunta algo */}
                         {(() => {
@@ -3261,7 +3656,7 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                             );
                           }
 
-                          if (onboardingStep !== 'COMPLETED') {
+                          if (onboardingStep !== 'COMPLETED' || msg.indicar) {
                             return null;
                           }
 
@@ -4522,9 +4917,10 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
     const v = model.video_url || prod.video_url || PRODUCT_VIDEOS[model.name || ''] || PRODUCT_VIDEOS[prod.name || ''];
     return v && /^https?:\/\//.test(v) && !v.toLowerCase().includes('t_8n_nlf2xk') ? v : '';
   };
-  const nomeUsuario = (profile?.name || (user ? '' : publicUser?.name) || '').replace('Jefferson', 'Jeferson').split(' ').slice(0, 2).join(' ');
+  const nomeUsuario = (profile?.name || (user ? '' : (parceiroViaLink?.nome || publicUser?.name)) || '').replace('Jefferson', 'Jeferson').split(' ').slice(0, 2).join(' ');
   const papelUsuario = user && profile
     ? (podeEnviarFicha ? 'Equipe' : (profile.role as string) === 'external_seller' ? 'Parceiro' : '')
+    : parceiroViaLink ? 'Parceiro'
     : (publicUser as any)?.equipe ? 'Equipe'
       : publicUser?.userType === 'vendedor' ? 'Parceiro'
         : publicUser?.userType === 'cliente' ? 'Cliente' : '';
@@ -4760,7 +5156,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
           {[
             { mostra: true, rotulo: 'Calculadora', icone: Calculator, ativo: calcOpen, acao: () => setCalcOpen(!calcOpen) },
             { mostra: true, rotulo: 'Relatório', icone: FileText, ativo: false, acao: () => handleOpenReport() },
-            { mostra: !!isRegisteredUser, rotulo: 'Compartilhar', icone: Share2, ativo: false, acao: () => setIsShareModalOpen(true) },
+            { mostra: podeCompartilhar, rotulo: 'Compartilhar', icone: Share2, ativo: false, acao: () => setIsShareModalOpen(true) },
             { mostra: canTeach, rotulo: knowledgeOpen ? 'Ver conversa' : 'Ensinar IA', icone: Brain, ativo: knowledgeOpen, acao: () => setKnowledgeOpen(!knowledgeOpen) },
           ].filter(b => b.mostra).map(b => (
             <button
@@ -4793,6 +5189,11 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
             <button type="button" onClick={handleClearConversation} className="w-full h-11 rounded-xl bg-[#F6C400] hover:bg-[#e2b400] text-[#1B1E22] font-extrabold text-[15px] transition">
               + Nova conversa
             </button>
+            {podeIndicar && (
+              <button type="button" onClick={tocarIndicar} disabled={loading || !!fluxoInd} className="w-full h-11 rounded-xl border-[1.5px] border-[#1B1E22] bg-white hover:bg-[#FFF6D1] text-[#1B1E22] font-extrabold text-[15px] flex items-center justify-center gap-2 transition disabled:opacity-50">
+                <UserPlus className="h-4 w-4" /> Indicar cliente
+              </button>
+            )}
             <input
               type="search"
               value={buscaEquip}
@@ -5008,6 +5409,9 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
             <header className="relative z-20 shrink-0 bg-[#1B1E22] flex items-center gap-1 pl-3 pr-1.5 pb-1.5 pt-[calc(env(safe-area-inset-top,0px)+6px)] sm:pt-1.5">
               <img src="/marca/roder-horizontal.png" alt="Roder" className="h-6 w-auto shrink-0 mix-blend-lighten" />
               <span className="fonte-titulo ml-2 min-w-0 flex-1 truncate text-[16px] font-extrabold tracking-[0.06em] text-[#F6C400]">CONSULTOR</span>
+              {isFullPage && primeiroNomeCel && (
+                <span className="max-w-[96px] truncate pr-1 text-[13px] font-medium text-[#C9CED4]" title={nomeUsuario}>{primeiroNomeCel}</span>
+              )}
               {isFullPage && (
                 <button type="button" onClick={handleClearConversation} title="Nova conversa" aria-label="Nova conversa" className="ccel-icone">
                   <RotateCcw className="h-5 w-5" />
@@ -5036,7 +5440,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                     { mostra: true, rotulo: 'Nova conversa', icone: RotateCcw, acao: handleClearConversation },
                     { mostra: true, rotulo: calcOpen ? 'Fechar calculadora' : 'Calculadora', icone: Calculator, acao: () => setCalcOpen(!calcOpen) },
                     { mostra: true, rotulo: 'Relatório em imagem', icone: FileText, acao: () => handleOpenReport() },
-                    { mostra: !!isRegisteredUser, rotulo: 'Compartilhar consultor', icone: Share2, acao: () => setIsShareModalOpen(true) },
+                    { mostra: podeCompartilhar, rotulo: 'Compartilhar consultor', icone: Share2, acao: () => setIsShareModalOpen(true) },
                     { mostra: canTeach, rotulo: knowledgeOpen ? 'Voltar à conversa' : 'Ensinar IA', icone: Brain, acao: () => setKnowledgeOpen(!knowledgeOpen) },
                     { mostra: true, rotulo: 'Buscar atualizações', icone: RefreshCw, acao: handleForceUpdate },
                     { mostra: !isFullPage, rotulo: 'Minimizar', icone: ChevronDown, acao: () => setIsOpen(false) },
@@ -5069,9 +5473,19 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                     <div className="space-y-5">
                       <div className="msg-consultor border">
                         <p className="text-[15.5px] leading-relaxed text-[#1B1E22] m-0">
-                          {primeiroNomeCel ? `Olá, ${primeiroNomeCel}! ` : 'Olá! '}Pergunte sobre um equipamento ou a máquina do cliente.
+                          {primeiroNomeCel ? `Olá, ${primeiroNomeCel}! ` : 'Olá! '}{podeIndicar ? 'Pergunte sobre um equipamento ou faça uma indicação.' : 'Pergunte sobre um equipamento ou a máquina do cliente.'}
                         </p>
                       </div>
+
+                      {podeIndicar && (
+                        <button type="button" onClick={tocarIndicar} className="w-full min-h-[56px] h-auto px-4 py-3 rounded-2xl bg-[#F6C400] text-[#1B1E22] flex items-center gap-3 text-left active:scale-[0.99] transition">
+                          <UserPlus className="h-6 w-6 shrink-0" />
+                          <span className="min-w-0">
+                            <span className="block text-[16px] font-extrabold leading-tight">Indicar um cliente</span>
+                            <span className="block text-[13.5px] font-medium leading-snug text-[#3E444B]">Passe os dados ou mande um link para ele</span>
+                          </span>
+                        </button>
+                      )}
 
                       <section>
                         <p className="ccel-rotulo">Equipamentos</p>
@@ -5121,6 +5535,11 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                 <div className="shrink-0 px-3 pt-1 pb-[calc(env(safe-area-inset-bottom,0px)+10px)]">
                   {!conversaVazia && onboardingStep === 'COMPLETED' && (
                     <div className="ccel-atalhos flex gap-2 overflow-x-auto pb-2 -mx-3 px-3">
+                      {podeIndicar && !fluxoInd && (
+                        <button type="button" onClick={tocarIndicar} disabled={loading} className="ccel-chip border-[#F6C400] bg-[#F6C400] font-extrabold">
+                          <UserPlus className="h-4 w-4" /> Indicar
+                        </button>
+                      )}
                       <button type="button" onClick={() => abrirEquipamentoCel()} className="ccel-chip">
                         <Menu className="h-4 w-4" /> Equipamentos
                       </button>
@@ -5276,6 +5695,8 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                 </div>
                 
                 <div className="flex items-center gap-1.5 sm:gap-2 ml-auto flex-wrap sm:flex-nowrap justify-end">
+                  {/* parceiro do link pessoal só vê: sem PDF e sem salvar */}
+                  {!parceiroViaLink && (<>
                   <button
                     onClick={handleSharePdfWhatsapp}
                     className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold uppercase text-[9px] sm:text-[10px] tracking-wider rounded-lg transition shadow cursor-pointer border-0 shrink-0"
@@ -5291,6 +5712,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                   >
                     <CheckCircle className="h-3.5 w-3.5 text-green-400" /> Salvar em Fotos
                   </button>
+                  </>)}
 
                   <button
                     onClick={() => {

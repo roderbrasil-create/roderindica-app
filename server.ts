@@ -36,6 +36,7 @@ import admin from "firebase-admin";
 import { getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { ACCESSORIES_DATA, INSTALLATION_KITS } from "./src/constants.js";
+import { registrarConsultorParceiro } from "./server/consultorParceiro";
 
 let __currentDir: string;
 try {
@@ -4637,6 +4638,25 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
   }
   const escHtml = (t: string) => String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
+  // Cria (ou reaproveita) o código curto de um equipamento para um vendedor/parceiro
+  async function criarLinkCurto(uid: string, pid: string, mid: string): Promise<string | null> {
+    // o mesmo vendedor compartilhando o mesmo modelo reaproveita o código
+    const existente = await db.collection('links_curtos').where('uid', '==', uid).where('pid', '==', pid).where('mid', '==', mid).limit(1).get();
+    if (!existente.empty) return existente.docs[0].id;
+    for (let tentativa = 0; tentativa < 6; tentativa++) {
+      const codigo = novoCodigo();
+      const ref = db.collection('links_curtos').doc(codigo);
+      const criado = await db.runTransaction(async (t: any) => {
+        const snap = await t.get(ref);
+        if (snap.exists) return false;
+        t.set(ref, { uid, pid, mid, created_at: new Date().toISOString() });
+        return true;
+      });
+      if (criado) return codigo;
+    }
+    return null;
+  }
+
   app.post("/api/link-curto", async (req, res) => {
     try {
       const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
@@ -4645,20 +4665,8 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       const pid = String(req.body?.pid || '').slice(0, 80);
       const mid = String(req.body?.mid || '').slice(0, 80);
       if (!pid) return res.status(400).json({ error: 'Equipamento não informado.' });
-      // o mesmo vendedor compartilhando o mesmo modelo reaproveita o código
-      const existente = await db.collection('links_curtos').where('uid', '==', quem.uid).where('pid', '==', pid).where('mid', '==', mid).limit(1).get();
-      if (!existente.empty) return res.json({ codigo: existente.docs[0].id });
-      for (let tentativa = 0; tentativa < 6; tentativa++) {
-        const codigo = novoCodigo();
-        const ref = db.collection('links_curtos').doc(codigo);
-        const criado = await db.runTransaction(async (t: any) => {
-          const snap = await t.get(ref);
-          if (snap.exists) return false;
-          t.set(ref, { uid: quem.uid, pid, mid, created_at: new Date().toISOString() });
-          return true;
-        });
-        if (criado) return res.json({ codigo });
-      }
+      const codigo = await criarLinkCurto(quem.uid, pid, mid);
+      if (codigo) return res.json({ codigo });
       res.status(500).json({ error: 'Não consegui gerar o link.' });
     } catch (e: any) {
       res.status(500).json({ error: e?.message || 'Erro' });
@@ -4754,6 +4762,16 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     } catch {
       res.status(500).json({ error: 'Erro ao conferir o e-mail.' });
     }
+  });
+
+  // Link pessoal do parceiro no consultor e indicação pela conversa (server/consultorParceiro.ts)
+  registrarConsultorParceiro(app, {
+    db, quemChama, passouLimite, ipDe, criarLinkCurto,
+    enviarEmail: (to, subject, html) => sendAutomaticEmail(to, subject, html),
+    sincronizarAgendor: async (id, dados) => {
+      const ag: any = (await db.collection('settings').doc('agendor').get()).data() || {};
+      if (ag.enabled && ag.apiToken) await executeAgendorSync(id, dados, ag.apiToken, true);
+    },
   });
 
   app.post("/api/orcamento/registrar-link", async (req, res) => {
