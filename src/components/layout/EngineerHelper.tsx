@@ -313,6 +313,8 @@ interface Message {
   id?: string;
   role: 'user' | 'assistant';
   content: string;
+  // dados do painel "Nesta conversa" (computador), já separados do texto
+  painel?: PainelConversa | null;
 }
 
 interface MarkdownImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
@@ -320,13 +322,77 @@ interface MarkdownImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   isLightReport?: boolean;
 }
 
+// Bloco escondido que o servidor manda no fim da resposta para o painel "Nesta conversa" do computador:
+// <painel>{"maquina":{...},"perguntas":[...],"alternativas":[...],"produto":"..."}</painel>
+// Nunca aparece para ninguém: sai do texto antes de mostrar, copiar, gerar relatório ou guardar.
+export interface PainelConversa {
+  maquina?: { nome?: string; tipo?: string; potencia?: string; transmissao?: string; serve?: 'sim' | 'nao' | 'verificar'; motivo?: string };
+  perguntas?: string[];
+  alternativas?: { nome: string; obs?: string }[];
+  produto?: string;
+}
+
+const RE_PAINEL = /<\s*painel\s*>([\s\S]*?)<\s*\/\s*painel\s*>/gi;
+// pedaço sem fechamento (resposta cortada no meio do bloco)
+const RE_PAINEL_ABERTO = /<\s*painel\b[\s\S]*$/i;
+
+const textoCurto = (v: any, max = 120) => (typeof v === 'string' || typeof v === 'number') ? String(v).trim().slice(0, max) : '';
+
+const lerPainel = (json: string): PainelConversa | null => {
+  try {
+    const bruto = JSON.parse(json.trim());
+    if (!bruto || typeof bruto !== 'object') return null;
+    const painel: PainelConversa = {};
+    const m = bruto.maquina;
+    if (m && typeof m === 'object') {
+      const serve = textoCurto(m.serve, 12).toLowerCase().replace('ã', 'a');
+      const maquina = {
+        nome: textoCurto(m.nome, 80),
+        tipo: textoCurto(m.tipo, 60),
+        potencia: textoCurto(m.potencia, 40),
+        transmissao: textoCurto(m.transmissao, 60),
+        serve: (['sim', 'nao', 'verificar'].includes(serve) ? serve : undefined) as any,
+        motivo: textoCurto(m.motivo, 200),
+      };
+      if (maquina.nome) painel.maquina = maquina;
+    }
+    if (Array.isArray(bruto.perguntas)) {
+      const perguntas = bruto.perguntas.map((p: any) => textoCurto(p, 160)).filter(Boolean).slice(0, 3);
+      if (perguntas.length) painel.perguntas = perguntas;
+    }
+    if (Array.isArray(bruto.alternativas)) {
+      const alternativas = bruto.alternativas
+        .map((a: any) => typeof a === 'string' ? { nome: textoCurto(a, 80) } : { nome: textoCurto(a?.nome, 80), obs: textoCurto(a?.obs, 60) })
+        .filter((a: any) => a.nome).slice(0, 3);
+      if (alternativas.length) painel.alternativas = alternativas;
+    }
+    const produto = textoCurto(bruto.produto, 80);
+    if (produto) painel.produto = produto;
+    return Object.keys(painel).length ? painel : null;
+  } catch {
+    return null;
+  }
+};
+
+// Separa o texto que a pessoa vê do bloco do painel (que é lido com segurança e pode faltar)
+export const separarPainel = (content: string): { texto: string; painel: PainelConversa | null } => {
+  const bruto = content || '';
+  let painel: PainelConversa | null = null;
+  const texto = bruto
+    .replace(RE_PAINEL, (_t, json) => { painel = lerPainel(json) || painel; return ''; })
+    .replace(RE_PAINEL_ABERTO, '')
+    .trim();
+  return { texto, painel };
+};
+
 // O consultor pode terminar a resposta com [[OPCOES: a | b | c]]: vira botões para o vendedor tocar
 const parseConsultantOptions = (content: string): { text: string; options: string[] } => {
+  const limpo = separarPainel(content).texto;
   const re = /\[\[\s*OP[CÇ][OÕ]ES\s*:\s*([^\]]+)\]\]/i;
-  const m = (content || '').match(re);
-  if (!m) return { text: content || '', options: [] };
+  const m = limpo.match(re);
+  if (!m) return { text: limpo, options: [] };
   const options = m[1].split('|').map(o => o.trim()).filter(Boolean).slice(0, 6);
-  return { text: (content || '').replace(re, '').trim(), options };
+  return { text: limpo.replace(re, '').trim(), options };
 };
 
 // Relatório: tira perguntas e frases de conversa, que não fazem sentido no papel
@@ -507,6 +573,32 @@ const MarkdownImage: React.FC<MarkdownImageProps> = ({ src, isLightReport, ...pr
     />
   );
 };
+
+// Computador (mouse e tela larga): o consultor abre numa janela própria, reaproveitada pelo nome.
+// O login do Roder Indica vale na janela nova (mesmo endereço), então a pessoa entra com o papel dela.
+// Devolve false quando não deve (celular) ou não conseguiu (pop-up bloqueado): aí abre por cima, como sempre.
+export function abrirConsultorEmJanela(pergunta?: string): boolean {
+  if (typeof window === 'undefined' || !window.matchMedia) return false;
+  if (!window.matchMedia('(pointer: fine)').matches || window.innerWidth < 1024) return false;
+  const destino = `/consultor${pergunta ? `?pergunta=${encodeURIComponent(pergunta)}` : ''}`;
+  try {
+    // '' não recarrega a janela do consultor que já está aberta (a conversa continua)
+    const janela = window.open('', 'roder-consultor');
+    if (!janela) return false;
+    let jaNoConsultor = false;
+    try { jaNoConsultor = janela.location.pathname.startsWith('/consultor'); } catch { /* outra origem */ }
+    if (!jaNoConsultor) {
+      janela.location.href = destino;
+    } else if (pergunta) {
+      const Evento = (janela as any).CustomEvent || CustomEvent;
+      janela.dispatchEvent(new Evento('roder:abrir-consultor', { detail: { pergunta } }));
+    }
+    janela.focus();
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export default function EngineerHelper({ isFullPage = false }: { isFullPage?: boolean } = {}) {
   const navigate = useNavigate();
@@ -1525,12 +1617,51 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   useEffect(() => {
     const abrir = (e: Event) => {
       const pergunta = String((e as CustomEvent).detail?.pergunta || '').trim();
+      // no computador, dentro do Roder Indica, o consultor abre na janela própria
+      if (!isFullPage && abrirConsultorEmJanela(pergunta)) return;
       setIsOpen(true);
       if (pergunta) setPerguntaPendente({ texto: pergunta, n: Date.now() });
     };
     window.addEventListener('roder:abrir-consultor', abrir);
     return () => window.removeEventListener('roder:abrir-consultor', abrir);
   }, []);
+
+  // Janela própria do consultor: pergunta pronta vem no endereço (?pergunta=...) e sai dele em seguida
+  useEffect(() => {
+    if (!isFullPage) return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const pergunta = (params.get('pergunta') || '').trim();
+      if (!pergunta) return;
+      params.delete('pergunta');
+      const qs = params.toString();
+      window.history.replaceState(window.history.state, document.title, window.location.pathname + (qs ? `?${qs}` : ''));
+      setPerguntaPendente({ texto: pergunta.slice(0, 500), n: Date.now() });
+    } catch { /* endereço inválido: ignora */ }
+  }, []);
+
+  // Tela grande (computador): o consultor de página inteira vira o ambiente de 3 colunas.
+  // Abaixo de 1024 px fica exatamente a tela de sempre.
+  const [telaGrande, setTelaGrande] = useState(() => typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(min-width: 1024px)').matches);
+  useEffect(() => {
+    if (!window.matchMedia) return;
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const mudou = () => setTelaGrande(mq.matches);
+    mudou();
+    mq.addEventListener?.('change', mudou);
+    return () => mq.removeEventListener?.('change', mudou);
+  }, []);
+  const layoutPc = isFullPage && telaGrande;
+  const [abaPainel, setAbaPainel] = useState<'conversa' | 'ficha' | 'fotos'>('conversa');
+  const [buscaEquip, setBuscaEquip] = useState('');
+
+  // Quem está logado não passa pelo "Quem é você?": troca a saudação de visitante pela de sempre
+  useEffect(() => {
+    if (!user || !profile) return;
+    setMessages(prev => (prev.length === 1 && prev[0].role === 'assistant' && /Quem é você\?/.test(prev[0].content))
+      ? [{ id: prev[0].id, role: 'assistant', content: 'Olá! Sou o **Consultor Técnico RODER** 🛠️. Como posso te ajudar hoje?' }]
+      : prev);
+  }, [user, profile]);
 
   useEffect(() => {
     try {
@@ -2170,7 +2301,9 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
         }
       );
       const assistantMsgId = `assistant-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-      setMessages(prev => [...prev, { id: assistantMsgId, role: 'assistant', content: response }]);
+      // o bloco <painel> sai do texto aqui: a conversa guardada e o histórico mandado ao servidor ficam limpos
+      const { texto, painel } = separarPainel(String(response || ''));
+      setMessages(prev => [...prev, { id: assistantMsgId, role: 'assistant', content: texto, ...(painel ? { painel } : {}) }]);
     } catch (err: any) {
       console.error('Error in Engineer Helper:', err);
       const errMsgId = `err-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
@@ -2240,7 +2373,9 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
         }
       );
       const assistantMsgId = `assistant-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-      setMessages(prev => [...prev, { id: assistantMsgId, role: 'assistant', content: response }]);
+      // o bloco <painel> sai do texto aqui: a conversa guardada e o histórico mandado ao servidor ficam limpos
+      const { texto, painel } = separarPainel(String(response || ''));
+      setMessages(prev => [...prev, { id: assistantMsgId, role: 'assistant', content: texto, ...(painel ? { painel } : {}) }]);
     } catch (err: any) {
       console.error('Error in Engineer Helper Retry:', err);
       const errMsgId = `err-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
@@ -2700,237 +2835,23 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
     return () => clearTimeout(t);
   }, [isOpen, perguntaPendente, loading]);
 
+  // Escolher um equipamento no Explorador de Compatibilidade (celular e coluna da esquerda no computador)
+  const escolherProdutoExplorador = (prod: Product) => {
+    setSelectedProduct(prod);
+    setSelectedWeightBand(null);
+    setSelectedModel(null);
+    if (prod.name.toLowerCase().includes('caçamba')) {
+      setCacambaStep('material');
+    } else {
+      setCacambaStep(null);
+    }
+  };
+
   const isCatalog = location.pathname === '/catalogo';
   const hasRightDock = isCatalog && isOpen;
 
-  return (
-    <>
-      {/* Viewport container to keep the draggable floating button fully inside the screen boundaries */}
-      <div ref={dragContainerRef} className="fixed inset-0 pointer-events-none z-[44]" />
-
-      {/* Floating Toggle Button */}
-      {(!isFullPage || !isOpen) && (
-        <motion.div
-          drag={!isOpen}
-          dragConstraints={dragContainerRef}
-          dragMomentum={false}
-          dragElastic={0.15}
-          className={cn(
-            "roder-botao-consultor fixed bottom-6 right-6 z-[45] font-sans notranslate transition-all duration-300 touch-none",
-            hasRightDock && "lg:hidden"
-          )}
-          translate="no"
-        >
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setIsOpen(!isOpen)}
-            className={`relative flex items-center justify-center rounded-full shadow-2xl text-white transition-all duration-300 ${
-              isOpen 
-                ? 'p-2.5 px-3 sm:p-3.5 sm:px-5 bg-slate-700 hover:bg-slate-800' 
-                : 'w-20 h-20 sm:w-auto sm:h-auto p-2 sm:p-3.5 sm:px-5 bg-black hover:bg-neutral-900 border-2 border-amber-500/50'
-            }`}
-            style={{ boxShadow: isOpen ? '0 10px 25px -5px rgba(0, 0, 0, 0.3)' : '0 10px 25px -5px rgba(245, 158, 11, 0.35)' }}
-          >
-            {isOpen ? (
-              <div className="flex items-center gap-2">
-                <X className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
-                <div className="flex flex-col items-start leading-none text-left">
-                  <span className="text-[7.5px] sm:text-[9px] opacity-80 font-medium uppercase tracking-wider">
-                    Assistente
-                  </span>
-                  <span className="text-[9.5px] sm:text-xs font-black tracking-tight uppercase">
-                    Fechar ✕
-                  </span>
-                </div>
-              </div>
-            ) : (
-              <>
-                {/* Mobile "Bolinha" (Roder Consultor) - Text Only, Elegant Typography */}
-                <div className="sm:hidden flex flex-col items-center justify-center text-center w-full h-full p-1 leading-tight select-none">
-                  <span className="text-[8.5px] font-medium tracking-wider text-white/80 uppercase">
-                    Consultor
-                  </span>
-                  <span className="text-[14px] font-black tracking-widest text-white uppercase my-0.5 animate-pulse drop-shadow-sm">
-                    RODER
-                  </span>
-                  <span className="text-[8.5px] font-bold tracking-wider text-white/90 uppercase">
-                    Técnico
-                  </span>
-                </div>
-
-                {/* Desktop standard pill */}
-                <div className="hidden sm:flex items-center gap-2">
-                  <Wrench className="h-4.5 w-4.5 sm:h-5 sm:w-5 animate-bounce" />
-                  <div className="flex flex-col items-start leading-none text-left">
-                    <span className="text-[7.5px] sm:text-[9px] opacity-80 font-medium uppercase tracking-wider">
-                      Consultor Técnico
-                    </span>
-                    <span className="text-[9.5px] sm:text-xs font-black tracking-tight uppercase">
-                      Roder IA
-                    </span>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {messages.length > 1 && !isOpen && (
-              <span className="absolute -top-1 -left-1 flex h-3.5 w-3.5 z-10">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-green-500 border-2 border-white"></span>
-              </span>
-            )}
-
-            {!isOpen && (
-              <div className="absolute -top-1 -right-1 bg-amber-500 text-slate-950 font-black text-[9px] px-1.5 py-0.5 rounded-full uppercase tracking-widest animate-pulse border border-white shadow z-10">
-                IA
-              </div>
-            )}
-          </motion.button>
-        </motion.div>
-      )}
-
-      {/* Floating Chat Container */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={hasRightDock ? { opacity: 0, x: 50 } : { opacity: 0, y: 50, scale: 0.95 }}
-            animate={hasRightDock ? { opacity: 1, x: 0 } : { opacity: 1, y: 0, scale: 1 }}
-            exit={hasRightDock ? { opacity: 0, x: 50 } : { opacity: 0, y: 50, scale: 0.95 }}
-            transition={{ duration: 0.25 }}
-            className={cn(
-              "fixed bg-slate-900 border-slate-800 flex flex-col overflow-hidden z-[45] text-white font-sans notranslate transition-all duration-300",
-              isFullPage
-                ? "inset-0 w-full h-full max-h-none rounded-none border-0 sm:top-auto sm:left-auto sm:bottom-6 sm:right-6 sm:w-[480px] sm:h-[85vh] sm:max-h-[800px] sm:border sm:rounded-2xl sm:shadow-3xl"
-                : hasRightDock
-                  ? "bottom-22 right-4 sm:right-6 w-[94vw] sm:w-[480px] h-[86vh] sm:h-[80vh] max-h-[820px] sm:max-h-[720px] border rounded-2xl shadow-3xl lg:top-[65px] lg:bottom-0 lg:right-0 lg:w-[480px] lg:h-[calc(100vh-65px)] lg:max-h-none lg:rounded-none lg:border-t-0 lg:border-b-0 lg:border-r-0 lg:border-l lg:shadow-none"
-                  : "bottom-22 right-4 sm:right-6 w-[94vw] sm:w-[480px] h-[86vh] sm:h-[80vh] max-h-[820px] sm:max-h-[720px] border rounded-2xl shadow-3xl"
-            )}
-            translate="no"
-          >
-            {/* Header */}
-            <div className={cn(
-              "px-3 pb-2 sm:px-4 sm:py-2.5 bg-black border-b border-neutral-900 flex items-center justify-between shadow-md",
-              isFullPage ? "pt-[calc(env(safe-area-inset-top,12px)+8px)]" : "pt-2 sm:pt-2.5"
-            )}>
-              <div className="flex flex-col items-start select-none">
-                <span className="text-[7.5px] sm:text-[9px] font-semibold uppercase tracking-wider text-neutral-400 leading-none">
-                  Consultor
-                </span>
-                <div className="flex items-center gap-1 leading-none mt-0.5">
-                  <span className="text-xs sm:text-sm font-black tracking-widest text-white uppercase">
-                    RODER
-                  </span>
-                  <span className="text-[10px] sm:text-xs font-bold text-amber-400 uppercase tracking-wide">
-                    Técnico
-                  </span>
-                  <span className="ml-1 text-[7px] sm:text-[8px] font-black bg-amber-500 text-slate-950 px-1 py-0.5 rounded uppercase tracking-widest animate-pulse leading-none">
-                    IA
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-8 px-1.5 sm:px-2 text-slate-300 hover:text-white text-xs gap-1 hover:bg-white/15"
-                  onClick={() => setCalcOpen(!calcOpen)}
-                  title="Calculadora"
-                >
-                  <Calculator className="h-3.5 w-3.5" />
-                  <span className="hidden xs:inline">Calculadora</span>
-                </Button>
-
-                {canTeach && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className={`h-8 px-1.5 sm:px-2 text-xs gap-1 ${
-                      knowledgeOpen 
-                        ? 'text-amber-400 bg-amber-500/10 hover:bg-amber-500/20' 
-                        : 'text-purple-400 hover:text-purple-300 hover:bg-purple-500/10'
-                    }`}
-                    onClick={() => setKnowledgeOpen(!knowledgeOpen)}
-                    title="Ensinar Roder IA (Adicionar Conhecimento por Voz ou Texto)"
-                  >
-                    <Brain className="h-3.5 w-3.5" />
-                    <span className="hidden xs:inline">{knowledgeOpen ? 'Ver Chat' : 'Ensinar IA'}</span>
-                  </Button>
-                )}
-
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-8 px-1.5 sm:px-2 text-green-400 hover:text-green-300 hover:bg-green-500/10 text-xs gap-1"
-                  onClick={() => handleOpenReport()}
-                  title="Gerar Relatório em Imagem"
-                >
-                  <FileText className="h-3.5 w-3.5" />
-                  <span className="hidden xs:inline">Relatório</span>
-                </Button>
-
-                {isRegisteredUser && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-8 px-1.5 sm:px-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 text-xs gap-1"
-                    onClick={() => setIsShareModalOpen(true)}
-                    title="Compartilhar Consultor via WhatsApp"
-                  >
-                    <Share2 className="h-3.5 w-3.5" />
-                    <span className="hidden xs:inline">Compartilhar</span>
-                  </Button>
-                )}
-
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-8 px-1.5 sm:px-2 text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 text-xs gap-1"
-                  onClick={handleClearConversation}
-                  title="Limpar Conversa"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  <span className="hidden xs:inline">Limpar</span>
-                </Button>
-
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-8 px-1.5 sm:px-2 text-sky-400 hover:text-sky-300 hover:bg-sky-500/10 text-xs gap-1"
-                  onClick={handleForceUpdate}
-                  title="Buscar e carregar novas atualizações pendentes"
-                >
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  <span className="hidden xs:inline">Atualizar</span>
-                </Button>
-
-                {/* Safe Separator */}
-                <div className="h-6 w-[1px] bg-slate-800 mx-1" />
-
-                {/* Minimize Button - hides the container but persists conversation */}
-                <button
-                  onClick={() => setIsOpen(false)}
-                  className="p-1.5 rounded-lg text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 border border-amber-500/20 transition-colors flex items-center justify-center h-8 w-8"
-                  title="Minimizar (Mantém Conversa)"
-                >
-                  <Bot className="h-4.5 w-4.5 animate-pulse" />
-                </button>
-
-                {/* Close/End Button - triggers handleEndConversation (clears conversation and closes) */}
-                <button
-                  onClick={handleEndConversation}
-                  className="p-1.5 rounded-lg text-red-500 hover:text-red-400 hover:bg-red-500/10 border border-red-500/30 transition-colors flex items-center justify-center h-8 w-8 ml-2"
-                  title="Encerrar Conversa"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-
-
-
-            {!knowledgeOpen ? (
-              <>
+  // Partes da tela do consultor: as mesmas no celular e no computador (layout de 3 colunas)
+  const blocoCalculadora = (<>
                 {/* Quick Timber Grab Calculator Panel overlay */}
             <AnimatePresence>
               {calcOpen && (
@@ -3026,9 +2947,8 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                 </motion.div>
               )}
             </AnimatePresence>
-
-            {/* Chat Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-950/50 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
+  </>);
+  const listaMensagens = (<>
               {messages.map((msg, idx) => (
                 <div
                   key={msg.id || `msg-${idx}`}
@@ -3036,7 +2956,7 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                   className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in duration-200`}
                 >
                   <div
-                    className={`max-w-[88%] rounded-2xl p-3 text-[15.5px] sm:text-[14px] leading-relaxed ${
+                    className={`${msg.role === 'user' ? 'msg-usuario' : 'msg-consultor'} max-w-[88%] rounded-2xl p-3 text-[15.5px] sm:text-[14px] leading-relaxed ${
                       msg.role === 'user'
                         ? 'bg-primary text-white rounded-tr-none'
                         : 'bg-slate-850 text-slate-100 border border-slate-800 rounded-tl-none'
@@ -3491,8 +3411,8 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                 </div>
               )}
               <div ref={messagesEndRef} />
-            </div>
-
+  </>);
+  const blocoExplorador = (<>
             {/* Dynamic Interactive Catalog Explorer Panel */}
             <div className="bg-slate-900 border-t border-slate-800 p-4 space-y-3 shadow-inner">
               {explorerMinimized ? (
@@ -3563,16 +3483,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                     {catalogProducts.map(prod => (
                       <button
                         key={prod.id}
-                        onClick={() => {
-                          setSelectedProduct(prod);
-                          setSelectedWeightBand(null);
-                          setSelectedModel(null);
-                          if (prod.name.toLowerCase().includes('caçamba')) {
-                            setCacambaStep('material');
-                          } else {
-                            setCacambaStep(null);
-                          }
-                        }}
+                        onClick={() => escolherProdutoExplorador(prod)}
                         className="text-left text-[11px] font-bold bg-slate-850 hover:bg-primary/20 hover:border-primary/40 text-slate-200 border border-slate-800 py-2 px-2.5 rounded-xl transition-all duration-200 truncate shadow-sm flex items-center justify-between group"
                       >
                         <span className="truncate">{prod.name}</span>
@@ -4209,7 +4120,8 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                 </>
               )}
             </div>
-
+  </>);
+  const blocoEntrada = (<>
             {/* Input Footer for standard Chat */}
             <div className="p-2 sm:p-2.5 bg-slate-900 border-t border-slate-800 flex gap-1.5 sm:gap-2 items-center">
               {isRecording ? (
@@ -4292,8 +4204,8 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                 </Button>
               )}
             </div>
-          </>
-        ) : (
+  </>);
+  const blocoEnsinar = (
           <div className="flex-1 flex flex-col bg-slate-950 overflow-hidden animate-in fade-in duration-200">
             {/* Scrollable container for the form and recent list */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
@@ -4419,6 +4331,641 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
               </div>
             </div>
           </div>
+  );
+
+  // ===================== Consultor no computador (tela grande, página inteira) =====================
+  // Painel "Nesta conversa": o último bloco <painel> que o servidor mandou e o equipamento citado por último
+  const painelAtual: PainelConversa | null = (() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.role === 'assistant' && m.painel) return m.painel;
+    }
+    return null;
+  })();
+  const equipAtual: { prod: Product; model: ProductModel } | null = (() => {
+    if (painelAtual?.produto) {
+      const achado = detectEquipmentInMessage(painelAtual.produto)[0];
+      if (achado) return { prod: achado.prod, model: achado.model };
+    }
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.id === 'initial-welcome' || m.content.includes('Ops, ocorreu um erro')) continue;
+      const achado = detectEquipmentInMessage(parseConsultantOptions(m.content).text)[0];
+      if (achado) return { prod: achado.prod, model: achado.model };
+    }
+    // nada citado ainda: mostra o modelo escolhido no explorador
+    if (selectedProduct && selectedModel) return { prod: selectedProduct, model: selectedModel };
+    return null;
+  })();
+  const rotuloSpec = (k: string) => {
+    const t = k.replace(/_/g, ' ').trim();
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  };
+  const specsDoModelo = (model: ProductModel): [string, string][] =>
+    Object.entries(model.technical_specs || {})
+      .filter(([k, v]) => v !== undefined && v !== null && String(v).trim() !== '' && !/c[oó]digo|^id$/i.test(k))
+      .map(([k, v]) => [rotuloSpec(k), String(v).trim()] as [string, string]);
+  const specsChave = (model: ProductModel): [string, string][] => {
+    const todas = specsDoModelo(model);
+    const prioridade = ['máquina base', 'maquina base', 'trator', 'potência', 'potencia', 'peso operacional', 'largura', 'profundidade', 'peso', 'vazão', 'vazao', 'pressão', 'pressao', 'abertura', 'área', 'area'];
+    const nota = (rot: string) => {
+      const r = rot.toLowerCase();
+      const i = prioridade.findIndex(p => r.includes(p));
+      return i < 0 ? 99 : i;
+    };
+    return [...todas].sort((a, b) => nota(a[0]) - nota(b[0])).slice(0, 3);
+  };
+  const videoDe = (prod: Product, model: ProductModel) => {
+    const v = model.video_url || prod.video_url || PRODUCT_VIDEOS[model.name || ''] || PRODUCT_VIDEOS[prod.name || ''];
+    return v && /^https?:\/\//.test(v) && !v.toLowerCase().includes('t_8n_nlf2xk') ? v : '';
+  };
+  const nomeUsuario = (profile?.name || (user ? '' : publicUser?.name) || '').replace('Jefferson', 'Jeferson').split(' ').slice(0, 2).join(' ');
+  const papelUsuario = user && profile
+    ? (podeEnviarFicha ? 'Equipe' : (profile.role as string) === 'external_seller' ? 'Parceiro' : '')
+    : (publicUser as any)?.equipe ? 'Equipe'
+      : publicUser?.userType === 'vendedor' ? 'Parceiro'
+        : publicUser?.userType === 'cliente' ? 'Cliente' : '';
+  const primeiraPergunta = messages.find(m => m.role === 'user' && onboardingStep === 'COMPLETED' && !/^Sou (Cliente|Vendedor)/.test(m.content))?.content || '';
+  const tituloConversa = primeiraPergunta ? (primeiraPergunta.length > 70 ? `${primeiraPergunta.slice(0, 70).trim()}...` : primeiraPergunta) : 'Nova conversa';
+  const termoBusca = buscaEquip.trim().toLowerCase();
+  const equipamentosFiltrados = catalogProducts.filter(p => !termoBusca ||
+    (p.name || '').toLowerCase().includes(termoBusca) ||
+    (p.models || []).some(m => (m.name || '').toLowerCase().includes(termoBusca)));
+  const sugestoesPc = [
+    'Que garra para picador de 600 cv?',
+    'Produção da GT 600X com tora de 3 m',
+    'CMF 500 em escavadeira de 20 t',
+  ];
+  const conversaVazia = messages.filter(m => m.role === 'user').length === 0;
+  const corServe = (serve?: string) => serve === 'nao'
+    ? { caixa: 'border-[#F3C9C9] bg-[#FDF3F3]', titulo: 'text-[#B42318]', valor: 'text-[#B42318]', texto: 'Não' }
+    : serve === 'sim'
+      ? { caixa: 'border-[#BFE3CB] bg-[#F2FAF4]', titulo: 'text-[#157F3C]', valor: 'text-[#157F3C]', texto: 'Sim' }
+      : { caixa: 'border-[#F1DFA6] bg-[#FFFBEB]', titulo: 'text-[#8A6500]', valor: 'text-[#8A6500]', texto: serve === 'verificar' ? 'Verificar' : '' };
+
+  const painelNestaConversa = (
+    <div className="p-4 space-y-4">
+      {!painelAtual && !equipAtual && (
+        <div className="mt-6 rounded-2xl border border-dashed border-[#CDD2D7] bg-[#F7F8F9] px-5 py-8 text-center">
+          <Layers className="h-7 w-7 mx-auto text-[#9AA1A9]" />
+          <p className="mt-3 text-[14px] leading-relaxed text-[#5B6168]">Pergunte sobre um equipamento ou a máquina do cliente e as informações aparecem aqui.</p>
+        </div>
+      )}
+
+      {painelAtual?.maquina && (() => {
+        const mq = painelAtual.maquina!;
+        const cor = corServe(mq.serve);
+        const linhas: [string, string, boolean][] = [];
+        if (mq.transmissao) linhas.push(['Transmissão', mq.transmissao, mq.serve === 'nao']);
+        if (mq.tipo && mq.tipo !== mq.transmissao) linhas.push(['Tipo', mq.tipo, false]);
+        if (mq.potencia) linhas.push(['Potência', mq.potencia, false]);
+        if (cor.texto) linhas.push([equipAtual ? `Serve para ${equipAtual.model.name}?` : 'Serve?', cor.texto, true]);
+        return (
+          <div className={cn('rounded-2xl border px-4 py-3.5', cor.caixa)}>
+            <p className={cn('text-[11px] font-extrabold uppercase tracking-[0.12em]', cor.titulo)}>Máquina do cliente</p>
+            <p className="fonte-titulo text-[19px] font-extrabold leading-tight mt-1 text-[#1B1E22]">{mq.nome}</p>
+            {linhas.length > 0 && (
+              <div className="mt-2.5 divide-y divide-dashed divide-black/10 border-t border-dashed border-black/10">
+                {linhas.map(([rot, val, destaque]) => (
+                  <div key={rot} className="flex items-baseline justify-between gap-3 py-1.5 text-[14px]">
+                    <span className="text-[#5B6168]">{rot}</span>
+                    <span className={cn('font-bold text-right', destaque ? cor.valor : 'text-[#1B1E22]')}>{val}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {mq.motivo && <p className="mt-2 text-[13px] text-[#3E444B]">{mq.motivo}</p>}
+          </div>
+        );
+      })()}
+
+      {equipAtual && (() => {
+        const { prod, model } = equipAtual;
+        const foto = fotoDoModelo(prod, model);
+        const specs = specsChave(model);
+        return (
+          <div className="rounded-2xl border border-[#E1E4E8] bg-white overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+            <div className="relative h-[170px] bg-gradient-to-b from-[#F4F5F6] to-[#DCE0E4] flex items-center justify-center">
+              {foto
+                ? <MarkdownImage src={foto} className="max-w-[90%] max-h-[150px] m-0 p-0 border-0 bg-transparent shadow-none hover:scale-100 object-contain" />
+                : <Package className="h-10 w-10 text-[#9AA1A9]" />}
+              {prod.name && <span className="absolute left-3 top-3 max-w-[70%] truncate rounded-md bg-[#1B1E22] px-2 py-1 text-[11px] font-extrabold uppercase tracking-wide text-[#fff]">{prod.name}</span>}
+            </div>
+            <div className="p-4">
+              <p className="fonte-titulo text-[19px] font-extrabold leading-tight text-[#1B1E22]">{tituloFicha(prod, model)}</p>
+              {specs.length > 0 && (
+                <div className={cn('mt-3 grid gap-2', specs.length === 1 ? 'grid-cols-1' : specs.length === 2 ? 'grid-cols-2' : 'grid-cols-3')}>
+                  {specs.map(([rot, val]) => (
+                    <div key={rot} className="rounded-lg bg-[#F3F4F6] px-2.5 py-2 min-w-0">
+                      <p className="text-[10.5px] font-bold uppercase tracking-wide text-[#6B7178] truncate">{rot}</p>
+                      <p className="text-[13.5px] font-extrabold text-[#1B1E22] leading-snug break-words">{val}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className={cn('mt-3.5 grid gap-2', podeEnviarFicha ? 'grid-cols-3' : 'grid-cols-2')}>
+                <button type="button" onClick={() => verFicha(prod, model)} className="h-11 px-1 whitespace-nowrap rounded-xl border-2 border-[#1B1E22] bg-white text-[#1B1E22] font-extrabold text-[13.5px] hover:bg-[#F3F4F6] transition">Ver ficha</button>
+                {podeEnviarFicha && (
+                  <button type="button" onClick={() => enviarFicha(prod, model)} className="h-11 px-1 whitespace-nowrap rounded-xl bg-[#1FA855] hover:bg-[#178a45] text-[#fff] font-extrabold text-[13.5px] transition">Enviar ficha</button>
+                )}
+                <button type="button" onClick={() => handleMakeIndication(prod, model)} className="h-11 px-1 whitespace-nowrap rounded-xl bg-[#F6C400] hover:bg-[#e2b400] text-[#1B1E22] font-extrabold text-[13.5px] transition">Indicar</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {painelAtual?.perguntas && painelAtual.perguntas.length > 0 && (
+        <div className="rounded-2xl border border-[#F1DFA6] bg-[#FFF8DB] px-4 py-3.5">
+          <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#8A6500]">Pergunte ao cliente</p>
+          <ul className="mt-2 space-y-1.5 list-disc pl-5 text-[14px] leading-snug text-[#1B1E22]">
+            {painelAtual.perguntas.map(p => <li key={p}>{p}</li>)}
+          </ul>
+        </div>
+      )}
+
+      {painelAtual?.alternativas && painelAtual.alternativas.length > 0 && (
+        <div>
+          <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#5B6168]">Alternativas que servem</p>
+          <div className="mt-1.5 divide-y divide-[#E1E4E8] border-y border-[#E1E4E8]">
+            {painelAtual.alternativas.map(a => (
+              <div key={a.nome} className="flex items-center justify-between gap-3 py-2.5">
+                <span className="text-[14.5px] font-bold text-[#1B1E22]">{a.nome}</span>
+                {a.obs && <span className="shrink-0 rounded-md bg-[#E3F5E8] px-2 py-0.5 text-[11.5px] font-extrabold text-[#157F3C]">{a.obs}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const painelFicha = equipAtual ? (
+    <div className="p-4 space-y-3">
+      <p className="fonte-titulo text-[18px] font-extrabold text-[#1B1E22]">{tituloFicha(equipAtual.prod, equipAtual.model)}</p>
+      {specsDoModelo(equipAtual.model).length > 0 ? (
+        <div className="rounded-xl border border-[#E1E4E8] divide-y divide-[#E1E4E8] bg-white">
+          {specsDoModelo(equipAtual.model).map(([rot, val]) => (
+            <div key={rot} className="flex items-baseline justify-between gap-3 px-3 py-2 text-[13.5px]">
+              <span className="text-[#5B6168]">{rot}</span>
+              <span className="font-bold text-right text-[#1B1E22]">{val}</span>
+            </div>
+          ))}
+        </div>
+      ) : <p className="text-[13.5px] text-[#5B6168]">A ficha completa está no PDF.</p>}
+      <div className="flex gap-2">
+        <button type="button" onClick={() => verFicha(equipAtual.prod, equipAtual.model)} className="flex-1 h-11 rounded-xl border-2 border-[#1B1E22] bg-white text-[#1B1E22] font-extrabold text-[14px] hover:bg-[#F3F4F6] transition">Abrir ficha</button>
+        {podeEnviarFicha && (
+          <button type="button" onClick={() => enviarFicha(equipAtual.prod, equipAtual.model)} className="flex-1 h-11 rounded-xl bg-[#1FA855] hover:bg-[#178a45] text-[#fff] font-extrabold text-[14px] transition flex items-center justify-center gap-1.5"><Send className="h-4 w-4" /> Enviar ficha</button>
+        )}
+      </div>
+    </div>
+  ) : (
+    <p className="p-6 text-center text-[14px] text-[#5B6168]">A ficha do equipamento da conversa aparece aqui.</p>
+  );
+
+  const painelFotos = equipAtual ? (() => {
+    const { prod, model } = equipAtual;
+    const fotos = Array.from(new Set([...(model.images || []), ...(model.images?.length ? [] : [fotoDoModelo(prod, model)])].filter(Boolean))).slice(0, 8) as string[];
+    const video = videoDe(prod, model);
+    return (
+      <div className="p-4 space-y-3">
+        {fotos.length > 0 ? (
+          <div className="grid grid-cols-2 gap-2">
+            {fotos.map(f => (
+              <div key={f} className="aspect-[4/3] rounded-xl bg-gradient-to-b from-[#F4F5F6] to-[#DCE0E4] flex items-center justify-center overflow-hidden">
+                <MarkdownImage src={f} className="max-w-full max-h-full m-0 p-1 border-0 bg-transparent shadow-none hover:scale-100 object-contain" />
+              </div>
+            ))}
+          </div>
+        ) : <p className="text-[13.5px] text-[#5B6168]">Sem fotos cadastradas para este modelo.</p>}
+        {video && (
+          <button type="button" onClick={() => window.open(video, '_blank', 'noopener')} className="w-full h-11 rounded-xl bg-[#1B1E22] hover:bg-black text-[#fff] font-extrabold text-[14px] flex items-center justify-center gap-2 transition">
+            <Video className="h-4 w-4 text-red-500" /> Ver vídeo
+          </button>
+        )}
+      </div>
+    );
+  })() : (
+    <p className="p-6 text-center text-[14px] text-[#5B6168]">As fotos e o vídeo do equipamento da conversa aparecem aqui.</p>
+  );
+
+  // Tema claro do computador: o mesmo conteúdo da conversa, com a paleta escura trocada só aqui dentro
+  const estiloPc = `
+.cpc-claro{--color-slate-950:#ECEEF0;--color-slate-900:#FFFFFF;--color-slate-800:#E3E6E9;--color-slate-700:#D3D7DC;--color-slate-600:#B8BEC5;--color-slate-500:#6B7178;--color-slate-400:#5B6168;--color-slate-300:#3E444B;--color-slate-200:#2A2F35;--color-slate-100:#1B1E22;--color-slate-50:#111316;
+--color-amber-400:#8A6500;--color-amber-300:#7A5800;--color-emerald-400:#157F3C;--color-emerald-300:#116632;--color-green-400:#157F3C;--color-green-300:#116632;--color-rose-400:#B42318;--color-sky-400:#0369A1;--color-sky-300:#075985;--color-purple-400:#7E22CE;--color-purple-300:#6B21A8;--color-red-950:#FEE2E2;--color-red-200:#991B1B;}
+.cpc-claro .text-white{color:#1B1E22}
+.cpc-claro .text-white:is(.bg-primary,.bg-red-600,.bg-sky-600,.bg-emerald-500,.msg-usuario,[class*="bg-[#1FA855]"]){color:#fff}
+.cpc-claro .hover\\:text-white:hover{color:#1B1E22}
+.cpc-claro .text-primary-foreground:not(.bg-primary){color:#1B1E22}
+.cpc-claro .bg-slate-850{background-color:#fff}
+.cpc-claro .from-slate-100{--tw-gradient-from:#F1F5F9}
+.cpc-claro .to-slate-300{--tw-gradient-to:#CBD5E1}
+.cpc-claro .msg-usuario{background:#1B1E22 !important;color:#fff;border-radius:16px;border-top-right-radius:4px;padding:12px 16px}
+.cpc-claro .msg-usuario *{color:#fff}
+.cpc-claro .msg-consultor{background:#fff;border-color:#E1E4E8;box-shadow:0 1px 2px rgba(0,0,0,.04);border-radius:16px;border-top-left-radius:4px;padding:14px 18px;max-width:min(88%,720px)}
+.cpc-claro .msg-consultor,.cpc-claro .msg-usuario{font-size:15.5px}
+.cpc-claro .msg-consultor .markdown-body{font-size:15.5px;color:#1B1E22}
+.cpc-claro .msg-consultor strong{color:#1B1E22;font-weight:700}
+.cpc-claro .cpc-entrada > div{border:1px solid #DADDE1;border-radius:16px;padding:10px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.cpc-claro .cpc-entrada textarea{border:0;box-shadow:none;font-weight:500;font-size:15.5px;max-height:160px}
+@layer base{.cpc-claro .cpc-entrada textarea{min-height:46px !important;height:auto !important}}
+.cpc-claro .msg-consultor .border-t:empty{display:none}
+.cpc-claro .cpc-entrada textarea:focus{box-shadow:none}
+.cpc-claro .cpc-entrada .bg-primary{background:#F6C400;color:#1B1E22}
+.cpc-claro .cpc-entrada button{height:42px;min-width:44px;border-radius:12px}
+.cpc-claro .cpc-explorador > div{border:1px solid #E1E4E8;border-radius:16px}
+`;
+
+  const blocoPc = (
+    <div className="cpc-claro fixed inset-0 z-[45] flex flex-col bg-[#ECEEF0] text-[#1B1E22] font-sans notranslate" translate="no">
+      <style>{estiloPc}</style>
+      {/* Barra do topo */}
+      <header className="h-[60px] shrink-0 bg-[#1B1E22] flex items-center justify-between px-5 gap-4">
+        <div className="flex items-center gap-4 min-w-0">
+          <img src="/marca/roder-horizontal.png" alt="Roder" className="h-8 w-auto shrink-0 mix-blend-lighten" />
+          <span className="h-6 w-px bg-white/20 shrink-0" />
+          <span className="fonte-titulo text-[17px] font-extrabold tracking-[0.06em] text-[#F6C400] truncate">CONSULTOR TÉCNICO</span>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {[
+            { mostra: true, rotulo: 'Calculadora', icone: Calculator, ativo: calcOpen, acao: () => setCalcOpen(!calcOpen) },
+            { mostra: true, rotulo: 'Relatório', icone: FileText, ativo: false, acao: () => handleOpenReport() },
+            { mostra: !!isRegisteredUser, rotulo: 'Compartilhar', icone: Share2, ativo: false, acao: () => setIsShareModalOpen(true) },
+            { mostra: canTeach, rotulo: knowledgeOpen ? 'Ver conversa' : 'Ensinar IA', icone: Brain, ativo: knowledgeOpen, acao: () => setKnowledgeOpen(!knowledgeOpen) },
+          ].filter(b => b.mostra).map(b => (
+            <button
+              key={b.rotulo}
+              type="button"
+              onClick={b.acao}
+              title={b.rotulo}
+              className={cn('h-9 px-2.5 min-[1360px]:px-3.5 rounded-full border text-[13.5px] font-semibold flex items-center gap-1.5 transition',
+                b.ativo ? 'border-[#F6C400] bg-[#F6C400] text-[#1B1E22]' : 'border-white/25 text-[#fff]/90 hover:bg-white/10')}
+            >
+              <b.icone className="h-4 w-4" /> <span className="hidden min-[1360px]:inline">{b.rotulo}</span>
+            </button>
+          ))}
+          <button type="button" onClick={handleForceUpdate} title="Buscar atualizações" className="h-9 w-9 rounded-full border border-white/25 text-[#fff]/80 hover:bg-white/10 flex items-center justify-center transition">
+            <RefreshCw className="h-4 w-4" />
+          </button>
+          {nomeUsuario && (
+            <span className="ml-1 h-9 px-3.5 rounded-full border border-white/25 text-[#fff] text-[13.5px] font-semibold flex items-center gap-1.5 max-w-[260px]">
+              <User className="h-4 w-4 text-[#F6C400] shrink-0" />
+              <span className="truncate">{nomeUsuario}{papelUsuario ? ` · ${papelUsuario}` : ''}</span>
+            </span>
+          )}
+        </div>
+      </header>
+
+      <div className="flex-1 min-h-0 grid grid-cols-[240px_minmax(0,1fr)_340px] min-[1360px]:grid-cols-[260px_minmax(0,1fr)_420px]">
+        {/* Coluna da esquerda: nova conversa e equipamentos */}
+        <aside className="min-h-0 flex flex-col bg-white border-r border-[#E1E4E8]">
+          <div className="p-4 pb-3 space-y-3 shrink-0">
+            <button type="button" onClick={handleClearConversation} className="w-full h-11 rounded-xl bg-[#F6C400] hover:bg-[#e2b400] text-[#1B1E22] font-extrabold text-[15px] transition">
+              + Nova conversa
+            </button>
+            <input
+              type="search"
+              value={buscaEquip}
+              onChange={(e) => setBuscaEquip(e.target.value)}
+              placeholder="Buscar equipamento..."
+              className="w-full h-10 rounded-xl border border-[#DADDE1] bg-white px-3.5 text-[14px] text-[#1B1E22] placeholder-[#8A9097] outline-none focus:border-[#1B1E22]"
+            />
+          </div>
+          <p className="px-4 pb-1.5 text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#6B7178] shrink-0">Equipamentos</p>
+          <nav className="flex-1 min-h-0 overflow-y-auto px-2.5 pb-4">
+            {loadingExplorer ? (
+              <p className="px-2 py-4 text-[13.5px] text-[#6B7178] flex items-center gap-2"><RefreshCw className="h-4 w-4 animate-spin" /> Carregando catálogo...</p>
+            ) : equipamentosFiltrados.length === 0 ? (
+              <p className="px-2 py-4 text-[13.5px] text-[#6B7178]">Nenhum equipamento encontrado.</p>
+            ) : equipamentosFiltrados.map(prod => {
+              const ativo = selectedProduct?.id === prod.id;
+              const n = (prod.models || []).length;
+              return (
+                <button
+                  key={prod.id}
+                  type="button"
+                  onClick={() => { escolherProdutoExplorador(prod); setExplorerMinimized(false); }}
+                  className={cn('w-full h-auto min-h-10 py-2 px-2.5 rounded-lg text-left flex items-center justify-between gap-2 text-[14.5px] transition',
+                    ativo ? 'bg-[#FFF3C2] font-bold text-[#1B1E22]' : 'font-medium text-[#2A2F35] hover:bg-[#F3F4F6]')}
+                >
+                  <span className="min-w-0 break-words leading-snug">{prod.name}</span>
+                  {n > 0 && <span className="shrink-0 text-[12.5px] text-[#8A9097]">{n}</span>}
+                </button>
+              );
+            })}
+          </nav>
+        </aside>
+
+        {/* Centro: a conversa */}
+        <main className="min-h-0 min-w-0 flex flex-col">
+          <div className="shrink-0 bg-white border-b border-[#E1E4E8] px-7 py-3.5">
+            <p className="fonte-titulo text-[17px] font-extrabold text-[#1B1E22] truncate">{tituloConversa}</p>
+            <p className="text-[13px] text-[#6B7178] mt-0.5">Consultor Técnico Roder</p>
+          </div>
+          {knowledgeOpen ? (
+            <div className="flex-1 min-h-0 flex flex-col">{blocoEnsinar}</div>
+          ) : (
+            <>
+              {blocoCalculadora}
+              <div className="flex-1 min-h-0 overflow-y-auto px-7 py-6">
+                <div className="max-w-[880px] mx-auto space-y-4">
+                  {listaMensagens}
+                </div>
+              </div>
+              <div className="shrink-0 px-7 pb-5 pt-1">
+                <div className="max-w-[880px] mx-auto space-y-3">
+                  {selectedProduct && !explorerMinimized && (
+                    <div className="cpc-explorador max-h-[42vh] overflow-y-auto rounded-2xl">{blocoExplorador}</div>
+                  )}
+                  {conversaVazia && onboardingStep === 'COMPLETED' && !loading && (
+                    <div className="grid grid-cols-3 gap-2.5">
+                      {sugestoesPc.map(s => (
+                        <button key={s} type="button" onClick={() => handleSend(s)} className="h-auto min-h-12 px-4 py-2.5 rounded-2xl border border-[#DADDE1] bg-white text-left text-[14px] font-semibold text-[#2A2F35] hover:border-[#1B1E22] transition leading-snug">
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div className="cpc-entrada">{blocoEntrada}</div>
+                </div>
+              </div>
+            </>
+          )}
+        </main>
+
+        {/* Coluna da direita: o que importa da conversa */}
+        <aside className="min-h-0 flex flex-col bg-white border-l border-[#E1E4E8]">
+          <div className="shrink-0 flex gap-1 px-3 border-b border-[#E1E4E8]">
+            {([['conversa', 'Nesta conversa'], ['ficha', 'Ficha'], ['fotos', 'Fotos e vídeo']] as const).map(([id, rotulo]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setAbaPainel(id)}
+                className={cn('h-12 px-2 min-[1360px]:px-3 whitespace-nowrap text-[14px] min-[1360px]:text-[14.5px] border-b-[3px] -mb-px transition',
+                  abaPainel === id ? 'border-[#F6C400] font-bold text-[#1B1E22]' : 'border-transparent font-medium text-[#5B6168] hover:text-[#1B1E22]')}
+              >
+                {rotulo}
+              </button>
+            ))}
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            {abaPainel === 'conversa' ? painelNestaConversa : abaPainel === 'ficha' ? painelFicha : painelFotos}
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+
+
+  return (
+    <>
+      {/* Viewport container to keep the draggable floating button fully inside the screen boundaries */}
+      <div ref={dragContainerRef} className="fixed inset-0 pointer-events-none z-[44]" />
+
+      {/* Floating Toggle Button */}
+      {(!isFullPage || !isOpen) && (
+        <motion.div
+          drag={!isOpen}
+          dragConstraints={dragContainerRef}
+          dragMomentum={false}
+          dragElastic={0.15}
+          className={cn(
+            "roder-botao-consultor fixed bottom-6 right-6 z-[45] font-sans notranslate transition-all duration-300 touch-none",
+            hasRightDock && "lg:hidden"
+          )}
+          translate="no"
+        >
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => {
+              // no computador o consultor abre numa janela própria; no celular continua por cima da tela
+              if (!isOpen && !isFullPage && abrirConsultorEmJanela()) return;
+              setIsOpen(!isOpen);
+            }}
+            className={`relative flex items-center justify-center rounded-full shadow-2xl text-[#fff] transition-all duration-300 ${
+              isOpen 
+                ? 'p-2.5 px-3 sm:p-3.5 sm:px-5 bg-slate-700 hover:bg-slate-800' 
+                : 'w-20 h-20 sm:w-auto sm:h-auto p-2 sm:p-3.5 sm:px-5 bg-black hover:bg-neutral-900 border-2 border-amber-500/50'
+            }`}
+            style={{ boxShadow: isOpen ? '0 10px 25px -5px rgba(0, 0, 0, 0.3)' : '0 10px 25px -5px rgba(245, 158, 11, 0.35)' }}
+          >
+            {isOpen ? (
+              <div className="flex items-center gap-2">
+                <X className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
+                <div className="flex flex-col items-start leading-none text-left">
+                  <span className="text-[7.5px] sm:text-[9px] opacity-80 font-medium uppercase tracking-wider">
+                    Assistente
+                  </span>
+                  <span className="text-[9.5px] sm:text-xs font-black tracking-tight uppercase">
+                    Fechar ✕
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Mobile "Bolinha" (Roder Consultor) - Text Only, Elegant Typography */}
+                <div className="sm:hidden flex flex-col items-center justify-center text-center w-full h-full p-1 leading-tight select-none">
+                  <span className="text-[8.5px] font-medium tracking-wider text-[#fff]/80 uppercase">
+                    Consultor
+                  </span>
+                  <span className="text-[14px] font-black tracking-widest text-[#fff] uppercase my-0.5 animate-pulse drop-shadow-sm">
+                    RODER
+                  </span>
+                  <span className="text-[8.5px] font-bold tracking-wider text-[#fff]/90 uppercase">
+                    Técnico
+                  </span>
+                </div>
+
+                {/* Desktop standard pill */}
+                <div className="hidden sm:flex items-center gap-2">
+                  <Wrench className="h-4.5 w-4.5 sm:h-5 sm:w-5 animate-bounce" />
+                  <div className="flex flex-col items-start leading-none text-left">
+                    <span className="text-[7.5px] sm:text-[9px] opacity-80 font-medium uppercase tracking-wider">
+                      Consultor Técnico
+                    </span>
+                    <span className="text-[9.5px] sm:text-xs font-black tracking-tight uppercase">
+                      Roder IA
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {messages.length > 1 && !isOpen && (
+              <span className="absolute -top-1 -left-1 flex h-3.5 w-3.5 z-10">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-green-500 border-2 border-white"></span>
+              </span>
+            )}
+
+            {!isOpen && (
+              <div className="absolute -top-1 -right-1 bg-amber-500 text-slate-950 font-black text-[9px] px-1.5 py-0.5 rounded-full uppercase tracking-widest animate-pulse border border-white shadow z-10">
+                IA
+              </div>
+            )}
+          </motion.button>
+        </motion.div>
+      )}
+
+      {/* Computador, página inteira: ambiente de 3 colunas (tema claro) */}
+      {isOpen && layoutPc && blocoPc}
+
+      {/* Floating Chat Container */}
+      <AnimatePresence>
+        {isOpen && !layoutPc && (
+          <motion.div
+            initial={hasRightDock ? { opacity: 0, x: 50 } : { opacity: 0, y: 50, scale: 0.95 }}
+            animate={hasRightDock ? { opacity: 1, x: 0 } : { opacity: 1, y: 0, scale: 1 }}
+            exit={hasRightDock ? { opacity: 0, x: 50 } : { opacity: 0, y: 50, scale: 0.95 }}
+            transition={{ duration: 0.25 }}
+            className={cn(
+              "fixed bg-slate-900 border-slate-800 flex flex-col overflow-hidden z-[45] text-white font-sans notranslate transition-all duration-300",
+              isFullPage
+                ? "inset-0 w-full h-full max-h-none rounded-none border-0 sm:top-auto sm:left-auto sm:bottom-6 sm:right-6 sm:w-[480px] sm:h-[85vh] sm:max-h-[800px] sm:border sm:rounded-2xl sm:shadow-3xl"
+                : hasRightDock
+                  ? "bottom-22 right-4 sm:right-6 w-[94vw] sm:w-[480px] h-[86vh] sm:h-[80vh] max-h-[820px] sm:max-h-[720px] border rounded-2xl shadow-3xl lg:top-[65px] lg:bottom-0 lg:right-0 lg:w-[480px] lg:h-[calc(100vh-65px)] lg:max-h-none lg:rounded-none lg:border-t-0 lg:border-b-0 lg:border-r-0 lg:border-l lg:shadow-none"
+                  : "bottom-22 right-4 sm:right-6 w-[94vw] sm:w-[480px] h-[86vh] sm:h-[80vh] max-h-[820px] sm:max-h-[720px] border rounded-2xl shadow-3xl"
+            )}
+            translate="no"
+          >
+            {/* Header */}
+            <div className={cn(
+              "px-3 pb-2 sm:px-4 sm:py-2.5 bg-black border-b border-neutral-900 flex items-center justify-between shadow-md",
+              isFullPage ? "pt-[calc(env(safe-area-inset-top,12px)+8px)]" : "pt-2 sm:pt-2.5"
+            )}>
+              <div className="flex flex-col items-start select-none">
+                <span className="text-[7.5px] sm:text-[9px] font-semibold uppercase tracking-wider text-neutral-400 leading-none">
+                  Consultor
+                </span>
+                <div className="flex items-center gap-1 leading-none mt-0.5">
+                  <span className="text-xs sm:text-sm font-black tracking-widest text-white uppercase">
+                    RODER
+                  </span>
+                  <span className="text-[10px] sm:text-xs font-bold text-amber-400 uppercase tracking-wide">
+                    Técnico
+                  </span>
+                  <span className="ml-1 text-[7px] sm:text-[8px] font-black bg-amber-500 text-slate-950 px-1 py-0.5 rounded uppercase tracking-widest animate-pulse leading-none">
+                    IA
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 px-1.5 sm:px-2 text-slate-300 hover:text-white text-xs gap-1 hover:bg-white/15"
+                  onClick={() => setCalcOpen(!calcOpen)}
+                  title="Calculadora"
+                >
+                  <Calculator className="h-3.5 w-3.5" />
+                  <span className="hidden xs:inline">Calculadora</span>
+                </Button>
+
+                {canTeach && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className={`h-8 px-1.5 sm:px-2 text-xs gap-1 ${
+                      knowledgeOpen 
+                        ? 'text-amber-400 bg-amber-500/10 hover:bg-amber-500/20' 
+                        : 'text-purple-400 hover:text-purple-300 hover:bg-purple-500/10'
+                    }`}
+                    onClick={() => setKnowledgeOpen(!knowledgeOpen)}
+                    title="Ensinar Roder IA (Adicionar Conhecimento por Voz ou Texto)"
+                  >
+                    <Brain className="h-3.5 w-3.5" />
+                    <span className="hidden xs:inline">{knowledgeOpen ? 'Ver Chat' : 'Ensinar IA'}</span>
+                  </Button>
+                )}
+
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 px-1.5 sm:px-2 text-green-400 hover:text-green-300 hover:bg-green-500/10 text-xs gap-1"
+                  onClick={() => handleOpenReport()}
+                  title="Gerar Relatório em Imagem"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  <span className="hidden xs:inline">Relatório</span>
+                </Button>
+
+                {isRegisteredUser && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 px-1.5 sm:px-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 text-xs gap-1"
+                    onClick={() => setIsShareModalOpen(true)}
+                    title="Compartilhar Consultor via WhatsApp"
+                  >
+                    <Share2 className="h-3.5 w-3.5" />
+                    <span className="hidden xs:inline">Compartilhar</span>
+                  </Button>
+                )}
+
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 px-1.5 sm:px-2 text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 text-xs gap-1"
+                  onClick={handleClearConversation}
+                  title="Limpar Conversa"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span className="hidden xs:inline">Limpar</span>
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 px-1.5 sm:px-2 text-sky-400 hover:text-sky-300 hover:bg-sky-500/10 text-xs gap-1"
+                  onClick={handleForceUpdate}
+                  title="Buscar e carregar novas atualizações pendentes"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  <span className="hidden xs:inline">Atualizar</span>
+                </Button>
+
+                {/* Safe Separator */}
+                <div className="h-6 w-[1px] bg-slate-800 mx-1" />
+
+                {/* Minimize Button - hides the container but persists conversation */}
+                <button
+                  onClick={() => setIsOpen(false)}
+                  className="p-1.5 rounded-lg text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 border border-amber-500/20 transition-colors flex items-center justify-center h-8 w-8"
+                  title="Minimizar (Mantém Conversa)"
+                >
+                  <Bot className="h-4.5 w-4.5 animate-pulse" />
+                </button>
+
+                {/* Close/End Button - triggers handleEndConversation (clears conversation and closes) */}
+                <button
+                  onClick={handleEndConversation}
+                  className="p-1.5 rounded-lg text-red-500 hover:text-red-400 hover:bg-red-500/10 border border-red-500/30 transition-colors flex items-center justify-center h-8 w-8 ml-2"
+                  title="Encerrar Conversa"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+
+
+            {!knowledgeOpen ? (
+              <>
+                {blocoCalculadora}
+
+            {/* Chat Messages */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-950/50 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
+              {listaMensagens}
+            </div>
+
+            {blocoExplorador}
+
+            {blocoEntrada}
+          </>
+        ) : (
+          blocoEnsinar
         )}
       </motion.div>
         )}

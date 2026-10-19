@@ -1,6 +1,8 @@
 import React, { useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import EngineerHelper from '../components/layout/EngineerHelper';
+import { useManifestoConsultor } from '../lib/useManifestoConsultor';
+import { useAuth } from '../contexts/AuthContext';
 
 // Helper function to programmatically draw a beautiful custom black square icon
 function generateConsultantIcon(): string {
@@ -72,11 +74,16 @@ function generateConsultantIcon(): string {
 export default function PublicConsultant() {
   const [searchParams] = useSearchParams();
   const ref = searchParams.get('ref');
+  // Logado no Roder Indica (mesmo navegador): o consultor usa o papel da pessoa (equipe ou parceiro)
+  // e não pergunta "Quem é você?". Espera o login ser lido para não piscar a pergunta.
+  const { loading } = useAuth();
+  let talvezLogado = false;
+  try { talvezLogado = !!localStorage.getItem('roder_profile_cache'); } catch { /* sem armazenamento */ }
+  const carregandoLogin = loading && talvezLogado;
+  useManifestoConsultor();
 
   useEffect(() => {
     // Store original page metadata to restore on unmount
-    const originalTitle = document.title;
-    
     let originalAppleTouchIcon = '';
     const appleTouchIconEl = document.querySelector('link[rel="apple-touch-icon"]');
     if (appleTouchIconEl) {
@@ -89,20 +96,11 @@ export default function PublicConsultant() {
       originalFavicon = faviconEl.getAttribute('href') || '';
     }
 
-    let originalManifest = '';
-    const manifestEl = document.querySelector('link[rel="manifest"]');
-    if (manifestEl) {
-      originalManifest = manifestEl.getAttribute('href') || '';
-    }
-
     let originalAppleTitle = '';
     const appleTitleEl = document.getElementById('apple-app-title');
     if (appleTitleEl) {
       originalAppleTitle = appleTitleEl.getAttribute('content') || '';
     }
-
-    // Set custom, premium document title
-    document.title = "Consultor Técnico Digital - RODER";
 
     // Generate our high-fidelity, custom-styled full-black-square icon
     const iconDataUrl = generateConsultantIcon();
@@ -124,37 +122,7 @@ export default function PublicConsultant() {
       favicon.setAttribute('href', iconDataUrl);
     }
 
-    // 2. Setup dynamic custom manifest so "Add to Home Screen" keeps the "Consultor Técnico Roder" name & brand-new black icon
-    const manifestLink = document.querySelector('link[rel="manifest"]');
-    const customManifest = JSON.stringify({
-      id: '/consultor',
-      name: "Consultor Técnico Roder",
-      short_name: "Consultor Técnico Roder",
-      description: "Consultor Técnico Digital - RODER",
-      display: "standalone",
-      start_url: window.location.origin + window.location.pathname + (ref ? `?ref=${encodeURIComponent(ref)}` : ''),
-      background_color: '#000000',
-      theme_color: '#f97316',
-      orientation: 'any',
-      scope: '/',
-      icons: [
-        {
-          src: iconDataUrl,
-          sizes: "512x512",
-          type: "image/png",
-          purpose: "any"
-        }
-      ]
-    });
-
-    if (manifestLink) {
-      manifestLink.setAttribute('href', `data:application/json;charset=utf-8,${encodeURIComponent(customManifest)}`);
-    } else {
-      const newManifest = document.createElement('link');
-      newManifest.rel = 'manifest';
-      newManifest.href = `data:application/json;charset=utf-8,${encodeURIComponent(customManifest)}`;
-      document.head.appendChild(newManifest);
-    }
+    // 2. Manifesto e título: useManifestoConsultor (public/consultor.webmanifest, "Consultor Roder")
 
     // 3. Set the apple-mobile-web-app-title tag to keep the icon name on iOS
     let meta = document.getElementById('apple-app-title') as HTMLMetaElement;
@@ -174,7 +142,6 @@ export default function PublicConsultant() {
 
     return () => {
       // Clean up and restore original site metadata on unmount
-      document.title = originalTitle;
       
       const touchIcon = document.querySelector('link[rel="apple-touch-icon"]');
       if (touchIcon && originalAppleTouchIcon) {
@@ -184,11 +151,6 @@ export default function PublicConsultant() {
       const fav = document.querySelector('link[rel="icon"]');
       if (fav && originalFavicon) {
         fav.setAttribute('href', originalFavicon);
-      }
-
-      const man = document.querySelector('link[rel="manifest"]');
-      if (man && originalManifest) {
-        man.setAttribute('href', originalManifest);
       }
 
       const appTitle = document.getElementById('apple-app-title');
@@ -205,7 +167,7 @@ export default function PublicConsultant() {
   return (
     <div className="w-full h-[100dvh] bg-slate-950 flex flex-col relative font-sans overflow-hidden">
       {/* On top, we render the EngineerHelper. Since isFullPage={true} is passed, it covers the whole viewport on mobile. */}
-      <EngineerHelper isFullPage={true} />
+      {carregandoLogin ? null : <EngineerHelper isFullPage={true} />}
     </div>
   );
 }
