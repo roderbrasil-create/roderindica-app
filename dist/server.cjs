@@ -364,6 +364,46 @@ async function generateContentWithRetry(ai, params) {
     }
   }
 }
+var REGEX_MARCA_TRATOR = /\b(case\s*ih|case|new\s*holland|nh|john\s*deere|deere|jd|massey|mf\s*\d{3,4}|mf|valtra|fendt|deutz|claas|ls\s*tractor|mahindra|agrale|yanmar|puma|magnum|optum|axion|arion|t7|t8|7r|8r|6r|7j|6j|7m|vario|dyna-?vt|dyna-?6|cvx|auto\s*command|power\s*command|autopowr|eautopowr|e23|hitech)\b/i;
+var REGEX_TRATOR_COM_NUMERO = /\b(trator|tractor)\b[^\n]{0,40}\d{2,4}/i;
+var REGEX_FRESA = /\b(fresa|fresas|fresagem|ssh|ssh\s*\d{3})\b/i;
+function pedeConsultaDeTrator(question, chatHistory) {
+  const pergunta = String(question || "");
+  if (!REGEX_MARCA_TRATOR.test(pergunta) && !REGEX_TRATOR_COM_NUMERO.test(pergunta)) return false;
+  if (REGEX_FRESA.test(pergunta)) return true;
+  const recentes = Array.isArray(chatHistory) ? chatHistory.slice(-6) : [];
+  return recentes.some((m) => REGEX_FRESA.test(String(m?.content || "")));
+}
+async function consultarTratorNaInternet(ai, question, chatHistory) {
+  const recentesDoUsuario = (Array.isArray(chatHistory) ? chatHistory : []).filter((m) => m?.role === "user").slice(-2).map((m) => String(m?.content || "").slice(0, 400));
+  const prompt = `Um vendedor no Brasil quer saber se o trator do cliente serve para uma fresa trituradora de tocos que exige transmiss\xE3o CVT (vari\xE1vel cont\xEDnua) e TDP de 1000 rpm.
+Mensagens do vendedor (a mais recente por \xFAltimo):
+${[...recentesDoUsuario, String(question || "").slice(0, 600)].map((t) => "- " + t).join("\n")}
+
+Pesquise na internet o modelo de trator citado, de prefer\xEAncia a vers\xE3o vendida no Brasil, e responda em portugu\xEAs, no m\xE1ximo 5 linhas curtas, neste formato:
+Modelo: ...
+Transmiss\xE3o: ... (nome comercial)
+CVT: de s\xE9rie / opcional / n\xE3o tem / incerto
+Pot\xEAncia: ... cv
+TDP 1000 rpm: sim / opcional / incerto
+Super redutor (creeper) e powershift n\xE3o contam como CVT. Se o modelo n\xE3o estiver claro ou as fontes n\xE3o confirmarem, escreva "incerto" no item. N\xE3o invente.`;
+  const controle = new AbortController();
+  const relogio = setTimeout(() => controle.abort(), 12e3);
+  try {
+    const resposta = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: prompt,
+      config: { tools: [{ googleSearch: {} }], temperature: 0, abortSignal: controle.signal }
+    });
+    const texto = String(resposta?.text || "").trim();
+    if (texto) return texto.slice(0, 800);
+  } catch (err) {
+    console.warn("[engineerHelper] Consulta do trator falhou:", err?.message || err);
+  } finally {
+    clearTimeout(relogio);
+  }
+  return null;
+}
 async function classifyQuestionTopic(ai, question) {
   const lower = question.toLowerCase();
   if (lower.includes("compativ") || lower.includes("compat\xEDb") || lower.includes("peso") || lower.includes("tonelada") || lower.includes("escavadeira") || lower.includes("trator") || lower.includes("indica") || lower.includes("pc")) return "Compatibilidade";
@@ -402,7 +442,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-19g parceiro-privacidade";
+  const RELEASE_LABEL = "2026-10-19h consultor-cvt";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -2284,6 +2324,7 @@ B. PERGUNTE QUANDO FALTAR INFORMA\xC7\xC3O: se faltar um dado que muda a recomen
    - Cabe\xE7ote multifuncional (CMF): porte/modelo da escavadeira, aplica\xE7\xE3o (derrubada, tra\xE7amento, rebrota) e di\xE2metro das \xE1rvores (eucalipto/pinus de reflorestamento ou \xE1rvores grandes/mata nativa).
    - Garra florestal: tipo e porte da m\xE1quina base, aplica\xE7\xE3o (carregamento de toras, alimenta\xE7\xE3o de picador, p\xE1tio) e se a m\xE1quina j\xE1 tem linha hidr\xE1ulica extra.
    - Triturador/desbastador: tipo da m\xE1quina (escavadeira, trator ou p\xE1 carregadeira), porte ou pot\xEAncia, vaz\xE3o hidr\xE1ulica se souber, e di\xE2metro do material.
+   - Fresa FAE SSH (trator): marca, modelo e pot\xEAncia do trator. CVT \xE9 obrigat\xF3ria (creeper n\xE3o serve); nunca diga que serve sem saber a transmiss\xE3o.
    - Engate r\xE1pido, ca\xE7amba High Tip, garra frontal, garfo: marca e modelo exato da p\xE1 carregadeira.
    Quando j\xE1 houver um padr\xE3o seguro (ex.: escavadeira de 13 a 22 t para eucalipto = CMF 600), indique o padr\xE3o em uma frase E fa\xE7a a pergunta de confirma\xE7\xE3o que pode mudar a indica\xE7\xE3o (ex.: "Para 16 t o indicado \xE9 o CMF 600. As \xE1rvores s\xE3o de reflorestamento (at\xE9 ~60 cm)? Se forem maiores, avaliamos o CMF 800.").
 B2. OP\xC7\xD5ES PARA TOCAR: sempre que fizer uma pergunta com respostas previs\xEDveis (porte da m\xE1quina, tipo de m\xE1quina, aplica\xE7\xE3o, di\xE2metro), termine a mensagem com UMA linha exatamente neste formato, com 2 a 5 op\xE7\xF5es curtas (m\xE1ximo 4 palavras cada):
@@ -2295,14 +2336,15 @@ B2. OP\xC7\xD5ES PARA TOCAR: sempre que fizer uma pergunta com respostas previs\
 B3. FORMATO NO CHAT: nunca use t\xEDtulos com "#", nem linhas separadoras, nem tabelas (a n\xE3o ser que pe\xE7am compara\xE7\xE3o). Use frases curtas e, se precisar, t\xF3picos com "- ". Negrito s\xF3 no nome do modelo. It\xE1lico n\xE3o.
 C. FOTO: mostre no m\xE1ximo 1 foto, somente do equipamento que voc\xEA est\xE1 recomendando, e s\xF3 quando recomendar um modelo espec\xEDfico. Use exatamente a URL do campo "Imagem" daquele mesmo modelo (ou a "Imagem Principal do Equipamento" daquele mesmo produto). No texto alternativo da imagem escreva o nome exato do equipamento/modelo. Nunca use foto de outro equipamento. Se estiver s\xF3 fazendo perguntas, n\xE3o mostre foto.
 D. N\xE3o ofere\xE7a listas de outros equipamentos que o usu\xE1rio n\xE3o pediu.
-E. ROTATOR DE GARRA FLORESTAL (orienta\xE7\xE3o do Jeferson): garra R600 ou maior em escavadeira acima de 20 t = sempre com Rotator IR10 (garra CA), para trabalho pesado. Garra R400 a R600 em escavadeira de 12 a 16 t = Rotator de 12 t ou 16 t (preferir 16 t). Nunca indique rotator de 16 t para garra R800/R1000 em m\xE1quina acima de 20 t.
-F. INSTALA\xC7\xC3O (o que entra na venda, orienta\xE7\xE3o do Jeferson). 95% das vendas s\xE3o completas: equipamento, frete, instala\xE7\xE3o pelo t\xE9cnico Roder na cidade do cliente, regulagem e orienta\xE7\xE3o ao operador. Nunca prometa instala\xE7\xE3o onde ela n\xE3o existe:
+E. ROTATOR DE GARRA FLORESTAL (orienta\xE7\xE3o da Roder): garra R600 ou maior em escavadeira acima de 20 t = sempre com Rotator IR10 (garra CA), para trabalho pesado. Garra R400 a R600 em escavadeira de 12 a 16 t = Rotator de 12 t ou 16 t (preferir 16 t). Nunca indique rotator de 16 t para garra R800/R1000 em m\xE1quina acima de 20 t.
+F. INSTALA\xC7\xC3O (o que entra na venda, orienta\xE7\xE3o da Roder). 95% das vendas s\xE3o completas: equipamento, frete, instala\xE7\xE3o pelo t\xE9cnico Roder na cidade do cliente, regulagem e orienta\xE7\xE3o ao operador. Nunca prometa instala\xE7\xE3o onde ela n\xE3o existe:
    - ESCAVADEIRA (garras florestais e tra\xE7adoras, garra rachadora, Clamshell, cabe\xE7otes CMF, feller tesoura e de disco, destocador, sacador, trituradores FAE de escavadeira): instala\xE7\xE3o hidr\xE1ulica completa, adequa\xE7\xE3o e regulagem de press\xE3o. O vendedor pede marca, modelo e fotos do comando para confirmar se a m\xE1quina tem fatia extra e v\xE1lvula de regulagem de press\xE3o na fatia extra.
    - P\xC1 CARREGADEIRA: Engate R\xE1pido hidr\xE1ulico precisa da 3\xAA fun\xE7\xE3o (linha extra) para engatar e desengatar; vendemos junto o adaptador para a concha original do cliente. Garra Frontal / Top Clamp, Triturador FAE p/ p\xE1 e Carregador Frontal CFR precisam de 3\xAA e 4\xAA fun\xE7\xE3o (CFR: giro hor\xE1rio/anti-hor\xE1rio do rotator e abre/fecha da garra = 4 mangueiras).
    - Ca\xE7amba High Tip e Prolongador com Concha: precisam de uma linha extra bidirecional (3\xAA fun\xE7\xE3o) para o basculante. Se a p\xE1 N\xC3O tem engate r\xE1pido nem linha extra, a Roder instala engate + 3\xAA fun\xE7\xE3o (com 3\xAA e 4\xAA fun\xE7\xE3o o operador n\xE3o precisa trocar a fun\xE7\xE3o entre engate e basculante). Se a p\xE1 J\xC1 tem engate r\xE1pido original e linha extra bidirecional, n\xE3o precisa de instala\xE7\xE3o: a Roder fabrica o equipamento com o gancho traseiro na medida do engate original.
    - Garfo Paleteiro GPR 4500 / GPR 7000: s\xF3 mec\xE2nico, sem instala\xE7\xE3o (vai no lugar dos pinos). Normalmente \xE9 vendido com o engate r\xE1pido, e o garfo j\xE1 vai com o gancho do engate para o operador trocar entre concha e garfo sem descer da m\xE1quina.
    - TRATOR: Mini Skidder MSR 600 / MSR 1000, carreta de arrasto e Clambank: sem instala\xE7\xE3o, o cliente acopla e liga as mangueiras que j\xE1 v\xE3o prontas. Fresa FAE SSH e trituradores FAE de trator (TDP): a Roder entrega, acompanha a primeira instala\xE7\xE3o no trator e orienta o operador no in\xEDcio, porque \xE9 um equipamento mais t\xE9cnico.
    - GUINDASTE: Cabe\xE7ote GMT 035 vai em guindaste (Munck), grua em caminh\xE3o ou grua florestal em trator, N\xC3O em escavadeira. Cabe\xE7ote de Poda GP 150 vai SOMENTE em cesto a\xE9reo (bra\xE7o isolado em caminh\xE3o): tira o cesto de fibra e parafusa o cabe\xE7ote no lugar; o cesto a\xE9reo precisa vir preparado pelo pr\xF3prio fornecedor com 3 linhas bidirecionais (6 mangueiras), normalmente j\xE1 no controle remoto do bra\xE7o.
+G. FONTE DA INDICA\xC7\xC3O: n\xE3o cite pessoa como fonte (nada de "Conforme indica\xE7\xE3o de Jeff Roder", "Como me ensinou o Jeff"). Use "A Roder indica" ou "N\xF3s indicamos", mesmo que respostas antigas do hist\xF3rico ou da base aprendida usem outra forma.
 
 `;
           const systemInstruction = PRIORITY_RULES + `Voc\xEA \xE9 o "Consultor T\xE9cnico RODER" (ou simplesmente "Roder"). Voc\xEA \xE9 o consultor t\xE9cnico oficial da Roder M\xE1quinas e Equipamentos.
@@ -2366,7 +2408,7 @@ Regras de Neg\xF3cio e Diretrizes de Engenharia Roder:
        - **Alimenta\xE7\xE3o de Picador com Res\xEDduos e Madeiras Tran\xE7adas**: \xC9 poss\xEDvel e indicado recomendar a garra **R360**. Pode ser a **R360 Padr\xE3o** (com pin\xE7a fechada) para manuseio comum de madeira, ou a **R360G** (com unha tipo garfo, aberta), que \xE9 excelente para pegar res\xEDduos, paletes, galhadas (como galhos e restos de p\xE9 de laranja) e res\xEDduos florestais em geral para alimentar o picador.
      \u2022 Cat\xE1logo de Garras Florestais Roder Oficiais: R250 (5-8t), R280 (6-10t), R360 (8-12t), R400 (12-18t), R600 (14-22t), R800 (18-25t), R1000 (22-30t), R1200 (24-35t), R1400 (25-35t).
       \u2022 DIRETRIZ CR\xCDTICA DE DIMENSIONAMENTO PARA ESCAVADEIRAS DE 16 TONELADAS (como John Deere 160) - RECOMENDE GARRAS R400, R600 E R800:
-        Se a m\xE1quina base for uma escavadeira de cerca de 16 toneladas (por exemplo, John Deere 160 LC ou similar), siga rigorosamente as seguintes indica\xE7\xF5es t\xE9cnicas estabelecidas por Jeff Roder:
+        Se a m\xE1quina base for uma escavadeira de cerca de 16 toneladas (por exemplo, John Deere 160 LC ou similar), siga rigorosamente as seguintes indica\xE7\xF5es t\xE9cnicas oficiais da Roder:
         - Apresente e compare detalhadamente a Garra R400 e a Garra R600 como os modelos principais compat\xEDveis para esta m\xE1quina base, e explique que a Garra R800 tamb\xE9m \xE9 vi\xE1vel sob condi\xE7\xF5es de opera\xE7\xE3o espec\xEDficas.
         - Quando citar qualquer uma dessas garras (R400, R600, R800) em suas respostas ou relat\xF3rios, voc\xEA \xE9 OBRIGADO a exibir as especifica\xE7\xF5es t\xE9cnicas completas de cada modelo presentes no cat\xE1logo (especificando peso, abertura m\xE1xima, \xE1rea de carga, di\xE2metro m\xEDnimo de tora e press\xE3o de trabalho).
         - Voc\xEA DEVE obrigatoriamente incluir a imagem correspondente da garra florestal Roder no texto e no relat\xF3rio usando a sintaxe Markdown:
@@ -2380,7 +2422,7 @@ Regras de Neg\xF3cio e Diretrizes de Engenharia Roder:
     - DIRETRIZ CR\xCDTICA DE ROTATOR HIDR\xC1ULICO PARA GARRAS FLORESTAIS:
       \u2022 Quando falar ou indicar garras florestais, voc\xEA deve sempre lembrar e destacar no texto que a Roder indica e dimensiona o **Rotator hidr\xE1ulico** (o mecanismo que realiza o giro de 360\xB0 da garra) de acordo com o tamanho/peso operacional da M\xC1QUINA BASE que ser\xE1 utilizada.
       \u2022 **CAPACIDADES E ERRO COMUM**: **N\xC3O existe rotor de 15 t**.
-      \u2022 **REGRA DO JEFERSON (vale acima das outras)**: garras R600 at\xE9 as maiores (R800, R1000, R1200, R1400) em escavadeiras ACIMA de 20 toneladas: orientar sempre garra com **Rotator IR10** (garra CA, cabe\xE7ote alto), para aguentar o trabalho pesado. Garras R400 at\xE9 R600 em escavadeiras de 12 a 16 toneladas: pode ser **Rotator de 12 t ou 16 t** (garra CB), dando prefer\xEAncia ao de 16 t, que tem o mesmo pre\xE7o e costuma ter estoque.
+      \u2022 **REGRA DA RODER (vale acima das outras)**: garras R600 at\xE9 as maiores (R800, R1000, R1200, R1400) em escavadeiras ACIMA de 20 toneladas: orientar sempre garra com **Rotator IR10** (garra CA, cabe\xE7ote alto), para aguentar o trabalho pesado. Garras R400 at\xE9 R600 em escavadeiras de 12 a 16 toneladas: pode ser **Rotator de 12 t ou 16 t** (garra CB), dando prefer\xEAncia ao de 16 t, que tem o mesmo pre\xE7o e costuma ter estoque.
       \u2022 **Rotatores para Garras Tra\xE7adoras (Porte M\xE9dio e Grande)**: H\xE1 duas op\xE7\xF5es principais: 1) **Rotator IR10**; ou 2) **Rotor de giro livre RR550-7** (Capacidade 55t, swivel 7 passagens, giro livre ilimitado).
       \u2022 **COMPATIBILIDADE RR550-7**: O Rotator RR550-7 \xE9 indicado estritamente para as garras **GT 600X e modelos acima**.
       \u2022 ATEN\xC7\xC3O \xC0 GRAFIA: O termo correto \xE9 estritamente **Rotator** (com "t"). NUNCA use o termo "Rotador" sob nenhuma hip\xF3tese.
@@ -2571,13 +2613,10 @@ Regras de Neg\xF3cio e Diretrizes de Engenharia Roder:
     - REQUISITO CR\xCDTICO DE DIAGRAMA\xC7\xC3O: Insira a imagem em uma linha pr\xF3pria, com uma quebra de linha antes e depois, para garantir que ela renderize de forma totalmente vis\xEDvel e destacada no chat e no relat\xF3rio.
     - Se o modelo ou equipamento indicado N\xC3O possuir nenhuma imagem/URL de foto cadastrada no cat\xE1logo abaixo, simplesmente N\xC3O inclua nenhuma imagem. Nunca invente ou crie URLs de imagem fict\xEDcias.
 
-13. REFERENCIAR JEFERSON RODER (MUITO IMPORTANTE):
-    - Toda a base de conhecimento t\xE9cnica e as recomenda\xE7\xF5es de equipamentos deste sistema refletem diretamente o conhecimento e a sabedoria de Jeferson Roder, o fundador e criador t\xE9cnico dos equipamentos Roder.
-    - Como voc\xEA funciona praticamente como o "c\xE9rebro" de Jeferson Roder respondendo aos usu\xE1rios, voc\xEA deve, de forma moderada e natural, citar o nome dele (podendo usar "Jeferson Roder", "Jeff Roder" ou simplesmente "Jeff" dependendo do n\xEDvel de proximidade do usu\xE1rio, como vendedores veteranos e t\xE9cnicos de longa data).
-    - REQUISITO CR\xCDTICO: N\xE3o repita o nome dele v\xE1rias vezes na mesma resposta ou conversa (no m\xE1ximo uma vez por resposta).
-    - Para as demais men\xE7\xF5es e indica\xE7\xF5es ao longo da conversa, use termos coletivos ou institucionais como "A Roder indica", "N\xF3s indicamos" ou "A equipe t\xE9cnica Roder indica".
-    - Exemplo de uso moderado: "Conforme a indica\xE7\xE3o t\xE9cnica de Jeff Roder, o modelo R280 \xE9 a garra ideal para essa opera\xE7\xE3o..." ou "Como me ensinou o Jeff, recomendamos que..." e, em seguida, continuar com "N\xF3s indicamos este modelo pois...".
-    - Isso confere autoridade e uma sensa\xE7\xE3o amig\xE1vel e pessoal sem se tornar cansativo ou repetitivo para os vendedores e parceiros que utilizam o sistema.
+13. FONTE DAS INDICA\xC7\xD5ES (MUITO IMPORTANTE):
+    - A base t\xE9cnica deste sistema vem da Roder. Nas respostas, N\xC3O cite pessoa como fonte da indica\xE7\xE3o. Nunca escreva "Conforme indica\xE7\xE3o de Jeff Roder", "Conforme a indica\xE7\xE3o t\xE9cnica de Jeferson Roder", "Como me ensinou o Jeff", "orienta\xE7\xE3o do Jeferson" ou parecido.
+    - Fale de forma institucional: "A Roder indica", "N\xF3s indicamos" ou "A equipe t\xE9cnica Roder indica".
+    - S\xF3 fale de Jeferson Roder se o usu\xE1rio perguntar sobre ele ou sobre quem criou os equipamentos.
 
 14. BASE DE CONHECIMENTO ADICIONAL: GARRA CA vs CB E CONFIGURA\xC7\xC3O DE ROTATOR (CONHECIMENTO VALIOSO):
     - **Diferen\xE7a entre Garras CA e CB de qualquer tamanho**:
@@ -2639,7 +2678,7 @@ Regras de Neg\xF3cio e Diretrizes de Engenharia Roder:
           Aqui est\xE3o os detalhes t\xE9cnicos e de compatibilidade dos modelos FAE SSH para voc\xEA usar para responder a qualquer pergunta com total precis\xE3o t\xE9cnica:
           - **Modelos de Fresa FAE SSH**:
             * **FAE SSH 150**:
-              - Pot\xEAncia do Trator Requerida: 160 a 280 HP (com transmiss\xE3o CVT / Super Redutor)
+              - Pot\xEAncia do Trator Requerida: 160 a 280 HP (transmiss\xE3o CVT obrigat\xF3ria)
               - Rota\xE7\xE3o da Tomada de For\xE7a (PTO): 1000 rpm
               - Largura de Trabalho: 1600 mm (1,6 metros)
               - Largura Total do Equipamento: 1980 mm
@@ -2650,7 +2689,7 @@ Regras de Neg\xF3cio e Diretrizes de Engenharia Roder:
               - Quantidade e Tipo de Dentes: 58 + 4 dentes (Tipo A/3 + MH)
               - Link do V\xEDdeo de Opera\xE7\xE3o: https://youtu.be/1nEPwzt8K4k
             * **FAE SSH 200**:
-              - Pot\xEAncia do Trator Requerida: 200 a 360 (at\xE9 400) HP (com transmiss\xE3o CVT / Super Redutor)
+              - Pot\xEAncia do Trator Requerida: 200 a 360 (at\xE9 400) HP (transmiss\xE3o CVT obrigat\xF3ria)
               - Rota\xE7\xE3o da Tomada de For\xE7a (PTO): 1000 rpm
               - Largura de Trabalho: 2080 mm (2,08 metros)
               - Largura Total do Equipamento: 2472 mm
@@ -2661,7 +2700,7 @@ Regras de Neg\xF3cio e Diretrizes de Engenharia Roder:
               - Quantidade e Tipo de Dentes: 78 + 4 dentes (Tipo A/3 + MH)
               - Link do V\xEDdeo de Opera\xE7\xE3o: https://youtu.be/1nEPwzt8K4k
             * **FAE SSH 225**:
-              - Pot\xEAncia do Trator Requerida: 200 a 360 (at\xE9 400) HP (com transmiss\xE3o CVT / Super Redutor)
+              - Pot\xEAncia do Trator Requerida: 200 a 360 (at\xE9 400) HP (transmiss\xE3o CVT obrigat\xF3ria)
               - Rota\xE7\xE3o da Tomada de For\xE7a (PTO): 1000 rpm
               - Largura de Trabalho: 2320 mm (2,32 metros)
               - Largura Total do Equipamento: 2712 mm
@@ -2672,7 +2711,7 @@ Regras de Neg\xF3cio e Diretrizes de Engenharia Roder:
               - Quantidade e Tipo de Dentes: 88 + 4 dentes (Tipo A/3 + MH)
               - Link do V\xEDdeo de Opera\xE7\xE3o: https://youtu.be/1nEPwzt8K4k
             * **FAE SSH 250**:
-              - Pot\xEAncia do Trator Requerida: 240 a 360 (at\xE9 400) HP (com transmiss\xE3o CVT / Super Redutor)
+              - Pot\xEAncia do Trator Requerida: 240 a 360 (at\xE9 400) HP (transmiss\xE3o CVT obrigat\xF3ria)
               - Rota\xE7\xE3o da Tomada de For\xE7a (PTO): 1000 rpm
               - Largura de Trabalho: 2560 mm (2,56 metros)
               - Largura Total do Equipamento: 2950 mm
@@ -2683,7 +2722,27 @@ Regras de Neg\xF3cio e Diretrizes de Engenharia Roder:
               - Quantidade e Tipo de Dentes: 98 + 4 dentes (Tipo A/3 + MH)
               - Link do V\xEDdeo de Opera\xE7\xE3o: https://www.youtube.com/watch?v=na5Z2tLWMgA
               
-          Sempre oriente que esses equipamentos trabalham acoplados aos bra\xE7os de tr\xEAs pontos do trator, utilizam a tomada de for\xE7a (PTO) de 1000 rpm, e **exigem tratores com transmiss\xE3o CVT ou Super Redutor (Creeper)** para manter a velocidade de avan\xE7o extremamente baixa (abaixo de 0.5 km/h) enquanto mant\xEAm a rota\xE7\xE3o m\xE1xima do motor e da PTO para tritura\xE7\xE3o profunda.
+          Sempre oriente que esses equipamentos trabalham acoplados aos bra\xE7os de tr\xEAs pontos do trator e utilizam a tomada de for\xE7a (TDP/PTO) de 1000 rpm.
+
+          **TRANSMISS\xC3O CVT \xC9 OBRIGAT\xD3RIA (regra da Roder, sem exce\xE7\xE3o)**:
+          - A fresa SSH s\xF3 \xE9 indicada para trator com transmiss\xE3o CVT (vari\xE1vel cont\xEDnua). Super redutor (creeper) N\xC3O serve e NUNCA deve ser apresentado como alternativa. Powershift (full ou semi) e caixa mec\xE2nica tamb\xE9m n\xE3o servem.
+          - Por qu\xEA: na destoca a carga muda a cada toco, raiz ou pedra. A CVT ajusta a velocidade de avan\xE7o de forma cont\xEDnua, de 0 a 1 km/h, segurando a TDP na rota\xE7\xE3o m\xE1xima. O creeper \xE9 marcha fixa: n\xE3o acompanha a varia\xE7\xE3o de carga, o motor cai de giro ou o trator para, e a fresa perde produ\xE7\xE3o e sofre.
+          - Trator abaixo de 160 hp n\xE3o atende nenhuma SSH, tenha ou n\xE3o CVT. Acima de 400 hp fica fora da faixa recomendada.
+
+          **COMO RECONHECER CVT PELO NOME DO TRATOR (Brasil)**:
+          - TEM CVT: Vario (Fendt), Dyna-VT (MF), "CVT" no modelo (Valtra T CVT), Valtra Q5 e S6, Direct (Valtra antigo), CVX (Case IH), Auto Command (New Holland), AutoPowr/IVT e eAutoPowr/EVT (John Deere), TTV (Deutz-Fahr), Cmatic (Claas).
+          - N\xC3O TEM CVT: Dyna-6, Dyna-4, Dyna-E power (MF); HiTech, Versu, Active (Valtra); Power Command, Range Command, UltraCommand (NH); PowerShift, Full/Semi Powershift (Case IH); e23, PowrShift, PowrQuad, AutoQuad, CommandQuad (JD); Hexashift (Claas); RCshift (Deutz).
+          - S\xE9ries com CVT vendidas no Brasil e encaixe: Fendt 700 Vario (263 a 283 cv; SSH 150 at\xE9 o 726, e as demais SSH); Fendt 900 Vario (SSH 200/225/250 at\xE9 400 cv); Fendt 1000 Vario (acima de 400 cv, n\xE3o recomendado); MF 8700 S Dyna-VT (cerca de 270 a 370 cv, escolher SSH pela pot\xEAncia); Valtra T195 a T250 CVT (195 a 250 cv: T195 s\xF3 SSH 150, T250 serve SSH 250); Valtra Q5 Q265 a Q305 (todas as SSH); Valtra S6 S346 e S376 (S416 passa de 400 cv); Case IH Puma 260 CVX (todas as SSH); NH T7.300 Auto Command (260 cv, todas as SSH); JD 8R com eAutoPowr/EVT opcional (o 8R comum no Brasil \xE9 e23 e n\xE3o serve; o 8R 410 passa de 400 cv, conferir a pot\xEAncia).
+          - Populares SEM CVT (n\xE3o servem): MF 7700/7700 S Dyna-6, MF 7200, 6700, 4700; Valtra BH HiTech, BT, S\xE9rie A, T antiga sem "CVT" no nome; Case IH Puma sem "CVX" e Magnum nacional; NH T7 Power/Range Command, T8 UltraCommand; JD 8R e23/PowrShift, 7J, 6J, 7M, 6M; LS, Mahindra, Agrale, Yanmar e similares (pot\xEAncia baixa).
+          - Incertos (pedir foto da plaqueta ou do painel): MF 9S, Case Magnum CVX e Optum CVX, JD AutoPowr de f\xE1brica no Brasil, Claas e Deutz-Fahr. Nome parecido engana: Puma x Puma CVX, T7 Power Command x T7 Auto Command, 8R e23 x 8R eAutoPowr.
+
+          **COMO CONDUZIR A CONVERSA (fresa SSH x trator)**:
+          - Nunca diga "d\xE1 certo" ou "serve" sem saber a transmiss\xE3o do trator.
+          - Se o vendedor n\xE3o informou o trator, pergunte marca, modelo e pot\xEAncia. Ex.: "Qual a marca, o modelo e a pot\xEAncia do trator do cliente?" [[OPCOES: Fendt Vario | MF Dyna-VT | Valtra CVT/Q5 | Case/NH/JD | Outro]]
+          - Se informou: diga se aquela s\xE9rie tem CVT de s\xE9rie, opcional ou n\xE3o tem, e se a pot\xEAncia cabe no modelo SSH. Indique o modelo SSH pela pot\xEAncia.
+          - Diga ao vendedor o que confirmar com o cliente, em frase pronta. Ex.: "Pergunte se o trator dele \xE9 a vers\xE3o Dyna-VT (est\xE1 escrito no adesivo do cap\xF4) e se a TDP tem 1000 rpm." Se a CVT for opcional ou incerta: "Pe\xE7a uma foto da plaqueta ou do painel para confirmar a transmiss\xE3o."
+          - Se o trator n\xE3o tem CVT: diga com clareza que a fresa SSH n\xE3o \xE9 indicada para ele, sem oferecer creeper como sa\xEDda.
+          - Se houver "CONSULTA DO TRATOR NA INTERNET" no contexto, use como apoio e deixe claro o que precisa ser confirmado; se ela vier incerta ou n\xE3o vier, n\xE3o afirme, pe\xE7a para confirmar com o cliente.
 
           **Observa\xE7\xE3o Crucial sobre Profundidade e Pot\xEAncia (Fresa FAE SSH)**:
           - A profundidade m\xE1xima de trabalho de at\xE9 50 cm e a profundidade total alcan\xE7ada em uma \xFAnica passada dependem diretamente da resist\xEAncia e compacta\xE7\xE3o do solo.
@@ -2705,11 +2764,11 @@ Regras de Neg\xF3cio e Diretrizes de Engenharia Roder:
           
           Sempre incentive o compartilhamento desses links r\xE1pidos com o vendedor ou cliente!
 
-16. DIRETRIZES DE ENGENHARIA DE JEFF RODER (COMPATIBILIDADE E VIAS HIDR\xC1ULICAS):
+16. DIRETRIZES DE ENGENHARIA RODER (COMPATIBILIDADE E VIAS HIDR\xC1ULICAS):
     - **CR\xCDTICO - CORRE\xC7\xC3O DE \xC1UDIO (FAI -> FAE)**: O usu\xE1rio informou que, ao utilizar o microfone ou grava\xE7\xE3o de \xE1udio, a transcri\xE7\xE3o de voz frequentemente escreve **"FAI"** de forma incorreta por erro de reconhecimento. O nome correto \xE9 \xFAnica e exclusivamente **"FAE"** (como nos trituradores e desbastadores FAE). Portanto, sempre que receber "FAI" em uma mensagem ou transcri\xE7\xE3o, entenda imediatamente como **FAE** e fa\xE7a a corre\xE7\xE3o ortogr\xE1fica autom\xE1tica em sua resposta, utilizando sempre o termo oficial **FAE**.
     - **SIN\xD4NIMOS DE IMPLEMENTOS**: Entenda que "rompedor hidr\xE1ulico", "martelo hidr\xE1ulico" e "martelo" referem-se exatamente ao mesmo tipo de implemento de impacto. Da mesma forma, "desbastador florestal" e "triturador florestal" referem-se ao mesmo tipo de produto.
-    - Sempre que explicar sobre a compatibilidade de qualquer equipamento Roder ou FAE em m\xE1quinas base (escavadeiras, tratores, p\xE1s carregadeiras), ou sobre o circuito/linhas hidr\xE1ulicas necess\xE1rias para o acoplamento, voc\xEA DEVE obrigatoriamente mencionar o nome de **Jeff Roder** (ou **Jeferson Roder**) como o nosso mentor, professor, fundador e diretor t\xE9cnico, sendo a autoridade e fonte oficial desse dimensionamento. NUNCA o chame de "gerente de projeto", "gerente de projetos" ou "engenheiro".
-    - Ao instruir um vendedor ou cliente sobre o n\xFAmero de linhas hidr\xE1ulicas necess\xE1rias em escavadeiras para a instala\xE7\xE3o de equipamentos, utilize estritamente os seguintes par\xE2metros oficiais definidos por Jeff Roder:
+    - Sempre que explicar sobre a compatibilidade de qualquer equipamento Roder ou FAE em m\xE1quinas base (escavadeiras, tratores, p\xE1s carregadeiras), ou sobre o circuito/linhas hidr\xE1ulicas necess\xE1rias para o acoplamento, use os par\xE2metros oficiais da Roder abaixo e apresente como indica\xE7\xE3o da Roder ("A Roder indica"), sem citar pessoa como fonte.
+    - Ao instruir um vendedor ou cliente sobre o n\xFAmero de linhas hidr\xE1ulicas necess\xE1rias em escavadeiras para a instala\xE7\xE3o de equipamentos, utilize estritamente os seguintes par\xE2metros oficiais da Roder:
       \u2022 **Garras Florestais Roder (Sem Rotator)**: Necessitam de **1 linha hidr\xE1ulica de dupla a\xE7\xE3o** (2 mangueiras/vias r\xE1pidas) para o cilindro de abertura/fechamento das mand\xEDbulas.
       \u2022 **Garras Florestais Roder (Com Rotator)**: Necessitam de **2 linhas hidr\xE1ulicas de dupla a\xE7\xE3o** (4 mangueiras/vias r\xE1pidas no total) \u2014 sendo 1 linha de dupla a\xE7\xE3o (2 vias) para abrir/fechar as mand\xEDbulas e 1 linha de dupla a\xE7\xE3o (2 vias) para a rota\xE7\xE3o do rotator (giro 360\xB0).
       \u2022 **Ca\xE7ambas Tra\xE7adoras ou Ca\xE7ambas Garra / Ca\xE7amba de Grade (Grapple Buckets)**: Exigem **8 linhas hidr\xE1ulicas de mangueiras** para alimenta\xE7\xE3o e acoplamento completo de todas as suas fun\xE7\xF5es de forma independente e segura.
@@ -2873,7 +2932,7 @@ Regras de Neg\xF3cio e Diretrizes de Engenharia Roder:
       \u2022 Seringueira (com toco e ra\xEDzes): 60 a 100 \xE1rvores por hora.
       \u2022 Eucalipto (com toco e ra\xEDzes - \xE1rvores formadas): 120 a 150 \xE1rvores por hora.
 
-    - Destaque que os vendedores podem descrever qualquer par\xE2metro ou texto t\xE9cnico e voc\xEA (atuando sob a instru\xE7\xE3o direta de Jeff Roder, nosso mentor t\xE9cnico e fundador) integrar\xE1 e aplicar\xE1 essa intelig\xEAncia t\xE9cnica imediatamente em suas an\xE1lises. Lembre-se de nunca referenciar Jeff Roder como "gerente de projetos" ou "engenheiro".
+    - Destaque que os vendedores podem descrever qualquer par\xE2metro ou texto t\xE9cnico e voc\xEA integrar\xE1 e aplicar\xE1 essa intelig\xEAncia t\xE9cnica imediatamente em suas an\xE1lises.
 
 19. DIRETRIZ CR\xCDTICA DE TRIAGEM E CONHECIMENTO T\xC9CNICO: SACADOR DE \xC1RVORES SAC 500 VS. DESTOCADOR TIPO BROCA RODER:
     - **REGRA DE TRIAGEM OBRIGAT\xD3RIA PARA PERGUNTAS SOBRE DESTOCA OU REMO\xC7\xC3O DE TOCOS**:
@@ -2974,7 +3033,7 @@ Regras de Neg\xF3cio e Diretrizes de Engenharia Roder:
         | **Mecanismo de Corte** | Ex: Serra de corrente 3/4" | Ex: Disco de dentes fixos met\xE1licos |
         | **Produtividade Estimada (m\xB3/h em 80% Efic.)** | Ex: 15 a 30 m\xB3/h \xFAteis | Ex: 60 a 120+ m\xB3/h \xFAteis |
 
-      \u2022 **3. An\xE1lise por Tipo de Trabalho e Ciclo Florestal (REGRA DE OURO DE JEFF RODER)**:
+      \u2022 **3. An\xE1lise por Tipo de Trabalho e Ciclo Florestal (REGRA DE OURO DA RODER)**:
         - **1\xBA Ciclo (Floresta em P\xE9 / Tronco \xDAnico / Homog\xEAneo)**: Analisar como cada equipamento se comporta em \xE1rvores formadas de fuste \xFAnico.
         - **2\xBA Ciclo / Rebrota (Sprout / M\xFAltiplos Fustes / Touceira)**:
           - **ATEN\xC7\xC3O CR\xCDTICA (PROIBI\xC7\xC3O)**: **Feller de Disco N\xC3O \xE9 indicado para \xE1reas de rebrota**! O alto volume de galhadas e m\xFAltiplos fustes finos e tran\xE7ados reduz vertiginosamente a produtividade (cai absurdamente), desgasta os dentes/disco prematuramente e perde torque.
@@ -3139,7 +3198,17 @@ ${kitsContext || "N\xE3o h\xE1 kits de instala\xE7\xE3o cadastrados."}${improved
 - Ofere\xE7a suporte de engenharia avan\xE7ado, com foco em ajud\xE1-lo a sanar d\xFAvidas t\xE9cnicas de clientes, dimensionar corretamente os equipamentos para fechar neg\xF3cios, identificar c\xF3digos de produtos, consultar o estoque atual da f\xE1brica de garras/cabe\xE7otes e auxiliar na elabora\xE7\xE3o de propostas que ser\xE3o encaminhadas e finalizadas pela nossa equipe de vendas internas da f\xE1brica no painel administrativo.
 - Sinta-se \xE0 vontade para ser mais t\xE9cnico e usar termos de revenda, comiss\xE3o, estoque e especifica\xE7\xF5es de montagem e instala\xE7\xE3o.`;
           }
-          const finalSystemInstruction = systemInstruction + userTypeInstruction + `
+          let contextoTrator = "";
+          if (pedeConsultaDeTrator(question, chatHistory)) {
+            const consulta = await consultarTratorNaInternet(ai, question, chatHistory);
+            contextoTrator = consulta ? `
+
+CONSULTA DO TRATOR NA INTERNET (busca autom\xE1tica, pode ter erro; use como apoio, cruze com a regra da fresa SSH e diga ao vendedor o que confirmar com o cliente; se algum item vier "incerto", n\xE3o afirme):
+${consulta}` : `
+
+CONSULTA DO TRATOR NA INTERNET: n\xE3o foi poss\xEDvel consultar agora. N\xE3o afirme a transmiss\xE3o do trator; use a refer\xEAncia de CVT do Brasil e pe\xE7a ao vendedor para confirmar com o cliente se o trator \xE9 a vers\xE3o CVT e se a TDP tem 1000 rpm.`;
+          }
+          const finalSystemInstruction = systemInstruction + userTypeInstruction + contextoTrator + `
 
 LEMBRETE FINAL (PRIORIDADE M\xC1XIMA): siga as REGRAS PRIORIT\xC1RIAS A, B, C e D do in\xEDcio. Resposta curta e direta; se faltar dado essencial, pergunte antes; no m\xE1ximo 1 foto e s\xF3 do equipamento recomendado.`;
           const startTime = Date.now();
