@@ -402,7 +402,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-19a seguranca";
+  const RELEASE_LABEL = "2026-10-19b primeiro-acesso";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -1276,6 +1276,64 @@ Retorne um array JSON no formato exato:
   const EQUIPE_RODER = ["admin", "manager", "triagem", "internal_seller", "financial", "finance", "fiscal", "marketing", "assistant", "vendedor_padrao"];
   const ehEquipe = (q) => !!q && EQUIPE_RODER.includes(q.role);
   const ehGestao = (q) => !!q && (q.role === "admin" || q.role === "manager");
+  app.post("/api/auth/reivindicar-perfil", async (req, res) => {
+    try {
+      const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+      if (!token) return res.status(401).json({ ok: false });
+      const dec = await import_firebase_admin.default.auth().verifyIdToken(token);
+      const email = String(dec.email || "").toLowerCase().trim();
+      if (!email || dec.firebase?.sign_in_provider === "anonymous") return res.status(401).json({ ok: false });
+      if (!dec.email_verified && dec.firebase?.sign_in_provider !== "password") {
+        return res.json({ ok: true, merged: false, motivo: "email_nao_confirmado" });
+      }
+      const achados = await db.collection("users").where("email", "==", email).get();
+      const temporarios = achados.docs.filter((d) => d.id !== dec.uid);
+      if (temporarios.length === 0) return res.json({ ok: true, merged: false });
+      const realRef = db.collection("users").doc(dec.uid);
+      const realSnap = await realRef.get();
+      let perfil = realSnap.exists ? { ...realSnap.data() } : {};
+      const prioridade = ["admin", "manager", "financial", "triagem", "internal_seller", "marketing", "vendedor_padrao", "external_seller", ""];
+      for (const t of temporarios) {
+        const td = t.data();
+        const iAtual = prioridade.indexOf(perfil.role || "");
+        const iTemp = prioridade.indexOf(td.role || "");
+        const papel = iAtual !== -1 && iTemp !== -1 && iTemp < iAtual ? td.role : perfil.role || td.role || "external_seller";
+        perfil = {
+          ...td,
+          ...perfil,
+          role: papel,
+          is_lead_receiver: perfil.is_lead_receiver || td.is_lead_receiver || false,
+          permissions: {
+            sidebar: { ...td.permissions?.sidebar || {}, ...perfil.permissions?.sidebar || {} },
+            dashboard_cards: { ...td.permissions?.dashboard_cards || {}, ...perfil.permissions?.dashboard_cards || {} }
+          }
+        };
+      }
+      perfil.uid = dec.uid;
+      perfil.email = email;
+      perfil.status = "active";
+      perfil.updated_at = (/* @__PURE__ */ new Date()).toISOString();
+      const lote = db.batch();
+      lote.set(realRef, perfil);
+      for (const t of temporarios) {
+        lote.delete(t.ref);
+        const ligados = await Promise.all([
+          db.collection("indications").where("internal_seller_uid", "==", t.id).get(),
+          db.collection("indications").where("assigned_to_uid", "==", t.id).get(),
+          db.collection("fair_leads").where("assigned_to_uid", "==", t.id).get()
+        ]);
+        ligados[0].forEach((d) => lote.update(d.ref, { internal_seller_uid: dec.uid, updated_at: perfil.updated_at }));
+        ligados[1].forEach((d) => lote.update(d.ref, { assigned_to_uid: dec.uid, updated_at: perfil.updated_at }));
+        ligados[2].forEach((d) => lote.update(d.ref, { assigned_to_uid: dec.uid, updated_at: perfil.updated_at }));
+      }
+      await lote.commit();
+      console.log(`[AUTH] Perfil pr\xE9-cadastrado passado para ${email} (${temporarios.length} provis\xF3rio(s)).`);
+      return res.json({ ok: true, merged: true });
+    } catch (err) {
+      console.error("[AUTH] reivindicar-perfil:", err?.message);
+      return res.status(500).json({ ok: false });
+    }
+  });
   app.get("/api/settings/:docName", async (req, res) => {
     try {
       const { docName } = req.params;
