@@ -161,10 +161,15 @@ export const isMatchForExternalSeller = (ind: any, prof: any) => {
     ind.created_by === prof.uid || 
     ind.user_id === prof.uid || 
     ind.indicator_uid === prof.uid ||
-    ind.partner_id === prof.uid
+    ind.partner_id === prof.uid ||
+    ind.standard_seller_uid === prof.uid
   )) {
     return true;
   }
+
+  // Já tem dono e não é este parceiro: nome ou e-mail parecido não vale.
+  // Antes, "João" via indicação de "João Silva", e dois parceiros de mesmo nome se viam.
+  if (ind.external_seller_uid && ind.external_seller_uid !== prof.uid) return false;
 
   const norm = (str?: string) => (str || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
@@ -175,13 +180,13 @@ export const isMatchForExternalSeller = (ind: any, prof: any) => {
     const indIndName = norm(ind.indicator_name);
     const indPartnerName = norm(ind.partner_name);
     
-    if (indExtName && (indExtName === profName || indExtName.includes(profName) || profName.includes(indExtName))) {
+    if (indExtName && indExtName === profName) {
       return true;
     }
-    if (indIndName && (indIndName === profName || indIndName.includes(profName) || profName.includes(indIndName))) {
+    if (indIndName && indIndName === profName) {
       return true;
     }
-    if (indPartnerName && (indPartnerName === profName || indPartnerName.includes(profName) || profName.includes(indPartnerName))) {
+    if (indPartnerName && indPartnerName === profName) {
       return true;
     }
   }
@@ -1114,7 +1119,7 @@ export default function Indications() {
         q = query(indicationsRef, or(...queryFilters));
       } else {
         // Fallback for unexpected cases
-        q = query(indicationsRef, limit(100));
+        q = query(indicationsRef, where("external_seller_uid", "==", "__nenhum__")); // perfil sem regra prevista não vê nada
       }
     }
 
