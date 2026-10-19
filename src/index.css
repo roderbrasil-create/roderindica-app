@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "@fontsource-variable/geist";
+@import "@fontsource-variable/archivo/wdth.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -354,3 +355,7 @@ input:focus::placeholder, textarea:focus::placeholder {
   opacity: 0.15 !important;
 }
 
+
+/* Archivo larga e pesada, só nos títulos da tela do parceiro (o texto corrido continua em Geist) */
+.fonte-titulo { font-family: 'Archivo Variable', 'Geist Variable', sans-serif; font-stretch: 112%; }
+.fonte-titulo-larga { font-family: 'Archivo Variable', 'Geist Variable', sans-serif; font-stretch: 118%; }

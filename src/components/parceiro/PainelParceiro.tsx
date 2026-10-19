@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, getDocs, getDoc, doc, onSnapshot, query, where, limit } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { frasePara, perfilInstalacao, type TipoMaquina } from '../../lib/instalacao';
-import { ChevronRight, Package, Loader2 } from 'lucide-react';
+import { Package, Loader2 } from 'lucide-react';
 import { cn, getApiBaseUrl } from '../../lib/utils';
 
 // Tela inicial do PARCEIRO (indicador, vendedor parceiro, operador, dono de oficina).
@@ -13,15 +13,20 @@ import { cn, getApiBaseUrl } from '../../lib/utils';
 // foto maior na pronta entrega com "Enviar ao cliente", e desenhos das máquinas.
 // Versão 3 (aprovada em 19/10/2026): versão mais limpa. Sem a faixa preta do "Olá", ganhos numa linha só,
 // foto menor na pronta entrega, máquinas em 2 colunas, só as 2 últimas indicações e sem o quadro do Consultor.
+// Versão 4 (aprovada em 19/10/2026, "mais presença"): faixa grafite com o nome e o valor a receber em amarelo,
+// a pronta entrega em destaque sobreposta à faixa (desliza para o lado), máquinas numa linha só e
+// indicações com uma barra de cor da situação. Títulos em Archivo larga.
 
 type Etapa = 0 | 1 | 2 | 3;
 // uma etiqueta só por indicação, com a cor da situação
-const ETIQUETAS: Record<Etapa, { texto: string; cls: string }> = {
-  0: { texto: 'Recebida', cls: 'bg-slate-100 text-slate-600' },
-  1: { texto: 'Em atendimento', cls: 'bg-amber-100 text-amber-800' },
-  2: { texto: 'Orçamento enviado', cls: 'bg-sky-100 text-sky-800' },
-  3: { texto: 'Vendida', cls: 'bg-green-100 text-green-800' },
+// a cor vai na barra do lado do cartão: azul com orçamento, amarelo em atendimento, verde vendida, cinza não fechou
+const ETIQUETAS: Record<Etapa, { texto: string; cor: string }> = {
+  0: { texto: 'Recebida', cor: '#F6C400' },
+  1: { texto: 'Em atendimento', cor: '#F6C400' },
+  2: { texto: 'Orçamento enviado', cor: '#2F6FED' },
+  3: { texto: 'Vendida', cor: '#1FA855' },
 };
+const NAO_FECHOU = { texto: 'Não fechou', cor: '#BFC4CA' };
 
 // "hoje", "há 2 dias", "há 1 semana": o parceiro lê de relance, sem data cheia
 function haQuanto(v: any): string {
@@ -198,6 +203,18 @@ export default function PainelParceiro() {
     .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
     .slice(0, 2), [indicacoes]);
 
+  // qual equipamento da pronta entrega está na tela (para os pontinhos e o "1 de N")
+  const carrossel = useRef<HTMLDivElement>(null);
+  const [atual, setAtual] = useState(0);
+  const aoRolar = () => {
+    const el = carrossel.current;
+    const primeiro = el?.firstElementChild as HTMLElement | null;
+    if (!el || !primeiro) return;
+    const passo = primeiro.offsetWidth + 16; // largura do cartão mais o espaço entre eles
+    setAtual(Math.max(0, Math.min(prontaEntrega.length - 1, Math.round(el.scrollLeft / passo))));
+  };
+  useEffect(() => { if (atual >= prontaEntrega.length) setAtual(0); }, [prontaEntrega.length]);
+
   const primeiroNome = String(profile?.name || '').trim().split(/\s+/)[0] || 'parceiro';
   const maquinas: { id: TipoMaquina; nome: string }[] = [
     { id: 'escavadeira', nome: 'Escavadeira' },
@@ -205,109 +222,116 @@ export default function PainelParceiro() {
     { id: 'trator', nome: 'Trator' },
     { id: 'guindaste', nome: 'Guindaste' },
   ];
-  const tituloSecao = 'text-[13px] font-black tracking-[0.06em] uppercase text-slate-600';
+  const tituloSecao = 'fonte-titulo text-[17px] font-extrabold leading-tight text-[#1B1E22]';
+  const temPronta = prontaEntrega.length > 0;
 
   return (
-    <div className="-mx-4 -mt-4 md:-mx-8 md:-mt-8 pb-8 bg-[#f4f4f2] min-h-full">
-      {/* Topo claro: só o nome. Indicar fica na barra de baixo, sempre à mão */}
-      <div className="px-4 pt-5 pb-1 md:px-8">
-        <p className="text-[15px] text-slate-500 leading-none">Olá,</p>
-        <p className="text-[28px] font-black leading-tight text-[#111] truncate">{primeiroNome}</p>
+    <div className="-mx-4 -mt-4 md:-mx-8 md:-mt-8 pb-8 bg-[#ECEEF0] min-h-full text-[#1B1E22]">
+      {/* Faixa grafite: só o "Olá" e o valor a receber. O logo e o sino já estão na barra do app */}
+      <div className={cn('bg-[#1B1E22] text-white px-[18px] md:px-8 pt-[22px] md:pt-6', temPronta ? 'pb-[92px]' : 'pb-6')}>
+        <div className="max-w-xl flex justify-between items-end gap-3">
+          <div className="min-w-0">
+            <span className="block text-[14px] text-[#AEB4BC] leading-snug">Olá,</span>
+            <span className="block fonte-titulo-larga font-[850] text-[30px] leading-[1.05] tracking-[-0.3px] truncate">{primeiroNome}</span>
+          </div>
+          {mostraGanhos && (
+            <button onClick={() => navigate('/comissoes')} className="h-auto p-0 shrink-0 text-right bg-transparent active:opacity-80">
+              <span className="block text-[12px] text-[#AEB4BC]">A receber</span>
+              <span className="block fonte-titulo font-extrabold text-[20px] leading-tight text-[#F6C400] whitespace-nowrap">{brl(aReceber)}</span>
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Ganhos numa linha só */}
-      {mostraGanhos && (
-        <section className="px-4 md:px-8 pt-3">
-          <button onClick={() => navigate('/comissoes')} className="h-auto w-full max-w-xl bg-white rounded-2xl px-4 py-3 shadow-sm flex items-center justify-between gap-3 text-left active:scale-[0.99]">
-            <span className="min-w-0">
-              <span className="block text-[13px] text-slate-500">A receber</span>
-              <span className="block text-[22px] font-black text-green-600 leading-tight truncate">{brl(aReceber)}</span>
-            </span>
-            <span className="shrink-0 text-[14px] font-bold text-blue-600 flex items-center">Meus ganhos<ChevronRight className="h-4 w-4" /></span>
-          </button>
-        </section>
-      )}
-
-      {/* Pronta entrega */}
-      {/* pronta entrega aparece sempre para o parceiro: é a vitrine para ele mandar ao cliente
-          (o cadastro antigo de vários parceiros vinha com o estoque desligado) */}
-      {prontaEntrega.length > 0 && (
-        <section className="pt-5">
-          <div className="flex justify-between items-baseline px-4 md:px-8 mb-2.5">
-            <h2 className={tituloSecao}>Pronta entrega</h2>
-            <button onClick={() => navigate('/estoque')} className="text-sm font-bold text-blue-600">ver tudo</button>
-          </div>
-          <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory scroll-px-4 md:scroll-px-8 px-4 md:px-8 pb-1 [scrollbar-width:none]">
-            {prontaEntrega.map(it => {
+      {/* Pronta entrega em destaque, sobre a faixa. Aparece sempre para o parceiro: é a vitrine para ele
+          mandar ao cliente (o cadastro antigo de vários parceiros vinha com o estoque desligado) */}
+      {temPronta && (
+        <section className="relative -mt-[76px] max-w-xl md:mx-4">
+          <div ref={carrossel} onScroll={aoRolar} className="flex gap-4 overflow-x-auto snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pb-5 -mb-5 pt-1 -mt-1">
+            {prontaEntrega.map((it, i) => {
               const pronto = !!preparados[it.chave]?.codigo;
               return (
-                <div key={it.chave} className="snap-start shrink-0 w-[80%] max-w-[320px] bg-white rounded-2xl overflow-hidden shadow-sm">
-                  <button onClick={() => navigate('/catalogo', { state: { openProductId: it.produto.id } })} className="relative h-[120px] w-full bg-[#f1f1f1] flex items-center justify-center">
-                    <Foto src={it.foto} alt={it.nome} className="max-h-[108px] max-w-[90%] object-contain mix-blend-multiply" />
-                    <span className="absolute top-2 left-2 bg-green-600 text-white text-[10.5px] font-black px-2 py-0.5 rounded-md">PRONTA ENTREGA</span>
+                <div key={it.chave} className="snap-center shrink-0 w-[calc(100%-32px)] first:ml-4 last:mr-4 bg-white rounded-[20px] overflow-hidden shadow-[0_10px_24px_rgba(20,24,28,0.18)]">
+                  <button onClick={() => navigate('/catalogo', { state: { openProductId: it.produto.id } })} className="relative h-[168px] w-full p-0 bg-gradient-to-b from-[#F4F5F6] to-[#E3E6E9] flex items-center justify-center">
+                    <Foto src={it.foto} alt={it.nome} className="h-[140px] max-w-[88%] object-contain mix-blend-multiply" />
+                    <span className="absolute left-3 top-3 bg-[#F6C400] text-[#111] text-[12px] font-extrabold px-2.5 py-[5px] rounded-full leading-none">Pronta entrega</span>
+                    {prontaEntrega.length > 1 && (
+                      <span className="absolute right-3 top-3 bg-[rgba(27,30,34,0.85)] text-white text-[12px] font-bold px-[9px] py-[5px] rounded-full leading-none">{i + 1} de {prontaEntrega.length}</span>
+                    )}
                   </button>
-                  <div className="px-3 pb-3 pt-2">
-                    <p className="font-black text-[15px] leading-tight truncate">{it.nome}</p>
-                    {it.para && <p className="text-[12px] text-slate-500 mt-0.5 line-clamp-2">{it.para}</p>}
-                    <div className="grid grid-cols-2 gap-1.5 mt-2.5">
-                      <button onClick={() => enviarAoCliente(it)} disabled={!pronto} className="h-11 rounded-lg bg-[#22c55e] text-white text-[13px] font-black flex items-center justify-center gap-1.5 disabled:opacity-60 leading-tight px-1">
-                        {pronto
-                          ? <svg width="15" height="15" viewBox="0 0 24 24" fill="#fff" className="shrink-0"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2z"/></svg>
-                          : <Loader2 className="h-4 w-4 animate-spin shrink-0" />}
-                        Enviar ao cliente
-                      </button>
-                      <button onClick={() => navigate('/indicacoes/nova', { state: { product_name: it.produto.name } })} className="h-11 rounded-lg border-[1.5px] border-[#111] text-[#111] text-[13px] font-black">Indicar</button>
-                    </div>
+                  <div className="px-3.5 pt-3 pb-1">
+                    <span className="block fonte-titulo text-[19px] font-extrabold leading-tight truncate" style={{ fontStretch: '108%' }}>{it.nome}</span>
+                    {it.para && <span className="block text-[13px] text-[#5E6672] mt-0.5 line-clamp-2">{it.para}</span>}
+                  </div>
+                  <div className="flex gap-2 px-3.5 pt-3 pb-3.5">
+                    <button onClick={() => enviarAoCliente(it)} disabled={!pronto} className="flex-[1.4] min-w-0 h-12 px-2 rounded-xl bg-[#1FA855] text-white text-[14.5px] font-extrabold flex items-center justify-center gap-1.5 disabled:opacity-60 leading-tight">
+                      {pronto
+                        ? <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff" className="shrink-0"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2z"/></svg>
+                        : <Loader2 className="h-4 w-4 animate-spin shrink-0" />}
+                      <span className="truncate">Enviar ao cliente</span>
+                    </button>
+                    <button onClick={() => navigate('/indicacoes/nova', { state: { product_name: it.produto.name } })} className="flex-1 min-w-0 h-12 px-2 rounded-xl border-2 border-[#1B1E22] bg-white text-[#1B1E22] text-[14.5px] font-extrabold">Indicar</button>
                   </div>
                 </div>
               );
             })}
           </div>
+          {prontaEntrega.length > 1 && (
+            <div className="flex gap-[5px] justify-center mt-2.5 mb-0.5" aria-hidden>
+              {prontaEntrega.map((it, i) => (
+                <i key={it.chave} className={cn('h-1.5 rounded-[3px] transition-all', i === atual ? 'w-[18px] bg-[#1B1E22]' : 'w-1.5 bg-[#BFC4CA]')} />
+              ))}
+            </div>
+          )}
         </section>
       )}
 
       {/* Máquina do cliente: abre o catálogo só com o que serve, cada modelo com o botão de WhatsApp */}
-      <section className="px-4 md:px-8 pt-5">
-        <h2 className={cn(tituloSecao, 'mb-2.5')}>Máquina do cliente</h2>
-        <div className="grid grid-cols-2 gap-2 max-w-xl">
+      <section className="max-w-xl">
+        <div className="px-[18px] md:px-8 pt-4 pb-[9px]"><h2 className={tituloSecao}>Máquina do cliente</h2></div>
+        <div className="grid grid-cols-4 gap-2 px-4 md:px-8">
           {maquinas.map(m => (
-            <button key={m.id} onClick={() => navigate('/catalogo', { state: { maquina: m.id } })} className="min-w-0 min-h-[60px] bg-white rounded-xl px-2.5 py-2 shadow-sm flex items-center gap-2 text-left active:scale-95">
-              <DesenhoMaquina tipo={m.id} className="w-11 h-7 shrink-0" />
-              <span className="min-w-0 text-[13px] font-extrabold leading-tight text-[#111] break-words">{m.nome}</span>
+            <button key={m.id} onClick={() => navigate('/catalogo', { state: { maquina: m.id } })} className="min-w-0 h-auto bg-white rounded-[14px] px-0.5 pt-2.5 pb-[9px] flex flex-col items-center text-center active:scale-95">
+              <span className="w-[46px] h-[46px] rounded-xl bg-[#FFF4C2] flex items-center justify-center mb-1.5 shrink-0">
+                <DesenhoMaquina tipo={m.id} className="w-9 h-6" />
+              </span>
+              <span className="block w-full text-[clamp(10.5px,3.05vw,11.5px)] tracking-[-0.1px] font-bold leading-[1.15] text-[#1B1E22] break-words">{m.nome}</span>
             </button>
           ))}
         </div>
       </section>
 
-      {/* Minhas indicações: só as 2 últimas, com a situação */}
-      <section className="px-4 md:px-8 pt-5">
-        <div className="flex justify-between items-baseline mb-2.5">
+      {/* Minhas indicações: só as 2 últimas, com uma barra da cor da situação */}
+      <section className="max-w-xl">
+        <div className="flex justify-between items-baseline px-[18px] md:px-8 pt-4 pb-[9px]">
           <h2 className={tituloSecao}>Minhas indicações</h2>
-          <button onClick={() => navigate('/indicacoes')} className="text-sm font-bold text-blue-600">ver todas</button>
+          <button onClick={() => navigate('/indicacoes')} className="h-auto p-0 bg-transparent text-[13.5px] font-bold text-[#1E5BD8]">Ver todas</button>
         </div>
-        {ultimas.length === 0 ? (
-          <div className="bg-white rounded-xl p-4 shadow-sm text-sm text-slate-600 max-w-xl">
-            Você ainda não tem indicações. Toque em <b>Indicar</b> ou envie um equipamento pelo WhatsApp: o pedido do cliente fica no seu nome.
-          </div>
-        ) : (
-          <div className="bg-white rounded-2xl shadow-sm max-w-xl divide-y divide-slate-100 overflow-hidden">
-            {ultimas.map(ind => {
-              const { etapa, perdida } = etapaDa(ind);
-              const etiqueta = perdida ? { texto: 'Não fechou', cls: 'bg-slate-100 text-slate-500' } : ETIQUETAS[etapa];
-              const produto = ind.items?.[0]?.product_name || ind.product_name || ind.base_machine || '';
-              const quando = haQuanto(ind.created_at);
-              return (
-                <button key={ind.id} onClick={() => navigate('/indicacoes')} className="h-auto w-full text-left px-3 py-2.5 flex items-center justify-between gap-2">
-                  <span className="min-w-0">
-                    <span className="block text-[14px] font-extrabold truncate text-[#111]">{ind.client_name || 'Cliente'}</span>
-                    <span className="block text-[12px] text-slate-500 truncate">{[produto, quando].filter(Boolean).join(' · ')}</span>
-                  </span>
-                  <span className={cn('shrink-0 text-[10.5px] font-black rounded-md px-2 py-1', etiqueta.cls)}>{etiqueta.texto}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
+        <div className="px-4 md:px-8">
+          {ultimas.length === 0 ? (
+            <div className="bg-white rounded-[14px] px-3.5 py-3 text-[13.5px] text-[#5E6672]">
+              Você ainda não tem indicações. Toque em <b className="text-[#1B1E22]">Indicar</b> ou envie um equipamento pelo WhatsApp: o pedido do cliente fica no seu nome.
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {ultimas.map(ind => {
+                const { etapa, perdida } = etapaDa(ind);
+                const etiqueta = perdida ? NAO_FECHOU : ETIQUETAS[etapa];
+                const produto = ind.items?.[0]?.product_name || ind.product_name || ind.base_machine || '';
+                const quando = haQuanto(ind.created_at);
+                return (
+                  <button key={ind.id} onClick={() => navigate('/indicacoes')} style={{ borderLeftColor: etiqueta.cor }} className="h-auto w-full text-left bg-white rounded-[14px] border-l-[5px] border-solid pl-3.5 pr-3 py-[11px] flex items-center justify-between gap-2">
+                    <span className="min-w-0">
+                      <span className="block text-[14.5px] font-bold truncate text-[#1B1E22] leading-snug">{ind.client_name || 'Cliente'}</span>
+                      <span className="block text-[12.5px] text-[#5E6672] truncate leading-snug">{[produto, quando].filter(Boolean).join(', ')}</span>
+                    </span>
+                    <span className="shrink-0 w-[84px] text-right text-[12px] font-bold leading-tight text-[#5E6672]">{etiqueta.texto}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </section>
     </div>
   );
