@@ -4,17 +4,37 @@ import { collection, getDocs, getDoc, doc, onSnapshot, query, where, limit } fro
 import { db, auth } from '../../lib/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { frasePara, perfilInstalacao, type TipoMaquina } from '../../lib/instalacao';
-import { Bot, ChevronRight, Package, Loader2 } from 'lucide-react';
+import { ChevronRight, Package, Loader2 } from 'lucide-react';
 import { cn, getApiBaseUrl } from '../../lib/utils';
-import { abrirConsultor } from './NavParceiro';
 
 // Tela inicial do PARCEIRO (indicador, vendedor parceiro, operador, dono de oficina).
 // Aprovada pelo Jeferson em 18/10/2026: vitrine que dá vontade de indicar, e não central de controle.
 // Versão 2 (aprovada na mesma noite): sem botões grandes no topo (Indicar fica na barra de baixo),
 // foto maior na pronta entrega com "Enviar ao cliente", e desenhos das máquinas.
+// Versão 3 (aprovada em 19/10/2026): versão mais limpa. Sem a faixa preta do "Olá", ganhos numa linha só,
+// foto menor na pronta entrega, máquinas em 2 colunas, só as 2 últimas indicações e sem o quadro do Consultor.
 
 type Etapa = 0 | 1 | 2 | 3;
-const ETAPAS = ['Recebida', 'Em atendimento', 'Orçamento', 'Vendida'];
+// uma etiqueta só por indicação, com a cor da situação
+const ETIQUETAS: Record<Etapa, { texto: string; cls: string }> = {
+  0: { texto: 'Recebida', cls: 'bg-slate-100 text-slate-600' },
+  1: { texto: 'Em atendimento', cls: 'bg-amber-100 text-amber-800' },
+  2: { texto: 'Orçamento enviado', cls: 'bg-sky-100 text-sky-800' },
+  3: { texto: 'Vendida', cls: 'bg-green-100 text-green-800' },
+};
+
+// "hoje", "há 2 dias", "há 1 semana": o parceiro lê de relance, sem data cheia
+function haQuanto(v: any): string {
+  const d = v?.toDate ? v.toDate() : v?.seconds ? new Date(v.seconds * 1000) : v ? new Date(v) : null;
+  if (!d || isNaN(d.getTime())) return '';
+  const dias = Math.floor((Date.now() - d.getTime()) / 86400000);
+  if (dias <= 0) return 'hoje';
+  if (dias === 1) return 'ontem';
+  if (dias < 7) return `há ${dias} dias`;
+  if (dias < 30) { const s = Math.floor(dias / 7); return `há ${s} ${s === 1 ? 'semana' : 'semanas'}`; }
+  if (dias < 365) { const m = Math.floor(dias / 30); return `há ${m} ${m === 1 ? 'mês' : 'meses'}`; }
+  const a = Math.floor(dias / 365); return `há ${a} ${a === 1 ? 'ano' : 'anos'}`;
+}
 
 // O andamento sai do que a equipe já faz no app: ninguém marca nada a mais.
 function etapaDa(ind: any): { etapa: Etapa; perdida: boolean } {
@@ -27,7 +47,7 @@ function etapaDa(ind: any): { etapa: Etapa; perdida: boolean } {
 }
 
 const so = (t: any) => String(t || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function Foto({ src, alt, className }: { src?: string; alt: string; className?: string }) {
   const [url, setUrl] = useState('');
@@ -43,8 +63,8 @@ function Foto({ src, alt, className }: { src?: string; alt: string; className?: 
 }
 
 // Desenhos das máquinas (no lugar de emoji): escavadeira, pá carregadeira, trator e caminhão Munck
-function DesenhoMaquina({ tipo }: { tipo: TipoMaquina }) {
-  const cls = 'w-16 h-10 mx-auto mb-1';
+function DesenhoMaquina({ tipo, className }: { tipo: TipoMaquina; className?: string }) {
+  const cls = className || 'w-16 h-10 mx-auto mb-1';
   if (tipo === 'escavadeira') return (
     <svg viewBox="0 0 64 40" className={cls}><rect x="6" y="30" width="30" height="8" rx="4" fill="#111"/><circle cx="11" cy="34" r="2" fill="#555"/><circle cx="31" cy="34" r="2" fill="#555"/><rect x="8" y="20" width="26" height="9" rx="1.5" fill="#facc15"/><rect x="20" y="11" width="12" height="10" rx="1.5" fill="#facc15"/><rect x="22" y="13" width="8" height="5" fill="#cfe8ff"/><path d="M30 18 L46 6 L56 14" stroke="#e0b100" strokeWidth="4" fill="none" strokeLinecap="round" strokeLinejoin="round"/><path d="M56 14 L58 26 L50 26 Z" fill="#111"/></svg>
   );
@@ -170,16 +190,13 @@ export default function PainelParceiro() {
     window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, '_blank');
   };
 
-  const ganhos = useMemo(() => {
-    const recebido = comissoes.filter(c => c.status === 'paid').reduce((s, c) => s + (Number(c.value) || 0), 0);
-    const aReceber = comissoes.filter(c => c.status !== 'paid').reduce((s, c) => s + (Number(c.value) || 0), 0);
-    const emNegociacao = indicacoes.filter(i => i.status === 'negotiating').length;
-    return { recebido, aReceber, emNegociacao };
-  }, [comissoes, indicacoes]);
+  const aReceber = useMemo(() => comissoes.filter(c => c.status !== 'paid').reduce((s, c) => s + (Number(c.value) || 0), 0), [comissoes]);
+  // respeita o que o administrador desligou para este parceiro em Usuários (mesma regra do menu)
+  const mostraGanhos = !isRegionalSeller && profile?.permissions?.sidebar?.comissoes_ext !== false;
 
   const ultimas = useMemo(() => [...indicacoes]
     .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
-    .slice(0, 4), [indicacoes]);
+    .slice(0, 2), [indicacoes]);
 
   const primeiroNome = String(profile?.name || '').trim().split(/\s+/)[0] || 'parceiro';
   const maquinas: { id: TipoMaquina; nome: string }[] = [
@@ -188,44 +205,56 @@ export default function PainelParceiro() {
     { id: 'trator', nome: 'Trator' },
     { id: 'guindaste', nome: 'Guindaste' },
   ];
-  const tituloSecao = 'text-[12px] font-black tracking-[0.12em] uppercase text-slate-500 dark:text-zinc-400';
+  const tituloSecao = 'text-[13px] font-black tracking-[0.06em] uppercase text-slate-600';
 
   return (
-    <div className="-mx-4 -mt-4 md:-mx-8 md:-mt-8 pb-8 bg-[#f1f3f6] dark:bg-[#0f0f10] min-h-full">
-      {/* Topo: só o nome. Indicar fica na barra de baixo, sempre à mão */}
-      <div className="bg-[#0b0b0b] text-white px-4 py-3 md:px-8">
-        <p className="text-xs text-slate-400">Olá,</p>
-        <p className="text-lg font-extrabold leading-tight">{primeiroNome}</p>
+    <div className="-mx-4 -mt-4 md:-mx-8 md:-mt-8 pb-8 bg-[#f4f4f2] min-h-full">
+      {/* Topo claro: só o nome. Indicar fica na barra de baixo, sempre à mão */}
+      <div className="px-4 pt-5 pb-1 md:px-8">
+        <p className="text-[15px] text-slate-500 leading-none">Olá,</p>
+        <p className="text-[28px] font-black leading-tight text-[#111] truncate">{primeiroNome}</p>
       </div>
+
+      {/* Ganhos numa linha só */}
+      {mostraGanhos && (
+        <section className="px-4 md:px-8 pt-3">
+          <button onClick={() => navigate('/comissoes')} className="w-full max-w-xl bg-white rounded-2xl px-4 py-3 shadow-sm flex items-center justify-between gap-3 text-left active:scale-[0.99]">
+            <span className="min-w-0">
+              <span className="block text-[13px] text-slate-500">A receber</span>
+              <span className="block text-[22px] font-black text-green-600 leading-tight truncate">{brl(aReceber)}</span>
+            </span>
+            <span className="shrink-0 text-[14px] font-bold text-blue-600 flex items-center">Meus ganhos<ChevronRight className="h-4 w-4" /></span>
+          </button>
+        </section>
+      )}
 
       {/* Pronta entrega */}
       {prontaEntrega.length > 0 && (
-        <section className="pt-4">
-          <div className="flex justify-between items-baseline px-4 md:px-8">
-            <h2 className={tituloSecao}>🔥 Pronta entrega</h2>
+        <section className="pt-5">
+          <div className="flex justify-between items-baseline px-4 md:px-8 mb-2.5">
+            <h2 className={tituloSecao}>Pronta entrega</h2>
             <button onClick={() => navigate('/estoque')} className="text-sm font-bold text-blue-600">ver tudo</button>
           </div>
-          <p className="px-4 md:px-8 text-[12.5px] text-slate-500 mt-0.5 mb-2.5">Equipamentos com entrega imediata. Envie para o seu cliente.</p>
-          <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory px-4 md:px-8 pb-1 [scrollbar-width:none]">
+          <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory scroll-px-4 md:scroll-px-8 px-4 md:px-8 pb-1 [scrollbar-width:none]">
             {prontaEntrega.map(it => {
               const pronto = !!preparados[it.chave]?.codigo;
               return (
-                <div key={it.chave} className="snap-start shrink-0 w-[84%] max-w-[340px] bg-white dark:bg-zinc-900 rounded-2xl overflow-hidden shadow-sm">
-                  <button onClick={() => navigate('/catalogo', { state: { openProductId: it.produto.id } })} className="relative h-[205px] w-full bg-white flex items-center justify-center">
-                    <Foto src={it.foto} alt={it.nome} className="max-h-[195px] max-w-[92%] object-contain" />
-                    <span className="absolute top-2.5 left-2.5 bg-green-600 text-white text-[11px] font-black px-2 py-1 rounded-md">PRONTA ENTREGA</span>
+                <div key={it.chave} className="snap-start shrink-0 w-[80%] max-w-[320px] bg-white rounded-2xl overflow-hidden shadow-sm">
+                  <button onClick={() => navigate('/catalogo', { state: { openProductId: it.produto.id } })} className="relative h-[120px] w-full bg-[#f1f1f1] flex items-center justify-center">
+                    <Foto src={it.foto} alt={it.nome} className="max-h-[108px] max-w-[90%] object-contain mix-blend-multiply" />
+                    <span className="absolute top-2 left-2 bg-green-600 text-white text-[10.5px] font-black px-2 py-0.5 rounded-md">PRONTA ENTREGA</span>
                   </button>
                   <div className="px-3 pb-3 pt-2">
-                    <p className="font-black text-[16px] leading-tight">{it.nome}</p>
-                    {it.para && <p className="text-xs text-slate-500 mt-0.5">{it.para}</p>}
-                    <div className="grid grid-cols-[1.25fr_1fr] gap-1.5 mt-2.5">
-                      <button onClick={() => enviarAoCliente(it)} disabled={!pronto} className="h-11 rounded-lg bg-[#25d366] text-white text-[13px] font-black flex items-center justify-center gap-1.5 disabled:opacity-60">
+                    <p className="font-black text-[15px] leading-tight truncate">{it.nome}</p>
+                    {it.para && <p className="text-[12px] text-slate-500 mt-0.5 line-clamp-2">{it.para}</p>}
+                    <div className="grid grid-cols-2 gap-1.5 mt-2.5">
+                      <button onClick={() => enviarAoCliente(it)} disabled={!pronto} className="h-11 rounded-lg bg-[#22c55e] text-white text-[13px] font-black flex items-center justify-center gap-1.5 disabled:opacity-60 leading-tight px-1">
                         {pronto
-                          ? <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2z"/></svg>
-                          : <Loader2 className="h-4 w-4 animate-spin" />}
+                          ? <svg width="15" height="15" viewBox="0 0 24 24" fill="#fff" className="shrink-0"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2z"/></svg>
+                          : <Loader2 className="h-4 w-4 animate-spin shrink-0" />}
                         Enviar ao cliente
                       </button>
-                      <button onClick={() => navigate('/indicacoes/nova', { state: { product_name: it.produto.name } })} className="h-11 rounded-lg border-[1.5px] border-[#111] dark:border-zinc-300 text-[#111] dark:text-zinc-100 text-[13px] font-black">Indicar</button>
+                      <button onClick={() => navigate('/indicacoes/nova', { state: { product_name: it.produto.name } })} className="h-11 rounded-lg border-[1.5px] border-[#111] text-[#111] text-[13px] font-black">Indicar</button>
                     </div>
                   </div>
                 </div>
@@ -237,95 +266,46 @@ export default function PainelParceiro() {
 
       {/* Máquina do cliente: abre o catálogo só com o que serve, cada modelo com o botão de WhatsApp */}
       <section className="px-4 md:px-8 pt-5">
-        <h2 className={tituloSecao}>Qual a máquina do seu cliente?</h2>
-        <p className="text-[12.5px] text-slate-500 mt-0.5 mb-2.5">Veja o que serve e envie ao cliente pelo WhatsApp.</p>
-        <div className="grid grid-cols-4 gap-2 max-w-xl">
+        <h2 className={cn(tituloSecao, 'mb-2.5')}>Máquina do cliente</h2>
+        <div className="grid grid-cols-2 gap-2 max-w-xl">
           {maquinas.map(m => (
-            <button key={m.id} onClick={() => navigate('/catalogo', { state: { maquina: m.id } })} className="bg-white dark:bg-zinc-900 rounded-xl pt-2 pb-2.5 px-0.5 text-center shadow-sm active:scale-95">
-              <DesenhoMaquina tipo={m.id} />
-              <span className="block text-[11px] font-extrabold leading-tight text-[#111] dark:text-zinc-100">{m.nome}</span>
+            <button key={m.id} onClick={() => navigate('/catalogo', { state: { maquina: m.id } })} className="min-w-0 min-h-[60px] bg-white rounded-xl px-2.5 py-2 shadow-sm flex items-center gap-2 text-left active:scale-95">
+              <DesenhoMaquina tipo={m.id} className="w-11 h-7 shrink-0" />
+              <span className="min-w-0 text-[13px] font-extrabold leading-tight text-[#111] break-words">{m.nome}</span>
             </button>
           ))}
         </div>
       </section>
 
-      {/* Ganhos (parceiro comissionado) */}
-      {!isRegionalSeller && (
-        <section className="px-4 md:px-8 pt-5">
-          <div className="flex justify-between items-center mb-2.5">
-            <h2 className={tituloSecao}>Meus ganhos</h2>
-            <button onClick={() => navigate('/comissoes')} className="text-sm font-bold text-blue-600">detalhes</button>
-          </div>
-          <div className="grid grid-cols-3 gap-2 max-w-xl">
-            <div className="bg-white dark:bg-zinc-900 rounded-xl p-2.5 shadow-sm"><p className="text-[10.5px] font-bold text-slate-500">Já recebi</p><p className="text-[15px] font-black mt-0.5">{brl(ganhos.recebido)}</p></div>
-            <div className="bg-white dark:bg-zinc-900 rounded-xl p-2.5 shadow-sm"><p className="text-[10.5px] font-bold text-slate-500">A receber</p><p className="text-[15px] font-black mt-0.5 text-green-600">{brl(ganhos.aReceber)}</p></div>
-            <div className="bg-white dark:bg-zinc-900 rounded-xl p-2.5 shadow-sm"><p className="text-[10.5px] font-bold text-slate-500">Em negociação</p><p className="text-[15px] font-black mt-0.5 text-blue-600">{ganhos.emNegociacao}</p></div>
-          </div>
-        </section>
-      )}
-
-      {/* Indicações com o andamento */}
+      {/* Minhas indicações: só as 2 últimas, com a situação */}
       <section className="px-4 md:px-8 pt-5">
-        <div className="flex justify-between items-center mb-2.5">
+        <div className="flex justify-between items-baseline mb-2.5">
           <h2 className={tituloSecao}>Minhas indicações</h2>
           <button onClick={() => navigate('/indicacoes')} className="text-sm font-bold text-blue-600">ver todas</button>
         </div>
         {ultimas.length === 0 ? (
-          <div className="bg-white dark:bg-zinc-900 rounded-xl p-4 shadow-sm text-sm text-slate-600 max-w-xl">
-            Você ainda não tem indicações. Toque em <b>Indicar cliente</b> ou envie um equipamento pelo WhatsApp: o pedido do cliente fica no seu nome.
+          <div className="bg-white rounded-xl p-4 shadow-sm text-sm text-slate-600 max-w-xl">
+            Você ainda não tem indicações. Toque em <b>Indicar</b> ou envie um equipamento pelo WhatsApp: o pedido do cliente fica no seu nome.
           </div>
         ) : (
-          <div className="space-y-2 max-w-xl">
+          <div className="bg-white rounded-2xl shadow-sm max-w-xl divide-y divide-slate-100 overflow-hidden">
             {ultimas.map(ind => {
               const { etapa, perdida } = etapaDa(ind);
+              const etiqueta = perdida ? { texto: 'Não fechou', cls: 'bg-slate-100 text-slate-500' } : ETIQUETAS[etapa];
               const produto = ind.items?.[0]?.product_name || ind.product_name || ind.base_machine || '';
+              const quando = haQuanto(ind.created_at);
               return (
-                <button key={ind.id} onClick={() => navigate('/indicacoes')} className="w-full text-left bg-white dark:bg-zinc-900 rounded-xl p-3 shadow-sm">
-                  <div className="flex justify-between gap-2">
-                    <span className="text-[14px] font-extrabold truncate">{ind.client_name || 'Cliente'}</span>
-                    <span className="text-[11px] text-slate-500 truncate max-w-[45%] text-right">{produto}</span>
-                  </div>
-                  {perdida ? (
-                    <p className="text-[12px] font-bold text-slate-500 mt-2">Não fechou desta vez</p>
-                  ) : (
-                    <>
-                      <div className="flex items-center mt-2.5">
-                        {ETAPAS.map((_, i) => (
-                          <div key={i} className={cn('flex items-center', i < 3 && 'flex-1')}>
-                            <span className={cn('h-3 w-3 rounded-full shrink-0', i <= etapa ? 'bg-green-600' : 'bg-zinc-300')} />
-                            {i < 3 && <span className={cn('h-[3px] flex-1', i < etapa ? 'bg-green-600' : 'bg-zinc-300')} />}
-                          </div>
-                        ))}
-                      </div>
-                      <div className="flex justify-between text-[9.5px] font-bold text-slate-500 mt-1">
-                        {ETAPAS.map((e, i) => <span key={e} className={cn(i === etapa && 'text-green-700')}>{e}</span>)}
-                      </div>
-                    </>
-                  )}
+                <button key={ind.id} onClick={() => navigate('/indicacoes')} className="w-full text-left px-3 py-2.5 flex items-center justify-between gap-2">
+                  <span className="min-w-0">
+                    <span className="block text-[14px] font-extrabold truncate text-[#111]">{ind.client_name || 'Cliente'}</span>
+                    <span className="block text-[12px] text-slate-500 truncate">{[produto, quando].filter(Boolean).join(' · ')}</span>
+                  </span>
+                  <span className={cn('shrink-0 text-[10.5px] font-black rounded-md px-2 py-1', etiqueta.cls)}>{etiqueta.texto}</span>
                 </button>
               );
             })}
           </div>
         )}
-      </section>
-
-      {/* Consultor */}
-      <section className="px-4 md:px-8 pt-5">
-        <div className="bg-[#111] text-white rounded-2xl p-4 max-w-xl">
-          <button onClick={() => abrirConsultor()} className="w-full text-left flex items-start gap-2">
-            <Bot className="h-6 w-6 text-[#facc15] shrink-0 mt-0.5" />
-            <span>
-              <span className="block font-bold text-[15px]">Dúvida técnica? Pergunte ao Consultor Roder</span>
-              <span className="block text-xs text-slate-400 mt-0.5">Responde na hora qual equipamento serve na máquina do cliente.</span>
-            </span>
-            <ChevronRight className="h-5 w-5 ml-auto text-slate-500 shrink-0" />
-          </button>
-          <div className="flex flex-wrap gap-1.5 mt-3">
-            {['Qual garra para escavadeira de 20 t?', 'O que serve numa pá carregadeira?', 'Feller ou cabeçote multifuncional?'].map(q => (
-              <button key={q} onClick={() => abrirConsultor(q)} className="text-[12px] bg-[#262626] border border-[#3a3a3a] rounded-full px-3 py-1.5 active:scale-95">{q}</button>
-            ))}
-          </div>
-        </div>
       </section>
     </div>
   );
