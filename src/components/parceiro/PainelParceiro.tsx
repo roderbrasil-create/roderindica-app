@@ -246,12 +246,12 @@ export default function PainelParceiro() {
       {/* Pronta entrega em destaque, sobre a faixa. Aparece sempre para o parceiro: é a vitrine para ele
           mandar ao cliente (o cadastro antigo de vários parceiros vinha com o estoque desligado) */}
       {temPronta && (
-        <section className="relative -mt-[76px] max-w-xl md:mx-4">
-          <div ref={carrossel} onScroll={aoRolar} className="flex gap-4 overflow-x-auto snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pb-5 -mb-5 pt-1 -mt-1">
+        <section className="relative -mt-[76px] max-w-xl md:max-w-none md:mx-4">
+          <div ref={carrossel} onScroll={aoRolar} className="flex gap-4 overflow-x-auto snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pb-8 -mb-8 pt-1 -mt-1">
             {prontaEntrega.map((it, i) => {
               const pronto = !!preparados[it.chave]?.codigo;
               return (
-                <div key={it.chave} className="snap-center shrink-0 w-[calc(100%-32px)] first:ml-4 last:mr-4 bg-white rounded-[20px] overflow-hidden shadow-[0_10px_24px_rgba(20,24,28,0.18)]">
+                <div key={it.chave} className="snap-center shrink-0 w-[calc(100%-32px)] md:w-[544px] first:ml-4 last:mr-4 bg-white rounded-[20px] overflow-hidden shadow-[0_10px_24px_rgba(20,24,28,0.18)]">
                   <button onClick={() => navigate('/catalogo', { state: { openProductId: it.produto.id } })} className="relative h-[168px] w-full p-0 bg-gradient-to-b from-[#F4F5F6] to-[#E3E6E9] flex items-center justify-center">
                     <Foto src={it.foto} alt={it.nome} className="h-[140px] max-w-[88%] object-contain mix-blend-multiply" />
                     <span className="absolute left-3 top-3 bg-[#F6C400] text-[#111] text-[12px] font-extrabold px-2.5 py-[5px] rounded-full leading-none">Pronta entrega</span>
@@ -277,13 +277,19 @@ export default function PainelParceiro() {
             })}
           </div>
           {prontaEntrega.length > 1 && (
-            <div className="flex gap-[5px] justify-center mt-2.5 mb-0.5" aria-hidden>
+            <div className="flex justify-center mt-1 md:max-w-[576px]">
+              {/* pontinhos clicáveis: no computador é o único jeito de chegar ao próximo equipamento */}
               {prontaEntrega.map((it, i) => (
-                <i key={it.chave} className={cn('h-1.5 rounded-[3px] transition-all', i === atual ? 'w-[18px] bg-[#1B1E22]' : 'w-1.5 bg-[#BFC4CA]')} />
+                <button key={it.chave} aria-label={`Ver equipamento ${i + 1}`} onClick={() => {
+                  const el = carrossel.current; const primeiro = el?.firstElementChild as HTMLElement | null;
+                  if (el && primeiro) el.scrollTo({ left: i * (primeiro.offsetWidth + 16), behavior: 'smooth' });
+                }} className="h-6 min-w-6 w-auto px-[2.5px] p-0 bg-transparent flex items-center justify-center">
+                  <i className={cn('block h-1.5 rounded-[3px] transition-all', i === atual ? 'w-[18px] bg-[#1B1E22]' : 'w-1.5 bg-[#BFC4CA]')} />
+                </button>
               ))}
             </div>
           )}
-          <div className="text-center mt-1.5">
+          <div className="text-center mt-1 md:max-w-[576px]">
             <button onClick={() => navigate('/estoque')} className="h-auto p-1 bg-transparent text-[13px] font-bold text-[#1E5BD8]">Ver toda a pronta entrega</button>
           </div>
         </section>
