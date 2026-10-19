@@ -1,20 +1,10 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { 
-  X, 
-  CheckCircle, 
-  ShieldCheck, 
-  Settings, 
-  TrendingUp, 
-  AlertTriangle,
-  Info,
+import {
+  X,
+  ShieldCheck,
   Download,
   Video,
   ExternalLink,
-  Cpu,
-  Bookmark,
-  Sparkles,
-  Layers,
-  Wrench,
   RefreshCw
 } from 'lucide-react';
 import { RODER_LOGO_BASE64 } from './RoderLogo';
@@ -26,6 +16,30 @@ import { useAuth } from '../../contexts/AuthContext';
 import { db } from '../../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { useVoltarFecha } from '../../lib/useVoltarFecha';
+
+// Cores da ficha técnica Roder (grafite, laranja e laranja claro)
+const COR_G = '#1B1E22';
+const COR_L = '#E8590C';
+const COR_LC = '#FFF1E8';
+const COR_T2 = '#5E6672';
+const COR_BD = '#E2E5E8';
+const COR_VD = '#15803D';
+const COR_VM = '#B91C1C';
+const FONTE_TIT = "'Archivo Variable', 'Geist Variable', sans-serif";
+const FONTE_TXT = "'Geist Variable', system-ui, sans-serif";
+// A4 na largura de 840 px da folha: 840 x 297 / 210
+const ALTURA_FOLHA = 1188;
+
+// "1600 mm" vira "1.600"
+const milhar = (s: string) => {
+  const n = s.match(/\d+/)?.[0];
+  return n ? n.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : s;
+};
+// "200 - 360 (400) HP (CVT)" vira "200 a 360 (400)"
+const faixaTrator = (s: string) => s.replace(/\s*HP.*$/i, '').replace(/\s*-\s*/, ' a ').trim();
+// "58 + 4 dentes (Tipo A/3 + MH)" vira "58 + 4"
+const dentesCurto = (s: string) => s.match(/^\s*(\d+\s*\+\s*\d+)/)?.[1].replace(/\s*\+\s*/, ' + ') || s;
+
 
 interface FresaSshFichaProps {
   onClose: () => void;
@@ -295,7 +309,13 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshF
     }
   ];
 
+
   const selectedModel = models.find(m => m.id === selectedModelId) || models[0];
+  const folha1Ref = useRef<HTMLDivElement>(null);
+  const folha2Ref = useRef<HTMLDivElement>(null);
+
+  const sp = selectedModel.specs;
+  const tratorFaixa = faixaTrator(sp.trator_hp);
 
   const handleDownloadPdf = async () => {
     const element = printRef.current;
@@ -311,7 +331,7 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshF
 
       // 2. Force scale = 1 temporarily by setting isPrinting to true so that it renders fully and unscaled
       setIsPrinting(true);
-      
+
       // 3. Wait for React to apply state change and browser to repaint
       await new Promise((resolve) => setTimeout(resolve, 400));
 
@@ -327,74 +347,61 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshF
         })
       );
 
-      // Get precise unscaled height of the element
-      const unscaledHeight = element.offsetHeight || element.scrollHeight;
+      // 5. Cada folha vira uma página A4 própria: a folha 2 sempre começa numa página nova.
+      // Os botões marcados com no-print (site, vídeo) ficam fora do PDF.
+      const folhas = [folha1Ref.current, folha2Ref.current].filter(Boolean) as HTMLDivElement[];
+      const pdf = new jsPDF('p', 'mm', 'a4');
 
-      // 5. Use html-to-image to generate the PNG of the perfectly rendered live element
-      const options = {
-        quality: 0.98,
-        pixelRatio: 2.0, // High quality, crisp text
-        backgroundColor: '#ffffff',
-        width: 840,
-        height: unscaledHeight,
-        style: {
-          transform: 'none',
-          transformOrigin: 'top center',
-          width: '840px',
-          height: `${unscaledHeight}px`,
+      for (let i = 0; i < folhas.length; i++) {
+        const folha = folhas[i];
+        const altura = folha.offsetHeight || folha.scrollHeight;
+        const dataUrl = await toPng(folha, {
+          quality: 0.98,
+          pixelRatio: 2.0, // High quality, crisp text
+          backgroundColor: '#ffffff',
+          width: 840,
+          height: altura,
+          style: { transform: 'none', margin: '0', boxShadow: 'none', borderRadius: '0' },
+          filter: (node: HTMLElement) => !(node.classList && node.classList.contains('no-print')),
+        });
+
+        const img = new Image();
+        img.src = dataUrl;
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = () => reject(new Error("Failed to load generated image"));
+        });
+
+        // Ocupa a largura do A4; se a folha passar da altura, reduz para caber inteira na página
+        let largura = 210;
+        let alturaMm = (img.height * largura) / img.width;
+        if (alturaMm > 297) {
+          alturaMm = 297;
+          largura = (img.width * alturaMm) / img.height;
         }
-      };
-
-      const dataUrl = await toPng(element, options);
+        if (i > 0) pdf.addPage();
+        pdf.addImage(dataUrl, 'PNG', (210 - largura) / 2, 0, largura, alturaMm, undefined, 'FAST');
+      }
 
       // Restore printing state immediately
       setIsPrinting(false);
-
-      // Create image object to get natural dimensions
-      const img = new Image();
-      img.src = dataUrl;
-      
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve();
-        img.onerror = () => reject(new Error("Failed to load generated image"));
-      });
-
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgWidth = 210; // A4 width in mm
-      const pageHeight = 295; // Slightly less than 297 to leave a tiny safe margin
-      const imgHeight = (img.height * imgWidth) / img.width;
-      
-      let heightLeft = imgHeight;
-      let position = 0;
-
-      // Add first page
-      pdf.addImage(dataUrl, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
-      heightLeft -= pageHeight;
-
-      // Add remaining pages if they overflow
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(dataUrl, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
-        heightLeft -= pageHeight;
-      }
 
       const docName = `Ficha_Tecnica_FAE_SSH_${selectedModel.name.replace(/\s+/g, '_')}.pdf`;
       pdf.save(docName);
       toast.success("PDF gerado e baixado com sucesso!", { id: toastId });
     } catch (error) {
       console.error("Error generating PDF with html-to-image:", error);
-      
+
       // Make sure we reset printing state
       setIsPrinting(false);
 
       // Fallback to traditional browser print if html-to-image fails (e.g. CORS)
       toast.loading("Iniciando método de impressão alternativo...", { id: toastId });
-      
+
       try {
         const printDiv = document.createElement('div');
         printDiv.id = "print-temp-div";
-        printDiv.className = "bg-white text-black p-6 sm:p-10";
+        printDiv.className = "bg-white text-black";
         printDiv.innerHTML = element.innerHTML;
 
         const style = document.createElement('style');
@@ -413,10 +420,14 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshF
               height: auto !important;
               background: white !important;
               color: black !important;
-              padding: 20px !important;
+              padding: 0 !important;
               margin: 0 !important;
               -webkit-print-color-adjust: exact !important;
               print-color-adjust: exact !important;
+            }
+            #print-temp-div .ficha-folha + .ficha-folha {
+              page-break-before: always !important;
+              break-before: page !important;
             }
             .no-print, [class*="no-print"] {
               display: none !important;
@@ -450,10 +461,148 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshF
     }
   };
 
+  // ---------- Peças da folha ----------
+  const estiloFolha: React.CSSProperties = {
+    width: '840px',
+    minWidth: '840px',
+    minHeight: `${ALTURA_FOLHA}px`,
+    background: '#ffffff',
+    color: COR_G,
+    fontFamily: FONTE_TXT,
+    padding: '38px 42px 28px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '18px',
+    boxShadow: '0 4px 14px rgba(0,0,0,.12)',
+    borderRadius: '4px',
+    boxSizing: 'border-box',
+    lineHeight: 1.4,
+  };
+
+  const cabecalho = (meio: string) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '12px', borderBottom: `2px solid ${COR_G}` }}>
+      <div style={{ width: '200px' }}>
+        <img
+          src={RODER_LOGO_BASE64}
+          onError={(e) => {
+            e.currentTarget.src = "/api/proxy-image?url=" + encodeURIComponent("https://roderbrasil.com.br/wp-content/uploads/2024/05/favicon.png");
+          }}
+          alt="Roder"
+          style={{ height: '40px', width: 'auto', display: 'block', maxHeight: '40px' }}
+          crossOrigin="anonymous"
+          referrerPolicy="no-referrer"
+        />
+      </div>
+      <div style={{ flex: 1, textAlign: 'center', fontSize: '10.5px', fontWeight: 700, letterSpacing: '0.14em', color: COR_T2, textTransform: 'uppercase' }}>
+        {meio}
+      </div>
+      <div style={{ width: '200px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px' }}>
+        {faeLogo ? (
+          <img
+            src={faeLogo && faeLogo.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(faeLogo)}` : faeLogo}
+            alt="FAE Logo"
+            style={{ height: '30px', width: 'auto', display: 'block', maxHeight: '30px' }}
+            crossOrigin="anonymous"
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          <span style={{ fontFamily: FONTE_TIT, fontStretch: '120%', fontWeight: 900, fontSize: '27px', color: COR_L, letterSpacing: '0.06em', lineHeight: 1 }}>FAE</span>
+        )}
+        <span style={{ fontSize: '9.5px', letterSpacing: '0.12em', color: COR_T2, fontWeight: 700 }}>Distribuidor oficial no Brasil</span>
+      </div>
+    </div>
+  );
+
+  const rodape = (
+    <div style={{ marginTop: 'auto', borderTop: `1px solid ${COR_BD}`, paddingTop: '10px', display: 'flex', justifyContent: 'space-between', fontSize: '9.5px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: COR_T2 }}>
+      <span>Roder Máquinas e Equipamentos Ltda.</span>
+      <span>Distribuição, serviços e garantia oficial FAE</span>
+      <span>roderbrasil.com.br</span>
+    </div>
+  );
+
+  const tituloSecao = (texto: string) => (
+    <div style={{ fontFamily: FONTE_TIT, fontStretch: '108%', fontWeight: 800, fontSize: '14.5px', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px', color: COR_G }}>
+      <span style={{ width: '4px', height: '15px', background: COR_L, borderRadius: '2px', display: 'inline-block' }} />
+      {texto}
+    </div>
+  );
+
+  const unid = (t: string) => <small style={{ fontSize: '12px', fontWeight: 700 }}>{t}</small>;
+
+  const numeros: { rotulo: string; valor: React.ReactNode; destaque?: boolean }[] = [
+    {
+      rotulo: 'Trator',
+      // "200 a 360 (400)": o teto entre parênteses vai pequeno para caber numa linha
+      valor: (() => {
+        const [, base, teto] = tratorFaixa.match(/^(.*?)\s*(\(\d+\))?$/) || [, tratorFaixa, undefined];
+        return <span style={{ whiteSpace: 'nowrap' }}>{base} {teto ? unid(`${teto} cv`) : unid('cv')}</span>;
+      })(),
+      destaque: true,
+    },
+    { rotulo: 'Largura de trabalho', valor: <>{milhar(sp.largura_trabalho_mm)} {unid('mm')}</> },
+    { rotulo: 'Profundidade', valor: <>até {Number(milhar(sp.profundidade_max_trabalho_mm).replace('.', '')) / 10} {unid('cm')}</> },
+    { rotulo: 'Trituração', valor: <>até {Number(milhar(sp.diametro_max_trituracao_mm).replace('.', '')) / 10} {unid('cm')}</> },
+    { rotulo: 'Peso', valor: <>{milhar(sp.peso_kg)} {unid('kg')}</> },
+  ];
+
+  const linhasSpecs: [string, string][] = [
+    ['Potência do trator', `${tratorFaixa} cv (CVT)`],
+    ['Rotação da TDP', `${milhar(sp.pto_rpm)} rpm`],
+    ['Largura de trabalho', `${milhar(sp.largura_trabalho_mm)} mm`],
+    ['Largura total', `${milhar(sp.largura_total_mm)} mm`],
+    ['Peso', `${milhar(sp.peso_kg)} kg`],
+    ['Diâmetro do rotor', `${milhar(sp.diametro_rotor_mm)} mm`],
+    ['Trituração máxima', `${milhar(sp.diametro_max_trituracao_mm)} mm`],
+    ['Profundidade máxima', `${milhar(sp.profundidade_max_trabalho_mm)} mm`],
+    ['Dentes (A/3 + MH)', dentesCurto(sp.dentes_tipo)],
+  ];
+
+  const tratores: { marca: string; serie: string; texto: string; serieDe: boolean }[] = [
+    { marca: 'Massey Ferguson', serie: 'MF 8700 S Dyna-VT', texto: '270 a 370 cv. Dyna-VT de série.', serieDe: true },
+    { marca: 'Valtra', serie: 'T CVT, Q5 e S6', texto: 'T195 a T250 CVT (195 a 250 cv), Q5 (265 a 305 cv), S6 (345 a 375 cv). Só se tiver "CVT" no nome, ou for Q5 ou S6.', serieDe: true },
+    { marca: 'Fendt', serie: '700 e 900 Vario', texto: 'Toda Fendt é Vario. 700 (263 a 283 cv) atende todas; 900 atende SSH 200, 225 e 250 até 400 cv.', serieDe: true },
+    { marca: 'Case IH', serie: 'Puma 260 CVX', texto: '260 cv (até 300). Puma sem "CVX" no nome é powershift.', serieDe: true },
+    { marca: 'New Holland', serie: 'T7.300 Auto Command', texto: '260 cv. T7 Power Command e Range Command são powershift.', serieDe: true },
+    { marca: 'John Deere', serie: '8R eAutoPowr (EVT)', texto: 'Opcional no 8R. Conferir o adesivo eAutoPowr, EVT ou AutoPowr e a potência.', serieDe: false },
+  ];
+
+  const tdBase: React.CSSProperties = { padding: '6px 8px', borderBottom: `1px solid ${COR_BD}` };
+  const thComp: React.CSSProperties = { fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', color: COR_T2, textAlign: 'right', padding: '6px 8px', borderBottom: `2px solid ${COR_G}`, fontWeight: 700 };
+
+  const fotoBox = (
+    src: string,
+    onTroca: (b64: string) => void,
+    zoom: number,
+    onZoom: (z: number) => void,
+    alt: string,
+    legenda: string
+  ) => (
+    <div style={{ flexShrink: 0, height: '236px', borderRadius: '10px', overflow: 'hidden', border: `1px solid ${COR_BD}`, background: '#ffffff', display: 'flex', flexDirection: 'column' }}>
+      <div className="flex-1 min-h-0 relative w-full flex items-center justify-center p-1">
+        <EditableImage
+          src={src}
+          onChange={onTroca}
+          zoom={zoom}
+          onZoomChange={onZoom}
+          alt={alt}
+          maxHeightClass="max-h-[196px]"
+          aspectRatioClass="w-full h-full border-0 bg-transparent p-0 hover:shadow-none focus:ring-0 rounded-none"
+          outerMinHeightClass="min-h-full"
+          innerMinHeightClass="min-h-full"
+          disabled={!canEdit}
+        />
+      </div>
+      <div style={{ background: 'rgba(27,30,34,.92)', color: '#ffffff', fontSize: '11px', fontWeight: 600, padding: '6px 10px' }}>
+        {legenda}
+      </div>
+    </div>
+  );
+
   return (
     <div style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 0.5rem)' }} className="fixed inset-0 z-[99999] overflow-hidden bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-6 no-print-backdrop">
       <div className="bg-card text-card-foreground w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden border border-border flex flex-col h-[96vh]">
-        
+
         {/* Header Controls */}
         <div className="bg-muted px-6 py-4 flex items-center justify-between border-b border-border no-print shrink-0">
           <div className="flex items-center gap-2">
@@ -480,7 +629,7 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshF
 
         {/* Scrollable Printable Area */}
         <div ref={wrapperRef} className="flex-1 min-h-0 overflow-y-auto p-2 sm:p-8 bg-neutral-100 flex flex-col items-center">
-          
+
           {/* Tabs inside app but hidden in print */}
           <div className="w-full max-w-4xl mx-auto mb-4 flex flex-wrap items-center justify-between gap-2 bg-white p-1.5 rounded-xl border border-neutral-200 no-print shrink-0">
             <div className="flex flex-wrap gap-1 flex-1">
@@ -489,8 +638,8 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshF
                   key={m.id}
                   onClick={() => setSelectedModelId(m.id)}
                   className={`py-2 px-4 rounded-lg text-xs font-bold transition-all ${
-                    selectedModelId === m.id 
-                      ? 'bg-orange-500 text-white shadow-sm' 
+                    selectedModelId === m.id
+                      ? 'bg-orange-500 text-white shadow-sm'
                       : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
                   }`}
                 >
@@ -498,7 +647,7 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshF
                 </button>
               ))}
             </div>
-            
+
             {canEdit && (
               <button
                 onClick={handleResetToDefault}
@@ -511,89 +660,51 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshF
             )}
           </div>
 
-          <div 
+          <div
             className="w-full flex justify-center"
             style={{
               height: isPrinting ? 'auto' : (cardHeight ? `${cardHeight}px` : 'auto'),
               overflow: 'visible',
             }}
           >
-            <div 
-              className="bg-white text-neutral-900 p-6 sm:p-10 shadow-md border border-neutral-200 rounded-lg print-container font-sans leading-relaxed text-sm origin-top" 
+            <div
+              className="print-container origin-top"
               style={{
                 width: '840px',
                 minWidth: '840px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '28px',
                 transform: isPrinting ? 'none' : `scale(${scale})`,
                 transformOrigin: 'top center',
               }}
               ref={printRef}
             >
-            {/* SHEET PAGE 1: INTRODUCTION & REINFORCEMENTS */}
-            <div className="space-y-6">
-              
-              {/* Logo & Header */}
-              <div className="flex justify-between items-center border-b-2 border-orange-500 pb-4" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #f97316', paddingBottom: '16px' }}>
-                <div className="flex items-center gap-4" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                  <img 
-                    src={RODER_LOGO_BASE64} 
-                    onError={(e) => {
-                      e.currentTarget.src = "/api/proxy-image?url=" + encodeURIComponent("https://roderbrasil.com.br/wp-content/uploads/2024/05/favicon.png");
-                    }}
-                    alt="Roder" 
-                    style={{ height: '44px', width: 'auto', display: 'block', maxHeight: '44px' }}
-                    className="h-11 object-contain"
-                    crossOrigin="anonymous"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div>
-                    <h1 className="text-2xl font-black text-slate-950 tracking-tight leading-none" style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a', margin: 0, lineHeight: '1' }}>Roder</h1>
-                    <p className="text-[9px] font-black tracking-widest uppercase text-orange-600 mt-1" style={{ fontSize: '9px', fontWeight: '900', color: '#ea580c', letterSpacing: '0.1em', textTransform: 'uppercase', margin: '4px 0 0 0' }}>Distribuidor Oficial FAE no Brasil</p>
-                  </div>
-                </div>
-                
-                {/* Right Area: FAE Logo & Document Info */}
-                <div className="flex items-center gap-4" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                  {faeLogo ? (
-                    <img 
-                      src={faeLogo && faeLogo.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(faeLogo)}` : faeLogo} 
-                      alt="FAE Logo" 
-                      style={{ height: '36px', width: 'auto', display: 'block', maxHeight: '36px' }}
-                      className="h-9 object-contain"
-                      crossOrigin="anonymous"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#f97316', letterSpacing: '0.15em' }}>FAE</span>
-                  )}
-                  <div className="text-right" style={{ textAlign: 'right' }}>
-                    <span className="text-xs bg-orange-500 text-white px-2 py-0.5 rounded-md font-bold" style={{ fontSize: '12px', backgroundColor: '#f97316', color: '#ffffff', padding: '2px 8px', borderRadius: '6px', fontWeight: 'bold' }}>Ficha Técnica Oficial</span>
-                    <p className="text-[9px] text-muted-foreground font-semibold mt-1" style={{ fontSize: '9px', color: '#64748b', fontWeight: '600', margin: '4px 0 0 0' }}>FRESAS FLORESTAIS FAE</p>
-                  </div>
-                </div>
-              </div>
+            {/* ================= FOLHA 1 ================= */}
+            <div ref={folha1Ref} className="ficha-folha" style={estiloFolha}>
+              {cabecalho('Ficha técnica oficial')}
 
-              {/* Title Section */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
-                <div className="md:col-span-2 space-y-3">
-                  <h2 className="text-3xl font-black text-slate-950 tracking-tight">FRESA FAE SSH - {selectedModel.name}</h2>
-                  <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                    A <strong className="text-slate-900">Fresa FAE SSH - {selectedModel.name}</strong> é uma fresa florestal profissional de alto rendimento projetada especificamente para a destoca em linha profunda, fresagem de tocos, raízes subterrâneas e pedras em solos agrícolas e florestais. 
+              {/* Título, modelos e links */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: '16px' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <h1 style={{ fontFamily: FONTE_TIT, fontStretch: '112%', fontWeight: 850, fontSize: '35px', lineHeight: 1, letterSpacing: '-0.4px', margin: 0, color: COR_G }}>
+                    Fresa FAE {selectedModel.name}
+                  </h1>
+                  <p style={{ fontSize: '13px', color: COR_T2, marginTop: '7px', maxWidth: '460px', lineHeight: 1.45 }}>
+                    Destoca profunda: fresa tocos, raízes e pedras até 50 cm de profundidade, em área agrícola e florestal.
                   </p>
-                  <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                    A Roder, como distribuidora oficial da FAE no Brasil, garante o fornecimento deste implemento líder mundial, acompanhado de <strong>entrega técnica especializada</strong>, suporte de engenharia no campo e estoque completo de ferramentas de reposição de altíssima durabilidade.
-                  </p>
-                  <div className="flex flex-wrap gap-2 pt-1 no-print">
-                    <a 
-                      href="https://roderbrasil.com.br/triturador-florestal/fresa-trituradora-tocos-pedras/fresa-ssh-trituradora-tocos/" 
-                      target="_blank" 
+                  <div className="no-print flex flex-wrap gap-2" style={{ marginTop: '10px' }}>
+                    <a
+                      href="https://roderbrasil.com.br/triturador-florestal/fresa-trituradora-tocos-pedras/fresa-ssh-trituradora-tocos/"
+                      target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 px-3 py-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 text-[11px] font-black rounded-md border border-neutral-200 transition-colors"
                     >
                       <ExternalLink className="h-3 w-3" /> Ver no Site Roder
                     </a>
-                    <a 
-                      href={selectedModel.video_url} 
-                      target="_blank" 
+                    <a
+                      href={selectedModel.video_url}
+                      target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 px-3 py-1 bg-red-50 hover:bg-red-100 text-red-600 text-[11px] font-black rounded-md border border-red-200 transition-colors"
                     >
@@ -601,316 +712,223 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshF
                     </a>
                   </div>
                 </div>
-                
-                {/* Visual Model Preview Cards */}
-                <div className="bg-orange-500/5 border border-orange-500/15 p-4 rounded-xl space-y-2 flex flex-col justify-between">
-                  <div>
-                    <h4 className="font-extrabold text-[11px] text-orange-800 uppercase tracking-wider flex items-center gap-1">
-                      <Settings className="h-3.5 w-3.5 text-orange-600" /> Modelos FAE SSH
-                    </h4>
-                    <p className="text-[10px] text-slate-500 mb-2 font-medium">Variação principal pela largura operacional:</p>
-                    <ul className="text-xs text-slate-800 space-y-1.5 font-bold">
-                      <li className={selectedModelId === 'ssh-150' ? 'text-orange-600' : 'text-slate-700'}>
-                        • SSH 150 <span className="text-[9px] text-neutral-500 font-normal">(1.600 mm trab.)</span>
-                      </li>
-                      <li className={selectedModelId === 'ssh-200' ? 'text-orange-600' : 'text-slate-700'}>
-                        • SSH 200 <span className="text-[9px] text-neutral-500 font-normal">(2.080 mm trab.)</span>
-                      </li>
-                      <li className={selectedModelId === 'ssh-225' ? 'text-orange-600' : 'text-slate-700'}>
-                        • SSH 225 <span className="text-[9px] text-neutral-500 font-normal">(2.320 mm trab.)</span>
-                      </li>
-                      <li className={selectedModelId === 'ssh-250' ? 'text-orange-600' : 'text-slate-700'}>
-                        • SSH 250 <span className="text-[9px] text-orange-600 font-bold">(2.560 mm trab. - Premium)</span>
-                      </li>
+                <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                  {models.map(m => {
+                    const ativo = m.id === selectedModelId;
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setSelectedModelId(m.id)}
+                        style={{
+                          fontFamily: FONTE_TXT,
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          lineHeight: 1.25,
+                          textAlign: 'left',
+                          border: `1.5px solid ${ativo ? COR_G : COR_BD}`,
+                          background: ativo ? COR_G : '#ffffff',
+                          color: ativo ? '#ffffff' : COR_T2,
+                          borderRadius: '8px',
+                          padding: '6px 10px',
+                          cursor: 'pointer',
+                          minWidth: '56px',
+                        }}
+                      >
+                        {m.name.replace(' ', '\n').split('\n').map((p, i) => <span key={i} style={{ display: 'block' }}>{p}</span>)}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Fotos */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1.25fr 1fr', gap: '10px' }}>
+                {fotoBox(
+                  customPrimaryImages[selectedModelId],
+                  (base64) => {
+                    setCustomPrimaryImages(prev => ({ ...prev, [selectedModelId]: base64 }));
+                    toast.success(`Foto do implemento principal atualizada para ${selectedModel.name}!`);
+                  },
+                  primaryZoom[selectedModelId],
+                  (zoom) => setPrimaryZoom(prev => ({ ...prev, [selectedModelId]: zoom })),
+                  `Fresa FAE SSH ${selectedModel.name}`,
+                  'Fresa SSH em ação profunda'
+                )}
+                {fotoBox(
+                  customSecondaryImages[selectedModelId],
+                  (base64) => {
+                    setCustomSecondaryImages(prev => ({ ...prev, [selectedModelId]: base64 }));
+                    toast.success(`Segunda imagem (área/operação) atualizada para ${selectedModel.name}!`);
+                  },
+                  secondaryZoom[selectedModelId],
+                  (zoom) => setSecondaryZoom(prev => ({ ...prev, [selectedModelId]: zoom })),
+                  'Fresa FAE SSH Operação/Área',
+                  'Resultado da destoca no campo'
+                )}
+              </div>
+
+              {/* Números principais */}
+              <div style={{ flexShrink: 0, display: 'grid', gridTemplateColumns: '1.3fr 1fr 1fr 1fr 1fr', border: `1px solid ${COR_BD}`, borderRadius: '12px', overflow: 'hidden' }}>
+                {numeros.map((n, i) => (
+                  <div key={n.rotulo} style={{ padding: '11px 11px', borderRight: i < numeros.length - 1 ? `1px solid ${COR_BD}` : 'none', background: n.destaque ? COR_LC : '#ffffff' }}>
+                    <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: COR_T2 }}>{n.rotulo}</span>
+                    <b style={{ display: 'block', fontFamily: FONTE_TIT, fontStretch: '108%', fontWeight: 800, fontSize: '19px', marginTop: '3px', color: n.destaque ? COR_L : COR_G, lineHeight: 1.2 }}>{n.valor}</b>
+                    {n.destaque && <span style={{ display: 'block', fontSize: '10.5px', fontWeight: 800, color: COR_L, marginTop: '2px' }}>só com CVT</span>}
+                  </div>
+                ))}
+              </div>
+
+              {/* Bloco CVT */}
+              <div style={{ flexShrink: 0, border: `2px solid ${COR_L}`, borderRadius: '14px', overflow: 'hidden' }}>
+                <div style={{ background: COR_L, color: '#ffffff', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h2 style={{ fontFamily: FONTE_TIT, fontStretch: '110%', fontWeight: 850, fontSize: '17px', letterSpacing: '0.01em', margin: 0 }}>SÓ FUNCIONA COM TRATOR CVT</h2>
+                  <span style={{ fontSize: '11.5px', fontWeight: 700, background: 'rgba(255,255,255,.2)', borderRadius: '999px', padding: '3px 10px' }}>Obrigatório</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+                  <div style={{ padding: '12px 14px', borderRight: `1px solid ${COR_BD}` }}>
+                    <h3 style={{ fontFamily: FONTE_TIT, fontSize: '12.5px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '5px', color: COR_VD }}>Por que o CVT</h3>
+                    <p style={{ fontSize: '11.5px', lineHeight: 1.45, color: '#333', marginBottom: '6px' }}>O solo muda a cada toco, raiz ou pedra. O CVT ajusta sozinho o avanço (0 a 1 km/h) e segura o motor na faixa de torque.</p>
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '11.5px', fontWeight: 700, color: COR_VD, display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      <li>✔ Avanço preciso e constante</li>
+                      <li>✔ Não perde potência</li>
+                      <li>✔ Gasta menos diesel</li>
                     </ul>
                   </div>
-                  <div className="pt-2 border-t border-orange-500/10 text-[9px] text-neutral-500">
-                    * Todos os modelos exigem trator de alta potência e sistema de transmissão CVT.
+                  <div style={{ padding: '12px 14px' }}>
+                    <h3 style={{ fontFamily: FONTE_TIT, fontSize: '12.5px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '5px', color: COR_VM }}>Super redutor (creeper) não serve</h3>
+                    <p style={{ fontSize: '11.5px', lineHeight: 1.45, color: '#333', marginBottom: '6px' }}>O creeper só reduz a velocidade com engrenagens fixas. Não ajusta avanço, rotação e torque quando a carga da fresa oscila.</p>
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '11.5px', fontWeight: 700, color: COR_VM, display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      <li>✖ Sobrecarga e quebra na transmissão</li>
+                      <li>✖ Rotação oscilando, perde eficiência</li>
+                      <li>✖ Muita parada no campo</li>
+                    </ul>
+                  </div>
+                </div>
+                <div style={{ background: '#FDECEC', borderTop: '1px solid #F5C2C2', fontSize: '11px', lineHeight: 1.45, padding: '9px 14px', color: '#5B1010' }}>
+                  <b>Garantia:</b> usar em trator sem CVT derruba a produção, aumenta o diesel, sobrecarrega embreagem e transmissão e pode anular a garantia de fábrica.
+                </div>
+              </div>
+
+              {/* Especificações e observações */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  {tituloSecao(`Especificações ${selectedModel.name}`)}
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11.5px' }}>
+                    <tbody>
+                      {linhasSpecs.map(([rotulo, valor], i) => (
+                        <tr key={rotulo}>
+                          <td style={{ ...tdBase, color: COR_T2, fontWeight: 600, background: i % 2 === 0 ? '#F7F8F9' : '#ffffff' }}>{rotulo}</td>
+                          <td style={{ ...tdBase, fontWeight: 800, textAlign: 'right', color: COR_G, background: i % 2 === 0 ? '#F7F8F9' : '#ffffff' }}>{valor}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div style={{ fontSize: '9.5px', color: COR_T2, fontStyle: 'italic', marginTop: '5px' }}>Padrão de fábrica. O fabricante pode alterar sem aviso.</div>
+                </div>
+                <div>
+                  {tituloSecao('Profundidade e potência')}
+                  <div style={{ background: '#F7F8F9', borderRadius: '10px', padding: '11px 13px', fontSize: '11.3px', lineHeight: 1.45, display: 'flex', flexDirection: 'column', gap: '7px', color: COR_G }}>
+                    <div><b style={{ fontWeight: 800 }}>Depende do solo.</b> Os 50 cm e o quanto se alcança numa passada variam com a resistência e a compactação.</div>
+                    <div><b style={{ fontWeight: 800 }}>Mais de uma passada.</b> Em solo muito compacto pode ser preciso repetir. Não garante 50 cm numa passada só.</div>
+                    <div><b style={{ fontWeight: 800 }}>Depende do trator.</b> Para chegar ao máximo, o trator trabalha na potência máxima exigida, não na mínima.</div>
+                    <div><b style={{ fontWeight: 800 }}>Compactação extrema</b> pode limitar a profundidade mesmo com várias passadas.</div>
                   </div>
                 </div>
               </div>
 
-              {/* Product Visual Section */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
-                {/* Equipment Image */}
-                <div className="border border-neutral-200 rounded-xl overflow-hidden bg-white flex flex-col justify-between relative h-[260px] shadow-sm">
-                  <div className="absolute top-2 left-2 z-10 bg-black/70 text-white font-mono text-[9px] uppercase px-2 py-0.5 rounded font-bold tracking-widest border border-white/10 no-print">
-                    Implemento Principal FAE
-                  </div>
-                  <div className="flex-1 h-[210px] relative w-full flex items-center justify-center p-1">
-                    <EditableImage
-                      src={customPrimaryImages[selectedModelId]}
-                      onChange={(base64) => {
-                        setCustomPrimaryImages(prev => ({
-                          ...prev,
-                          [selectedModelId]: base64
-                        }));
-                        toast.success(`Foto do implemento principal atualizada para ${selectedModel.name}!`);
-                      }}
-                      zoom={primaryZoom[selectedModelId]}
-                      onZoomChange={(zoom) => {
-                        setPrimaryZoom(prev => ({
-                          ...prev,
-                          [selectedModelId]: zoom
-                        }));
-                      }}
-                      alt={`Fresa FAE SSH ${selectedModel.name}`}
-                      maxHeightClass="max-h-[190px]"
-                      aspectRatioClass="w-full h-full border-0 bg-transparent p-0 hover:shadow-none focus:ring-0 rounded-none"
-                      outerMinHeightClass="min-h-full"
-                      innerMinHeightClass="min-h-full"
-                      disabled={!canEdit}
-                    />
-                  </div>
-                  <div className="bg-slate-900 text-white p-2 text-[10px] text-center font-medium border-t border-neutral-200 z-10">
-                    Fresa Trituradora de Tocos e Pedras FAE SSH em ação profunda.
-                  </div>
-                </div>
+              {rodape}
+            </div>
 
-                {/* Field of Application / Result */}
-                <div className="border border-neutral-200 rounded-xl overflow-hidden bg-white flex flex-col justify-between relative h-[260px] shadow-sm">
-                  <div className="absolute top-2 left-2 z-10 bg-black/70 text-white font-mono text-[9px] uppercase px-2 py-0.5 rounded font-bold tracking-widest border border-white/10 no-print">
-                    Área Fresada / Imagem Auxiliar
-                  </div>
-                  <div className="flex-1 h-[210px] relative w-full flex items-center justify-center p-1">
-                    <EditableImage
-                      src={customSecondaryImages[selectedModelId]}
-                      onChange={(base64) => {
-                        setCustomSecondaryImages(prev => ({
-                          ...prev,
-                          [selectedModelId]: base64
-                        }));
-                        toast.success(`Segunda imagem (área/operação) atualizada para ${selectedModel.name}!`);
-                      }}
-                      zoom={secondaryZoom[selectedModelId]}
-                      onZoomChange={(zoom) => {
-                        setSecondaryZoom(prev => ({
-                          ...prev,
-                          [selectedModelId]: zoom
-                        }));
-                      }}
-                      alt={`Fresa FAE SSH Operação/Área`}
-                      maxHeightClass="max-h-[190px]"
-                      aspectRatioClass="w-full h-full border-0 bg-transparent p-0 hover:shadow-none focus:ring-0 rounded-none"
-                      outerMinHeightClass="min-h-full"
-                      innerMinHeightClass="min-h-full"
-                      disabled={!canEdit}
-                    />
-                  </div>
-                  <div className="bg-slate-900 text-white p-2 text-[10px] text-center font-medium border-t border-neutral-200 z-10">
-                    Resultado da destoca profunda ou registro do conjunto em atividade no campo.
-                  </div>
-                </div>
-              </div>
+            {/* ================= FOLHA 2 ================= */}
+            <div ref={folha2Ref} className="ficha-folha" style={estiloFolha}>
+              {cabecalho(`Fresa FAE ${selectedModel.name} · folha 2`)}
 
-              {/* SECTION: CVT COMPATIBILITY - HIGH PRIORITY SELLER/CLIENT CLARITY */}
-              <div className="bg-orange-50 p-5 rounded-2xl border border-orange-200 space-y-4">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-orange-500 rounded-xl text-white mt-0.5 shrink-0">
-                    <Cpu className="h-5 w-5" />
-                  </div>
-                  <div className="space-y-1">
-                    <h3 className="text-base font-black text-slate-950 uppercase tracking-tight">
-                      Compatibilidade Exclusiva com Tratores CVT (Obrigatório)
-                    </h3>
-                    <p className="text-xs text-orange-950 font-semibold leading-relaxed">
-                      Nossa fresa foi desenvolvida, testada e homologada para operar <span className="underline">exclusivamente com tratores equipados com transmissão CVT</span> (Continuously Variable Transmission). O vendedor deve esclarecer esta necessidade indispensável para assegurar a integridade e produtividade do conjunto.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs pt-1">
-                  <div className="bg-white p-3.5 rounded-xl border border-orange-200/60 space-y-2">
-                    <h4 className="font-extrabold text-orange-800 flex items-center gap-1.5 uppercase text-[11px] tracking-wider">
-                      <CheckCircle className="h-4 w-4 text-emerald-600 shrink-0" /> Por que o Sistema CVT é Essencial?
-                    </h4>
-                    <p className="text-slate-700 leading-relaxed text-[11px]">
-                      Na fresagem e destoca profunda, a resistência do solo varia segundo a presença instantânea de tocos, raízes grossas e pedras. O sistema <strong>CVT ajusta continuamente e de forma eletrônica a velocidade de avanço do trator (de 0 a 1 km/h)</strong> mantendo a rotação do motor estável e na faixa ideal de torque.
-                    </p>
-                    <ul className="text-slate-800 font-bold space-y-1 text-[11px]">
-                      <li className="flex items-center gap-1 text-emerald-700">✔ Avanço preciso e constante</li>
-                      <li className="flex items-center gap-1 text-emerald-700">✔ Máxima preservação da potência do motor</li>
-                      <li className="flex items-center gap-1 text-emerald-700">✔ Redução expressiva no consumo de combustível</li>
-                    </ul>
-                  </div>
-
-                  <div className="bg-white p-3.5 rounded-xl border border-orange-200/60 space-y-2">
-                    <h4 className="font-extrabold text-amber-800 flex items-center gap-1.5 uppercase text-[11px] tracking-wider">
-                      <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" /> Super Redutor (Creeper) Não é Suficiente
-                    </h4>
-                    <p className="text-slate-700 leading-relaxed text-[11px]">
-                      O Creeper reduz mecanicamente a velocidade por engrenagens fixas. Embora atinja baixas velocidades, ele <strong>não realiza o gerenciamento dinâmico automático</strong> de rotação, torque e velocidade durante as oscilações violentas de carga da fresa.
-                    </p>
-                    <ul className="text-slate-800 font-bold space-y-1 text-[11px]">
-                      <li className="flex items-center gap-1 text-red-700">❌ Risco de sobrecarga extrema e quebras na transmissão</li>
-                      <li className="flex items-center gap-1 text-red-700">❌ Constantes oscilações de rotação e perda de eficiência</li>
-                      <li className="flex items-center gap-1 text-red-700">❌ Alto índice de paradas de máquina no campo</li>
-                    </ul>
-                  </div>
-                </div>
-
-                {/* Consequences Warning Banner */}
-                <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-lg text-red-950 font-medium text-xs leading-relaxed flex items-start gap-2">
-                  <AlertTriangle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
-                  <div>
-                    <strong>ALERTA DE SEGURANÇA E GARANTIA:</strong> A utilização da Fresa FAE SSH em tratores mecânicos comuns ou sem transmissão CVT ocasiona perda imediata de produtividade, aumento drástico do consumo de diesel, sobrecarga térmica de embreagem e transmissão, além de poder anular a garantia de fábrica do implemento.
-                  </div>
-                </div>
-              </div>
-
-              {/* TECHNICAL DATA TABLE */}
-              <div className="space-y-2">
-                <h3 className="font-black text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                  <Layers className="h-4 w-4 text-orange-500" /> Especificações Técnicas - {selectedModel.name}
-                </h3>
-                <div className="border border-neutral-200 rounded-xl overflow-hidden bg-white shadow-sm">
-                  <table className="w-full text-left border-collapse text-xs">
+              {/* Comparativo dos quatro modelos */}
+              <div>
+                {tituloSecao('Os quatro modelos')}
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11.5px' }}>
                     <thead>
-                      <tr className="bg-slate-950 text-white font-extrabold uppercase text-[10px] tracking-wider">
-                        <th className="p-3 border-r border-slate-800">Parâmetro de Engenharia</th>
-                        <th className="p-3">Valor Especificado</th>
+                      <tr>
+                        <th style={{ ...thComp, textAlign: 'left' }}>Modelo</th>
+                        <th style={thComp}>Trator (cv, CVT)</th>
+                        <th style={thComp}>Largura trabalho</th>
+                        <th style={thComp}>Largura total</th>
+                        <th style={thComp}>Peso</th>
+                        <th style={thComp}>Dentes</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-neutral-200 font-medium text-neutral-800">
-                      <tr>
-                        <td className="p-3 bg-neutral-50/50 font-bold border-r border-neutral-200 uppercase text-[10px] tracking-wider text-neutral-500">Potência Recomendada do Trator</td>
-                        <td className="p-3 font-extrabold text-neutral-900">{selectedModel.specs.trator_hp}</td>
-                      </tr>
-                      <tr>
-                        <td className="p-3 bg-neutral-50/50 font-bold border-r border-neutral-200 uppercase text-[10px] tracking-wider text-neutral-500">Rotação da Tomada de Força (PTO)</td>
-                        <td className="p-3 font-extrabold text-neutral-900">{selectedModel.specs.pto_rpm}</td>
-                      </tr>
-                      <tr>
-                        <td className="p-3 bg-neutral-50/50 font-bold border-r border-neutral-200 uppercase text-[10px] tracking-wider text-neutral-500">Largura de Trabalho Útil</td>
-                        <td className="p-3 font-extrabold text-neutral-900">{selectedModel.specs.largura_trabalho_mm}</td>
-                      </tr>
-                      <tr>
-                        <td className="p-3 bg-neutral-50/50 font-bold border-r border-neutral-200 uppercase text-[10px] tracking-wider text-neutral-500">Largura Total Externa</td>
-                        <td className="p-3 font-extrabold text-neutral-900">{selectedModel.specs.largura_total_mm}</td>
-                      </tr>
-                      <tr>
-                        <td className="p-3 bg-neutral-50/50 font-bold border-r border-neutral-200 uppercase text-[10px] tracking-wider text-neutral-500">Peso do Implemento Padrão</td>
-                        <td className="p-3 font-extrabold text-neutral-900">{selectedModel.specs.peso_kg}</td>
-                      </tr>
-                      <tr>
-                        <td className="p-3 bg-neutral-50/50 font-bold border-r border-neutral-200 uppercase text-[10px] tracking-wider text-neutral-500">Diâmetro do Rotor de Fresagem</td>
-                        <td className="p-3 font-extrabold text-neutral-900">{selectedModel.specs.diametro_rotor_mm}</td>
-                      </tr>
-                      <tr>
-                        <td className="p-3 bg-neutral-50/50 font-bold border-r border-neutral-200 uppercase text-[10px] tracking-wider text-neutral-500">Diâmetro Máximo de Trituração</td>
-                        <td className="p-3 font-extrabold text-neutral-900 text-orange-600">{selectedModel.specs.diametro_max_trituracao_mm}</td>
-                      </tr>
-                      <tr>
-                        <td className="p-3 bg-neutral-50/50 font-bold border-r border-neutral-200 uppercase text-[10px] tracking-wider text-neutral-500">Profundidade Máxima de Trabalho</td>
-                        <td className="p-3 font-extrabold text-neutral-900 text-orange-600">{selectedModel.specs.profundidade_max_trabalho_mm}</td>
-                      </tr>
-                      <tr>
-                        <td className="p-3 bg-neutral-50/50 font-bold border-r border-neutral-200 uppercase text-[10px] tracking-wider text-neutral-500">Número de Dentes Tipo A/3+MH</td>
-                        <td className="p-3 font-extrabold text-neutral-900">{selectedModel.specs.dentes_tipo}</td>
-                      </tr>
+                    <tbody>
+                      {models.map((m, i) => {
+                        const ativo = m.id === selectedModelId;
+                        const fundo = ativo ? COR_LC : (i % 2 === 0 ? '#F7F8F9' : '#ffffff');
+                        const td: React.CSSProperties = { ...tdBase, textAlign: 'right', fontWeight: 700, color: COR_G, background: fundo };
+                        return (
+                          <tr key={m.id}>
+                            <td style={{ ...td, textAlign: 'left', fontWeight: 800, color: ativo ? COR_L : COR_G }}>{m.name}</td>
+                            <td style={td}>{faixaTrator(m.specs.trator_hp)}</td>
+                            <td style={td}>{milhar(m.specs.largura_trabalho_mm)} mm</td>
+                            <td style={td}>{milhar(m.specs.largura_total_mm)} mm</td>
+                            <td style={td}>{milhar(m.specs.peso_kg)} kg</td>
+                            <td style={td}>{dentesCurto(m.specs.dentes_tipo)}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
-                <p className="text-[10px] text-slate-500 font-medium italic">
-                  Os dados técnicos referem-se à máquina no padrão de fábrica. Os dados podem ser alterados pelo fabricante sem aviso prévio.
-                </p>
+                <div style={{ fontSize: '9.5px', color: COR_T2, fontStyle: 'italic', marginTop: '5px' }}>Todos: rotor 900 mm, trituração até 70 cm, profundidade até 50 cm, TDP 1.000 rpm.</div>
               </div>
 
-              {/* OBSERVATION ON WORKING DEPTH & SOIL RESISTANCE */}
-              <div className="bg-amber-50/70 p-4 rounded-xl border border-amber-200/80 space-y-2 text-xs">
-                <h4 className="font-extrabold text-amber-950 flex items-center gap-1.5 uppercase text-[11px] tracking-wider">
-                  <Info className="h-4 w-4 text-amber-700 shrink-0" /> Observações sobre Profundidade de Trabalho & Potência
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-[11px] leading-relaxed text-slate-800 font-medium">
-                  <div className="space-y-1.5">
-                    <p>
-                      • <strong>Dependência da Resistência do Solo:</strong> A profundidade máxima de trabalho de até 50 cm e a profundidade total alcançada em uma única passada dependem diretamente da resistência e compactação do solo.
-                    </p>
-                    <p>
-                      • <strong>Múltiplas Passadas:</strong> Em solos muito compactos, pode ser necessário realizar mais de uma passada para atingir a profundidade máxima de 50 cm. O equipamento não garante atingir os 50 cm em uma única passada.
-                    </p>
-                  </div>
-                  <div className="space-y-1.5">
-                    <p>
-                      • <strong>Dependência da Potência do Trator:</strong> Para alcançar a profundidade máxima, o trator deve operar em sua máxima potência exigida pelo equipamento, e não na potência mínima especificada.
-                    </p>
-                    <p>
-                      • <strong>Compactação Extrema:</strong> Solos de altíssima compactação podem limitar fisicamente a profundidade máxima alcançável, mesmo realizando passadas consecutivas, devido aos limites de resistência física do terreno.
-                    </p>
-                  </div>
-                </div>
+              {/* Tratores CVT */}
+              <div>
+                {tituloSecao('Tratores CVT vendidos no Brasil')}
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11.2px' }}>
+                  <tbody>
+                    {tratores.map((t, i) => {
+                      const fundo = i % 2 === 0 ? '#F7F8F9' : '#ffffff';
+                      const td: React.CSSProperties = { ...tdBase, verticalAlign: 'top', background: fundo };
+                      return (
+                        <tr key={t.marca}>
+                          <td style={{ ...td, fontWeight: 800, color: COR_G, whiteSpace: 'nowrap' }}>{t.marca}</td>
+                          <td style={{ ...td, fontWeight: 700, color: COR_G, width: '150px' }}>{t.serie}</td>
+                          <td style={{ ...td, color: '#444', fontWeight: 500 }}>{t.texto}</td>
+                          <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            <span style={{
+                              fontSize: '10.5px', fontWeight: 800, borderRadius: '6px', padding: '2px 7px', display: 'inline-block',
+                              background: t.serieDe ? '#DCFCE7' : '#FEF3C7', color: t.serieDe ? '#14532D' : '#78350F',
+                            }}>{t.serieDe ? 'De série' : 'Opcional'}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
 
-              {/* PAGE BREAK FOR PDF EXPORT GENTLY HANDLED */}
-              <div className="pt-4 border-t border-dashed border-neutral-300"></div>
-
-              {/* SECTION: TRACTORS IN BRAZIL WITH CVT */}
-              <div className="space-y-3">
-                <h3 className="font-black text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                  <Bookmark className="h-4 w-4 text-orange-500" /> Tratores CVT Homologados e Disponíveis no Brasil
-                </h3>
-                <p className="text-xs text-neutral-600 leading-relaxed font-medium">
-                  Para facilitar a triagem de vendas e o alinhamento com os produtores, estas são as principais marcas e frotas de tratores de alta potência equipados com a tecnologia CVT nacionalmente homologados:
-                </p>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {[
-                    { marca: 'MASSEY FERGUSON', serie: 'MF 8700 S Dyna-VT', texto: 'Linha de alta potência (cerca de 270 a 370 cv) com a caixa Dyna-VT de série. Controle contínuo da velocidade de avanço, crucial para a fresagem pesada.', selo: 'Tecnologia Dyna-VT', cor: 'text-red-600', seloCor: 'bg-red-100/50 border-red-200' },
-                    { marca: 'VALTRA', serie: 'Série T CVT, Q5 e S6', texto: 'T195 a T250 CVT (195 a 250 cv, nacional), Q5 Q265 a Q305 (265 a 305 cv) e S6 S346 e S376 (345 a 375 cv), todas com CVT de série. Só vale se tiver "CVT" no modelo, ou for Q5 ou S6.', selo: 'T CVT / Q5 / S6', cor: 'text-yellow-600', seloCor: 'bg-yellow-100/50 border-yellow-200' },
-                    { marca: 'FENDT', serie: 'Transmissão Vario', texto: 'Toda Fendt é Vario (CVT de série). 700 Vario (cerca de 263 a 283 cv) atende todas as SSH; 900 Vario atende SSH 200, 225 e 250 nos modelos até 400 cv.', selo: '700 Vario / 900 Vario', cor: 'text-emerald-700', seloCor: 'bg-emerald-100/50 border-emerald-200' },
-                    { marca: 'CASE IH', serie: 'Puma 260 CVX', texto: 'Puma com transmissão CVX (260 cv nominal, até 300 cv), atende todas as SSH. O Puma nacional sem "CVX" no nome é powershift e não serve.', selo: 'Transmissão CVX', cor: 'text-red-700', seloCor: 'bg-red-100/50 border-red-200' },
-                    { marca: 'NEW HOLLAND', serie: 'T7.300 Auto Command', texto: 'T7 com transmissão Auto Command CVT (260 cv), atende todas as SSH. As versões T7 Power Command e Range Command são powershift e não servem.', selo: 'Auto Command CVT', cor: 'text-blue-700', seloCor: 'bg-blue-100/50 border-blue-200' },
-                    { marca: 'JOHN DEERE', serie: '8R com eAutoPowr (EVT)', texto: 'Variável contínua, opcional na linha 8R (o 8R padrão com e23 ou PowrShift não serve). Conferir o adesivo eAutoPowr, EVT ou AutoPowr e a potência.', selo: 'Opcional, verificar disponibilidade', cor: 'text-green-700', seloCor: 'bg-green-100/50 border-green-200' },
-                  ].map((t) => (
-                    <div key={t.marca} className="bg-neutral-50 border border-neutral-200 p-4 rounded-xl flex flex-col justify-between space-y-3">
-                      <div className="space-y-1">
-                        <div className={`font-extrabold ${t.cor} text-xs tracking-wider uppercase`}>{t.marca}</div>
-                        <div className="font-black text-neutral-900 text-sm">{t.serie}</div>
-                        <p className="text-[11px] text-neutral-600 leading-snug">{t.texto}</p>
-                      </div>
-                      <span className={`text-[10px] font-bold text-neutral-800 ${t.seloCor} border rounded px-2 py-0.5 w-max`}>
-                        {t.selo}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <p className="text-[11px] text-neutral-600 leading-snug">
-                  <strong>Não servem</strong> (powershift ou caixa mecânica): MF Dyna-6 e Dyna-4, Valtra HiTech e Versu, Case IH Puma e Magnum nacionais, New Holland Power Command, Range Command e UltraCommand, John Deere e23, PowrShift, PowrQuad e AutoQuad. Super redutor (creeper) não substitui a CVT. A potência do trator também precisa estar na faixa do modelo SSH escolhido, com TDP de 1000 rpm.
-                </p>
+              {/* Não servem */}
+              <div style={{ border: '1.5px dashed #E8A0A0', borderRadius: '10px', padding: '10px 13px', fontSize: '11.2px', lineHeight: 1.45, background: '#FFF8F8', color: COR_G }}>
+                <b style={{ color: COR_VM }}>Não servem</b> (powershift ou mecânica): MF Dyna-6 e Dyna-4, Valtra HiTech e Versu, Case IH Puma e Magnum nacionais, New Holland Power Command, Range Command e UltraCommand, John Deere e23, PowrShift, PowrQuad e AutoQuad. A potência precisa estar na faixa do modelo, com TDP de 1.000 rpm.
               </div>
 
-              {/* COMMITED STOCK AND SPARE PARTS */}
-              <div className="bg-neutral-950 text-white p-5 rounded-2xl grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-                <div className="space-y-2">
-                  <h4 className="font-extrabold text-xs text-orange-400 uppercase tracking-widest flex items-center gap-1.5">
-                    <Wrench className="h-4 w-4" /> Peças de Reposição & Suporte Nacional
-                  </h4>
-                  <p className="text-xs text-neutral-300 leading-relaxed font-medium">
-                    A Roder assegura ao produtor o fornecimento contínuo de <strong>ferramentas de corte FAE originais (Dentes tipo A/3 e dentes tipo MH)</strong> que possuem pastilhas de carboneto de tungstênio (Vídea) de altíssima resistência a impactos e abrasividade.
-                  </p>
-                  <p className="text-xs text-neutral-300 leading-relaxed font-medium">
-                    Mantemos um estoque robusto em nossas filiais (incluindo Sinop-MT e Matriz) com eixos, correias de transmissão, rolamentos e dentes de reposição imediatos.
-                  </p>
+              {/* Peças e entrega técnica */}
+              <div style={{ background: COR_G, color: '#E6E8EB', borderRadius: '14px', padding: '15px 17px', display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '18px', fontSize: '11.3px', lineHeight: 1.5 }}>
+                <div>
+                  <h3 style={{ fontFamily: FONTE_TIT, fontSize: '12.5px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#FFB27A', marginBottom: '5px' }}>Peças e suporte</h3>
+                  Dentes FAE originais tipo A/3 e MH, com pastilha de carboneto de tungstênio (vídea). Estoque na Matriz e em Sinop-MT: eixos, correias, rolamentos e dentes para reposição imediata.
                 </div>
-                <div className="bg-neutral-900 p-4 rounded-xl border border-neutral-800 space-y-2 text-xs">
-                  <div className="font-bold text-orange-400 flex items-center gap-1.5 uppercase tracking-wide text-[11px]">
-                    <Sparkles className="h-4 w-4 text-orange-500" /> Diferenciais Roder na Entrega Técnica
-                  </div>
-                  <ul className="space-y-1.5 text-neutral-300 font-bold">
-                    <li className="flex items-center gap-1.5 text-[11px]">✔ Acoplamento inicial supervisionado por Engenharia</li>
-                    <li className="flex items-center gap-1.5 text-[11px]">✔ Calibração ideal do sistema hidráulico e PTO</li>
-                    <li className="flex items-center gap-1.5 text-[11px]">✔ Treinamento prático de CVT de avanço para os operadores</li>
+                <div>
+                  <h3 style={{ fontFamily: FONTE_TIT, fontSize: '12.5px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#FFB27A', marginBottom: '5px' }}>Na entrega técnica</h3>
+                  <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '4px', fontWeight: 700 }}>
+                    <li>✔ Acoplamento acompanhado pela engenharia</li>
+                    <li>✔ Calibração do hidráulico e da TDP</li>
+                    <li>✔ Treino do operador no avanço CVT</li>
                   </ul>
                 </div>
               </div>
 
-              {/* FOOTER OF TECHNICAL SHEET */}
-              <div className="border-t border-neutral-200 pt-4 flex flex-col sm:flex-row justify-between items-center text-[10px] text-neutral-500 font-bold uppercase tracking-wider">
-                <span>Roder Máquinas e Equipamentos Ltda.</span>
-                <span>Distribuição, Serviços e Garantia Oficial FAE</span>
-                <span>www.roderbrasil.com.br</span>
-              </div>
-
+              {rodape}
             </div>
           </div>
         </div>
