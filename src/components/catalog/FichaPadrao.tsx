@@ -1,11 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { X, ShieldCheck, Download, Send, ExternalLink, Loader2 } from 'lucide-react';
+import { X, ShieldCheck, Download, Send, ExternalLink, Loader2, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { RODER_LOGO_BASE64 } from './RoderLogo';
 import type { Product, ProductModel } from '../../types';
 import { useVoltarFecha } from '../../lib/useVoltarFecha';
 import { ehGarraTracadora } from '../../lib/produtividadeGt';
+import { ehFichaPropria } from '../../lib/fichaPropria';
+import { abrirDocumento } from '../../lib/abrirDocumento';
 import {
   LARGURA_FOLHA, ALTURA_FOLHA, carregarLogoFae, esperarImagens, pdfDasFolhas, entregarPdf,
   enviarArquivoPdf, nomeArquivoFicha, resolverImagem, usePodeEnviarFicha,
@@ -681,8 +683,10 @@ export function FichaPadrao({ product, model, onClose, enviar = false }: FichaPa
     }
   };
 
-  const pdfSite = atual.pdf_url || product.pdf_url || '';
-  const temPdfSite = /^https?:\/\//.test(pdfSite);
+  // Modelo com ficha original carregada no cadastro: mostra a original, não a automática
+  const original = ehFichaPropria(atual.pdf_url) ? (atual.pdf_url as string) : '';
+  const pdfSite = original ? '' : (atual.pdf_url || product.pdf_url || '');
+  const temPdfSite = /^https?:\/\//.test(pdfSite) && !ehFichaPropria(pdfSite);
 
   return (
     <div style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 0.5rem)' }} className="fixed inset-0 z-[99999] overflow-hidden bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-6">
@@ -693,7 +697,7 @@ export function FichaPadrao({ product, model, onClose, enviar = false }: FichaPa
             <span className="font-extrabold text-sm tracking-tight text-foreground truncate">Ficha técnica · {dados.titulo}</span>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
-            {podeEnviar && (
+            {podeEnviar && !original && (
               <>
                 <button
                   onClick={() => gerar('baixar')}
@@ -740,11 +744,25 @@ export function FichaPadrao({ product, model, onClose, enviar = false }: FichaPa
               )}
             </div>
           )}
+          {original ? (
+            <div className="w-full max-w-md mx-auto mt-6 bg-white rounded-2xl border border-neutral-200 p-6 text-center space-y-3">
+              <FileText className="h-10 w-10 mx-auto text-neutral-700" />
+              <div className="font-black text-neutral-900">{atual.name} tem a ficha original</div>
+              <p className="text-sm text-neutral-600">Esta é a ficha carregada no cadastro do modelo.</p>
+              <button
+                onClick={() => abrirDocumento(original, `Ficha ${atual.name}`)}
+                className="h-11 px-5 rounded-xl bg-[#1B1E22] text-white font-black text-sm"
+              >
+                Abrir ficha original
+              </button>
+            </div>
+          ) : (
           <div className="w-full flex justify-center" style={{ height: alturaVista ? `${alturaVista}px` : 'auto' }}>
             <div style={{ width: `${LARGURA_FOLHA}px`, minWidth: `${LARGURA_FOLHA}px`, transform: `scale(${escala})`, transformOrigin: 'top center' }}>
               <FolhaFichaPadrao ref={folhaRef} dados={dados} foto={foto} zoom={atual.image_zoom ?? product.image_zoom} logoFae={logoFae} modelo={atual.name} />
             </div>
           </div>
+          )}
         </div>
       </div>
     </div>

@@ -4310,8 +4310,11 @@ export default function Catalog() {
 
     // "Ficha" do modelo sem ficha própria: a ficha padrão em PDF (o PDF do site fica num link dentro dela)
     // PDF próprio da Roder (ex.: GR600/GR800, GCR) vale mais que a ficha padrão automática
-    const pdfProprio = ehFichaPropria(url);
-    if (padrao && !ehFresa && !pdfProprio) {
+    // Só a ficha do MODELO conta (o link do produto costuma ser o catálogo da linha)
+    const linkProprio = padrao
+      ? (ehFichaPropria(padrao.model?.pdf_url) ? padrao.model.pdf_url : '')
+      : (ehFichaPropria(url) ? url : '');
+    if (padrao && !ehFresa && !linkProprio) {
       if (selectedProductModels) {
         setSuspendedProductModels(selectedProductModels);
         setSelectedProductModels(null);
@@ -4324,6 +4327,7 @@ export default function Catalog() {
       return;
     }
 
+    if (linkProprio) url = linkProprio;
     if (!url && !ehFresa) return;
 
     if (ehFresa) {

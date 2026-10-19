@@ -616,11 +616,16 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
 
   // "Ver ficha": a ficha própria quando existe; senão a ficha padrão em PDF
   // Ficha própria da Roder em PDF (ex.: GR600/GR800, GCR): abre o PDF dela, nunca a padrão
-  const pdfProprio = (url: string) => ehFichaPropria(url);
+  // Ficha original carregada no MODELO (o link do produto costuma ser o catálogo da linha)
+  const linkProprioDe = (prod: Product, model: ProductModel) => {
+    if (ehFichaPropria(model.pdf_url)) return model.pdf_url as string;
+    if (!(prod.models || []).length && ehFichaPropria(prod.pdf_url)) return prod.pdf_url;
+    return '';
+  };
 
   const verFicha = (prod: Product, model: ProductModel) => {
-    const link = linkFichaDe(prod, model);
-    if (pdfProprio(link) && !fichaEspecialDe(link, `${model.name} ${prod.name}`)) { openTechnicalSheet(link, model.name); return; }
+    const link = linkProprioDe(prod, model);
+    if (link && !fichaEspecialDe(linkFichaDe(prod, model), `${model.name} ${prod.name}`)) { openTechnicalSheet(link, model.name); return; }
     const tipo = fichaEspecialDe(linkFichaDe(prod, model), `${model.name} ${prod.name}`);
     if (tipo) abrirFichaEspecial(tipo, model.name);
     else setFichaPadrao({ product: prod, model });
@@ -629,8 +634,8 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   // "Enviar ficha" (só equipe): a padrão gera o PDF direto; a especial abre com o Enviar em destaque
   const enviarFicha = (prod: Product, model: ProductModel) => {
     if (!podeEnviarFicha) return;
-    const link = linkFichaDe(prod, model);
-    if (pdfProprio(link) && !fichaEspecialDe(link, `${model.name} ${prod.name}`)) {
+    const link = linkProprioDe(prod, model);
+    if (link && !fichaEspecialDe(linkFichaDe(prod, model), `${model.name} ${prod.name}`)) {
       const titulo = `Ficha ${model.name || prod.name}`;
       if (link.startsWith('/catalogo/')) {
         fetch(link).then(r => { if (!r.ok) throw new Error(); return r.blob(); })
