@@ -3393,7 +3393,9 @@ ${kitsContext || "Não há kits de instalação cadastrados."}${improvedKnowledg
         }
 
         case "analyzeDetailedBudget": {
-          const { fileBase64 } = args;
+          const { fileBase64, mimeType } = args;
+          // foto do orçamento (jpg/png tirada no celular) ia como PDF e a leitura falhava
+          const tipoArquivo = /^(application\/pdf|image\/(jpeg|png|webp))$/.test(String(mimeType || "")) ? String(mimeType) : "application/pdf";
           const prompt = `Analise este pedido de venda/orçamento em PDF e extraia as seguintes informações:
           1. O valor total da venda/pedido (procurado em "Total Pedido", "Valor total com ajuste de frete" ou "Valor total").
           2. O nome/razão social do cliente ("Cliente"). Se tiver um código numérico antes (ex: "4235 - Eucazin Ltda"), extraia o código separado e limpe o nome.
@@ -3418,7 +3420,7 @@ ${kitsContext || "Não há kits de instalação cadastrados."}${improvedKnowledg
             model: "gemini-3.5-flash",
             contents: [
               { text: prompt },
-              { inlineData: { data: fileBase64, mimeType: "application/pdf" } }
+              { inlineData: { data: fileBase64, mimeType: tipoArquivo } }
             ],
             config: {
               responseMimeType: "application/json",
