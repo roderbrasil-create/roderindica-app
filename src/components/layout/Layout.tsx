@@ -10,6 +10,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { cn } from '../../lib/utils';
 import { temTelaAberta } from '../../lib/useVoltarFecha';
 import EngineerHelper from './EngineerHelper';
+import { BarraParceiro, useEhParceiro } from '../parceiro/NavParceiro';
 
 const getPageTitle = (path: string): string => {
   if (path === '/') return 'Painel de Controle';
@@ -44,6 +45,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const { isImpersonating, profile, stopImpersonation, isQuotaExceeded, isAdmin, isManager, user } = useAuth();
   const { isOffline } = usePWA();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const ehParceiro = useEhParceiro();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -275,10 +277,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <NotificationBell />
         </header>
 
-        <main className="flex-1 p-4 md:p-8 pt-16 md:pt-8 max-w-full mobile-safe-main">
+        <main className={cn("flex-1 p-4 md:p-8 pt-16 md:pt-8 max-w-full mobile-safe-main", ehParceiro && "pb-28 md:pb-8")}>
           {children}
         </main>
       </div>
+      {ehParceiro && <BarraParceiro abrirMenu={() => setSidebarOpen(true)} />}
+      {/* botão flutuante do consultor sobe para não ficar atrás da barra de baixo do parceiro */}
+      {ehParceiro && <style>{`@media (max-width: 767px) { .roder-botao-consultor { bottom: calc(84px + env(safe-area-inset-bottom, 0px)) !important; } }`}</style>}
       {!location.pathname.startsWith("/indicacoes/nova") && <EngineerHelper />}
     </div>
   );

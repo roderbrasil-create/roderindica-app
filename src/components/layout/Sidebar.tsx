@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useTheme } from 'next-themes';
 import { usePWA } from '../../contexts/PWAContext';
 import EdgeStatus from '../system/EdgeStatus';
+import { MenuParceiro, useEhParceiro } from '../parceiro/NavParceiro';
 import { 
   LayoutDashboard, 
   PlusCircle, 
@@ -266,6 +267,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobile, setIsMobile] = React.useState(false);
+  const ehParceiro = useEhParceiro();
 
   // Local UI states - kept simple to avoid flickering
   const [fairsMenuOpen, setFairsMenuOpen] = React.useState(false);
@@ -622,6 +624,9 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                 <p className="text-[10px] text-orange-700/70 leading-tight">Seu perfil ainda não possui uma função (role) definida. Algumas ferramentas podem estar ocultas. Contate o administrador.</p>
               </div>
             )}
+            {ehParceiro ? (
+              <MenuParceiro celular={isMobile} fechar={() => isMobile && setIsOpen(false)} />
+            ) : (
             <nav className="space-y-1">
               {filteredItems.map((item) => (
                 <NavItemComponent 
@@ -642,6 +647,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                 />
               ))}
             </nav>
+            )}
           </ScrollArea>
 
           {/* Footer */}
@@ -657,7 +663,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                    isManager ? 'Gerente' : 
                    isTriagem ? 'Triagem' : 
                    isInternalSeller ? 'Vendedor Interno' :
-                   isExternalSeller ? 'Parceiro Indicador' :
+                   isExternalSeller ? 'Parceiro Roder' :
                    isRegionalSeller ? 'Vendedor Regional' : 
                    isFinancial ? 'Financeiro' : 
                    (profile?.role as string || '').replace('_', ' ')}

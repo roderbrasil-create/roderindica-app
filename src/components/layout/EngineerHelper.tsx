@@ -2838,7 +2838,7 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
           dragMomentum={false}
           dragElastic={0.15}
           className={cn(
-            "fixed bottom-6 right-6 z-[45] font-sans notranslate transition-all duration-300 touch-none",
+            "roder-botao-consultor fixed bottom-6 right-6 z-[45] font-sans notranslate transition-all duration-300 touch-none",
             hasRightDock && "lg:hidden"
           )}
           translate="no"
