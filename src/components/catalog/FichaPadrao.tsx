@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { RODER_LOGO_BASE64 } from './RoderLogo';
 import type { Product, ProductModel } from '../../types';
 import { useVoltarFecha } from '../../lib/useVoltarFecha';
+import { getGTProductivityData, COMPRIMENTOS_GT, ehGarraTracadora } from '../../lib/produtividadeGt';
 import {
   LARGURA_FOLHA, ALTURA_FOLHA, carregarLogoFae, esperarImagens, pdfDasFolhas, entregarPdf,
   enviarArquivoPdf, nomeArquivoFicha, resolverImagem, usePodeEnviarFicha,
@@ -201,8 +202,30 @@ export interface DadosFicha {
   numeros: { rotulo: string; valor: string }[];
   linhas: { rotulo: string; valor: string }[];
   produtividade: string;
+  // Garra Traçadora: produtividade calculada por comprimento e a nota de corrente/sabre
+  gt: { linhas: { comprimento: string; hora: string; turno: string; mes: string }[]; corrente: string; maquina: string } | null;
   comparativo: { colunas: { chave: string; rotulo: string }[]; modelos: { id: string; nome: string; valores: string[]; ativo: boolean }[] } | null;
   fae: boolean;
+}
+
+const numBr = (n: number, casas = 0) => n.toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
+
+// Mesmo cálculo do consultor (ciclo de 20 s a 30 s, carga média de 85%, turno de 10 h, 22 dias/mês)
+function dadosGt(modelo: string): DadosFicha['gt'] {
+  let corrente = '';
+  let maquina = '';
+  const linhas = COMPRIMENTOS_GT.map(c => {
+    const d = getGTProductivityData(modelo, c);
+    corrente = d.chainSpec;
+    maquina = d.machineBase;
+    return {
+      comprimento: `${numBr(c, 1)} m`,
+      hora: `${numBr(d.hourlyMin, 1)} a ${numBr(d.hourlyMax, 1)}`,
+      turno: `${numBr(d.shiftMin)} a ${numBr(d.shiftMax)}`,
+      mes: `${numBr(d.monthlyMin)} a ${numBr(d.monthlyMax)}`,
+    };
+  });
+  return { linhas, corrente, maquina };
 }
 
 export function montarDadosFicha(p: Partial<Product>, m: Partial<ProductModel>): DadosFicha {
@@ -265,7 +288,9 @@ export function montarDadosFicha(p: Partial<Product>, m: Partial<ProductModel>):
 
   let descricao = (p.description || '').replace(/\s+/g, ' ').trim();
   if (descricao.length > 360) descricao = descricao.slice(0, 357).replace(/\s+\S*$/, '') + '...';
-  let produtividade = (m.productivity_text || '').trim();
+  const gt = ehGarraTracadora(p.name, p.category, m.name) ? dadosGt(m.name || '') : null;
+  // Na GT a tabela calculada substitui o texto livre: com os dois a folha passa do A4
+  let produtividade = gt ? '' : (m.productivity_text || '').trim();
   if (produtividade.length > 700) produtividade = produtividade.slice(0, 697).replace(/\s+\S*$/, '') + '...';
 
   return {
@@ -277,6 +302,7 @@ export function montarDadosFicha(p: Partial<Product>, m: Partial<ProductModel>):
     numeros,
     linhas,
     produtividade,
+    gt,
     comparativo,
     fae: ehProdutoFae(p, m),
   };
@@ -322,6 +348,55 @@ export const FolhaFichaPadrao = React.forwardRef<HTMLDivElement, FolhaProps>(({ 
       </tbody>
     </table>
   );
+  // Produtividade: na Garra Traçadora, a tabela calculada por comprimento e a nota de corrente/sabre
+  const thGt: React.CSSProperties = { fontSize: '9.5px', textTransform: 'uppercase', letterSpacing: '0.04em', color: COR_T2, textAlign: 'right', padding: '5px 6px', borderBottom: `2px solid ${COR_G}`, fontWeight: 700 };
+  const tdGt: React.CSSProperties = { padding: '5px 6px', borderBottom: `1px solid ${COR_BD}`, textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' };
+  const blocoProd = (dados.produtividade || dados.gt) ? (
+    <div>
+      {secao('Produtividade')}
+      {dados.gt && (
+        <div className="ficha-gt">
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+            <thead>
+              <tr>
+                <th style={{ ...thGt, textAlign: 'left' }}>Tora</th>
+                <th style={thGt}>m³/hora</th>
+                <th style={thGt}>Turno 10 h</th>
+                <th style={thGt}>Mês (22 dias)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dados.gt.linhas.map((l, i) => {
+                const fundo = i % 2 === 0 ? '#F7F8F9' : '#ffffff';
+                return (
+                  <tr key={l.comprimento}>
+                    <td style={{ ...tdGt, textAlign: 'left', fontWeight: 800, background: fundo }}>{l.comprimento}</td>
+                    <td style={{ ...tdGt, background: fundo }}>{l.hora}</td>
+                    <td style={{ ...tdGt, background: fundo }}>{l.turno}</td>
+                    <td style={{ ...tdGt, background: fundo }}>{l.mes}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <div style={{ fontSize: '9.5px', color: COR_T2, marginTop: '4px', lineHeight: 1.4 }}>
+            m³ estéreo. Ciclo de 20 s a 30 s e carga média de 85% da garra; tora de 1,0 m é o metrinho.
+          </div>
+          <div style={{ marginTop: '8px', background: COR_AC, borderLeft: `3px solid ${COR_A}`, borderRadius: '8px', padding: '8px 10px', fontSize: '10.5px', lineHeight: 1.45 }}>
+            <b style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '2px' }}>
+              Corrente e sabre{dados.gt.corrente ? ` · passo ${dados.gt.corrente}` : ''}
+            </b>
+            <div>Corrente sempre afiada: troca a cada 2 h (máx. 2,5 h), 5 correntes afiadas por turno de 10 h.</div>
+            <div>Consumo médio: 4 a 5 correntes e 1 sabre por mês; pinhão de 20 a 30 dias (100 a 400 h).</div>
+            <div>Lubrificação automática sempre ativa: sem óleo, a corrente aquece e o sabre empena.</div>
+          </div>
+        </div>
+      )}
+      {dados.produtividade && (
+        <div style={{ background: '#F7F8F9', borderRadius: '10px', padding: dados.gt ? '8px 10px' : '11px 13px', marginTop: dados.gt ? '8px' : 0, fontSize: dados.gt ? '10.5px' : '11.5px', lineHeight: 1.5, whiteSpace: 'pre-line' }}>{dados.produtividade}</div>
+      )}
+    </div>
+  ) : null;
   const metade = Math.ceil(dados.linhas.length / 2);
   const tituloGrande = dados.titulo.length > 26 ? '30px' : '36px';
 
@@ -365,13 +440,13 @@ export const FolhaFichaPadrao = React.forwardRef<HTMLDivElement, FolhaProps>(({ 
           </h1>
           {dados.descricao && <p style={{ fontSize: '13px', color: '#333', marginTop: '10px', lineHeight: 1.5 }}>{dados.descricao}</p>}
         </div>
-        <div style={{ height: '290px', borderRadius: '14px', background: 'linear-gradient(180deg,#F4F5F6,#E1E4E7)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+        <div style={{ height: dados.gt ? '220px' : '290px', borderRadius: '14px', background: 'linear-gradient(180deg,#F4F5F6,#E1E4E7)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
           {foto ? (
             <img
               src={foto}
               alt={modelo}
               crossOrigin={foto.startsWith('data:') ? undefined : 'anonymous'}
-              style={{ maxWidth: '92%', maxHeight: '256px', objectFit: 'contain', mixBlendMode: 'multiply', transform: `scale(${escalaFoto(zoom)})` }}
+              style={{ maxWidth: '92%', maxHeight: dados.gt ? '196px' : '256px', objectFit: 'contain', mixBlendMode: 'multiply', transform: `scale(${escalaFoto(zoom)})` }}
             />
           ) : (
             <span style={{ fontFamily: FONTE_TIT, fontWeight: 800, fontSize: '22px', color: '#AEB4BC' }}>{modelo}</span>
@@ -412,17 +487,14 @@ export const FolhaFichaPadrao = React.forwardRef<HTMLDivElement, FolhaProps>(({ 
       )}
 
       {/* Especificações e produtividade */}
-      {dados.linhas.length > 0 && (dados.produtividade ? (
+      {dados.linhas.length > 0 && (blocoProd ? (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
           <div>
             {secao(`Especificações ${modelo}`)}
             {tabela(dados.linhas)}
             <div style={{ fontSize: '9.5px', color: COR_T2, fontStyle: 'italic', marginTop: '5px' }}>Padrão de fábrica. Pode mudar sem aviso.</div>
           </div>
-          <div>
-            {secao('Produtividade')}
-            <div style={{ background: '#F7F8F9', borderRadius: '10px', padding: '11px 13px', fontSize: '11.5px', lineHeight: 1.5, whiteSpace: 'pre-line' }}>{dados.produtividade}</div>
-          </div>
+          {blocoProd}
         </div>
       ) : (
         <div>
@@ -441,12 +513,7 @@ export const FolhaFichaPadrao = React.forwardRef<HTMLDivElement, FolhaProps>(({ 
           <div style={{ fontSize: '9.5px', color: COR_T2, fontStyle: 'italic', marginTop: '5px' }}>Padrão de fábrica. Pode mudar sem aviso.</div>
         </div>
       ))}
-      {dados.linhas.length === 0 && dados.produtividade && (
-        <div>
-          {secao('Produtividade')}
-          <div style={{ background: '#F7F8F9', borderRadius: '10px', padding: '11px 13px', fontSize: '11.5px', lineHeight: 1.5, whiteSpace: 'pre-line' }}>{dados.produtividade}</div>
-        </div>
-      )}
+      {dados.linhas.length === 0 && blocoProd}
 
       {/* Modelos da linha */}
       {dados.comparativo && (

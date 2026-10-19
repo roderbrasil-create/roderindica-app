@@ -6,7 +6,6 @@ import { toast } from 'sonner';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { getApiBaseUrl } from '../../lib/utils';
-import { useAuth } from '../../contexts/AuthContext';
 
 // Largura da folha na tela e altura de um A4 nessa largura (840 x 297 / 210)
 export const LARGURA_FOLHA = 840;
@@ -14,19 +13,8 @@ export const ALTURA_FOLHA = 1188;
 
 export const WHATSAPP_COMERCIAL = '5514998115111';
 
-// Regra do Jeferson: parceiro/indicador (e o consultor público) só VÊ a ficha.
-// Baixar, salvar PDF e enviar ficam só para a equipe Roder.
-export function usePodeEnviarFicha(): boolean {
-  const auth = useAuth() as any;
-  if (auth?.user) return !!auth.isEquipeRoder;
-  // Sem login: só a equipe que entrou pelo link /consultor-equipe (e-mail conferido no servidor)
-  try {
-    const p = JSON.parse(localStorage.getItem('roder_public_user_profile') || 'null');
-    return !!(p && p.equipe === true && p.userType === 'vendedor');
-  } catch {
-    return false;
-  }
-}
+// Regra de quem pode baixar/enviar: módulo leve, também usado pelo leitor de documentos
+export { usePodeEnviarFicha, equipeSemLogin } from '../../lib/podeEnviarFicha';
 
 // "R400 / CA" vira "R400_CA"
 export const nomeArquivoFicha = (modelo: string) =>
@@ -190,7 +178,15 @@ export async function enviarArquivoPdf(blob: Blob, nome: string, titulo: string)
       toast('Ficha pronta para enviar', {
         description: nome,
         duration: 20000,
-        action: { label: 'Enviar agora', onClick: () => { compartilhar().catch(() => baixarEAbrirWhatsapp(blob, nome)); } },
+        action: {
+          label: 'Enviar agora',
+          onClick: () => {
+            compartilhar().catch((erro: any) => {
+              if (erro?.name === 'AbortError') return; // fechou o compartilhar de novo: não baixa
+              baixarEAbrirWhatsapp(blob, nome);
+            });
+          },
+        },
       });
       return;
     }

@@ -4718,7 +4718,8 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'E-mail inválido.' });
       const snap = await db.collection('users').where('email', '==', email).limit(1).get();
       const u: any = snap.empty ? null : snap.docs[0].data();
-      const equipe = ['admin', 'manager', 'internal_seller', 'triagem', 'financial', 'marketing', 'fiscal'];
+      // Mesma lista do isEquipeRoder do app (o vendedor regional também é funcionário)
+      const equipe = ['admin', 'manager', 'internal_seller', 'triagem', 'financial', 'marketing', 'fiscal', 'vendedor_padrao'];
       if (!u || !equipe.includes(String(u.role)) || u.status !== 'active') {
         return res.status(403).json({ error: 'Este e-mail não está cadastrado na equipe Roder.' });
       }

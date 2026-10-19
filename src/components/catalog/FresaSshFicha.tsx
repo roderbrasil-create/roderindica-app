@@ -671,7 +671,7 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150', enviar = fa
                   <p style={{ fontSize: '13px', color: COR_T2, marginTop: '7px', maxWidth: '460px', lineHeight: 1.45 }}>
                     Destoca profunda: fresa tocos, raízes e pedras até 50 cm de profundidade, em área agrícola e florestal.
                   </p>
-                  <div className="no-print flex flex-wrap gap-2" style={{ marginTop: '10px' }}>
+                  {!isPrinting && <div className="no-print flex flex-wrap gap-2" style={{ marginTop: '10px' }}>
                     <a
                       href="https://roderbrasil.com.br/triturador-florestal/fresa-trituradora-tocos-pedras/fresa-ssh-trituradora-tocos/"
                       target="_blank"
@@ -688,9 +688,11 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150', enviar = fa
                     >
                       <Video className="h-3 w-3" /> Ver Vídeo de Operação ({selectedModel.name})
                     </a>
-                  </div>
+                  </div>}
                 </div>
-                <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                {/* Chips de modelo: só na tela; no PDF o título já diz o modelo.
+                    Saem do DOM durante a geração: escondidos só pelo filtro, o espaço deles ficava em branco na folha */}
+                {!isPrinting && <div className="no-print" style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                   {models.map(m => {
                     const ativo = m.id === selectedModelId;
                     return (
@@ -717,7 +719,7 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150', enviar = fa
                       </button>
                     );
                   })}
-                </div>
+                </div>}
               </div>
 
               {/* Fotos */}

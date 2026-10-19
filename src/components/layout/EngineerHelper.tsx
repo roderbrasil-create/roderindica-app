@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { getGTProductivityData } from '../../lib/produtividadeGt';
 import { Sparkles, MessageSquare, X, Minus, Send, Calculator, Wrench, HelpCircle, AlertTriangle, Play, RefreshCw, Trash2, ChevronLeft, ChevronRight, CheckCircle, Package, Layers, Tractor, FileText, Mic, Square, Loader2, Brain, BookOpen, ExternalLink, Share2, Video, Phone, QrCode, Bot, User, Briefcase } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -242,86 +243,8 @@ Operando em conjunto (1 Cabeçote CMF 600 na derrubada + 1 Mini Skidder no arras
 - Indicada para escavadeiras de 25 a 35 toneladas.`
 };
 
-export const getGTProductivityData = (modelName: string, length: number) => {
-  let area = 0.60; // default (GT 600)
-  let machineBase = 'Escavadeira de 20 toneladas (PC 200)';
-  let chainSpec = '3/4" 11H (Pesada/Reforçada)';
-  
-  const cleanName = (modelName || '').toUpperCase();
-  if (cleanName.includes('280')) {
-    area = 0.28;
-    machineBase = 'Escavadeira de 6 a 10 toneladas';
-    chainSpec = 'Harvester 0.404"';
-  } else if (cleanName.includes('360')) {
-    area = 0.36;
-    machineBase = 'Escavadeira de 8 a 16 toneladas';
-    chainSpec = 'Harvester 0.404"';
-  } else if (cleanName.includes('400')) {
-    area = 0.40;
-    machineBase = 'Escavadeira de 14 a 18 toneladas';
-    chainSpec = '3/4" 11H (Pesada/Reforçada)';
-  } else if (cleanName.includes('600')) {
-    area = 0.60;
-    machineBase = 'Escavadeira de 20 toneladas (PC 200)';
-    chainSpec = '3/4" 11H (Pesada/Reforçada)';
-  } else if (cleanName.includes('800')) {
-    area = 0.80;
-    machineBase = 'Escavadeira de 20 a 30 toneladas';
-    chainSpec = '3/4" 11H (Pesada/Reforçada)';
-  } else if (cleanName.includes('1000')) {
-    area = 1.00;
-    machineBase = 'Escavadeira de 25 a 35 toneladas';
-    chainSpec = '3/4" 11H (Pesada/Reforçada)';
-  }
-
-  // Load factor: 85% average capacity due to tapering/copa loss, offset by pulling extra trees
-  const loadFactor = 0.85; 
-  
-  // Volume per cycle = Area * Length * Load Factor
-  const volPerCycle = area * length * loadFactor;
-
-  // Operational efficiency factor (fator de aproveitamento de pátio):
-  // 1.0m (metrinho) allows more continuous feeding/piling (30% efficiency)
-  // 2.4m and 3.0m require more handling (25% and 22%)
-  // 6.0m requires careful positioning and is highly limited by felling/skidder flow (15% efficiency)
-  let opEfficiency = 0.30;
-  if (length === 6.0) {
-    opEfficiency = 0.15;
-  } else if (length === 3.0) {
-    opEfficiency = 0.22;
-  } else if (length === 2.4) {
-    opEfficiency = 0.25;
-  }
-
-  // Active cycles per hour:
-  // - Fast: 20 seconds per cycle = 180 cycles/hour (expert operator, perfect sharpening)
-  // - Slow: 30 seconds per cycle = 120 cycles/hour (beginner operator, low sharpening maintenance)
-  const hourlyMin = parseFloat((120 * volPerCycle * opEfficiency).toFixed(1));
-  const hourlyMax = parseFloat((180 * volPerCycle * opEfficiency).toFixed(1));
-
-  // 10-hour standard forest shift
-  const shiftMin = Math.round(hourlyMin * 10);
-  const shiftMax = Math.round(hourlyMax * 10);
-
-  // Monthly estimate (22 working days, 10 hours per day)
-  const monthlyMin = Math.round(hourlyMin * 10 * 22);
-  const monthlyMax = Math.round(hourlyMax * 10 * 22);
-
-  return {
-    area,
-    loadFactor,
-    chainSpec,
-    hourlyMin,
-    hourlyMax,
-    shiftMin,
-    shiftMax,
-    monthlyMin,
-    monthlyMax,
-    machineBase,
-    cycleRange: '20s a 30s',
-    opEfficiency: Math.round(opEfficiency * 100)
-  };
-};
+// Cálculo da produtividade da Garra Traçadora: em src/lib/produtividadeGt.ts (também usado na ficha padrão)
+export { getGTProductivityData };
 
 const PRODUCT_PDFS: Record<string, string> = {
   "CMF 600": "https://roderbrasil.com.br/wp-content/uploads/2025/10/Cabecote-Multifuncional-Roder.pdf",
@@ -624,18 +547,32 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
 
   type FichaEspecial = 'sac500' | 'loader-fae' | 'high-tip' | 'engate' | 'estufagem' | 'fresa-ssh' | 'gmt035' | 'poda';
 
-  // Qual ficha própria atende este link/equipamento (nulo = usa a ficha padrão)
+  // Qual ficha própria atende este link/equipamento (nulo = usa a ficha padrão).
+  // Regras presas aos nomes, ids e links reais de cada ficha, para um equipamento parecido
+  // (ex.: "garra com engate rápido", um cabeçote qualquer com "poda" no link) não abrir a ficha errada.
+  // `u` também pode ser o marcador do PRODUCT_PDFS ("fresa-ssh", "engate-rapido"...).
   const fichaEspecialDe = (url: string, nome = ''): FichaEspecial | null => {
-    const u = (url || '').toLowerCase();
+    const u = (url || '').toLowerCase().trim();
     const n = (nome || '').toLowerCase();
-    if (u.includes('sac-500') || u.includes('sac500') || u.includes('sacador') || n.includes('sac500') || n.includes('sac 500') || n.includes('sacador')) return 'sac500';
-    if (u.includes('loader-fae') || (n.includes('triturador') && (n.includes('carregadeira') || n.includes('loader'))) || n.includes('uml-ssl') || n.includes('uml ssl') || n.includes('140 u pm')) return 'loader-fae';
-    if (u.includes('cacamba-high-tip') || u.includes('high-tip') || n.includes('high tip') || n.includes('high-tip')) return 'high-tip';
-    if (u.includes('engate-rapido') || n.includes('engate')) return 'engate';
-    if (u.includes('estufagem') || n.includes('estufagem')) return 'estufagem';
-    if (u.includes('catalogo-tratores') || u.includes('fresa-ssh') || u.includes('fresa-trituradora') || u.includes('ssh-') || n.includes('fresa') || /\bssh\b/.test(n)) return 'fresa-ssh';
-    if (u.includes('gmt') || n.includes('gmt')) return 'gmt035';
-    if (u.includes('poda') || n.includes('gp150') || n.includes('gp 150') || (n.includes('poda') && (n.includes('cabeçote') || n.includes('cabecote')))) return 'poda';
+    // SAC500: "Sacador de Árvores SAC500"
+    if (/sac[-_ ]?500/.test(u) || u.includes('sacador') || /sac[-_ ]?500/.test(n) || n.includes('sacador')) return 'sac500';
+    // Triturador FAE para pá carregadeira: UML/SSL/VT 175 e 140/U/PM 200
+    if (u === 'loader-fae' || u.includes('loader-fae') || /uml[-_ /]?ssl|140[-_ /]?u[-_ /]?pm/.test(u) ||
+        (n.includes('triturador') && (n.includes('carregadeira') || n.includes('loader'))) || /uml[-_ /]?ssl|140[-_ /]?u[-_ /]?pm/.test(n)) return 'loader-fae';
+    // Caçamba High Tip (prolongador e destocador ficam fora)
+    if (!/prolongador|destocador/.test(n) && (u === 'high-tip' || u.includes('cacamba-high-tip') || /high[-_ ]?tip/.test(n))) return 'high-tip';
+    // Engate Rápido para pá carregadeira: só o próprio produto ("Engate Rápido ..."), nunca outro item que cite engate
+    if (u === 'engate-rapido' || u.includes('/engate-rapido') || /^engate r[aá]pido/.test(n.trim()) || (/engate r[aá]pido/.test(n) && /carregadeira/.test(n))) return 'engate';
+    // Garra para Estufagem (AF/AFG)
+    if (u === 'estufagem' || u.includes('estufagem') || n.includes('estufagem')) return 'estufagem';
+    // Fresa FAE SSH: o nome tem "SSH" (o catálogo de tratores da FAE só conta quando não veio nome)
+    if (u === 'fresa-ssh' || u.includes('fresa-ssh') || /\bssh[-_ ]?\d{3}\b/.test(u) || /\bssh\b/.test(n) ||
+        (!n.trim() && u.includes('catalogo-tratores'))) return 'fresa-ssh';
+    // Cabeçote GMT 035 (id gmt-035)
+    if (/\bgmt[-_ ]?035\b/.test(u) || /\bgmt\b/.test(n)) return 'gmt035';
+    // Cabeçote de Poda GP 150 (id gp-150; links "cabecote-de-poda" e "cabecote-florestal-poda")
+    if (/\bgp[-_ ]?150\b/.test(u) || u.includes('cabecote-de-poda') || u.includes('cabecote-florestal-poda') ||
+        /\bgp[-_ ]?150\b/.test(n) || (n.includes('poda') && (n.includes('cabeçote') || n.includes('cabecote')))) return 'poda';
     return null;
   };
 

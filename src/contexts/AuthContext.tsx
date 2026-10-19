@@ -723,6 +723,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+// Mesmo contexto, sem erro fora do AuthProvider (devolve undefined): para peças montadas
+// em qualquer lugar, como o leitor de documentos
+export function useAuthOpcional(): AuthContextType | undefined {
+  return useContext(AuthContext);
+}
+
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
