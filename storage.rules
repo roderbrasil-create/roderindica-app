@@ -45,7 +45,9 @@ service firebase.storage {
     match /{allPaths=**} {
       allow read: if logado();
       // enviar por cima de um arquivo que já existe conta como troca: só a equipe
-      allow create: if logado() && tamanhoOk(600) && (resource == null || equipe());
+      // perfis e notas fiscais têm regra própria acima; aqui não abrem por tabela
+      allow create: if logado() && tamanhoOk(600) && (resource == null || equipe()) &&
+        !request.resource.name.matches('^(profiles|commissions_nf)/.*');
       allow update, delete: if equipe() && tamanhoOk(600);
     }
   }
