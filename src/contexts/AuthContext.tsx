@@ -7,7 +7,7 @@ import {
   signInWithPopup
 } from 'firebase/auth';
 import { doc, onSnapshot, collection, query, where, writeBatch, getDocs, getDoc, updateDoc } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
+import { auth, db, reivindicarPerfil } from '../lib/firebase';
 import { UserProfile, UserRole } from '../types';
 import { AuditService, AuditAction } from '../lib/AuditService';
 
@@ -179,6 +179,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .replace(/[\u0300-\u036f]/g, "")
             .trim();
         };
+
+        // 0. Primeiro acesso de quem foi pré-cadastrado: o servidor faz a passagem do cadastro
+        if (user.email && !userDocExists) {
+          if (await reivindicarPerfil()) userDocExists = true;
+        }
 
         // 1. One-time check/migration logic for Email (resolving accent differences & duplicates)
         if (user.email) {
@@ -353,12 +358,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 dashboard_cards: fDefaults.dashboard_cards.reduce((acc, item) => ({ ...acc, [item]: true }), {})
               };
               const { updateDoc } = await import('firebase/firestore');
-              await updateDoc(doc(db, 'users', user.uid), {
-                role: 'financial',
-                permissions: fPermissions,
-                updated_at: new Date().toISOString()
-              });
-              return;
+              // com as regras novas a pessoa não muda o próprio papel; se recusar, segue com o perfil atual
+              try {
+                await updateDoc(doc(db, 'users', user.uid), {
+                  role: 'financial',
+                  permissions: fPermissions,
+                  updated_at: new Date().toISOString()
+                });
+                return;
+              } catch (e) {
+                console.warn('[AUTH] ajuste automático do financeiro recusado:', e);
+              }
             }
             const isExplicitMasterAdmin = [
               'roderbrasil@gmail.com',

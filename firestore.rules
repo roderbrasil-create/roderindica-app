@@ -23,13 +23,20 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == userId;
     }
 
+    function emailDoToken() {
+      return string(request.auth.token.get('email', '')).lower();
+    }
+
+    // E-mail confiável: confirmado (Google) ou conta com senha, que só nasce pela tela
+    // de Usuários (o cadastro público fica desligado no Firebase).
     function emailVerificado() {
-      return naoAnonimo() && request.auth.token.email != null && request.auth.token.email_verified == true;
+      return naoAnonimo() && emailDoToken() != '' &&
+        (request.auth.token.get('email_verified', false) == true || request.auth.token.firebase.sign_in_provider == 'password');
     }
 
     // Diretoria reconhecida pelo e-mail confirmado (mesma lista do app).
     function diretoria() {
-      return emailVerificado() && request.auth.token.email.lower() in [
+      return emailVerificado() && emailDoToken() in [
         'roderbrasil@gmail.com', 'roderindica@gmail.com', 'jeferson@roderbrasil.com.br'
       ];
     }
@@ -72,7 +79,7 @@ service cloud.firestore {
     // Qualquer pessoa da Roder (não parceiro, não visitante).
     function isEquipe() {
       return isInternalSeller() || isFinanceiro() || papel() in ['marketing', 'assistant'] ||
-        (emailVerificado() && request.auth.token.email.lower().matches('.*@roderbrasil[.]com[.]br$'));
+        (emailVerificado() && emailDoToken().matches('.*@roderbrasil[.]com[.]br$'));
     }
 
     function isParceiro() {
@@ -93,23 +100,27 @@ service cloud.firestore {
       allow get: if isOwner(userId) || isEquipe();
       allow list: if isEquipe() ||
         (naoAnonimo() && resource.data.email == request.auth.token.email);
-      // Cadastro próprio nasce sem poder: no máximo parceiro, e pendente.
-      allow create: if isAdmin() || (
-        isOwner(userId) && naoAnonimo() &&
-        request.resource.data.get('role', 'external_seller') in ['external_seller', 'vendedor_padrao', ''] &&
-        request.resource.data.get('status', 'pending') in ['pending', ''] &&
-        !('permissions' in request.resource.data)
-      ) || (isOwner(userId) && diretoria());
+      // Cadastro próprio nasce sem poder. O primeiro acesso de quem foi pré-cadastrado
+      // é feito pelo servidor (/api/auth/reivindicar-perfil).
+      allow create: if isAdmin() ||
+        ((isManager() || isTriagem()) && papelQueGestaoDa(request.resource.data.get('role', ''))) ||
+        (isOwner(userId) && naoAnonimo() &&
+         request.resource.data.get('role', 'external_seller') in ['external_seller', 'vendedor_padrao', ''] &&
+         request.resource.data.get('status', 'pending') in ['pending', ''] &&
+         !('permissions' in request.resource.data));
       allow update: if isAdmin() ||
-        ((isManager() || isTriagem()) && naoMexeEmPoderDeAdmin()) ||
+        // gerente e triagem cuidam da equipe (férias, recebe lead, dados), sem promover a gestão
+        // e sem mexer no próprio papel
+        ((isManager() || isTriagem()) && !isOwner(userId) &&
+         papelQueGestaoDa(resource.data.get('role', '')) &&
+         papelQueGestaoDa(request.resource.data.get('role', ''))) ||
         (isOwner(userId) && naoMexeEmPoder());
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() ||
+        ((isManager() || isTriagem()) && papelQueGestaoDa(resource.data.get('role', '')));
 
-      // Gerente e triagem cuidam da equipe (férias, recebe lead, dados), mas
-      // não promovem ninguém a admin nem mexem em quem é admin.
-      function naoMexeEmPoderDeAdmin() {
-        return resource.data.get('role', '') != 'admin' &&
-          request.resource.data.get('role', '') != 'admin';
+      function papelQueGestaoDa(r) {
+        return r in ['external_seller', 'vendedor_padrao', 'internal_seller', 'triagem', 'financial',
+                     'finance', 'fiscal', 'marketing', 'assistant', ''];
       }
     }
 
@@ -157,7 +168,7 @@ service cloud.firestore {
 
     match /credit_cleared_documents/{docId} {
       allow read: if isEquipe();
-      allow write: if isManager() || isFinanceiro() || isTriagem();
+      allow write: if isInternalSeller() || isFinanceiro();
     }
 
     match /commissions/{commissionId} {
@@ -165,8 +176,10 @@ service cloud.firestore {
         (naoAnonimo() && resource.data.external_seller_uid == request.auth.uid);
       allow create: if isInternalSeller();
       allow update: if isManager() || isFinanceiro() || isInternalSeller() ||
+        // o parceiro só anexa a nota e passa para "aguardando pagamento"
         (naoAnonimo() && resource.data.external_seller_uid == request.auth.uid &&
-         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nf_url', 'nf_uploaded_at', 'updated_at']));
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nf_url', 'nf_uploaded_at', 'updated_at', 'status']) &&
+         request.resource.data.get('status', '') in [resource.data.get('status', ''), 'waiting_payment']);
       allow delete: if isManager() || isFinanceiro() || isInternalSeller();
     }
 
@@ -218,7 +231,8 @@ service cloud.firestore {
 
     match /stock_items/{itemId} {
       allow read: if true;
-      allow create, delete: if isManager();
+      allow create: if isEquipe();
+      allow delete: if isManager();
       allow update: if isEquipe();
     }
 
@@ -256,8 +270,8 @@ service cloud.firestore {
 
     match /fairs/{fairId} {
       allow read: if true;
-      allow create: if isManager();
-      allow delete: if isAdmin();
+      allow create: if isManager() || isMarketing() || isFinanceiro();
+      allow delete: if isManager() || isMarketing();
       allow update: if isEquipe();
     }
 
@@ -275,14 +289,22 @@ service cloud.firestore {
     match /customer_evaluations/{evaluationId} {
       allow read: if true;
       allow create: if true;
-      allow update: if isEquipe();
+      // a equipe cria a pesquisa antes e o cliente responde por cima, uma vez só
+      allow update: if isEquipe() ||
+        (resource.data.get('status', '') != 'completed' &&
+         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['indication_id', 'seller_uid', 'created_by']));
       allow delete: if isManager();
     }
 
     // Leads de feira: o tablet cria sem login; ler e mexer, só a equipe.
     match /fair_leads/{leadId} {
       allow create: if isAuthenticated();
-      allow read, update, delete: if isEquipe();
+      // quem atendeu (tablet ou vendedor) mexe nos próprios atendimentos; a equipe em todos
+      allow read, delete: if isEquipe() ||
+        (isAuthenticated() && resource.data.get('salesperson_uid', '') == request.auth.uid);
+      allow update: if isEquipe() ||
+        (isAuthenticated() && resource.data.get('salesperson_uid', '') == request.auth.uid &&
+         request.resource.data.get('salesperson_uid', '') == request.auth.uid);
     }
 
     match /fair_checklist/{itemId} {
@@ -297,12 +319,12 @@ service cloud.firestore {
 
     match /fair_expenses/{expenseId} {
       allow read: if isEquipe();
-      allow write: if isManager() || isFinanceiro();
+      allow write: if isManager() || isFinanceiro() || isMarketing();
     }
 
     match /fair_expense_categories/{categoryId} {
       allow read: if isEquipe();
-      allow write: if isManager() || isFinanceiro();
+      allow write: if isManager() || isFinanceiro() || isMarketing();
     }
 
     match /fair_assets/{assetId} {
@@ -323,8 +345,17 @@ service cloud.firestore {
     // Extratos mensais: cada parceiro lê o dele; a equipe lê todos.
     match /monthly_statements/{statementId} {
       allow read: if isEquipe() ||
-        (naoAnonimo() && resource.data.get('seller_uid', '') == request.auth.uid);
-      allow write: if isManager() || isFinanceiro();
+        (naoAnonimo() && resource.data.seller_uid == request.auth.uid);
+      allow write: if isManager() || isFinanceiro() || isTriagem();
+      // o parceiro manda a nota do próprio mês: cria ou atualiza o extrato dele como
+      // "aguardando pagamento", sem mudar o valor de um extrato que já existe
+      allow create: if naoAnonimo() && statementId.matches('^' + request.auth.uid + '_.*') &&
+        request.resource.data.seller_uid == request.auth.uid &&
+        request.resource.data.status == 'waiting_payment';
+      allow update: if naoAnonimo() && resource.data.seller_uid == request.auth.uid &&
+        request.resource.data.seller_uid == request.auth.uid &&
+        request.resource.data.status == 'waiting_payment' &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['total_value', 'commission_ids']);
     }
 
     match /equipment_dossiers/{dossierId} {

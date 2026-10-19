@@ -1330,6 +1330,73 @@ Retorne um array JSON no formato exato:
   const ehEquipe = (q: any) => !!q && EQUIPE_RODER.includes(q.role);
   const ehGestao = (q: any) => !!q && (q.role === 'admin' || q.role === 'manager');
 
+  // PRIMEIRO ACESSO. O admin pré-cadastra a pessoa (users/temp_...) e, no primeiro login, o
+  // cadastro passa para o uid dela. Isso era feito no navegador, apagando o cadastro provisório
+  // e criando o definitivo com o papel; com as regras novas o navegador não pode mais dar papel a
+  // si mesmo, então a passagem acontece aqui, só para e-mail confirmado e só do próprio e-mail.
+  app.post("/api/auth/reivindicar-perfil", async (req, res) => {
+    try {
+      const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+      if (!token) return res.status(401).json({ ok: false });
+      const dec: any = await admin.auth().verifyIdToken(token);
+      const email = String(dec.email || '').toLowerCase().trim();
+      if (!email || dec.firebase?.sign_in_provider === 'anonymous') return res.status(401).json({ ok: false });
+      // Conta com senha só nasce pela tela de Usuários (o app não tem cadastro aberto), então vale.
+      // Para garantir, o cadastro público fica DESLIGADO no Firebase (Authentication > Configurações).
+      if (!dec.email_verified && dec.firebase?.sign_in_provider !== 'password') {
+        return res.json({ ok: true, merged: false, motivo: 'email_nao_confirmado' });
+      }
+
+      const achados = await db.collection('users').where('email', '==', email).get();
+      const temporarios = achados.docs.filter(d => d.id !== dec.uid);
+      if (temporarios.length === 0) return res.json({ ok: true, merged: false });
+
+      const realRef = db.collection('users').doc(dec.uid);
+      const realSnap = await realRef.get();
+      let perfil: any = realSnap.exists ? { ...realSnap.data() } : {};
+      const prioridade = ['admin', 'manager', 'financial', 'triagem', 'internal_seller', 'marketing', 'vendedor_padrao', 'external_seller', ''];
+      for (const t of temporarios) {
+        const td: any = t.data();
+        const iAtual = prioridade.indexOf(perfil.role || '');
+        const iTemp = prioridade.indexOf(td.role || '');
+        const papel = (iAtual !== -1 && iTemp !== -1 && iTemp < iAtual) ? td.role : (perfil.role || td.role || 'external_seller');
+        perfil = {
+          ...td, ...perfil,
+          role: papel,
+          is_lead_receiver: perfil.is_lead_receiver || td.is_lead_receiver || false,
+          permissions: {
+            sidebar: { ...(td.permissions?.sidebar || {}), ...(perfil.permissions?.sidebar || {}) },
+            dashboard_cards: { ...(td.permissions?.dashboard_cards || {}), ...(perfil.permissions?.dashboard_cards || {}) },
+          },
+        };
+      }
+      perfil.uid = dec.uid;
+      perfil.email = email;
+      perfil.status = 'active';
+      perfil.updated_at = new Date().toISOString();
+
+      const lote = db.batch();
+      lote.set(realRef, perfil);
+      for (const t of temporarios) {
+        lote.delete(t.ref);
+        const ligados = await Promise.all([
+          db.collection('indications').where('internal_seller_uid', '==', t.id).get(),
+          db.collection('indications').where('assigned_to_uid', '==', t.id).get(),
+          db.collection('fair_leads').where('assigned_to_uid', '==', t.id).get(),
+        ]);
+        ligados[0].forEach(d => lote.update(d.ref, { internal_seller_uid: dec.uid, updated_at: perfil.updated_at }));
+        ligados[1].forEach(d => lote.update(d.ref, { assigned_to_uid: dec.uid, updated_at: perfil.updated_at }));
+        ligados[2].forEach(d => lote.update(d.ref, { assigned_to_uid: dec.uid, updated_at: perfil.updated_at }));
+      }
+      await lote.commit();
+      console.log(`[AUTH] Perfil pré-cadastrado passado para ${email} (${temporarios.length} provisório(s)).`);
+      return res.json({ ok: true, merged: true });
+    } catch (err: any) {
+      console.error('[AUTH] reivindicar-perfil:', err?.message);
+      return res.status(500).json({ ok: false });
+    }
+  });
+
   // Get settings document securely from server-side admin SDK to avoid client-side Firestore rules/connection blocks
   app.get("/api/settings/:docName", async (req, res) => {
     try {

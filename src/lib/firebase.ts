@@ -90,3 +90,16 @@ async function testConnection() {
   }
 }
 // testConnection();
+
+// Primeiro acesso: o servidor passa o cadastro feito pelo admin para o uid desta pessoa.
+// Falhar aqui não impede o login: o caminho antigo, no navegador, continua logo depois.
+export async function reivindicarPerfil(): Promise<boolean> {
+  try {
+    const u = auth.currentUser;
+    if (!u || u.isAnonymous || !u.email) return false;
+    const token = await u.getIdToken();
+    const r = await fetch('/api/auth/reivindicar-perfil', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+    const j = await r.json().catch(() => ({}));
+    return !!j.merged;
+  } catch { return false; }
+}

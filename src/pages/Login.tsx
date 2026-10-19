@@ -6,7 +6,7 @@ import {
   sendPasswordResetEmail,
   signOut
 } from 'firebase/auth';
-import { auth, db } from '../lib/firebase';
+import { auth, db, reivindicarPerfil } from '../lib/firebase';
 import { doc, getDoc, setDoc, collection, query, where, getDocs, deleteDoc, writeBatch } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -53,6 +53,9 @@ export default function Login() {
       const authUser = result.user;
       const targetEmail = (authUser.email || '').toLowerCase().trim();
       const isMasterAdmin = MASTER_ADMIN_EMAILS.includes(targetEmail);
+
+      // 0. Primeiro acesso de quem foi pré-cadastrado: o servidor faz a passagem do cadastro
+      await reivindicarPerfil();
 
       // 1. Check if user already has a document by UID
       let userDocRef = doc(db, 'users', authUser.uid);
@@ -203,6 +206,8 @@ export default function Login() {
       const authUser = userCredential.user;
       const targetEmail = (authUser.email || cleanEmail).toLowerCase().trim();
       const isMasterAdmin = MASTER_ADMIN_EMAILS.includes(targetEmail);
+
+      await reivindicarPerfil();
 
       // Check if user has a document in 'users' collection
       let userDoc = await getDoc(doc(db, 'users', authUser.uid));

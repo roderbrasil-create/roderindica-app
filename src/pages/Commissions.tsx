@@ -297,7 +297,7 @@ export default function Commissions() {
       orderBy('created_at', 'desc')
     );
 
-    if (profile.role === 'external_seller') {
+    if (['external_seller', 'vendedor_padrao'].includes(profile.role)) {
       q = query(
         collection(db, 'commissions'),
         where('external_seller_uid', '==', profile.uid),
@@ -318,7 +318,7 @@ export default function Commissions() {
       where('year', '==', selectedYear)
     );
 
-    if (profile.role === 'external_seller') {
+    if (['external_seller', 'vendedor_padrao'].includes(profile.role)) {
       qStatements = query(
         collection(db, 'monthly_statements'),
         where('seller_uid', '==', profile.uid),
@@ -357,7 +357,7 @@ export default function Commissions() {
     });
 
     // Forecast data
-    const qAll = profile.role === 'external_seller' 
+    const qAll = ['external_seller', 'vendedor_padrao'].includes(profile.role) 
       ? query(collection(db, 'commissions'), where('external_seller_uid', '==', profile.uid), orderBy('year', 'desc'), orderBy('month', 'desc'))
       : query(collection(db, 'commissions'), orderBy('year', 'desc'), orderBy('month', 'desc'));
     
@@ -399,7 +399,7 @@ export default function Commissions() {
       orderBy('created_at', 'desc')
     );
 
-    if (profile.role === 'external_seller') {
+    if (['external_seller', 'vendedor_padrao'].includes(profile.role)) {
       qCurrentComms = query(
         collection(db, 'commissions'),
         where('external_seller_uid', '==', profile.uid),
@@ -419,7 +419,7 @@ export default function Commissions() {
       where('year', '==', curYear)
     );
 
-    if (profile.role === 'external_seller') {
+    if (['external_seller', 'vendedor_padrao'].includes(profile.role)) {
       qCurrentStatements = query(
         collection(db, 'monthly_statements'),
         where('seller_uid', '==', profile.uid),

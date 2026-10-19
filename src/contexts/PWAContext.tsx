@@ -178,8 +178,14 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
       for (let i = 0; i < collectionsToSync.length; i++) {
         const col = collectionsToSync[i];
         // Fetching will automatically populate Firestore persistence cache
-        const snap = await getDocs(query(collection(db, col.name), limit(500)));
-        if (col.name === 'products') produtos = snap.docs.map(d => d.data());
+        // cada coleção por conta própria: uma que o perfil não pode ler (ex.: usuários, para o
+        // parceiro) não pode derrubar o download do catálogo inteiro
+        try {
+          const snap = await getDocs(query(collection(db, col.name), limit(500)));
+          if (col.name === 'products') produtos = snap.docs.map(d => d.data());
+        } catch (e) {
+          console.warn(`[OFFLINE] ${col.name} não baixado:`, e);
+        }
         const progress = Math.round(((i + 1) / collectionsToSync.length) * 30);
         setDownloadProgress(progress);
       }
