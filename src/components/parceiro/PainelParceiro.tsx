@@ -211,8 +211,19 @@ export default function PainelParceiro() {
     const primeiro = el?.firstElementChild as HTMLElement | null;
     if (!el || !primeiro) return;
     const passo = primeiro.offsetWidth + 16; // largura do cartão mais o espaço entre eles
+    // chegou ao fim (no computador cabem vários): o último é o atual
+    if (el.scrollLeft >= el.scrollWidth - el.clientWidth - 2) { setAtual(prontaEntrega.length - 1); return; }
     setAtual(Math.max(0, Math.min(prontaEntrega.length - 1, Math.round(el.scrollLeft / passo))));
   };
+  // pontinhos só quando há o que rolar (numa tela larga os cartões cabem todos)
+  const [daPraRolar, setDaPraRolar] = useState(false);
+  useEffect(() => {
+    const medir = () => { const el = carrossel.current; setDaPraRolar(!!el && el.scrollWidth > el.clientWidth + 2); };
+    medir();
+    const t = setTimeout(medir, 300);
+    window.addEventListener('resize', medir);
+    return () => { clearTimeout(t); window.removeEventListener('resize', medir); };
+  }, [prontaEntrega.length]);
   useEffect(() => { if (atual >= prontaEntrega.length) setAtual(0); }, [prontaEntrega.length]);
 
   const primeiroNome = String(profile?.name || '').trim().split(/\s+/)[0] || 'parceiro';
@@ -247,11 +258,11 @@ export default function PainelParceiro() {
           mandar ao cliente (o cadastro antigo de vários parceiros vinha com o estoque desligado) */}
       {temPronta && (
         <section className="relative -mt-[76px] max-w-xl md:max-w-none md:mx-4">
-          <div ref={carrossel} onScroll={aoRolar} className="flex gap-4 overflow-x-auto snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pb-8 -mb-8 pt-1 -mt-1">
+          <div ref={carrossel} onScroll={aoRolar} className="flex gap-4 overflow-x-auto snap-x snap-mandatory md:scroll-pl-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pb-8 -mb-8 pt-1 -mt-1">
             {prontaEntrega.map((it, i) => {
               const pronto = !!preparados[it.chave]?.codigo;
               return (
-                <div key={it.chave} className="snap-center shrink-0 w-[calc(100%-32px)] md:w-[544px] first:ml-4 last:mr-4 bg-white rounded-[20px] overflow-hidden shadow-[0_10px_24px_rgba(20,24,28,0.18)]">
+                <div key={it.chave} className="snap-center md:snap-start shrink-0 w-[calc(100%-32px)] md:w-[544px] first:ml-4 last:mr-4 bg-white rounded-[20px] overflow-hidden shadow-[0_10px_24px_rgba(20,24,28,0.18)]">
                   <button onClick={() => navigate('/catalogo', { state: { openProductId: it.produto.id } })} className="relative h-[168px] w-full p-0 bg-gradient-to-b from-[#F4F5F6] to-[#E3E6E9] flex items-center justify-center">
                     <Foto src={it.foto} alt={it.nome} className="h-[140px] max-w-[88%] object-contain mix-blend-multiply" />
                     <span className="absolute left-3 top-3 bg-[#F6C400] text-[#111] text-[12px] font-extrabold px-2.5 py-[5px] rounded-full leading-none">Pronta entrega</span>
@@ -276,7 +287,7 @@ export default function PainelParceiro() {
               );
             })}
           </div>
-          {prontaEntrega.length > 1 && (
+          {prontaEntrega.length > 1 && daPraRolar && (
             <div className="flex justify-center mt-1 md:max-w-[576px]">
               {/* pontinhos clicáveis: no computador é o único jeito de chegar ao próximo equipamento */}
               {prontaEntrega.map((it, i) => (
