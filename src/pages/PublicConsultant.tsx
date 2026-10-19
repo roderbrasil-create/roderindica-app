@@ -122,7 +122,7 @@ function useParceiroDoLink(tokenUrl: string | null) {
         const j = await r.json();
         const atual = lerParceiroGuardado();
         if (atual && atual.token !== token) return; // outro link chegou no meio do caminho
-        if (!atual || atual.pendente || !atual.nome) {
+        if (!atual || atual.pendente) {
           // outro parceiro ou primeiro acesso: começa uma conversa nova, sem o "Quem é você?"
           try {
             sessionStorage.removeItem('roder_helper_messages');
