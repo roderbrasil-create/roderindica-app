@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { getGTProductivityData } from '../../lib/produtividadeGt';
-import { Sparkles, MessageSquare, X, Minus, Send, Calculator, Wrench, HelpCircle, AlertTriangle, Play, RefreshCw, Trash2, ChevronLeft, ChevronRight, CheckCircle, Package, Layers, Tractor, FileText, Mic, Square, Loader2, Brain, BookOpen, ExternalLink, Share2, Video, Phone, QrCode, Bot, User, Briefcase } from 'lucide-react';
+import { Sparkles, MessageSquare, X, Minus, Send, Calculator, Wrench, HelpCircle, AlertTriangle, Play, RefreshCw, Trash2, ChevronLeft, ChevronRight, CheckCircle, Package, Layers, Tractor, FileText, Mic, Square, Loader2, Brain, BookOpen, ExternalLink, Share2, Video, Phone, QrCode, Bot, User, Briefcase, ChevronDown, EllipsisVertical, RotateCcw, Menu, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { cn, getApiBaseUrl } from '../../lib/utils';
@@ -1658,6 +1658,46 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   const [abaPainel, setAbaPainel] = useState<'conversa' | 'ficha' | 'fotos'>('conversa');
   const [buscaEquip, setBuscaEquip] = useState('');
 
+  // ===================== Consultor no celular (e janela flutuante) =====================
+  const [menuCel, setMenuCel] = useState(false);
+  const [folhaEquip, setFolhaEquip] = useState(false);
+  const campoCelRef = useRef<HTMLTextAreaElement>(null);
+  const listaCelRef = useRef<HTMLDivElement>(null);
+  // Altura visível de verdade no celular (descontando o teclado): a caixa de texto fica sempre acima dele
+  const [vvCel, setVvCel] = useState<{ h: number; top: number } | null>(null);
+  useEffect(() => {
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    if (!isOpen || layoutPc || !vv) { setVvCel(null); return; }
+    const ajustar = () => {
+      if (window.innerWidth >= 640) { setVvCel(null); return; }
+      const h = Math.round(vv.height), top = Math.round(vv.offsetTop);
+      setVvCel(prev => (prev && prev.h === h && prev.top === top) ? prev : { h, top });
+    };
+    ajustar();
+    vv.addEventListener('resize', ajustar);
+    vv.addEventListener('scroll', ajustar);
+    return () => { vv.removeEventListener('resize', ajustar); vv.removeEventListener('scroll', ajustar); };
+  }, [isOpen, layoutPc]);
+  const rolarListaCelAoFim = () => {
+    const el = listaCelRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  };
+  // teclado abriu ou fechou: a conversa desce até a última mensagem
+  useEffect(() => { if (vvCel) rolarListaCelAoFim(); }, [vvCel?.h]);
+  // Caixa de texto que cresce com o texto (digitado ou ditado): de 1 até 6 linhas, depois rola por dentro
+  React.useLayoutEffect(() => {
+    const el = campoCelRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    const alturaTela = (typeof window !== 'undefined' && (window.visualViewport?.height || window.innerHeight)) || 800;
+    const maximo = Math.min(6 * 22 + 22, Math.round(alturaTela * 0.4));
+    const alvo = Math.max(44, Math.min(el.scrollHeight, maximo));
+    el.style.height = `${alvo}px`;
+    el.style.overflowY = el.scrollHeight > maximo ? 'auto' : 'hidden';
+  }, [inputValue, isOpen, layoutPc, vvCel?.h]);
+  // explorador minimizado (ou pergunta enviada): a folha de equipamentos fecha
+  useEffect(() => { if (explorerMinimized) setFolhaEquip(false); }, [explorerMinimized]);
+
   // Quem está logado não passa pelo "Quem é você?": troca a saudação de visitante pela de sempre
   useEffect(() => {
     if (!user || !profile) return;
@@ -2951,10 +2991,118 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
               )}
             </AnimatePresence>
   </>);
+  const rotuloSpec = (k: string) => {
+    const t = k.replace(/_/g, ' ').trim();
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  };
+  const specsDoModelo = (model: ProductModel): [string, string][] =>
+    Object.entries(model.technical_specs || {})
+      .filter(([k, v]) => v !== undefined && v !== null && String(v).trim() !== '' && !/c[oó]digo|^id$/i.test(k))
+      .map(([k, v]) => [rotuloSpec(k), String(v).trim()] as [string, string]);
+  const specsChave = (model: ProductModel): [string, string][] => {
+    const todas = specsDoModelo(model);
+    const prioridade = ['máquina base', 'maquina base', 'trator', 'potência', 'potencia', 'peso operacional', 'largura', 'profundidade', 'peso', 'vazão', 'vazao', 'pressão', 'pressao', 'abertura', 'área', 'area'];
+    const nota = (rot: string) => {
+      const r = rot.toLowerCase();
+      const i = prioridade.findIndex(p => r.includes(p));
+      return i < 0 ? 99 : i;
+    };
+    return [...todas].sort((a, b) => nota(a[0]) - nota(b[0])).slice(0, 3);
+  };
+  const corServe = (serve?: string) => serve === 'nao'
+    ? { caixa: 'border-[#F3C9C9] bg-[#FDF3F3]', titulo: 'text-[#B42318]', valor: 'text-[#B42318]', texto: 'Não' }
+    : serve === 'sim'
+      ? { caixa: 'border-[#BFE3CB] bg-[#F2FAF4]', titulo: 'text-[#157F3C]', valor: 'text-[#157F3C]', texto: 'Sim' }
+      : { caixa: 'border-[#F1DFA6] bg-[#FFFBEB]', titulo: 'text-[#8A6500]', valor: 'text-[#8A6500]', texto: serve === 'verificar' ? 'Verificar' : '' };
+  // Celular: os dados do painel da resposta viram cartões compactos dentro da conversa
+  const cartoesPainelCel = (painel: PainelConversa) => {
+    const mq = painel.maquina && painel.maquina.nome ? painel.maquina : null;
+    const equip = painel.produto ? detectEquipmentInMessage(painel.produto)[0] : undefined;
+    const perguntas = (painel.perguntas || []).filter(Boolean);
+    const alternativas = (painel.alternativas || []).filter(a => a && a.nome);
+    if (!mq && !equip && !perguntas.length && !alternativas.length) return null;
+    return (
+      <div className="flex justify-start">
+        <div className="w-full max-w-[88%] space-y-2.5">
+          {mq && (() => {
+            const cor = corServe(mq.serve);
+            const detalhe = [mq.transmissao || mq.tipo, mq.potencia].filter(Boolean).join(', ');
+            const serveTxt = mq.serve === 'nao' ? 'não serve' : mq.serve === 'sim' ? 'serve' : mq.serve === 'verificar' ? 'verificar' : '';
+            return (
+              <div className={cn('rounded-2xl border px-4 py-3', cor.caixa)}>
+                <p className={cn('text-[11px] font-extrabold uppercase tracking-[0.12em]', cor.titulo)}>Máquina do cliente</p>
+                <p className="fonte-titulo text-[17px] font-extrabold leading-tight mt-0.5 text-[#1B1E22] break-words">{mq.nome}</p>
+                {(detalhe || serveTxt) && (
+                  <p className="mt-0.5 text-[14px] text-[#3E444B]">
+                    {detalhe}{detalhe && serveTxt ? ' · ' : ''}{serveTxt && <span className={cn('font-bold', cor.valor)}>{serveTxt}</span>}
+                  </p>
+                )}
+                {mq.motivo && <p className="mt-1 text-[13px] leading-snug text-[#5B6168]">{mq.motivo}</p>}
+              </div>
+            );
+          })()}
+
+          {equip && (() => {
+            const { prod, model } = equip;
+            const foto = fotoDoModelo(prod, model);
+            const linhaSpecs = specsChave(model).map(([, v]) => v).join(' · ');
+            return (
+              <div className="rounded-2xl border border-[#E2E5E8] bg-white p-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+                <div className="flex items-center gap-3">
+                  <div className="h-16 w-16 shrink-0 rounded-xl bg-gradient-to-b from-[#F4F5F6] to-[#DCE0E4] flex items-center justify-center overflow-hidden">
+                    {foto
+                      ? <MarkdownImage src={foto} className="max-w-full max-h-full m-0 p-1 border-0 bg-transparent shadow-none hover:scale-100 object-contain" />
+                      : <Package className="h-7 w-7 text-[#9AA1A9]" />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="fonte-titulo text-[16.5px] font-extrabold leading-tight text-[#1B1E22] break-words">{tituloFicha(prod, model)}</p>
+                    {linhaSpecs && <p className="mt-0.5 text-[13px] text-[#5B6168] truncate">{linhaSpecs}</p>}
+                  </div>
+                </div>
+                <div className={cn('mt-3 grid gap-2', podeEnviarFicha ? 'grid-cols-3' : 'grid-cols-2')}>
+                  <button type="button" onClick={() => verFicha(prod, model)} className="h-11 px-1 whitespace-nowrap rounded-xl border-2 border-[#1B1E22] bg-white text-[#1B1E22] font-extrabold text-[14px] active:scale-95 transition">Ver ficha</button>
+                  {podeEnviarFicha && (
+                    <button type="button" onClick={() => enviarFicha(prod, model)} className="h-11 px-1 whitespace-nowrap rounded-xl bg-[#1FA855] text-[#fff] font-extrabold text-[14px] active:scale-95 transition">Enviar</button>
+                  )}
+                  <button type="button" onClick={() => handleMakeIndication(prod, model)} className="h-11 px-1 whitespace-nowrap rounded-xl bg-[#F6C400] text-[#1B1E22] font-extrabold text-[14px] active:scale-95 transition">Indicar</button>
+                </div>
+              </div>
+            );
+          })()}
+
+          {alternativas.length > 0 && (
+            <div className="rounded-2xl border border-[#E2E5E8] bg-white px-4 py-2.5">
+              <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#5B6168]">Alternativas que servem</p>
+              <div className="mt-1 divide-y divide-[#E2E5E8]">
+                {alternativas.map((a, i) => (
+                  <div key={`${i}-${a.nome}`} className="flex items-center justify-between gap-3 py-2">
+                    <span className="text-[14.5px] font-bold text-[#1B1E22] min-w-0 break-words">{a.nome}</span>
+                    {a.obs && <span className="shrink-0 max-w-[50%] truncate rounded-md bg-[#E3F5E8] px-2 py-0.5 text-[12px] font-extrabold text-[#157F3C]">{a.obs}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {perguntas.length > 0 && (
+            <details className="group rounded-2xl border border-[#F1DFA6] bg-[#FFF8DB]">
+              <summary className="list-none [&::-webkit-details-marker]:hidden cursor-pointer select-none min-h-11 px-4 flex items-center justify-between gap-2">
+                <span className="text-[11.5px] font-extrabold uppercase tracking-[0.12em] text-[#8A6500]">Pergunte ao cliente ({perguntas.length})</span>
+                <ChevronDown className="h-5 w-5 text-[#8A6500] transition-transform group-open:rotate-180" />
+              </summary>
+              <ul className="px-4 pb-3 -mt-1 space-y-1.5 list-disc pl-8 text-[14.5px] leading-snug text-[#1B1E22]">
+                {perguntas.map((q, i) => <li key={i}>{q}</li>)}
+              </ul>
+            </details>
+          )}
+        </div>
+      </div>
+    );
+  };
   const listaMensagens = (<>
               {messages.map((msg, idx) => (
+                <React.Fragment key={msg.id || `msg-${idx}`}>
                 <div
-                  key={msg.id || `msg-${idx}`}
                   id={`chat-message-${idx}`}
                   className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in duration-200`}
                 >
@@ -3147,7 +3295,10 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                           }
 
                           // Enquanto está perguntando (com opções), não mostra cartões de equipamento
-                          const matchedEquip = parseConsultantOptions(msg.content).options.length ? [] : detectEquipmentInMessage(msg.content);
+                          // no celular o equipamento do painel já tem cartão próprio logo abaixo: não repete aqui
+                          const modeloPainelCel = !layoutPc && msg.painel?.produto ? detectEquipmentInMessage(msg.painel.produto)[0]?.model.id : undefined;
+                          const matchedEquip = (parseConsultantOptions(msg.content).options.length ? [] : detectEquipmentInMessage(msg.content))
+                            .filter(e => !modeloPainelCel || e.model.id !== modeloPainelCel);
                           const isArraste = 
                             msg.content.toLowerCase().includes('arraste') ||
                             msg.content.toLowerCase().includes('pinça') ||
@@ -3399,6 +3550,9 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                     )}
                   </div>
                 </div>
+                {/* Celular: o painel da resposta (máquina, equipamento, perguntas) vem logo abaixo dela */}
+                {!layoutPc && msg.role === 'assistant' && msg.painel && cartoesPainelCel(msg.painel)}
+                </React.Fragment>
               ))}
 
               {loading && (
@@ -4360,24 +4514,6 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
     if (selectedProduct && selectedModel) return { prod: selectedProduct, model: selectedModel };
     return null;
   })();
-  const rotuloSpec = (k: string) => {
-    const t = k.replace(/_/g, ' ').trim();
-    return t.charAt(0).toUpperCase() + t.slice(1);
-  };
-  const specsDoModelo = (model: ProductModel): [string, string][] =>
-    Object.entries(model.technical_specs || {})
-      .filter(([k, v]) => v !== undefined && v !== null && String(v).trim() !== '' && !/c[oó]digo|^id$/i.test(k))
-      .map(([k, v]) => [rotuloSpec(k), String(v).trim()] as [string, string]);
-  const specsChave = (model: ProductModel): [string, string][] => {
-    const todas = specsDoModelo(model);
-    const prioridade = ['máquina base', 'maquina base', 'trator', 'potência', 'potencia', 'peso operacional', 'largura', 'profundidade', 'peso', 'vazão', 'vazao', 'pressão', 'pressao', 'abertura', 'área', 'area'];
-    const nota = (rot: string) => {
-      const r = rot.toLowerCase();
-      const i = prioridade.findIndex(p => r.includes(p));
-      return i < 0 ? 99 : i;
-    };
-    return [...todas].sort((a, b) => nota(a[0]) - nota(b[0])).slice(0, 3);
-  };
   const videoDe = (prod: Product, model: ProductModel) => {
     const v = model.video_url || prod.video_url || PRODUCT_VIDEOS[model.name || ''] || PRODUCT_VIDEOS[prod.name || ''];
     return v && /^https?:\/\//.test(v) && !v.toLowerCase().includes('t_8n_nlf2xk') ? v : '';
@@ -4400,11 +4536,6 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
     'CMF 500 em escavadeira de 20 t',
   ];
   const conversaVazia = messages.filter(m => m.role === 'user').length === 0;
-  const corServe = (serve?: string) => serve === 'nao'
-    ? { caixa: 'border-[#F3C9C9] bg-[#FDF3F3]', titulo: 'text-[#B42318]', valor: 'text-[#B42318]', texto: 'Não' }
-    : serve === 'sim'
-      ? { caixa: 'border-[#BFE3CB] bg-[#F2FAF4]', titulo: 'text-[#157F3C]', valor: 'text-[#157F3C]', texto: 'Sim' }
-      : { caixa: 'border-[#F1DFA6] bg-[#FFFBEB]', titulo: 'text-[#8A6500]', valor: 'text-[#8A6500]', texto: serve === 'verificar' ? 'Verificar' : '' };
 
   const painelNestaConversa = (
     <div className="p-4 space-y-4">
@@ -4580,6 +4711,37 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
 .cpc-claro .cpc-explorador > div{border:1px solid #E1E4E8;border-radius:16px}
 `;
 
+  // Celular e janela flutuante: tema claro igual ao do computador, com peças próprias de toque (44 px)
+  const estiloCel = `
+@layer components{
+.ccel .ccel-icone{height:44px;width:44px;padding:0;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;transition:background-color .15s}
+.ccel .ccel-icone:active{background-color:rgba(255,255,255,.14)}
+.ccel .ccel-rotulo{font-size:11.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#5B6168;margin:0 2px 8px}
+.ccel .ccel-chip{height:44px;padding:0 16px;border-radius:999px;border:1px solid #DADDE1;background-color:#fff;color:#1B1E22;font-size:14.5px;font-weight:700;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;flex-shrink:0}
+.ccel .ccel-chip:active{background-color:#F3F4F6}
+.ccel .ccel-atalhos{scrollbar-width:none}
+.ccel .ccel-atalhos::-webkit-scrollbar{display:none}
+}
+/* na folha de equipamentos o cabeçalho do explorador sai: a folha já tem título, "Ver todos" e fechar */
+.ccel .ccel-folha > div > div:first-child{display:none}
+.ccel .ccel-folha > div{border:0;box-shadow:none;background:transparent;padding-top:4px}
+.ccel .msg-consultor{max-width:88%;padding:12px 15px}
+.ccel .msg-usuario{padding:11px 15px}
+.ccel .msg-consultor,.ccel .msg-usuario,.ccel .msg-consultor .markdown-body{font-size:15.5px}
+@layer base{.ccel textarea.ccel-campo{min-height:44px !important}}
+`;
+  const toqueCel = typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  const primeiroNomeCel = nomeUsuario.split(' ')[0] || '';
+  const fotoProdutoCel = (prod: Product) =>
+    prod.image_url || ((prod as any).images || []).find(Boolean) || (prod.models || []).map(m => fotoDoModelo(prod, m)).find(Boolean) || '';
+  // Abre a folha de equipamentos; com um equipamento, já entra no guia dele (igual ao explorador)
+  const abrirEquipamentoCel = (prod?: Product) => {
+    if (prod) escolherProdutoExplorador(prod);
+    setMenuCel(false);
+    setExplorerMinimized(false);
+    setFolhaEquip(true);
+  };
+
   const blocoPc = (
     <div className="cpc-claro fixed inset-0 z-[45] flex flex-col bg-[#ECEEF0] text-[#1B1E22] font-sans notranslate" translate="no">
       <style>{estiloPc}</style>
@@ -4735,7 +4897,9 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
           dragElastic={0.15}
           className={cn(
             "roder-botao-consultor fixed bottom-6 right-6 z-[45] font-sans notranslate transition-all duration-300 touch-none",
-            hasRightDock && "lg:hidden"
+            hasRightDock && "lg:hidden",
+            // no celular o consultor aberto ocupa a tela toda e tem minimizar e fechar no topo
+            isOpen && "max-sm:hidden"
           )}
           translate="no"
         >
@@ -4824,153 +4988,272 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
             exit={hasRightDock ? { opacity: 0, x: 50 } : { opacity: 0, y: 50, scale: 0.95 }}
             transition={{ duration: 0.25 }}
             className={cn(
-              "fixed bg-slate-900 border-slate-800 flex flex-col overflow-hidden z-[45] text-white font-sans notranslate transition-all duration-300",
+              "cpc-claro ccel fixed bg-[#ECEEF0] border-[#D3D7DC] flex flex-col overflow-hidden z-[45] text-[#1B1E22] font-sans notranslate",
               isFullPage
                 ? "inset-0 w-full h-full max-h-none rounded-none border-0 sm:top-auto sm:left-auto sm:bottom-6 sm:right-6 sm:w-[480px] sm:h-[85vh] sm:max-h-[800px] sm:border sm:rounded-2xl sm:shadow-3xl"
                 : hasRightDock
-                  ? "bottom-22 right-4 sm:right-6 w-[94vw] sm:w-[480px] h-[86vh] sm:h-[80vh] max-h-[820px] sm:max-h-[720px] border rounded-2xl shadow-3xl lg:top-[65px] lg:bottom-0 lg:right-0 lg:w-[480px] lg:h-[calc(100vh-65px)] lg:max-h-none lg:rounded-none lg:border-t-0 lg:border-b-0 lg:border-r-0 lg:border-l lg:shadow-none"
-                  : "bottom-22 right-4 sm:right-6 w-[94vw] sm:w-[480px] h-[86vh] sm:h-[80vh] max-h-[820px] sm:max-h-[720px] border rounded-2xl shadow-3xl"
+                  ? "inset-0 sm:inset-auto sm:bottom-22 sm:right-6 sm:w-[480px] sm:h-[80vh] sm:max-h-[720px] sm:border sm:rounded-2xl sm:shadow-3xl lg:top-[65px] lg:bottom-0 lg:right-0 lg:w-[480px] lg:h-[calc(100vh-65px)] lg:max-h-none lg:rounded-none lg:border-t-0 lg:border-b-0 lg:border-r-0 lg:border-l lg:shadow-none"
+                  : "inset-0 sm:inset-auto sm:bottom-22 sm:right-6 sm:w-[480px] sm:h-[80vh] sm:max-h-[720px] sm:border sm:rounded-2xl sm:shadow-3xl"
             )}
+            style={vvCel ? { top: vvCel.top, height: vvCel.h, bottom: 'auto' } : undefined}
             translate="no"
           >
-            {/* Header */}
-            <div className={cn(
-              "px-3 pb-2 sm:px-4 sm:py-2.5 bg-black border-b border-neutral-900 flex items-center justify-between shadow-md",
-              isFullPage ? "pt-[calc(env(safe-area-inset-top,12px)+8px)]" : "pt-2 sm:pt-2.5"
-            )}>
-              <div className="flex flex-col items-start select-none">
-                <span className="text-[7.5px] sm:text-[9px] font-semibold uppercase tracking-wider text-neutral-400 leading-none">
-                  Consultor
-                </span>
-                <div className="flex items-center gap-1 leading-none mt-0.5">
-                  <span className="text-xs sm:text-sm font-black tracking-widest text-white uppercase">
-                    RODER
-                  </span>
-                  <span className="text-[10px] sm:text-xs font-bold text-amber-400 uppercase tracking-wide">
-                    Técnico
-                  </span>
-                  <span className="ml-1 text-[7px] sm:text-[8px] font-black bg-amber-500 text-slate-950 px-1 py-0.5 rounded uppercase tracking-widest animate-pulse leading-none">
-                    IA
-                  </span>
+            <style>{estiloPc + estiloCel}</style>
+
+            {/* Barra do topo: logo, nova conversa e o menu com todas as ações */}
+            <header className="relative z-20 shrink-0 bg-[#1B1E22] flex items-center gap-1 pl-3 pr-1.5 pb-1.5 pt-[calc(env(safe-area-inset-top,0px)+6px)] sm:pt-1.5">
+              <img src="/marca/roder-horizontal.png" alt="Roder" className="h-6 w-auto shrink-0 mix-blend-lighten" />
+              <span className="fonte-titulo ml-2 min-w-0 flex-1 truncate text-[16px] font-extrabold tracking-[0.06em] text-[#F6C400]">CONSULTOR</span>
+              {isFullPage && (
+                <button type="button" onClick={handleClearConversation} title="Nova conversa" aria-label="Nova conversa" className="ccel-icone">
+                  <RotateCcw className="h-5 w-5" />
+                </button>
+              )}
+              <button type="button" onClick={() => setMenuCel(v => !v)} title="Mais opções" aria-label="Mais opções" aria-expanded={menuCel} className={cn('ccel-icone', menuCel && 'bg-white/15')}>
+                <EllipsisVertical className="h-5 w-5" />
+              </button>
+              {!isFullPage && (
+                <>
+                  <button type="button" onClick={() => setIsOpen(false)} title="Minimizar (mantém a conversa)" aria-label="Minimizar" className="ccel-icone">
+                    <ChevronDown className="h-5 w-5" />
+                  </button>
+                  <button type="button" onClick={handleEndConversation} title="Encerrar conversa" aria-label="Encerrar conversa" className="ccel-icone">
+                    <X className="h-5 w-5" />
+                  </button>
+                </>
+              )}
+            </header>
+
+            {menuCel && (
+              <>
+                <button type="button" aria-label="Fechar menu" onClick={() => setMenuCel(false)} className="absolute inset-0 z-30 h-auto w-auto p-0 bg-black/20 cursor-default" />
+                <div role="menu" className="absolute right-2 top-[calc(env(safe-area-inset-top,0px)+54px)] sm:top-[54px] z-40 w-[250px] max-w-[calc(100%-16px)] rounded-2xl bg-white border border-[#E2E5E8] shadow-[0_12px_32px_rgba(0,0,0,0.18)] py-1.5 overflow-hidden">
+                  {[
+                    { mostra: true, rotulo: 'Nova conversa', icone: RotateCcw, acao: handleClearConversation },
+                    { mostra: true, rotulo: calcOpen ? 'Fechar calculadora' : 'Calculadora', icone: Calculator, acao: () => setCalcOpen(!calcOpen) },
+                    { mostra: true, rotulo: 'Relatório em imagem', icone: FileText, acao: () => handleOpenReport() },
+                    { mostra: !!isRegisteredUser, rotulo: 'Compartilhar consultor', icone: Share2, acao: () => setIsShareModalOpen(true) },
+                    { mostra: canTeach, rotulo: knowledgeOpen ? 'Voltar à conversa' : 'Ensinar IA', icone: Brain, acao: () => setKnowledgeOpen(!knowledgeOpen) },
+                    { mostra: true, rotulo: 'Limpar conversa', icone: Trash2, acao: handleClearConversation },
+                    { mostra: true, rotulo: 'Buscar atualizações', icone: RefreshCw, acao: handleForceUpdate },
+                    { mostra: !isFullPage, rotulo: 'Minimizar', icone: ChevronDown, acao: () => setIsOpen(false) },
+                    { mostra: !isFullPage, rotulo: 'Encerrar conversa', icone: X, acao: handleEndConversation },
+                  ].filter(b => b.mostra).map(b => (
+                    <button
+                      key={b.rotulo}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => { setMenuCel(false); b.acao(); }}
+                      className="w-full h-12 px-4 flex items-center gap-3 text-left text-[15px] font-semibold text-[#1B1E22] hover:bg-[#F3F4F6] active:bg-[#ECEEF0] transition"
+                    >
+                      <b.icone className="h-5 w-5 shrink-0 text-[#5B6168]" />
+                      <span className="truncate">{b.rotulo}</span>
+                    </button>
+                  ))}
                 </div>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-8 px-1.5 sm:px-2 text-slate-300 hover:text-white text-xs gap-1 hover:bg-white/15"
-                  onClick={() => setCalcOpen(!calcOpen)}
-                  title="Calculadora"
-                >
-                  <Calculator className="h-3.5 w-3.5" />
-                  <span className="hidden xs:inline">Calculadora</span>
-                </Button>
+              </>
+            )}
 
-                {canTeach && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className={`h-8 px-1.5 sm:px-2 text-xs gap-1 ${
-                      knowledgeOpen 
-                        ? 'text-amber-400 bg-amber-500/10 hover:bg-amber-500/20' 
-                        : 'text-purple-400 hover:text-purple-300 hover:bg-purple-500/10'
-                    }`}
-                    onClick={() => setKnowledgeOpen(!knowledgeOpen)}
-                    title="Ensinar Roder IA (Adicionar Conhecimento por Voz ou Texto)"
-                  >
-                    <Brain className="h-3.5 w-3.5" />
-                    <span className="hidden xs:inline">{knowledgeOpen ? 'Ver Chat' : 'Ensinar IA'}</span>
-                  </Button>
-                )}
-
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-8 px-1.5 sm:px-2 text-green-400 hover:text-green-300 hover:bg-green-500/10 text-xs gap-1"
-                  onClick={() => handleOpenReport()}
-                  title="Gerar Relatório em Imagem"
-                >
-                  <FileText className="h-3.5 w-3.5" />
-                  <span className="hidden xs:inline">Relatório</span>
-                </Button>
-
-                {isRegisteredUser && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-8 px-1.5 sm:px-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 text-xs gap-1"
-                    onClick={() => setIsShareModalOpen(true)}
-                    title="Compartilhar Consultor via WhatsApp"
-                  >
-                    <Share2 className="h-3.5 w-3.5" />
-                    <span className="hidden xs:inline">Compartilhar</span>
-                  </Button>
-                )}
-
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-8 px-1.5 sm:px-2 text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 text-xs gap-1"
-                  onClick={handleClearConversation}
-                  title="Limpar Conversa"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  <span className="hidden xs:inline">Limpar</span>
-                </Button>
-
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-8 px-1.5 sm:px-2 text-sky-400 hover:text-sky-300 hover:bg-sky-500/10 text-xs gap-1"
-                  onClick={handleForceUpdate}
-                  title="Buscar e carregar novas atualizações pendentes"
-                >
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  <span className="hidden xs:inline">Atualizar</span>
-                </Button>
-
-                {/* Safe Separator */}
-                <div className="h-6 w-[1px] bg-slate-800 mx-1" />
-
-                {/* Minimize Button - hides the container but persists conversation */}
-                <button
-                  onClick={() => setIsOpen(false)}
-                  className="p-1.5 rounded-lg text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 border border-amber-500/20 transition-colors flex items-center justify-center h-8 w-8"
-                  title="Minimizar (Mantém Conversa)"
-                >
-                  <Bot className="h-4.5 w-4.5 animate-pulse" />
-                </button>
-
-                {/* Close/End Button - triggers handleEndConversation (clears conversation and closes) */}
-                <button
-                  onClick={handleEndConversation}
-                  className="p-1.5 rounded-lg text-red-500 hover:text-red-400 hover:bg-red-500/10 border border-red-500/30 transition-colors flex items-center justify-center h-8 w-8 ml-2"
-                  title="Encerrar Conversa"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-
-
-
-            {!knowledgeOpen ? (
+            {knowledgeOpen ? (
+              blocoEnsinar
+            ) : (
               <>
                 {blocoCalculadora}
 
-            {/* Chat Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-950/50 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
-              {listaMensagens}
-            </div>
+                {/* Conversa (ou a tela de início) */}
+                <div ref={listaCelRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3.5 pt-4 pb-3">
+                  {conversaVazia && onboardingStep === 'COMPLETED' ? (
+                    <div className="space-y-5">
+                      <div className="msg-consultor border">
+                        <p className="text-[15.5px] leading-relaxed text-[#1B1E22] m-0">
+                          {primeiroNomeCel ? `Olá, ${primeiroNomeCel}! ` : 'Olá! '}Pergunte sobre um equipamento ou a máquina do cliente.
+                        </p>
+                      </div>
 
-            {blocoExplorador}
+                      <section>
+                        <p className="ccel-rotulo">Equipamentos</p>
+                        {loadingExplorer ? (
+                          <p className="py-3 text-[14px] text-[#6B7178] flex items-center gap-2"><RefreshCw className="h-4 w-4 animate-spin" /> Carregando catálogo...</p>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-2">
+                            {catalogProducts.map(prod => {
+                              const foto = fotoProdutoCel(prod);
+                              return (
+                                <button
+                                  key={prod.id}
+                                  type="button"
+                                  onClick={() => abrirEquipamentoCel(prod)}
+                                  className="h-auto min-h-[64px] p-2.5 rounded-2xl border border-[#E2E5E8] bg-white flex items-center gap-2.5 text-left active:scale-[0.98] transition"
+                                >
+                                  <span className="h-10 w-10 shrink-0 rounded-[10px] bg-[#FFF6D1] flex items-center justify-center overflow-hidden">
+                                    {foto
+                                      ? <MarkdownImage src={foto} className="max-w-full max-h-full m-0 p-0.5 border-0 bg-transparent shadow-none hover:scale-100 object-contain mix-blend-multiply" />
+                                      : <Package className="h-5 w-5 text-[#B08A00]" />}
+                                  </span>
+                                  <span className="min-w-0 text-[14.5px] font-bold leading-snug text-[#1B1E22] break-words line-clamp-2">{prod.name}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </section>
 
-            {blocoEntrada}
-          </>
-        ) : (
-          blocoEnsinar
-        )}
-      </motion.div>
+                      <section>
+                        <p className="ccel-rotulo">Perguntas comuns</p>
+                        <div className="space-y-2">
+                          {sugestoesPc.map(q => (
+                            <button key={q} type="button" onClick={() => handleSend(q)} className="w-full h-auto min-h-12 px-4 py-2.5 rounded-2xl border border-[#E2E5E8] bg-white text-left text-[15px] font-medium text-[#1B1E22] leading-snug active:scale-[0.99] transition">
+                              {q}
+                            </button>
+                          ))}
+                        </div>
+                      </section>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">{listaMensagens}</div>
+                  )}
+                </div>
+
+                {/* Caixa de texto, com os atalhos logo acima durante a conversa */}
+                <div className="shrink-0 px-3 pt-1 pb-[calc(env(safe-area-inset-bottom,0px)+10px)]">
+                  {!conversaVazia && onboardingStep === 'COMPLETED' && (
+                    <div className="ccel-atalhos flex gap-2 overflow-x-auto pb-2 -mx-3 px-3">
+                      <button type="button" onClick={() => abrirEquipamentoCel()} className="ccel-chip">
+                        <Menu className="h-4 w-4" /> Equipamentos
+                      </button>
+                      <button type="button" onClick={() => setCalcOpen(!calcOpen)} className={cn('ccel-chip', calcOpen && 'border-[#F6C400] bg-[#FFF6D1]')}>
+                        <Calculator className="h-4 w-4" /> Calculadora
+                      </button>
+                    </div>
+                  )}
+                  {isRecording ? (
+                    <div className="min-h-[56px] flex items-center justify-between gap-2 rounded-[28px] border border-[#F3C9C9] bg-[#FDF3F3] pl-4 pr-1.5 py-1.5">
+                      <span className="flex items-center gap-2 text-[15px] font-semibold text-[#B42318]">
+                        <span className="relative flex h-2.5 w-2.5">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                        </span>
+                        Gravando...
+                      </span>
+                      <button type="button" onClick={stopRecording} className="h-11 px-4 rounded-full bg-[#B42318] text-[#fff] font-extrabold text-[14px] flex items-center gap-1.5">
+                        <Square className="h-3.5 w-3.5 fill-white" /> Enviar
+                      </button>
+                    </div>
+                  ) : transcribing ? (
+                    <div className="min-h-[56px] flex items-center gap-2 rounded-[28px] border border-[#DADDE1] bg-white px-4 text-[15px] text-[#5B6168]">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Transcrevendo...
+                    </div>
+                  ) : (
+                    <div className="flex items-end gap-1.5 rounded-[24px] border border-[#DADDE1] bg-white pl-4 pr-1.5 py-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] focus-within:border-[#1B1E22] transition-colors">
+                      <textarea
+                        ref={campoCelRef}
+                        rows={1}
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        onFocus={() => { setIsInputFocused(true); setTimeout(rolarListaCelAoFim, 300); }}
+                        onBlur={() => setTimeout(() => setIsInputFocused(false), 200)}
+                        onKeyDown={(e) => {
+                          // teclado de computador: Enter envia (Shift+Enter quebra linha); no celular o Enter quebra linha e envia pelo botão
+                          if (e.key === 'Enter' && !e.shiftKey && !toqueCel && !(e.nativeEvent as any).isComposing) {
+                            e.preventDefault();
+                            if (!loading) handleSend();
+                          }
+                        }}
+                        placeholder={onboardingStep === 'COMPLETED' ? 'Pergunte ao consultor...' : 'Digite sua resposta...'}
+                        enterKeyHint={toqueCel ? 'enter' : 'send'}
+                        className="ccel-campo flex-1 min-w-0 resize-none border-0 bg-transparent p-0 py-[11px] text-[16px] leading-[22px] font-medium text-[#1B1E22] placeholder-[#8A9097] outline-none shadow-none focus:ring-0"
+                      />
+                      <button type="button" onClick={startRecording} disabled={loading} title="Gravar áudio" aria-label="Gravar áudio" className="h-11 w-11 shrink-0 p-0 rounded-full bg-[#F1F2F4] text-[#1B1E22] flex items-center justify-center active:scale-95 transition disabled:opacity-50">
+                        <Mic className="h-5 w-5" />
+                      </button>
+                      <button type="button" onClick={() => handleSend()} disabled={loading || !inputValue.trim()} title="Enviar" aria-label="Enviar" className="h-11 w-11 shrink-0 p-0 rounded-full bg-[#F6C400] text-[#1B1E22] flex items-center justify-center active:scale-95 transition disabled:opacity-45">
+                        <Send className="h-5 w-5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Folha de equipamentos: a mesma lista e o mesmo guia do explorador */}
+            {folhaEquip && !knowledgeOpen && (
+              <div className="absolute inset-0 z-30 flex flex-col justify-end">
+                <button type="button" aria-label="Fechar equipamentos" onClick={() => setFolhaEquip(false)} className="absolute inset-0 h-auto w-auto p-0 bg-black/40 cursor-default" />
+                <div className="relative flex max-h-[85%] flex-col rounded-t-[22px] bg-[#ECEEF0] shadow-[0_-8px_30px_rgba(0,0,0,0.2)] pb-[env(safe-area-inset-bottom,0px)]">
+                  <div className="shrink-0 flex items-center justify-between gap-2 pl-4 pr-1.5 pt-2">
+                    <p className="fonte-titulo text-[17px] font-extrabold text-[#1B1E22]">Equipamentos</p>
+                    <div className="flex items-center gap-1">
+                      {selectedProduct && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedProduct(null);
+                            setSelectedWeightBand(null);
+                            setSelectedModel(null);
+                            setCacambaStep(null);
+                            setSelectedMaterial(null);
+                            setSelectedCacambaBrand('');
+                            setSelectedCacambaModel(null);
+                            setRecommendedCacambaCap('');
+                          }}
+                          className="h-11 px-3 rounded-full text-[14px] font-bold text-[#5B6168] active:bg-black/5"
+                        >
+                          Ver todos
+                        </button>
+                      )}
+                      <button type="button" onClick={() => setFolhaEquip(false)} aria-label="Fechar" className="h-11 w-11 p-0 rounded-full flex items-center justify-center text-[#5B6168] active:bg-black/5">
+                        <X className="h-5 w-5" />
+                      </button>
+                    </div>
+                  </div>
+                  {!selectedProduct ? (
+                    <>
+                      <div className="shrink-0 px-4 pb-3">
+                        <div className="relative">
+                          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-[#8A9097] pointer-events-none" />
+                          <input
+                            type="search"
+                            value={buscaEquip}
+                            onChange={(e) => setBuscaEquip(e.target.value)}
+                            placeholder="Buscar equipamento ou modelo..."
+                            className="w-full h-11 rounded-xl border border-[#DADDE1] bg-white pl-10 pr-3 text-[16px] text-[#1B1E22] placeholder-[#8A9097] outline-none focus:border-[#1B1E22]"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pb-4">
+                        {loadingExplorer ? (
+                          <p className="py-3 text-[14px] text-[#6B7178] flex items-center gap-2"><RefreshCw className="h-4 w-4 animate-spin" /> Carregando catálogo...</p>
+                        ) : equipamentosFiltrados.length === 0 ? (
+                          <p className="py-3 text-[14px] text-[#6B7178]">Nenhum equipamento encontrado.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {equipamentosFiltrados.map(prod => {
+                              const foto = fotoProdutoCel(prod);
+                              const n = (prod.models || []).length;
+                              return (
+                                <button key={prod.id} type="button" onClick={() => abrirEquipamentoCel(prod)} className="w-full h-auto min-h-[60px] p-2.5 rounded-2xl border border-[#E2E5E8] bg-white flex items-center gap-3 text-left active:scale-[0.99] transition">
+                                  <span className="h-10 w-10 shrink-0 rounded-[10px] bg-[#FFF6D1] flex items-center justify-center overflow-hidden">
+                                    {foto
+                                      ? <MarkdownImage src={foto} className="max-w-full max-h-full m-0 p-0.5 border-0 bg-transparent shadow-none hover:scale-100 object-contain mix-blend-multiply" />
+                                      : <Package className="h-5 w-5 text-[#B08A00]" />}
+                                  </span>
+                                  <span className="min-w-0 flex-1 text-[15px] font-bold leading-snug text-[#1B1E22] break-words">{prod.name}</span>
+                                  {n > 0 && <span className="shrink-0 text-[13px] text-[#8A9097]">{n}</span>}
+                                  <ChevronRight className="h-4.5 w-4.5 shrink-0 text-[#9AA1A9]" />
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="cpc-explorador ccel-folha flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 pb-3">{blocoExplorador}</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </motion.div>
         )}
       </AnimatePresence>
 
