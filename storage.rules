@@ -26,6 +26,12 @@ service firebase.storage {
       allow update, delete: if equipe();
     }
 
+    // Foto de perfil: cada um troca a própria (o caminho é sempre o mesmo)
+    match /profiles/{dono} {
+      allow read: if logado();
+      allow write: if logado() && request.auth.uid == dono && tamanhoOk(20);
+    }
+
     // Nota fiscal de comissão: o parceiro envia só a dele (o nome começa com monthly_<uid>_).
     match /commissions_nf/{arquivo} {
       allow read: if logado();

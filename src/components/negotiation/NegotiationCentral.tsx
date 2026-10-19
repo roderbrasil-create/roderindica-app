@@ -1349,7 +1349,7 @@ export default function NegotiationCentral() {
           // pesquisa já respondida não volta a "pendente" com notas zeradas
           const evalRef = doc(db, 'customer_evaluations', activeIndication.id);
           const evalAtual = await getDoc(evalRef).catch(() => null);
-          if (!evalAtual?.exists() || evalAtual.data()?.status !== 'completed') {
+          if (!evalAtual?.exists() || evalAtual.data()?.status === 'pending') {
             await setDoc(evalRef, evalPayload, { merge: true });
           }
           console.log(`Saved customer quality survey: scheduled for ${evalPayload.scheduled_date}`);

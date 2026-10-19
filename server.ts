@@ -1418,7 +1418,7 @@ Retorne um array JSON no formato exato:
       body: corpo ? JSON.stringify(corpo) : undefined,
     });
     const j: any = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j?.error?.message || `Erro ${r.status} na API de regras`);
+    if (!r.ok) { const e: any = new Error(j?.error?.message || `Erro ${r.status} na API de regras`); e.status = r.status; throw e; }
     return j;
   }
   async function exigirAdmin(req: any, res: any) {
@@ -1469,9 +1469,22 @@ Retorne um array JSON no formato exato:
           source: { files: [{ name: alvo === 'firestore' ? 'firestore.rules' : 'storage.rules', content: fonte }] },
         });
         const releaseNome = (n as any)[alvo];
-        const atual = await chamarRegras('GET', `${REGRAS_API}/${releaseNome}`).catch(() => null);
+        // só "não existe" (404) é aceito aqui; qualquer outra falha para tudo antes de mexer
+        const atual = await chamarRegras('GET', `${REGRAS_API}/${releaseNome}`).catch((e: any) => {
+          if (e?.status === 404) return null;
+          throw e;
+        });
+        // já está no ar exatamente esta regra: não publica de novo (e não estraga o "Voltar")
+        if (atual?.rulesetName) {
+          const fonteNoAr = (await chamarRegras('GET', `${REGRAS_API}/${atual.rulesetName}`))?.source?.files?.[0]?.content || '';
+          if (fonteNoAr.trim() === fonte.trim()) { feito[alvo] = 'ja_estava'; continue; }
+        }
+        // o "anterior" guardado é sempre a regra de ANTES da primeira publicação pelo app:
+        // se o que está no ar é a que o app publicou da última vez, mantém o anterior antigo
+        const hist = (await db.collection('regras_historico').doc(alvo).get()).data();
+        const anterior = hist?.nova && atual?.rulesetName === hist.nova ? (hist.anterior || null) : (atual?.rulesetName || null);
         await db.collection('regras_historico').doc(alvo).set({
-          anterior: atual?.rulesetName || null,
+          anterior,
           nova: rs.name,
           publicado_por: q.email,
           publicado_em: new Date().toISOString(),
@@ -1518,7 +1531,8 @@ Retorne um array JSON no formato exato:
     try {
       const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
       if (!token) return res.status(401).json({ ok: false });
-      const dec: any = await admin.auth().verifyIdToken(token);
+      // checkRevoked: se o admin trocou a senha, um login antigo de outra pessoa deixa de valer aqui
+      const dec: any = await admin.auth().verifyIdToken(token, true);
       const email = String(dec.email || '').toLowerCase().trim();
       if (!email || dec.firebase?.sign_in_provider === 'anonymous') return res.status(401).json({ ok: false });
       // Conta com senha só nasce pela tela de Usuários (o app não tem cadastro aberto), então vale.

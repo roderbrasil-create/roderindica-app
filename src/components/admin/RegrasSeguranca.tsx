@@ -35,7 +35,8 @@ export default function RegrasSeguranca() {
     try {
       const r = await fetch(`/api/admin/regras/${acao}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
       const j = await r.json().catch(() => ({}));
-      if (!r.ok || !j.ok) toast.error(j.error || 'Não deu certo. Nada foi alterado.');
+      const mudou = j.feito && Object.keys(j.feito).length ? ` Já alterado: ${Object.keys(j.feito).join(' e ')}.` : ' Nada foi alterado.';
+      if (!r.ok || !j.ok) toast.error(`${j.error || 'Não deu certo.'}${mudou}`, { duration: 10000 });
       else toast.success(acao === 'publicar' ? 'Regras novas publicadas.' : 'Regras anteriores de volta.');
     } catch {
       toast.error('Sem conexão com o servidor.');

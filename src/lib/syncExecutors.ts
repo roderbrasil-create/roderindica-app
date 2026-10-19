@@ -34,7 +34,7 @@ async function syncIndication(item: SyncItem) {
     for (const mediaId of mediaIds) {
       const media = await getMediaLocally(mediaId);
       if (media) {
-        const storageRef = ref(storage, `indications/${item.id}/${media.fileName}`);
+        const storageRef = ref(storage, `indications/${item.id}/${Date.now()}_${media.fileName}`);
         await uploadBytes(storageRef, media.blob);
         const url = await getDownloadURL(storageRef);
         uploadedMediaUrls.push(url);

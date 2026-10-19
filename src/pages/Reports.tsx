@@ -631,7 +631,7 @@ export default function Reports() {
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="gestao" className="space-y-6">
-          <TabsList className="bg-muted/50 p-1 rounded-xl h-12 w-full md:w-auto grid grid-cols-2 md:flex gap-2">
+          <TabsList className="bg-muted/50 p-1 rounded-xl h-auto md:h-12 w-full md:w-auto grid grid-cols-2 md:flex gap-2">
             <TabsTrigger value="gestao" className="rounded-lg font-bold uppercase text-[10px] tracking-widest data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               Diretoria (Mensal)
             </TabsTrigger>

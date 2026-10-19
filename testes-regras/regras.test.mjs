@@ -474,3 +474,13 @@ test('STORAGE: equipe com e-mail @roderbrasil troca e apaga vídeo existente', a
 test('FINANCEIRO pode faturar (cria comissão)', async () => {
   await assertSucceeds(setDoc(doc(fs_('vanessa'), 'commissions', 'c9'), { external_seller_uid: 'u_par', value: 10 }));
 });
+
+test('STORAGE: parceiro troca a própria foto de perfil, mas não a de outro', async () => {
+  await env.withSecurityRulesDisabled((ctx) => uploadBytes(ref(ctx.storage(), 'profiles/u_par'), new Uint8Array([1])));
+  await assertSucceeds(uploadBytes(ref(st_('parceiro'), 'profiles/u_par'), new Uint8Array([2])));
+  await assertFails(uploadBytes(ref(st_('parceiro'), 'profiles/u_par2'), new Uint8Array([2])));
+});
+test('STORAGE: parceiro envia a própria NF com nome novo, e não a de outro', async () => {
+  await assertSucceeds(uploadBytes(ref(st_('parceiro'), 'commissions_nf/monthly_u_par_5_2026_123_nf.pdf'), new Uint8Array([1])));
+  await assertFails(uploadBytes(ref(st_('parceiro'), 'commissions_nf/monthly_u_par2_5_2026_123_nf.pdf'), new Uint8Array([1])));
+});

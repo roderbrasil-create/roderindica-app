@@ -589,7 +589,7 @@ export default function Commissions() {
       let url = selectedPartnerPeriod.nf_url || null;
 
       if (partnerNFFile) {
-        const storageRef = ref(storage, `commissions_nf/monthly_${profile?.uid}_${selectedPartnerPeriod.month}_${selectedPartnerPeriod.year}_${partnerNFFile.name}`);
+        const storageRef = ref(storage, `commissions_nf/monthly_${profile?.uid}_${selectedPartnerPeriod.month}_${selectedPartnerPeriod.year}_${Date.now()}_${partnerNFFile.name}`);
         await uploadBytes(storageRef, partnerNFFile);
         url = await getDownloadURL(storageRef);
       }
@@ -812,7 +812,7 @@ export default function Commissions() {
     setSubmitting(true);
 
     try {
-      const storageRef = ref(storage, `commissions_nf/monthly_${selectedStatement.id}_${nfFile.name}`);
+      const storageRef = ref(storage, `commissions_nf/monthly_${selectedStatement.id}_${Date.now()}_${nfFile.name}`);
       await uploadBytes(storageRef, nfFile);
       const url = await getDownloadURL(storageRef);
 
