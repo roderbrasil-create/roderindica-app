@@ -470,14 +470,8 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     return navItems.filter((item) => {
       // Strict filter for comercial tab: only visible to Admin, Gislene, and Luana
       if (item.id === 'comercial') {
-        const lowercaseName = (profile?.name || '').toLowerCase();
-        const lowercaseEmail = (profile?.email || (user && user.email) || '').toLowerCase();
-        const allowed = isAdmin || 
-                        isInternalSeller ||
-                        lowercaseEmail.includes('gislene') || 
-                        lowercaseEmail.includes('luana') || 
-                        lowercaseName.includes('gislene') || 
-                        lowercaseName.includes('luana');
+        // pelo papel, e não pelo nome: uma gerente ou triagem nova também precisa ver
+        const allowed = isAdmin || isManager || isTriagem || isInternalSeller;
         if (!allowed) {
           return false;
         }

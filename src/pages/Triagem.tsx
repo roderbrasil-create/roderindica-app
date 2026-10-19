@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import { cn, safeFormatDate, getSlaRemainingInfo } from '../lib/utils';
+import { cn, safeFormatDate, getSlaRemainingInfo, numeroWhats } from '../lib/utils';
 import { 
   CheckCircle2, 
   XCircle, 
@@ -289,46 +289,31 @@ export default function Triagem() {
     try {
       const prevSellerUid = selectedIndication.internal_seller_uid;
       const prevSellerName = selectedIndication.internal_seller_name;
+      let sellerEmail = internalSellers.find(u => u.uid === targetUid)?.email || '';
+      let sellerPhone = internalSellers.find(u => u.uid === targetUid)?.phone || '';
+      if (!sellerEmail) {
+        try {
+          const sellerSnap = await getDoc(doc(db, 'users', targetUid));
+          if (sellerSnap.exists()) {
+            sellerEmail = sellerSnap.data().email || '';
+            sellerPhone = sellerSnap.data().phone || '';
+          }
+        } catch (err) {
+          console.error("Error fetching seller details for email:", err);
+        }
+      }
 
       await updateDoc(doc(db, 'indications', selectedIndication.id), {
         internal_seller_uid: targetUid,
         internal_seller_name: targetName,
+        // a Central reconhece a dona também pelo e-mail: sem trocar aqui, a anterior continuava vendo
+        internal_seller_email: sellerEmail || null,
         status: 'negotiating',
         updated_at: new Date().toISOString(),
         duplicate_reviewed: true
       });
 
-      // Fetch designated salesperson details (email/phone) to include in notifications
-      let sellerEmail = '';
-      let sellerPhone = '';
-      try {
-        const sellerSnap = await getDoc(doc(db, 'users', targetUid));
-        if (sellerSnap.exists()) {
-          const sellerData = sellerSnap.data();
-          sellerEmail = sellerData.email || '';
-          sellerPhone = sellerData.phone || '';
-        }
-      } catch (err) {
-        console.error("Error fetching seller details for email:", err);
-      }
-
-      // Notify partner and seller via beautiful assignment emails
-      if (selectedIndication.external_seller_uid) {
-        try {
-          const userSnap = await getDoc(doc(db, 'users', selectedIndication.external_seller_uid));
-          if (userSnap.exists()) {
-            const userData = userSnap.data();
-            const { notifyLeadAssignment } = await import('../services/emailService');
-            await notifyLeadAssignment(
-              { ...selectedIndication, status: 'negotiating' },
-              { name: targetName || 'Vendedor', email: sellerEmail, phone: sellerPhone },
-              { name: userData.name || 'Parceiro', email: userData.email || '', phone: userData.phone || '' }
-            );
-          }
-        } catch (emailErr) {
-          console.error("Error sending lead assignment emails:", emailErr);
-        }
-      }
+      // (os e-mails saem uma vez só, mais abaixo: antes saíam aqui E lá, e todo mundo recebia dois)
 
       // Also update Fair Lead if exists
       if (selectedIndication.fair_lead_id) {
@@ -387,20 +372,6 @@ export default function Triagem() {
 
       // Fetch seller details and partner details for bidirectional email notification
       try {
-        const sellerProfile = internalSellers.find(u => u.uid === targetUid);
-        let sellerEmail = '';
-        let sellerPhone = '';
-        if (sellerProfile) {
-          sellerEmail = sellerProfile.email || '';
-          sellerPhone = sellerProfile.phone || '';
-        } else {
-          const uSnap = await getDoc(doc(db, 'users', targetUid));
-          if (uSnap.exists()) {
-            const uData = uSnap.data();
-            sellerEmail = uData.email || '';
-            sellerPhone = uData.phone || '';
-          }
-        }
 
         let partnerName = 'Parceiro';
         let partnerEmail = '';
@@ -420,7 +391,8 @@ export default function Triagem() {
           await notifyLeadAssignment(
             selectedIndication,
             { name: targetName, email: sellerEmail, phone: sellerPhone },
-            { name: partnerName, email: partnerEmail, phone: partnerPhone }
+            // redistribuição não manda de novo ao parceiro o "sua indicação foi recebida"
+            { name: partnerName, email: prevSellerUid ? '' : partnerEmail, phone: partnerPhone }
           );
         }
       } catch (assignEmailErr) {
@@ -854,7 +826,7 @@ export default function Triagem() {
                             size="icon" 
                             variant="ghost" 
                             className="h-5 w-5 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-500/10 shrink-0"
-                            onClick={() => window.open(`https://wa.me/${ind.client_phone.replace(/\D/g, '')}`, '_blank')}
+                            onClick={() => window.open(`https://wa.me/${numeroWhats(ind.client_phone)}`, '_blank')}
                           >
                             <MessageCircle className="h-3 w-3" />
                           </Button>

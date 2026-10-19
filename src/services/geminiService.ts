@@ -61,8 +61,8 @@ export async function generateAISummary(historyText: string, variant: 'short' | 
   return executeBackendAI("generateAISummary", { historyText, variant });
 }
 
-export async function analyzeDetailedBudget(fileBase64: string): Promise<any> {
-  return executeBackendAI("analyzeDetailedBudget", { fileBase64 });
+export async function analyzeDetailedBudget(fileBase64: string, mimeType?: string): Promise<any> {
+  return executeBackendAI("analyzeDetailedBudget", { fileBase64, mimeType });
 }
 
 export async function analyzePDFDocument(fileBase64: string, customPrompt: string): Promise<any> {

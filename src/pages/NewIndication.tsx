@@ -1393,7 +1393,9 @@ export default function NewIndication() {
             const primaryItem = selectedItems[0]?.product_name || 'Equipamento';
             
             const locationStr = formData.client_location || '';
-            const locationParts = locationStr.includes('-') ? locationStr.split('-') : [locationStr, ''];
+            // corta no ÚLTIMO " - ": "Ji-Paraná - RO" virava cidade "Ji" e UF "Paraná"
+            const corte = locationStr.lastIndexOf(' - ') >= 0 ? locationStr.lastIndexOf(' - ') : locationStr.lastIndexOf('-');
+            const locationParts = corte >= 0 ? [locationStr.slice(0, corte), locationStr.slice(corte).replace(/^\s*-\s*/, '')] : [locationStr, ''];
 
             const indicationDataForEmail = {
               client_name: formData.client_person_name || formData.client_name,

@@ -995,12 +995,13 @@ export default function Indications() {
 
     const fetchInternalSellers = async () => {
       try {
-        const q = query(collection(db, 'users'), where('profile', '==', 'internal_seller'), orderBy('name', 'asc'));
+        // o campo é role (com 'profile' a lista vinha vazia); ordena aqui para não exigir índice composto
+        const q = query(collection(db, 'users'), where('role', '==', 'internal_seller'));
         const snapshot = await getDocs(q);
         setInternalSellers(snapshot.docs.map(d => ({ 
           uid: d.id, 
           name: d.data().name || 'Sem Nome'
-        })));
+        })).sort((a, b) => a.name.localeCompare(b.name)));
       } catch (err) {
         console.error("Error fetching internal sellers:", err);
       }

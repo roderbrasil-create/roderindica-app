@@ -31,7 +31,7 @@ export const notifyManagers = async (title: string, message: string, link?: stri
   try {
     const q = query(
       collection(db, 'users'), 
-      where('profile', 'in', ['admin', 'manager', 'triagem'])
+      where('role', 'in', ['admin', 'manager', 'triagem']) // o campo do usuário é role; com 'profile' a lista vinha sempre vazia
     );
     const snapshot = await getDocs(q);
     

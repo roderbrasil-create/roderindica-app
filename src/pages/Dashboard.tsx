@@ -571,7 +571,7 @@ function DashboardCompleto() {
 
       setPerformanceData({
         monthly_sales: totalSalesValue,
-        monthly_leads: data.filter(i => new Date(i.created_at).getMonth() === month).length,
+        monthly_leads: data.filter(i => { const d = new Date(i.created_at); return d.getMonth() === month && d.getFullYear() === now.getFullYear(); }).length,
         avg_response_time: responseTimes.length > 0 ? responseTimes.reduce((a,b) => a+b,0)/responseTimes.length : 0,
         avg_closing_time: closingTimes.length > 0 ? closingTimes.reduce((a,b) => a+b,0)/closingTimes.length : 0,
       });
@@ -744,7 +744,11 @@ function DashboardCompleto() {
           where('status', '==', 'pending')
         );
         
-        const staleSnap = await getDocs(qStale);
+        // As INDICAÇÕES paradas são distribuídas pelo servidor (cron de 15 em 15 min, server.ts).
+        // Fazer aqui também, em todo navegador de gestão aberto, sorteava o mesmo lead duas vezes
+        // e mandava os e-mails em dobro. Aqui ficam só os leads de feira.
+        const staleSnap = { docs: [] as any[] };
+        void qStale;
         const staleDocs = staleSnap.docs.filter(doc => {
           const data = doc.data();
           const createdAt = new Date(data.created_at);
@@ -2083,10 +2087,10 @@ function DashboardCompleto() {
                       <PieChart>
                         <Pie
                           data={[
-                            { name: 'Vendido', value: indications.filter(i => i.status === 'sold').length },
-                            { name: 'Negociando', value: indications.filter(i => i.status === 'negotiating').length },
-                            { name: 'Pendente', value: indications.filter(i => i.status === 'pending').length },
-                            { name: 'Cancelado', value: indications.filter(i => i.status === 'cancelled').length || 0 },
+                            { name: 'Vendido', value: indications.filter(i => i.status === 'sold').length, cor: '#22c55e' },
+                            { name: 'Negociando', value: indications.filter(i => i.status === 'negotiating').length, cor: '#f97316' },
+                            { name: 'Pendente', value: indications.filter(i => i.status === 'pending').length, cor: '#eab308' },
+                            { name: 'Cancelado', value: indications.filter(i => i.status === 'cancelled').length || 0, cor: '#ef4444' },
                           ].filter(d => d.value > 0)}
                           cx="70%"
                           cy="50%"
@@ -2095,10 +2099,13 @@ function DashboardCompleto() {
                           paddingAngle={3}
                           dataKey="value"
                         >
-                          <Cell fill="#22c55e" /> {/* green-500 */}
-                          <Cell fill="#f97316" /> {/* orange-500 */}
-                          <Cell fill="#eab308" /> {/* yellow-500 */}
-                          <Cell fill="#ef4444" /> {/* red-500 */}
+                          {/* a cor anda junto com o dado: sem isso, sumindo um status, as cores escorregavam */}
+                          {[
+                            { name: 'Vendido', value: indications.filter(i => i.status === 'sold').length, cor: '#22c55e' },
+                            { name: 'Negociando', value: indications.filter(i => i.status === 'negotiating').length, cor: '#f97316' },
+                            { name: 'Pendente', value: indications.filter(i => i.status === 'pending').length, cor: '#eab308' },
+                            { name: 'Cancelado', value: indications.filter(i => i.status === 'cancelled').length, cor: '#ef4444' },
+                          ].filter(d => d.value > 0).map(d => <Cell key={d.name} fill={d.cor} />)}
                         </Pie>
                         <RechartsTooltip 
                           contentStyle={{ borderRadius: '8px', border: 'none', fontSize: '10px', padding: '5px' }}

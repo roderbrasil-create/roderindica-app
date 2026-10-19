@@ -287,6 +287,7 @@ export default function Commissions() {
   // Listener for general monthly filtering select
   useEffect(() => {
     if (!profile) return;
+    let unsubPotencial = () => {};
 
     // Fetch individual commissions
     let q = query(
@@ -332,7 +333,7 @@ export default function Commissions() {
         where('status', '==', 'negotiating')
       );
 
-      onSnapshot(qPotential, (snapshot) => {
+      unsubPotencial = onSnapshot(qPotential, (snapshot) => {
         setPotentialLeads(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       });
     }
@@ -381,6 +382,7 @@ export default function Commissions() {
       unsubscribeComms();
       unsubscribeStatements();
       unsubscribeMecanica();
+      unsubPotencial();
     };
   }, [profile, selectedMonth, selectedYear]);
 

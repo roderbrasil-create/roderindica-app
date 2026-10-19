@@ -2,6 +2,29 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import { auth } from './lib/firebase';
+
+// Todo /api/ do próprio app leva o token de quem está logado, para o servidor saber quem pede.
+// Sem isso, rotas como envio de e-mail e configurações não tinham como distinguir a equipe de um visitante.
+if (typeof window !== 'undefined' && window.fetch) {
+  const fetchOriginal = window.fetch.bind(window);
+  window.fetch = async (entrada: RequestInfo | URL, init?: RequestInit) => {
+    try {
+      const url = typeof entrada === 'string' ? entrada : entrada instanceof URL ? entrada.href : entrada.url;
+      const doApp = url.startsWith('/api/') || url.startsWith(window.location.origin + '/api/');
+      const usuario = auth.currentUser;
+      if (doApp && usuario && !usuario.isAnonymous && !(entrada instanceof Request)) {
+        const headers = new Headers(init?.headers || {});
+        if (!headers.has('Authorization')) {
+          const token = await usuario.getIdToken().catch(() => '');
+          if (token) headers.set('Authorization', `Bearer ${token}`);
+          return fetchOriginal(entrada, { ...init, headers });
+        }
+      }
+    } catch { /* segue sem token */ }
+    return fetchOriginal(entrada, init);
+  };
+}
 
 // Safe DOM patch to prevent React reconciler crashes (removeChild / insertBefore) caused by Google Translate or extensions
 if (typeof window !== 'undefined' && typeof Node !== 'undefined' && Node.prototype) {

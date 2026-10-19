@@ -46,6 +46,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const { isOffline } = usePWA();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const ehParceiro = useEhParceiro();
+  // um sino só: com os dois montados (um escondido por CSS) eram dois ouvintes e dois sons
+  const [celular, setCelular] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const mudou = () => setCelular(mq.matches);
+    mq.addEventListener('change', mudou);
+    return () => mq.removeEventListener('change', mudou);
+  }, []);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -249,7 +257,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </div>
             
             <div className="flex items-center gap-2">
-               <NotificationBell />
+               {celular && <NotificationBell />}
             </div>
           </header>
         </div>
@@ -274,7 +282,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <span className="text-xs font-black uppercase tracking-wider text-muted-foreground">{getPageTitle(location.pathname)}</span>
             </div>
           </div>
-          <NotificationBell />
+          {!celular && <NotificationBell />}
         </header>
 
         <main className={cn("flex-1 p-4 md:p-8 pt-16 md:pt-8 max-w-full mobile-safe-main", ehParceiro && !location.pathname.startsWith("/estoque") && !location.pathname.startsWith("/indicacoes/nova") && "pb-28 md:pb-8")}>

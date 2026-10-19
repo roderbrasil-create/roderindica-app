@@ -330,7 +330,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
 
             // Self-healing for Vanessa Camargo if her role got corrupted/incorrectly-guessed as internal_seller or anything else
-            const isVanessaOrFinance = userEmail.includes('vanessa') || displayName.includes('vanessa') || userEmail.includes('finance');
+            // só e-mail da Roder: antes um parceiro com "finance" ou "vanessa" no e-mail virava financeiro sozinho
+            const isVanessaOrFinance = userEmail.endsWith('@roderbrasil.com.br') && (userEmail.includes('vanessa') || userEmail.includes('finance'));
             
             const fDefaults = {
               sidebar: ['dashboard', 'products_stock', 'products_registered', 'accessories', 'finance', 'reports', 'profile'],
@@ -589,6 +590,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('roder_impersonation');
   }, []);
 
+  // "Ver como" só vale para quem é de fato admin ou gerente. Antes bastava gravar
+  // roder_impersonation no navegador para qualquer um ver as telas de admin.
+  useEffect(() => {
+    if (!impersonatedProfile || !profile) return;
+    const podeVerComo = profile.role === 'admin' || profile.role === 'manager' ||
+      ['roderbrasil@gmail.com', 'roderindica@gmail.com', 'jeferson@roderbrasil.com.br'].includes((profile.email || '').toLowerCase());
+    if (!podeVerComo) {
+      setImpersonatedProfile(null);
+      try { localStorage.removeItem('roder_impersonation'); } catch { /* sem armazenamento */ }
+    }
+  }, [impersonatedProfile, profile]);
+
   const activeProfile = impersonatedProfile || profile;
 
   const value = React.useMemo(() => {
@@ -630,14 +643,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (impersonatedProfile) {
         return impersonatedProfile.role === 'marketing' || impersonatedProfile.role === 'admin';
       }
-      return profile?.role === 'marketing' || profile?.role === 'admin' || isTopAdmin || (userEmail?.includes('marketing') && !impersonatedProfile);
+      return profile?.role === 'marketing' || profile?.role === 'admin' || isTopAdmin || (userEmail?.endsWith('@roderbrasil.com.br') && userEmail.includes('marketing') && !impersonatedProfile);
     };
 
     const getIsInternalSeller = () => {
       if (impersonatedProfile) {
         return impersonatedProfile.role === 'internal_seller';
       }
-      return profile?.role === 'internal_seller' || (userEmail.includes('pecas') && !impersonatedProfile) || (userEmail.includes('peças') && !impersonatedProfile);
+      return profile?.role === 'internal_seller' || (userEmail.endsWith('@roderbrasil.com.br') && userEmail.includes('pecas') && !impersonatedProfile);
     };
 
     const getIsTriagem = () => {

@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
@@ -251,6 +252,15 @@ async function classifyQuestionTopic(ai: GoogleGenAI, question: string): Promise
 
 async function startServer() {
   const app = express();
+
+  // O código do servidor mora dentro de dist/, que é servida como site: /server.cjs.map entregava
+  // o servidor inteiro, e um arquivo de credencial perdido na pasta também sairia.
+  app.use((req, res, next) => {
+    if (/\.(cjs|map|env)$/i.test(req.path) || /^\/server\.(ts|js)$/i.test(req.path) || /service-account|firebase-adminsdk/i.test(req.path) || /^\/\.(?!well-known)/.test(req.path)) {
+      return res.status(404).send('Not found');
+    }
+    next();
+  });
   const PORT = process.env.PORT || 3000;
 
   // Set up standard and highly compatible CORS middleware using the 'cors' library
@@ -278,7 +288,7 @@ async function startServer() {
     fs.mkdirSync(uploadsDir, { recursive: true });
   }
   // Serve uploads with express static middleware
-  app.use("/uploads", express.static(uploadsDir));
+  app.use("/uploads", (req, res, next) => { res.setHeader('X-Content-Type-Options', 'nosniff'); next(); }, express.static(uploadsDir));
 
   // API routes
   // Versão publicada (conferência de implantação). Atualizar RELEASE_LABEL a cada publicação.
@@ -480,6 +490,16 @@ async function startServer() {
     }
   });
 
+  // Rotas de administração: só a gestão logada. Antes eram abertas, e bastava abrir o endereço
+  // (ou um robô de prévia de link abrir) para listar chaves de API ou apagar fotos do catálogo.
+  app.use(['/api/v1/api-keys', '/api/reassign-export-lead', '/api/sync-liugong-908',
+    '/api/admin/clean-accessories-duplicates', '/api/admin/list-accessories', '/api/admin/dump-history'],
+    async (req: any, res: any, next: any) => {
+      if (req.method === 'OPTIONS') return next();
+      if (ehGestao(await quemChama(req))) return next();
+      return res.status(403).json({ success: false, error: 'Acesso restrito à gestão.' });
+    });
+
   // POST /api/v1/api-keys/generate - Gerar nova Chave de API de forma segura
   app.post("/api/v1/api-keys/generate", async (req, res) => {
     try {
@@ -489,7 +509,7 @@ async function startServer() {
       }
 
       // Generate random secure token
-      const randomHex = Array.from({ length: 24 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+      const randomHex = crypto.randomBytes(16).toString('hex');
       const apiKey = `rod_live_${randomHex}`;
 
       const keyDoc = {
@@ -1160,6 +1180,17 @@ Retorne um array JSON no formato exato:
       if (!fileBase64 || !fileName) {
         return res.status(400).json({ error: "Faltando base64 ou nome de arquivo." });
       }
+      // Só a equipe, e só imagem ou PDF. Antes, sem login, alguém subia um .html que o próprio
+      // roderindica.com servia, e com ele roubava a sessão de quem abrisse.
+      if (!ehEquipe(await quemChama(req))) {
+        return res.status(401).json({ error: "Entre no app para enviar arquivos." });
+      }
+      if (!/\.(jpe?g|png|webp|gif|pdf)$/i.test(String(fileName))) {
+        return res.status(400).json({ error: "Envie uma imagem (jpg, png, webp) ou PDF." });
+      }
+      if (docName && !/^[a-z0-9_-]{1,80}$/i.test(String(docName))) {
+        return res.status(400).json({ error: "Documento inválido." });
+      }
 
       let cleanBase64 = fileBase64;
       if (fileBase64.includes(";base64,")) {
@@ -1278,12 +1309,33 @@ Retorne um array JSON no formato exato:
     }
   });
 
+  // QUEM ESTÁ CHAMANDO. O app manda o token do Firebase em todo /api/ (main.tsx). Login anônimo
+  // não conta: as páginas públicas entram anônimas, então "logado" sozinho é qualquer visitante.
+  async function quemChama(req: any): Promise<{ uid: string; email: string; role: string } | null> {
+    try {
+      const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+      if (!token || token.length < 100) return null;
+      const dec: any = await admin.auth().verifyIdToken(token);
+      if (dec.firebase?.sign_in_provider === 'anonymous') return null;
+      const u = await db.collection('users').doc(dec.uid).get();
+      return { uid: dec.uid, email: (dec.email || '').toLowerCase(), role: String(u.data()?.role || '') };
+    } catch { return null; }
+  }
+  const EQUIPE_RODER = ['admin', 'manager', 'triagem', 'internal_seller', 'financial', 'marketing'];
+  const ehEquipe = (q: any) => !!q && EQUIPE_RODER.includes(q.role);
+  const ehGestao = (q: any) => !!q && (q.role === 'admin' || q.role === 'manager');
+
   // Get settings document securely from server-side admin SDK to avoid client-side Firestore rules/connection blocks
   app.get("/api/settings/:docName", async (req, res) => {
     try {
       const { docName } = req.params;
       if (!docName) {
         return res.status(400).json({ error: "Nome do documento não fornecido." });
+      }
+      // Sem login só sai o que as fichas públicas usam. Antes, /api/settings/email devolvia a
+      // senha do Gmail e /api/settings/agendor o token para qualquer pessoa na internet.
+      if (!/^engate_rapido/.test(docName) && !ehGestao(await quemChama(req))) {
+        return res.status(403).json({ error: "Acesso restrito." });
       }
 
       const docRef = db.collection('settings').doc(docName);
@@ -1306,6 +1358,9 @@ Retorne um array JSON no formato exato:
       const data = req.body;
       if (!docName) {
         return res.status(400).json({ error: "Nome do documento não fornecido." });
+      }
+      if (!ehGestao(await quemChama(req))) {
+        return res.status(403).json({ error: "Só a gestão altera configurações." });
       }
 
       const docRef = db.collection('settings').doc(docName);
@@ -1379,8 +1434,9 @@ Retorne um array JSON no formato exato:
       if (url.startsWith("http://localhost") || url.includes("/uploads/")) {
         const parts = url.split("/uploads/");
         if (parts.length > 1) {
-          const localFile = path.join(uploadsDir, parts[1]);
-          if (fs.existsSync(localFile)) {
+          // basename: "uploads/../firebase-service-account.json" baixava qualquer arquivo do servidor
+          const localFile = path.join(uploadsDir, path.basename(parts[1].split('?')[0]));
+          if (localFile.startsWith(uploadsDir) && fs.existsSync(localFile)) {
             res.setHeader('Cache-Control', 'public, max-age=31536000');
             return res.sendFile(localFile);
           }
@@ -1437,11 +1493,26 @@ Retorne um array JSON no formato exato:
   });
 
   app.post("/api/send-email", async (req, res) => {
-    const { to, subject, html, replyTo, fromName, settings: bodySettings, attachments } = req.body;
+    const { to, subject, html, replyTo, fromName, attachments } = req.body;
     console.log(`[EMAIL-API] Recebida solicitação de envio para: ${to} | Assunto: ${subject}`);
     
     try {
-      let settings = bodySettings;
+      // A configuração de envio vem SÓ do servidor. Antes o navegador mandava a senha do Gmail junto.
+      let settings: any = null;
+
+      // Sem login da equipe, só pode mandar para a Roder ou para quem já tem cadastro no app.
+      // Antes, qualquer pessoa mandava e-mail pela conta da Roder para qualquer endereço.
+      const quem = await quemChama(req);
+      if (!quem) {
+        const destinos = (Array.isArray(to) ? to : String(to || '').split(','))
+          .map((e: string) => String(e).trim().toLowerCase()).filter(Boolean);
+        if (destinos.length === 0 || destinos.length > 10) return res.status(400).json({ error: "Destinatário inválido." });
+        for (const d of destinos) {
+          if (d.endsWith('@roderbrasil.com.br') || d === 'roderbrasil@gmail.com' || d === 'roderindica@gmail.com') continue;
+          const achou = await db.collection('users').where('email', '==', d).limit(1).get();
+          if (achou.empty) return res.status(403).json({ error: "Envio não permitido para este destinatário." });
+        }
+      }
 
       // Only try to read from DB if settings weren't passed in the body
       if (!settings) {
@@ -1529,9 +1600,6 @@ Retorne um array JSON no formato exato:
             user: settings.user, // ex: roderindica@gmail.com
             pass: settings.pass.replace(/\s/g, '') // remove spaces just in case
           },
-          tls: {
-            rejectUnauthorized: false
-          }
         });
 
         const footer = `
@@ -3961,6 +4029,21 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         return res.status(403).json({ error: "Acesso negado. Administradores e Gestores podem definir senhas." });
       }
 
+      // Login anônimo nunca troca senha, e conta de admin ou gerente só o admin troca.
+      // Antes, quem se colocasse como gestor conseguia trocar a senha do diretor e entrar como ele.
+      if ((decodedToken as any).firebase?.sign_in_provider === 'anonymous') {
+        return res.status(403).json({ error: "Acesso negado." });
+      }
+      {
+        const alvo = await db.collection('users').where('email', '==', String(email).toLowerCase().trim()).limit(1).get();
+        const papelAlvo = alvo.empty ? '' : String(alvo.docs[0].data().role || '');
+        const alvoProtegido = papelAlvo === 'admin' || papelAlvo === 'manager' ||
+          ['roderbrasil@gmail.com', 'roderindica@gmail.com', 'jeferson@roderbrasil.com.br'].includes(String(email).toLowerCase().trim());
+        if (alvoProtegido && requesterData?.role !== 'admin') {
+          return res.status(403).json({ error: "Só o administrador troca a senha de contas de gestão." });
+        }
+      }
+
       // 2. Find or create the user in Firebase Auth
       console.log(`[AUTH-ADMIN] Target Email: ${email}`);
       let userRecord;
@@ -3979,7 +4062,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
           userRecord = await admin.auth().createUser({
             email: email,
             password: password,
-            emailVerified: true
+            emailVerified: false
           });
           console.log(`[AUTH-ADMIN] User created successfully with password: ${email}`);
         } else {
@@ -5369,14 +5452,16 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       const availableSellers = usersSnap.docs
         .map(d => ({ uid: d.id, ...d.data() } as any))
         .filter(u => {
-          // Check role or specific names (Monali, Heloísa, Yury)
-          const isSellerRole = u.role === 'internal_seller' || u.role === 'triagem' || 
-            ['monali', 'heloisa', 'yury'].some(name => u.name?.toLowerCase().includes(name));
-          
+          // Só vendedora interna. A triagem (Luana) distribui e não recebe; a exportação (Yury)
+          // tem fluxo próprio e não pode receber lead nacional por sorteio.
+          const nome = (u.name || '').toLowerCase();
+          const isSellerRole = (u.role === 'internal_seller' || ['monali', 'heloisa', 'heloísa'].some(n => nome.includes(n)))
+            && u.role !== 'triagem' && !nome.includes('yury');
           if (!isSellerRole) return false;
-          
-          // Must be an active receiver
-          if (u.is_lead_receiver === false) return false;
+
+          // A mesma regra da tela de Triagem: só quem está marcado ATIVO recebe.
+          // Antes, quem nunca teve a chave mexida aparecia INATIVO para a Luana e recebia do robô.
+          if (u.is_lead_receiver !== true) return false;
 
           // Check vacation
           if (u.vacation_start && u.vacation_end) {
@@ -5414,7 +5499,13 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
 
           // Sort by active leads count ascending, pick the one with fewest leads
           sellerLeadCounts.sort((a, b) => a.count - b.count);
-          const chosenSeller = sellerLeadCounts[0].seller;
+          // Se a indicação já nasceu com uma vendedora (ela mesma cadastrou o cliente dela), fica com ela.
+          const jaDona = indData.internal_seller_uid && availableSellers.find(sl => sl.uid === indData.internal_seller_uid);
+          const chosenSeller = jaDona || sellerLeadCounts[0].seller;
+
+          // Trava: relê o lead. Se a Luana encaminhou neste meio tempo, não mexe.
+          const atual = await db.collection('indications').doc(indData.id).get();
+          if (!atual.exists || atual.data()?.status !== 'pending') continue;
 
           console.log(`[Schedule] Chosen seller for lead ${indData.id}: ${chosenSeller.name} with ${sellerLeadCounts[0].count} active leads.`);
 
@@ -5432,7 +5523,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
             type: 'system',
             author_name: 'Sistema Roder',
             created_at: new Date().toISOString(),
-            content: `[SLA Expirado - 4 Horas Úteis]: O limite de triagem (4h úteis no horário comercial de Brasília: Seg-Sex 07:00 às 17:00) expirou. O lead foi distribuído automaticamente para o(a) vendedor(a) ${chosenSeller.name} e enviado ao Agendor CRM.`,
+            content: `[SLA Expirado - 4 Horas Úteis]: O limite de triagem (4h úteis no horário comercial de Brasília: Seg-Sex 07:00 às 17:00) expirou. O lead foi distribuído automaticamente para o(a) vendedor(a) ${chosenSeller.name}.`,
             attachments: []
           };
 
@@ -5440,6 +5531,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
           await db.collection('indications').doc(indData.id).update({
             internal_seller_uid: chosenSeller.uid,
             internal_seller_name: chosenSeller.name,
+            internal_seller_email: chosenSeller.email || null,
             status: 'negotiating',
             updated_at: new Date().toISOString(),
             duplicate_reviewed: true,
@@ -5489,7 +5581,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
                 
                 <div style="padding: 24px; line-height: 1.6;">
                   <p style="font-size: 15px; margin-top: 0;">Olá <strong>${chosenSeller.name}</strong>,</p>
-                  <p style="font-size: 15px; color: #475569;">O lead do cliente <strong>${indData.client_name || indData.client_person_name || 'Cliente'}</strong> foi atribuído para a sua carteira e já está disponível para andamento no <strong>CRM Agendor</strong>.</p>
+                  <p style="font-size: 15px; color: #475569;">O lead do cliente <strong>${indData.client_name || indData.client_person_name || 'Cliente'}</strong> foi atribuído para a sua carteira e já está disponível no <strong>Roder Indica</strong>.</p>
                   
                   <div style="background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 18px; margin: 20px 0; border-radius: 4px;">
                     <h3 style="margin: 0 0 10px 0; color: #b45309; font-size: 15px; text-transform: uppercase; font-weight: 800; border-bottom: 1px solid #fef3c7; padding-bottom: 4px;">
@@ -5554,7 +5646,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
                   </div>
 
                   <div style="text-align: center; margin-top: 30px;">
-                    <a href="https://roderindica.roderbrasil.com.br/indicacoes" style="background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 14px;">ACESSAR PAINEL DO VENDEDOR</a>
+                    <a href="https://roderindica.com/indicacoes" style="background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 14px;">ACESSAR PAINEL DO VENDEDOR</a>
                   </div>
                 </div>
               </div>
@@ -5563,7 +5655,8 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
           }
 
           // 2. To the Partner
-          const partnerEmail = partnerData?.email || indData.client_email;
+          // Só o parceiro. Antes caía no e-mail do CLIENTE, que recebia "Olá Parceiro, sua indicação...".
+          const partnerEmail = partnerData?.email;
           if (partnerEmail && partnerEmail.includes('@') && !partnerEmail.endsWith('@mobile.roder.com.br')) {
             const emailSubjectPartner = `💼 Sua indicação de ${indData.client_name || 'Cliente'} foi encaminhada para ${chosenSeller.name}!`;
             const waLink = chosenSeller.phone ? `https://wa.me/55${chosenSeller.phone.replace(/\D/g, '')}?text=Olá%20${encodeURIComponent(chosenSeller.name)},%20sou%20o%20parceiro%20${encodeURIComponent(partnerData?.name || 'Parceiro')}%20e%20gostaria%20de%20enviar%20informações%20adicionais%20sobre%20a%20indicação%20de%20${encodeURIComponent(indData.client_name)}` : '';

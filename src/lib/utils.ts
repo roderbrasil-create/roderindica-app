@@ -306,3 +306,12 @@ if (typeof window !== 'undefined') {
 
   detectApi().catch(err => console.error('[AUTO-DETECT] Error during API auto-detection:', err));
 }
+
+// Número para o wa.me: só dígitos e sempre com o 55. O formulário do site grava sem o 55,
+// e sem ele o WhatsApp abre um número que não existe.
+export function numeroWhats(telefone?: string) {
+  let d = (telefone || '').replace(/\D/g, '');
+  if (d.startsWith('0')) d = d.replace(/^0+/, '');
+  if (d.length >= 10 && d.length <= 11) d = '55' + d;
+  return d;
+}

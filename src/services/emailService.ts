@@ -1,3 +1,4 @@
+import { numeroWhats } from '../lib/utils';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { getApiBaseUrl } from '../lib/utils';
@@ -16,17 +17,8 @@ export async function sendEmail(options: EmailOptions) {
     const baseUrl = getApiBaseUrl();
     const payload = { ...options };
 
-    // Auto-fetch email settings client-side if not already provided in options, to assist Node.js servers (like Hostinger) that lack Firebase Admin SDK configuration.
-    if (!payload.settings) {
-      try {
-        const snap = await getDoc(doc(db, 'settings', 'email'));
-        if (snap.exists()) {
-          payload.settings = snap.data();
-        }
-      } catch (clientDbErr) {
-        console.warn('[EMAIL-SERVICE] Client-side email settings fetch failed (expected for public/unauthenticated routes):', clientDbErr);
-      }
-    }
+    // a configuração de envio (com a senha) fica só no servidor
+    delete (payload as any).settings;
 
     const response = await fetch(`${baseUrl}/api/send-email`, {
       method: 'POST',
@@ -784,7 +776,7 @@ export async function notifyLeadAssignment(
               <tr>
                 <td style="padding: 4px 0; color: #64748b; font-weight: bold;">WhatsApp / Celular:</td>
                 <td style="padding: 4px 0; color: #1e293b; font-weight: bold;">
-                  <a href="https://wa.me/${(partner.phone || '').replace(/\D/g, '')}" style="color: #25d366; text-decoration: none; font-weight: bold;">
+                  <a href="https://wa.me/${numeroWhats(partner.phone)}" style="color: #25d366; text-decoration: none; font-weight: bold;">
                     ${partner.phone || 'Não informado'} 💬
                   </a>
                 </td>
@@ -855,7 +847,7 @@ export async function notifyLeadAssignment(
                 <tr>
                   <td style="padding: 4px 0; color: #15803d; font-weight: bold;">WhatsApp / Celular:</td>
                   <td style="padding: 4px 0; color: #1e293b; font-weight: bold;">
-                    <a href="https://wa.me/55${(seller.phone || '').replace(/\D/g, '')}" style="color: #25d366; text-decoration: none; font-weight: bold;">
+                    <a href="https://wa.me/${numeroWhats(seller.phone)}" style="color: #25d366; text-decoration: none; font-weight: bold;">
                       ${seller.phone || 'Não informado'} 💬
                     </a>
                   </td>

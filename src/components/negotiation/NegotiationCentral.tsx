@@ -752,9 +752,10 @@ export default function NegotiationCentral() {
     if (isAdmin || isManager || isTriagem) return content;
     
     let masked = content;
-    masked = masked.replace(/Comissão de [^%]*% aplicada sobre o valor de produtos comissionáveis de R\$ [^\s.]*/g, "Comissão aplicada [Acesso Restrito]");
-    masked = masked.replace(/Comissão: R\$ [^\s.]*/ig, "Comissão: [Acesso Restrito]");
-    masked = masked.replace(/Valor da comissão: R\$ [^\s.]*/ig, "Valor da comissão: [Acesso Restrito]");
+    // o valor inteiro, com ponto de milhar: "[^\s.]*" parava no ponto e deixava ".456,78" à mostra
+    masked = masked.replace(/Comissão de [^%]*% aplicada sobre o valor de produtos comissionáveis de R\$\s?[\d.,]+/g, "Comissão aplicada [Acesso Restrito]");
+    masked = masked.replace(/Comissão: R\$\s?[\d.,]+/ig, "Comissão: [Acesso Restrito]");
+    masked = masked.replace(/Valor da comissão: R\$\s?[\d.,]+/ig, "Valor da comissão: [Acesso Restrito]");
     return masked;
   };
 
@@ -786,7 +787,7 @@ export default function NegotiationCentral() {
       const base64 = await base64Promise;
       setUploadProgress(40);
       
-      const result = await analyzeDetailedBudget(base64);
+      const result = await analyzeDetailedBudget(base64, file.type || 'application/pdf');
       setUploadProgress(80);
       
       if (result) {
@@ -835,7 +836,8 @@ export default function NegotiationCentral() {
               
               const cleanedClientName = result.client_name.replace(/^\d+\s*-\s*/, '').trim();
 
-              const customerData = {
+              // campo que a IA não achou NÃO entra: antes um orçamento sem telefone apagava o telefone do cadastro
+              const customerData: any = Object.fromEntries(Object.entries({
                 id: clientDocId,
                 cnpj: result.client_cnpj || '',
                 name: cleanedClientName || result.client_name,
@@ -844,8 +846,8 @@ export default function NegotiationCentral() {
                 phone: result.client_phone || '',
                 client_code: result.client_code || '',
                 address: result.client_address || '',
-                updated_at: new Date().toISOString()
-              };
+              }).filter(([, v]) => v));
+              customerData.updated_at = new Date().toISOString();
 
               if (customerSnap.exists()) {
                 await updateDoc(customerRef, customerData);
@@ -966,7 +968,7 @@ export default function NegotiationCentral() {
       const base64 = await base64Promise;
       setUploadProgress(40);
       
-      const result = await analyzeDetailedBudget(base64);
+      const result = await analyzeDetailedBudget(base64, file.type || 'application/pdf');
       setUploadProgress(80);
       
       if (result) {
