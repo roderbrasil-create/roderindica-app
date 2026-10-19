@@ -1210,8 +1210,11 @@ export default function NegotiationCentral() {
 
   // closeAfter=false é usado pelo Faturar: salva o que está na tela e devolve a indicação
   // atualizada do banco, sem fechar a central.
-  const handleSaveNegotiation = async (opts: { closeAfter?: boolean } = {}): Promise<Indication | null> => {
+  // silent: salvar por dentro do Faturar, sem avisar parceiro e gestão e sem linha no histórico
+  // (antes cada clique em Faturar mandava "Orçamento atualizado" de novo para todo mundo)
+  const handleSaveNegotiation = async (opts: { closeAfter?: boolean; silent?: boolean } = {}): Promise<Indication | null> => {
     const closeAfter = opts.closeAfter !== false;
+    const silent = !!opts.silent;
     if (!activeIndication) return null;
     let saved: Indication | null = null;
     setLoading(true);
@@ -1343,7 +1346,12 @@ export default function NegotiationCentral() {
             created_at: new Date().toISOString()
           };
           
-          await setDoc(doc(db, 'customer_evaluations', activeIndication.id), evalPayload);
+          // pesquisa já respondida não volta a "pendente" com notas zeradas
+          const evalRef = doc(db, 'customer_evaluations', activeIndication.id);
+          const evalAtual = await getDoc(evalRef).catch(() => null);
+          if (!evalAtual?.exists() || evalAtual.data()?.status !== 'completed') {
+            await setDoc(evalRef, evalPayload, { merge: true });
+          }
           console.log(`Saved customer quality survey: scheduled for ${evalPayload.scheduled_date}`);
         } catch (evalErr) {
           console.error("Error creating customer evaluation sync:", evalErr);
@@ -1351,7 +1359,7 @@ export default function NegotiationCentral() {
       }
       
       // Notify Indicator (External Seller) and Managers
-      if (activeIndication.external_seller_uid) {
+      if (!silent && activeIndication.external_seller_uid) {
         await notifyExternalSeller(
           activeIndication.external_seller_uid,
           'Orçamento em Andamento',
@@ -1360,14 +1368,14 @@ export default function NegotiationCentral() {
         );
       }
       
-      await notifyManagers(
+      if (!silent) await notifyManagers(
         'Orçamento Atualizado',
         `${profile?.name} atualizou o orçamento de ${activeIndication.client_name}. Total: ${maskCurrency(parseFloat(grossBudgetValue) || 0)}`,
         `/indicacoes`
       );
 
       // Notify Standard Seller (Regional) if exists
-      if (activeIndication.standard_seller_uid && profile?.uid !== activeIndication.standard_seller_uid) {
+      if (!silent && activeIndication.standard_seller_uid && profile?.uid !== activeIndication.standard_seller_uid) {
         await createNotification({
           user_uid: activeIndication.standard_seller_uid,
           title: 'Acompanhamento Regional',
@@ -1378,7 +1386,7 @@ export default function NegotiationCentral() {
       }
 
       // Auto-add history if changes occurred (simplified logic)
-      await updateDoc(indicationRef, {
+      if (!silent) await updateDoc(indicationRef, {
         negotiation_history: arrayUnion({
           id: Math.random().toString(36).substring(2, 11),
           type: 'system',
@@ -1496,7 +1504,7 @@ export default function NegotiationCentral() {
     // O botão habilita com o número do pedido que está só na tela, mas o diálogo de faturamento
     // lê a indicação do banco. Antes, faturar logo depois de ler o pedido (sem salvar) gravava a
     // venda com valor, produtos e pedido antigos. Agora salva primeiro e abre com o dado fresco.
-    const fresh = await handleSaveNegotiation({ closeAfter: false });
+    const fresh = await handleSaveNegotiation({ closeAfter: false, silent: true });
     if (!fresh) {
       toast.error('Salve o pedido antes de faturar.');
       return;
@@ -2085,6 +2093,9 @@ export default function NegotiationCentral() {
                             <div className="text-sm font-bold italic text-primary tracking-tighter">
                               {!hasExternalSeller
                                 ? maskCurrency(0)
+                                // vendida: o valor gravado no faturamento, que já tirou o desconto
+                                : activeIndication.status === 'sold' && typeof (activeIndication as any).commission_value === 'number'
+                                  ? maskCurrency((activeIndication as any).commission_value)
                                 : displayCommissionRate === null
                                   ? 'a definir'
                                   : maskCurrency(totalCommissionable * (displayCommissionRate / 100))}

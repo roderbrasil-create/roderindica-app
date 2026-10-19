@@ -6,13 +6,13 @@ service firebase.storage {
       return request.auth != null && request.auth.token.firebase.sign_in_provider != 'anonymous';
     }
 
-    // Equipe Roder: papel no cadastro do app, ou e-mail @roderbrasil.com.br.
+    // Equipe Roder pelo e-mail @roderbrasil.com.br. (O app usa um banco NOMEADO do Firestore,
+    // e a consulta de papel daqui só enxerga o banco padrão; por isso o papel não entra aqui.)
+    // Quem não é da equipe por e-mail continua lendo e enviando arquivo novo normalmente;
+    // só não troca nem apaga arquivo que já existe.
     function equipe() {
-      return logado() && (
-        string(request.auth.token.get('email', '')).lower().matches('.*@roderbrasil[.]com[.]br$') ||
-        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('role', '') in
-          ['admin', 'manager', 'triagem', 'internal_seller', 'financial', 'finance', 'fiscal', 'marketing', 'assistant']
-      );
+      return logado() && request.auth.token.get('email_verified', false) == true &&
+        string(request.auth.token.get('email', '')).lower().matches('.*@roderbrasil[.]com[.]br$');
     }
 
     function tamanhoOk(mb) {

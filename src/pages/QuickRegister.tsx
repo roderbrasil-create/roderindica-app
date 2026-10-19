@@ -1083,6 +1083,8 @@ export default function QuickRegister() {
 
     // Real-time listener for current seller's leads in the selected fair
     // This ensures that as soon as a lead is saved, it appears in the "Meus Atendimentos" view
+    // espera o login (anônimo ou não) terminar: antes disso a busca é recusada e não reabria
+    if (!auth.currentUser) return;
     const q = auth.currentUser?.isAnonymous
       ? query(collection(db, 'fair_leads'), where('salesperson_uid', '==', auth.currentUser.uid))
       : query(
@@ -1104,7 +1106,7 @@ export default function QuickRegister() {
     });
 
     return () => unsubscribe();
-  }, [selectedFairId, sellerInfo.name]);
+  }, [selectedFairId, sellerInfo.name, user?.uid]);
 
   const handleShareMap = () => {
     // Generate a clean and specific fair link

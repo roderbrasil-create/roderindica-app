@@ -1356,6 +1356,9 @@ Retorne um array JSON no formato exato:
       const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
       const dec: any = token ? await admin.auth().verifyIdToken(token).catch(() => null) : null;
       if (!dec || dec.firebase?.sign_in_provider === 'anonymous') return res.status(401).json({ ok: false });
+      // só quem tem cadastro ativo no app (parceiro ou equipe) pode acionar o sino da gestão
+      const quemPede = await db.collection('users').doc(dec.uid).get();
+      if (!quemPede.exists || quemPede.data()?.status !== 'active') return res.status(403).json({ ok: false });
       const { title, message, link, type } = req.body || {};
       if (!title || !message) return res.status(400).json({ ok: false });
       const snap = await db.collection('users').where('role', 'in', ['admin', 'manager', 'triagem']).get();

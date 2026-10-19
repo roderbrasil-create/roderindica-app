@@ -181,7 +181,7 @@ service cloud.firestore {
     match /commissions/{commissionId} {
       allow read: if isEquipe() ||
         (naoAnonimo() && resource.data.external_seller_uid == request.auth.uid);
-      allow create: if isInternalSeller();
+      allow create: if isInternalSeller() || isFinanceiro();
       allow update: if isManager() || isFinanceiro() || isInternalSeller() ||
         // o parceiro só anexa a nota e passa para "aguardando pagamento"
         (naoAnonimo() && resource.data.external_seller_uid == request.auth.uid &&

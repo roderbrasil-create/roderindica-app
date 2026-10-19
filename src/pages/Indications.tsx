@@ -617,7 +617,7 @@ export default function Indications() {
       // 3. Upload Invoice Document to Storage if present
       let fileUrl = '';
       if (invoiceFile) {
-        const fileRef = ref(storage, `indications/${selectedIndication.id}/invoices/${invoiceFile.name}`);
+        const fileRef = ref(storage, `indications/${selectedIndication.id}/invoices/${Date.now()}_${invoiceFile.name}`);
         await uploadBytes(fileRef, invoiceFile);
         fileUrl = await getDownloadURL(fileRef);
       }

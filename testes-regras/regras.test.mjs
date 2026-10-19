@@ -464,3 +464,13 @@ test('STORAGE: parceiro não apaga a NF de outro parceiro', async () => {
   await env.withSecurityRulesDisabled((ctx) => uploadBytes(ref(ctx.storage(), 'commissions_nf/monthly_u_par2_5_2026_nf.pdf'), new Uint8Array([1])));
   await assertFails(deleteObject(ref(st_('parceiro'), 'commissions_nf/monthly_u_par2_5_2026_nf.pdf')));
 });
+
+test('STORAGE: equipe com e-mail @roderbrasil troca e apaga vídeo existente', async () => {
+  await env.withSecurityRulesDisabled((ctx) => uploadBytes(ref(ctx.storage(), 'videos/trocar.mp4'), new Uint8Array([1])));
+  const ctx = env.authenticatedContext('u_rog', { email: 'rogerio@roderbrasil.com.br', email_verified: true, firebase: { sign_in_provider: 'google.com' } });
+  await assertSucceeds(uploadBytes(ref(ctx.storage(), 'videos/trocar.mp4'), new Uint8Array([2])));
+  await assertSucceeds(deleteObject(ref(ctx.storage(), 'videos/trocar.mp4')));
+});
+test('FINANCEIRO pode faturar (cria comissão)', async () => {
+  await assertSucceeds(setDoc(doc(fs_('vanessa'), 'commissions', 'c9'), { external_seller_uid: 'u_par', value: 10 }));
+});
