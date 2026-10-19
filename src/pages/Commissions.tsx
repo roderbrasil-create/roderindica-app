@@ -464,7 +464,18 @@ export default function Commissions() {
           chunks.push(missingIds.slice(i, i + chunkSize));
         }
 
-        for (const chunk of chunks) {
+        const ehParceiro = ['external_seller', 'vendedor_padrao'].includes(profile?.role || '');
+        if (ehParceiro) {
+          // O parceiro só lê indicação que é dele, e a regra recusa a busca "__name__ in" inteira
+          // (ela não prova que todos os resultados são do parceiro). Uma leitura por documento
+          // passa na regra uma a uma; a que não for dele falha sozinha, sem derrubar as outras.
+          const lidos = await Promise.allSettled(missingIds.map(id => getDoc(doc(db, 'indications', id))));
+          lidos.forEach(r => {
+            if (r.status === 'fulfilled' && r.value.exists()) {
+              results[r.value.id] = { id: r.value.id, ...r.value.data() };
+            }
+          });
+        } else for (const chunk of chunks) {
           const q = query(collection(db, 'indications'), where('__name__', 'in', chunk));
           const snap = await getDocs(q);
           snap.docs.forEach(docSnap => {
@@ -478,7 +489,7 @@ export default function Commissions() {
     };
 
     fetchIndicationsDocs();
-  }, [commissions, currentCommissions]);
+  }, [commissions, currentCommissions, profile?.role]);
 
   // Action to mark a payment directly as executed
   const handleMarkAsPaidDirect = async (statement: MonthlyStatement) => {

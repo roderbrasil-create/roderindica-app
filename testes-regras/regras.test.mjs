@@ -484,3 +484,88 @@ test('STORAGE: parceiro envia a própria NF com nome novo, e não a de outro', a
   await assertSucceeds(uploadBytes(ref(st_('parceiro'), 'commissions_nf/monthly_u_par_5_2026_123_nf.pdf'), new Uint8Array([1])));
   await assertFails(uploadBytes(ref(st_('parceiro'), 'commissions_nf/monthly_u_par2_5_2026_123_nf.pdf'), new Uint8Array([1])));
 });
+
+// =====================================================================
+// PRIVACIDADE DAS INDICAÇÕES (19/10/2026): o parceiro lê só as dele, também direto no Firestore.
+// A consulta "ou" abaixo é a mesma que a tela monta (src/lib/filtrosParceiro.ts).
+// =====================================================================
+import { or } from 'firebase/firestore';
+
+const semearDonos = () => semRegras(async (db) => {
+  await setDoc(doc(db, 'indications', 'ind_outro'), { status: 'pending', external_seller_uid: 'u_par2', external_seller_email: 'outro@gmail.com', client_name: 'Do outro' });
+  await setDoc(doc(db, 'indications', 'ind_criada'), { status: 'pending', created_by: 'u_par', client_name: 'Criada por ele' });
+  await setDoc(doc(db, 'indications', 'ind_email'), { status: 'pending', external_seller_email: 'parceiro@gmail.com', client_name: 'Só pelo e-mail' });
+  await setDoc(doc(db, 'indications', 'ind_nome'), { status: 'pending', external_seller_name: 'Parceiro', client_name: 'Só pelo nome' });
+  await setDoc(doc(db, 'indications', 'ind_regional'), { status: 'negotiating', standard_seller_uid: 'u_par', client_name: 'Regional' });
+});
+
+const consultaDoParceiro = (db, uid, email, regional = false) => query(collection(db, 'indications'), or(
+  where('external_seller_uid', '==', uid),
+  where('created_by', '==', uid),
+  where('user_id', '==', uid),
+  where('indicator_uid', '==', uid),
+  ...(regional ? [where('standard_seller_uid', '==', uid)] : []),
+  where('external_seller_email', '==', email),
+));
+
+test('PARCEIRO lê a própria indicação pelo uid, pelo created_by e pelo e-mail do login', async () => {
+  await semearDonos();
+  const db = fs_('parceiro');
+  await assertSucceeds(getDoc(doc(db, 'indications', 'ind1')));
+  await assertSucceeds(getDoc(doc(db, 'indications', 'ind_criada')));
+  await assertSucceeds(getDoc(doc(db, 'indications', 'ind_email')));
+  await assertSucceeds(getDoc(doc(db, 'indications', 'ind_regional')));
+});
+
+test('PARCEIRO NÃO lê a indicação de outro parceiro, nem a lista inteira', async () => {
+  await semearDonos();
+  const db = fs_('parceiro');
+  await assertFails(getDoc(doc(db, 'indications', 'ind_outro')));
+  await assertFails(getDocs(collection(db, 'indications')));
+  await assertFails(getDocs(query(collection(db, 'indications'), where('status', '==', 'pending'))));
+  await assertFails(getDocs(query(collection(db, 'indications'), where('external_seller_uid', '==', 'u_par2'))));
+});
+
+test('PARCEIRO: a busca "ou" que a tela manda (Indications.tsx, filtrosParceiro.ts) passa e traz só as dele', async () => {
+  await semearDonos();
+  const snap = await assertSucceeds(getDocs(consultaDoParceiro(fs_('parceiro'), 'u_par', 'parceiro@gmail.com')));
+  const ids = snap.docs.map(d => d.id).sort();
+  if (ids.includes('ind_outro')) throw new Error('veio indicação de outro parceiro: ' + ids.join(','));
+  for (const id of ['ind1', 'ind2', 'ind_criada', 'ind_email']) {
+    if (!ids.includes(id)) throw new Error(`faltou ${id}: ${ids.join(',')}`);
+  }
+});
+
+test('REGIONAL (vendedor_padrao): a busca com standard_seller_uid passa', async () => {
+  await semearDonos();
+  await semRegras((db) => updateDoc(doc(db, 'users', 'u_par'), { role: 'vendedor_padrao' }));
+  await assertSucceeds(getDocs(consultaDoParceiro(fs_('parceiro'), 'u_par', 'parceiro@gmail.com', true)));
+});
+
+test('PARCEIRO: busca por NOME é recusada inteira (por isso saiu da tela; o servidor grava o uid)', async () => {
+  await semearDonos();
+  await assertFails(getDocs(query(collection(fs_('parceiro'), 'indications'), or(
+    where('external_seller_uid', '==', 'u_par'),
+    where('external_seller_name', '==', 'Parceiro'),
+  ))));
+});
+
+test('PARCEIRO não lê pelo e-mail de OUTRO (a busca tem de ser com o e-mail do próprio login)', async () => {
+  await semearDonos();
+  await assertFails(getDocs(consultaDoParceiro(fs_('parceiro'), 'u_par', 'outro@gmail.com')));
+});
+
+test('EQUIPE lê todas as indicações (gerente, triagem, vendedora interna, financeiro só o que já lia)', async () => {
+  await semearDonos();
+  await assertSucceeds(getDocs(collection(fs_('gislene'), 'indications')));
+  await assertSucceeds(getDocs(collection(fs_('luana'), 'indications')));
+  await assertSucceeds(getDoc(doc(fs_('heloisa'), 'indications', 'ind_outro')));
+  await assertSucceeds(getDocs(query(collection(fs_('vanessa'), 'indications'), where('status', '==', 'sold'))));
+});
+
+test('ANÔNIMO e SEM LOGIN não listam indicações (as páginas públicas só criam)', async () => {
+  await semearDonos();
+  await assertFails(getDocs(collection(fs_('anonimo'), 'indications')));
+  await assertFails(getDocs(collection(fs_(null), 'indications')));
+  await assertFails(getDoc(doc(fs_(null), 'indications', 'ind1')));
+});

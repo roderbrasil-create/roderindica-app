@@ -82,6 +82,20 @@ service cloud.firestore {
         (emailVerificado() && emailDoToken().matches('.*@roderbrasil[.]com[.]br$'));
     }
 
+    // A indicação é de quem está lendo. resource.data.get() porque indicação antiga não tem
+    // todos os campos, e campo ausente não pode virar erro na regra.
+    function donoDaIndicacao() {
+      return naoAnonimo() && (
+        resource.data.get('external_seller_uid', '') == request.auth.uid ||
+        resource.data.get('created_by', '') == request.auth.uid ||
+        resource.data.get('user_id', '') == request.auth.uid ||
+        resource.data.get('indicator_uid', '') == request.auth.uid ||
+        resource.data.get('standard_seller_uid', '') == request.auth.uid ||
+        resource.data.get('partner_id', '') == request.auth.uid ||
+        (emailVerificado() && resource.data.get('external_seller_email', '') == emailDoToken())
+      );
+    }
+
     function isParceiro() {
       return papel() in ['external_seller', 'vendedor_padrao'];
     }
@@ -129,10 +143,12 @@ service cloud.firestore {
     }
 
     match /indications/{indicationId} {
-      // TEMPORÁRIO: o parceiro ainda busca as indicações por nome e e-mail, e a regra
-      // não consegue conferir isso. Fica liberado para quem tem login de verdade até
-      // a tela do parceiro passar a buscar só pelo identificador dele (próxima etapa).
-      allow read: if naoAnonimo();
+      // A equipe lê tudo. O parceiro (e qualquer outro login) lê só a indicação que é DELE:
+      // pelo uid em um dos campos de dono, ou pelo e-mail do login (confirmado ou conta com
+      // senha). Antes qualquer login lia todas, e um parceiro via as indicações dos outros
+      // abrindo o Firestore direto. A tela do parceiro busca exatamente por estes campos
+      // (src/lib/filtrosParceiro.ts), senão o Firebase recusa a consulta inteira.
+      allow read: if isEquipe() || donoDaIndicacao();
       // O pedido de orçamento do site e o tablet da feira criam sem login.
       // Sem login só nasce lead novo, nunca venda pronta com comissão.
       allow create: if isEquipe() ||
