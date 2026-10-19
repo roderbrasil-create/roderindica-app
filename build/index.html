@@ -214,18 +214,12 @@
           }
         });
 
-        try {
-          var theme = localStorage.getItem('theme');
-          var supportDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-          if (theme === 'dark' || (!theme && supportDark)) {
-            document.documentElement.classList.add('dark');
-            document.documentElement.style.backgroundColor = '#050505';
-          }
-        } catch (e) {}
+        // sempre modo claro: limpa a escolha antiga de modo escuro que ficou salva no aparelho
+        try { localStorage.setItem('theme', 'light'); document.documentElement.classList.remove('dark'); } catch (e) {}
       })();
     </script>
-    <script type="module" crossorigin src="/assets/index-zYhqdwHL.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-D7WphJvf.css">
+    <script type="module" crossorigin src="/assets/index-TTuYXqQM.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-D3E7QTnB.css">
   </head>
   <body>
     <div id="root"></div>
