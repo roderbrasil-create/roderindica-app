@@ -277,7 +277,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <NotificationBell />
         </header>
 
-        <main className={cn("flex-1 p-4 md:p-8 pt-16 md:pt-8 max-w-full mobile-safe-main", ehParceiro && "pb-28 md:pb-8")}>
+        <main className={cn("flex-1 p-4 md:p-8 pt-16 md:pt-8 max-w-full mobile-safe-main", ehParceiro && !location.pathname.startsWith("/estoque") && !location.pathname.startsWith("/indicacoes/nova") && "pb-28 md:pb-8")}>
           {children}
         </main>
       </div>

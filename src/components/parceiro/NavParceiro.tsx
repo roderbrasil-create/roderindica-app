@@ -18,10 +18,12 @@ export const abrirConsultor = (pergunta?: string) =>
 export function BarraParceiro({ abrirMenu }: { abrirMenu: () => void }) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  // telas que já têm barra própria embaixo (abas do estoque, botão de enviar a indicação)
+  if (pathname.startsWith('/estoque') || pathname.startsWith('/indicacoes/nova')) return null;
   const item = (ativo: boolean) => cn('flex-1 flex flex-col items-center gap-1 pt-2 text-[11px] font-bold', ativo ? 'text-[#d4a106] dark:text-[#facc15]' : 'text-zinc-500 dark:text-zinc-400');
   return (
     <nav
-      className="md:hidden fixed bottom-0 left-0 right-0 z-[60] bg-white dark:bg-[#0b0b0b] border-t border-zinc-200 dark:border-zinc-800 flex items-start"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-[#0b0b0b] border-t border-zinc-200 dark:border-zinc-800 flex items-start"
       style={{ height: 'calc(64px + env(safe-area-inset-bottom, 0px))', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
       <button className={item(pathname === '/')} onClick={() => navigate('/')}><Home className="h-6 w-6" />Início</button>
@@ -41,7 +43,9 @@ export function BarraParceiro({ abrirMenu }: { abrirMenu: () => void }) {
 // Itens do menu lateral do parceiro. No celular, os da barra de baixo não se repetem.
 export function MenuParceiro({ fechar, celular }: { fechar: () => void; celular: boolean }) {
   const { pathname } = useLocation();
-  const { isRegionalSeller } = useAuth();
+  const { isRegionalSeller, profile } = useAuth();
+  // respeita o que o administrador desligou para este parceiro em Usuários
+  const desligado = (id: string) => profile?.permissions?.sidebar?.[id] === false;
   const itens = [
     ...(celular ? [] : [
       { nome: 'Início', icone: Home, para: '/' },
@@ -49,9 +53,9 @@ export function MenuParceiro({ fechar, celular }: { fechar: () => void; celular:
       { nome: 'Indicar cliente', icone: Plus, para: '/indicacoes/nova' },
       { nome: 'Minhas indicações', icone: ListChecks, para: '/indicacoes' },
     ]),
-    ...(isRegionalSeller ? [] : [{ nome: 'Meus ganhos', icone: Wallet, para: '/comissoes' }]),
-    { nome: 'Pronta entrega', icone: Package, para: '/estoque' },
-    { nome: 'Consultor Roder', icone: Bot, acao: () => abrirConsultor() },
+    ...(isRegionalSeller || desligado('comissoes_ext') ? [] : [{ nome: 'Meus ganhos', icone: Wallet, para: '/comissoes' }]),
+    ...(desligado('products_stock') ? [] : [{ nome: 'Pronta entrega', icone: Package, para: '/estoque' }]),
+    ...(desligado('technical_consultant_parent') ? [] : [{ nome: 'Consultor Roder', icone: Bot, acao: () => abrirConsultor() }]),
     { nome: 'Minha conta', icone: User, para: '/perfil' },
   ] as { nome: string; icone: any; para?: string; acao?: () => void }[];
   return (

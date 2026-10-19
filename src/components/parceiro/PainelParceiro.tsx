@@ -95,6 +95,11 @@ export default function PainelParceiro() {
   const [indicacoes, setIndicacoes] = useState<any[]>([]);
   const [comissoes, setComissoes] = useState<any[]>([]);
   const [preparados, setPreparados] = useState<Record<string, { codigo: string | null; foto: File | null }>>({});
+  const [usuarioPronto, setUsuarioPronto] = useState(!!auth.currentUser);
+  useEffect(() => auth.onAuthStateChanged(u => setUsuarioPronto(!!u)), []);
+  // se algum link não saiu, tenta de novo a cada 20 s enquanto a tela estiver aberta
+  const [tentativa, setTentativa] = useState(0);
+  useEffect(() => { const t = setInterval(() => setTentativa(n => n + 1), 20000); return () => clearInterval(t); }, []);
 
   useEffect(() => {
     getDocs(collection(db, 'products')).then(s => setProdutos(s.docs.map(d => ({ id: d.id, ...d.data() })))).catch(() => {});
@@ -147,11 +152,12 @@ export default function PainelParceiro() {
       for (const it of prontaEntrega) {
         if (!vivo || preparados[it.chave]) continue;
         const [codigo, foto] = await Promise.all([linkCurtoDe(it.produto.id, it.modelo.id), fotoParaEnviar(it.foto, it.nome)]);
-        if (vivo) setPreparados(p => ({ ...p, [it.chave]: { codigo, foto } }));
+        // sem link (login ainda carregando, internet caiu): não marca como pronto, tenta de novo depois
+        if (vivo && codigo) setPreparados(p => ({ ...p, [it.chave]: { codigo, foto } }));
       }
     })();
     return () => { vivo = false; };
-  }, [prontaEntrega.map(i => i.chave).join(',')]);
+  }, [prontaEntrega.map(i => i.chave).join(','), usuarioPronto, tentativa]);
 
   const enviarAoCliente = async (it: any) => {
     const prep = preparados[it.chave];
