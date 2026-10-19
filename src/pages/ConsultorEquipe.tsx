@@ -2,6 +2,8 @@ import { useState } from 'react';
 import EngineerHelper from '../components/layout/EngineerHelper';
 import { getApiBaseUrl } from '../lib/utils';
 import { Loader2 } from 'lucide-react';
+import { useManifestoConsultor } from '../lib/useManifestoConsultor';
+import { useAuthOpcional } from '../contexts/AuthContext';
 
 // Consultor técnico para a equipe Roder (vendedores internos), num link próprio:
 // roderindica.com/consultor-equipe. Entra uma vez com o e-mail cadastrado e fica liberado
@@ -16,7 +18,12 @@ function perfilSalvo() {
 }
 
 export default function ConsultorEquipe() {
-  const [liberado, setLiberado] = useState(!!perfilSalvo());
+  useManifestoConsultor();
+  // Equipe já logada no Roder Indica neste navegador: entra direto, com o papel do login
+  const auth = useAuthOpcional() as any;
+  const logadoEquipe = !!(auth?.user && auth?.isEquipeRoder);
+  const [liberadoPeloEmail, setLiberado] = useState(!!perfilSalvo());
+  const liberado = liberadoPeloEmail || logadoEquipe;
   const [email, setEmail] = useState('');
   const [erro, setErro] = useState('');
   const [conferindo, setConferindo] = useState(false);

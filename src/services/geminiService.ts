@@ -38,7 +38,8 @@ export async function askJefe(question: string, context?: string): Promise<strin
 }
 
 export async function askEngineerHelper(question: string, chatHistory: { role: 'user' | 'assistant'; content: string }[] = [], userInfo?: any): Promise<string> {
-  return executeBackendAI("engineerHelper", { question, chatHistory, userInfo });
+  // painel: este app sabe tirar o bloco <painel> da resposta (versões antigas recebem a resposta sem ele)
+  return executeBackendAI("engineerHelper", { question, chatHistory, userInfo, painel: true });
 }
 
 export async function generateRoderAIDailySummary(dateStr?: string): Promise<any> {

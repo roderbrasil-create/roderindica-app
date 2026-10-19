@@ -3413,7 +3413,19 @@ ${kitsContext || "Não há kits de instalação cadastrados."}${improvedKnowledg
               : `\n\nCONSULTA DO TRATOR NA INTERNET: não foi possível consultar agora. Não afirme a transmissão do trator; use a referência de CVT do Brasil e peça ao vendedor para confirmar com o cliente se o trator é a versão CVT e se a TDP tem 1000 rpm.`;
           }
 
-          const finalSystemInstruction = systemInstruction + userTypeInstruction + contextoTrator + `\n\nLEMBRETE FINAL (PRIORIDADE MÁXIMA): siga as REGRAS PRIORITÁRIAS A, B, C e D do início. Resposta curta e direta; se faltar dado essencial, pergunte antes; no máximo 1 foto e só do equipamento recomendado.`;
+          // Painel "Nesta conversa" (consultor no computador): dados resumidos num bloco escondido no fim.
+          // Só é pedido quando o app que perguntou sabe tirar o bloco do texto (args.painel).
+          const querPainel = args.painel === true;
+          const instrucaoPainel = querPainel ? `\n\nPAINEL ESCONDIDO (obrigatório quando houver dado): no fim de TODA resposta, depois de todo o texto (e depois do [[OPCOES]] se houver), acrescente um bloco escondido exatamente neste formato, numa linha só, com JSON válido:
+<painel>{"maquina":{"nome":"","tipo":"","potencia":"","transmissao":"","serve":"sim|nao|verificar","motivo":""},"perguntas":["..."],"alternativas":[{"nome":"","obs":""}],"produto":"<nome do modelo Roder principal>"}</painel>
+- Coloque só os campos que se aplicam à conversa; os outros ficam fora do JSON.
+- "maquina": a máquina base ou o trator do cliente citado na conversa (nome com marca e modelo; tipo ou transmissão, ex.: "Powershift, não é CVT"; potência ou porte, ex.: "220 cv" ou "20 t"; "serve" diz se ela atende o equipamento indicado: "sim", "nao" ou "verificar"; "motivo" em até 8 palavras).
+- "perguntas": no máximo 3 perguntas curtas que o vendedor deve fazer ao cliente para confirmar a indicação.
+- "alternativas": no máximo 3 opções que servem (máquinas, tratores ou modelos Roder), com "obs" de até 4 palavras (ex.: "CVT de série").
+- "produto": o nome exato do modelo Roder principal da resposta, como está no catálogo (ex.: "SSH 150", "R400", "CMF 600").
+- Se nada disso se aplica (ex.: saudação), não escreva o bloco. Nunca mencione o bloco no texto e nunca escreva <painel> em outro lugar da resposta. O texto da resposta continua curto, em português, seguindo todas as regras acima.` : '';
+
+          const finalSystemInstruction = systemInstruction + userTypeInstruction + contextoTrator + `\n\nLEMBRETE FINAL (PRIORIDADE MÁXIMA): siga as REGRAS PRIORITÁRIAS A, B, C e D do início. Resposta curta e direta; se faltar dado essencial, pergunte antes; no máximo 1 foto e só do equipamento recomendado.` + instrucaoPainel;
 
           const startTime = Date.now();
           const response = await generateContentWithRetry(ai, {
@@ -3427,7 +3439,21 @@ ${kitsContext || "Não há kits de instalação cadastrados."}${improvedKnowledg
 
           const responseTimeMs = Date.now() - startTime;
           result = response.text || "Desculpe, não consegui calcular ou analisar sua dúvida técnica no momento.";
+          // Separa o bloco <painel> do texto: o texto guardado no relatório nunca leva o bloco
+          let painelJson = '';
+          {
+            const blocos = Array.from(String(result).matchAll(/<\s*painel\s*>([\s\S]*?)<\s*\/\s*painel\s*>/gi));
+            if (blocos.length) painelJson = blocos[blocos.length - 1][1].trim();
+            result = String(result).replace(/<\s*painel\s*>[\s\S]*?<\s*\/\s*painel\s*>/gi, '').replace(/<\s*painel\b[\s\S]*$/i, '').trim();
+          }
           try { result = fixConsultantImages(result, catalogImageIndex); } catch (imgErr: any) { console.warn('[engineerHelper] fixConsultantImages:', imgErr?.message); }
+          const textoParaGuardar = result;
+          let painelValido = '';
+          if (painelJson) {
+            try { const obj = JSON.parse(painelJson); if (obj && typeof obj === 'object') painelValido = JSON.stringify(obj); } catch { /* bloco inválido: ignora */ }
+          }
+          // Só o app novo recebe o bloco de volta (ele tira do texto antes de mostrar)
+          if (querPainel && painelValido) result = `${result}\n\n<painel>${painelValido}</painel>`;
 
           // Save interaction to Firestore for metrics & reporting!
           try {
@@ -3436,7 +3462,8 @@ ${kitsContext || "Não há kits de instalação cadastrados."}${improvedKnowledg
             
             await db.collection('roder_ai_questions').add({
               question: question,
-              answer: result,
+              answer: textoParaGuardar,
+              ...(painelValido ? { painel: painelValido } : {}),
               timestamp: new Date().toISOString(),
               userUid: userInfo.uid || 'unauthenticated',
               userName: userInfo.name || 'Anônimo',
