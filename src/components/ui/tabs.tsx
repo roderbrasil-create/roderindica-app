@@ -1,4 +1,5 @@
 "use client"
+// min-h-11 (e não h-11): com altura fixa, as abas que quebram linha no celular ficavam por cima do conteúdo
 
 import { Tabs as TabsPrimitive } from "@base-ui/react/tabs"
 import { cva, type VariantProps } from "class-variance-authority"
@@ -24,7 +25,7 @@ function Tabs({
 }
 
 const tabsListVariants = cva(
-  "group/tabs-list inline-flex w-fit items-center justify-center rounded-xl p-[3px] text-muted-foreground data-[orientation=horizontal]:h-11 data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-fit data-[orientation=vertical]:flex-col data-[variant=line]:rounded-none mb-4",
+  "group/tabs-list inline-flex w-fit items-center justify-center rounded-xl p-[3px] text-muted-foreground data-[orientation=horizontal]:min-h-11 data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-fit data-[orientation=vertical]:flex-col data-[variant=line]:rounded-none mb-4",
   {
     variants: {
       variant: {
