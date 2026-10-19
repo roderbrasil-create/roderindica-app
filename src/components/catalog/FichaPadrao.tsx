@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { RODER_LOGO_BASE64 } from './RoderLogo';
 import type { Product, ProductModel } from '../../types';
 import { useVoltarFecha } from '../../lib/useVoltarFecha';
-import { getGTProductivityData, COMPRIMENTOS_GT, ehGarraTracadora } from '../../lib/produtividadeGt';
+import { ehGarraTracadora } from '../../lib/produtividadeGt';
 import {
   LARGURA_FOLHA, ALTURA_FOLHA, carregarLogoFae, esperarImagens, pdfDasFolhas, entregarPdf,
   enviarArquivoPdf, nomeArquivoFicha, resolverImagem, usePodeEnviarFicha,
@@ -210,22 +210,27 @@ export interface DadosFicha {
 
 const numBr = (n: number, casas = 0) => n.toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
 
-// Mesmo cálculo do consultor (ciclo de 20 s a 30 s, carga média de 85%, turno de 10 h, 22 dias/mês)
+// Médias de campo Roder (AGENTS.md), em m³/h, por comprimento de tora.
+// Mês: 80% de eficiência em turno de 10 h = 8 h úteis x 22 dias = 176 h.
+// GT 280, 360 e 400X ainda não têm média de campo: a ficha mostra só a nota de corrente e sabre.
+const MEDIAS_GT: Record<string, [string, number, number][]> = {
+  '600': [['1,10 m (metrinho)', 30, 45], ['2,20 m (metrão)', 50, 90], ['3,00 m', 70, 100], ['6,00 m', 100, 140]],
+  '800': [['1,10 m (metrinho)', 35, 55], ['2,20 m (metrão)', 65, 95], ['3,00 m', 80, 110], ['6,00 m', 120, 160]],
+  '1000': [['1,10 m (metrinho)', 60, 80], ['2,20 m (metrão)', 110, 130], ['3,00 m', 130, 160], ['6,00 m', 160, 220]],
+};
+const HORAS_UTEIS_MES = 176;
+
 function dadosGt(modelo: string): DadosFicha['gt'] {
-  let corrente = '';
-  let maquina = '';
-  const linhas = COMPRIMENTOS_GT.map(c => {
-    const d = getGTProductivityData(modelo, c);
-    corrente = d.chainSpec;
-    maquina = d.machineBase;
-    return {
-      comprimento: `${numBr(c, 1)} m`,
-      hora: `${numBr(d.hourlyMin, 1)} a ${numBr(d.hourlyMax, 1)}`,
-      turno: `${numBr(d.shiftMin)} a ${numBr(d.shiftMax)}`,
-      mes: `${numBr(d.monthlyMin)} a ${numBr(d.monthlyMax)}`,
-    };
-  });
-  return { linhas, corrente, maquina };
+  const n = (modelo || '').toUpperCase();
+  const chave = n.includes('1000') ? '1000' : n.includes('800') ? '800' : n.includes('600') ? '600' : '';
+  const corrente = (n.includes('280') || n.includes('360')) ? '0.404"' : '3/4" 11H';
+  const linhas = (MEDIAS_GT[chave] || []).map(([comprimento, min, max]) => ({
+    comprimento,
+    hora: `${numBr(min)} a ${numBr(max)}`,
+    turno: `${numBr(min * 8)} a ${numBr(max * 8)}`,
+    mes: `${numBr(min * HORAS_UTEIS_MES)} a ${numBr(max * HORAS_UTEIS_MES)}`,
+  }));
+  return { linhas, corrente, maquina: '' };
 }
 
 export function montarDadosFicha(p: Partial<Product>, m: Partial<ProductModel>): DadosFicha {
@@ -289,8 +294,8 @@ export function montarDadosFicha(p: Partial<Product>, m: Partial<ProductModel>):
   let descricao = (p.description || '').replace(/\s+/g, ' ').trim();
   if (descricao.length > 360) descricao = descricao.slice(0, 357).replace(/\s+\S*$/, '') + '...';
   const gt = ehGarraTracadora(p.name, p.category, m.name) ? dadosGt(m.name || '') : null;
-  // Na GT a tabela calculada substitui o texto livre: com os dois a folha passa do A4
-  let produtividade = gt ? '' : (m.productivity_text || '').trim();
+  // Na GT com média de campo, a tabela substitui o texto livre: com os dois a folha passa do A4
+  let produtividade = gt && gt.linhas.length > 0 ? '' : (m.productivity_text || '').trim();
   if (produtividade.length > 700) produtividade = produtividade.slice(0, 697).replace(/\s+\S*$/, '') + '...';
 
   return {
@@ -356,13 +361,14 @@ export const FolhaFichaPadrao = React.forwardRef<HTMLDivElement, FolhaProps>(({ 
       {secao('Produtividade')}
       {dados.gt && (
         <div className="ficha-gt">
+          {dados.gt.linhas.length > 0 && (<>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
             <thead>
               <tr>
                 <th style={{ ...thGt, textAlign: 'left' }}>Tora</th>
                 <th style={thGt}>m³/hora</th>
-                <th style={thGt}>Turno 10 h</th>
-                <th style={thGt}>Mês (22 dias)</th>
+                <th style={thGt}>Turno (8 h úteis)</th>
+                <th style={thGt}>Mês (176 h)</th>
               </tr>
             </thead>
             <tbody>
@@ -380,9 +386,10 @@ export const FolhaFichaPadrao = React.forwardRef<HTMLDivElement, FolhaProps>(({ 
             </tbody>
           </table>
           <div style={{ fontSize: '9.5px', color: COR_T2, marginTop: '4px', lineHeight: 1.4 }}>
-            m³ estéreo. Ciclo de 20 s a 30 s e carga média de 85% da garra; tora de 1,0 m é o metrinho.
+            Médias de campo Roder, em m³. Variam com a habilidade do operador e a afiação da corrente.
           </div>
-          <div style={{ marginTop: '8px', background: COR_AC, borderLeft: `3px solid ${COR_A}`, borderRadius: '8px', padding: '8px 10px', fontSize: '10.5px', lineHeight: 1.45 }}>
+          </>)}
+          <div style={{ marginTop: dados.gt.linhas.length > 0 ? '8px' : 0, background: COR_AC, borderLeft: `3px solid ${COR_A}`, borderRadius: '8px', padding: '8px 10px', fontSize: '10.5px', lineHeight: 1.45 }}>
             <b style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '2px' }}>
               Corrente e sabre{dados.gt.corrente ? ` · passo ${dados.gt.corrente}` : ''}
             </b>
