@@ -292,7 +292,7 @@ async function startServer() {
 
   // API routes
   // Versão publicada (conferência de implantação). Atualizar RELEASE_LABEL a cada publicação.
-  const RELEASE_LABEL = "2026-10-19b primeiro-acesso";
+  const RELEASE_LABEL = "2026-10-19c comissao-regras";
   const SERVER_STARTED_AT = new Date().toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");

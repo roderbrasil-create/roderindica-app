@@ -402,7 +402,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-19b primeiro-acesso";
+  const RELEASE_LABEL = "2026-10-19c comissao-regras";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -1276,18 +1276,207 @@ Retorne um array JSON no formato exato:
   const EQUIPE_RODER = ["admin", "manager", "triagem", "internal_seller", "financial", "finance", "fiscal", "marketing", "assistant", "vendedor_padrao"];
   const ehEquipe = (q) => !!q && EQUIPE_RODER.includes(q.role);
   const ehGestao = (q) => !!q && (q.role === "admin" || q.role === "manager");
+  app.get("/api/usuarios/regionais", async (req, res) => {
+    try {
+      const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+      const dec = token ? await import_firebase_admin.default.auth().verifyIdToken(token).catch(() => null) : null;
+      if (!dec || dec.firebase?.sign_in_provider === "anonymous") return res.status(401).json({ ok: false });
+      const snap = await db.collection("users").where("role", "==", "vendedor_padrao").where("status", "==", "active").get();
+      const lista = snap.docs.map((d) => {
+        const u = d.data();
+        return { uid: d.id, name: u.name || "", email: u.email || "", role: "vendedor_padrao", assigned_regions: u.assigned_regions || [] };
+      });
+      return res.json({ ok: true, lista });
+    } catch (e) {
+      return res.status(500).json({ ok: false });
+    }
+  });
+  app.post("/api/notificacoes/gestao", async (req, res) => {
+    try {
+      const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+      const dec = token ? await import_firebase_admin.default.auth().verifyIdToken(token).catch(() => null) : null;
+      if (!dec || dec.firebase?.sign_in_provider === "anonymous") return res.status(401).json({ ok: false });
+      const quemPede = await db.collection("users").doc(dec.uid).get();
+      if (!quemPede.exists || quemPede.data()?.status !== "active") return res.status(403).json({ ok: false });
+      const { title, message, link, type } = req.body || {};
+      if (!title || !message) return res.status(400).json({ ok: false });
+      const snap = await db.collection("users").where("role", "in", ["admin", "manager", "triagem"]).get();
+      const agora = (/* @__PURE__ */ new Date()).toISOString();
+      const lote = db.batch();
+      snap.docs.forEach((d) => lote.set(db.collection("notifications").doc(), {
+        user_uid: d.id,
+        title: String(title).slice(0, 140),
+        message: String(message).slice(0, 600),
+        link: typeof link === "string" && link.startsWith("/") ? link.slice(0, 200) : null,
+        type: ["info", "success", "warning", "error"].includes(type) ? type : "info",
+        read: false,
+        created_at: agora
+      }));
+      await lote.commit();
+      return res.json({ ok: true, enviados: snap.size });
+    } catch (e) {
+      return res.status(500).json({ ok: false });
+    }
+  });
+  const REGRAS_API = "https://firebaserules.googleapis.com/v1";
+  const lerRegra = (arquivo) => {
+    for (const base of [process.cwd(), __entryDirRegras(), import_path.default.resolve(__entryDirRegras(), "..")]) {
+      const p = import_path.default.join(base, arquivo);
+      if (import_fs.default.existsSync(p)) return import_fs.default.readFileSync(p, "utf8");
+    }
+    return null;
+  };
+  function __entryDirRegras() {
+    try {
+      return process.argv[1] ? import_path.default.dirname(import_fs.default.realpathSync(process.argv[1])) : process.cwd();
+    } catch {
+      return process.cwd();
+    }
+  }
+  async function tokenGoogle() {
+    const cred = adminApp.options?.credential;
+    if (!cred?.getAccessToken) throw new Error("Servidor sem credencial do Firebase.");
+    const t = await cred.getAccessToken();
+    return t.access_token;
+  }
+  function nomesRelease() {
+    const projeto = config.projectId;
+    const banco = config.firestoreDatabaseId || "(default)";
+    const bucket = config.storageBucket || `${projeto}.appspot.com`;
+    return {
+      projeto,
+      firestore: banco === "(default)" ? `projects/${projeto}/releases/cloud.firestore` : `projects/${projeto}/releases/cloud.firestore/${banco}`,
+      storage: `projects/${projeto}/releases/firebase.storage/${bucket}`
+    };
+  }
+  async function chamarRegras(metodo, url, corpo) {
+    const r = await fetch(url, {
+      method: metodo,
+      headers: { Authorization: `Bearer ${await tokenGoogle()}`, "Content-Type": "application/json" },
+      body: corpo ? JSON.stringify(corpo) : void 0
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const e = new Error(j?.error?.message || `Erro ${r.status} na API de regras`);
+      e.status = r.status;
+      throw e;
+    }
+    return j;
+  }
+  async function exigirAdmin(req, res) {
+    const q = await quemChama(req);
+    if (!q || q.role !== "admin") {
+      res.status(403).json({ ok: false, error: "S\xF3 o administrador." });
+      return null;
+    }
+    return q;
+  }
+  app.get("/api/admin/regras/estado", async (req, res) => {
+    if (!await exigirAdmin(req, res)) return;
+    try {
+      const n = nomesRelease();
+      const out = { ok: true };
+      for (const alvo of ["firestore", "storage"]) {
+        const rel = await chamarRegras("GET", `${REGRAS_API}/${n[alvo]}`).catch((e) => ({ erro: e.message }));
+        let fonteAtual = "";
+        if (rel.rulesetName) {
+          const rs = await chamarRegras("GET", `${REGRAS_API}/${rel.rulesetName}`).catch(() => null);
+          fonteAtual = rs?.source?.files?.[0]?.content || "";
+        }
+        const nova = lerRegra(alvo === "firestore" ? "firestore.rules" : "storage.rules") || "";
+        const hist = await db.collection("regras_historico").doc(alvo).get();
+        out[alvo] = {
+          no_ar: rel.rulesetName || null,
+          atualizada_em: rel.updateTime || null,
+          erro: rel.erro || null,
+          ja_e_a_nova: !!nova && fonteAtual.trim() === nova.trim(),
+          pode_voltar: !!hist.data()?.anterior
+        };
+      }
+      return res.json(out);
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+  app.post("/api/admin/regras/publicar", async (req, res) => {
+    const q = await exigirAdmin(req, res);
+    if (!q) return;
+    const alvos = req.body?.alvo === "storage" ? ["storage"] : req.body?.alvo === "firestore" ? ["firestore"] : ["firestore", "storage"];
+    const n = nomesRelease();
+    const feito = {};
+    try {
+      for (const alvo of alvos) {
+        const fonte = lerRegra(alvo === "firestore" ? "firestore.rules" : "storage.rules");
+        if (!fonte) throw new Error(`Arquivo de regras de ${alvo} n\xE3o encontrado no servidor.`);
+        const rs = await chamarRegras("POST", `${REGRAS_API}/projects/${n.projeto}/rulesets`, {
+          source: { files: [{ name: alvo === "firestore" ? "firestore.rules" : "storage.rules", content: fonte }] }
+        });
+        const releaseNome = n[alvo];
+        const atual = await chamarRegras("GET", `${REGRAS_API}/${releaseNome}`).catch((e) => {
+          if (e?.status === 404) return null;
+          throw e;
+        });
+        if (atual?.rulesetName) {
+          const fonteNoAr = (await chamarRegras("GET", `${REGRAS_API}/${atual.rulesetName}`))?.source?.files?.[0]?.content || "";
+          if (fonteNoAr.trim() === fonte.trim()) {
+            feito[alvo] = "ja_estava";
+            continue;
+          }
+        }
+        const hist = (await db.collection("regras_historico").doc(alvo).get()).data();
+        const anterior = hist?.anterior ? hist.anterior : atual?.rulesetName || null;
+        await db.collection("regras_historico").doc(alvo).set({
+          anterior,
+          nova: rs.name,
+          publicado_por: q.email,
+          publicado_em: (/* @__PURE__ */ new Date()).toISOString()
+        });
+        if (atual?.rulesetName) {
+          await chamarRegras("PATCH", `${REGRAS_API}/${releaseNome}`, { release: { name: releaseNome, rulesetName: rs.name } });
+        } else {
+          await chamarRegras("POST", `${REGRAS_API}/projects/${n.projeto}/releases`, { name: releaseNome, rulesetName: rs.name });
+        }
+        feito[alvo] = rs.name;
+      }
+      console.log(`[REGRAS] Publicadas por ${q.email}:`, feito);
+      return res.json({ ok: true, feito });
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e.message, feito });
+    }
+  });
+  app.post("/api/admin/regras/voltar", async (req, res) => {
+    const q = await exigirAdmin(req, res);
+    if (!q) return;
+    const n = nomesRelease();
+    const feito = {};
+    try {
+      for (const alvo of ["firestore", "storage"]) {
+        const h = (await db.collection("regras_historico").doc(alvo).get()).data();
+        if (!h?.anterior) continue;
+        const releaseNome = n[alvo];
+        await chamarRegras("PATCH", `${REGRAS_API}/${releaseNome}`, { release: { name: releaseNome, rulesetName: h.anterior } });
+        await db.collection("regras_historico").doc(alvo).set({ anterior: null, voltou_para: h.anterior, voltou_em: (/* @__PURE__ */ new Date()).toISOString(), por: q.email }, { merge: true });
+        feito[alvo] = h.anterior;
+      }
+      console.log(`[REGRAS] Voltadas por ${q.email}:`, feito);
+      return res.json({ ok: true, feito });
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e.message, feito });
+    }
+  });
   app.post("/api/auth/reivindicar-perfil", async (req, res) => {
     try {
       const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
       if (!token) return res.status(401).json({ ok: false });
-      const dec = await import_firebase_admin.default.auth().verifyIdToken(token);
+      const dec = await import_firebase_admin.default.auth().verifyIdToken(token, true);
       const email = String(dec.email || "").toLowerCase().trim();
       if (!email || dec.firebase?.sign_in_provider === "anonymous") return res.status(401).json({ ok: false });
       if (!dec.email_verified && dec.firebase?.sign_in_provider !== "password") {
         return res.json({ ok: true, merged: false, motivo: "email_nao_confirmado" });
       }
       const achados = await db.collection("users").where("email", "==", email).get();
-      const temporarios = achados.docs.filter((d) => d.id !== dec.uid);
+      let temporarios = achados.docs.filter((d) => d.id !== dec.uid);
+      if (!dec.email_verified) temporarios = temporarios.filter((d) => !!d.data().initial_password);
       if (temporarios.length === 0) return res.json({ ok: true, merged: false });
       const realRef = db.collection("users").doc(dec.uid);
       const realSnap = await realRef.get();
@@ -4918,6 +5107,105 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       console.error("[FINANCE-NOTICE] Erro:", e?.message);
     }
   }, { timezone: "America/Sao_Paulo" });
+  import_node_cron.default.schedule("10 3 * * *", async () => {
+    const jobName = "auto_cancel_60d";
+    const dayKey = (/* @__PURE__ */ new Date()).toLocaleDateString("en-CA", { timeZone: BR_TIMEZONE });
+    try {
+      await db.collection("cron_locks").doc(`${jobName}_${dayKey}`).create({
+        job: jobName,
+        day: dayKey,
+        started_at: (/* @__PURE__ */ new Date()).toISOString()
+      });
+    } catch (lockErr) {
+      if (lockErr?.code === 6) {
+        console.log(`[AUTO-CANCEL-60D] J\xE1 executado ou em execu\xE7\xE3o hoje (${dayKey}).`);
+      } else {
+        console.error("[AUTO-CANCEL-60D] N\xE3o consegui criar a trava do dia:", lockErr?.message);
+      }
+      return;
+    }
+    const SESSENTA_DIAS = 60 * 24 * 60 * 60 * 1e3;
+    const expiryOf = (ind) => {
+      if (ind.protection_expires_at) {
+        const t = new Date(ind.protection_expires_at).getTime();
+        return Number.isFinite(t) ? t : null;
+      }
+      if (ind.budget_sent_at) {
+        const t = new Date(ind.budget_sent_at).getTime();
+        return Number.isFinite(t) ? t + SESSENTA_DIAS : null;
+      }
+      return null;
+    };
+    const hasSalesOrder = (ind) => !!(ind.sale_order_number && String(ind.sale_order_number).trim());
+    let cancelled = 0;
+    try {
+      const snap = await db.collection("indications").where("status", "==", "negotiating").get();
+      const nowMs = Date.now();
+      for (const d of snap.docs) {
+        if (cancelled >= 25) {
+          console.warn("[AUTO-CANCEL-60D] Teto de 25 por dia atingido; o resto fica para amanh\xE3.");
+          break;
+        }
+        const pre = d.data();
+        if (hasSalesOrder(pre)) continue;
+        const preExpiry = expiryOf(pre);
+        if (preExpiry === null || preExpiry > nowMs) continue;
+        try {
+          const done = await db.runTransaction(async (tx) => {
+            const fresh = await tx.get(d.ref);
+            if (!fresh.exists) return null;
+            const ind = fresh.data();
+            if (ind.status !== "negotiating" || hasSalesOrder(ind)) return null;
+            const exp = expiryOf(ind);
+            if (exp === null || exp > Date.now()) return null;
+            const nowIso2 = (/* @__PURE__ */ new Date()).toISOString();
+            tx.update(d.ref, {
+              status: "cancelled",
+              cancellation_reason: "Prazo expirado",
+              cancellation_details: "Lead cancelado automaticamente ap\xF3s 60 dias de validade da proposta, sem pedido de venda carregado.",
+              cancelled_automatically_at: nowIso2,
+              updated_at: nowIso2,
+              negotiation_history: import_firebase_admin.default.firestore.FieldValue.arrayUnion({
+                id: import_crypto.default.randomBytes(6).toString("hex"),
+                type: "status_change",
+                author_name: "Sistema",
+                created_at: nowIso2,
+                content: `Cancelamento autom\xE1tico: a prote\xE7\xE3o de 60 dias venceu em ${new Date(exp).toLocaleDateString("pt-BR", { timeZone: BR_TIMEZONE })} sem pedido de venda carregado. Pode ser renovada se o interesse do cliente for comprovado.`,
+                attachments: []
+              })
+            });
+            return ind;
+          });
+          if (!done) continue;
+          cancelled++;
+          const nowIso = (/* @__PURE__ */ new Date()).toISOString();
+          const client = done.client_name || "cliente";
+          const recipients = Array.from(new Set([done.external_seller_uid, done.internal_seller_uid].filter(Boolean)));
+          for (const uid of recipients) {
+            const isPartner = uid === done.external_seller_uid;
+            await db.collection("notifications").add({
+              user_uid: uid,
+              title: "Negocia\xE7\xE3o expirada",
+              message: isPartner ? `A prote\xE7\xE3o de 60 dias da sua indica\xE7\xE3o ${client} venceu sem pedido de venda e a negocia\xE7\xE3o foi cancelada. Se o cliente ainda tiver interesse, fale com a Roder para renovar.` : `A negocia\xE7\xE3o com ${client} foi cancelada automaticamente: a prote\xE7\xE3o de 60 dias venceu sem pedido de venda.`,
+              type: "warning",
+              read: false,
+              link: "/indicacoes",
+              created_at: nowIso
+            });
+          }
+        } catch (docErr) {
+          console.error(`[AUTO-CANCEL-60D] Erro na indica\xE7\xE3o ${d.id}:`, docErr?.message);
+        }
+      }
+      await db.collection("cron_locks").doc(`${jobName}_${dayKey}`).set({
+        finished_at: (/* @__PURE__ */ new Date()).toISOString(),
+        cancelled
+      }, { merge: true });
+      console.log(`[AUTO-CANCEL-60D] ${cancelled} negocia\xE7\xE3o(\xF5es) cancelada(s).`);
+    } catch (e) {
+      console.error("[AUTO-CANCEL-60D] Erro:", e?.message);
+    }
+  }, { timezone: BR_TIMEZONE });
   import_node_cron.default.schedule("0 8 7 * *", async () => {
     console.log("[Schedule] Generating Day 7 Finance Reminders...");
     const notifSnap = await db.collection("settings").doc("notifications").get();
