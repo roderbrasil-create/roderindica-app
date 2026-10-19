@@ -672,24 +672,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
               </div>
             </div>
             <div className="flex items-center gap-2 mb-2">
-              <Button 
-                variant="ghost" 
-                size="sm"
-                className="h-8 flex-1 justify-start text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent px-2 py-1 text-[11px]"
-                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              >
-                {theme === 'dark' ? (
-                  <>
-                    <Sun className="h-3.5 w-3.5 mr-2" />
-                    <span className="text-[11px] font-medium">Modo Claro</span>
-                  </>
-                ) : (
-                  <>
-                    <Moon className="h-3.5 w-3.5 mr-2" />
-                    <span className="text-[11px] font-medium">Modo Escuro</span>
-                  </>
-                )}
-              </Button>
+              {/* modo escuro desligado: o app fica sempre no claro (pedido do Jeferson, 19/10/2026) */}
             </div>
             <Button 
               variant="ghost" 

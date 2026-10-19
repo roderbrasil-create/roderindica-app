@@ -165,7 +165,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       {/* @ts-ignore */}
-      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+      <ThemeProvider attribute="class" defaultTheme="light" forcedTheme="light" enableSystem={false}>
         <PWAProvider>
           <AuthProvider>
             <NegotiationProvider>

@@ -102,23 +102,13 @@ export default function NotificationBell() {
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" className="h-20 px-6 flex items-center gap-4 text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all duration-300 group">
-          <div className={cn("relative transition-transform duration-500", unreadCount > 0 && "animate-shake")}>
-            <Bell className={cn("h-16 w-16 transition-all duration-300", unreadCount > 0 ? "text-blue-500 drop-shadow-[0_0_12px_rgba(59,130,246,0.6)]" : "group-hover:rotate-[15deg]")} />
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-4 w-4">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-4 w-4 bg-blue-500"></span>
-              </span>
-            )}
-          </div>
+        {/* sino compacto, com o número em cima (antes ocupava meio cabeçalho com "18 ALERTAS") */}
+        <Button variant="ghost" className="relative h-11 w-11 p-0 text-muted-foreground hover:text-primary" aria-label="Notificações">
+          <Bell className={cn("h-6 w-6", unreadCount > 0 && "text-slate-800")} />
           {unreadCount > 0 && (
-            <div className="flex flex-col items-center justify-center bg-blue-600 text-white h-10 min-w-[40px] px-2 rounded-xl shadow-lg shadow-blue-500/30">
-              <span className="text-lg font-black leading-none">
-                {unreadCount}
-              </span>
-              <span className="text-[8px] font-bold uppercase tracking-tighter mt-0.5">Alertas</span>
-            </div>
+            <span className="absolute top-1 right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10.5px] font-black leading-[18px] text-center">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
           )}
         </Button>
       </DialogTrigger>
