@@ -27,6 +27,7 @@ import { CabecotePodaFicha } from '../catalog/CabecotePodaFicha';
 import { CabecoteGmt035Ficha } from '../catalog/CabecoteGmt035Ficha';
 import { FichaPadrao, enviarFichaPadrao, fotoDoModelo, tituloFicha } from '../catalog/FichaPadrao';
 import { usePodeEnviarFicha, enviarArquivoPdf, nomeArquivoFicha } from '../catalog/fichaPdf';
+import { ehFichaPropria } from '../../lib/fichaPropria';
 import { CartaoFicha } from '../catalog/CartaoFicha';
 import { useVoltarFecha } from '../../lib/useVoltarFecha';
 import { abrirDocumento } from '../../lib/abrirDocumento';
@@ -615,7 +616,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
 
   // "Ver ficha": a ficha própria quando existe; senão a ficha padrão em PDF
   // Ficha própria da Roder em PDF (ex.: GR600/GR800, GCR): abre o PDF dela, nunca a padrão
-  const pdfProprio = (url: string) => url.startsWith('/catalogo/');
+  const pdfProprio = (url: string) => ehFichaPropria(url);
 
   const verFicha = (prod: Product, model: ProductModel) => {
     const link = linkFichaDe(prod, model);
@@ -630,9 +631,20 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     if (!podeEnviarFicha) return;
     const link = linkFichaDe(prod, model);
     if (pdfProprio(link) && !fichaEspecialDe(link, `${model.name} ${prod.name}`)) {
-      fetch(link).then(r => { if (!r.ok) throw new Error(); return r.blob(); })
-        .then(b => enviarArquivoPdf(b, nomeArquivoFicha(model.name || prod.name || 'Roder'), `Ficha ${model.name || prod.name}`))
-        .catch(() => toast.error('Não consegui preparar o PDF. Tente de novo.'));
+      const titulo = `Ficha ${model.name || prod.name}`;
+      if (link.startsWith('/catalogo/')) {
+        fetch(link).then(r => { if (!r.ok) throw new Error(); return r.blob(); })
+          .then(b => enviarArquivoPdf(b, nomeArquivoFicha(model.name || prod.name || 'Roder'), titulo))
+          .catch(() => toast.error('Não consegui preparar o PDF. Tente de novo.'));
+      } else if (/^https?:\/\//i.test(link)) {
+        // Link externo (ex.: Drive): o arquivo não pode ser baixado daqui, então vai o link
+        const nav: any = navigator;
+        if (nav.share) nav.share({ title: titulo, text: titulo, url: link }).catch(() => {});
+        else window.open(`https://wa.me/?text=${encodeURIComponent(`${titulo}: ${link}`)}`, '_blank', 'noopener');
+      } else {
+        openTechnicalSheet(link, model.name);
+        toast.info('Use o botão de compartilhar do documento para enviar.');
+      }
       return;
     }
     const tipo = fichaEspecialDe(linkFichaDe(prod, model), `${model.name} ${prod.name}`);
