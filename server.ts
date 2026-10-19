@@ -5441,6 +5441,8 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       const snap = await db.collection('indications').where('status', '==', 'negotiating').get();
       const nowMs = Date.now();
       for (const d of snap.docs) {
+        // teto por dia: se houver um acúmulo antigo, cancela aos poucos e dá tempo de alguém ver
+        if (cancelled >= 25) { console.warn('[AUTO-CANCEL-60D] Teto de 25 por dia atingido; o resto fica para amanhã.'); break; }
         const pre: any = d.data();
         if (hasSalesOrder(pre)) continue;
         const preExpiry = expiryOf(pre);
