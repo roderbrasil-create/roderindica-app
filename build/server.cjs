@@ -22,6 +22,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 
 // server.ts
+var import_crypto = __toESM(require("crypto"), 1);
 var import_express = __toESM(require("express"), 1);
 var import_vite = require("vite");
 var import_path = __toESM(require("path"), 1);
@@ -373,6 +374,12 @@ async function classifyQuestionTopic(ai, question) {
 }
 async function startServer() {
   const app = (0, import_express.default)();
+  app.use((req, res, next) => {
+    if (/\.(cjs|map|env)$/i.test(req.path) || /^\/server\.(ts|js)$/i.test(req.path) || /service-account|firebase-adminsdk/i.test(req.path) || /^\/\.(?!well-known)/.test(req.path)) {
+      return res.status(404).send("Not found");
+    }
+    next();
+  });
   const PORT = process.env.PORT || 3e3;
   app.use((0, import_cors.default)({
     origin: function(origin, callback) {
@@ -391,8 +398,11 @@ async function startServer() {
   if (!import_fs.default.existsSync(uploadsDir)) {
     import_fs.default.mkdirSync(uploadsDir, { recursive: true });
   }
-  app.use("/uploads", import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-18g parceiros";
+  app.use("/uploads", (req, res, next) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    next();
+  }, import_express.default.static(uploadsDir));
+  const RELEASE_LABEL = "2026-10-19a seguranca";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -539,13 +549,28 @@ async function startServer() {
       });
     }
   });
+  app.use(
+    [
+      "/api/v1/api-keys",
+      "/api/reassign-export-lead",
+      "/api/sync-liugong-908",
+      "/api/admin/clean-accessories-duplicates",
+      "/api/admin/list-accessories",
+      "/api/admin/dump-history"
+    ],
+    async (req, res, next) => {
+      if (req.method === "OPTIONS") return next();
+      if (ehGestao(await quemChama(req))) return next();
+      return res.status(403).json({ success: false, error: "Acesso restrito \xE0 gest\xE3o." });
+    }
+  );
   app.post("/api/v1/api-keys/generate", async (req, res) => {
     try {
       const { name, permissions, created_by } = req.body;
       if (!name || typeof name !== "string" || name.trim().length === 0) {
         return res.status(400).json({ success: false, error: "O nome do aplicativo ou destino \xE9 obrigat\xF3rio." });
       }
-      const randomHex = Array.from({ length: 24 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
+      const randomHex = import_crypto.default.randomBytes(16).toString("hex");
       const apiKey = `rod_live_${randomHex}`;
       const keyDoc = {
         name: name.trim(),
@@ -1129,6 +1154,15 @@ Retorne um array JSON no formato exato:
       if (!fileBase64 || !fileName) {
         return res.status(400).json({ error: "Faltando base64 ou nome de arquivo." });
       }
+      if (!ehEquipe(await quemChama(req))) {
+        return res.status(401).json({ error: "Entre no app para enviar arquivos." });
+      }
+      if (!/\.(jpe?g|jfif|png|webp|gif|heic|heif|pdf|webm|m4a|mp3|ogg|wav|docx?|xlsx?)$/i.test(String(fileName))) {
+        return res.status(400).json({ error: "Tipo de arquivo n\xE3o aceito (html e scripts n\xE3o entram)." });
+      }
+      if (docName && !/^[a-z0-9_-]{1,80}$/i.test(String(docName))) {
+        return res.status(400).json({ error: "Documento inv\xE1lido." });
+      }
       let cleanBase64 = fileBase64;
       if (fileBase64.includes(";base64,")) {
         cleanBase64 = fileBase64.split(";base64,")[1];
@@ -1220,11 +1254,36 @@ Retorne um array JSON no formato exato:
       return res.status(500).json({ error: "Erro interno no upload via backend.", details: err.message });
     }
   });
+  async function quemChama(req) {
+    try {
+      const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+      if (!token || token.length < 100) return null;
+      const dec = await import_firebase_admin.default.auth().verifyIdToken(token);
+      if (dec.firebase?.sign_in_provider === "anonymous") return null;
+      const email = (dec.email || "").toLowerCase();
+      let role = "";
+      try {
+        role = String((await db.collection("users").doc(dec.uid).get()).data()?.role || "");
+      } catch {
+      }
+      if (dec.email_verified && ["roderbrasil@gmail.com", "roderindica@gmail.com", "jeferson@roderbrasil.com.br"].includes(email)) role = "admin";
+      return { uid: dec.uid, email, role };
+    } catch {
+      return null;
+    }
+  }
+  const envioPublicoPorIp = /* @__PURE__ */ new Map();
+  const EQUIPE_RODER = ["admin", "manager", "triagem", "internal_seller", "financial", "finance", "fiscal", "marketing", "assistant", "vendedor_padrao"];
+  const ehEquipe = (q) => !!q && EQUIPE_RODER.includes(q.role);
+  const ehGestao = (q) => !!q && (q.role === "admin" || q.role === "manager");
   app.get("/api/settings/:docName", async (req, res) => {
     try {
       const { docName } = req.params;
       if (!docName) {
         return res.status(400).json({ error: "Nome do documento n\xE3o fornecido." });
+      }
+      if (!/^engate_rapido/.test(docName) && !ehGestao(await quemChama(req))) {
+        return res.status(403).json({ error: "Acesso restrito." });
       }
       const docRef = db.collection("settings").doc(docName);
       const docSnap = await docRef.get();
@@ -1243,6 +1302,9 @@ Retorne um array JSON no formato exato:
       const data = req.body;
       if (!docName) {
         return res.status(400).json({ error: "Nome do documento n\xE3o fornecido." });
+      }
+      if (!ehGestao(await quemChama(req))) {
+        return res.status(403).json({ error: "S\xF3 a gest\xE3o altera configura\xE7\xF5es." });
       }
       const docRef = db.collection("settings").doc(docName);
       await docRef.set({
@@ -1298,8 +1360,8 @@ Retorne um array JSON no formato exato:
       if (url.startsWith("http://localhost") || url.includes("/uploads/")) {
         const parts = url.split("/uploads/");
         if (parts.length > 1) {
-          const localFile = import_path.default.join(uploadsDir, parts[1]);
-          if (import_fs.default.existsSync(localFile)) {
+          const localFile = import_path.default.join(uploadsDir, import_path.default.basename(parts[1].split("?")[0]));
+          if (localFile.startsWith(uploadsDir) && import_fs.default.existsSync(localFile)) {
             res.setHeader("Cache-Control", "public, max-age=31536000");
             return res.sendFile(localFile);
           }
@@ -1347,10 +1409,40 @@ Retorne um array JSON no formato exato:
     }
   });
   app.post("/api/send-email", async (req, res) => {
-    const { to, subject, html, replyTo, fromName, settings: bodySettings, attachments } = req.body;
+    const { to, subject, html, replyTo, fromName, attachments } = req.body;
     console.log(`[EMAIL-API] Recebida solicita\xE7\xE3o de envio para: ${to} | Assunto: ${subject}`);
     try {
-      let settings = bodySettings;
+      let settings = null;
+      let destinoFinal = to;
+      const quem = await quemChama(req);
+      if (!quem) {
+        const destinos = (Array.isArray(to) ? to : String(to || "").split(",")).map((e) => String(e).trim().toLowerCase()).filter(Boolean);
+        if (destinos.length === 0 || destinos.length > 15) return res.status(400).json({ error: "Destinat\xE1rio inv\xE1lido." });
+        const internos = [];
+        const externos = [];
+        for (const d of destinos) {
+          if (d.endsWith("@roderbrasil.com.br") || d === "roderbrasil@gmail.com" || d === "roderindica@gmail.com") {
+            internos.push(d);
+            continue;
+          }
+          const achou = await db.collection("users").where("email", "==", d).limit(1).get().catch(() => null);
+          if (achou && !achou.empty) internos.push(d);
+          else externos.push(d);
+        }
+        let permitidos = internos;
+        if (externos.length === 1 && internos.length === 0) {
+          const ip = String(req.ip || req.socket?.remoteAddress || "");
+          const agora = Date.now();
+          const lista = (envioPublicoPorIp.get(ip) || []).filter((t) => agora - t < 36e5);
+          if (lista.length >= 8) return res.status(429).json({ error: "Muitos envios. Tente mais tarde." });
+          lista.push(agora);
+          envioPublicoPorIp.set(ip, lista);
+          if (envioPublicoPorIp.size > 2e3) envioPublicoPorIp.clear();
+          permitidos = externos;
+        }
+        if (permitidos.length === 0) return res.status(403).json({ error: "Envio n\xE3o permitido para este destinat\xE1rio." });
+        destinoFinal = permitidos.join(", ");
+      }
       if (!settings) {
         try {
           const settingsSnap = await db.collection("settings").doc("email").get();
@@ -1391,7 +1483,7 @@ Retorne um array JSON no formato exato:
         if (!settings.apiKey) return res.status(400).json({ error: "API Key do Resend n\xE3o configurada." });
         const resend = new import_resend.Resend(settings.apiKey);
         const fromEmail = settings.senderEmail || "vendas@roderbrasil.com.br";
-        const toArray = typeof to === "string" ? to.split(",").map((e) => e.trim()).filter((e) => e !== "") : Array.isArray(to) ? to : [to];
+        const toArray = typeof destinoFinal === "string" ? destinoFinal.split(",").map((e) => e.trim()).filter((e) => e !== "") : Array.isArray(destinoFinal) ? destinoFinal : [destinoFinal];
         const { data, error } = await resend.emails.send({
           from: fromName ? `${fromName} <${fromEmail}>` : `RODER Indica <${fromEmail}>`,
           to: toArray,
@@ -1422,9 +1514,6 @@ Retorne um array JSON no formato exato:
             // ex: roderindica@gmail.com
             pass: settings.pass.replace(/\s/g, "")
             // remove spaces just in case
-          },
-          tls: {
-            rejectUnauthorized: false
           }
         });
         const footer = `
@@ -1435,7 +1524,7 @@ Retorne um array JSON no formato exato:
         `;
         const mailOptions = {
           from: fromName ? `"${fromName}" <${settings.user}>` : `"RODER Indica" <${settings.user}>`,
-          to,
+          to: destinoFinal,
           subject,
           html: `${html}${footer}`,
           replyTo: replyTo || settings.user,
@@ -3130,7 +3219,8 @@ LEMBRETE FINAL (PRIORIDADE M\xC1XIMA): siga as REGRAS PRIORIT\xC1RIAS A, B, C e 
           break;
         }
         case "analyzeDetailedBudget": {
-          const { fileBase64 } = args;
+          const { fileBase64, mimeType } = args;
+          const tipoArquivo = /^(application\/pdf|image\/(jpeg|png|webp))$/.test(String(mimeType || "")) ? String(mimeType) : "application/pdf";
           const prompt = `Analise este pedido de venda/or\xE7amento em PDF e extraia as seguintes informa\xE7\xF5es:
           1. O valor total da venda/pedido (procurado em "Total Pedido", "Valor total com ajuste de frete" ou "Valor total").
           2. O nome/raz\xE3o social do cliente ("Cliente"). Se tiver um c\xF3digo num\xE9rico antes (ex: "4235 - Eucazin Ltda"), extraia o c\xF3digo separado e limpe o nome.
@@ -3154,7 +3244,7 @@ LEMBRETE FINAL (PRIORIDADE M\xC1XIMA): siga as REGRAS PRIORIT\xC1RIAS A, B, C e 
             model: "gemini-3.5-flash",
             contents: [
               { text: prompt },
-              { inlineData: { data: fileBase64, mimeType: "application/pdf" } }
+              { inlineData: { data: fileBase64, mimeType: tipoArquivo } }
             ],
             config: {
               responseMimeType: "application/json",
@@ -3694,6 +3784,17 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       if (!isAdmin) {
         console.warn(`[AUTH-ADMIN] Access denied for ${requesterData?.email || decodedToken.email || requesterUid}`);
         return res.status(403).json({ error: "Acesso negado. Administradores e Gestores podem definir senhas." });
+      }
+      if (decodedToken.firebase?.sign_in_provider === "anonymous") {
+        return res.status(403).json({ error: "Acesso negado." });
+      }
+      {
+        const alvo = await db.collection("users").where("email", "==", String(email).toLowerCase().trim()).limit(1).get();
+        const papelAlvo = alvo.empty ? "" : String(alvo.docs[0].data().role || "");
+        const alvoProtegido = papelAlvo === "admin" || papelAlvo === "manager" || ["roderbrasil@gmail.com", "roderindica@gmail.com", "jeferson@roderbrasil.com.br"].includes(String(email).toLowerCase().trim());
+        if (alvoProtegido && requesterData?.role !== "admin") {
+          return res.status(403).json({ error: "S\xF3 o administrador troca a senha de contas de gest\xE3o." });
+        }
       }
       console.log(`[AUTH-ADMIN] Target Email: ${email}`);
       let userRecord;
@@ -4909,9 +5010,10 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       const day = String(brDate.getDate()).padStart(2, "0");
       const todayStr = `${year}-${month}-${day}`;
       const availableSellers = usersSnap.docs.map((d) => ({ uid: d.id, ...d.data() })).filter((u) => {
-        const isSellerRole = u.role === "internal_seller" || u.role === "triagem" || ["monali", "heloisa", "yury"].some((name) => u.name?.toLowerCase().includes(name));
+        const nome = (u.name || "").toLowerCase();
+        const isSellerRole = (u.role === "internal_seller" || ["monali", "heloisa", "helo\xEDsa"].some((n) => nome.includes(n))) && u.role !== "triagem" && !nome.includes("yury");
         if (!isSellerRole) return false;
-        if (u.is_lead_receiver === false) return false;
+        if (u.is_lead_receiver !== true) return false;
         if (u.vacation_start && u.vacation_end) {
           if (todayStr >= u.vacation_start && todayStr <= u.vacation_end) {
             return false;
@@ -4936,7 +5038,10 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
             })
           );
           sellerLeadCounts.sort((a, b) => a.count - b.count);
-          const chosenSeller = sellerLeadCounts[0].seller;
+          const jaDona = indData.internal_seller_uid && availableSellers.find((sl) => sl.uid === indData.internal_seller_uid);
+          const chosenSeller = jaDona || sellerLeadCounts[0].seller;
+          const atual = await db.collection("indications").doc(indData.id).get();
+          if (!atual.exists || atual.data()?.status !== "pending") continue;
           console.log(`[Schedule] Chosen seller for lead ${indData.id}: ${chosenSeller.name} with ${sellerLeadCounts[0].count} active leads.`);
           let partnerData = null;
           if (indData.external_seller_uid) {
@@ -4950,12 +5055,13 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
             type: "system",
             author_name: "Sistema Roder",
             created_at: (/* @__PURE__ */ new Date()).toISOString(),
-            content: `[SLA Expirado - 4 Horas \xDAteis]: O limite de triagem (4h \xFAteis no hor\xE1rio comercial de Bras\xEDlia: Seg-Sex 07:00 \xE0s 17:00) expirou. O lead foi distribu\xEDdo automaticamente para o(a) vendedor(a) ${chosenSeller.name} e enviado ao Agendor CRM.`,
+            content: `[SLA Expirado - 4 Horas \xDAteis]: O limite de triagem (4h \xFAteis no hor\xE1rio comercial de Bras\xEDlia: Seg-Sex 07:00 \xE0s 17:00) expirou. O lead foi distribu\xEDdo automaticamente para o(a) vendedor(a) ${chosenSeller.name}.`,
             attachments: []
           };
           await db.collection("indications").doc(indData.id).update({
             internal_seller_uid: chosenSeller.uid,
             internal_seller_name: chosenSeller.name,
+            internal_seller_email: chosenSeller.email || null,
             status: "negotiating",
             updated_at: (/* @__PURE__ */ new Date()).toISOString(),
             duplicate_reviewed: true,
@@ -4997,7 +5103,7 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
                 
                 <div style="padding: 24px; line-height: 1.6;">
                   <p style="font-size: 15px; margin-top: 0;">Ol\xE1 <strong>${chosenSeller.name}</strong>,</p>
-                  <p style="font-size: 15px; color: #475569;">O lead do cliente <strong>${indData.client_name || indData.client_person_name || "Cliente"}</strong> foi atribu\xEDdo para a sua carteira e j\xE1 est\xE1 dispon\xEDvel para andamento no <strong>CRM Agendor</strong>.</p>
+                  <p style="font-size: 15px; color: #475569;">O lead do cliente <strong>${indData.client_name || indData.client_person_name || "Cliente"}</strong> foi atribu\xEDdo para a sua carteira e j\xE1 est\xE1 dispon\xEDvel no <strong>Roder Indica</strong>.</p>
                   
                   <div style="background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 18px; margin: 20px 0; border-radius: 4px;">
                     <h3 style="margin: 0 0 10px 0; color: #b45309; font-size: 15px; text-transform: uppercase; font-weight: 800; border-bottom: 1px solid #fef3c7; padding-bottom: 4px;">
@@ -5062,14 +5168,14 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
                   </div>
 
                   <div style="text-align: center; margin-top: 30px;">
-                    <a href="https://roderindica.roderbrasil.com.br/indicacoes" style="background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 14px;">ACESSAR PAINEL DO VENDEDOR</a>
+                    <a href="https://roderindica.com/indicacoes" style="background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 14px;">ACESSAR PAINEL DO VENDEDOR</a>
                   </div>
                 </div>
               </div>
             `;
             await sendAutomaticEmail(chosenSeller.email, emailSubjectSeller, emailHtmlSeller);
           }
-          const partnerEmail = partnerData?.email || indData.client_email;
+          const partnerEmail = partnerData?.email;
           if (partnerEmail && partnerEmail.includes("@") && !partnerEmail.endsWith("@mobile.roder.com.br")) {
             const emailSubjectPartner = `\u{1F4BC} Sua indica\xE7\xE3o de ${indData.client_name || "Cliente"} foi encaminhada para ${chosenSeller.name}!`;
             const waLink = chosenSeller.phone ? `https://wa.me/55${chosenSeller.phone.replace(/\D/g, "")}?text=Ol\xE1%20${encodeURIComponent(chosenSeller.name)},%20sou%20o%20parceiro%20${encodeURIComponent(partnerData?.name || "Parceiro")}%20e%20gostaria%20de%20enviar%20informa\xE7\xF5es%20adicionais%20sobre%20a%20indica\xE7\xE3o%20de%20${encodeURIComponent(indData.client_name)}` : "";
