@@ -26,10 +26,12 @@ jobs:
         working-directory: testes-regras
         shell: bash
         run: |
+          set +e
+          touch saida.txt
           RES=$(grep -E "^ℹ (tests|pass|fail)" saida.txt | tr '\n' ' ')
           echo "::notice::RESUMO $RES"
           FALHAS=$(grep -E "✖" saida.txt | head -40 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
           [ -n "$FALHAS" ] && echo "::error::FALHAS%0A$FALHAS"
-          ERROS=$(grep -iE "error|expected|PERMISSION|Property" saida.txt | grep -v "^ℹ" | head -30 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
-          [ -n "$ERROS" ] && echo "::warning::DETALHES%0A$ERROS"
-          true
+          FIM=$(tail -60 saida.txt | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+          echo "::warning::FINAL%0A$FIM"
+          exit 0
