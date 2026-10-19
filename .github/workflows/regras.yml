@@ -19,4 +19,17 @@ jobs:
           npm i firebase-tools@14 @firebase/rules-unit-testing@4 firebase@11 --no-audit --no-fund
       - name: Roda os testes no emulador
         working-directory: testes-regras
-        run: npx firebase emulators:exec --only firestore,storage --project demo-roder "node --test regras.test.mjs"
+        run: npx firebase emulators:exec --only firestore,storage --project demo-roder "node --test --test-reporter=spec regras.test.mjs" 2>&1 | tee saida.txt; exit ${PIPESTATUS[0]}
+        shell: bash
+      - name: Resumo para leitura
+        if: always()
+        working-directory: testes-regras
+        shell: bash
+        run: |
+          RES=$(grep -E "^ℹ (tests|pass|fail)" saida.txt | tr '\n' ' ')
+          echo "::notice::RESUMO $RES"
+          FALHAS=$(grep -E "✖" saida.txt | head -40 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+          [ -n "$FALHAS" ] && echo "::error::FALHAS%0A$FALHAS"
+          ERROS=$(grep -iE "error|expected|PERMISSION|Property" saida.txt | grep -v "^ℹ" | head -30 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+          [ -n "$ERROS" ] && echo "::warning::DETALHES%0A$ERROS"
+          true
