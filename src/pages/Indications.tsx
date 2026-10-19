@@ -1172,13 +1172,8 @@ export default function Indications() {
       }
     });
 
-    if (isExternalSeller) {
-      getDocs(query(indicationsRef, limit(300)))
-        .then(extraSnap => {
-          processSnapshot(extraSnap);
-        })
-        .catch(err => console.warn("Extra snapshot fetch for external seller:", err));
-    }
+    // (removido) o parceiro baixava 300 indicações quaisquer e a tela mostrava as de OUTROS
+    // parceiros. Agora ele só recebe a busca filtrada pelos dados dele, logo acima.
 
     return () => unsubscribe();
   }, [profile?.uid, profile?.role, isInternalSeller, isExternalSeller, isManager, isAdmin, isTriagem, isRegionalSeller]);
