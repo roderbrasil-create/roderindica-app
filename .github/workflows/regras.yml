@@ -15,6 +15,7 @@ jobs:
       - name: Instala ferramentas
         working-directory: testes-regras
         run: |
+          cp ../firestore.rules ../storage.rules .
           npm init -y >/dev/null
           npm i firebase-tools@14 @firebase/rules-unit-testing@4 firebase@11 --no-audit --no-fund
       - name: Roda os testes no emulador
