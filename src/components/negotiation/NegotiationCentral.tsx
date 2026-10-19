@@ -59,7 +59,8 @@ import {
   addDoc,
   setDoc,
   deleteDoc,
-  onSnapshot
+  onSnapshot,
+  increment
 } from 'firebase/firestore';
 import { transcribeAudio, generateAISummary, analyzeDetailedBudget, analyzePDFDocument } from '../../services/geminiService';
 import { notifyManagers, notifyExternalSeller, createNotification } from '../../services/notificationService';
@@ -353,6 +354,11 @@ export default function NegotiationCentral() {
   const [orderNumber, setOrderNumber] = useState('');
   const [orderDate, setOrderDate] = useState('');
   const [indicatorProfile, setIndicatorProfile] = useState<UserProfile | null>(null);
+  // Momento em que um orçamento novo foi carregado nesta sessão (ainda não salvo).
+  // É dele que conta a proteção de 60 dias, e não da data impressa no orçamento.
+  const [budgetUploadedAt, setBudgetUploadedAt] = useState<string | null>(null);
+  // Última versão da indicação que já foi copiada para o formulário (ver o efeito de carga)
+  const formSourceRef = useRef<Indication | null>(null);
   const [extractedCnpj, setExtractedCnpj] = useState('');
   const [extractedEmail, setExtractedEmail] = useState('');
   const [extractedPhone, setExtractedPhone] = useState('');
@@ -546,41 +552,62 @@ export default function NegotiationCentral() {
     };
   }, [isOpen]);
 
+  // Fechar a central zera a referência, para que reabrir a mesma indicação recarregue tudo do banco
+  useEffect(() => {
+    if (!isOpen) formSourceRef.current = null;
+  }, [isOpen]);
+
   useEffect(() => {
     if (activeIndication) {
-      let loadedProducts = (activeIndication.commissioned_products || []).map((p: any, idx: number) => ({
-        ...p,
-        uniqueId: p.uniqueId || `${p.code || 'item'}-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`
-      }));
+      // O formulário era zerado a cada refreshIndication (ao registrar histórico, ao puxar do
+      // Agendor ao abrir, etc.), e a leitura de orçamento ou pedido ainda não salva sumia.
+      // Agora: indicação nova (ou central reaberta) carrega tudo; a MESMA indicação atualizada
+      // só copia para a tela os campos que mudaram no banco, e mantém o que foi digitado ou lido.
+      const prev = formSourceRef.current;
+      const sameIndication = !!prev && prev.id === activeIndication.id;
+      formSourceRef.current = activeIndication;
+      const changed = (key: string) =>
+        !sameIndication || JSON.stringify((prev as any)?.[key]) !== JSON.stringify((activeIndication as any)[key]);
+      if (!sameIndication) setBudgetUploadedAt(null);
 
-      if (loadedProducts.length === 0 && activeIndication.items && activeIndication.items.length > 0) {
-        loadedProducts = activeIndication.items.map((item: any, idx: number) => ({
-          code: item.code || '',
-          name: item.product_name || item.name || 'Equipamento Roder',
-          quantity: item.quantity || 1,
-          base_value: item.price || 0,
-          is_commissionable: true,
-          uniqueId: `init-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`
+      if (changed('commissioned_products') || changed('items')) {
+        let loadedProducts = (activeIndication.commissioned_products || []).map((p: any, idx: number) => ({
+          ...p,
+          uniqueId: p.uniqueId || `${p.code || 'item'}-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`
         }));
+
+        if (loadedProducts.length === 0 && activeIndication.items && activeIndication.items.length > 0) {
+          loadedProducts = activeIndication.items.map((item: any, idx: number) => ({
+            code: item.code || '',
+            name: item.product_name || item.name || 'Equipamento Roder',
+            quantity: item.quantity || 1,
+            base_value: item.price || 0,
+            is_commissionable: true,
+            uniqueId: `init-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`
+          }));
+        }
+        setCommissionedProducts(loadedProducts);
       }
-      setCommissionedProducts(loadedProducts);
-      setGrossBudgetValue(activeIndication.gross_budget_value?.toString() || '');
-      setBudgetLoaded(activeIndication.budget_loaded || false);
-      setBudgetNumber(activeIndication.budget_number || '');
-      setBudgetDate(activeIndication.budget_date || '');
-      setSaleValue(activeIndication.sale_value?.toString() || '');
-      setStandardSellerEnabled(activeIndication.standard_seller_commission_enabled !== false);
-      setStandardSellerRate(activeIndication.standard_seller_commission_rate || 2);
-      setDeliveryDate(activeIndication.delivery_date || '');
-      setOrderNumber(activeIndication.sale_order_number || '');
-      setOrderDate(activeIndication.sale_order_date || '');
-      setExtractedCnpj(activeIndication.client_cnpj || '');
-      setExtractedEmail(activeIndication.client_email || '');
-      setExtractedPhone(activeIndication.client_phone || '');
-      setExtractedAddress(activeIndication.client_address || '');
-      setCompanyName(activeIndication.client_company_name || '');
-      setClientCode(activeIndication.client_code || '');
-      
+      if (changed('gross_budget_value')) setGrossBudgetValue(activeIndication.gross_budget_value?.toString() || '');
+      if (changed('budget_loaded')) setBudgetLoaded(activeIndication.budget_loaded || false);
+      if (changed('budget_number')) setBudgetNumber(activeIndication.budget_number || '');
+      if (changed('budget_date')) setBudgetDate(activeIndication.budget_date || '');
+      if (changed('sale_value')) setSaleValue(activeIndication.sale_value?.toString() || '');
+      if (changed('standard_seller_commission_enabled')) setStandardSellerEnabled(activeIndication.standard_seller_commission_enabled !== false);
+      if (changed('standard_seller_commission_rate')) setStandardSellerRate(activeIndication.standard_seller_commission_rate || 2);
+      if (changed('delivery_date')) setDeliveryDate(activeIndication.delivery_date || '');
+      if (changed('sale_order_number')) setOrderNumber(activeIndication.sale_order_number || '');
+      if (changed('sale_order_date')) setOrderDate(activeIndication.sale_order_date || '');
+      if (changed('client_cnpj')) setExtractedCnpj(activeIndication.client_cnpj || '');
+      if (changed('client_email')) setExtractedEmail(activeIndication.client_email || '');
+      if (changed('client_phone')) setExtractedPhone(activeIndication.client_phone || '');
+      if (changed('client_address')) setExtractedAddress(activeIndication.client_address || '');
+      if (changed('client_company_name')) setCompanyName(activeIndication.client_company_name || '');
+      if (changed('client_code')) setClientCode(activeIndication.client_code || '');
+
+      // Mesma indicação só atualizada: perfil do parceiro e catálogo já estão carregados
+      if (sameIndication && !changed('external_seller_uid')) return;
+
       const fetchIndicator = async () => {
         if (!activeIndication.external_seller_uid) {
           setIndicatorProfile(null);
@@ -739,7 +766,17 @@ export default function NegotiationCentral() {
     ? ['admin', 'manager', 'internal_seller', 'triagem', 'financial', 'marketing', 'fiscal', 'vendedor_padrao'].includes(indicatorProfile.role)
     : false;
 
-  const isOwnerIndicator = user?.uid && activeIndication?.external_seller_uid 
+  // Taxa mostrada na central. Antes era "commission_rate_applied || 2": transformava 0% em 2%
+  // e mostrava 2% antes da venda para qualquer parceiro. Agora: vendida, a taxa gravada no
+  // faturamento; antes disso, a taxa do perfil do parceiro; sem nenhuma das duas, "a definir".
+  const partnerProfileRate: number | null = typeof (indicatorProfile as any)?.commission_rate === 'number'
+    ? (indicatorProfile as any).commission_rate
+    : null;
+  const displayCommissionRate: number | null = activeIndication?.status === 'sold'
+    ? ((activeIndication as any)?.commission_rate_applied ?? partnerProfileRate)
+    : partnerProfileRate;
+
+  const isOwnerIndicator = user?.uid && activeIndication?.external_seller_uid
     ? activeIndication.external_seller_uid === user.uid 
     : false;
 
@@ -767,9 +804,46 @@ export default function NegotiationCentral() {
     ? ((saleValueNum || grossValueNum) * (standardSellerRate / 100)) 
     : 0;
 
+  // Guarda o PDF/foto enviado. Antes o arquivo ia só para a leitura da IA e era descartado:
+  // não ficava nenhuma prova do orçamento ou do pedido na indicação. Roda em paralelo com a
+  // leitura e, se falhar, só avisa: a leitura da IA continua valendo.
+  const storeNegotiationFile = async (file: File, kind: 'budget' | 'sales_order') => {
+    if (!activeIndication) return;
+    const indicationId = activeIndication.id;
+    try {
+      const safeName = (file.name || 'arquivo').replace(/[^\w.\-]+/g, '_');
+      const fileRef = ref(storage, `orcamentos/${indicationId}/${Date.now()}_${safeName}`);
+      await uploadBytes(fileRef, file);
+      const url = await getDownloadURL(fileRef);
+      const nowIso = new Date().toISOString();
+      const label = kind === 'budget' ? 'Orçamento' : 'Pedido de venda';
+      await updateDoc(doc(db, 'indications', indicationId), {
+        [kind === 'budget' ? 'budget_pdf_urls' : 'sales_order_pdf_urls']: arrayUnion(url),
+        updated_at: nowIso,
+        negotiation_history: arrayUnion({
+          id: Math.random().toString(36).substring(2, 11),
+          type: 'system',
+          author_name: profile?.name || 'Sistema',
+          created_at: nowIso,
+          content: `${label} anexado: ${file.name}`,
+          attachments: [{ name: file.name, url }]
+        })
+      });
+      // Atualiza a central com o anexo no histórico; o formulário não é zerado (só campos que mudaram no banco)
+      const snap = await getDoc(doc(db, 'indications', indicationId));
+      if (snap.exists() && formSourceRef.current?.id === indicationId) {
+        refreshIndication({ id: snap.id, ...snap.data() } as Indication);
+      }
+    } catch (err: any) {
+      console.error('Erro ao guardar o arquivo enviado:', err);
+      toast.warning('A leitura continua, mas o arquivo não foi guardado na indicação. Anexe de novo pelo histórico se precisar.');
+    }
+  };
+
   const handleUploadBudgetDocument = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !activeIndication) return;
+    void storeNegotiationFile(file, 'budget');
 
     try {
       setReadingBudgetFile(true);
@@ -792,6 +866,7 @@ export default function NegotiationCentral() {
       
       if (result) {
         setBudgetLoaded(true);
+        setBudgetUploadedAt(new Date().toISOString());
         if (result.sale_value) {
           setGrossBudgetValue(result.sale_value.toString());
         } else {
@@ -951,6 +1026,7 @@ export default function NegotiationCentral() {
   const handleUploadSalesOrder = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !activeIndication) return;
+    void storeNegotiationFile(file, 'sales_order');
 
     try {
       setReadingBudget(true);
@@ -1132,8 +1208,12 @@ export default function NegotiationCentral() {
     }
   };
 
-  const handleSaveNegotiation = async () => {
-    if (!activeIndication) return;
+  // closeAfter=false é usado pelo Faturar: salva o que está na tela e devolve a indicação
+  // atualizada do banco, sem fechar a central.
+  const handleSaveNegotiation = async (opts: { closeAfter?: boolean } = {}): Promise<Indication | null> => {
+    const closeAfter = opts.closeAfter !== false;
+    if (!activeIndication) return null;
+    let saved: Indication | null = null;
     setLoading(true);
     try {
       const indicationRef = doc(db, 'indications', activeIndication.id);
@@ -1161,11 +1241,27 @@ export default function NegotiationCentral() {
         client_code: clientCode || ''
       };
 
-      if (budgetLoaded && budgetDate) {
-        // Calculate expiration: 60 days starting from budget_date on the paper
-        const proposalRefDate = new Date(budgetDate + 'T12:00:00');
-        updateData.budget_sent_at = proposalRefDate.toISOString();
-        updateData.protection_expires_at = new Date(proposalRefDate.getTime() + 60 * 24 * 60 * 60 * 1000).toISOString();
+      // Proteção de 60 dias conta da data em que o orçamento foi CARREGADO aqui, e não da data
+      // impressa no papel: antes um orçamento antigo subido hoje já nascia vencido ou quase, e
+      // cada "salvar" recalculava o prazo. Também não encurta uma proteção que já vai mais longe
+      // (renovação manual): fica sempre o prazo mais tarde.
+      if (budgetLoaded) {
+        const SESSENTA_DIAS = 60 * 24 * 60 * 60 * 1000;
+        const existingExpiry = activeIndication.protection_expires_at ? new Date(activeIndication.protection_expires_at).getTime() : 0;
+        if (budgetUploadedAt) {
+          const candidateExpiry = new Date(budgetUploadedAt).getTime() + SESSENTA_DIAS;
+          if (!(existingExpiry > candidateExpiry)) {
+            updateData.budget_sent_at = budgetUploadedAt;
+            updateData.protection_expires_at = new Date(candidateExpiry).toISOString();
+          }
+        } else if (!activeIndication.budget_sent_at) {
+          // Orçamento marcado à mão, sem arquivo: começa a contar de agora
+          const nowMs = Date.now();
+          updateData.budget_sent_at = new Date(nowMs).toISOString();
+          if (!(existingExpiry > nowMs + SESSENTA_DIAS)) {
+            updateData.protection_expires_at = new Date(nowMs + SESSENTA_DIAS).toISOString();
+          }
+        }
       }
 
       const wasBudgetJustSent = budgetLoaded && !activeIndication.budget_loaded;
@@ -1298,16 +1394,21 @@ export default function NegotiationCentral() {
       // Refresh local state in context
       const updatedSnap = await getDoc(indicationRef);
       if (updatedSnap.exists()) {
-        refreshIndication({ id: updatedSnap.id, ...updatedSnap.data() } as Indication);
+        saved = { id: updatedSnap.id, ...updatedSnap.data() } as Indication;
+        refreshIndication(saved);
       }
-      
+      // O upload já foi gravado: o próximo salvar não deve empurrar o prazo de novo
+      setBudgetUploadedAt(null);
+
       // The user said: "closes automatically" after clicking save button
-      closeNegotiation();
+      if (closeAfter) closeNegotiation();
     } catch (error: any) {
       toast.error('Erro ao salvar: ' + error.message);
+      saved = null;
     } finally {
       setLoading(false);
     }
+    return saved;
   };
 
   const handleUndoInvoiceDirect = async () => {
@@ -1326,13 +1427,10 @@ export default function NegotiationCentral() {
 
       // 2. Revert associated stock sales
       const stockSalesRef = collection(db, 'stock_sales');
-      let salesQuery = query(stockSalesRef, where('indication_id', '==', activeIndication.id));
-      let salesSnap = await getDocs(salesQuery);
-      
-      if (salesSnap.empty && activeIndication.client_name) {
-        salesQuery = query(stockSalesRef, where('client_name', '==', activeIndication.client_name));
-        salesSnap = await getDocs(salesQuery);
-      }
+      // Só pelo id da indicação. A busca de reserva pelo nome do cliente foi tirada: ela pegava
+      // baixas de OUTRAS vendas do mesmo cliente e devolvia ao estoque peças que já tinham saído.
+      const salesQuery = query(stockSalesRef, where('indication_id', '==', activeIndication.id));
+      const salesSnap = await getDocs(salesQuery);
 
       for (const docSnap of salesSnap.docs) {
         const saleData = docSnap.data();
@@ -1340,12 +1438,12 @@ export default function NegotiationCentral() {
         const qtySold = saleData.quantity_sold || 0;
 
         if (stockItemId && qtySold > 0) {
+          // increment no servidor: somar ao número lido antes perdia baixas feitas no meio tempo
           const stockItemRef = doc(db, 'stock_items', stockItemId);
           const stockItemSnap = await getDoc(stockItemRef);
           if (stockItemSnap.exists()) {
-            const currentQty = stockItemSnap.data().quantity || 0;
             await updateDoc(stockItemRef, {
-              quantity: currentQty + qtySold,
+              quantity: increment(qtySold),
               updated_at: new Date().toISOString()
             });
           }
@@ -1388,14 +1486,26 @@ export default function NegotiationCentral() {
     }
   };
 
-  const handleOpenFinalizeDialog = () => {
+  const handleOpenFinalizeDialog = async () => {
     if (!activeIndication) return;
     const isSalesOrderLoaded = !!orderNumber && orderNumber.trim() !== '';
     if (!isSalesOrderLoaded) {
       toast.error('O faturamento só pode ser finalizado após o carregamento do Pedido de Venda.');
       return;
     }
-    setInvoiceIndication(activeIndication);
+    // O botão habilita com o número do pedido que está só na tela, mas o diálogo de faturamento
+    // lê a indicação do banco. Antes, faturar logo depois de ler o pedido (sem salvar) gravava a
+    // venda com valor, produtos e pedido antigos. Agora salva primeiro e abre com o dado fresco.
+    const fresh = await handleSaveNegotiation({ closeAfter: false });
+    if (!fresh) {
+      toast.error('Salve o pedido antes de faturar.');
+      return;
+    }
+    if (!fresh.sale_order_number || !String(fresh.sale_order_number).trim()) {
+      toast.error('Salve o pedido antes de faturar.');
+      return;
+    }
+    setInvoiceIndication(fresh);
     setIsInvoiceDialogOpen(true);
     closeNegotiation();
   };
@@ -1970,10 +2080,14 @@ export default function NegotiationCentral() {
                           <>
                             <div className="flex items-center gap-1 mb-1 justify-between">
                               <span className="text-[8px] font-bold uppercase text-primary tracking-tight">Comissão</span>
-                              <Badge className="bg-primary/10 text-primary border-none text-[8px] h-4 py-0 font-bold px-1.5">{hasExternalSeller ? (activeIndication.commission_rate_applied || 2) : 0}%</Badge>
+                              <Badge className="bg-primary/10 text-primary border-none text-[8px] h-4 py-0 font-bold px-1.5">{!hasExternalSeller ? '0%' : displayCommissionRate === null ? 'a definir' : `${displayCommissionRate}%`}</Badge>
                             </div>
                             <div className="text-sm font-bold italic text-primary tracking-tighter">
-                              {maskCurrency(hasExternalSeller ? (totalCommissionable * ((activeIndication.commission_rate_applied || 2) / 100)) : 0)}
+                              {!hasExternalSeller
+                                ? maskCurrency(0)
+                                : displayCommissionRate === null
+                                  ? 'a definir'
+                                  : maskCurrency(totalCommissionable * (displayCommissionRate / 100))}
                             </div>
                           </>
                         ) : (
@@ -2686,7 +2800,7 @@ export default function NegotiationCentral() {
                         <span>{isMobile ? "Faturar" : "Finalizar Faturamento"}</span>
                       </Button>
                       <Button 
-                        onClick={handleSaveNegotiation}
+                        onClick={() => handleSaveNegotiation()}
                         disabled={loading}
                         className="h-9 px-3 lg:px-8 bg-primary hover:bg-primary/90 text-white font-bold italic uppercase text-[9px] lg:text-xs tracking-wider shadow-sm rounded-lg shrink-0"
                       >

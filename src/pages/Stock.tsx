@@ -16,7 +16,8 @@ import {
   orderBy,
   where,
   serverTimestamp,
-  Timestamp
+  Timestamp,
+  increment
 } from 'firebase/firestore';
 import { 
   Package, 
@@ -1166,7 +1167,9 @@ export default function Stock() {
         // 2. Update import quantity
         const itemRef = doc(db, 'stock_imports_fae', saleData.itemId);
         batch.update(itemRef, {
-          quantity: item.quantity - saleData.quantity,
+          // increment no servidor: gravar o número calculado da tela apagava uma venda feita
+          // ao mesmo tempo em outro aparelho (as duas gravavam o mesmo saldo)
+          quantity: increment(-saleData.quantity),
           updated_at: new Date().toISOString()
         });
 
@@ -1215,7 +1218,9 @@ export default function Stock() {
       // 2. Update stock quantity
       const itemRef = doc(db, 'stock_items', saleData.itemId);
       batch.update(itemRef, {
-        quantity: item.quantity - saleData.quantity,
+        // increment no servidor: gravar o número calculado da tela apagava uma venda feita
+        // ao mesmo tempo em outro aparelho (as duas gravavam o mesmo saldo)
+        quantity: increment(-saleData.quantity),
         updated_at: new Date().toISOString()
       });
 

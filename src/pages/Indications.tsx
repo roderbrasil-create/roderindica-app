@@ -19,6 +19,8 @@ import {
   addDoc,
   deleteDoc,
   writeBatch,
+  runTransaction,
+  increment,
   serverTimestamp,
   arrayUnion
 } from 'firebase/firestore';
@@ -295,6 +297,8 @@ export default function Indications() {
   const [saleValue, setSaleValue] = useState('');
   const [discountPercentage, setDiscountPercentage] = useState('0');
   const [hasDiscount, setHasDiscount] = useState(false);
+  // Desconto concedido em reais no faturamento: sai da base da comissão antes de aplicar a taxa
+  const [discountReais, setDiscountReais] = useState('0');
   const [selectedStockItem, setSelectedStockItem] = useState('none');
   const [autoDeductStock, setAutoDeductStock] = useState(true);
   const [updatingProductName, setUpdatingProductName] = useState('');
@@ -370,12 +374,19 @@ export default function Indications() {
         0
       );
 
-      const initialValue = selectedIndication.gross_budget_value 
-        ? selectedIndication.gross_budget_value 
-        : (productSum > 0 ? productSum : (selectedIndication.base_commission_value || 0));
+      // Com pedido de venda carregado, o valor que vale é o do pedido, e não o do orçamento:
+      // antes o diálogo abria com o valor bruto do orçamento e a venda era gravada com ele.
+      const orderLoaded = !!(selectedIndication.sale_order_number && String(selectedIndication.sale_order_number).trim());
+      const orderValue = Number(selectedIndication.sale_value) || 0;
+      const initialValue = orderLoaded && orderValue > 0
+        ? orderValue
+        : selectedIndication.gross_budget_value
+          ? selectedIndication.gross_budget_value
+          : (productSum > 0 ? productSum : (selectedIndication.base_commission_value || 0));
 
       setSaleValue(initialValue > 0 ? initialValue.toString() : '');
       setDiscountPercentage('0');
+      setDiscountReais('0');
       setHasDiscount(false);
       setSelectedStockItem('none');
       setAutoDeductStock(true);
@@ -430,14 +441,10 @@ export default function Indications() {
       // 2. Revert associated stock sales
       const stockSalesRef = collection(db, 'stock_sales');
       // Search by indication_id matching the field we are introducing
-      let salesQuery = query(stockSalesRef, where('indication_id', '==', ind.id));
-      let salesSnap = await getDocs(salesQuery);
-      
-      // Fallback: search by client_name if indication_id query yielded nothing (for older entries)
-      if (salesSnap.empty && ind.client_name) {
-        salesQuery = query(stockSalesRef, where('client_name', '==', ind.client_name));
-        salesSnap = await getDocs(salesQuery);
-      }
+      // Só pelo id da indicação. A busca de reserva pelo nome do cliente foi tirada: ela pegava
+      // baixas de OUTRAS vendas do mesmo cliente e devolvia ao estoque peças que já tinham saído.
+      const salesQuery = query(stockSalesRef, where('indication_id', '==', ind.id));
+      const salesSnap = await getDocs(salesQuery);
 
       for (const docSnap of salesSnap.docs) {
         const saleData = docSnap.data();
@@ -445,13 +452,12 @@ export default function Indications() {
         const qtySold = saleData.quantity_sold || 0;
 
         if (stockItemId && qtySold > 0) {
-          // Increment the stock_item quantity back
+          // increment no servidor: somar ao número lido antes perdia baixas feitas no meio tempo
           const stockItemRef = doc(db, 'stock_items', stockItemId);
           const stockItemSnap = await getDoc(stockItemRef);
           if (stockItemSnap.exists()) {
-            const currentQty = stockItemSnap.data().quantity || 0;
             await updateDoc(stockItemRef, {
-              quantity: currentQty + qtySold,
+              quantity: increment(qtySold),
               updated_at: new Date().toISOString()
             });
           }
@@ -487,8 +493,13 @@ export default function Indications() {
     }
   };
 
+  // Trava síncrona: o estado "submitting" só vale no próximo render, então dois toques
+  // rápidos no botão passavam os dois. A transação também recusa, isto só evita o susto.
+  const finishingSaleRef = useRef(false);
   const handleFinishSale = async () => {
     if (!selectedIndication) return;
+    if (finishingSaleRef.current) return;
+    finishingSaleRef.current = true;
     try {
       setSubmitting(true);
 
@@ -521,11 +532,12 @@ export default function Indications() {
       // saleValue guarda o número puro (ex.: "230000"); unmaskCurrency dividiria por 100 (bug do R$ 2.300)
       const totalSalesValue = Number(saleValue) || 0;
       const baseValue = totalSalesValue; 
-      const discPct = 0;
-      const discountAmount = 0;
+      let discPct = 0;
+      let discountAmount = 0;
 
       const hasExternalSeller = !!selectedIndication.external_seller_uid && isPartnerCommissionable;
 
+      let grossCommissionableValue = 0;
       let commissionableValue = 0;
       let finalCommissionValue = 0;
       let finalStandardSellerCommissionValue = 0;
@@ -541,6 +553,13 @@ export default function Indications() {
           }, 
           0
         );
+        // Regra de negócio: desconto concedido sai da base ANTES da taxa. Antes o desconto era
+        // fixo em zero e o parceiro recebia comissão sobre um valor que o cliente não pagou.
+        // O desconto nunca passa da própria base (comissão negativa não existe).
+        grossCommissionableValue = commissionableValue;
+        discountAmount = Math.min(Math.max(Number(discountReais) || 0, 0), grossCommissionableValue);
+        discPct = grossCommissionableValue > 0 ? (discountAmount / grossCommissionableValue) * 100 : 0;
+        commissionableValue = grossCommissionableValue - discountAmount;
         finalCommissionValue = commissionableValue * (commissionRate / 100);
 
         // When a sale is registered for a standard seller, the commission calculated is on the total sale value.
@@ -625,7 +644,7 @@ export default function Indications() {
           author_name: profile?.name || 'Sistema',
           created_at: new Date().toISOString(),
           content: hasExternalSeller 
-            ? `VENDA FINALIZADA! Data do Pedido: ${saleDate.split('-').reverse().join('/')}. Comissão de ${commissionRate}% aplicada sobre o valor de produtos comissionáveis de R$ ${commissionableValue.toLocaleString('pt-BR')}.` + (invoiceFile ? ' Documento de faturamento anexado.' : '')
+            ? `VENDA FINALIZADA! Data do Pedido: ${saleDate.split('-').reverse().join('/')}. Comissão de ${commissionRate}% aplicada sobre o valor de produtos comissionáveis de R$ ${commissionableValue.toLocaleString('pt-BR')}.` + (discountAmount > 0 ? ` Desconto concedido de R$ ${discountAmount.toLocaleString('pt-BR')} abatido da base.` : '') + (invoiceFile ? ' Documento de faturamento anexado.' : '')
             : `VENDA FINALIZADA! Data do Pedido: ${saleDate.split('-').reverse().join('/')}. Venda finalizada sem processamento de comissão (sem parceiro indicador cadastrado).` + (invoiceFile ? ' Documento de faturamento anexado.' : ''),
           attachments: invoiceFile ? [{ name: invoiceFile.name, url: fileUrl }] : []
         })
@@ -678,93 +697,116 @@ export default function Indications() {
         updateData.invoice_url = fileUrl;
       }
 
-      // 4. Update Stock items automatically (Deduct from Stock)
+      // 4 a 6. Baixa de estoque, venda marcada e comissão numa transação só.
+      // Antes eram gravações soltas em sequência: um clique duplo (ou uma nova tentativa depois
+      // de erro de rede) criava DUAS comissões para a mesma venda, e uma falha no meio deixava
+      // estoque baixado com a venda ainda em negociação. Agora a comissão tem id fixo
+      // (commissions/{id da indicação}), a transação recusa se a venda já estiver faturada e,
+      // se qualquer parte falhar, nada é gravado.
+      const commissionRef = doc(db, 'commissions', selectedIndication.id);
+      const shouldCreateCommission = !!selectedIndication.external_seller_uid && isPartnerCommissionable;
+
+      // Comissões antigas foram criadas com id aleatório; a transação não enxerga essas pelo id,
+      // então confere por consulta antes, para não lançar uma segunda comissão por cima delas.
+      if (shouldCreateCommission) {
+        const legacyComm = await getDocs(query(collection(db, 'commissions'), where('indication_id', '==', selectedIndication.id)));
+        if (!legacyComm.empty) {
+          throw new Error('Já existe comissão lançada para esta venda. Estorne o faturamento antes de faturar de novo.');
+        }
+      }
+
+      // Itens de estoque a baixar: o id vem da lista da tela, mas a quantidade é lida de novo
+      // dentro da transação, para nunca baixar abaixo de zero nem usar número velho da tela.
+      const stockWanted: { itemId: string; qty: number; manual: boolean }[] = [];
       if (autoDeductStock && selectedIndication.commissioned_products && selectedIndication.commissioned_products.length > 0) {
         for (const p of selectedIndication.commissioned_products) {
-          const match = stockItems.find(item => item.code.trim() === p.code.trim());
-          if (match && match.quantity > 0) {
-            const deductQty = Math.min(match.quantity, p.quantity);
-            if (deductQty > 0) {
-              // Create stock sale record
-              const saleRef = doc(collection(db, 'stock_sales'));
-              await addDoc(collection(db, 'stock_sales'), {
-                indication_id: selectedIndication.id,
-                stock_item_id: match.id,
-                item_description: match.description,
-                item_code: match.code,
-                quantity_sold: deductQty,
-                seller_uid: profile?.uid || '',
-                seller_name: profile?.name || 'Sistema',
-                client_name: selectedIndication.client_name || '',
-                client_cnpj: selectedIndication.client_cnpj || '',
-                observation: `Baixa automática de faturamento (Pedido #${selectedIndication.sale_order_number || ''})`,
-                branch: match.branch || 'matriz',
-                created_at: new Date().toISOString()
-              });
-
-              // Update stock item quantity
-              const itemRef = doc(db, 'stock_items', match.id);
-              await updateDoc(itemRef, {
-                quantity: match.quantity - deductQty,
-                updated_at: new Date().toISOString()
-              });
-              
-              toast.success(`Estoque do item ${match.code} baixado em ${deductQty} unidades!`);
-            }
-          }
+          const match = stockItems.find(item => (item.code || '').trim() === (p.code || '').trim());
+          if (match && (p.quantity || 0) > 0) stockWanted.push({ itemId: match.id, qty: p.quantity, manual: false });
         }
       } else if (!autoDeductStock && selectedStockItem !== 'none') {
-        const stockRef = doc(db, 'stock_items', selectedStockItem);
-        const stockSnap = await getDoc(stockRef);
-        if (stockSnap.exists() && stockSnap.data().quantity > 0) {
-          const match = { id: stockSnap.id, ...stockSnap.data() } as StockItem;
-          // Create stock sale record
-          await addDoc(collection(db, 'stock_sales'), {
+        stockWanted.push({ itemId: selectedStockItem, qty: 1, manual: true });
+      }
+      const stockIds = Array.from(new Set(stockWanted.map(s => s.itemId)));
+
+      const stockMessages: string[] = [];
+      await runTransaction(db, async (tx) => {
+        // A transação pode ser repetida pelo Firestore: começa sempre do zero
+        stockMessages.length = 0;
+        // Leituras primeiro (regra do Firestore: toda leitura antes de qualquer escrita)
+        const leadSnap = await tx.get(leadRef);
+        if (!leadSnap.exists()) throw new Error('Indicação não encontrada.');
+        if (leadSnap.data().status === 'sold') {
+          throw new Error('Esta venda já foi faturada. Atualize a tela.');
+        }
+        if (shouldCreateCommission) {
+          const commSnap = await tx.get(commissionRef);
+          if (commSnap.exists()) {
+            throw new Error('Já existe comissão lançada para esta venda. Estorne o faturamento antes de faturar de novo.');
+          }
+        }
+        const stockSnaps = new Map<string, any>();
+        for (const id of stockIds) {
+          stockSnaps.set(id, await tx.get(doc(db, 'stock_items', id)));
+        }
+
+        // Escritas
+        const available = new Map<string, number>();
+        stockSnaps.forEach((snap, id) => available.set(id, snap.exists() ? Number(snap.data().quantity) || 0 : 0));
+        for (const w of stockWanted) {
+          const snap = stockSnaps.get(w.itemId);
+          if (!snap || !snap.exists()) continue;
+          const left = available.get(w.itemId) || 0;
+          const deductQty = Math.min(left, w.qty);
+          if (deductQty <= 0) continue;
+          available.set(w.itemId, left - deductQty);
+          const item = snap.data();
+          tx.set(doc(collection(db, 'stock_sales')), {
             indication_id: selectedIndication.id,
-            stock_item_id: match.id,
-            item_description: match.description,
-            item_code: match.code,
-            quantity_sold: 1,
+            stock_item_id: w.itemId,
+            item_description: item.description || '',
+            item_code: item.code || '',
+            quantity_sold: deductQty,
             seller_uid: profile?.uid || '',
             seller_name: profile?.name || 'Sistema',
             client_name: selectedIndication.client_name || '',
             client_cnpj: selectedIndication.client_cnpj || '',
-            observation: `Baixa manual via finalização de faturamento (Pedido #${selectedIndication.sale_order_number || ''})`,
-            branch: match.branch || 'matriz',
+            observation: w.manual
+              ? `Baixa manual via finalização de faturamento (Pedido #${selectedIndication.sale_order_number || ''})`
+              : `Baixa automática de faturamento (Pedido #${selectedIndication.sale_order_number || ''})`,
+            branch: item.branch || 'matriz',
             created_at: new Date().toISOString()
           });
-
-          await updateDoc(stockRef, {
-            quantity: match.quantity - 1,
+          tx.update(doc(db, 'stock_items', w.itemId), {
+            quantity: increment(-deductQty),
             updated_at: new Date().toISOString()
           });
-          
-          toast.success(`Baixa manual concluída para ${match.code}`);
+          stockMessages.push(w.manual
+            ? `Baixa manual concluída para ${item.code}`
+            : `Estoque do item ${item.code} baixado em ${deductQty} unidades!`);
         }
-      }
 
-      // 5. Update Indication Document
-      await updateDoc(leadRef, updateData);
+        tx.update(leadRef, updateData);
 
-      // 6. Create Commission Document in the commissions collection
-      if (selectedIndication.external_seller_uid && isPartnerCommissionable) {
-        const commissionDocData = {
-          indication_id: selectedIndication.id,
-          external_seller_uid: selectedIndication.external_seller_uid,
-          external_seller_name: partnerName,
-          value: finalCommissionValue,
-          base_value_used: commissionableValue,
-          discount_applied: discountAmount,
-          discount_percentage: discPct,
-          rate_applied: commissionRate,
-          status: 'waiting_nf', // Initial status is waiting for NF
-          month: commissionMonth,
-          year: commissionYear,
-          sale_date: saleDate, // Keep track of the actual sale date
-          created_at: new Date().toISOString()
-        };
-        await addDoc(collection(db, 'commissions'), commissionDocData);
-      }
+        if (shouldCreateCommission) {
+          tx.set(commissionRef, {
+            indication_id: selectedIndication.id,
+            external_seller_uid: selectedIndication.external_seller_uid,
+            external_seller_name: partnerName,
+            value: finalCommissionValue,
+            base_value_used: commissionableValue,
+            gross_commissionable_value: grossCommissionableValue,
+            discount_applied: discountAmount,
+            discount_percentage: discPct,
+            rate_applied: commissionRate,
+            status: 'waiting_nf', // Initial status is waiting for NF
+            month: commissionMonth,
+            year: commissionYear,
+            sale_date: saleDate, // Keep track of the actual sale date
+            created_at: new Date().toISOString()
+          });
+        }
+      });
+      stockMessages.forEach(m => toast.success(m));
 
       // Notify Indicator and Managers
       if (selectedIndication.external_seller_uid && isPartnerCommissionable) {
@@ -821,6 +863,7 @@ export default function Indications() {
     } catch (error: any) {
       toast.error('Erro ao finalizar venda: ' + error.message);
     } finally {
+      finishingSaleRef.current = false;
       setSubmitting(false);
     }
   };
@@ -1142,61 +1185,10 @@ export default function Indications() {
 
   const [activeTab, setActiveTab] = useState<'novos' | 'andamento' | 'vendidos' | 'cancelados' | 'perdidos'>('andamento');
 
-  // Check for expired leads with a throttled approach
-  const lastCheckRef = useRef<number>(0);
-  useEffect(() => {
-    if (indications.length === 0) return;
-    
-    // Only check every 5 minutes to avoid hitting write limits during rapid updates
-    const now = Date.now();
-    if (now - lastCheckRef.current < 5 * 60 * 1000) return;
-    lastCheckRef.current = now;
-
-    const checkExpirations = async () => {
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 60);
-
-      const expiredLeads = indications.filter(ind => 
-        ind.status === 'negotiating' && 
-        ind.budget_sent_at && 
-        new Date(ind.budget_sent_at) < thirtyDaysAgo
-      );
-
-      for (const lead of expiredLeads) {
-        try {
-          const leadRef = doc(db, 'indications', lead.id);
-          await updateDoc(leadRef, {
-            status: 'cancelled',
-            cancellation_reason: 'Prazo expirado',
-            cancellation_details: 'Lead cancelado automaticamente após 60 dias de validade da proposta.',
-            updated_at: new Date().toISOString(),
-            negotiation_history: arrayUnion({
-              id: Math.random().toString(36).substring(2, 11),
-              type: 'status_change',
-              author_name: 'Sistema',
-              created_at: new Date().toISOString(),
-              content: 'Cancelamento automático: Proposta expirou após 60 dias.',
-              attachments: []
-            })
-          });
-          
-          await addDoc(collection(db, 'notifications'), {
-            user_uid: lead.internal_seller_uid,
-            title: 'Lead Expirado',
-            message: `A negociação com ${lead.client_name} expirou após 60 dias.`,
-            type: 'warning',
-            read: false,
-            link: '/indicacoes',
-            created_at: new Date().toISOString()
-          });
-        } catch (err) {
-          console.error("Error auto-cancelling lead:", err);
-        }
-      }
-    };
-
-    checkExpirations();
-  }, [indications.length]);
+  // O cancelamento automático por 60 dias saiu daqui e foi para o servidor (server.ts, cron diário).
+  // Rodando no navegador ele disparava na tela de qualquer pessoa logada, inclusive parceiro,
+  // ignorava a renovação manual (protection_expires_at), cancelava negociação que já tinha
+  // pedido de venda carregado e não avisava o parceiro.
 
   useEffect(() => {
     if (isInternalSeller || isManager || isAdmin || isTriagem) {
@@ -2979,10 +2971,22 @@ export default function Indications() {
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-black text-muted-foreground">R$</span>
                       </div>
                     </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-wide text-muted-foreground block">Desconto concedido (R$), opcional</Label>
+                      <div className="relative">
+                        <Input
+                          inputMode="numeric"
+                          value={maskCurrency(Number(discountReais) || 0)}
+                          onChange={(e) => setDiscountReais(unmaskCurrency(e.target.value).toString())}
+                          className="bg-background border-border font-bold h-11 pl-10"
+                          placeholder="R$ 0,00"
+                        />
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-black text-muted-foreground">R$</span>
+                      </div>
+                    </div>
                     <div className="p-3.5 bg-orange-500/10 dark:bg-orange-950/20 rounded-lg text-[10px] text-orange-800 dark:text-orange-300 leading-normal font-semibold space-y-1">
                       <p>✓ Os valores já foram negociados e validados no corpo do Pedido de Venda.</p>
-                      <p>✓ Cupom de desconto ou abatimento percentual não é aplicável nesta tela.</p>
-                      <p>✓ A comissão final será calculada diretamente sobre o valor total do faturamento.</p>
+                      <p>✓ O desconto concedido é abatido da base da comissão do parceiro antes de aplicar a taxa dele.</p>
                     </div>
                   </div>
                 </div>

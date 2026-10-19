@@ -111,6 +111,7 @@ export interface Indication {
   status: IndicationStatus;
   budget_pdf_url?: string;
   budget_pdf_urls?: string[];
+  sales_order_pdf_urls?: string[];
   budget_loaded?: boolean;
   budget_number?: string;
   budget_date?: string;
