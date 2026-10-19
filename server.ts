@@ -278,23 +278,22 @@ Potência: ... cv
 TDP 1000 rpm: sim / opcional / incerto
 Super redutor (creeper) e powershift não contam como CVT. Se o modelo não estiver claro ou as fontes não confirmarem, escreva "incerto" no item. Não invente.`;
 
-  const modelos = ["gemini-3.5-flash", "gemini-2.5-flash"];
-  for (const modelo of modelos) {
-    try {
-      let relogio: any;
-      const resposta: any = await Promise.race([
-        ai.models.generateContent({
-          model: modelo,
-          contents: prompt,
-          config: { tools: [{ googleSearch: {} }], temperature: 0 }
-        }),
-        new Promise((_, rejeita) => { relogio = setTimeout(() => rejeita(new Error('tempo esgotado na consulta do trator')), 15000); })
-      ]).finally(() => clearTimeout(relogio));
-      const texto = String(resposta?.text || '').trim();
-      if (texto) return texto.slice(0, 800);
-    } catch (err: any) {
-      console.warn(`[engineerHelper] Consulta do trator com ${modelo} falhou:`, err?.message || err);
-    }
+  // Um modelo só, com prazo total de 12 s e cancelamento de verdade: antes eram dois modelos
+  // de 15 s em sequência (até 30 s de espera) e a chamada vencida continuava sendo cobrada.
+  const controle = new AbortController();
+  const relogio = setTimeout(() => controle.abort(), 12000);
+  try {
+    const resposta: any = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: prompt,
+      config: { tools: [{ googleSearch: {} }], temperature: 0, abortSignal: controle.signal } as any
+    });
+    const texto = String(resposta?.text || '').trim();
+    if (texto) return texto.slice(0, 800);
+  } catch (err: any) {
+    console.warn('[engineerHelper] Consulta do trator falhou:', err?.message || err);
+  } finally {
+    clearTimeout(relogio);
   }
   return null;
 }
@@ -2630,7 +2629,7 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
     - DIRETRIZ CRÍTICA DE ROTATOR HIDRÁULICO PARA GARRAS FLORESTAIS:
       • Quando falar ou indicar garras florestais, você deve sempre lembrar e destacar no texto que a Roder indica e dimensiona o **Rotator hidráulico** (o mecanismo que realiza o giro de 360° da garra) de acordo com o tamanho/peso operacional da MÁQUINA BASE que será utilizada.
       • **CAPACIDADES E ERRO COMUM**: **NÃO existe rotor de 15 t**.
-      • **REGRA DO JEFERSON (vale acima das outras)**: garras R600 até as maiores (R800, R1000, R1200, R1400) em escavadeiras ACIMA de 20 toneladas: orientar sempre garra com **Rotator IR10** (garra CA, cabeçote alto), para aguentar o trabalho pesado. Garras R400 até R600 em escavadeiras de 12 a 16 toneladas: pode ser **Rotator de 12 t ou 16 t** (garra CB), dando preferência ao de 16 t, que tem o mesmo preço e costuma ter estoque.
+      • **REGRA DA RODER (vale acima das outras)**: garras R600 até as maiores (R800, R1000, R1200, R1400) em escavadeiras ACIMA de 20 toneladas: orientar sempre garra com **Rotator IR10** (garra CA, cabeçote alto), para aguentar o trabalho pesado. Garras R400 até R600 em escavadeiras de 12 a 16 toneladas: pode ser **Rotator de 12 t ou 16 t** (garra CB), dando preferência ao de 16 t, que tem o mesmo preço e costuma ter estoque.
       • **Rotatores para Garras Traçadoras (Porte Médio e Grande)**: Há duas opções principais: 1) **Rotator IR10**; ou 2) **Rotor de giro livre RR550-7** (Capacidade 55t, swivel 7 passagens, giro livre ilimitado).
       • **COMPATIBILIDADE RR550-7**: O Rotator RR550-7 é indicado estritamente para as garras **GT 600X e modelos acima**.
       • ATENÇÃO À GRAFIA: O termo correto é estritamente **Rotator** (com "t"). NUNCA use o termo "Rotador" sob nenhuma hipótese.
@@ -2940,7 +2939,7 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
           **COMO RECONHECER CVT PELO NOME DO TRATOR (Brasil)**:
           - TEM CVT: Vario (Fendt), Dyna-VT (MF), "CVT" no modelo (Valtra T CVT), Valtra Q5 e S6, Direct (Valtra antigo), CVX (Case IH), Auto Command (New Holland), AutoPowr/IVT e eAutoPowr/EVT (John Deere), TTV (Deutz-Fahr), Cmatic (Claas).
           - NÃO TEM CVT: Dyna-6, Dyna-4, Dyna-E power (MF); HiTech, Versu, Active (Valtra); Power Command, Range Command, UltraCommand (NH); PowerShift, Full/Semi Powershift (Case IH); e23, PowrShift, PowrQuad, AutoQuad, CommandQuad (JD); Hexashift (Claas); RCshift (Deutz).
-          - Séries com CVT vendidas no Brasil e encaixe: Fendt 700 Vario (263 a 283 cv, todas as SSH); Fendt 900 Vario (SSH 200/225/250 até 400 cv); Fendt 1000 Vario (acima de 400 cv, não recomendado); MF 8700 S Dyna-VT (cerca de 270 a 370 cv, escolher SSH pela potência); Valtra T195 a T250 CVT (195 a 250 cv: T195 só SSH 150, T250 serve SSH 250); Valtra Q5 Q265 a Q305 (todas as SSH); Valtra S6 S346 e S376 (S416 passa de 400 cv); Case IH Puma 260 CVX (todas as SSH); NH T7.300 Auto Command (260 cv, todas as SSH); JD 8R com eAutoPowr/EVT opcional (o 8R comum no Brasil é e23 e não serve).
+          - Séries com CVT vendidas no Brasil e encaixe: Fendt 700 Vario (263 a 283 cv; SSH 150 até o 726, e as demais SSH); Fendt 900 Vario (SSH 200/225/250 até 400 cv); Fendt 1000 Vario (acima de 400 cv, não recomendado); MF 8700 S Dyna-VT (cerca de 270 a 370 cv, escolher SSH pela potência); Valtra T195 a T250 CVT (195 a 250 cv: T195 só SSH 150, T250 serve SSH 250); Valtra Q5 Q265 a Q305 (todas as SSH); Valtra S6 S346 e S376 (S416 passa de 400 cv); Case IH Puma 260 CVX (todas as SSH); NH T7.300 Auto Command (260 cv, todas as SSH); JD 8R com eAutoPowr/EVT opcional (o 8R comum no Brasil é e23 e não serve; o 8R 410 passa de 400 cv, conferir a potência).
           - Populares SEM CVT (não servem): MF 7700/7700 S Dyna-6, MF 7200, 6700, 4700; Valtra BH HiTech, BT, Série A, T antiga sem "CVT" no nome; Case IH Puma sem "CVX" e Magnum nacional; NH T7 Power/Range Command, T8 UltraCommand; JD 8R e23/PowrShift, 7J, 6J, 7M, 6M; LS, Mahindra, Agrale, Yanmar e similares (potência baixa).
           - Incertos (pedir foto da plaqueta ou do painel): MF 9S, Case Magnum CVX e Optum CVX, JD AutoPowr de fábrica no Brasil, Claas e Deutz-Fahr. Nome parecido engana: Puma x Puma CVX, T7 Power Command x T7 Auto Command, 8R e23 x 8R eAutoPowr.
 
