@@ -1482,7 +1482,8 @@ Retorne um array JSON no formato exato:
         // o "anterior" guardado é sempre a regra de ANTES da primeira publicação pelo app:
         // se o que está no ar é a que o app publicou da última vez, mantém o anterior antigo
         const hist = (await db.collection('regras_historico').doc(alvo).get()).data();
-        const anterior = hist?.nova && atual?.rulesetName === hist.nova ? (hist.anterior || null) : (atual?.rulesetName || null);
+        // depois que existe um "anterior", ele não é trocado até alguém usar o Voltar
+        const anterior = hist?.anterior ? hist.anterior : (atual?.rulesetName || null);
         await db.collection('regras_historico').doc(alvo).set({
           anterior,
           nova: rs.name,
