@@ -3,6 +3,7 @@ import Layout from '../components/layout/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { collection, query, onSnapshot, orderBy, doc, updateDoc, setDoc, deleteDoc, where, getDocs, writeBatch, Timestamp, addDoc } from 'firebase/firestore';
+import { lerComCache } from '../lib/leiturasCompartilhadas';
 import { db, auth } from '../lib/firebase';
 import { UserProfile, UserRole, UserStatus, AITeaching, RoderApiKey } from '../types';
 import { AuditService, AuditLogEntry, AuditAction } from '../lib/AuditService';
@@ -1438,8 +1439,12 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
         const counts: Record<string, { indications: number }> = {};
         users.forEach(u => counts[u.uid] = { indications: 0 });
 
+        // As duas coleções inteiras eram baixadas só para contar indicações por pessoa,
+        // e de novo a cada vez que o número de usuários mudava (e a cada abertura da
+        // tela). Agora a leitura fica guardada por 30 minutos e as contas são refeitas
+        // em cima dela, sem ler nada de novo. Os números são os mesmos.
         // 1. Fetch counts from indications collection
-        const indicationsSnap = await getDocs(collection(db, 'indications'));
+        const indicationsSnap = await lerComCache('indicacoes-todas', 30 * 60 * 1000, () => getDocs(query(collection(db, 'indications'))));
         indicationsSnap.forEach(doc => {
           const data = doc.data();
           if (data.is_deleted) return;
@@ -1465,7 +1470,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
 
         // 2. Fetch counts from fair_leads collection (Fair registrations)
         try {
-          const fairLeadsSnap = await getDocs(collection(db, 'fair_leads'));
+          const fairLeadsSnap = await lerComCache('leads-feira-todos', 30 * 60 * 1000, () => getDocs(collection(db, 'fair_leads')));
           fairLeadsSnap.forEach(doc => {
             const data = doc.data();
             const salespersonUid = data.salesperson_uid;

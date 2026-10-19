@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Bell, Check, Info, AlertTriangle, X } from 'lucide-react';
-import { collection, query, where, onSnapshot, orderBy, updateDoc, doc, limit } from 'firebase/firestore';
+import { collection, query, where, orderBy, updateDoc, doc, limit } from 'firebase/firestore';
+import { ouvirCompartilhado } from '../../lib/leiturasCompartilhadas';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../ui/button';
@@ -48,8 +49,11 @@ export default function NotificationBell() {
       limit(20)
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
+    // O sino é remontado a cada troca de tela (o Layout fica dentro de cada página).
+    // Compartilhado, o ouvinte continua vivo entre as telas e não relê as 20 últimas.
+    // Na volta, a lista chega de uma vez com prev vazio, então não toca som à toa.
+    const unsubscribe = ouvirCompartilhado(`sino-notificacoes-${user.uid}`, q, (snapshot: any) => {
+      const data: Notification[] = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as Notification));
       
       setNotifications(prev => {
         // Check for new notifications to play sound

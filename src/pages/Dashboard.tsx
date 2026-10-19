@@ -4,7 +4,8 @@ import ReactMarkdown from 'react-markdown';
 import Layout from '../components/layout/Layout';
 import FinanceDashboard from '../components/FinanceDashboard';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, query, where, onSnapshot, orderBy, limit, getDocs, getDoc, getDocsFromCache, updateDoc, doc, serverTimestamp, or, addDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, limit, getDocs, getDoc, getDocFromServer, getDocsFromCache, updateDoc, doc, serverTimestamp, or, addDoc } from 'firebase/firestore';
+import { ouvirCompartilhado, lerComCache } from '../lib/leiturasCompartilhadas';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Indication, Commission, Product, Fair } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
@@ -50,6 +51,34 @@ import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import { HelpTooltip } from '../components/base/HelpTooltip';
 import { useVoltarFecha } from '../lib/useVoltarFecha';
+
+// Itens de estoque já conferidos como existentes (id -> quando), para a limpeza de
+// reservas órfãs do Dashboard não reler o mesmo item a cada mudança de reserva.
+const itensEstoqueConferidos = new Map<string, number>();
+const VALIDADE_ITEM_CONFERIDO_MS = 30 * 60 * 1000;
+
+// Quantas indicações (as mais novas) a gestão acompanha ao vivo no Dashboard.
+const LIMITE_INDICACOES_GESTAO = 1000;
+
+// A distribuição automática dos leads de feira roda a cada 15 minutos. Antes ela
+// também rodava a cada vez que o Dashboard era aberto, e a cada aba aberta. Esta marca
+// (na memória e no aparelho) faz ela rodar no máximo uma vez a cada 15 minutos.
+const INTERVALO_DISTRIBUICAO_FEIRA_MS = 15 * 60 * 1000;
+const CHAVE_DISTRIBUICAO_FEIRA = 'roder_ultima_distribuicao_feira';
+let ultimaDistribuicaoFeiraMs = 0;
+function podeDistribuirFeiraAgora(): boolean {
+  const agora = Date.now();
+  let ultima = ultimaDistribuicaoFeiraMs;
+  try {
+    const salva = Number(localStorage.getItem(CHAVE_DISTRIBUICAO_FEIRA) || 0);
+    if (salva > ultima) ultima = salva;
+  } catch { /* sem armazenamento: vale só a memória */ }
+  // um minuto de folga para o intervalo de 15 minutos não cair um pouco antes da marca
+  if (agora - ultima < INTERVALO_DISTRIBUICAO_FEIRA_MS - 60 * 1000) return false;
+  ultimaDistribuicaoFeiraMs = agora;
+  try { localStorage.setItem(CHAVE_DISTRIBUICAO_FEIRA, String(agora)); } catch { /* idem */ }
+  return true;
+}
 
 function DashboardBannerImage({ src, alt, className }: { src: string; alt: string; className?: string }) {
   const [resolvedSrc, setResolvedSrc] = useState('');
@@ -116,6 +145,8 @@ function DashboardCompleto() {
   const isFiscal = profile?.role === 'fiscal';
   const navigate = useNavigate();
   const [indications, setIndications] = useState<Indication[]>([]);
+  // true: o ouvinte da gestão trouxe a coleção inteira; false: passou do limite; null: ainda não sabe
+  const [indicacoesCompletas, setIndicacoesCompletas] = useState<boolean | null>(null);
   const [usersList, setUsersList] = useState<any[]>([]);
   const [commissions, setCommissions] = useState<Commission[]>([]);
   const [fairs, setFairs] = useState<Fair[]>([]);
@@ -275,92 +306,111 @@ function DashboardCompleto() {
     fetchDailySummary();
   }, [profile?.uid]);
 
+  // Contas dos alertas (ranking de conversão, leads frios, sem valor de comissão)
+  // a partir de uma lista de indicações. Antes isto vivia dentro de uma leitura
+  // da coleção INTEIRA de indicações, repetida a cada abertura do Dashboard e a
+  // cada 30 minutos, que era a maior conta de leitura do app.
+  const aplicarAlertasDeIndicacoes = (indics: Indication[]) => {
+    // Conversion Ranking (Only for Admin/Manager)
+    if (isAdmin || isManager) {
+      const sellers: Record<string, { name: string, total: number, sold: number }> = {};
+      indics.forEach(ind => {
+        if (!ind.external_seller_uid) return;
+        if (!sellers[ind.external_seller_uid]) {
+          sellers[ind.external_seller_uid] = { name: ind.external_seller_name || 'Vendedor', total: 0, sold: 0 };
+        }
+        sellers[ind.external_seller_uid].total++;
+        if (ind.status === 'sold') sellers[ind.external_seller_uid].sold++;
+      });
+
+      const ranking = Object.values(sellers)
+        .map(s => ({
+          ...s,
+          rate: s.total > 0 ? (s.sold / s.total) * 100 : 0
+        }))
+        .sort((a, b) => b.rate - a.rate)
+        .slice(0, 5);
+      setConversionRanking(ranking);
+    }
+    
+    const now = new Date();
+    const fiveDayAgo = new Date();
+    fiveDayAgo.setDate(now.getDate() - 5);
+    
+    const cold = indics.filter(ind => {
+      if (ind.status !== 'negotiating') return false;
+      const updatedDate = new Date(ind.updated_at || ind.created_at);
+      return updatedDate < fiveDayAgo;
+    });
+    setColdLeadsCount(cold.length);
+
+    if (!isExternalSeller || isAdmin || isManager) {
+      const missing = indics.filter(ind => 
+        ind.status === 'negotiating' && (
+          (!ind.base_commission_value || ind.base_commission_value <= 0) ||
+          (ind.commissioned_products?.some(p => !p.base_value || p.base_value <= 0))
+        )
+      );
+      setMissingCommValueCount(missing.length);
+    } else {
+      setMissingCommValueCount(0);
+    }
+  };
+
   // 2. Fetch Alerts and specific data
   useEffect(() => {
     if (!profile?.uid) return;
     if (!(isAdmin || isManager || isTriagem || isInternalSeller || isExternalSeller)) return;
+    // Gestão (admin e gerente) calcula os alertas no efeito 2b, com as indicações
+    // que o ouvinte ao vivo do efeito 5 já trouxe. Aqui sobra só a parte das feiras.
+    const gestao = isAdmin || isManager;
 
     const fetchAlertData = async () => {
       try {
-        let q;
-        if (isAdmin || isManager || isTriagem) {
-          q = query(collection(db, 'indications'));
-        } else if (isInternalSeller) {
-          q = query(
-            collection(db, 'indications'), 
-            or(
-              where('internal_seller_uid', '==', profile?.uid),
-              where('internal_seller_name', '==', profile?.name)
-            )
-          );
-        } else {
-          const qFilters: any[] = [];
-          if (profile?.uid) {
-            qFilters.push(where('external_seller_uid', '==', profile.uid));
-            qFilters.push(where('created_by', '==', profile.uid));
-          }
-          if (profile?.email) {
-            qFilters.push(where('external_seller_email', '==', profile.email.toLowerCase()));
-          }
-          if (profile?.name) {
-            qFilters.push(where('external_seller_name', '==', profile.name));
-            qFilters.push(where('external_seller_name', '==', profile.name.toUpperCase()));
-          }
-          if (qFilters.length > 0) {
-            q = query(collection(db, 'indications'), or(...qFilters));
+        if (!gestao) {
+          let q;
+          let todas = false;
+          if (isTriagem) {
+            q = query(collection(db, 'indications'));
+            todas = true;
+          } else if (isInternalSeller) {
+            q = query(
+              collection(db, 'indications'), 
+              or(
+                where('internal_seller_uid', '==', profile?.uid),
+                where('internal_seller_name', '==', profile?.name)
+              )
+            );
           } else {
-            q = query(collection(db, 'indications'), limit(100));
-          }
-        }
-
-        const snap = await getDocs(q);
-        const indics = snap.docs
-          .map(doc => doc.data() as Indication)
-          .filter(ind => !ind.is_deleted);
-
-        // Conversion Ranking (Only for Admin/Manager)
-        if (isAdmin || isManager) {
-          const sellers: Record<string, { name: string, total: number, sold: number }> = {};
-          indics.forEach(ind => {
-            if (!ind.external_seller_uid) return;
-            if (!sellers[ind.external_seller_uid]) {
-              sellers[ind.external_seller_uid] = { name: ind.external_seller_name || 'Vendedor', total: 0, sold: 0 };
+            const qFilters: any[] = [];
+            if (profile?.uid) {
+              qFilters.push(where('external_seller_uid', '==', profile.uid));
+              qFilters.push(where('created_by', '==', profile.uid));
             }
-            sellers[ind.external_seller_uid].total++;
-            if (ind.status === 'sold') sellers[ind.external_seller_uid].sold++;
-          });
+            if (profile?.email) {
+              qFilters.push(where('external_seller_email', '==', profile.email.toLowerCase()));
+            }
+            if (profile?.name) {
+              qFilters.push(where('external_seller_name', '==', profile.name));
+              qFilters.push(where('external_seller_name', '==', profile.name.toUpperCase()));
+            }
+            if (qFilters.length > 0) {
+              q = query(collection(db, 'indications'), or(...qFilters));
+            } else {
+              q = query(collection(db, 'indications'), limit(100));
+            }
+          }
 
-          const ranking = Object.values(sellers)
-            .map(s => ({
-              ...s,
-              rate: s.total > 0 ? (s.sold / s.total) * 100 : 0
-            }))
-            .sort((a, b) => b.rate - a.rate)
-            .slice(0, 5);
-          setConversionRanking(ranking);
-        }
-        
-        const now = new Date();
-        const fiveDayAgo = new Date();
-        fiveDayAgo.setDate(now.getDate() - 5);
-        
-        const cold = indics.filter(ind => {
-          if (ind.status !== 'negotiating') return false;
-          const updatedDate = new Date(ind.updated_at || ind.created_at);
-          return updatedDate < fiveDayAgo;
-        });
-        setColdLeadsCount(cold.length);
-
-        if (!isExternalSeller || isAdmin || isManager) {
-          const missing = indics.filter(ind => 
-            ind.status === 'negotiating' && (
-              (!ind.base_commission_value || ind.base_commission_value <= 0) ||
-              (ind.commissioned_products?.some(p => !p.base_value || p.base_value <= 0))
-            )
-          );
-          setMissingCommValueCount(missing.length);
-        } else {
-          setMissingCommValueCount(0);
+          // Triagem lê a coleção inteira: guardada por 30 minutos, que é o mesmo
+          // intervalo em que ela já era refeita, para não baixar tudo de novo a cada
+          // volta ao Dashboard.
+          const snap = todas
+            ? await lerComCache('indicacoes-todas', 30 * 60 * 1000, () => getDocs(query(collection(db, 'indications'))))
+            : await getDocs(q);
+          const indics = snap.docs
+            .map(doc => doc.data() as Indication)
+            .filter(ind => !ind.is_deleted);
+          aplicarAlertasDeIndicacoes(indics);
         }
 
         // Fair Status Consistency Check
@@ -397,10 +447,41 @@ function DashboardCompleto() {
     return () => clearInterval(interval);
   }, [profile?.uid, profile?.name, isAdmin, isManager, isTriagem, isInternalSeller, isExternalSeller]);
 
+  // 2b. Alertas da gestão sem leitura extra.
+  // O ouvinte ao vivo do efeito 5 traz as indicações mais novas, até LIMITE_INDICACOES_GESTAO.
+  // Se veio MENOS que o limite, ele trouxe a coleção inteira, e as contas dos alertas
+  // saem dele sem ler nada de novo (e passam a acompanhar as mudanças ao vivo).
+  // Só quando a coleção passar do limite é que se volta a ler tudo, como antes,
+  // guardado por 30 minutos.
+  useEffect(() => {
+    if (!profile?.uid || !(isAdmin || isManager)) return;
+    if (indicacoesCompletas !== true) return;
+    aplicarAlertasDeIndicacoes(indications);
+  }, [profile?.uid, isAdmin, isManager, indicacoesCompletas, indications]);
+
+  useEffect(() => {
+    if (!profile?.uid || !(isAdmin || isManager)) return;
+    if (indicacoesCompletas !== false) return;
+    let ativo = true;
+    const lerTudo = () => {
+      lerComCache('indicacoes-todas', 30 * 60 * 1000, () => getDocs(query(collection(db, 'indications'))))
+        .then(snap => {
+          if (!ativo) return;
+          aplicarAlertasDeIndicacoes(
+            snap.docs.map(d => d.data() as Indication).filter(ind => !ind.is_deleted)
+          );
+        })
+        .catch(err => console.error("Alert data fetch error:", err));
+    };
+    lerTudo();
+    const intervalo = setInterval(lerTudo, 30 * 60 * 1000);
+    return () => { ativo = false; clearInterval(intervalo); };
+  }, [profile?.uid, isAdmin, isManager, indicacoesCompletas]);
+
   // 3. Fetch Goals
   useEffect(() => {
     if (!profile?.uid) return;
-    const unsubGoals = onSnapshot(doc(db, 'settings', 'goals'), (snap) => {
+    const unsubGoals = ouvirCompartilhado('settings-goals', doc(db, 'settings', 'goals'), (snap) => {
       if (snap.exists()) setGoals(snap.data() as any);
     }, (error) => {
       console.warn("Goals restricted or unavailable:", error.message);
@@ -415,8 +496,8 @@ function DashboardCompleto() {
       collection(db, 'stock_reservations'), 
       where('status', '==', 'active')
     );
-    const unsubStock = onSnapshot(qRes, async (snapshot) => {
-      const allReservations = snapshot.docs.map(doc => {
+    const unsubStock = ouvirCompartilhado('reservas-ativas', qRes, async (snapshot: any) => {
+      const allReservations = snapshot.docs.map((doc: any) => {
         const item = doc.data();
         return {
           ...item,
@@ -430,9 +511,28 @@ function DashboardCompleto() {
 
       if (isAdmin || isManager) {
         try {
-          const stockSnap = await getDocs(collection(db, 'stock_items'));
-          const stockIds = new Set(stockSnap.docs.map(d => d.id));
-          const orphaned = allReservations.filter(res => res.item_id && !stockIds.has(res.item_id));
+          // Antes lia a coleção stock_items INTEIRA a cada mudança de reserva, só para
+          // saber se os itens das reservas ainda existem. Agora confere só os itens das
+          // reservas ativas, um por um, e lembra por 30 minutos os que já existem.
+          // Só cancela com resposta do SERVIDOR: sem rede, getDocFromServer falha e
+          // nada é concluído (o cache local não sabe se o item foi apagado).
+          const agora = Date.now();
+          const aConferir = Array.from(new Set(
+            allReservations.map((r: any) => r.item_id).filter((id: any) => {
+              if (!id) return false;
+              const em = itensEstoqueConferidos.get(String(id));
+              return !em || agora - em > VALIDADE_ITEM_CONFERIDO_MS;
+            }).map((id: any) => String(id))
+          )) as string[];
+          const inexistentes = new Set<string>();
+          await Promise.all(aConferir.map(async (id) => {
+            try {
+              const itemSnap = await getDocFromServer(doc(db, 'stock_items', id));
+              if (itemSnap.exists()) itensEstoqueConferidos.set(id, agora);
+              else inexistentes.add(id);
+            } catch { /* sem resposta do servidor: não conclui nada */ }
+          }));
+          const orphaned = allReservations.filter((res: any) => res.item_id && inexistentes.has(String(res.item_id)));
           if (orphaned.length > 0) {
             for (const res of orphaned) {
               await updateDoc(doc(db, 'stock_reservations', res.id), {
@@ -469,8 +569,12 @@ function DashboardCompleto() {
     const indicationsRef = collection(db, 'indications');
     let q;
 
-    if (isAdmin || isManager) {
-      q = query(indicationsRef, limit(1000));
+    const gestao = isAdmin || isManager;
+    if (gestao) {
+      // Sem orderBy, o limit(1000) pegava 1000 indicações quaisquer (pela ordem do id),
+      // e não as mais novas. Com a ordem por data de criação (índice simples, que o
+      // Firestore já cria sozinho), o limite corta sempre as mais antigas.
+      q = query(indicationsRef, orderBy('created_at', 'desc'), limit(LIMITE_INDICACOES_GESTAO));
     } else {
       const filters = [];
       if (isExternalSeller) filters.push(where('external_seller_uid', '==', profile.uid));
@@ -585,7 +689,7 @@ function DashboardCompleto() {
       }
     }).catch(() => {});
 
-    const unsubscribeIndications = onSnapshot(q, processSnapshotData, (error) => {
+    const aoErrar = (error: any) => {
       console.error("Snapshot error (indications):", error);
       
       if (error.message.includes('quota') || error.message.includes('Quota')) {
@@ -593,7 +697,23 @@ function DashboardCompleto() {
       } else {
         setLoading(false);
       }
-    });
+    };
+
+    // Gestão: um ouvinte só, que continua vivo alguns minutos depois de sair do
+    // Dashboard. Voltar para o Dashboard não relê as 1000 indicações.
+    let ultimoProcessado = -1;
+    const unsubscribeIndications = gestao
+      ? ouvirCompartilhado('dashboard-indicacoes-gestao', q, (snapshot: any) => {
+          // Só a resposta do servidor diz se a coleção inteira coube no limite. Por isso
+          // o ouvinte pede também os avisos de metadados: sem eles, quando o servidor
+          // confirma exatamente o que já estava no aparelho, não chega aviso nenhum.
+          if (!snapshot.metadata.fromCache) setIndicacoesCompletas(snapshot.size < LIMITE_INDICACOES_GESTAO);
+          // Aviso só de metadados (nada mudou nos documentos) não precisa refazer as contas.
+          if (snapshot.docChanges().length === 0 && ultimoProcessado === snapshot.size) return;
+          ultimoProcessado = snapshot.size;
+          processSnapshotData(snapshot);
+        }, aoErrar, { includeMetadataChanges: true })
+      : onSnapshot(q, processSnapshotData, aoErrar);
     return () => unsubscribeIndications();
   }, [profile?.uid, profile?.role, isAdmin, isManager, isExternalSeller, isInternalSeller, isTriagem]);
 
@@ -603,8 +723,10 @@ function DashboardCompleto() {
     const qComm = (isAdmin || isManager || isTriagem) 
       ? query(collection(db, 'commissions'), orderBy('created_at', 'desc'), limit(200))
       : query(collection(db, 'commissions'), where('external_seller_uid', '==', profile.uid));
-    const unsubscribe = onSnapshot(qComm, (snap) => {
-      setCommissions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Commission)));
+    // Um ouvinte só, que sobrevive à troca de tela (ver leiturasCompartilhadas.ts).
+    const chaveComm = (isAdmin || isManager || isTriagem) ? 'dashboard-comissoes-200' : `dashboard-comissoes-${profile.uid}`;
+    const unsubscribe = ouvirCompartilhado(chaveComm, qComm, (snap: any) => {
+      setCommissions(snap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as Commission)));
     }, (err) => console.error("Commissions error:", err));
     return () => unsubscribe();
   }, [profile?.uid, isAdmin, isManager, isTriagem]);
@@ -613,8 +735,9 @@ function DashboardCompleto() {
   useEffect(() => {
     if (!profile?.uid) return;
     // Removido orderBy para evitar necessidade de índices compostos em produção
-    const unsubscribe = onSnapshot(collection(db, 'fairs'), (snap) => {
-      const fairsData = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Fair));
+    // Coleção pequena, mas era relida a cada volta ao Dashboard: agora o ouvinte é compartilhado.
+    const unsubscribe = ouvirCompartilhado('feiras-todas', collection(db, 'fairs'), (snap: any) => {
+      const fairsData: Fair[] = snap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as Fair));
       // Ordenar na memória
       fairsData.sort((a, b) => new Date(b.start_date || 0).getTime() - new Date(a.start_date || 0).getTime());
       setFairs(fairsData);
@@ -625,8 +748,8 @@ function DashboardCompleto() {
   // 7.5. Endomarketing Actions
   useEffect(() => {
     if (!profile?.uid) return;
-    const unsubscribe = onSnapshot(collection(db, 'endomarketing_actions'), (snap) => {
-      const actionsData = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const unsubscribe = ouvirCompartilhado('endomarketing-todas', collection(db, 'endomarketing_actions'), (snap: any) => {
+      const actionsData = snap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
       setEndoActions(actionsData);
     }, (err) => console.error("Endomarketing actions error in Dashboard:", err));
     return () => unsubscribe();
@@ -636,7 +759,9 @@ function DashboardCompleto() {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const snap = await getDocs(collection(db, 'users'));
+        // A lista de usuários só serve para saber o papel de cada um. Era baixada inteira
+        // a cada abertura do Dashboard; agora fica guardada por 30 minutos.
+        const snap = await lerComCache('usuarios-todos', 30 * 60 * 1000, () => getDocs(collection(db, 'users')));
         setUsersList(snap.docs.map(doc => ({ uid: doc.id, ...doc.data() })));
       } catch (e) {
         console.error("Error fetching users inside dashboard mounts:", e);
@@ -651,14 +776,20 @@ function DashboardCompleto() {
     const canSeeEvaluations = isAdmin || isManager || isTriagem || profile?.email === 'rogerio@roderbrasil.com.br';
     if (!canSeeEvaluations) return;
 
+    // O card mostra só as 4 últimas avaliações respondidas, e o ouvinte baixava a
+    // coleção inteira. `evaluated_at` só é gravado quando o cliente responde
+    // (PublicEvaluation.tsx, junto com status 'completed'), então as mais recentes
+    // por essa data são exatamente as que o card mostra. Índice simples, sem composto.
+    // A folga de 20 cobre alguma resposta que ainda não esteja como 'completed'.
     const qEval = query(
       collection(db, 'customer_evaluations'),
-      orderBy('created_at', 'desc')
+      orderBy('evaluated_at', 'desc'),
+      limit(20)
     );
 
-    const unsubEval = onSnapshot(qEval, (snapshot) => {
+    const unsubEval = ouvirCompartilhado('dashboard-avaliacoes-recentes', qEval, (snapshot: any) => {
       const list: any[] = [];
-      snapshot.forEach((docSnap) => {
+      snapshot.forEach((docSnap: any) => {
         const data = docSnap.data();
         list.push({
           id: docSnap.id,
@@ -713,21 +844,37 @@ function DashboardCompleto() {
   };
 
   // Helper to calculate business hours elapsed between two dates
+  // Antes andava de 15 em 15 minutos do início ao fim: um lead de 6 meses eram
+  // 17 mil voltas, vezes mil leads, e o celular travava. Agora conta direto, dia por
+  // dia, quantos desses mesmos pontos de 15 minutos (início, início + 15 min, ...)
+  // caem dentro do horário de isBusinessHour (seg a sex, 7h às 12h e 13h às 17h).
+  // O resultado é exatamente o mesmo de antes, só que sem o laço gigante.
   const getBusinessHoursElapsed = (start: Date, end: Date) => {
-    let elapsedMs = 0;
-    let current = new Date(start);
-    
-    // Step by 15-minute intervals for accuracy
-    const step = 15 * 60 * 1000;
-    
-    while (current < end) {
-      if (isBusinessHour(current)) {
-        elapsedMs += step;
+    const passo = 15 * 60 * 1000;
+    const ini = start.getTime();
+    const fim = end.getTime();
+    if (!(ini < fim)) return 0; // também cobre data inválida, que antes dava 0
+
+    let pontos = 0;
+    const dia = new Date(start);
+    dia.setHours(0, 0, 0, 0);
+    while (dia.getTime() < fim) {
+      const semana = dia.getDay();
+      if (semana !== 0 && semana !== 6) {
+        for (const [deHora, ateHora] of [[7, 12], [13, 17]]) {
+          const a = new Date(dia.getFullYear(), dia.getMonth(), dia.getDate(), deHora).getTime();
+          const b = Math.min(new Date(dia.getFullYear(), dia.getMonth(), dia.getDate(), ateHora).getTime(), fim);
+          if (b <= ini || b <= a) continue;
+          // pontos ini + k*passo, com k >= 0, dentro de [a, b)
+          const primeiro = Math.max(0, Math.ceil((a - ini) / passo));
+          const ultimo = Math.ceil((b - ini) / passo) - 1;
+          if (ultimo >= primeiro) pontos += ultimo - primeiro + 1;
+        }
       }
-      current = new Date(current.getTime() + step);
+      dia.setDate(dia.getDate() + 1);
     }
-    
-    return elapsedMs / (1000 * 60 * 60); // Returns hours
+
+    return (pontos * passo) / (1000 * 60 * 60); // Returns hours
   };
 
   // NEW: Lead Auto-Assignment Logic (4h business hours timeout)
@@ -926,8 +1073,9 @@ function DashboardCompleto() {
       }
     };
 
-    checkAndAutoAssign();
-    const interval = setInterval(checkAndAutoAssign, 15 * 60 * 1000); // Check every 15 mins
+    const verificarSePuder = () => { if (podeDistribuirFeiraAgora()) checkAndAutoAssign(); };
+    verificarSePuder();
+    const interval = setInterval(verificarSePuder, 15 * 60 * 1000); // Check every 15 mins
     return () => clearInterval(interval);
   }, [isAdmin, isManager, isTriagem]);
 
