@@ -402,7 +402,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-19f inicio-parceiro";
+  const RELEASE_LABEL = "2026-10-19g parceiro-privacidade";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -1509,8 +1509,14 @@ Retorne um array JSON no formato exato:
         const ligados = await Promise.all([
           db.collection("indications").where("internal_seller_uid", "==", t.id).get(),
           db.collection("indications").where("assigned_to_uid", "==", t.id).get(),
-          db.collection("fair_leads").where("assigned_to_uid", "==", t.id).get()
+          db.collection("fair_leads").where("assigned_to_uid", "==", t.id).get(),
+          // Parceiro pré-cadastrado: as indicações lançadas para o cadastro provisório têm de ir
+          // junto, senão a regra (só lê o que é dele, pelo uid) esconde todas dele.
+          db.collection("indications").where("external_seller_uid", "==", t.id).get(),
+          db.collection("indications").where("standard_seller_uid", "==", t.id).get()
         ]);
+        ligados[3].forEach((d) => lote.update(d.ref, { external_seller_uid: dec.uid, updated_at: perfil.updated_at }));
+        ligados[4].forEach((d) => lote.update(d.ref, { standard_seller_uid: dec.uid, updated_at: perfil.updated_at }));
         ligados[0].forEach((d) => lote.update(d.ref, { internal_seller_uid: dec.uid, updated_at: perfil.updated_at }));
         ligados[1].forEach((d) => lote.update(d.ref, { assigned_to_uid: dec.uid, updated_at: perfil.updated_at }));
         ligados[2].forEach((d) => lote.update(d.ref, { assigned_to_uid: dec.uid, updated_at: perfil.updated_at }));
@@ -7560,8 +7566,111 @@ ${content || ""}`;
       return res.status(500).json({ error: err.message });
     }
   });
+  const backfillDonoIndicacoes = async () => {
+    const trava = db.collection("cron_locks").doc("backfill_dono_indicacoes_v1");
+    try {
+      await trava.create({ job: "backfill_dono_indicacoes_v1", started_at: (/* @__PURE__ */ new Date()).toISOString() });
+    } catch (e) {
+      if (e?.code === 6) {
+        const t = (await trava.get()).data() || {};
+        const velha = !t.finished_at && t.started_at && Date.now() - new Date(t.started_at).getTime() > 30 * 60 * 1e3;
+        if (!velha) return;
+        await trava.set({ started_at: (/* @__PURE__ */ new Date()).toISOString(), retomada: true }, { merge: true });
+      } else {
+        console.error("[BACKFILL-DONO] N\xE3o consegui criar a trava:", e?.message);
+        return;
+      }
+    }
+    try {
+      const normalizar = (v) => String(v || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+      const parceiros = await db.collection("users").where("role", "in", ["external_seller", "vendedor_padrao"]).get();
+      const porNome = /* @__PURE__ */ new Map();
+      const porEmail = /* @__PURE__ */ new Map();
+      const emailDe = /* @__PURE__ */ new Map();
+      parceiros.docs.forEach((u) => {
+        const d = u.data();
+        const uid = String(d.uid || u.id);
+        const nome = normalizar(d.name);
+        const email = String(d.email || "").toLowerCase().trim();
+        if (email) {
+          emailDe.set(uid, email);
+          if (!porEmail.has(email)) porEmail.set(email, /* @__PURE__ */ new Set());
+          porEmail.get(email).add(uid);
+        }
+        if (nome) {
+          if (!porNome.has(nome)) porNome.set(nome, /* @__PURE__ */ new Set());
+          porNome.get(nome).add(uid);
+        }
+      });
+      const unico = (m, chave) => {
+        const s = chave ? m.get(chave) : void 0;
+        return s && s.size === 1 ? Array.from(s)[0] : null;
+      };
+      const indicacoes = await db.collection("indications").select("external_seller_uid", "external_seller_email", "external_seller_name", "indicator_name").get();
+      let lote = db.batch();
+      let noLote = 0;
+      const n = { porEmail: 0, porNome: 0, emailMinusculo: 0, ambiguo: 0, semPar: 0 };
+      const gravar = async (ref, dados) => {
+        lote.update(ref, dados);
+        noLote++;
+        if (noLote >= 400) {
+          await lote.commit();
+          lote = db.batch();
+          noLote = 0;
+        }
+      };
+      for (const d of indicacoes.docs) {
+        const ind = d.data();
+        const dados = {};
+        const emailGravado = typeof ind.external_seller_email === "string" ? ind.external_seller_email : "";
+        const emailMin = emailGravado.toLowerCase().trim();
+        if (emailGravado && emailGravado !== emailMin) {
+          dados.external_seller_email = emailMin;
+          n.emailMinusculo++;
+        }
+        const temUid = typeof ind.external_seller_uid === "string" && ind.external_seller_uid.trim() !== "";
+        if (!temUid) {
+          let uid = unico(porEmail, emailMin);
+          if (uid) n.porEmail++;
+          if (!uid) {
+            const candidatos = /* @__PURE__ */ new Set();
+            let ambiguo = false;
+            for (const campo of ["external_seller_name", "indicator_name"]) {
+              const nome = normalizar(ind[campo]);
+              if (!nome || !porNome.has(nome)) continue;
+              const s = porNome.get(nome);
+              if (s.size > 1) ambiguo = true;
+              else candidatos.add(Array.from(s)[0]);
+            }
+            if (!ambiguo && candidatos.size === 1) {
+              uid = Array.from(candidatos)[0];
+              n.porNome++;
+            } else if (ambiguo || candidatos.size > 1) n.ambiguo++;
+            else if (ind.external_seller_name || ind.indicator_name) n.semPar++;
+          }
+          if (uid) {
+            dados.external_seller_uid = uid;
+            if (!emailMin && emailDe.get(uid)) dados.external_seller_email = emailDe.get(uid);
+          }
+        }
+        if (Object.keys(dados).length) await gravar(d.ref, dados);
+      }
+      if (noLote > 0) await lote.commit();
+      await trava.set({ finished_at: (/* @__PURE__ */ new Date()).toISOString(), ...n }, { merge: true });
+      console.log(`[BACKFILL-DONO] Indica\xE7\xF5es lidas: ${indicacoes.size}. Dono pelo e-mail: ${n.porEmail}; pelo nome: ${n.porNome}; e-mail passado para min\xFAsculas: ${n.emailMinusculo}; nome repetido (n\xE3o mexi): ${n.ambiguo}; nome sem parceiro: ${n.semPar}.`);
+    } catch (e) {
+      console.error("[BACKFILL-DONO] Erro:", e?.message);
+      try {
+        await trava.delete();
+      } catch {
+      }
+    }
+  };
   const onServerListen = () => {
     console.log(`Server running on port/socket: ${PORT}`);
+    setTimeout(() => {
+      if (db) backfillDonoIndicacoes();
+    }, 8e3);
     setTimeout(async () => {
       try {
         if (!db) return;
