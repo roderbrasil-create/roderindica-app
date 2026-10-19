@@ -1661,6 +1661,9 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   // ===================== Consultor no celular (e janela flutuante) =====================
   const [menuCel, setMenuCel] = useState(false);
   const [folhaEquip, setFolhaEquip] = useState(false);
+  // "Voltar" do celular fecha primeiro o menu e a lista de equipamentos
+  useVoltarFecha(menuCel, () => setMenuCel(false));
+  useVoltarFecha(folhaEquip, () => setFolhaEquip(false));
   const campoCelRef = useRef<HTMLTextAreaElement>(null);
   const listaCelRef = useRef<HTMLDivElement>(null);
   // Altura visível de verdade no celular (descontando o teclado): a caixa de texto fica sempre acima dele
@@ -1694,7 +1697,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     const alvo = Math.max(44, Math.min(el.scrollHeight, maximo));
     el.style.height = `${alvo}px`;
     el.style.overflowY = el.scrollHeight > maximo ? 'auto' : 'hidden';
-  }, [inputValue, isOpen, layoutPc, vvCel?.h]);
+  }, [inputValue, isOpen, layoutPc, vvCel?.h, isRecording, transcribing, knowledgeOpen]);
   // explorador minimizado (ou pergunta enviada): a folha de equipamentos fecha
   useEffect(() => { if (explorerMinimized) setFolhaEquip(false); }, [explorerMinimized]);
 
@@ -3015,9 +3018,10 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
       ? { caixa: 'border-[#BFE3CB] bg-[#F2FAF4]', titulo: 'text-[#157F3C]', valor: 'text-[#157F3C]', texto: 'Sim' }
       : { caixa: 'border-[#F1DFA6] bg-[#FFFBEB]', titulo: 'text-[#8A6500]', valor: 'text-[#8A6500]', texto: serve === 'verificar' ? 'Verificar' : '' };
   // Celular: os dados do painel da resposta viram cartões compactos dentro da conversa
-  const cartoesPainelCel = (painel: PainelConversa) => {
+  const cartoesPainelCel = (painel: PainelConversa, perguntandoOpcoes = false) => {
     const mq = painel.maquina && painel.maquina.nome ? painel.maquina : null;
-    const equip = painel.produto ? detectEquipmentInMessage(painel.produto)[0] : undefined;
+    // Consultor perguntando com opções: ainda não há equipamento escolhido
+    const equip = painel.produto && !perguntandoOpcoes ? detectEquipmentInMessage(painel.produto)[0] : undefined;
     const perguntas = (painel.perguntas || []).filter(Boolean);
     const alternativas = (painel.alternativas || []).filter(a => a && a.nome);
     if (!mq && !equip && !perguntas.length && !alternativas.length) return null;
@@ -3551,7 +3555,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                   </div>
                 </div>
                 {/* Celular: o painel da resposta (máquina, equipamento, perguntas) vem logo abaixo dela */}
-                {!layoutPc && msg.role === 'assistant' && msg.painel && cartoesPainelCel(msg.painel)}
+                {!layoutPc && msg.role === 'assistant' && msg.painel && cartoesPainelCel(msg.painel, parseConsultantOptions(msg.content).options.length > 0)}
                 </React.Fragment>
               ))}
 
@@ -5034,7 +5038,6 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                     { mostra: true, rotulo: 'Relatório em imagem', icone: FileText, acao: () => handleOpenReport() },
                     { mostra: !!isRegisteredUser, rotulo: 'Compartilhar consultor', icone: Share2, acao: () => setIsShareModalOpen(true) },
                     { mostra: canTeach, rotulo: knowledgeOpen ? 'Voltar à conversa' : 'Ensinar IA', icone: Brain, acao: () => setKnowledgeOpen(!knowledgeOpen) },
-                    { mostra: true, rotulo: 'Limpar conversa', icone: Trash2, acao: handleClearConversation },
                     { mostra: true, rotulo: 'Buscar atualizações', icone: RefreshCw, acao: handleForceUpdate },
                     { mostra: !isFullPage, rotulo: 'Minimizar', icone: ChevronDown, acao: () => setIsOpen(false) },
                     { mostra: !isFullPage, rotulo: 'Encerrar conversa', icone: X, acao: handleEndConversation },
