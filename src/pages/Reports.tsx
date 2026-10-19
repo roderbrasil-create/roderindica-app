@@ -4,6 +4,7 @@ import Layout from '../components/layout/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { collection, query, getDocs, where, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { lerComCache } from '../lib/leiturasCompartilhadas';
 import { Indication, UserProfile } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
@@ -92,30 +93,34 @@ export default function Reports() {
     const fetchData = async () => {
       try {
         setLoading(true);
+        // Os relatórios precisam do histórico inteiro de 5 coleções, e baixavam tudo de
+        // novo a cada vez que a tela era aberta. As leituras ficam guardadas por 10
+        // minutos: abrir, sair e voltar não relê nada. Depois disso, lê de novo.
+        const VALIDADE = 10 * 60 * 1000;
         // Load all indications for historical analysis (timing/sales)
-        const indSnap = await getDocs(query(collection(db, 'indications'), orderBy('created_at', 'desc')));
+        const indSnap = await lerComCache('relatorios-indicacoes', VALIDADE, () => getDocs(query(collection(db, 'indications'), orderBy('created_at', 'desc'))));
         const indData = indSnap.docs
           .map(doc => ({ id: doc.id, ...doc.data() } as Indication))
           .filter(ind => !ind.is_deleted);
         setIndications(indData);
 
         // Load users to map names/roles
-        const userSnap = await getDocs(query(collection(db, 'users')));
+        const userSnap = await lerComCache('usuarios-todos', VALIDADE, () => getDocs(query(collection(db, 'users'))));
         const allUsers = userSnap.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
         setUsers(allUsers);
         setStandardSellers(allUsers.filter(u => u.role === 'vendedor_padrao'));
 
         // Load stock sales
-        const salesSnap = await getDocs(query(collection(db, 'stock_sales')));
+        const salesSnap = await lerComCache('relatorios-vendas-estoque', VALIDADE, () => getDocs(query(collection(db, 'stock_sales'))));
         setStockSales(salesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
 
         // Load all historical reservations
-        const resSnap = await getDocs(query(collection(db, 'stock_reservations')));
+        const resSnap = await lerComCache('relatorios-reservas', VALIDADE, () => getDocs(query(collection(db, 'stock_reservations'))));
         setAllReservations(resSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
 
         // Load referring clients
         try {
-          const refSnap = await getDocs(query(collection(db, 'referring_clients')));
+          const refSnap = await lerComCache('relatorios-clientes-indicadores', VALIDADE, () => getDocs(query(collection(db, 'referring_clients'))));
           setReferringClients(refSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         } catch (e) {
           console.warn("Could not load referring_clients:", e);

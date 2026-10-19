@@ -356,6 +356,19 @@ export default function Commissions() {
       }
     });
 
+    return () => {
+      unsubscribeComms();
+      unsubscribeStatements();
+      unsubscribeMecanica();
+      unsubPotencial();
+    };
+  }, [profile, selectedMonth, selectedYear]);
+
+  // Previsão (todas as comissões) e perfis dos indicadores não dependem do mês
+  // escolhido, mas ficavam no efeito do filtro de mês: cada troca de mês baixava a
+  // coleção commissions INTEIRA de novo. Agora são lidos uma vez ao abrir a tela.
+  useEffect(() => {
+    if (!profile) return;
     // Forecast data
     const qAll = ['external_seller', 'vendedor_padrao'].includes(profile.role) 
       ? query(collection(db, 'commissions'), where('external_seller_uid', '==', profile.uid), orderBy('year', 'desc'), orderBy('month', 'desc'))
@@ -377,14 +390,7 @@ export default function Commissions() {
         })
         .catch(err => console.error("Error loading user profiles in commissions:", err));
     }
-
-    return () => {
-      unsubscribeComms();
-      unsubscribeStatements();
-      unsubscribeMecanica();
-      unsubPotencial();
-    };
-  }, [profile, selectedMonth, selectedYear]);
+  }, [profile?.uid, profile?.role]);
 
   // Listener for the current calendar month tasks (always pinned at the top)
   useEffect(() => {

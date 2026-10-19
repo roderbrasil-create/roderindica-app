@@ -2,7 +2,8 @@ import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { auth, db } from '../../lib/firebase';
-import { updateDoc, doc, collection, query, where, onSnapshot } from 'firebase/firestore';
+import { updateDoc, doc, collection, query, where } from 'firebase/firestore';
+import { ouvirCompartilhado } from '../../lib/leiturasCompartilhadas';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTheme } from 'next-themes';
 import { usePWA } from '../../contexts/PWAContext';
@@ -375,8 +376,11 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
       return;
     }
 
+    // O Sidebar é remontado a cada troca de tela (o Layout fica dentro de cada página),
+    // e este ouvinte era aberto de novo toda vez. Compartilhado, ele continua vivo entre
+    // as telas e a nova tela recebe a contagem na hora, sem reler as pendentes.
     const qTriage = query(collection(db, 'indications'), where('status', '==', 'pending'));
-    const unsubTriage = onSnapshot(qTriage, (snapshot) => {
+    const unsubTriage = ouvirCompartilhado('sidebar-indicacoes-pendentes', qTriage, (snapshot: any) => {
       setPendingTriageCount(snapshot.size);
     }, (error) => console.error("Sidebar triage count error:", error));
 
