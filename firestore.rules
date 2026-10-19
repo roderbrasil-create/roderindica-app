@@ -1,231 +1,215 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+
     // ===============================================================
-    // Helper Functions
+    // QUEM É QUEM (19/10/2026)
+    // Antes, todas as funções de papel respondiam "true": qualquer pessoa logada,
+    // inclusive o visitante anônimo das páginas públicas, podia se fazer admin,
+    // ler a senha do e-mail e mexer em comissão. Agora o papel vem do cadastro
+    // do usuário (users/{uid}.role), que ele mesmo não consegue mais trocar.
     // ===============================================================
-    
+
     function isAuthenticated() {
       return request.auth != null;
+    }
+
+    // Login de verdade. As páginas públicas (estoque, feira) entram anônimas.
+    function naoAnonimo() {
+      return request.auth != null && request.auth.token.firebase.sign_in_provider != 'anonymous';
     }
 
     function isOwner(userId) {
       return request.auth != null && request.auth.uid == userId;
     }
 
-    function hasRole(role) {
-      return true;
+    function emailVerificado() {
+      return naoAnonimo() && request.auth.token.email != null && request.auth.token.email_verified == true;
     }
 
-    function isMarketing() {
-      return true;
+    // Diretoria reconhecida pelo e-mail confirmado (mesma lista do app).
+    function diretoria() {
+      return emailVerificado() && request.auth.token.email.lower() in [
+        'roderbrasil@gmail.com', 'roderindica@gmail.com', 'jeferson@roderbrasil.com.br'
+      ];
+    }
+
+    function papel() {
+      return naoAnonimo() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '')
+        : '';
+    }
+
+    function hasRole(role) {
+      return papel() == role;
     }
 
     function isAdmin() {
-      return true;
+      return diretoria() || papel() == 'admin';
     }
 
     function isManager() {
-      return true;
-    }
-
-    function isInternalSeller() {
-      return true;
+      return isAdmin() || papel() == 'manager';
     }
 
     function isTriagem() {
-      return true;
+      return papel() == 'triagem';
     }
 
-    function isValidEmail(email) {
-      return true;
+    function isMarketing() {
+      return isAdmin() || papel() == 'marketing';
     }
 
-    function isValidDateString(dateStr) {
-      return true;
+    function isFinanceiro() {
+      return papel() in ['financial', 'finance', 'fiscal'];
     }
 
-    function isValidUser(data) {
-      return true;
+    // Equipe interna da Roder: quem trabalha a venda por dentro.
+    function isInternalSeller() {
+      return isManager() || papel() in ['internal_seller', 'triagem'];
     }
 
-    function isValidIndication(data) {
-      return true;
+    // Qualquer pessoa da Roder (não parceiro, não visitante).
+    function isEquipe() {
+      return isInternalSeller() || isFinanceiro() || papel() in ['marketing', 'assistant'] ||
+        (emailVerificado() && request.auth.token.email.lower().matches('.*@roderbrasil[.]com[.]br$'));
     }
 
-    function isValidNotification(data) {
-      return true;
+    function isParceiro() {
+      return papel() in ['external_seller', 'vendedor_padrao'];
     }
 
-    function isValidEndomarketingAction(data) {
-      return true;
+    // Campos de poder no cadastro do usuário: só admin muda.
+    function naoMexeEmPoder() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(
+        ['role', 'permissions', 'status', 'is_commissionable', 'commission_rate', 'is_lead_receiver', 'uid']);
     }
 
     // ===============================================================
-    // Rules
+    // Regras
     // ===============================================================
 
     match /users/{userId} {
-      allow get: if isAuthenticated() && (
-        isOwner(userId) || 
-        isManager() || 
-        isTriagem() || 
-        isInternalSeller() ||
-        (hasRole('external_seller') && resource.data.role in ['admin', 'manager'])
-      );
-      allow list: if isAuthenticated() && (
-        isManager() || 
-        isTriagem() ||
-        resource.data.email == request.auth.token.email ||
-        request.auth.token.email.lower().matches('.*@roderbrasil.com.br$') || 
-        request.auth.token.email.lower().matches('.*@roder.com.br$')
-      );
+      allow get: if isOwner(userId) || isEquipe();
+      allow list: if isEquipe() ||
+        (naoAnonimo() && resource.data.email == request.auth.token.email);
+      // Cadastro próprio nasce sem poder: no máximo parceiro, e pendente.
       allow create: if isAdmin() || (
-        isOwner(userId) && (
-          request.auth.token.email.lower() in [
-            "roderbrasil@gmail.com", 
-            "roderindica@gmail.com", 
-            "gislene@roderbrasil.com.br", 
-            "gislene@roder.com.br", 
-            "rogerio@roderbrasil.com.br", 
-            "contato@roderbrasil.com.br", 
-            "luana@roderbrasil.com.br", 
-            "luana@roder.com.br"
-          ] ||
-          (isValidUser(request.resource.data) && request.resource.data.email.lower() == request.auth.token.email.lower())
-        )
-      ); 
-      allow update: if isAuthenticated() && (
-        isAdmin() || 
-        (isOwner(userId) && isValidUser(request.resource.data) && 
-         (request.resource.data.role == resource.data.role || 
-          request.auth.token.email.lower().matches('.*@roderbrasil.com.br$') || 
-          request.auth.token.email.lower().matches('.*@roder.com.br$')) && 
-         request.resource.data.uid == resource.data.uid) ||
-        (resource.data.email == request.auth.token.email && request.resource.data.email == request.auth.token.email)
-      );
-      allow delete: if isAdmin() || (isAuthenticated() && resource.data.email == request.auth.token.email);
+        isOwner(userId) && naoAnonimo() &&
+        request.resource.data.get('role', 'external_seller') in ['external_seller', 'vendedor_padrao', ''] &&
+        request.resource.data.get('status', 'pending') in ['pending', ''] &&
+        !('permissions' in request.resource.data)
+      ) || (isOwner(userId) && diretoria());
+      allow update: if isAdmin() ||
+        ((isManager() || isTriagem()) && naoMexeEmPoderDeAdmin()) ||
+        (isOwner(userId) && naoMexeEmPoder());
+      allow delete: if isAdmin();
+
+      // Gerente e triagem cuidam da equipe (férias, recebe lead, dados), mas
+      // não promovem ninguém a admin nem mexem em quem é admin.
+      function naoMexeEmPoderDeAdmin() {
+        return resource.data.get('role', '') != 'admin' &&
+          request.resource.data.get('role', '') != 'admin';
+      }
     }
 
     match /indications/{indicationId} {
-      allow read: if isAuthenticated() && (
-        isManager() || isTriagem() || isInternalSeller() || 
-        (hasRole('external_seller') && resource.data.external_seller_uid == request.auth.uid)
-      );
-      allow create: if (isAuthenticated() && isValidIndication(request.resource.data)) ||
-                    (request.resource.data.creator_type == 'client' && isValidIndication(request.resource.data));
-      allow update: if isAuthenticated() && (
-        isManager() || 
-        isTriagem() || 
-        isInternalSeller() ||
-        (hasRole('external_seller') && resource.data.external_seller_uid == request.auth.uid && resource.data.status == 'pending') ||
-        (request.auth.token.email_verified == true && (request.auth.token.email.lower().matches('.*@roderbrasil.com.br$') || request.auth.token.email.lower().matches('.*@roder.com.br$')))
-      ) && isValidIndication(request.resource.data);
-      allow delete: if isAdmin() || isManager();
+      // TEMPORÁRIO: o parceiro ainda busca as indicações por nome e e-mail, e a regra
+      // não consegue conferir isso. Fica liberado para quem tem login de verdade até
+      // a tela do parceiro passar a buscar só pelo identificador dele (próxima etapa).
+      allow read: if naoAnonimo();
+      // O pedido de orçamento do site e o tablet da feira criam sem login.
+      allow create: if true;
+      allow update: if isEquipe() ||
+        (isParceiro() && resource.data.get('external_seller_uid', '') == request.auth.uid &&
+         resource.data.status == 'pending' &&
+         !request.resource.data.diff(resource.data).affectedKeys().hasAny(
+           ['status', 'external_seller_uid', 'internal_seller_uid', 'base_commission_value',
+            'commission_rate_applied', 'commission_value', 'sale_value']));
+      allow delete: if isManager();
     }
 
     match /notifications/{notifId} {
       allow read: if isOwner(resource.data.user_uid) || isManager();
-      allow create: if isAuthenticated() && isValidNotification(request.resource.data);
-      allow update: if isManager() || (isOwner(resource.data.user_uid) && 
-                      request.resource.data.diff(resource.data).changedKeys().hasOnly(['read']) &&
-                      request.resource.data.diff(resource.data).addedKeys().hasOnly(['read']) &&
-                      request.resource.data.diff(resource.data).removedKeys().hasOnly(['read']));
+      allow create: if isAuthenticated();
+      allow update: if isManager() || (isOwner(resource.data.user_uid) &&
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']));
       allow delete: if isOwner(resource.data.user_uid) || isManager();
     }
 
     match /leads/{leadId} {
-      allow read, write: if isAuthenticated() && (isManager() || isTriagem() || isInternalSeller() || resource.data.user_uid == request.auth.uid);
+      allow read, write: if isInternalSeller() || (naoAnonimo() && resource.data.user_uid == request.auth.uid);
     }
 
     match /referring_clients/{clientId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if naoAnonimo();
     }
 
     match /audit_logs/{logId} {
       allow read: if isManager();
-      allow create: if isAuthenticated();
+      allow create: if naoAnonimo();
       allow update, delete: if isAdmin();
     }
 
     match /financial_consultations/{consultId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if isEquipe();
     }
 
     match /credit_cleared_documents/{docId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && (isManager() || hasRole('financial') || hasRole('finance') || hasRole('triagem'));
+      allow read: if isEquipe();
+      allow write: if isManager() || isFinanceiro() || isTriagem();
     }
 
     match /commissions/{commissionId} {
-      allow read: if isAuthenticated() && (
-        isManager() || hasRole('financial') || 
-        (hasRole('external_seller') && resource.data.external_seller_uid == request.auth.uid)
-      );
+      allow read: if isEquipe() ||
+        (naoAnonimo() && resource.data.external_seller_uid == request.auth.uid);
       allow create: if isInternalSeller();
-      allow update: if isAuthenticated() && (
-        isManager() || hasRole('financial') ||
-        (hasRole('external_seller') && resource.data.external_seller_uid == request.auth.uid && 
-         request.resource.data.diff(resource.data).changedKeys().hasOnly(['nf_url']) &&
-         request.resource.data.diff(resource.data).addedKeys().hasOnly(['nf_url']) &&
-         request.resource.data.diff(resource.data).removedKeys().hasOnly(['nf_url']))
-      );
-      allow delete: if isAuthenticated() && (isManager() || hasRole('financial') || hasRole('finance') || isInternalSeller() || isTriagem());
+      allow update: if isManager() || isFinanceiro() || isInternalSeller() ||
+        (naoAnonimo() && resource.data.external_seller_uid == request.auth.uid &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nf_url', 'nf_uploaded_at', 'updated_at']));
+      allow delete: if isManager() || isFinanceiro() || isInternalSeller();
     }
 
     match /products/{productId} {
       allow read: if true;
-      allow write: if isManager() || isMarketing();
+      allow write: if isEquipe();
     }
 
     match /accessories/{accessoryId} {
       allow read: if true;
-      allow write: if isManager();
+      allow write: if isEquipe();
     }
 
     match /installation_kits/{kitId} {
       allow read: if true;
-      allow write: if isManager();
+      allow write: if isEquipe();
     }
 
     match /endomarketing_actions/{actionId} {
-      allow read: if isAuthenticated();
-      allow create, update: if isAuthenticated() && (
-        isManager() || isMarketing() || isAdmin() || 
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'manager', 'marketing', 'financial', 'finance'])
-      ) && isValidEndomarketingAction(request.resource.data);
-      allow delete: if isAdmin() || isManager() || 
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'manager', 'financial', 'finance']);
+      allow read: if isEquipe();
+      allow create, update: if isManager() || isMarketing() || isFinanceiro();
+      allow delete: if isManager() || isFinanceiro();
 
       match /financial_items/{itemId} {
-        allow read: if isAuthenticated();
-        allow write: if isAuthenticated() && (
-          isManager() || isMarketing() || isAdmin() || 
-          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'manager', 'marketing', 'financial', 'finance'])
-        );
+        allow read: if isEquipe();
+        allow write: if isManager() || isMarketing() || isFinanceiro();
       }
 
       match /evidence/{evidenceId} {
-        allow read: if isAuthenticated();
-        allow write: if isAuthenticated() && (
-          isManager() || isMarketing() || isAdmin() || 
-          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'manager', 'marketing', 'financial', 'finance'])
-        );
+        allow read: if isEquipe();
+        allow write: if isManager() || isMarketing() || isFinanceiro();
       }
     }
 
     match /endomarketing_financial_categories/{categoryId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      allow read: if isEquipe();
+      allow write: if isEquipe();
     }
 
+    // Fotos do catálogo: todo mundo vê, só a equipe troca.
     match /app_files/{fileId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isEquipe();
     }
 
     match /fae_technical_delivery_form/{modelId} {
@@ -235,141 +219,144 @@ service cloud.firestore {
     match /stock_items/{itemId} {
       allow read: if true;
       allow create, delete: if isManager();
-      allow update: if isAuthenticated() && (
-        isManager() || 
-        isInternalSeller() || 
-        isTriagem() ||
-        isAdmin() ||
-        (request.resource.data.diff(resource.data).changedKeys().hasOnly(['quantity', 'updated_at']) &&
-         request.resource.data.diff(resource.data).addedKeys().hasOnly(['quantity', 'updated_at']) &&
-         request.resource.data.diff(resource.data).removedKeys().hasOnly(['quantity', 'updated_at']))
-      );
+      allow update: if isEquipe();
     }
 
     match /stock_sales/{saleId} {
-      allow read: if true;
-      allow create: if isAuthenticated();
-      allow update: if isManager() || isInternalSeller() || isTriagem();
-      allow delete: if isManager() || isInternalSeller() || isTriagem();
+      allow read: if naoAnonimo();
+      allow create, update, delete: if isEquipe();
     }
 
     match /stock_reservations/{resId} {
       allow read: if true;
       allow create: if true;
-      allow update: if isAuthenticated() && (isManager() || resource.data.seller_uid == request.auth.uid);
+      allow update: if isEquipe() || (naoAnonimo() && resource.data.seller_uid == request.auth.uid);
       allow delete: if isManager();
     }
 
     match /stock_imports_fae/{itemId} {
       allow read: if true;
-      allow create, delete: if isManager() || isAdmin();
-      allow update: if isAuthenticated();
+      allow create, delete: if isManager();
+      allow update: if isEquipe();
     }
 
     match /registered_products/{productId} {
       allow read: if true;
-      allow write: if isInternalSeller();
+      allow write: if isEquipe();
     }
 
     match /edge_nodes/{nodeId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if naoAnonimo();
     }
 
     match /customers/{customerId} {
-      allow read, write: if isAuthenticated();
-      allow delete: if isAuthenticated() && (isManager() || isInternalSeller() || isAdmin());
+      allow read, create, update: if isEquipe();
+      allow delete: if isInternalSeller();
     }
 
     match /fairs/{fairId} {
       allow read: if true;
-      allow create: if isAdmin() || isManager();
+      allow create: if isManager();
       allow delete: if isAdmin();
-      allow update: if isManager() || isInternalSeller() || hasRole('financial');
+      allow update: if isEquipe();
     }
 
+    // Configurações. A do e-mail (senha do Gmail) e a do Agendor (token) só o admin lê.
     match /settings/{docId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin() || 
-                    ((isManager() || isTriagem() || isMarketing() || isInternalSeller()) && 
-                     (docId == 'comercial_config' || 
-                      docId == 'high_tip_drawing' || 
-                      docId.startsWith('engate_rapido_ficha_') || 
-                      docId.startsWith('garra_estufagem_ficha_')));
+      allow read: if (docId in ['email', 'agendor']) ? isAdmin() :
+        (naoAnonimo() || docId.matches('^(engate_rapido|garra_estufagem|high_tip).*'));
+      allow write: if isAdmin() ||
+        (isEquipe() &&
+         (docId in ['comercial_config', 'high_tip_drawing', 'goals', 'notifications'] ||
+          docId.matches('^(engate_rapido_ficha_|garra_estufagem_ficha_).*')));
     }
 
+    // Avaliação de cliente: o cliente cria pelo link; ninguém de fora altera.
     match /customer_evaluations/{evaluationId} {
       allow read: if true;
-      allow create, update: if true;
+      allow create: if true;
+      allow update: if isEquipe();
       allow delete: if isManager();
     }
 
+    // Leads de feira: o tablet cria sem login; ler e mexer, só a equipe.
     match /fair_leads/{leadId} {
-      allow read, create, update, delete: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow read, update, delete: if isEquipe();
     }
 
     match /fair_checklist/{itemId} {
-      allow read: if isAuthenticated();
-      allow write: if isManager() || isMarketing() || isInternalSeller() || isAdmin();
+      allow read: if isEquipe();
+      allow write: if isEquipe();
     }
 
     match /fair_checklist_template/{itemId} {
-      allow read: if isAuthenticated();
-      allow write: if isMarketing() || isAdmin();
+      allow read: if isEquipe();
+      allow write: if isMarketing();
     }
 
     match /fair_expenses/{expenseId} {
-      allow read: if isAuthenticated() && (isManager() || isInternalSeller() || isMarketing() || isTriagem() || hasRole('financial') || hasRole('finance'));
-      allow write: if isManager() || hasRole('financial') || hasRole('finance');
+      allow read: if isEquipe();
+      allow write: if isManager() || isFinanceiro();
     }
 
     match /fair_expense_categories/{categoryId} {
-      allow read: if isAuthenticated();
-      allow write: if isManager() || hasRole('finance') || hasRole('financial');
+      allow read: if isEquipe();
+      allow write: if isManager() || isFinanceiro();
     }
 
     match /fair_assets/{assetId} {
-      allow read: if isAuthenticated();
-      allow write: if isManager() || isInternalSeller();
+      allow read: if isEquipe();
+      allow write: if isEquipe();
     }
 
     match /trash_bin/{docId} {
-      allow read: if isAuthenticated() && (isManager() || isAdmin() || isMarketing());
-      allow create: if isAuthenticated();
-      allow update, delete: if isAuthenticated() && (isManager() || isAdmin() || isMarketing());
+      allow read: if isManager() || isMarketing();
+      allow create: if naoAnonimo();
+      allow update, delete: if isManager() || isMarketing();
     }
 
     match /financial_dashboard_months/{monthId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if isManager() || isFinanceiro();
     }
 
+    // Extratos mensais: cada parceiro lê o dele; a equipe lê todos.
     match /monthly_statements/{statementId} {
-      allow read, write: if isAuthenticated();
+      allow read: if isEquipe() ||
+        (naoAnonimo() && resource.data.get('seller_uid', '') == request.auth.uid);
+      allow write: if isManager() || isFinanceiro();
     }
 
     match /equipment_dossiers/{dossierId} {
-      allow read, write: if isAuthenticated() && (isAdmin() || isManager() || request.auth.token.email.lower() == "roderbrasil@gmail.com");
+      allow read: if isEquipe();
+      allow write: if isManager();
     }
 
+    // Perguntas ao Consultor: quem pergunta registra; melhorar a resposta
+    // (que passa a valer para todo mundo) é só da gestão.
     match /roder_ai_questions/{questionId} {
-      allow read, create, update: if isAuthenticated();
-      allow delete: if isAuthenticated() && (isManager() || isAdmin());
+      allow read: if isEquipe();
+      allow create: if isAuthenticated();
+      allow update: if isManager() ||
+        (isEquipe() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isImproved', 'improvedAnswer']));
+      allow delete: if isManager();
     }
 
     match /roder_ai_daily_summaries/{summaryId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if isManager();
     }
 
     match /approval_queue/{approvalId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if isEquipe();
     }
 
     match /roder_comercial_guidelines/{guidelineId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && (isAdmin() || isManager() || isInternalSeller() || isTriagem() || request.auth.token.email.lower() == "roderbrasil@gmail.com");
+      allow read: if naoAnonimo();
+      allow write: if isInternalSeller();
     }
 
     match /api_keys/{keyId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if isAdmin();
     }
   }
 }

@@ -1,14 +1,19 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    // Fotos do tablet da feira: o tablet entra anônimo, então pode só ENVIAR foto nova
+    // (até 20 MB), nunca apagar nem trocar arquivo que já existe.
     match /fair_leads/{fairId}/{allPaths=**} {
-      // Allow anybody to upload photos for fair leads (required for quick register)
-      allow write: if request.auth != null;
-      // Allow triagem and managers to see all photos
+      allow create: if request.auth != null && request.resource.size < 20 * 1024 * 1024;
       allow read: if request.auth != null;
+      allow update, delete: if request.auth != null && request.auth.token.firebase.sign_in_provider != 'anonymous';
     }
+    // Todo o resto (vídeos, notas, orçamentos): só quem tem login de verdade grava ou apaga.
     match /{allPaths=**} {
-      allow read, write: if request.auth != null;
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
+        && (request.resource == null || request.resource.size < 600 * 1024 * 1024);
     }
   }
 }
