@@ -23,8 +23,8 @@ export interface DepsConsultorParceiro {
   agora?: () => Date;
 }
 
-// Admin, gerente e triagem (Jeferson, Gislene e Luana): só eles geram o link do parceiro
-const GESTAO_LINK = ['admin', 'manager', 'triagem'];
+// Admin e gerentes (Jeferson, Gislene e Luana): só eles geram o link do parceiro
+const GESTAO_LINK = ['admin', 'manager'];
 const EQUIPE = ['admin', 'manager', 'triagem', 'internal_seller', 'financial', 'finance', 'fiscal', 'marketing', 'assistant'];
 export const LIMITE_DIA = 20;
 
@@ -89,7 +89,7 @@ export function criarRotasConsultorParceiro(deps: DepsConsultorParceiro) {
     return { ...dono, via: 'link' };
   }
 
-  // POST /api/consultor/links/:uid  { novo?: boolean }  (admin, gerente, triagem)
+  // POST /api/consultor/links/:uid  { novo?: boolean }  (admin e gerentes)
   async function rotaLink(req: any, res: any) {
     try {
       const q = await quemChama(req);

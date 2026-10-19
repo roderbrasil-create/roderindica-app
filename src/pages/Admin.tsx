@@ -1396,7 +1396,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
   const [isSettingPassword, setIsSettingPassword] = useState(false);
   const [shareUserModal, setShareUserModal] = useState<UserProfile | null>(null);
   // Link pessoal do parceiro no Consultor Roder (sem senha). Só Jeferson, Gislene e Luana.
-  const podeLinkConsultor = isAdmin || isManager || isTriagem;
+  const podeLinkConsultor = isAdmin || isManager;
   const [linkConsultorEm, setLinkConsultorEm] = useState<string | null>(null);
   // texto que o navegador não deixou copiar sozinho (iPhone pede um toque novo depois de esperar o servidor)
   const [textoLinkConsultor, setTextoLinkConsultor] = useState<string | null>(null);

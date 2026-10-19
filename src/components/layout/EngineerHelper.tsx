@@ -649,8 +649,8 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   
   // Only registered sellers/partners should have sharing access
   const isRegisteredUser = user && profile?.role && !['client', 'visitor'].includes(profile.role);
-  // "Compartilhar consultor": só Jeferson, Gislene e Luana (admin, gerente e triagem)
-  const podeCompartilhar = !!user && !!(isAdmin || isManager || isTriagem);
+  // "Compartilhar consultor": só Jeferson, Gislene e Luana (admin e gerentes)
+  const podeCompartilhar = !!user && !!(isAdmin || isManager);
 
   // Parceiro pelo link pessoal (sem senha). Se houver login no app, o login vale mais.
   const [parceiroLink] = useState(lerParceiroLink);

@@ -44,7 +44,7 @@ function montar(quem: any = null) {
   const db = bancoFalso({
     users: {
       gis: { name: 'Gislene', role: 'manager', status: 'active', email: 'gislene@roderbrasil.com.br' },
-      lua: { name: 'Luana Camargo', role: 'triagem', status: 'active', email: 'luana@roderbrasil.com.br' },
+      lua: { name: 'Luana Camargo', role: 'manager', status: 'active', email: 'luana@roderbrasil.com.br' },
       hel: { name: 'Heloisa', role: 'internal_seller', status: 'active', email: 'heloisa@x.com' },
       car: { name: 'Carlos Pereira', role: 'external_seller', status: 'active', email: 'carlos@gmail.com' },
       ina: { name: 'Inativo', role: 'external_seller', status: 'inactive', email: 'ina@gmail.com' },
@@ -92,7 +92,7 @@ test('só a gestão gera link; regenerar desliga o antigo', async () => {
   quemAtual.v = { uid: 'hel', email: 'heloisa@x.com', role: 'internal_seller' };
   res = await chamar(r.rotaLink, { params: { uid: 'car' }, body: {} });
   assert.equal(res.statusCode, 403);
-  quemAtual.v = { uid: 'lua', email: 'luana@roderbrasil.com.br', role: 'triagem' };
+  quemAtual.v = { uid: 'lua', email: 'luana@roderbrasil.com.br', role: 'manager' };
   res = await chamar(r.rotaLink, { params: { uid: 'car' }, body: {} });
   assert.equal(res.statusCode, 200);
   const t1 = res.corpo.token;
