@@ -671,9 +671,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-2 mb-2">
-              {/* modo escuro desligado: o app fica sempre no claro (pedido do Jeferson, 19/10/2026) */}
-            </div>
+            {/* modo escuro desligado: o app fica sempre no claro (pedido do Jeferson, 19/10/2026) */}
             <Button 
               variant="ghost" 
               size="sm"

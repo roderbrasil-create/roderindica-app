@@ -103,7 +103,7 @@ export default function NotificationBell() {
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         {/* sino compacto, com o número em cima (antes ocupava meio cabeçalho com "18 ALERTAS") */}
-        <Button variant="ghost" className="relative h-11 w-11 p-0 text-muted-foreground hover:text-primary" aria-label="Notificações">
+        <Button variant="ghost" className="relative h-11 w-11 p-0 text-muted-foreground hover:text-primary" aria-label={unreadCount ? `Notificações, ${unreadCount} não lidas` : 'Notificações'}>
           <Bell className={cn("h-6 w-6", unreadCount > 0 && "text-slate-800")} />
           {unreadCount > 0 && (
             <span className="absolute top-1 right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10.5px] font-black leading-[18px] text-center">
