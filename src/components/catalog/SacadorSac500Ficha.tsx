@@ -19,6 +19,8 @@ import {
   Info,
   Maximize2
 } from 'lucide-react';
+import { entregarPdf, nomeArquivoFicha, usePodeEnviarFicha } from './fichaPdf';
+import { BotaoEnviarFicha } from './BotaoEnviarFicha';
 import { RODER_LOGO_BASE64 } from './RoderLogo';
 import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
@@ -29,9 +31,12 @@ import { useVoltarFecha } from '../../lib/useVoltarFecha';
 
 interface SacadorSac500FichaProps {
   onClose: () => void;
+  // aberta pelo "Enviar ficha": destaca o botão Enviar
+  enviar?: boolean;
 }
 
-export function SacadorSac500Ficha({ onClose }: SacadorSac500FichaProps) {
+export function SacadorSac500Ficha({ onClose, enviar = false }: SacadorSac500FichaProps) {
+  const podeEnviar = usePodeEnviarFicha();
   // "Voltar" do celular fecha a ficha e volta para a tela de onde ela foi aberta
   useVoltarFecha(true, onClose);
   const { isAdmin, isManager, isTriagem, isMarketing, isInternalSeller } = useAuth();
@@ -127,7 +132,7 @@ export function SacadorSac500Ficha({ onClose }: SacadorSac500FichaProps) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const handleExportPDF = async () => {
+  const handleExportPDF = async (modo: 'baixar' | 'enviar' = 'baixar') => {
     if (!printRef.current) return;
     setIsPrinting(true);
     const toastId = toast.loading('Gerando PDF da Ficha Técnica SAC 500...');
@@ -149,9 +154,9 @@ export function SacadorSac500Ficha({ onClose }: SacadorSac500FichaProps) {
       const pdfHeight = pdf.internal.pageSize.getHeight(); // 297mm
 
       pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save('Ficha_Tecnica_Sacador_SAC500_Roder.pdf');
-
-      toast.success('PDF A4 baixado com sucesso!', { id: toastId });
+      toast.dismiss(toastId);
+      await entregarPdf(pdf, modo === 'enviar' ? nomeArquivoFicha('Sacador SAC500') : 'Ficha_Tecnica_Sacador_SAC500_Roder.pdf', modo, 'Ficha técnica Sacador SAC 500');
+      if (modo === 'baixar') toast.success('PDF A4 baixado com sucesso!');
     } catch (err) {
       console.error('Erro ao gerar PDF:', err);
       toast.error('Erro ao gerar PDF.', { id: toastId });
@@ -221,6 +226,8 @@ _Dúvidas ou orçamentos? Fale com a equipe técnica Roder!_`;
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
+            {podeEnviar && (
+            <>
             <button
               onClick={handleShareWhatsApp}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition shadow"
@@ -231,7 +238,7 @@ _Dúvidas ou orçamentos? Fale com a equipe técnica Roder!_`;
             </button>
 
             <button
-              onClick={handleExportPDF}
+              onClick={() => handleExportPDF('baixar')}
               disabled={isPrinting}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition shadow disabled:opacity-50"
               title="Baixar Ficha Técnica em PDF A4"
@@ -239,6 +246,9 @@ _Dúvidas ou orçamentos? Fale com a equipe técnica Roder!_`;
               <Download className="w-4 h-4" />
               <span>Baixar PDF A4</span>
             </button>
+            <BotaoEnviarFicha onClick={() => handleExportPDF('enviar')} destaque={enviar} />
+            </>
+            )}
 
             <a
               href={youtubeVideoUrl}

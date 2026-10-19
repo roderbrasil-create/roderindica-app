@@ -94,6 +94,8 @@ import { GarraEstufagemFicha } from '../components/catalog/GarraEstufagemFicha';
 import { CabecotePodaFicha } from '../components/catalog/CabecotePodaFicha';
 import { CabecoteGmt035Ficha } from '../components/catalog/CabecoteGmt035Ficha';
 import { SacadorSac500Ficha } from '../components/catalog/SacadorSac500Ficha';
+import { FichaPadrao } from '../components/catalog/FichaPadrao';
+import { usePodeEnviarFicha } from '../components/catalog/fichaPdf';
 import { EstudosComparativosModal } from '../components/catalog/EstudosComparativosModal';
 import { RODER_LOGO_BASE64 } from '../components/catalog/RoderLogo';
 import { useVoltarFecha } from '../lib/useVoltarFecha';
@@ -404,6 +406,14 @@ const isAnyFichaSupported = (product: any) => {
   return !!product.pdf_url || isEngate || isHighTip || isFresa || isEstufagem || isLoaderTriturador || isCabecoteGmt || isCabecotePoda;
 };
 
+// Mesma rota do cartão da galeria para todo botão "Ficha": a ficha própria quando existe,
+// senão a ficha padrão (o PDF do site fica só no link "PDF do site" dentro dela).
+const padraoDaFicha = (product: any, model?: any) => {
+  const m = model || (product?.models || []).find((x: any) => x && x.name) ||
+    { id: product?.id || 'modelo', name: product?.name || '', technical_specs: {}, pdf_url: product?.pdf_url || '' };
+  return { product, model: m };
+};
+
 
 
 function SortableProductCard({ 
@@ -449,6 +459,9 @@ function SortableProductCard({
   // Pricing should ONLY be visible to managers, admins, and internal sellers (financial/internal)
   const canSeePrices = !isExternalSeller && (isManager || isAdmin);
 
+  // Parceiro/indicador não manda o link do PDF da ficha (só vê a ficha)
+  const podeEnviarFicha = usePodeEnviarFicha();
+
   const handleWhatsAppShare = () => {
     const budgetUrl = `${window.location.origin}/pedido-orcamento?uid=${user?.uid || ''}&pid=${product.id}`;
     const text = `*RODER BRASIL - Equipamento Florestal*\n\n` +
@@ -456,7 +469,7 @@ function SortableProductCard({
       `*Descrição:* ${product.description}\n\n` +
       (product.image_url ? `*Foto:* ${product.image_url}\n` : '') +
       (product.video_url ? `*Vídeo:* ${product.video_url}\n` : '') +
-      (product.pdf_url ? `*Ficha Técnica (PDF):* ${product.pdf_url}\n` : '') +
+      (product.pdf_url && podeEnviarFicha ? `*Ficha Técnica (PDF):* ${product.pdf_url}\n` : '') +
       `*Solicite seu orçamento aqui:* ${budgetUrl}\n\n` +
       `\n_Enviado via RODER Indica_`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
@@ -612,18 +625,16 @@ function SortableProductCard({
                 </Button>
               </div>
               
-              {isAnyFichaSupported(product) && (
-                <div className="flex items-center">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="h-8 border-border px-1 text-[7px] font-bold flex-col gap-0.5 justify-center leading-none min-w-[42px]"
-                    onClick={() => openPdf(product.pdf_url || '', product.name, product)}
-                  >
-                    <FileText className="h-3 w-3 text-red-500" /> <span>Ficha</span>
-                  </Button>
-                </div>
-              )}
+              <div className="flex items-center">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-8 border-border px-1 text-[7px] font-bold flex-col gap-0.5 justify-center leading-none min-w-[42px]"
+                  onClick={() => openPdf(product.pdf_url || '', product.name, product, padraoDaFicha(product))}
+                >
+                  <FileText className="h-3 w-3 text-red-500" /> <span>Ficha</span>
+                </Button>
+              </div>
 
               {product.name === 'Caçamba High Tip' && (
                 <div className="flex items-center">
@@ -715,12 +726,8 @@ function SortableProductCard({
                 </Button>
                  <Button 
                   variant="outline" 
-                  className={cn(
-                    "flex-1 border-border text-xs h-9",
-                    isAnyFichaSupported(product) ? "text-foreground" : "hidden"
-                  )}
-                  onClick={() => openPdf(product.pdf_url || '', product.name, product)}
-                  disabled={!isAnyFichaSupported(product)}
+                  className="flex-1 border-border text-xs h-9 text-foreground"
+                  onClick={() => openPdf(product.pdf_url || '', product.name, product, padraoDaFicha(product))}
                 >
                   <FileText className="h-4 w-4 mr-1.5" /> Ficha
                 </Button>
@@ -738,6 +745,8 @@ let rachadoraEmAndamento = false;
 
 export default function Catalog() {
   const { user, profile, realProfile, isManager, isAdmin, isExternalSeller, isMarketing, auth } = useAuth();
+  // Parceiro/indicador só vê a ficha: compartilhar o arquivo fica com a equipe Roder
+  const podeEnviarFicha = usePodeEnviarFicha();
   const navigate = useNavigate();
   const location = useLocation();
   const [products, setProducts] = useState<Product[]>([]);
@@ -783,6 +792,8 @@ export default function Catalog() {
   const [isCabecotePodaFichaOpen, setIsCabecotePodaFichaOpen] = useState(false);
   const [isCabecoteGmt035FichaOpen, setIsCabecoteGmt035FichaOpen] = useState(false);
   const [isSacadorSac500FichaOpen, setIsSacadorSac500FichaOpen] = useState(false);
+  // Ficha padrão em PDF (modelo sem ficha própria)
+  const [fichaPadrao, setFichaPadrao] = useState<{ product: any; model: any } | null>(null);
   const [isEstudosComparativosOpen, setIsEstudosComparativosOpen] = useState(false);
   const [garraEstufagemDefaultModel, setGarraEstufagemDefaultModel] = useState<string>('af-360');
   const [suspendedProductModels, setSuspendedProductModels] = useState<Product | null>(null);
@@ -4021,7 +4032,7 @@ export default function Catalog() {
     abrirDocumento(url, 'Catálogo de peças');
   };
 
-  const openPdf = (url: string, modelName?: string, productContext?: any) => {
+  const openPdf = (url: string, modelName?: string, productContext?: any, padrao?: { product: any; model: any }) => {
     const lowerUrl = (url || '').toLowerCase();
     const lowerModelName = (modelName || '').toLowerCase();
     const lowerViewingName = (viewingGallery?.name || '').toLowerCase();
@@ -4294,9 +4305,27 @@ export default function Catalog() {
       return;
     }
 
-    if (!url) return;
+    const ehFresa = isFresaProduct(url) || isFresaProduct(modelName) || isFresaProduct(viewingGallery?.name) || isFresaProduct(selectedProductModels?.name) || isFresaProduct(lowerContextName) || isFresaProduct(lowerContextCategory) || isFresaProduct(lowerContextDesc) || isFresaProduct(lowerContextPdfUrl);
 
-    if (isFresaProduct(url) || isFresaProduct(modelName) || isFresaProduct(viewingGallery?.name) || isFresaProduct(selectedProductModels?.name) || isFresaProduct(lowerContextName) || isFresaProduct(lowerContextCategory) || isFresaProduct(lowerContextDesc) || isFresaProduct(lowerContextPdfUrl)) {
+    // "Ficha" do modelo sem ficha própria: a ficha padrão em PDF (o PDF do site fica num link dentro dela)
+    // PDF próprio da Roder (ex.: GR600/GR800, GCR) vale mais que a ficha padrão automática
+    const pdfProprio = !!url && (url.startsWith('/catalogo/') || url.startsWith('db-file://'));
+    if (padrao && !ehFresa && !pdfProprio) {
+      if (selectedProductModels) {
+        setSuspendedProductModels(selectedProductModels);
+        setSelectedProductModels(null);
+      }
+      if (viewingGallery) {
+        setSuspendedViewingGallery(viewingGallery);
+        setViewingGallery(null);
+      }
+      setFichaPadrao(padrao);
+      return;
+    }
+
+    if (!url && !ehFresa) return;
+
+    if (ehFresa) {
       if (selectedProductModels) {
         setSuspendedProductModels(selectedProductModels);
         setSelectedProductModels(null);
@@ -5070,7 +5099,6 @@ export default function Catalog() {
                   if ((k.includes('vazao') || k.includes('vazão')) && !lv.includes('l/min') && !lv.includes('lmin')) v += ' L/min';
                   return { key, label: specLabels[k] || key.replace(/_/g, ' '), value: v, destaque: k === 'giro_360' };
                 });
-              const temFicha = (model.pdf_url || viewingGallery?.pdf_url || isEngateProduct(model.name) || isEngateProduct(viewingGallery?.name) || isHighTipProduct(model.name) || isHighTipProduct(viewingGallery?.name) || isFresaProduct(model.name) || isFresaProduct(viewingGallery?.name) || isLoaderTrituradorProduct(model.name) || isLoaderTrituradorProduct(viewingGallery?.name));
               const pecasUrl = model.parts_manual_url || viewingGallery?.parts_manual_url || '';
               const temEntrega = ['fae-uml-ex-vt', 'fae-uml-s-ex-vt', 'fae-umm-ex-vt'].includes(model.id?.toLowerCase());
               const botaoSec = "flex-1 min-w-0 h-11 md:h-12 px-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-800 font-bold shadow-sm rounded-lg flex flex-col md:flex-row items-center justify-center gap-0.5 md:gap-1.5 !text-[11px] md:!text-sm leading-none";
@@ -5173,16 +5201,15 @@ export default function Catalog() {
                     {criandoLinkDe === model.id ? <Loader2 className="!h-4 !w-4 animate-spin" /> : <MessageCircle className="!h-4 !w-4" />}
                     <span>{criandoLinkDe === model.id ? 'Criando link...' : 'WhatsApp'}</span>
                   </Button>
-                  {temFicha && (
-                    <Button
-                      size="sm"
-                      className={botaoSec}
-                      onClick={() => openPdf(model.pdf_url || viewingGallery?.pdf_url || '', model.name, viewingGallery)}
-                    >
-                      <FileText className="!h-4 !w-4 text-red-500" />
-                      <span>Ficha</span>
-                    </Button>
-                  )}
+                  {/* Toda ficha abre: a própria quando existe, senão a ficha padrão em PDF */}
+                  <Button
+                    size="sm"
+                    className={botaoSec}
+                    onClick={() => openPdf(model.pdf_url || viewingGallery?.pdf_url || '', model.name, viewingGallery, { product: viewingGallery, model })}
+                  >
+                    <FileText className="!h-4 !w-4 text-red-500" />
+                    <span>Ficha</span>
+                  </Button>
                   {pecasUrl && (
                     <Button
                       size="sm"
@@ -5640,12 +5667,9 @@ export default function Catalog() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className={cn(
-                          "h-8 w-8 mr-1 shrink-0",
-                          (model.pdf_url || selectedProductModels?.pdf_url || isAnyFichaSupported(selectedProductModels) || isEngateProduct(model.name) || isHighTipProduct(model.name) || isFresaProduct(model.name) || isLoaderTrituradorProduct(model.name)) ? "text-red-500 hover:text-red-600 hover:bg-red-500/10" : "hidden"
-                        )}
-                        disabled={!(model.pdf_url || selectedProductModels?.pdf_url || isAnyFichaSupported(selectedProductModels) || isEngateProduct(model.name) || isHighTipProduct(model.name) || isFresaProduct(model.name) || isLoaderTrituradorProduct(model.name))}
-                        onClick={() => openPdf(model.pdf_url || selectedProductModels?.pdf_url || '', model.name, selectedProductModels)}
+                        className="h-8 w-8 mr-1 shrink-0 text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                        title="Ficha"
+                        onClick={() => openPdf(model.pdf_url || selectedProductModels?.pdf_url || '', model.name, selectedProductModels, padraoDaFicha(selectedProductModels, model))}
                       >
                         <FileText className="h-4 w-4" />
                       </Button>
@@ -6059,27 +6083,22 @@ export default function Catalog() {
                         <div className="flex gap-1 w-full">
                           <Button 
                             variant="outline" 
-                            className={cn(
-                              "flex-1 justify-start gap-2 border-border h-11",
-                              !(selectedModel.pdf_url || selectedProductModels?.pdf_url || isAnyFichaSupported(selectedProductModels) || isEngateProduct(selectedModel.name) || isHighTipProduct(selectedModel.name) || isFresaProduct(selectedModel.name) || isLoaderTrituradorProduct(selectedModel.name)) && "hidden"
-                            )}
-                            onClick={() => openPdf(selectedModel.pdf_url || selectedProductModels?.pdf_url || '', selectedModel.name, selectedProductModels)}
-                            disabled={!(selectedModel.pdf_url || selectedProductModels?.pdf_url || isAnyFichaSupported(selectedProductModels) || isEngateProduct(selectedModel.name) || isHighTipProduct(selectedModel.name) || isFresaProduct(selectedModel.name) || isLoaderTrituradorProduct(selectedModel.name))}
+                            className="flex-1 justify-start gap-2 border-border h-11"
+                            onClick={() => openPdf(selectedModel.pdf_url || selectedProductModels?.pdf_url || '', selectedModel.name, selectedProductModels, padraoDaFicha(selectedProductModels, selectedModel))}
                           >
                             <FileText className="h-4 w-4 text-red-500" /> Ficha Técnica (PDF)
                           </Button>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className={cn(
-                              "h-11 w-11 shrink-0 border-border",
-                              !(selectedModel.pdf_url || selectedProductModels?.pdf_url || isAnyFichaSupported(selectedProductModels) || isEngateProduct(selectedModel.name) || isHighTipProduct(selectedModel.name) || isFresaProduct(selectedModel.name) || isLoaderTrituradorProduct(selectedModel.name)) && "hidden"
-                            )}
-                            onClick={() => shareFile(selectedModel.pdf_url || selectedProductModels?.pdf_url || '', `Ficha Técnica - ${selectedModel.name}`)}
-                            disabled={!(selectedModel.pdf_url || selectedProductModels?.pdf_url || isAnyFichaSupported(selectedProductModels) || isEngateProduct(selectedModel.name) || isHighTipProduct(selectedModel.name) || isFresaProduct(selectedModel.name) || isLoaderTrituradorProduct(selectedModel.name))}
-                          >
-                            <Share2 className="h-4 w-4 text-primary" />
-                          </Button>
+                          {/* Compartilhar o arquivo: só a equipe Roder (parceiro só vê a ficha) */}
+                          {podeEnviarFicha && (selectedModel.pdf_url || selectedProductModels?.pdf_url) && (
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-11 w-11 shrink-0 border-border"
+                              onClick={() => shareFile(selectedModel.pdf_url || selectedProductModels?.pdf_url || '', `Ficha Técnica - ${selectedModel.name}`)}
+                            >
+                              <Share2 className="h-4 w-4 text-primary" />
+                            </Button>
+                          )}
                         </div>
 
                         <div className="flex gap-1 w-full">
@@ -7286,6 +7305,24 @@ export default function Catalog() {
                 setSuspendedViewingGallery(null);
               }
             }} 
+          />
+        )}
+
+        {fichaPadrao && (
+          <FichaPadrao
+            product={fichaPadrao.product}
+            model={fichaPadrao.model}
+            onClose={() => {
+              setFichaPadrao(null);
+              if (suspendedProductModels) {
+                setSelectedProductModels(suspendedProductModels);
+                setSuspendedProductModels(null);
+              }
+              if (suspendedViewingGallery) {
+                setViewingGallery(suspendedViewingGallery);
+                setSuspendedViewingGallery(null);
+              }
+            }}
           />
         )}
 

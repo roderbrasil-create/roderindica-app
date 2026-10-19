@@ -19,6 +19,8 @@ import { RODER_LOGO_BASE64 } from './RoderLogo';
 import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
+import { enviarArquivoPdf, nomeArquivoFicha, usePodeEnviarFicha } from './fichaPdf';
+import { BotaoEnviarFicha } from './BotaoEnviarFicha';
 import { db } from '../../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { getApiBaseUrl } from '../../lib/utils';
@@ -26,6 +28,8 @@ import { useVoltarFecha } from '../../lib/useVoltarFecha';
 
 interface EngateRapidoFichaProps {
   onClose: () => void;
+  // aberta pelo "Enviar ficha": destaca o botão Enviar
+  enviar?: boolean;
 }
 
 const formatFichaImageUrl = (url: string | null) => {
@@ -49,7 +53,8 @@ const formatFichaImageUrl = (url: string | null) => {
   return `${baseUrl}/api/proxy-image?url=${encodeURIComponent(fullUrl)}`;
 };
 
-export function EngateRapidoFicha({ onClose }: EngateRapidoFichaProps) {
+export function EngateRapidoFicha({ onClose, enviar = false }: EngateRapidoFichaProps) {
+  const podeEnviar = usePodeEnviarFicha();
   // "Voltar" do celular fecha a ficha e volta para a tela de onde ela foi aberta
   useVoltarFecha(true, onClose);
   const page1Ref = useRef<HTMLDivElement>(null);
@@ -218,41 +223,17 @@ export function EngateRapidoFicha({ onClose }: EngateRapidoFichaProps) {
     toast.success("Mensagem formatada com link do PDF aberta no WhatsApp!");
   };
 
+  // Mesmo "Enviar" das outras fichas: compartilhar do celular ou baixar e abrir o WhatsApp Web
   const sharePdf = async () => {
     setIsExporting(true);
-    const toastId = toast.loading("Preparando documento para compartilhamento...");
-
+    const toastId = toast.loading("Gerando a ficha em PDF...");
     try {
       const { blob } = await generatePdfBlob();
-      const file = new File([blob], 'Ficha_Tecnica_Engate_Rapido_Roder.pdf', { type: 'application/pdf' });
-
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          title: 'Ficha Técnica - Engate Rápido Roder',
-          text: `Confira a Ficha Técnica Oficial do Engate Rápido Hidráulico Roder para Pás Carregadeiras: ${window.location.origin}/ficha/engate-rapido`,
-          files: [file]
-        });
-        toast.success("Documento compartilhado com sucesso!", { id: toastId });
-      } else {
-        // Fallback: download the file and open WhatsApp
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'Ficha_Tecnica_Engate_Rapido_Roder.pdf';
-        a.click();
-        URL.revokeObjectURL(url);
-
-        shareViaWhatsApp();
-        toast.info("PDF baixado no dispositivo! Você pode anexá-lo diretamente na conversa do WhatsApp.", { id: toastId });
-      }
-    } catch (error: any) {
-      if (error.name !== 'AbortError') {
-        console.error("Erro ao compartilhar:", error);
-        toast.error("Não foi possível compartilhar automaticamente. O download em PDF foi iniciado.", { id: toastId });
-        exportPDF();
-      } else {
-        toast.dismiss(toastId);
-      }
+      toast.dismiss(toastId);
+      await enviarArquivoPdf(blob, nomeArquivoFicha('Engate Rapido'), 'Ficha técnica Engate Rápido Roder');
+    } catch (error) {
+      console.error("Erro ao gerar PDF:", error);
+      toast.error("Não consegui gerar o PDF. Tente de novo.", { id: toastId });
     } finally {
       setIsExporting(false);
     }
@@ -288,6 +269,8 @@ export function EngateRapidoFicha({ onClose }: EngateRapidoFichaProps) {
 
         {/* Action Controls */}
         <div className="flex items-center gap-2 flex-wrap">
+          {podeEnviar && (
+          <>
           <button 
             onClick={exportPDF}
             disabled={isExporting}
@@ -309,15 +292,7 @@ export function EngateRapidoFicha({ onClose }: EngateRapidoFichaProps) {
             <span className="md:hidden">WhatsApp</span>
           </button>
 
-          <button 
-            onClick={sharePdf}
-            disabled={isExporting}
-            className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold py-2 px-3 rounded-lg text-xs transition duration-200 border border-slate-700 disabled:opacity-50"
-            title="Compartilhar arquivo PDF"
-          >
-            <Share2 className="h-4 w-4 text-slate-300" />
-            <span className="hidden md:inline">Compartilhar</span>
-          </button>
+          <BotaoEnviarFicha onClick={sharePdf} destaque={enviar} disabled={isExporting} />
 
           <button 
             onClick={triggerSystemPrint}
@@ -327,6 +302,8 @@ export function EngateRapidoFicha({ onClose }: EngateRapidoFichaProps) {
             <Printer className="h-4 w-4 text-slate-300" />
             <span>Imprimir</span>
           </button>
+          </>
+          )}
 
           {/* Prominent High-Contrast Close Button */}
           <button 

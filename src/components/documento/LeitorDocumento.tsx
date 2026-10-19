@@ -4,6 +4,7 @@ import { auth } from '../../lib/firebase';
 import { getApiBaseUrl } from '../../lib/utils';
 import { ouvirDocumentos, PedidoDocumento, instalarInterceptor, abrirForaDoApp, idYoutube, idVimeo, idDrive } from '../../lib/abrirDocumento';
 import { useVoltarFecha } from '../../lib/useVoltarFecha';
+import { usePodeBaixarDocumento } from '../../lib/podeEnviarFicha';
 
 // Leitor de PDF, foto e vídeo dentro do app, com "Voltar" sempre visível no alto.
 // Desenha os PDFs com o pdf.js: o leitor nativo do iPhone dentro de um quadro mostra
@@ -75,6 +76,8 @@ function tipoImagem(buf: ArrayBuffer, tipo: string) {
 
 export default function LeitorDocumento() {
   const [pedido, setPedido] = useState<PedidoDocumento | null>(null);
+  // Parceiro/indicador e consultor público só VEEM o documento (regra do Jeferson)
+  const podeBaixar = usePodeBaixarDocumento();
   const [estado, setEstado] = useState<'carregando' | 'pronto' | 'erro'>('carregando');
   const [erro, setErro] = useState('');
   const [zoom, setZoom] = useState(1);
@@ -269,7 +272,7 @@ export default function LeitorDocumento() {
         {ehPlayer && (
           <button type="button" aria-label="Abrir no navegador" onClick={() => abrirForaDoApp(pedido.url)} className="h-11 w-11 rounded-lg border border-slate-300 text-slate-800 flex items-center justify-center shrink-0"><ExternalLink className="h-4 w-4" /></button>
         )}
-        {estado === 'pronto' && arquivo && !ehPlayer && (
+        {podeBaixar && estado === 'pronto' && arquivo && !ehPlayer && (
           <button type="button" aria-label="Baixar ou compartilhar" onClick={baixar} className="h-11 w-11 rounded-lg border border-slate-300 text-slate-800 flex items-center justify-center shrink-0"><Download className="h-4 w-4" /></button>
         )}
       </header>

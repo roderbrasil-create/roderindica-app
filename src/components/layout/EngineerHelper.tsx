@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { getGTProductivityData } from '../../lib/produtividadeGt';
 import { Sparkles, MessageSquare, X, Minus, Send, Calculator, Wrench, HelpCircle, AlertTriangle, Play, RefreshCw, Trash2, ChevronLeft, ChevronRight, CheckCircle, Package, Layers, Tractor, FileText, Mic, Square, Loader2, Brain, BookOpen, ExternalLink, Share2, Video, Phone, QrCode, Bot, User, Briefcase } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -22,6 +23,11 @@ import { EngateRapidoFicha } from '../catalog/EngateRapidoFicha';
 import { GarraEstufagemFicha } from '../catalog/GarraEstufagemFicha';
 import { TrituradorLoaderFaeFicha } from '../catalog/TrituradorLoaderFaeFicha';
 import { SacadorSac500Ficha } from '../catalog/SacadorSac500Ficha';
+import { CabecotePodaFicha } from '../catalog/CabecotePodaFicha';
+import { CabecoteGmt035Ficha } from '../catalog/CabecoteGmt035Ficha';
+import { FichaPadrao, enviarFichaPadrao, fotoDoModelo, tituloFicha } from '../catalog/FichaPadrao';
+import { usePodeEnviarFicha, enviarArquivoPdf, nomeArquivoFicha } from '../catalog/fichaPdf';
+import { CartaoFicha } from '../catalog/CartaoFicha';
 import { useVoltarFecha } from '../../lib/useVoltarFecha';
 import { abrirDocumento } from '../../lib/abrirDocumento';
 
@@ -237,86 +243,8 @@ Operando em conjunto (1 Cabeçote CMF 600 na derrubada + 1 Mini Skidder no arras
 - Indicada para escavadeiras de 25 a 35 toneladas.`
 };
 
-export const getGTProductivityData = (modelName: string, length: number) => {
-  let area = 0.60; // default (GT 600)
-  let machineBase = 'Escavadeira de 20 toneladas (PC 200)';
-  let chainSpec = '3/4" 11H (Pesada/Reforçada)';
-  
-  const cleanName = (modelName || '').toUpperCase();
-  if (cleanName.includes('280')) {
-    area = 0.28;
-    machineBase = 'Escavadeira de 6 a 10 toneladas';
-    chainSpec = 'Harvester 0.404"';
-  } else if (cleanName.includes('360')) {
-    area = 0.36;
-    machineBase = 'Escavadeira de 8 a 16 toneladas';
-    chainSpec = 'Harvester 0.404"';
-  } else if (cleanName.includes('400')) {
-    area = 0.40;
-    machineBase = 'Escavadeira de 14 a 18 toneladas';
-    chainSpec = '3/4" 11H (Pesada/Reforçada)';
-  } else if (cleanName.includes('600')) {
-    area = 0.60;
-    machineBase = 'Escavadeira de 20 toneladas (PC 200)';
-    chainSpec = '3/4" 11H (Pesada/Reforçada)';
-  } else if (cleanName.includes('800')) {
-    area = 0.80;
-    machineBase = 'Escavadeira de 20 a 30 toneladas';
-    chainSpec = '3/4" 11H (Pesada/Reforçada)';
-  } else if (cleanName.includes('1000')) {
-    area = 1.00;
-    machineBase = 'Escavadeira de 25 a 35 toneladas';
-    chainSpec = '3/4" 11H (Pesada/Reforçada)';
-  }
-
-  // Load factor: 85% average capacity due to tapering/copa loss, offset by pulling extra trees
-  const loadFactor = 0.85; 
-  
-  // Volume per cycle = Area * Length * Load Factor
-  const volPerCycle = area * length * loadFactor;
-
-  // Operational efficiency factor (fator de aproveitamento de pátio):
-  // 1.0m (metrinho) allows more continuous feeding/piling (30% efficiency)
-  // 2.4m and 3.0m require more handling (25% and 22%)
-  // 6.0m requires careful positioning and is highly limited by felling/skidder flow (15% efficiency)
-  let opEfficiency = 0.30;
-  if (length === 6.0) {
-    opEfficiency = 0.15;
-  } else if (length === 3.0) {
-    opEfficiency = 0.22;
-  } else if (length === 2.4) {
-    opEfficiency = 0.25;
-  }
-
-  // Active cycles per hour:
-  // - Fast: 20 seconds per cycle = 180 cycles/hour (expert operator, perfect sharpening)
-  // - Slow: 30 seconds per cycle = 120 cycles/hour (beginner operator, low sharpening maintenance)
-  const hourlyMin = parseFloat((120 * volPerCycle * opEfficiency).toFixed(1));
-  const hourlyMax = parseFloat((180 * volPerCycle * opEfficiency).toFixed(1));
-
-  // 10-hour standard forest shift
-  const shiftMin = Math.round(hourlyMin * 10);
-  const shiftMax = Math.round(hourlyMax * 10);
-
-  // Monthly estimate (22 working days, 10 hours per day)
-  const monthlyMin = Math.round(hourlyMin * 10 * 22);
-  const monthlyMax = Math.round(hourlyMax * 10 * 22);
-
-  return {
-    area,
-    loadFactor,
-    chainSpec,
-    hourlyMin,
-    hourlyMax,
-    shiftMin,
-    shiftMax,
-    monthlyMin,
-    monthlyMax,
-    machineBase,
-    cycleRange: '20s a 30s',
-    opEfficiency: Math.round(opEfficiency * 100)
-  };
-};
+// Cálculo da produtividade da Garra Traçadora: em src/lib/produtividadeGt.ts (também usado na ficha padrão)
+export { getGTProductivityData };
 
 const PRODUCT_PDFS: Record<string, string> = {
   "CMF 600": "https://roderbrasil.com.br/wp-content/uploads/2025/10/Cabecote-Multifuncional-Roder.pdf",
@@ -608,81 +536,112 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   const [fresaSshDefaultModel, setFresaSshDefaultModel] = useState<'ssh-150' | 'ssh-200' | 'ssh-225' | 'ssh-250'>('ssh-150');
   const [trituradorLoaderFaeDefaultModel, setTrituradorLoaderFaeDefaultModel] = useState<string>('fae-uml-ssl-vt-175');
 
+  const [isCabecotePodaFichaOpen, setIsCabecotePodaFichaOpen] = useState(false);
+  const [isCabecoteGmt035FichaOpen, setIsCabecoteGmt035FichaOpen] = useState(false);
+  // Ficha especial aberta pelo "Enviar ficha": o botão Enviar dela fica em destaque
+  const [fichaParaEnviar, setFichaParaEnviar] = useState(false);
+  // Ficha padrão (todo equipamento sem ficha própria)
+  const [fichaPadrao, setFichaPadrao] = useState<{ product: Product; model: ProductModel } | null>(null);
+  // Regra do Jeferson: parceiro/indicador e consultor público só veem a ficha
+  const podeEnviarFicha = usePodeEnviarFicha();
+
+  type FichaEspecial = 'sac500' | 'loader-fae' | 'high-tip' | 'engate' | 'estufagem' | 'fresa-ssh' | 'gmt035' | 'poda';
+
+  // Qual ficha própria atende este link/equipamento (nulo = usa a ficha padrão).
+  // Regras presas aos nomes, ids e links reais de cada ficha, para um equipamento parecido
+  // (ex.: "garra com engate rápido", um cabeçote qualquer com "poda" no link) não abrir a ficha errada.
+  // `u` também pode ser o marcador do PRODUCT_PDFS ("fresa-ssh", "engate-rapido"...).
+  const fichaEspecialDe = (url: string, nome = ''): FichaEspecial | null => {
+    const u = (url || '').toLowerCase().trim();
+    const n = (nome || '').toLowerCase();
+    // SAC500: "Sacador de Árvores SAC500"
+    if (/sac[-_ ]?500/.test(u) || u.includes('sacador') || /sac[-_ ]?500/.test(n) || n.includes('sacador')) return 'sac500';
+    // Triturador FAE para pá carregadeira: UML/SSL/VT 175 e 140/U/PM 200
+    if (u === 'loader-fae' || u.includes('loader-fae') || /uml[-_ /]?ssl|140[-_ /]?u[-_ /]?pm/.test(u) ||
+        (n.includes('triturador') && (n.includes('carregadeira') || n.includes('loader'))) || /uml[-_ /]?ssl|140[-_ /]?u[-_ /]?pm/.test(n)) return 'loader-fae';
+    // Caçamba High Tip (prolongador e destocador ficam fora)
+    if (!/prolongador|destocador/.test(n) && (u === 'high-tip' || u.includes('cacamba-high-tip') || /high[-_ ]?tip/.test(n))) return 'high-tip';
+    // Engate Rápido para pá carregadeira: só o próprio produto ("Engate Rápido ..."), nunca outro item que cite engate
+    if (u === 'engate-rapido' || u.includes('/engate-rapido') || /^engate r[aá]pido/.test(n.trim()) || (/engate r[aá]pido/.test(n) && /carregadeira/.test(n))) return 'engate';
+    // Garra para Estufagem (AF/AFG)
+    if (u === 'estufagem' || u.includes('estufagem') || n.includes('estufagem')) return 'estufagem';
+    // Fresa FAE SSH: o nome tem "SSH" (o catálogo de tratores da FAE só conta quando não veio nome)
+    if (u === 'fresa-ssh' || u.includes('fresa-ssh') || /\bssh[-_ ]?\d{3}\b/.test(u) || /\bssh\b/.test(n) ||
+        (!n.trim() && u.includes('catalogo-tratores'))) return 'fresa-ssh';
+    // Cabeçote GMT 035 (id gmt-035)
+    if (/\bgmt[-_ ]?035\b/.test(u) || /\bgmt\b/.test(n)) return 'gmt035';
+    // Cabeçote de Poda GP 150 (id gp-150; links "cabecote-de-poda" e "cabecote-florestal-poda")
+    if (/\bgp[-_ ]?150\b/.test(u) || u.includes('cabecote-de-poda') || u.includes('cabecote-florestal-poda') ||
+        /\bgp[-_ ]?150\b/.test(n) || (n.includes('poda') && (n.includes('cabeçote') || n.includes('cabecote')))) return 'poda';
+    return null;
+  };
+
+  const abrirFichaEspecial = (tipo: FichaEspecial, modelName?: string, enviar = false) => {
+    const dica = (modelName || '').toLowerCase();
+    setFichaParaEnviar(enviar);
+    switch (tipo) {
+      case 'sac500': setIsSacadorSac500FichaOpen(true); break;
+      case 'loader-fae':
+        setTrituradorLoaderFaeDefaultModel(dica.includes('140') || dica.includes('pm') || dica.includes('200') ? 'fae-140-u-pm-200' : 'fae-uml-ssl-vt-175');
+        setIsTrituradorLoaderFaeFichaOpen(true);
+        break;
+      case 'high-tip': setIsHighTipFichaOpen(true); break;
+      case 'engate': setIsEngateRapidoFichaOpen(true); break;
+      case 'estufagem': setIsGarraEstufagemFichaOpen(true); break;
+      case 'gmt035': setIsCabecoteGmt035FichaOpen(true); break;
+      case 'poda': setIsCabecotePodaFichaOpen(true); break;
+      case 'fresa-ssh':
+        setFresaSshDefaultModel(dica.includes('250') ? 'ssh-250' : dica.includes('225') ? 'ssh-225' : dica.includes('200') ? 'ssh-200' : 'ssh-150');
+        setIsFresaSshFichaOpen(true);
+        break;
+    }
+  };
+
+  // Links de ficha dentro das respostas do consultor
   const openTechnicalSheet = (url: string, modelName?: string) => {
     if (!url) return;
-    
-    const lowerUrl = url.toLowerCase();
-
-    // Check if the link is related to Sacador SAC 500
-    if (
-      lowerUrl.includes('sac-500') || 
-      lowerUrl.includes('sac500') || 
-      lowerUrl.includes('sacador') || 
-      (modelName && modelName.toLowerCase().includes('sac500'))
-    ) {
-      setIsSacadorSac500FichaOpen(true);
+    const tipo = fichaEspecialDe(url, modelName);
+    if (tipo) {
+      // na URL da SSH o modelo vem no próprio link (ssh-200)
+      abrirFichaEspecial(tipo, modelName || url);
       return;
     }
-    
-    // Check if the link is related to Triturador/Desbastador FAE p/ Pá Carregadeira
-    if (lowerUrl.includes('loader-fae') || lowerUrl === 'loader-fae') {
-      const targetModelName = modelName || '';
-      const modelHint = targetModelName.toLowerCase();
-      if (modelHint.includes('140') || modelHint.includes('pm') || modelHint.includes('200')) {
-        setTrituradorLoaderFaeDefaultModel('fae-140-u-pm-200');
-      } else {
-        setTrituradorLoaderFaeDefaultModel('fae-uml-ssl-vt-175');
-      }
-      setIsTrituradorLoaderFaeFichaOpen(true);
-      return;
-    }
-
-    // Check if the link is related to Caçamba High Tip or High Tip
-    if (lowerUrl.includes('cacamba-high-tip') || lowerUrl.includes('high-tip')) {
-      setIsHighTipFichaOpen(true);
-      return;
-    }
-
-    // Check if the link is related to Engate Rapido
-    if (lowerUrl.includes('engate-rapido') || lowerUrl === 'engate-rapido' || (modelName && modelName.toLowerCase().includes('engate'))) {
-      setIsEngateRapidoFichaOpen(true);
-      return;
-    }
-
-    // Check if the link is related to Garra para Estufagem
-    if (lowerUrl.includes('estufagem') || lowerUrl === 'estufagem' || (modelName && modelName.toLowerCase().includes('estufagem'))) {
-      setIsGarraEstufagemFichaOpen(true);
-      return;
-    }
-
-    // Check if the link is related to Fresa FAE SSH
-    if (
-      lowerUrl.includes('catalogo-tratores') || 
-      lowerUrl.includes('fresa-ssh') || 
-      lowerUrl.includes('fresa-trituradora') || 
-      lowerUrl.includes('ssh-') ||
-      lowerUrl === 'fresa-ssh'
-    ) {
-      const targetModelName = modelName || '';
-      const modelHint = targetModelName ? targetModelName.toLowerCase() : lowerUrl;
-      
-      if (modelHint.includes('150')) {
-        setFresaSshDefaultModel('ssh-150');
-      } else if (modelHint.includes('200')) {
-        setFresaSshDefaultModel('ssh-200');
-      } else if (modelHint.includes('225')) {
-        setFresaSshDefaultModel('ssh-225');
-      } else if (modelHint.includes('250')) {
-        setFresaSshDefaultModel('ssh-250');
-      } else {
-        setFresaSshDefaultModel('ssh-150');
-      }
-      setIsFresaSshFichaOpen(true);
-      return;
-    }
-
     // Abre dentro do app, com botão de voltar (fichas em /catalogo/... antes nem abriam aqui)
-    if (url) abrirDocumento(url, 'Ficha técnica');
+    abrirDocumento(url, 'Ficha técnica');
+  };
+
+  const linkFichaDe = (prod: Product, model: ProductModel) =>
+    model.pdf_url || prod.pdf_url || PRODUCT_PDFS[model.name || ''] || PRODUCT_PDFS[prod.name || ''] || '';
+
+  // "Ver ficha": a ficha própria quando existe; senão a ficha padrão em PDF
+  // Ficha própria da Roder em PDF (ex.: GR600/GR800, GCR): abre o PDF dela, nunca a padrão
+  const pdfProprio = (url: string) => url.startsWith('/catalogo/');
+
+  const verFicha = (prod: Product, model: ProductModel) => {
+    const link = linkFichaDe(prod, model);
+    if (pdfProprio(link) && !fichaEspecialDe(link, `${model.name} ${prod.name}`)) { openTechnicalSheet(link, model.name); return; }
+    const tipo = fichaEspecialDe(linkFichaDe(prod, model), `${model.name} ${prod.name}`);
+    if (tipo) abrirFichaEspecial(tipo, model.name);
+    else setFichaPadrao({ product: prod, model });
+  };
+
+  // "Enviar ficha" (só equipe): a padrão gera o PDF direto; a especial abre com o Enviar em destaque
+  const enviarFicha = (prod: Product, model: ProductModel) => {
+    if (!podeEnviarFicha) return;
+    const link = linkFichaDe(prod, model);
+    if (pdfProprio(link) && !fichaEspecialDe(link, `${model.name} ${prod.name}`)) {
+      fetch(link).then(r => { if (!r.ok) throw new Error(); return r.blob(); })
+        .then(b => enviarArquivoPdf(b, nomeArquivoFicha(model.name || prod.name || 'Roder'), `Ficha ${model.name || prod.name}`))
+        .catch(() => toast.error('Não consegui preparar o PDF. Tente de novo.'));
+      return;
+    }
+    const tipo = fichaEspecialDe(linkFichaDe(prod, model), `${model.name} ${prod.name}`);
+    if (tipo) {
+      abrirFichaEspecial(tipo, model.name, true);
+      toast.info('Toque em "Enviar" na ficha para mandar o PDF.');
+    } else {
+      enviarFichaPadrao(prod, model);
+    }
   };
 
   // Only accessible to administrators and commercial managers
@@ -2667,104 +2626,6 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
     }
   };
 
-  // Download technical sheet document as .txt / .md
-  const handleDownloadTechnicalSheet = () => {
-    if (!selectedModel || !selectedProduct) return;
-    
-    const specsStr = Object.entries(selectedModel.technical_specs || {})
-      .filter(([_, val]) => val !== null && val !== undefined && String(val).trim() !== '' && String(val).trim() !== '-')
-      .map(([key, val]) => `- ${key.replace(/_/g, ' ').toUpperCase()}: ${val}`)
-      .join('\n');
-
-    const imageUrl = selectedModel.images?.[0] || selectedProduct.image_url || '';
-
-    const isGT = selectedModel.name.toUpperCase().includes('GT') || 
-                 selectedProduct.category.toUpperCase().includes('TRAÇADORA') || 
-                 selectedProduct.name.toUpperCase().includes('TRAÇADORA');
-
-    let prodSection = effectiveProductivityText;
-    if (isGT) {
-      const gtData = getGTProductivityData(selectedModel.name, gtLength);
-      prodSection = `PRODUTIVIDADE CALCULADA PARA MADEIRA DE ${gtLength.toFixed(1)} METROS:
-- Rendimento por Hora: ${gtData.hourlyMin} a ${gtData.hourlyMax} m³ estéreo / hora
-- Rendimento por Turno (10h): ${gtData.shiftMin} a ${gtData.shiftMax} m³ estéreo / turno
-- Estimativa Mensal (Turno 10h/dia, 22 dias/mês): ${(gtData.monthlyMin / 1000).toFixed(1)}k a ${(gtData.monthlyMax / 1000).toFixed(1)}k m³ / mês
-
-PARÂMETROS UTILIZADOS NO CÁLCULO:
-• Área de Abertura Útil da Garra: ${gtData.area.toFixed(2)} m²
-• Fator de Capacidade Útil (Carga Média): 85% (considera 15% a 20% de perda devido ao afunilamento das árvores em direção à copa, compensada pela habilidade do operador de agarrar troncos adicionais)
-• Tempo de Ciclo de Corte: 20s (Operador de alto rendimento, corte super afiado) a 30s (Operador iniciante, falta de afiação correta)
-• Fator de Aproveitamento de Pátio / Espera: ${gtData.opEfficiency}% (varia de 15% para toras de 6.0m devido à complexidade de manobras de pátio e abastecimento, até 30% para metrinho de 1.0m de fluxo contínuo)
-• Máquina Escavadeira Base Recomendada: ${gtData.machineBase}
-• Especificação de Corrente: Passo ${gtData.chainSpec}
-
-------------------------------------------------------------
-RECOMENDAÇÕES IMPORTANTES DE ENGENHARIA (SABRES & CORRENTES):
-------------------------------------------------------------
-1. Manutenção do Conjunto de Corte:
-   • É fundamental que o operador trabalhe sempre com a corrente super afiada e bem regulada.
-   • Recomendamos a troca preventiva da corrente a cada 2 horas (ou no máximo 2,5 horas). Isso garante menor desgaste mecânico geral e exige apenas uma afiação muito leve (com pouca remoção de material), elevando significativamente a vida útil do conjunto de corte.
-   • Sugerimos disponibilizar 5 correntes afiadas para cada turno de trabalho de 10h. Ao término do dia, o operador leva as 5 correntes e o sabre para manutenção/afiação para o dia seguinte.
-
-2. Durabilidade e Vida Útil Estimada:
-   • Consumo de Insumos: Em média, uma operação com boa afiação e manutenção consome de 4 a 5 correntes e 1 sabre por mês (baseado em turno de 8 a 10h diárias, 20 a 25 dias por mês).
-   • Coroa / Pinhão de Arraste: Durabilidade média de 20 a 30 dias (equivalente a 100 a 400 horas). Em terrenos muito arenosos, onde a poeira e terra acumulam entre as cascas das madeiras, o desgaste do pinhão pode ocorrer mais rapidamente.
-
-3. Sistema de Lubrificação Automática:
-   • Vital para a operação. A falta de óleo gera atrito excessivo e aquecimento imediato da corrente e do sabre. O calor excessivo destempera o aço do sabre, causa desalinhamento, empenamento e reduz drasticamente a vida útil de todos os componentes de corte.
-
-4. Especificações de Correntes por Modelo:
-   • Modelos GT 280 e GT 360: Utilizam corrente com passo 0.404" (mesmo modelo usado em cabeçotes Harvester).
-   • Modelos GT 400X, GT 600X, GT 800X e GT 1000X: Utilizam corrente com passo 3/4" 11H (corrente extremamente robusta e reforçada para trabalho super pesado de traçamento florestal contínuo).
-
-------------------------------------------------------------
-TEXTO DE REFERÊNCIA GERAL DO EQUIPAMENTO:
-------------------------------------------------------------
-${effectiveProductivityText}`;
-    }
-
-    const docContent = `============================================================
-FICHA TÉCNICA OFICIAL - RODER MÁQUINAS E EQUIPAMENTOS
-============================================================
-
-EQUIPAMENTO: ${selectedProduct.name}
-MODELO: ${selectedModel.name}
-CATEGORIA: ${selectedProduct.category}
-
-------------------------------------------------------------
-CARACTERÍSTICAS & ESPECIFICAÇÕES TÉCNICAS
-------------------------------------------------------------
-${specsStr || 'Nenhuma especificação técnica cadastrada.'}
-
-------------------------------------------------------------
-PRODUTIVIDADE ESTIMADA & PERFORMANCE
-------------------------------------------------------------
-${prodSection || 'Texto de produtividade em processo de homologação técnica.'}
-
-------------------------------------------------------------
-SOBRE O EQUIPAMENTO & INDICAÇÕES
-------------------------------------------------------------
-- Para que serve: ${selectedProduct.description || 'Equipamento de alta robustez e precisão para colheita, traçamento ou movimentação florestal.'}
-- Imagem de Referência: ${imageUrl || 'Consulte o catálogo online'}
-
-============================================================
-Consultor Técnico Digital RODER - Dimensionamento e Compatibilidade
-Engenharia e Criação: Jeferson Roder
-Gerado em: ${new Date().toLocaleDateString('pt-BR')}
-============================================================`;
-
-    const blob = new Blob([docContent], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Ficha_Tecnica_Roder_${selectedModel.name.replace(/\s+/g, '_')}.txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    toast.success(`Ficha técnica de ${selectedModel.name} baixada com sucesso!`);
-  };
-
   // Parse assistant text to find matched catalog products & models
   const detectEquipmentInMessage = (content: string) => {
     const detected: { prod: Product; model: ProductModel; pos?: number }[] = [];
@@ -3370,81 +3231,20 @@ Gerado em: ${new Date().toLocaleDateString('pt-BR')}
                                   </p>
                                   <div className="flex flex-col gap-2 w-full">
                                     {matchedEquip.map(({ prod, model }) => {
-                                      const mName = model.name || '';
-                                      const pName = prod.name || '';
-                                      const pdfUrl = model.pdf_url || prod.pdf_url || PRODUCT_PDFS[mName] || PRODUCT_PDFS[pName];
-                                      const videoUrl = model.video_url || prod.video_url || PRODUCT_VIDEOS[mName] || PRODUCT_VIDEOS[pName];
-
-                                      const isValidPdfUrl = (url?: string) => {
-                                        if (!url) return false;
-                                        const lower = url.toLowerCase();
-                                        if (lower === 'fresa-ssh' || lower === 'high-tip' || lower === 'engate-rapido' || lower === 'estufagem' || lower === 'loader-fae' || lower.includes('loader-fae')) return true;
-                                        return url.startsWith('http://') || url.startsWith('https://');
-                                      };
-
-                                      const isValidVideoUrl = (url?: string) => {
-                                        if (!url) return false;
-                                        const lower = url.toLowerCase();
-                                        if (lower.includes('t_8n_nlf2xk')) return false; // dead video
-                                        return url.startsWith('http://') || url.startsWith('https://');
-                                      };
-
-                                      const modelImg = (model.images && model.images.length > 0) ? model.images[0] : (prod.image_url || '');
-
+                                      const videoUrl = model.video_url || prod.video_url || PRODUCT_VIDEOS[model.name || ''] || PRODUCT_VIDEOS[prod.name || ''];
+                                      const videoValido = !!videoUrl && /^https?:\/\//.test(videoUrl) && !videoUrl.toLowerCase().includes('t_8n_nlf2xk');
+                                      const foto = fotoDoModelo(prod, model);
                                       return (
-                                        <div key={`${prod.id}-${model.id}`} className="flex gap-2.5 p-2 bg-slate-900/60 rounded-xl border border-slate-800/80 w-full text-left">
-                                          {(() => {
-                                            const modelImg = (model.images && model.images.length > 0) ? model.images[0] : (prod.image_url || '');
-                                            if (!modelImg) return null;
-                                            return (
-                                              <div className="flex-shrink-0 self-center">
-                                                <MarkdownImage
-                                                  src={modelImg}
-                                                  className="w-16 h-12 sm:w-20 sm:h-16 rounded-lg border border-slate-800 bg-slate-950/50 object-contain p-1 m-0 shadow"
-                                                />
-                                              </div>
-                                            );
-                                          })()}
-                                          <div className="flex-1 flex flex-col justify-between gap-1.5 min-w-0">
-                                            <div className="flex items-center justify-between">
-                                              <span className="text-[10px] font-black text-amber-400 uppercase tracking-tight truncate">
-                                                {prod.name} - {model.name}
-                                              </span>
-                                            </div>
-                                            <div className="flex flex-wrap gap-1">
-                                              <button
-                                                onClick={() => handleMakeIndication(prod, model)}
-                                                className="flex items-center gap-1 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-slate-950 font-black uppercase text-[8.5px] py-1 px-2 rounded-lg transition shadow-sm cursor-pointer duration-150"
-                                                title={`Clique para realizar indicação/orçamento oficial de ${prod.name} ${model.name}`}
-                                              >
-                                                <CheckCircle className="h-2.5 w-2.5" />
-                                                Indicar
-                                              </button>
-
-                                              {isValidPdfUrl(pdfUrl) && (
-                                                <button
-                                                  onClick={() => openTechnicalSheet(pdfUrl, model.name)}
-                                                  className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:text-amber-400 font-black uppercase text-[8.5px] py-1 px-2 rounded-lg transition shadow-sm cursor-pointer duration-150"
-                                                  title={`Abre a Ficha Técnica oficial em PDF de ${prod.name} ${model.name}`}
-                                                >
-                                                  <FileText className="h-2.5 w-2.5 text-amber-400" />
-                                                  Ficha
-                                                </button>
-                                              )}
-
-                                              {isValidVideoUrl(videoUrl) && (
-                                                <button
-                                                  onClick={() => window.open(videoUrl, '_blank')}
-                                                  className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:text-red-400 font-black uppercase text-[8.5px] py-1 px-2 rounded-lg transition shadow-sm cursor-pointer duration-150"
-                                                  title={`Assista ao vídeo de demonstração operacional de ${prod.name} ${model.name}`}
-                                                >
-                                                  <Video className="h-2.5 w-2.5 text-red-500" />
-                                                  Vídeo
-                                                </button>
-                                              )}
-                                            </div>
-                                          </div>
-                                        </div>
+                                        <CartaoFicha
+                                          key={`${prod.id}-${model.id}`}
+                                          titulo={tituloFicha(prod, model)}
+                                          imagem={foto ? <MarkdownImage src={foto} className="max-w-full max-h-full object-contain m-0 p-1 mix-blend-multiply" /> : undefined}
+                                          podeEnviar={podeEnviarFicha}
+                                          onVer={() => verFicha(prod, model)}
+                                          onEnviar={() => enviarFicha(prod, model)}
+                                          onIndicar={() => handleMakeIndication(prod, model)}
+                                          onVideo={videoValido ? () => window.open(videoUrl, '_blank') : undefined}
+                                        />
                                       );
                                     })}
                                   </div>
@@ -4363,26 +4163,22 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                   </div>
 
                   <div className="pt-1 space-y-2">
-                    {(selectedModel?.pdf_url || selectedProduct?.pdf_url || 
-                      selectedProduct?.name?.toLowerCase().includes('ssh') || 
-                      selectedProduct?.name?.toLowerCase().includes('caçamba') ||
-                      selectedProduct?.name?.toLowerCase().includes('high tip') ||
-                      selectedModel?.name?.toLowerCase().includes('ssh') ||
-                      selectedModel?.name?.toLowerCase().includes('high tip')) && (
+                    <div className="flex gap-2">
                       <Button
-                        onClick={() => openTechnicalSheet(selectedModel?.pdf_url || selectedProduct?.pdf_url || 'fresa-ssh', selectedModel?.name)}
-                        className="w-full bg-rose-600 hover:bg-rose-700 text-white font-black text-xs uppercase tracking-wider py-2 rounded-xl shadow flex items-center justify-center gap-2 border border-rose-500"
+                        onClick={() => verFicha(selectedProduct, selectedModel)}
+                        className="flex-1 h-11 bg-transparent hover:bg-slate-800 text-white font-black text-xs uppercase tracking-wider rounded-xl border-2 border-slate-200 flex items-center justify-center gap-2"
                       >
-                        <FileText className="h-4 w-4 text-white animate-pulse" /> Visualizar Ficha Técnica Oficial
+                        <FileText className="h-4 w-4" /> Ver ficha
                       </Button>
-                    )}
-
-                    <Button
-                      onClick={handleDownloadTechnicalSheet}
-                      className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs uppercase tracking-wider py-2 rounded-xl shadow flex items-center justify-center gap-2 border border-amber-400"
-                    >
-                      <FileText className="h-4 w-4" /> Baixar Ficha Técnica (Documento)
-                    </Button>
+                      {podeEnviarFicha && (
+                        <Button
+                          onClick={() => enviarFicha(selectedProduct, selectedModel)}
+                          className="flex-1 h-11 bg-[#1FA855] hover:bg-[#178a45] text-white font-black text-xs uppercase tracking-wider rounded-xl flex items-center justify-center gap-2"
+                        >
+                          <Send className="h-4 w-4" /> Enviar ficha
+                        </Button>
+                      )}
+                    </div>
 
                     <Button
                       onClick={() => handleMakeIndication(selectedProduct, selectedModel)}
@@ -4731,30 +4527,43 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
       </AnimatePresence>
 
       {isHighTipFichaOpen && (
-        <HighTipFicha onClose={() => setIsHighTipFichaOpen(false)} />
+        <HighTipFicha onClose={() => setIsHighTipFichaOpen(false)} enviar={fichaParaEnviar} />
       )}
 
       {isFresaSshFichaOpen && (
-        <FresaSshFicha onClose={() => setIsFresaSshFichaOpen(false)} defaultModelId={fresaSshDefaultModel} />
+        <FresaSshFicha onClose={() => setIsFresaSshFichaOpen(false)} defaultModelId={fresaSshDefaultModel} enviar={fichaParaEnviar} />
       )}
 
       {isEngateRapidoFichaOpen && (
-        <EngateRapidoFicha onClose={() => setIsEngateRapidoFichaOpen(false)} />
+        <EngateRapidoFicha onClose={() => setIsEngateRapidoFichaOpen(false)} enviar={fichaParaEnviar} />
       )}
 
       {isGarraEstufagemFichaOpen && (
-        <GarraEstufagemFicha onClose={() => setIsGarraEstufagemFichaOpen(false)} />
+        <GarraEstufagemFicha onClose={() => setIsGarraEstufagemFichaOpen(false)} enviar={fichaParaEnviar} />
       )}
 
       {isTrituradorLoaderFaeFichaOpen && (
         <TrituradorLoaderFaeFicha
           onClose={() => setIsTrituradorLoaderFaeFichaOpen(false)}
           defaultModelId={trituradorLoaderFaeDefaultModel}
+          enviar={fichaParaEnviar}
         />
       )}
 
       {isSacadorSac500FichaOpen && (
-        <SacadorSac500Ficha onClose={() => setIsSacadorSac500FichaOpen(false)} />
+        <SacadorSac500Ficha onClose={() => setIsSacadorSac500FichaOpen(false)} enviar={fichaParaEnviar} />
+      )}
+
+      {isCabecotePodaFichaOpen && (
+        <CabecotePodaFicha onClose={() => setIsCabecotePodaFichaOpen(false)} enviar={fichaParaEnviar} />
+      )}
+
+      {isCabecoteGmt035FichaOpen && (
+        <CabecoteGmt035Ficha onClose={() => setIsCabecoteGmt035FichaOpen(false)} enviar={fichaParaEnviar} />
+      )}
+
+      {fichaPadrao && (
+        <FichaPadrao product={fichaPadrao.product} model={fichaPadrao.model} onClose={() => setFichaPadrao(null)} />
       )}
 
       {/* 1. Share Modal */}

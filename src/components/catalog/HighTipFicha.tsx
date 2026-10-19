@@ -16,6 +16,8 @@ import { RODER_LOGO_BASE64 } from './RoderLogo';
 import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
+import { entregarPdf, nomeArquivoFicha, pdfDeElementoLongo, usePodeEnviarFicha } from './fichaPdf';
+import { BotaoEnviarFicha } from './BotaoEnviarFicha';
 import { db } from '../../lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useAuth } from '../../contexts/AuthContext';
@@ -26,9 +28,12 @@ import { useVoltarFecha } from '../../lib/useVoltarFecha';
 
 interface HighTipFichaProps {
   onClose: () => void;
+  // aberta pelo "Enviar ficha": destaca o botão Enviar
+  enviar?: boolean;
 }
 
-export function HighTipFicha({ onClose }: HighTipFichaProps) {
+export function HighTipFicha({ onClose, enviar = false }: HighTipFichaProps) {
+  const podeEnviar = usePodeEnviarFicha();
   // "Voltar" do celular fecha a ficha e volta para a tela de onde ela foi aberta
   useVoltarFecha(true, onClose);
   const { isAdmin, isManager, isTriagem, isMarketing, isInternalSeller } = useAuth();
@@ -142,6 +147,20 @@ export function HighTipFicha({ onClose }: HighTipFichaProps) {
     }
   };
 
+  // Esta ficha só tinha impressão: o "Enviar" gera o PDF a partir de uma cópia da folha
+  const handleEnviarPdf = async () => {
+    if (!printRef.current) return;
+    const toastId = toast.loading('Gerando a ficha em PDF...');
+    try {
+      const pdf = await pdfDeElementoLongo(printRef.current);
+      toast.dismiss(toastId);
+      await entregarPdf(pdf, nomeArquivoFicha('Cacamba High Tip'), 'enviar', 'Ficha técnica Caçamba High Tip Roder');
+    } catch (e) {
+      console.error('Erro ao gerar PDF High Tip:', e);
+      toast.error('Não consegui gerar o PDF. Tente de novo.', { id: toastId });
+    }
+  };
+
   const handleDownloadPdf = () => {
     const element = printRef.current;
     if (!element) return;
@@ -222,12 +241,17 @@ export function HighTipFicha({ onClose }: HighTipFichaProps) {
             <span className="font-extrabold text-sm tracking-tight text-foreground">Ficha Técnica Oficial Roder</span>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleDownloadPdf}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-black text-xs hover:bg-primary/90 transition-all shadow-sm"
-            >
-              <Download className="h-3.5 w-3.5" /> Salvar PDF
-            </button>
+            {podeEnviar && (
+              <>
+                <button
+                  onClick={handleDownloadPdf}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-black text-xs hover:bg-primary/90 transition-all shadow-sm"
+                >
+                  <Download className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Salvar PDF</span><span className="sm:hidden">PDF</span>
+                </button>
+                <BotaoEnviarFicha onClick={handleEnviarPdf} destaque={enviar} />
+              </>
+            )}
             <button
               onClick={onClose}
               className="p-1.5 rounded-lg hover:bg-muted-foreground/10 text-muted-foreground transition-all"

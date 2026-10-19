@@ -23,6 +23,7 @@ import {
 import { RODER_LOGO_BASE64 } from './RoderLogo';
 import { EditableImage } from './EditableImage';
 import { toast } from 'sonner';
+import { usePodeEnviarFicha } from './fichaPdf';
 import { db } from '../../lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useVoltarFecha } from '../../lib/useVoltarFecha';
@@ -35,6 +36,8 @@ interface MulcherTechnicalDeliveryProps {
 }
 
 export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }: MulcherTechnicalDeliveryProps) {
+  // Parceiro/indicador só vê; exportar e compartilhar ficam com a equipe Roder
+  const podeEnviar = usePodeEnviarFicha();
   // "Voltar" do celular fecha a ficha e volta para a tela de onde ela foi aberta
   useVoltarFecha(!!isOpen, onClose);
   // Form state
@@ -333,6 +336,7 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
           </div>
           
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+            {podeEnviar && (
             <button
               onClick={handleCopyShareLink}
               className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs uppercase tracking-wider rounded-xl flex items-center justify-center gap-2 transition-all border border-slate-200"
@@ -340,6 +344,7 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
             >
               <Share2 className="h-4 w-4 text-slate-500" /> Compartilhar Link
             </button>
+            )}
             <button
               onClick={handleSaveChanges}
               className="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl flex items-center justify-center gap-2 transition-all shadow-md shadow-emerald-500/10"
@@ -347,6 +352,7 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
             >
               Salvar Alterações
             </button>
+            {podeEnviar && (
             <button
               onClick={handleDownloadPdf}
               disabled={isGeneratingPdf}
@@ -362,6 +368,7 @@ export function MulcherTechnicalDelivery({ modelId, modelName, isOpen, onClose }
                 </>
               )}
             </button>
+            )}
             <button
               onClick={onClose}
               className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs uppercase tracking-wider rounded-xl transition-all border border-slate-200"

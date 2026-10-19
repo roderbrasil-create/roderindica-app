@@ -25,6 +25,7 @@ interface AuthContextType {
   isExternalSeller: boolean;
   isRegionalSeller: boolean;
   isPartner: boolean;
+  isEquipeRoder: boolean;
   isPureExternalSeller: boolean;
   isImpersonating: boolean;
   isQuotaExceeded: boolean;
@@ -695,6 +696,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isExternalSeller: getIsExternalSeller(),
     isRegionalSeller: activeProfile?.role === 'vendedor_padrao',
     isPartner: getIsExternalSeller(),
+    // Equipe Roder (inclui o vendedor regional, que é funcionário). Parceiro/indicador
+    // (external_seller) e quem não tem perfil ficam de fora.
+    isEquipeRoder: (!impersonatedProfile && isTopAdmin) ||
+      ['admin', 'manager', 'internal_seller', 'triagem', 'financial', 'marketing', 'fiscal', 'vendedor_padrao'].includes(String(activeProfile?.role || '')),
     isPureExternalSeller: !impersonatedProfile && profile?.role === 'external_seller',
     isImpersonating: !!impersonatedProfile,
     isQuotaExceeded,
@@ -716,6 +721,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ) : children}
     </AuthContext.Provider>
   );
+}
+
+// Mesmo contexto, sem erro fora do AuthProvider (devolve undefined): para peças montadas
+// em qualquer lugar, como o leitor de documentos
+export function useAuthOpcional(): AuthContextType | undefined {
+  return useContext(AuthContext);
 }
 
 export function useAuth() {

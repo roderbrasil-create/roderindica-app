@@ -24,6 +24,8 @@ import { RODER_LOGO_BASE64 } from './RoderLogo';
 import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
+import { entregarPdf, nomeArquivoFicha, usePodeEnviarFicha } from './fichaPdf';
+import { BotaoEnviarFicha } from './BotaoEnviarFicha';
 import { EditableImage } from './EditableImage';
 import { Button } from '../ui/button';
 import { useAuth } from '../../contexts/AuthContext';
@@ -34,6 +36,8 @@ import { useVoltarFecha } from '../../lib/useVoltarFecha';
 interface TrituradorLoaderFaeFichaProps {
   onClose: () => void;
   defaultModelId?: string;
+  // aberta pelo "Enviar ficha": destaca o botão Enviar
+  enviar?: boolean;
 }
 
 interface ModelSpec {
@@ -50,7 +54,8 @@ interface ModelSpec {
   dentes_bl: string;
 }
 
-export function TrituradorLoaderFaeFicha({ onClose, defaultModelId = 'fae-uml-ssl-vt-175' }: TrituradorLoaderFaeFichaProps) {
+export function TrituradorLoaderFaeFicha({ onClose, defaultModelId = 'fae-uml-ssl-vt-175', enviar = false }: TrituradorLoaderFaeFichaProps) {
+  const podeEnviar = usePodeEnviarFicha();
   // "Voltar" do celular fecha a ficha e volta para a tela de onde ela foi aberta
   useVoltarFecha(true, onClose);
   const { isAdmin, isManager, isTriagem, isMarketing, isInternalSeller } = useAuth();
@@ -317,7 +322,8 @@ export function TrituradorLoaderFaeFicha({ onClose, defaultModelId = 'fae-uml-ss
     setToothC3Zoom({ 'fae-uml-ssl-vt-175': 100, 'fae-140-u-pm-200': 100 });
     setToothBLZoom({ 'fae-uml-ssl-vt-175': 100, 'fae-140-u-pm-200': 100 });
     toast.success("Imagens redefinidas para o padrão original!");
-  };  const exportToPdf = async () => {
+  };
+  const exportToPdf = async (modo: 'baixar' | 'enviar' = 'baixar') => {
     const toastId = toast.loading("Gerando ficha técnica em alta definição...");
     const element = printRef.current;
 
@@ -366,8 +372,9 @@ export function TrituradorLoaderFaeFicha({ onClose, defaultModelId = 'fae-uml-ss
 
       setIsPrinting(false);
       const docName = `Ficha_Tecnica_FAE_Triturador_Loader_${selectedModel.name.replace(/\s+/g, '_')}.pdf`;
-      pdf.save(docName);
-      toast.success("Ficha técnica exportada com sucesso em altíssima qualidade!", { id: toastId });
+      toast.dismiss(toastId);
+      await entregarPdf(pdf, modo === 'enviar' ? nomeArquivoFicha(`FAE ${selectedModel.name}`) : docName, modo, `Ficha técnica Triturador FAE ${selectedModel.name}`);
+      if (modo === 'baixar') toast.success("Ficha técnica exportada com sucesso em altíssima qualidade!");
     } catch (error) {
       console.error("Error generating PDF with html-to-image:", error);
       setIsPrinting(false);
@@ -408,12 +415,17 @@ export function TrituradorLoaderFaeFicha({ onClose, defaultModelId = 'fae-uml-ss
                 <RefreshCw className="h-3 w-3" /> Padrão
               </Button>
             )}
-            <Button 
-              onClick={exportToPdf}
-              className="h-8 px-3 bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs uppercase tracking-wider gap-1.5 shrink-0"
-            >
-              <Download className="h-3 w-3" /> Exportar PDF
-            </Button>
+            {podeEnviar && (
+              <>
+                <Button 
+                  onClick={() => exportToPdf('baixar')}
+                  className="h-8 px-3 bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs uppercase tracking-wider gap-1.5 shrink-0"
+                >
+                  <Download className="h-3 w-3" /> <span className="hidden sm:inline">Exportar PDF</span><span className="sm:hidden">PDF</span>
+                </Button>
+                <BotaoEnviarFicha onClick={() => exportToPdf('enviar')} destaque={enviar} />
+              </>
+            )}
             <Button 
               variant="ghost" 
               size="icon" 

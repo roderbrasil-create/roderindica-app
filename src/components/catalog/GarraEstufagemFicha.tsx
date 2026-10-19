@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 import { RODER_LOGO_BASE64 } from './RoderLogo';
 import { toast } from 'sonner';
+import { entregarPdf, nomeArquivoFicha, usePodeEnviarFicha } from './fichaPdf';
+import { BotaoEnviarFicha } from './BotaoEnviarFicha';
 import { db } from '../../lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useAuth } from '../../contexts/AuthContext';
@@ -32,6 +34,8 @@ import { useVoltarFecha } from '../../lib/useVoltarFecha';
 interface GarraEstufagemFichaProps {
   onClose: () => void;
   defaultModelId?: string;
+  // aberta pelo "Enviar ficha": destaca o botão Enviar
+  enviar?: boolean;
 }
 
 const formatFichaImageUrl = (url: string | null) => {
@@ -187,7 +191,8 @@ const MODELS: ModelDetails[] = [
   }
 ];
 
-export function GarraEstufagemFicha({ onClose, defaultModelId = 'af_360' }: GarraEstufagemFichaProps) {
+export function GarraEstufagemFicha({ onClose, defaultModelId = 'af_360', enviar = false }: GarraEstufagemFichaProps) {
+  const podeEnviar = usePodeEnviarFicha();
   // "Voltar" do celular fecha a ficha e volta para a tela de onde ela foi aberta
   useVoltarFecha(true, onClose);
   const [selectedModelId, setSelectedModelId] = useState<string>(defaultModelId);
@@ -312,7 +317,7 @@ export function GarraEstufagemFicha({ onClose, defaultModelId = 'af_360' }: Garr
   };
 
   // Direct vector PDF download strictly in 1 single page with crisp AA typography and tables
-  const exportPDF = async () => {
+  const exportPDF = async (modo: 'baixar' | 'enviar' = 'baixar') => {
     setIsPrinting(true);
     const toastId = toast.loading("Gerando arquivo PDF da Ficha Técnica (Página Única)...");
 
@@ -320,10 +325,13 @@ export function GarraEstufagemFicha({ onClose, defaultModelId = 'af_360' }: Garr
       await generateEstufagemPdfDirect({
         selectedModel,
         allModels: MODELS,
-        mainImageUrl: mainImgToRender
+        mainImageUrl: mainImgToRender,
+        entregar: modo === 'enviar'
+          ? async (pdf) => { toast.dismiss(toastId); await entregarPdf(pdf, nomeArquivoFicha(`Garra Estufagem ${selectedModel.name}`), 'enviar', `Ficha técnica Garra para Estufagem ${selectedModel.name}`); }
+          : undefined,
       });
 
-      toast.success("PDF salvo com sucesso! Verifique sua pasta de downloads.", { id: toastId });
+      if (modo === 'baixar') toast.success("PDF salvo com sucesso! Verifique sua pasta de downloads.", { id: toastId });
     } catch (error) {
       console.error("Erro ao gerar PDF:", error);
       toast.error("Erro ao gerar PDF. Abrindo modo de impressão como alternativa...", { id: toastId });
@@ -445,8 +453,10 @@ export function GarraEstufagemFicha({ onClose, defaultModelId = 'af_360' }: Garr
           </div>
 
           <div className="flex items-center gap-2">
+            {podeEnviar && (
+            <>
             <button
-              onClick={exportPDF}
+              onClick={() => exportPDF('baixar')}
               disabled={isPrinting}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs transition-all shadow-md active:scale-95 disabled:opacity-50 cursor-pointer"
               title="Salvar o arquivo PDF oficial com página única na sua pasta de Downloads"
@@ -463,6 +473,9 @@ export function GarraEstufagemFicha({ onClose, defaultModelId = 'af_360' }: Garr
               <Printer className="h-3.5 w-3.5 text-slate-400" />
               <span className="hidden sm:inline">Imprimir</span>
             </button>
+            <BotaoEnviarFicha onClick={() => exportPDF('enviar')} destaque={enviar} disabled={isPrinting} />
+            </>
+            )}
 
             <button
               onClick={onClose}
