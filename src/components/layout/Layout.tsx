@@ -294,6 +294,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           encostado na direita, para não cobrir os quadros do início. Fechado mostra só "Consultor / Roder". */}
       {ehParceiro && <style>{`@media (max-width: 767.98px) {
         .roder-botao-consultor { bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important; right: 10px !important; }
+      }
+      @media (max-width: 639.98px) {
         .roder-botao-consultor > button.w-20 { width: 56px !important; height: 56px !important; padding: 0 !important; border-width: 1.5px !important; }
         .roder-botao-consultor > button.w-20 > div.sm\\:hidden > span:nth-child(1) { font-size: 7px !important; letter-spacing: 0.04em !important; }
         .roder-botao-consultor > button.w-20 > div.sm\\:hidden > span:nth-child(2) { font-size: 11.5px !important; letter-spacing: 0.06em !important; margin: 0 !important; }

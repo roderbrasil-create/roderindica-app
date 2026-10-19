@@ -20,7 +20,7 @@ export function BarraParceiro({ abrirMenu }: { abrirMenu: () => void }) {
   const navigate = useNavigate();
   // telas que já têm barra própria embaixo (abas do estoque, botão de enviar a indicação)
   if (pathname.startsWith('/estoque') || pathname.startsWith('/indicacoes/nova')) return null;
-  const item = (ativo: boolean) => cn('flex-1 flex flex-col items-center gap-1 pt-2 text-[11px] font-bold', ativo ? 'text-[#d4a106] dark:text-[#facc15]' : 'text-zinc-500 dark:text-zinc-400');
+  const item = (ativo: boolean) => cn('flex-1 min-w-0 px-0 h-auto flex flex-col items-center gap-1 pt-2 text-[11px] font-bold', ativo ? 'text-[#d4a106] dark:text-[#facc15]' : 'text-zinc-500 dark:text-zinc-400');
   return (
     <nav
       className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-[#0b0b0b] border-t border-zinc-200 dark:border-zinc-800 flex items-start"
@@ -28,7 +28,7 @@ export function BarraParceiro({ abrirMenu }: { abrirMenu: () => void }) {
     >
       <button className={item(pathname === '/')} onClick={() => navigate('/')}><Home className="h-6 w-6" />Início</button>
       <button className={item(pathname.startsWith('/catalogo'))} onClick={() => navigate('/catalogo')}><BookOpen className="h-6 w-6" />Catálogo</button>
-      <button className="flex-1 flex flex-col items-center gap-1 text-[11px] font-bold text-zinc-600 dark:text-zinc-300" onClick={() => navigate('/indicacoes/nova')}>
+      <button className="flex-1 min-w-0 px-0 h-auto flex flex-col items-center gap-1 text-[11px] font-bold text-zinc-600 dark:text-zinc-300" onClick={() => navigate('/indicacoes/nova')}>
         <span className="-mt-6 h-14 w-14 rounded-full bg-[#facc15] text-black flex items-center justify-center border-4 border-white dark:border-[#0b0b0b] shadow-md">
           <Plus className="h-7 w-7" strokeWidth={2.6} />
         </span>

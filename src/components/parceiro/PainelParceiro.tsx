@@ -218,7 +218,7 @@ export default function PainelParceiro() {
       {/* Ganhos numa linha só */}
       {mostraGanhos && (
         <section className="px-4 md:px-8 pt-3">
-          <button onClick={() => navigate('/comissoes')} className="w-full max-w-xl bg-white rounded-2xl px-4 py-3 shadow-sm flex items-center justify-between gap-3 text-left active:scale-[0.99]">
+          <button onClick={() => navigate('/comissoes')} className="h-auto w-full max-w-xl bg-white rounded-2xl px-4 py-3 shadow-sm flex items-center justify-between gap-3 text-left active:scale-[0.99]">
             <span className="min-w-0">
               <span className="block text-[13px] text-slate-500">A receber</span>
               <span className="block text-[22px] font-black text-green-600 leading-tight truncate">{brl(aReceber)}</span>
@@ -229,7 +229,8 @@ export default function PainelParceiro() {
       )}
 
       {/* Pronta entrega */}
-      {prontaEntrega.length > 0 && (
+      {/* respeita o que o admin desligou para este parceiro (igual ao menu) */}
+      {profile?.permissions?.sidebar?.products_stock !== false && prontaEntrega.length > 0 && (
         <section className="pt-5">
           <div className="flex justify-between items-baseline px-4 md:px-8 mb-2.5">
             <h2 className={tituloSecao}>Pronta entrega</h2>
@@ -295,7 +296,7 @@ export default function PainelParceiro() {
               const produto = ind.items?.[0]?.product_name || ind.product_name || ind.base_machine || '';
               const quando = haQuanto(ind.created_at);
               return (
-                <button key={ind.id} onClick={() => navigate('/indicacoes')} className="w-full text-left px-3 py-2.5 flex items-center justify-between gap-2">
+                <button key={ind.id} onClick={() => navigate('/indicacoes')} className="h-auto w-full text-left px-3 py-2.5 flex items-center justify-between gap-2">
                   <span className="min-w-0">
                     <span className="block text-[14px] font-extrabold truncate text-[#111]">{ind.client_name || 'Cliente'}</span>
                     <span className="block text-[12px] text-slate-500 truncate">{[produto, quando].filter(Boolean).join(' · ')}</span>
