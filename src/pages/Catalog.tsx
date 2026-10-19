@@ -4308,7 +4308,9 @@ export default function Catalog() {
     const ehFresa = isFresaProduct(url) || isFresaProduct(modelName) || isFresaProduct(viewingGallery?.name) || isFresaProduct(selectedProductModels?.name) || isFresaProduct(lowerContextName) || isFresaProduct(lowerContextCategory) || isFresaProduct(lowerContextDesc) || isFresaProduct(lowerContextPdfUrl);
 
     // "Ficha" do modelo sem ficha própria: a ficha padrão em PDF (o PDF do site fica num link dentro dela)
-    if (padrao && !ehFresa) {
+    // PDF próprio da Roder (ex.: GR600/GR800, GCR) vale mais que a ficha padrão automática
+    const pdfProprio = !!url && (url.startsWith('/catalogo/') || url.startsWith('db-file://'));
+    if (padrao && !ehFresa && !pdfProprio) {
       if (selectedProductModels) {
         setSuspendedProductModels(selectedProductModels);
         setSelectedProductModels(null);

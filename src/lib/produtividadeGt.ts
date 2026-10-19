@@ -4,7 +4,7 @@
 export const getGTProductivityData = (modelName: string, length: number) => {
   let area = 0.60; // default (GT 600)
   let machineBase = 'Escavadeira de 20 toneladas (PC 200)';
-  let chainSpec = '3/4" 11H (Pesada/Reforçada)';
+  let chainSpec = '3/4" 11H (padrão das traçadoras maiores)';
   
   const cleanName = (modelName || '').toUpperCase();
   if (cleanName.includes('280')) {
@@ -18,19 +18,19 @@ export const getGTProductivityData = (modelName: string, length: number) => {
   } else if (cleanName.includes('400')) {
     area = 0.40;
     machineBase = 'Escavadeira de 14 a 18 toneladas';
-    chainSpec = '3/4" 11H (Pesada/Reforçada)';
+    chainSpec = '3/4" 11H (padrão das traçadoras maiores)';
   } else if (cleanName.includes('600')) {
     area = 0.60;
     machineBase = 'Escavadeira de 20 toneladas (PC 200)';
-    chainSpec = '3/4" 11H (Pesada/Reforçada)';
+    chainSpec = '3/4" 11H (padrão das traçadoras maiores)';
   } else if (cleanName.includes('800')) {
     area = 0.80;
     machineBase = 'Escavadeira de 20 a 30 toneladas';
-    chainSpec = '3/4" 11H (Pesada/Reforçada)';
+    chainSpec = '3/4" 11H (padrão das traçadoras maiores)';
   } else if (cleanName.includes('1000')) {
     area = 1.00;
     machineBase = 'Escavadeira de 25 a 35 toneladas';
-    chainSpec = '3/4" 11H (Pesada/Reforçada)';
+    chainSpec = '3/4" 11H (padrão das traçadoras maiores)';
   }
 
   // Load factor: 85% average capacity due to tapering/copa loss, offset by pulling extra trees

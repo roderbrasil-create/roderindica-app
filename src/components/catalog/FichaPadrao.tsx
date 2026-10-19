@@ -224,12 +224,16 @@ function dadosGt(modelo: string): DadosFicha['gt'] {
   const n = (modelo || '').toUpperCase();
   const chave = n.includes('1000') ? '1000' : n.includes('800') ? '800' : n.includes('600') ? '600' : '';
   const corrente = (n.includes('280') || n.includes('360')) ? '0.404"' : '3/4" 11H';
-  const linhas = (MEDIAS_GT[chave] || []).map(([comprimento, min, max]) => ({
-    comprimento,
-    hora: `${numBr(min)} a ${numBr(max)}`,
-    turno: `${numBr(min * 8)} a ${numBr(max * 8)}`,
-    mes: `${numBr(min * HORAS_UTEIS_MES)} a ${numBr(max * HORAS_UTEIS_MES)}`,
-  }));
+  // Tora de 6 m: a média de campo é "ou mais" (140+, 160+, 220+)
+  const linhas = (MEDIAS_GT[chave] || []).map(([comprimento, min, max]) => {
+    const mais = comprimento.startsWith('6') ? '+' : '';
+    return {
+      comprimento,
+      hora: `${numBr(min)} a ${numBr(max)}${mais}`,
+      turno: `${numBr(min * 8)} a ${numBr(max * 8)}${mais}`,
+      mes: `${numBr(min * HORAS_UTEIS_MES)} a ${numBr(max * HORAS_UTEIS_MES)}${mais}`,
+    };
+  });
   return { linhas, corrente, maquina: '' };
 }
 
