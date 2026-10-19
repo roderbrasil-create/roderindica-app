@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { toast } from 'sonner';
-import { db } from '../lib/firebase';
-import { collection, getDocs, query, limit } from 'firebase/firestore';
+import { db, auth } from '../lib/firebase';
+import { collection, getDocs, query, limit, where } from 'firebase/firestore';
 
 interface PWAContextType {
   isOffline: boolean;
@@ -181,7 +181,16 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
         // cada coleção por conta própria: uma que o perfil não pode ler (ex.: usuários, para o
         // parceiro) não pode derrubar o download do catálogo inteiro
         try {
-          const snap = await getDocs(query(collection(db, col.name), limit(500)));
+          let snap;
+          try {
+            snap = await getDocs(query(collection(db, col.name), limit(500)));
+          } catch (e) {
+            // O parceiro não pode mais baixar 500 indicações quaisquer (vinham as de OUTROS
+            // parceiros para o celular dele). A regra recusa; baixa só as dele.
+            const uid = auth.currentUser?.uid;
+            if (col.name !== 'indications' || !uid) throw e;
+            snap = await getDocs(query(collection(db, col.name), where('external_seller_uid', '==', uid), limit(500)));
+          }
           if (col.name === 'products') produtos = snap.docs.map(d => d.data());
         } catch (e) {
           console.warn(`[OFFLINE] ${col.name} não baixado:`, e);

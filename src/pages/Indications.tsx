@@ -25,6 +25,7 @@ import {
   arrayUnion
 } from 'firebase/firestore';
 import { db, storage } from '../lib/firebase';
+import { filtrosDoParceiro } from '../lib/filtrosParceiro';
 import { Indication, IndicationStatus, StockItem, RegisteredProduct, IndicationItem } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -205,7 +206,7 @@ export const isMatchForExternalSeller = (ind: any, prof: any) => {
 };
 
 export default function Indications() {
-  const { profile, isExternalSeller, isInternalSeller, isManager, isAdmin, isTriagem, isRegionalSeller } = useAuth();
+  const { profile, realProfile, isExternalSeller, isInternalSeller, isManager, isAdmin, isTriagem, isRegionalSeller } = useAuth();
   const { 
     openNegotiation, 
     isInvoiceDialogOpen, 
@@ -1078,22 +1079,8 @@ export default function Indications() {
       const queryFilters: any[] = [];
       
       if (isExternalSeller) {
-        if (profile.uid) {
-          queryFilters.push(where('external_seller_uid', '==', profile.uid));
-          queryFilters.push(where('created_by', '==', profile.uid));
-          queryFilters.push(where('user_id', '==', profile.uid));
-          queryFilters.push(where('indicator_uid', '==', profile.uid));
-        }
-        if (profile.email) {
-          queryFilters.push(where('external_seller_email', '==', profile.email.toLowerCase()));
-          queryFilters.push(where('external_seller_email', '==', profile.email));
-        }
-        if (profile.name) {
-          queryFilters.push(where('external_seller_name', '==', profile.name));
-          queryFilters.push(where('external_seller_name', '==', profile.name.toUpperCase()));
-          queryFilters.push(where('external_seller_name', '==', profile.name.toLowerCase()));
-          queryFilters.push(where('indicator_name', '==', profile.name));
-        }
+        // só uid e e-mail do login: ver src/lib/filtrosParceiro.ts (nome derrubava a busca inteira)
+        queryFilters.push(...filtrosDoParceiro(profile, realProfile));
       }
       
       if (isRegionalSeller) {

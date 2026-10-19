@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { collection, query, where, onSnapshot, orderBy, limit, getDocs, getDoc, getDocFromServer, getDocsFromCache, updateDoc, doc, serverTimestamp, or, addDoc } from 'firebase/firestore';
 import { ouvirCompartilhado, lerComCache } from '../lib/leiturasCompartilhadas';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { filtrosDoParceiro } from '../lib/filtrosParceiro';
 import { Indication, Commission, Product, Fair } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -139,7 +140,8 @@ function DashboardCompleto() {
     isManager, 
     isAdmin, 
     isMarketing,
-    isPureExternalSeller 
+    isPureExternalSeller,
+    realProfile
   } = useAuth();
   const isFinancial = profile?.role === 'financial';
   const isFiscal = profile?.role === 'fiscal';
@@ -382,22 +384,13 @@ function DashboardCompleto() {
               )
             );
           } else {
-            const qFilters: any[] = [];
-            if (profile?.uid) {
-              qFilters.push(where('external_seller_uid', '==', profile.uid));
-              qFilters.push(where('created_by', '==', profile.uid));
-            }
-            if (profile?.email) {
-              qFilters.push(where('external_seller_email', '==', profile.email.toLowerCase()));
-            }
-            if (profile?.name) {
-              qFilters.push(where('external_seller_name', '==', profile.name));
-              qFilters.push(where('external_seller_name', '==', profile.name.toUpperCase()));
-            }
+            // parceiro: só uid e e-mail do login (src/lib/filtrosParceiro.ts); o filtro por nome
+            // fazia a regra recusar a busca inteira
+            const qFilters: any[] = filtrosDoParceiro(profile, realProfile, isRegionalSeller);
             if (qFilters.length > 0) {
               q = query(collection(db, 'indications'), or(...qFilters));
             } else {
-              q = query(collection(db, 'indications'), limit(100));
+              q = query(collection(db, 'indications'), where('external_seller_uid', '==', '__nenhum__'));
             }
           }
 
@@ -577,7 +570,7 @@ function DashboardCompleto() {
       q = query(indicationsRef, orderBy('created_at', 'desc'), limit(LIMITE_INDICACOES_GESTAO));
     } else {
       const filters = [];
-      if (isExternalSeller) filters.push(where('external_seller_uid', '==', profile.uid));
+      if (isExternalSeller) filters.push(...filtrosDoParceiro(profile, realProfile));
       if (isRegionalSeller) filters.push(where('standard_seller_uid', '==', profile.uid));
       if (isInternalSeller) {
         filters.push(where('internal_seller_uid', '==', profile.uid));
@@ -596,7 +589,7 @@ function DashboardCompleto() {
       if (filters.length > 0) {
         q = query(indicationsRef, or(...filters));
       } else {
-        q = query(indicationsRef, limit(50));
+        q = query(indicationsRef, where('external_seller_uid', '==', '__nenhum__')); // sem regra prevista, não vê nada
       }
     }
 
@@ -618,11 +611,13 @@ function DashboardCompleto() {
       // Additional fallback by email/name if not using OR query
       if ((isExternalSeller || isInternalSeller) && (profile?.email || profile?.name)) {
         try {
-          const emailField = isExternalSeller ? 'external_seller_email' : 'internal_seller_email';
-          const nameField = isExternalSeller ? 'external_seller_name' : 'internal_seller_name';
-          let qF = [];
-          if (profile.email) qF.push(where(emailField, '==', profile.email.toLowerCase()));
-          if (profile.name) qF.push(where(nameField, '==', profile.name));
+          // Parceiro: a busca extra por nome fazia a regra recusar tudo. O e-mail do login já
+          // vai na busca principal (src/lib/filtrosParceiro.ts), então para ele não há extra.
+          const qF: any[] = [];
+          if (!isExternalSeller) {
+            if (profile.email) qF.push(where('internal_seller_email', '==', profile.email.toLowerCase()));
+            if (profile.name) qF.push(where('internal_seller_name', '==', profile.name));
+          }
           
           if (qF.length > 0) {
             const extraSnap = await getDocs(query(indicationsRef, or(...qF)));

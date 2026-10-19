@@ -1581,7 +1581,13 @@ Retorne um array JSON no formato exato:
           db.collection('indications').where('internal_seller_uid', '==', t.id).get(),
           db.collection('indications').where('assigned_to_uid', '==', t.id).get(),
           db.collection('fair_leads').where('assigned_to_uid', '==', t.id).get(),
+          // Parceiro pré-cadastrado: as indicações lançadas para o cadastro provisório têm de ir
+          // junto, senão a regra (só lê o que é dele, pelo uid) esconde todas dele.
+          db.collection('indications').where('external_seller_uid', '==', t.id).get(),
+          db.collection('indications').where('standard_seller_uid', '==', t.id).get(),
         ]);
+        ligados[3].forEach(d => lote.update(d.ref, { external_seller_uid: dec.uid, updated_at: perfil.updated_at }));
+        ligados[4].forEach(d => lote.update(d.ref, { standard_seller_uid: dec.uid, updated_at: perfil.updated_at }));
         ligados[0].forEach(d => lote.update(d.ref, { internal_seller_uid: dec.uid, updated_at: perfil.updated_at }));
         ligados[1].forEach(d => lote.update(d.ref, { assigned_to_uid: dec.uid, updated_at: perfil.updated_at }));
         ligados[2].forEach(d => lote.update(d.ref, { assigned_to_uid: dec.uid, updated_at: perfil.updated_at }));
@@ -8475,9 +8481,113 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     }
   });
 
+  // ===============================================================
+  // DONO DAS INDICAÇÕES ANTIGAS (uma vez só, 19/10/2026)
+  // A regra do Firebase passou a deixar o parceiro ler só a indicação que é dele, pelo uid ou
+  // pelo e-mail do login. Antes a tela dele buscava também pelo NOME (external_seller_name,
+  // indicator_name), e havia indicação antiga ligada ao parceiro só pelo nome, ou com o e-mail
+  // gravado com maiúsculas: com a regra nova elas sumiriam da tela dele.
+  // Aqui o servidor grava o external_seller_uid nessas indicações, mas só quando o nome (sem
+  // acento, minúsculo) casa com UM parceiro e só com ele: nome repetido fica como está, porque
+  // dar a indicação para o parceiro errado é pior que não dar. Nunca troca um uid que já existe.
+  // A trava em cron_locks impede rodar de novo a cada reinício do servidor.
+  // ===============================================================
+  const backfillDonoIndicacoes = async () => {
+    const trava = db.collection('cron_locks').doc('backfill_dono_indicacoes_v1');
+    try {
+      await trava.create({ job: 'backfill_dono_indicacoes_v1', started_at: new Date().toISOString() });
+    } catch (e: any) {
+      if (e?.code === 6) {
+        // já rodou, ou outro processo está rodando. Trava velha sem fim (processo morto no meio): retoma
+        const t: any = (await trava.get()).data() || {};
+        const velha = !t.finished_at && t.started_at && Date.now() - new Date(t.started_at).getTime() > 30 * 60 * 1000;
+        if (!velha) return;
+        await trava.set({ started_at: new Date().toISOString(), retomada: true }, { merge: true });
+      } else {
+      console.error('[BACKFILL-DONO] Não consegui criar a trava:', e?.message);
+      return;
+      }
+    }
+    try {
+      const normalizar = (v: any) => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .toLowerCase().replace(/\s+/g, ' ').trim();
+      const parceiros = await db.collection('users').where('role', 'in', ['external_seller', 'vendedor_padrao']).get();
+      const porNome = new Map<string, Set<string>>();
+      const porEmail = new Map<string, Set<string>>();
+      const emailDe = new Map<string, string>();
+      parceiros.docs.forEach(u => {
+        const d: any = u.data();
+        const uid = String(d.uid || u.id);
+        const nome = normalizar(d.name);
+        const email = String(d.email || '').toLowerCase().trim();
+        if (email) { emailDe.set(uid, email); if (!porEmail.has(email)) porEmail.set(email, new Set()); porEmail.get(email)!.add(uid); }
+        if (nome) { if (!porNome.has(nome)) porNome.set(nome, new Set()); porNome.get(nome)!.add(uid); }
+      });
+      const unico = (m: Map<string, Set<string>>, chave: string) => {
+        const s = chave ? m.get(chave) : undefined;
+        return s && s.size === 1 ? Array.from(s)[0] : null;
+      };
+
+      const indicacoes = await db.collection('indications').select('external_seller_uid', 'external_seller_email', 'external_seller_name', 'indicator_name').get(); // só os campos usados: o histórico inteiro não cabe na memória
+      let lote = db.batch();
+      let noLote = 0;
+      const n = { porEmail: 0, porNome: 0, emailMinusculo: 0, ambiguo: 0, semPar: 0 };
+      const gravar = async (ref: any, dados: any) => {
+        lote.update(ref, dados);
+        noLote++;
+        if (noLote >= 400) { await lote.commit(); lote = db.batch(); noLote = 0; }
+      };
+
+      for (const d of indicacoes.docs) {
+        const ind: any = d.data();
+        const dados: any = {};
+        const emailGravado = typeof ind.external_seller_email === 'string' ? ind.external_seller_email : '';
+        const emailMin = emailGravado.toLowerCase().trim();
+        // a regra compara com o e-mail do login, que é minúsculo
+        if (emailGravado && emailGravado !== emailMin) { dados.external_seller_email = emailMin; n.emailMinusculo++; }
+
+        const temUid = typeof ind.external_seller_uid === 'string' && ind.external_seller_uid.trim() !== '';
+        if (!temUid) {
+          let uid = unico(porEmail, emailMin);
+          if (uid) n.porEmail++;
+          if (!uid) {
+            const candidatos = new Set<string>();
+            let ambiguo = false;
+            for (const campo of ['external_seller_name', 'indicator_name']) {
+              const nome = normalizar(ind[campo]);
+              if (!nome || !porNome.has(nome)) continue;
+              const s = porNome.get(nome)!;
+              if (s.size > 1) ambiguo = true;
+              else candidatos.add(Array.from(s)[0]);
+            }
+            if (!ambiguo && candidatos.size === 1) { uid = Array.from(candidatos)[0]; n.porNome++; }
+            else if (ambiguo || candidatos.size > 1) n.ambiguo++;
+            else if (ind.external_seller_name || ind.indicator_name) n.semPar++;
+          }
+          if (uid) {
+            dados.external_seller_uid = uid;
+            if (!emailMin && emailDe.get(uid)) dados.external_seller_email = emailDe.get(uid);
+          }
+        }
+        if (Object.keys(dados).length) await gravar(d.ref, dados);
+      }
+      if (noLote > 0) await lote.commit();
+      await trava.set({ finished_at: new Date().toISOString(), ...n }, { merge: true });
+      console.log(`[BACKFILL-DONO] Indicações lidas: ${indicacoes.size}. Dono pelo e-mail: ${n.porEmail}; pelo nome: ${n.porNome}; e-mail passado para minúsculas: ${n.emailMinusculo}; nome repetido (não mexi): ${n.ambiguo}; nome sem parceiro: ${n.semPar}.`);
+    } catch (e: any) {
+      // Falhou no meio: apaga a trava para tentar de novo no próximo início. O que já foi gravado
+      // não atrapalha a nova rodada, porque ela nunca troca um uid que já existe.
+      console.error('[BACKFILL-DONO] Erro:', e?.message);
+      try { await trava.delete(); } catch { /* sem trava para apagar */ }
+    }
+  };
+
   const onServerListen = () => {
     console.log(`Server running on port/socket: ${PORT}`);
     
+    // dono das indicações antigas (uma vez só, com trava): ver backfillDonoIndicacoes
+    setTimeout(() => { if (db) backfillDonoIndicacoes(); }, 8000);
+
     // Auto-heal Luana Camargo user profile in Firestore
     setTimeout(async () => {
       try {
