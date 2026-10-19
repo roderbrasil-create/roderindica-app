@@ -854,48 +854,29 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150' }: FresaSshF
                 </p>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {/* Massey Ferguson */}
-                  <div className="bg-neutral-50 border border-neutral-200 p-4 rounded-xl flex flex-col justify-between space-y-3">
-                    <div className="space-y-1">
-                      <div className="font-extrabold text-red-600 text-xs tracking-wider uppercase">MASSEY FERGUSON</div>
-                      <div className="font-black text-neutral-900 text-sm">Transmissão Dyna-VT</div>
-                      <p className="text-[11px] text-neutral-600 leading-snug">
-                        Série de tratores de alta potência integrados à famosa caixa Dyna-VT. Proporciona controle total da velocidade milimétrica, crucial para a fresagem pesada.
-                      </p>
+                  {[
+                    { marca: 'MASSEY FERGUSON', serie: 'MF 8700 S Dyna-VT', texto: 'Linha de alta potência (cerca de 270 a 370 cv) com a caixa Dyna-VT de série. Controle contínuo da velocidade de avanço, crucial para a fresagem pesada.', selo: 'Tecnologia Dyna-VT', cor: 'text-red-600', seloCor: 'bg-red-100/50 border-red-200' },
+                    { marca: 'VALTRA', serie: 'Série T CVT, Q5 e S6', texto: 'T195 a T250 CVT (195 a 250 cv, nacional), Q5 Q265 a Q305 (265 a 305 cv) e S6 S346 e S376 (345 a 375 cv), todas com CVT de série. Só vale se tiver "CVT" no modelo, ou for Q5 ou S6.', selo: 'T CVT / Q5 / S6', cor: 'text-yellow-600', seloCor: 'bg-yellow-100/50 border-yellow-200' },
+                    { marca: 'FENDT', serie: 'Transmissão Vario', texto: 'Toda Fendt é Vario (CVT de série). 700 Vario (cerca de 263 a 283 cv) atende todas as SSH; 900 Vario atende SSH 200, 225 e 250 nos modelos até 400 cv.', selo: '700 Vario / 900 Vario', cor: 'text-emerald-700', seloCor: 'bg-emerald-100/50 border-emerald-200' },
+                    { marca: 'CASE IH', serie: 'Puma 260 CVX', texto: 'Puma com transmissão CVX (260 cv nominal, até 300 cv), atende todas as SSH. O Puma nacional sem "CVX" no nome é powershift e não serve.', selo: 'Transmissão CVX', cor: 'text-red-700', seloCor: 'bg-red-100/50 border-red-200' },
+                    { marca: 'NEW HOLLAND', serie: 'T7.300 Auto Command', texto: 'T7 com transmissão Auto Command CVT (260 cv), atende todas as SSH. As versões T7 Power Command e Range Command são powershift e não servem.', selo: 'Auto Command CVT', cor: 'text-blue-700', seloCor: 'bg-blue-100/50 border-blue-200' },
+                    { marca: 'JOHN DEERE', serie: '8R com eAutoPowr (EVT)', texto: 'Variável contínua, opcional na linha 8R (o 8R padrão com e23 ou PowrShift não serve). Conferir o adesivo eAutoPowr, EVT ou AutoPowr e a potência.', selo: 'Opcional, verificar disponibilidade', cor: 'text-green-700', seloCor: 'bg-green-100/50 border-green-200' },
+                  ].map((t) => (
+                    <div key={t.marca} className="bg-neutral-50 border border-neutral-200 p-4 rounded-xl flex flex-col justify-between space-y-3">
+                      <div className="space-y-1">
+                        <div className={`font-extrabold ${t.cor} text-xs tracking-wider uppercase`}>{t.marca}</div>
+                        <div className="font-black text-neutral-900 text-sm">{t.serie}</div>
+                        <p className="text-[11px] text-neutral-600 leading-snug">{t.texto}</p>
+                      </div>
+                      <span className={`text-[10px] font-bold text-neutral-800 ${t.seloCor} border rounded px-2 py-0.5 w-max`}>
+                        {t.selo}
+                      </span>
                     </div>
-                    <span className="text-[10px] font-bold text-neutral-800 bg-red-100/50 border border-red-200 rounded px-2 py-0.5 w-max">
-                      Tecnologia Dyna-VT
-                    </span>
-                  </div>
-
-                  {/* Valtra */}
-                  <div className="bg-neutral-50 border border-neutral-200 p-4 rounded-xl flex flex-col justify-between space-y-3">
-                    <div className="space-y-1">
-                      <div className="font-extrabold text-yellow-600 text-xs tracking-wider uppercase">VALTRA</div>
-                      <div className="font-black text-neutral-900 text-sm">Séries T CVT & Q</div>
-                      <p className="text-[11px] text-neutral-600 leading-snug">
-                        Modelos equipados com transmissão CVT que variam a velocidade milimetricamente de forma suave, sem degraus de marcha, protegendo os eixos PTO.
-                      </p>
-                    </div>
-                    <span className="text-[10px] font-bold text-neutral-800 bg-yellow-100/50 border border-yellow-200 rounded px-2 py-0.5 w-max">
-                      Séries T CVT / Série Q
-                    </span>
-                  </div>
-
-                  {/* Fendt */}
-                  <div className="bg-neutral-50 border border-neutral-200 p-4 rounded-xl flex flex-col justify-between space-y-3">
-                    <div className="space-y-1">
-                      <div className="font-extrabold text-emerald-700 text-xs tracking-wider uppercase">FENDT</div>
-                      <div className="font-black text-neutral-900 text-sm">Transmissão Vario</div>
-                      <p className="text-[11px] text-neutral-600 leading-snug">
-                        Pioneira mundial em CVT, a transmissão Fendt Vario realiza a coordenação eletrônica perfeita entre implemento e motor de alta potência.
-                      </p>
-                    </div>
-                    <span className="text-[10px] font-bold text-neutral-800 bg-emerald-100/50 border border-emerald-200 rounded px-2 py-0.5 w-max">
-                      Transmissão Vario
-                    </span>
-                  </div>
+                  ))}
                 </div>
+                <p className="text-[11px] text-neutral-600 leading-snug">
+                  <strong>Não servem</strong> (powershift ou caixa mecânica): MF Dyna-6 e Dyna-4, Valtra HiTech e Versu, Case IH Puma e Magnum nacionais, New Holland Power Command, Range Command e UltraCommand, John Deere e23, PowrShift, PowrQuad e AutoQuad. Super redutor (creeper) não substitui a CVT. A potência do trator também precisa estar na faixa do modelo SSH escolhido, com TDP de 1000 rpm.
+                </p>
               </div>
 
               {/* COMMITED STOCK AND SPARE PARTS */}
