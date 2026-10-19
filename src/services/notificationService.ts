@@ -28,6 +28,15 @@ export const createNotification = async (params: CreateNotificationParams) => {
 };
 
 export const notifyManagers = async (title: string, message: string, link?: string, type: NotificationType = 'info') => {
+  // pelo servidor: o parceiro não lê a lista de usuários
+  try {
+    const r = await fetch('/api/notificacoes/gestao', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, message, link, type }),
+    });
+    if (r.ok) return;
+  } catch { /* cai no caminho direto abaixo */ }
   try {
     const q = query(
       collection(db, 'users'), 

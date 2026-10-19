@@ -21,7 +21,7 @@ service firebase.storage {
 
     // Fotos do tablet da feira: o tablet entra anônimo, então pode só ENVIAR foto nova.
     match /fair_leads/{fairId}/{allPaths=**} {
-      allow create: if request.auth != null && tamanhoOk(20);
+      allow create: if request.auth != null && tamanhoOk(20) && (resource == null || equipe());
       allow read: if request.auth != null;
       allow update, delete: if equipe();
     }
@@ -30,7 +30,7 @@ service firebase.storage {
     match /commissions_nf/{arquivo} {
       allow read: if logado();
       allow create: if logado() && tamanhoOk(30) &&
-        (equipe() || arquivo.matches('^monthly_' + request.auth.uid + '_.*'));
+        (equipe() || (resource == null && arquivo.matches('^monthly_' + request.auth.uid + '_.*')));
       allow update, delete: if equipe();
     }
 
@@ -38,7 +38,8 @@ service firebase.storage {
     // trocar ou apagar arquivo que já existe, só a equipe.
     match /{allPaths=**} {
       allow read: if logado();
-      allow create: if logado() && tamanhoOk(600);
+      // enviar por cima de um arquivo que já existe conta como troca: só a equipe
+      allow create: if logado() && tamanhoOk(600) && (resource == null || equipe());
       allow update, delete: if equipe() && tamanhoOk(600);
     }
   }

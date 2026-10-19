@@ -244,12 +244,14 @@ test('PARCEIRO grava o cliente indicador (NewIndication.tsx:1352/1360) e avisa a
   }));
 });
 
-test('PARCEIRO, ao indicar, acha a gestão para avisar no sino (notificationService.ts:32)', async () => {
-  await assertSucceeds(getDocs(query(collection(fs_('parceiro'), 'users'), where('role', 'in', ['admin', 'manager', 'triagem']))));
+// Mudou de caminho: agora o aviso à gestão e a busca do regional passam pelo servidor
+// (/api/notificacoes/gestao e /api/usuarios/regionais), e o parceiro NÃO lê a lista de usuários.
+test('PARCEIRO não lê a lista da gestão direto (o aviso vai pelo servidor)', async () => {
+  await assertFails(getDocs(query(collection(fs_('parceiro'), 'users'), where('role', 'in', ['admin', 'manager', 'triagem']))));
 });
 
-test('PARCEIRO, ao indicar, acha o vendedor regional para a comissão dele (NewIndication.tsx:506)', async () => {
-  await assertSucceeds(getDocs(query(collection(fs_('parceiro'), 'users'), where('role', '==', 'vendedor_padrao'), where('status', '==', 'active'))));
+test('PARCEIRO não lê os regionais direto (vai pelo servidor)', async () => {
+  await assertFails(getDocs(query(collection(fs_('parceiro'), 'users'), where('role', '==', 'vendedor_padrao'), where('status', '==', 'active'))));
 });
 
 test('PARCEIRO manda a NF única pelo extrato que o financeiro abriu (Commissions.tsx:815) e sobe o arquivo (809)', async () => {
@@ -345,10 +347,11 @@ test('TABLET DA FEIRA (anônimo): cria indicação junto do lead (QuickRegister.
   await assertSucceeds(deleteDoc(doc(db, 'fair_leads', 'f1')));
 });
 
-test('TABLET DA FEIRA (anônimo): vê "Meus Atendimentos" com a consulta de hoje (QuickRegister.tsx:520 e 1077)', async () => {
+// A tela do tablet anônimo passou a buscar pelo próprio uid (teste seguinte); a busca pela feira inteira fica proibida.
+test('TABLET DA FEIRA (anônimo): não lê os atendimentos da feira inteira', async () => {
   const db = fs_('anonimo');
   await semRegras((d) => setDoc(doc(d, 'fair_leads', 'f1'), { salesperson_uid: 'u_anon', salesperson_name: 'Visitante', fair_id: 'feira1', created_at: 'x' }));
-  await assertSucceeds(getDocs(query(collection(db, 'fair_leads'), where('fair_id', '==', 'feira1'), orderBy('created_at', 'desc'))));
+  await assertFails(getDocs(query(collection(db, 'fair_leads'), where('fair_id', '==', 'feira1'), orderBy('created_at', 'desc'))));
 });
 
 test('TABLET DA FEIRA (anônimo): com o filtro do próprio uid a lista funciona (correção sugerida no código)', async () => {

@@ -1349,6 +1349,34 @@ Retorne um array JSON no formato exato:
     }
   });
 
+  // Aviso no sino para a gestão (admin, gerente, triagem). O parceiro não lê mais a lista de
+  // usuários, então quem cria a indicação pede ao servidor para avisar.
+  app.post("/api/notificacoes/gestao", async (req, res) => {
+    try {
+      const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+      const dec: any = token ? await admin.auth().verifyIdToken(token).catch(() => null) : null;
+      if (!dec || dec.firebase?.sign_in_provider === 'anonymous') return res.status(401).json({ ok: false });
+      const { title, message, link, type } = req.body || {};
+      if (!title || !message) return res.status(400).json({ ok: false });
+      const snap = await db.collection('users').where('role', 'in', ['admin', 'manager', 'triagem']).get();
+      const agora = new Date().toISOString();
+      const lote = db.batch();
+      snap.docs.forEach(d => lote.set(db.collection('notifications').doc(), {
+        user_uid: d.id,
+        title: String(title).slice(0, 140),
+        message: String(message).slice(0, 600),
+        link: typeof link === 'string' && link.startsWith('/') ? link.slice(0, 200) : null,
+        type: ['info', 'success', 'warning', 'error'].includes(type) ? type : 'info',
+        read: false,
+        created_at: agora,
+      }));
+      await lote.commit();
+      return res.json({ ok: true, enviados: snap.size });
+    } catch (e: any) {
+      return res.status(500).json({ ok: false });
+    }
+  });
+
   // PRIMEIRO ACESSO. O admin pré-cadastra a pessoa (users/temp_...) e, no primeiro login, o
   // cadastro passa para o uid dela. Isso era feito no navegador, apagando o cadastro provisório
   // e criando o definitivo com o papel; com as regras novas o navegador não pode mais dar papel a
