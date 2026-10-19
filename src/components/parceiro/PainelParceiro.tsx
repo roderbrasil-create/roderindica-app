@@ -283,6 +283,9 @@ export default function PainelParceiro() {
               ))}
             </div>
           )}
+          <div className="text-center mt-1.5">
+            <button onClick={() => navigate('/estoque')} className="h-auto p-1 bg-transparent text-[13px] font-bold text-[#1E5BD8]">Ver toda a pronta entrega</button>
+          </div>
         </section>
       )}
 
