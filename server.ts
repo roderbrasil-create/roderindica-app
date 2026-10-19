@@ -1377,6 +1377,136 @@ Retorne um array JSON no formato exato:
     }
   });
 
+  // REGRAS DE SEGURANÇA DO FIREBASE, publicadas pelo próprio app (botão em Configurações, só admin).
+  // O banco do app é um banco NOMEADO do Firestore, e a biblioteca firebase-admin só sabe publicar
+  // no banco padrão; por isso aqui se fala direto com a API de regras do Google, com a credencial
+  // do servidor. Antes de trocar, guarda qual era a regra no ar, para o botão "Voltar".
+  const REGRAS_API = 'https://firebaserules.googleapis.com/v1';
+  const lerRegra = (arquivo: string) => {
+    for (const base of [process.cwd(), __entryDirRegras(), path.resolve(__entryDirRegras(), '..')]) {
+      const p = path.join(base, arquivo);
+      if (fs.existsSync(p)) return fs.readFileSync(p, 'utf8');
+    }
+    return null;
+  };
+  function __entryDirRegras() {
+    try { return process.argv[1] ? path.dirname(fs.realpathSync(process.argv[1])) : process.cwd(); } catch { return process.cwd(); }
+  }
+  async function tokenGoogle(): Promise<string> {
+    const cred: any = (adminApp as any).options?.credential;
+    if (!cred?.getAccessToken) throw new Error('Servidor sem credencial do Firebase.');
+    const t = await cred.getAccessToken();
+    return t.access_token;
+  }
+  function nomesRelease() {
+    const projeto = config.projectId;
+    const banco = config.firestoreDatabaseId || '(default)';
+    const bucket = config.storageBucket || `${projeto}.appspot.com`;
+    return {
+      projeto,
+      firestore: banco === '(default)' ? `projects/${projeto}/releases/cloud.firestore` : `projects/${projeto}/releases/cloud.firestore/${banco}`,
+      storage: `projects/${projeto}/releases/firebase.storage/${bucket}`,
+    };
+  }
+  async function chamarRegras(metodo: string, url: string, corpo?: any) {
+    const r = await fetch(url, {
+      method: metodo,
+      headers: { Authorization: `Bearer ${await tokenGoogle()}`, 'Content-Type': 'application/json' },
+      body: corpo ? JSON.stringify(corpo) : undefined,
+    });
+    const j: any = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j?.error?.message || `Erro ${r.status} na API de regras`);
+    return j;
+  }
+  async function exigirAdmin(req: any, res: any) {
+    const q = await quemChama(req);
+    if (!q || q.role !== 'admin') { res.status(403).json({ ok: false, error: 'Só o administrador.' }); return null; }
+    return q;
+  }
+
+  app.get('/api/admin/regras/estado', async (req, res) => {
+    if (!(await exigirAdmin(req, res))) return;
+    try {
+      const n = nomesRelease();
+      const out: any = { ok: true };
+      for (const alvo of ['firestore', 'storage'] as const) {
+        const rel = await chamarRegras('GET', `${REGRAS_API}/${(n as any)[alvo]}`).catch((e) => ({ erro: e.message }));
+        let fonteAtual = '';
+        if (rel.rulesetName) {
+          const rs = await chamarRegras('GET', `${REGRAS_API}/${rel.rulesetName}`).catch(() => null);
+          fonteAtual = rs?.source?.files?.[0]?.content || '';
+        }
+        const nova = lerRegra(alvo === 'firestore' ? 'firestore.rules' : 'storage.rules') || '';
+        const hist = await db.collection('regras_historico').doc(alvo).get();
+        out[alvo] = {
+          no_ar: rel.rulesetName || null,
+          atualizada_em: rel.updateTime || null,
+          erro: rel.erro || null,
+          ja_e_a_nova: !!nova && fonteAtual.trim() === nova.trim(),
+          pode_voltar: !!hist.data()?.anterior,
+        };
+      }
+      return res.json(out);
+    } catch (e: any) {
+      return res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/api/admin/regras/publicar', async (req, res) => {
+    const q = await exigirAdmin(req, res); if (!q) return;
+    const alvos = req.body?.alvo === 'storage' ? ['storage'] : req.body?.alvo === 'firestore' ? ['firestore'] : ['firestore', 'storage'];
+    const n = nomesRelease();
+    const feito: any = {};
+    try {
+      for (const alvo of alvos) {
+        const fonte = lerRegra(alvo === 'firestore' ? 'firestore.rules' : 'storage.rules');
+        if (!fonte) throw new Error(`Arquivo de regras de ${alvo} não encontrado no servidor.`);
+        // criar o ruleset já compila: regra com erro é recusada aqui e nada muda no ar
+        const rs = await chamarRegras('POST', `${REGRAS_API}/projects/${n.projeto}/rulesets`, {
+          source: { files: [{ name: alvo === 'firestore' ? 'firestore.rules' : 'storage.rules', content: fonte }] },
+        });
+        const releaseNome = (n as any)[alvo];
+        const atual = await chamarRegras('GET', `${REGRAS_API}/${releaseNome}`).catch(() => null);
+        await db.collection('regras_historico').doc(alvo).set({
+          anterior: atual?.rulesetName || null,
+          nova: rs.name,
+          publicado_por: q.email,
+          publicado_em: new Date().toISOString(),
+        });
+        if (atual?.rulesetName) {
+          await chamarRegras('PATCH', `${REGRAS_API}/${releaseNome}`, { release: { name: releaseNome, rulesetName: rs.name } });
+        } else {
+          await chamarRegras('POST', `${REGRAS_API}/projects/${n.projeto}/releases`, { name: releaseNome, rulesetName: rs.name });
+        }
+        feito[alvo] = rs.name;
+      }
+      console.log(`[REGRAS] Publicadas por ${q.email}:`, feito);
+      return res.json({ ok: true, feito });
+    } catch (e: any) {
+      return res.status(500).json({ ok: false, error: e.message, feito });
+    }
+  });
+
+  app.post('/api/admin/regras/voltar', async (req, res) => {
+    const q = await exigirAdmin(req, res); if (!q) return;
+    const n = nomesRelease();
+    const feito: any = {};
+    try {
+      for (const alvo of ['firestore', 'storage']) {
+        const h = (await db.collection('regras_historico').doc(alvo).get()).data();
+        if (!h?.anterior) continue;
+        const releaseNome = (n as any)[alvo];
+        await chamarRegras('PATCH', `${REGRAS_API}/${releaseNome}`, { release: { name: releaseNome, rulesetName: h.anterior } });
+        await db.collection('regras_historico').doc(alvo).set({ anterior: null, voltou_para: h.anterior, voltou_em: new Date().toISOString(), por: q.email }, { merge: true });
+        feito[alvo] = h.anterior;
+      }
+      console.log(`[REGRAS] Voltadas por ${q.email}:`, feito);
+      return res.json({ ok: true, feito });
+    } catch (e: any) {
+      return res.status(500).json({ ok: false, error: e.message, feito });
+    }
+  });
+
   // PRIMEIRO ACESSO. O admin pré-cadastra a pessoa (users/temp_...) e, no primeiro login, o
   // cadastro passa para o uid dela. Isso era feito no navegador, apagando o cadastro provisório
   // e criando o definitivo com o papel; com as regras novas o navegador não pode mais dar papel a
@@ -1395,7 +1525,10 @@ Retorne um array JSON no formato exato:
       }
 
       const achados = await db.collection('users').where('email', '==', email).get();
-      const temporarios = achados.docs.filter(d => d.id !== dec.uid);
+      let temporarios = achados.docs.filter(d => d.id !== dec.uid);
+      // Conta com senha e e-mail não confirmado: só vale o pré-cadastro em que o admin definiu a
+      // senha (aí a conta de login foi criada pelo próprio servidor, e não por quem chegou primeiro).
+      if (!dec.email_verified) temporarios = temporarios.filter(d => !!(d.data() as any).initial_password);
       if (temporarios.length === 0) return res.json({ ok: true, merged: false });
 
       const realRef = db.collection('users').doc(dec.uid);

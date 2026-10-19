@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
+import RegrasSeguranca from '../components/admin/RegrasSeguranca';
 import { 
   UserPlus, 
   Edit, 
@@ -2879,6 +2880,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
             </TabsContent>
 
           <TabsContent value="settings">
+            {isAdmin && <div className="max-w-5xl"><RegrasSeguranca /></div>}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-5xl">
               <div className="flex flex-col gap-6">
                 {/* Central de Notificações */}
