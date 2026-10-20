@@ -177,3 +177,37 @@ test('caso real do Yuri: CMF 600 na CAT 320 com série e "configuração padrão
   const server = readFileSync(new URL('../server.ts', import.meta.url), 'utf8');
   assert.ok(server.includes('${REGRA_KIT_CONFIRMACAO}'));
 });
+
+test('regras antigas não contradizem a regra nova (CMF sem fatia extra, requisito geral, concessionária, kit por modelo)', () => {
+  const server = readFileSync(new URL('../server.ts', import.meta.url), 'utf8');
+  const modal = readFileSync(new URL('../src/components/catalog/EstudosComparativosModal.tsx', import.meta.url), 'utf8');
+  const manual = readFileSync(new URL('../src/data/equipmentManualData.ts', import.meta.url), 'utf8');
+  for (const proibido of [
+    /NÃO recomenda\*{0,2} de forma alguma/,
+    /indispensável para qualquer instalação/,
+    /requisito obrigatório e indispensável que a máquina/i,
+    /Altamente Perigoso/,
+    /possuem os tamp/i,
+    /Komatsu PC200\/210, Volvo 200/,
+  ]) {
+    assert.ok(!proibido.test(server), `server.ts: ${proibido}`);
+    assert.ok(!proibido.test(modal), `modal: ${proibido}`);
+    assert.ok(!proibido.test(manual), `manual: ${proibido}`);
+  }
+  assert.ok(!/NÃO recomenda<\/strong> instalar cabeçotes/.test(modal));
+  // concessionária só com a ressalva de foto e vídeo
+  for (const l of server.split('\n').filter(x => /confirmar com a concessionária/.test(x))) assert.ok(/foto e vídeo/.test(l), l.slice(0, 80));
+  assert.ok(!/confirme com a concessionária ou forneça/.test(modal));
+  // PC200, PC210 e Volvo 200 só junto de "confirmado"
+  server.split('\n').filter(x => /PC200, PC210, Volvo 200/.test(x)).forEach(l => assert.ok(/confirmad/.test(l), l.slice(0, 90)));
+  const i = modal.indexOf("id: 'kit-sem-fatia-extra'");
+  assert.ok(i > 0 && !/komatsu|volvo/i.test(modal.slice(i, i + 400)));
+  assert.ok(!/PC200, PC210, Volvo 200/.test(modal));
+  // texto novo presente
+  assert.ok(server.includes('CMF sem fatia extra: em CAT 320 nova (joystick eletrônico)'));
+  assert.ok(server.includes('A fatia extra com saída dupla é o requisito geral. Exceções: garra de carregamento, garras florestais e CMF na CAT 320 nova (kit de baixa).'));
+  assert.ok(server.includes('Requisito geral: fatia extra com saída dupla, confirmada por foto e vídeo, exceto o kit de baixa em CAT 320 nova para garra e CMF.'));
+  assert.ok(server.includes('(a concessionária só entra se faltar fatia extra em CAT nova)'));
+  assert.equal((server.match(/O 9016 deriva da bomba principal e NÃO é o kit de baixa/g) || []).length, 2);
+  assert.match(RESSALVA_KIT, /ou depois de o vendedor informar e confirmar essa configuração/);
+});

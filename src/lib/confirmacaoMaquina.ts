@@ -7,7 +7,7 @@
 import type { VideoConsultor } from './videosConsultor';
 
 // Frase curta repetida ao lado de cada kit citado no prompt: kit é possibilidade, nunca resposta por modelo
-export const RESSALVA_KIT = 'Estes kits são POSSIBILIDADES, nunca afirme pelo modelo nem pelo serial. Só indique o kit depois que a configuração for confirmada por foto e vídeo: fatia extra com saída dupla (duas saídas com os dois tampões) no comando hidráulico e, em CAT nova, a ligação ao joystick eletrônico. O técnico Roder responsável confirma.';
+export const RESSALVA_KIT = 'Estes kits são POSSIBILIDADES, nunca afirme pelo modelo nem pelo serial. Só indique o kit depois que a configuração for confirmada por foto e vídeo, ou depois de o vendedor informar e confirmar essa configuração: fatia extra com saída dupla (duas saídas com os dois tampões) no comando hidráulico e, em CAT nova, a ligação ao joystick eletrônico. O técnico Roder responsável confirma.';
 
 export const REGRA_KIT_CONFIRMACAO = `
 REGRA PRIORITÁRIA DE KIT DE INSTALAÇÃO (vale acima das regras de kit mais abaixo, que continuam valendo como possibilidades):

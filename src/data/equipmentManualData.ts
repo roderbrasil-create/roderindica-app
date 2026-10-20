@@ -254,7 +254,7 @@ export const EQUIPMENT_SPEC_TABLES: EquipmentSpecTable[] = [
       ['9000.9000.9003', 'KIT BAIXA PRESSAO 1 SECCAO DUPLA CAT320GC/NG 24V (80L/ 190BAR)', 'Caterpillar 320 GC / Next Gen para rotação contínua e baixa pressão', 'Caixa elétrica 2 funções 24V, comando elétrico 80L 24V, joystick padrão florestal 3 botões, bomba 48cc'],
       ['9000.9000.9004', 'KIT INSTALACAO CMF500/600 + LINCK EM ESCAVADEIRA - (MAQUINA COM LINHA ROMPEDOR)', 'Cabeçotes Multifuncionais CMF 500/600 em escavadeiras com linha de rompedor', 'Linhas de alta vazão, chicote de comando eletro-hidráulico, mangueiras de dreno e conexões especiais'],
       ['9000.9000.9015', 'KIT INSTALACAO GARRA + LINK EM ESCAVADEIRA - (MAQUINA COM FATIA EXTRA SEM LINHA)', 'Instalação direta de garra de carregamento e link pendular', 'Mangueiras, conexões de pressão, link garra biela para pino específico e abraçadeiras estruturais'],
-      ['9000.9000.9016', 'KIT INSTALACAO DE GARRA EM ESCAVADEIRA SEM FATIA EXTRA (DERIVACAO DA BOMBA)', 'Máquinas sem comando auxiliar de fábrica (Komatsu PC200/210, Volvo 200)', 'Bloco manifold 2 solenoides baixo fluxo, mangueiras derivação bomba principal, botoeiras joystick e chicote']
+      ['9000.9000.9016', 'KIT INSTALACAO DE GARRA EM ESCAVADEIRA SEM FATIA EXTRA (DERIVACAO DA BOMBA)', 'Máquinas sem comando auxiliar de fábrica (quando confirmado sem fatia extra)', 'Bloco manifold 2 solenoides baixo fluxo, mangueiras derivação bomba principal, botoeiras joystick e chicote']
     ],
     notes: [
       'Faixa de Numeração Oficial: Os kits de instalação hidráulica Roder são numerados sequencialmente na faixa 9000.9000.9000 até 9000.9000.9060 (totalizando mais de 56 kits homologados).',
