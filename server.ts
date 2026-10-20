@@ -2735,7 +2735,7 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
               - Diâmetro do Rotor: 900 mm
               - Diâmetro Máximo de Trituração de Tocos: 700 mm (70 cm)
               - Profundidade Máxima de Trabalho: 500 mm (50 cm)
-              - Quantidade e Tipo de Dentes: 58 dentes CENTRAIS + 4 dentes LATERAIS (2 do lado esquerdo e 2 do direito), total 62; tipo de dente: A/3 + MH
+              - Quantidade e Tipo de Dentes: 58 dentes CENTRAIS + 4 dentes LATERAIS (2 do lado esquerdo e 2 do direito), total 62; centrais tipo A/3, laterais tipo MH (raspador lateral)
               - Link do Vídeo de Operação: https://youtu.be/1nEPwzt8K4k
             * **FAE SSH 200**:
               - Potência do Trator Requerida: 200 a 360 (até 400) HP (transmissão CVT obrigatória)
@@ -2746,7 +2746,7 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
               - Diâmetro do Rotor: 900 mm
               - Diâmetro Máximo de Trituração de Tocos: 700 mm (70 cm)
               - Profundidade Máxima de Trabalho: 500 mm (50 cm)
-              - Quantidade e Tipo de Dentes: 78 dentes CENTRAIS + 4 dentes LATERAIS (2 do lado esquerdo e 2 do direito), total 82; tipo de dente: A/3 + MH
+              - Quantidade e Tipo de Dentes: 78 dentes CENTRAIS + 4 dentes LATERAIS (2 do lado esquerdo e 2 do direito), total 82; centrais tipo A/3, laterais tipo MH (raspador lateral)
               - Link do Vídeo de Operação: https://youtu.be/1nEPwzt8K4k
             * **FAE SSH 225**:
               - Potência do Trator Requerida: 200 a 360 (até 400) HP (transmissão CVT obrigatória)
@@ -2757,18 +2757,18 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
               - Diâmetro do Rotor: 900 mm
               - Diâmetro Máximo de Trituração de Tocos: 700 mm (70 cm)
               - Profundidade Máxima de Trabalho: 500 mm (50 cm)
-              - Quantidade e Tipo de Dentes: 88 dentes CENTRAIS + 4 dentes LATERAIS (2 do lado esquerdo e 2 do direito), total 92; tipo de dente: A/3 + MH
+              - Quantidade e Tipo de Dentes: 88 dentes CENTRAIS + 4 dentes LATERAIS (2 do lado esquerdo e 2 do direito), total 92; centrais tipo A/3, laterais tipo MH (raspador lateral)
               - Link do Vídeo de Operação: https://youtu.be/1nEPwzt8K4k
             * **FAE SSH 250**:
-              - Potência do Trator Requerida: 240 a 360 (até 400) HP (transmissão CVT obrigatória)
+              - Potência do Trator Requerida: 200 a 360 (até 400) HP (transmissão CVT obrigatória)
               - Rotação da Tomada de Força (PTO): 1000 rpm
               - Largura de Trabalho: 2560 mm (2,56 metros)
-              - Largura Total do Equipamento: 2950 mm
-              - Peso Operacional: 5600 kg
+              - Largura Total do Equipamento: 2952 mm
+              - Peso Operacional: 5640 kg
               - Diâmetro do Rotor: 900 mm
               - Diâmetro Máximo de Trituração de Tocos: 700 mm (70 cm)
               - Profundidade Máxima de Trabalho: 500 mm (50 cm)
-              - Quantidade e Tipo de Dentes: 98 dentes CENTRAIS + 4 dentes LATERAIS (2 do lado esquerdo e 2 do direito), total 102; tipo de dente: A/3 + MH
+              - Quantidade e Tipo de Dentes: 98 dentes CENTRAIS + 4 dentes LATERAIS (2 do lado esquerdo e 2 do direito), total 102; centrais tipo A/3, laterais tipo MH (raspador lateral)
               - Link do Vídeo de Operação: https://www.youtube.com/watch?v=na5Z2tLWMgA
               
           **DENTES DA FRESA SSH (regra do Jeferson, vale sempre)**: na notação "58 + 4", o primeiro número são os dentes CENTRAIS e o segundo os dentes LATERAIS (sempre 4: 2 no lado esquerdo e 2 no direito). Quando perguntarem "quantos dentes tem na SSH150?" (ou 200, 225, 250), responda direto e curto neste formato, sem rodeio: "SSH150: 58 dentes centrais e 4 laterais (2 de cada lado)." Nunca responda só o total nem só "58 + 4" sem dizer o que é cada número.

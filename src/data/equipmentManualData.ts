@@ -173,10 +173,10 @@ export const EQUIPMENT_SPEC_TABLES: EquipmentSpecTable[] = [
     rows: [
       ['FAE UML SSL VT 175', 'Triturador Hidr. Frontal', '200 mm (20 cm)', 'Superficial', '1.250 kg | 36 dentes', '130 a 200 L/min | 200-350 bar', 'Minicarregadeiras e Pás Compactas'],
       ['FAE 140 U PM 200', 'Triturador Florestal Pá', '350 mm (35 cm)', 'Superficial / Rente', '2.960 kg | 42+2 dentes', '150 a 360 L/min | 250-415 bar', 'Pás Carregadeiras (ex: Cat 930K/938K)'],
-      ['Fresa FAE SSH 150', 'Fresa de Solo e Tocos', '700 mm (70 cm)', 'Até 500 mm no solo', '4.250 kg | 62+4 dentes', '240 a 360 hp | PTO 1000 rpm', 'Tratores Agrícolas Pesados'],
-      ['Fresa FAE SSH 200', 'Fresa de Solo e Tocos', '700 mm (70 cm)', 'Até 500 mm no solo', '4.700 kg | 74+4 dentes', '240 a 360 hp | PTO 1000 rpm', 'Tratores Agrícolas Pesados'],
-      ['Fresa FAE SSH 225', 'Fresa de Solo e Tocos', '700 mm (70 cm)', 'Até 500 mm no solo', '5.150 kg | 86+4 dentes', '240 a 360 hp | PTO 1000 rpm', 'Tratores Agrícolas Pesados'],
-      ['Fresa FAE SSH 250', 'Fresa de Solo e Tocos', '700 mm (70 cm)', 'Até 500 mm no solo', '5.600 kg | 98+4 dentes', '240 a 400 hp | PTO 1000 rpm', 'Tratores Agrícolas Pesados'],
+      ['Fresa FAE SSH 150', 'Fresa de Solo e Tocos', '700 mm (70 cm)', 'Até 500 mm no solo', '3.690 kg | 58 centrais + 4 laterais', '160 a 280 hp | PTO 1000 rpm', 'Tratores Agrícolas Pesados'],
+      ['Fresa FAE SSH 200', 'Fresa de Solo e Tocos', '700 mm (70 cm)', 'Até 500 mm no solo', '4.850 kg | 78 centrais + 4 laterais', '200 a 360 (400) hp | PTO 1000 rpm', 'Tratores Agrícolas Pesados'],
+      ['Fresa FAE SSH 225', 'Fresa de Solo e Tocos', '700 mm (70 cm)', 'Até 500 mm no solo', '5.200 kg | 88 centrais + 4 laterais', '200 a 360 (400) hp | PTO 1000 rpm', 'Tratores Agrícolas Pesados'],
+      ['Fresa FAE SSH 250', 'Fresa de Solo e Tocos', '700 mm (70 cm)', 'Até 500 mm no solo', '5.640 kg | 98 centrais + 4 laterais', '200 a 360 (400) hp | PTO 1000 rpm', 'Tratores Agrícolas Pesados'],
       ['FAE RCU-55 / RCU-75', 'Triturador Autopropelido', '150 a 200 mm', 'Superficial', 'Esteiras de Borracha', '56 a 75 hp Kohler Diesel', 'Radiocontrolado (Áreas Inclinadas até 55°)'],
       ['FAE PT-200', 'Triturador Autopropelido', '350 mm (35 cm)', 'Superficial / Tocos', '10.500 kg', '200 hp Cummins Turbo', 'Veículo Rastreado Florestal Pesado']
     ],
