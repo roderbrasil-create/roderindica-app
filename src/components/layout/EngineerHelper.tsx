@@ -33,6 +33,8 @@ import { useVoltarFecha } from '../../lib/useVoltarFecha';
 import { montarProntaEntrega, itemProntoDe, type ItemProntaEntrega } from '../../lib/prontaEntrega';
 import { CarrosselProntaEntrega, ListaProntaEntrega, AvisoProntaEntrega } from './ProntaEntregaConsultor';
 import { abrirDocumento } from '../../lib/abrirDocumento';
+import { videoDoEquipamento } from '../../lib/videoEquipamento';
+import { ContextoVideo, PlayerVideo } from '../video/VideoEquipamento';
 import {
   CHAVE_PARCEIRO_LINK, PAPEIS_QUE_INDICAM, TOKEN_LINK_VALIDO, WHATS_COMERCIAL, WHATS_COMERCIAL_TEXTO,
   lerCidadeUf, primeiroNome, querIndicar, textoLinkCliente, validarCnpj, validarTelefoneBR,
@@ -300,28 +302,7 @@ const PRODUCT_PDFS: Record<string, string> = {
   "Triturador / Desbastador FAE para Pá Carregadeira": "loader-fae"
 };
 
-const PRODUCT_VIDEOS: Record<string, string> = {
-  "CMF 600": "https://www.youtube.com/watch?v=0_u6eJ6-YnQ",
-  "CMF 500": "https://www.youtube.com/watch?v=Aof_7Q-fS1s",
-  "CMF 800": "https://www.youtube.com/watch?v=t5A9Tj_C9n4",
-  "GPR 4500": "https://www.youtube.com/watch?v=W0ybyuB9gB0",
-  "GPR 7000": "https://www.youtube.com/watch?v=W0ybyuB9gB0",
-  "R250": "https://www.youtube.com/watch?v=Kzqi_Cn2WG4",
-  "R280": "https://www.youtube.com/watch?v=Kzqi_Cn2WG4",
-  "R360": "https://www.youtube.com/watch?v=Kzqi_Cn2WG4",
-  "R360G": "https://www.youtube.com/watch?v=Kzqi_Cn2WG4",
-  "R400": "https://www.youtube.com/watch?v=Kzqi_Cn2WG4",
-  "R600": "https://www.youtube.com/watch?v=Kzqi_Cn2WG4",
-  "R800": "https://www.youtube.com/watch?v=Kzqi_Cn2WG4",
-  "SSH 150": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
-  "SSH 200": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
-  "SSH 225": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
-  "SSH 250": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
-  "SSH-150": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
-  "SSH-200": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
-  "SSH-225": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
-  "SSH-250": "https://www.youtube.com/watch?v=na5Z2tLWMgA"
-};
+// PRODUCT_VIDEOS mora em src/lib/videoEquipamento.ts (o mesmo mapa vale na página pública de orçamento)
 
 interface Message {
   id?: string;
@@ -671,6 +652,9 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   const parceiroViaLink = !logado ? parceiroLink : null;
   // Quem pode indicar pela conversa: o parceiro do link e quem cria indicação no app
   const podeIndicar = !!parceiroViaLink || (logado && !!profile && !isImpersonating && PAPEIS_QUE_INDICAM.includes(String(profile.role)));
+  // Vídeo do equipamento: quem indica também manda o vídeo e o link de orçamento (decisão do
+  // Jeferson em 19/10/2026: parceiro NÃO manda ficha, mas manda vídeo e link)
+  const permissaoVideo = React.useMemo(() => ({ podeCompartilhar: podeIndicar, token: parceiroViaLink?.token || undefined }), [podeIndicar, parceiroViaLink?.token]);
   const saudacaoParceiro = (nome: string) => `Olá, **${primeiroNome(nome) || 'parceiro'}**! Tire dúvidas ou indique um cliente.`;
   
   // If a registered seller or partner logged in, clear any external referral code
@@ -698,6 +682,8 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   const [isCabecoteGmt035FichaOpen, setIsCabecoteGmt035FichaOpen] = useState(false);
   // Ficha especial aberta pelo "Enviar ficha": o botão Enviar dela fica em destaque
   const [fichaParaEnviar, setFichaParaEnviar] = useState(false);
+  // vídeo aberto no painel de fotos do computador (toca ali mesmo, sem abrir outra aba)
+  const [videoPainel, setVideoPainel] = useState('');
   // Ficha padrão (todo equipamento sem ficha própria)
   const [fichaPadrao, setFichaPadrao] = useState<{ product: Product; model: ProductModel } | null>(null);
   // Regra do Jeferson: parceiro/indicador e consultor público só veem a ficha
@@ -3861,8 +3847,7 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                                   </p>
                                   <div className="flex flex-col gap-2 w-full">
                                     {matchedEquip.map(({ prod, model }) => {
-                                      const videoUrl = model.video_url || prod.video_url || PRODUCT_VIDEOS[model.name || ''] || PRODUCT_VIDEOS[prod.name || ''];
-                                      const videoValido = !!videoUrl && /^https?:\/\//.test(videoUrl) && !videoUrl.toLowerCase().includes('t_8n_nlf2xk');
+                                      const videoUrl = videoDoEquipamento(prod, model);
                                       const foto = fotoDoModelo(prod, model);
                                       return (
                                         <CartaoFicha
@@ -3873,7 +3858,9 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                                           onVer={() => verFicha(prod, model)}
                                           onEnviar={() => enviarFicha(prod, model)}
                                           onIndicar={() => handleMakeIndication(prod, model)}
-                                          onVideo={videoValido ? () => window.open(videoUrl, '_blank') : undefined}
+                                          video={videoUrl || undefined}
+                                          pid={prod.id}
+                                          mid={model.id}
                                         />
                                       );
                                     })}
@@ -5073,10 +5060,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
     if (selectedProduct && selectedModel) return { prod: selectedProduct, model: selectedModel };
     return null;
   })();
-  const videoDe = (prod: Product, model: ProductModel) => {
-    const v = model.video_url || prod.video_url || PRODUCT_VIDEOS[model.name || ''] || PRODUCT_VIDEOS[prod.name || ''];
-    return v && /^https?:\/\//.test(v) && !v.toLowerCase().includes('t_8n_nlf2xk') ? v : '';
-  };
+  const videoDe = (prod: Product, model: ProductModel) => videoDoEquipamento(prod, model);
   const nomeUsuario = (profile?.name || (logado ? '' : (parceiroViaLink?.nome || publicUser?.name)) || '').replace('Jefferson', 'Jeferson').split(' ').slice(0, 2).join(' ');
   const papelUsuario = logado && profile
     ? (podeEnviarFicha ? 'Equipe' : (profile.role as string) === 'external_seller' ? 'Parceiro' : '')
@@ -5245,11 +5229,13 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
             ))}
           </div>
         ) : <p className="text-[13.5px] text-[#5B6168]">Sem fotos cadastradas para este modelo.</p>}
-        {video && (
-          <button type="button" onClick={() => window.open(video, '_blank', 'noopener')} className="w-full h-11 rounded-xl bg-[#1B1E22] hover:bg-black text-[#fff] font-extrabold text-[14px] flex items-center justify-center gap-2 transition">
+        {video && (videoPainel === video ? (
+          <PlayerVideo url={video} titulo={tituloFicha(prod, model)} onFechar={() => setVideoPainel('')} pid={prod.id} mid={model.id} className="[&>div:first-child]:rounded-xl" />
+        ) : (
+          <button type="button" onClick={() => setVideoPainel(video)} className="w-full h-11 rounded-xl bg-[#1B1E22] hover:bg-black text-[#fff] font-extrabold text-[14px] flex items-center justify-center gap-2 transition">
             <Video className="h-4 w-4 text-red-500" /> Ver vídeo
           </button>
-        )}
+        ))}
       </div>
     );
   })() : (
@@ -5288,6 +5274,10 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
 @layer components{
 .ccel .ccel-icone{height:44px;width:44px;padding:0;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;transition:background-color .15s}
 .ccel .ccel-icone:active{background-color:rgba(255,255,255,.14)}
+.ccel header .ccel-icone{position:relative}
+.ccel .ccel-nome{display:block;max-width:min(110px,calc(50% - 170px))}
+@media (max-width:459px){.ccel .ccel-nome{display:none}}
+@media (max-width:419px){.ccel .ccel-minimizar{display:none}}
 .ccel .ccel-rotulo{font-size:11.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#5B6168;margin:0 2px 8px}
 .ccel .ccel-chip{height:44px;padding:0 16px;border-radius:999px;border:1px solid #DADDE1;background-color:#fff;color:#1B1E22;font-size:14.5px;font-weight:700;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;flex-shrink:0}
 .ccel .ccel-chip:active{background-color:#F3F4F6}
@@ -5510,7 +5500,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
 
 
   return (
-    <>
+    <ContextoVideo.Provider value={permissaoVideo}>
       {/* Viewport container to keep the draggable floating button fully inside the screen boundaries */}
       <div ref={dragContainerRef} className="fixed inset-0 pointer-events-none z-[44]" />
 
@@ -5627,11 +5617,18 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
             <style>{estiloPc + estiloCel}</style>
 
             {/* Barra do topo: logo, nova conversa e o menu com todas as ações */}
+            {/* "CONSULTOR" fica no centro exato da barra, qualquer que seja a largura da logo e dos
+                botões da direita (pedido do Jeferson em 19/10/2026). Para não encostar nele em tela
+                estreita: o nome some abaixo de 460px e, no painel flutuante, o "Minimizar" (que
+                também está no menu) some abaixo de 420px. */}
             <header className="relative z-20 shrink-0 bg-[#1B1E22] flex items-center gap-1 pl-3 pr-1.5 pb-1.5 pt-[calc(env(safe-area-inset-top,0px)+6px)] sm:pt-1.5">
-              <img src="/marca/roder-horizontal.png" alt="Roder" className="h-6 w-auto shrink-0 mix-blend-lighten" />
-              <span className="fonte-titulo ml-2 min-w-0 flex-1 truncate text-[16px] font-extrabold tracking-[0.06em] text-[#F6C400]">CONSULTOR</span>
+              <span className="ccel-titulo pointer-events-none absolute inset-x-0 bottom-1.5 h-11 flex items-center justify-center">
+                <span className="fonte-titulo text-[16px] font-extrabold tracking-[0.06em] text-[#F6C400] whitespace-nowrap">CONSULTOR</span>
+              </span>
+              <img src="/marca/roder-horizontal.png" alt="Roder" className="relative h-7 w-auto shrink-0 mix-blend-lighten" />
+              <span className="min-w-0 flex-1" />
               {isFullPage && primeiroNomeCel && (
-                <span className="max-w-[96px] truncate pr-1 text-[13px] font-medium text-[#C9CED4]" title={nomeUsuario}>{primeiroNomeCel}</span>
+                <span className="ccel-nome relative truncate pr-1 text-[13px] font-medium text-[#C9CED4]" title={nomeUsuario}>{primeiroNomeCel}</span>
               )}
               {isFullPage && (
                 <button type="button" onClick={handleClearConversation} title="Nova conversa" aria-label="Nova conversa" className="ccel-icone">
@@ -5643,7 +5640,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
               </button>
               {!isFullPage && (
                 <>
-                  <button type="button" onClick={() => setIsOpen(false)} title="Minimizar (mantém a conversa)" aria-label="Minimizar" className="ccel-icone">
+                  <button type="button" onClick={() => setIsOpen(false)} title="Minimizar (mantém a conversa)" aria-label="Minimizar" className="ccel-icone ccel-minimizar">
                     <ChevronDown className="h-5 w-5" />
                   </button>
                   <button type="button" onClick={handleEndConversation} title="Encerrar conversa" aria-label="Encerrar conversa" className="ccel-icone">
@@ -5657,6 +5654,11 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
               <>
                 <button type="button" aria-label="Fechar menu" onClick={() => setMenuCel(false)} className="absolute inset-0 z-30 h-auto w-auto p-0 bg-black/20 cursor-default" />
                 <div role="menu" className="absolute right-2 top-[calc(env(safe-area-inset-top,0px)+54px)] sm:top-[54px] z-40 w-[250px] max-w-[calc(100%-16px)] rounded-2xl bg-white border border-[#E2E5E8] shadow-[0_12px_32px_rgba(0,0,0,0.18)] py-1.5 overflow-hidden">
+                  {nomeUsuario && (
+                    <p className="m-0 px-4 pt-1.5 pb-2 mb-1 border-b border-[#ECEEF0] text-[13px] text-[#5B6168] truncate">
+                      <User className="inline h-4 w-4 -mt-0.5 mr-1.5 text-[#8A6500]" />{nomeUsuario}{papelUsuario ? ` · ${papelUsuario}` : ''}
+                    </p>
+                  )}
                   {[
                     { mostra: true, rotulo: 'Nova conversa', icone: RotateCcw, acao: handleClearConversation },
                     { mostra: true, rotulo: calcOpen ? 'Fechar calculadora' : 'Calculadora', icone: Calculator, acao: () => setCalcOpen(!calcOpen) },
@@ -6496,6 +6498,6 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
           </div>
         </div>
       )}
-    </>
+    </ContextoVideo.Provider>
   );
 }

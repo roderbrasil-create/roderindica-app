@@ -38,6 +38,7 @@ import { getStorage } from 'firebase-admin/storage';
 import { ACCESSORIES_DATA, INSTALLATION_KITS } from "./src/constants.js";
 import { registrarConsultorParceiro } from "./server/consultorParceiro";
 import { instrucaoPerfilConsultor } from "./server/consultorPerfil";
+import { injetarPrevia, previaPadrao, previaDoEquipamento, codigoLimpo } from "./server/previaLink";
 
 let __currentDir: string;
 try {
@@ -4685,21 +4686,18 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       const arquivo = indexPath && fs.existsSync(indexPath) ? indexPath : path.resolve(process.cwd(), 'dist', 'index.html');
       if (!fs.existsSync(arquivo)) return next();
       let html = fs.readFileSync(arquivo, 'utf8');
-      const codigo = String(req.params.codigo || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
-      let titulo = 'Roder Máquinas e Equipamentos';
-      let descricao = 'Fotos, vídeo, ficha técnica e orçamento.';
-      let imagem = `${SITE}/marca/roder-redondo-512.png`;
+      const codigo = codigoLimpo(req.params.codigo);
+      // código desconhecido ou equipamento apagado: fica a prévia padrão da Roder
+      let previa = previaPadrao(codigo);
       try {
-        const link = await db.collection('links_curtos').doc(codigo).get();
-        if (link.exists) {
+        const link = codigo ? await db.collection('links_curtos').doc(codigo).get() : null;
+        if (link && link.exists) {
           const l: any = link.data();
           const prod = await db.collection('products').doc(l.pid).get();
           if (prod.exists) {
             const p: any = prod.data();
             const m: any = (p.models || []).find((x: any) => x.id === l.mid) || null;
-            titulo = `${p.name}${m && !String(p.name).includes(m.name) ? ` ${m.name}` : ''} | Roder`;
-            const base = String(m?.technical_specs?.maquina_base || '').trim();
-            descricao = base ? `Para ${/carregadeira|engate/i.test(p.name) ? 'pá carregadeira' : 'escavadeiras'} de ${base.replace(/\s*ton\.?$/i, ' t')}. Fotos, vídeo, ficha e orçamento.` : descricao;
+            let imagem = '';
             // A prévia do WhatsApp só mostra a foto se o endereço responder com uma imagem.
             // Foto morta (endereço antigo do AI Studio, Storage que não existia) deixava a
             // mensagem sem foto: agora usa a primeira que realmente abre.
@@ -4714,17 +4712,11 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
               }
               fotoDaPrevia.set(codigo, { url: imagem, ate: Date.now() + 3600_000 });
             }
+            previa = previaDoEquipamento(codigo, p, m, imagem);
           }
         }
       } catch (e) { /* sem prévia, a página abre do mesmo jeito */ }
-      const meta = `<meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Roder Máquinas e Equipamentos" />
-    <meta property="og:title" content="${escHtml(titulo)}" />
-    <meta property="og:description" content="${escHtml(descricao)}" />
-    <meta property="og:image" content="${escHtml(imagem)}" />
-    <meta property="og:url" content="${SITE}/o/${codigo}" />
-    <meta name="twitter:card" content="summary_large_image" />`;
-      html = html.replace(/<title>[^<]*<\/title>/, () => `<title>${escHtml(titulo)}</title>\n    ${meta}`);
+      html = injetarPrevia(html, previa);
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.type('html').send(html);
     } catch (e) {

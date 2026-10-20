@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { PlayerVideo } from '../video/VideoEquipamento';
 import { FileText, Send, CheckCircle, Video } from 'lucide-react';
 
 interface CartaoFichaProps {
@@ -10,10 +11,16 @@ interface CartaoFichaProps {
   onEnviar: () => void;
   onIndicar?: () => void;
   onVideo?: () => void;
+  // vídeo cadastrado: toca dentro do cartão (com o envio para quem pode compartilhar)
+  video?: string;
+  pid?: string;
+  mid?: string;
 }
 
 // Cartão do equipamento citado na resposta do consultor: foto, nome e a ficha em PDF
-export function CartaoFicha({ titulo, imagem, podeEnviar, onVer, onEnviar, onIndicar, onVideo }: CartaoFichaProps) {
+export function CartaoFicha({ titulo, imagem, podeEnviar, onVer, onEnviar, onIndicar, onVideo, video, pid, mid }: CartaoFichaProps) {
+  const [tocando, setTocando] = useState(false);
+  const abrirVideo = video ? () => setTocando(v => !v) : onVideo;
   return (
     <div className="w-full rounded-xl border border-slate-700/80 bg-slate-900/70 overflow-hidden text-left">
       <div className="flex gap-3 p-2.5 items-center">
@@ -43,7 +50,7 @@ export function CartaoFicha({ titulo, imagem, podeEnviar, onVer, onEnviar, onInd
           </button>
         )}
       </div>
-      {(onIndicar || onVideo) && (
+      {(onIndicar || abrirVideo) && (
         <div className="flex gap-1.5 px-2.5 pb-2.5 -mt-0.5">
           {onIndicar && (
             <button
@@ -54,16 +61,19 @@ export function CartaoFicha({ titulo, imagem, podeEnviar, onVer, onEnviar, onInd
               <CheckCircle className="h-3 w-3" /> Indicar
             </button>
           )}
-          {onVideo && (
+          {abrirVideo && (
             <button
               type="button"
-              onClick={onVideo}
+              onClick={abrirVideo}
               className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-black uppercase text-[10px] h-8 px-2.5 rounded-lg transition"
             >
-              <Video className="h-3 w-3 text-red-500" /> Vídeo
+              <Video className="h-3 w-3 text-red-500" /> {tocando ? 'Fechar vídeo' : 'Ver vídeo'}
             </button>
           )}
         </div>
+      )}
+      {tocando && video && (
+        <PlayerVideo url={video} titulo={titulo} onFechar={() => setTocando(false)} pid={pid} mid={mid} className="px-2.5 pb-2.5 [&>div:first-child]:rounded-lg" />
       )}
     </div>
   );

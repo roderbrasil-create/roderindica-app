@@ -5,6 +5,7 @@
 // nada de preço.
 import { frasePara, perfilInstalacao } from './instalacao';
 import { tituloFicha } from './tituloFicha';
+import { videoDoEquipamento } from './videoEquipamento';
 
 export type ItemProntaEntrega = {
   chave: string; // `${produto.id}:${modelo.id}`
@@ -13,6 +14,7 @@ export type ItemProntaEntrega = {
   nome: string;
   foto?: string;
   para: string; // "Para escavadeiras de 12 a 18 t"
+  video?: string; // vídeo cadastrado do modelo/produto (toca só depois do toque)
 };
 
 const so = (t: any) => String(t || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -42,7 +44,7 @@ export function montarProntaEntrega(estoque: any[], produtos: any[], limite = 10
         const nome = tituloFicha(p, m);
         const foto = (m.images || []).find((i: string) => i && !/\.run\.app\//.test(i)) || m.image_url || p.image_url;
         const specs = m.technical_specs || {};
-        achados.push({ chave, produto: p, modelo: m, nome, foto, para: frasePara(perfilInstalacao(`${p.name} ${m.name}`, specs), `${p.name} ${m.name}`, specs.maquina_base) });
+        achados.push({ chave, produto: p, modelo: m, nome, foto, video: videoDoEquipamento(p, m) || undefined, para: frasePara(perfilInstalacao(`${p.name} ${m.name}`, specs), `${p.name} ${m.name}`, specs.maquina_base) });
       }
     }
   }
