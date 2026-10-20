@@ -352,7 +352,6 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
     senderEmail: 'vendas@roderbrasil.com.br'
   });
   const [notificationSettings, setNotificationSettings] = useState({
-    new_indication_admin: true,
     confirmation_partner: true,
     status_change_partner: true,
     budget_upload_client: false, // Default is false, decision by seller
@@ -1639,101 +1638,6 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
     }
   };
 
-  const handleQuickInviteRogerio = async () => {
-    const rogerioEmail = 'rogerio@roderbrasil.com.br';
-    const existing = users.find(u => u.email === rogerioEmail);
-    
-    if (existing) {
-      toast.info('Rogério já está cadastrado!');
-      handleShareAccess(existing);
-      return;
-    }
-
-    try {
-      const tempId = `rogerio_${Date.now()}`;
-      const rogerioData: UserProfile = {
-        uid: tempId,
-        name: 'Rogério',
-        email: rogerioEmail,
-        phone: '14998665110',
-        role: 'manager',
-        status: 'active',
-        created_at: new Date().toISOString(),
-      };
-
-      await setDoc(doc(db, 'users', tempId), rogerioData);
-      toast.success('Rogério cadastrado com sucesso!');
-      handleShareAccess(rogerioData);
-    } catch (error) {
-      console.error('Error inviting Rogério:', error);
-      toast.error('Erro ao cadastrar Rogério.');
-    }
-  };
-
-  const handleQuickInviteLuana = async () => {
-    const luanaEmail = 'contato@roderbrasil.com.br';
-    const existing = users.find(u => u.email === luanaEmail);
-    if (existing) { toast.info('Luana já está cadastrada!'); handleShareAccess(existing); return; }
-    try {
-      const tempId = `luana_${Date.now()}`;
-      const luanaData: UserProfile = {
-        uid: tempId, name: 'Luana Camargo', email: luanaEmail, phone: '', role: 'triagem',
-        status: 'active', created_at: new Date().toISOString(), is_lead_receiver: true
-      };
-      await setDoc(doc(db, 'users', tempId), luanaData);
-      toast.success('Luana cadastrada com sucesso!');
-      handleShareAccess(luanaData);
-    } catch (error) { toast.error('Erro ao cadastrar Luana.'); }
-  };
-
-  const handleQuickInviteGislene = async () => {
-    const gisleneEmail = 'gislene@roderbrasil.com.br';
-    const existing = users.find(u => u.email === gisleneEmail);
-    if (existing) { toast.info('Gislene já está cadastrada!'); handleShareAccess(existing); return; }
-    try {
-      const tempId = `gislene_${Date.now()}`;
-      const gisleneData: UserProfile = {
-        uid: tempId, name: 'Gislene', email: gisleneEmail, phone: '', role: 'manager',
-        status: 'active', created_at: new Date().toISOString()
-      };
-      await setDoc(doc(db, 'users', tempId), gisleneData);
-      toast.success('Gislene cadastrada com sucesso!');
-      handleShareAccess(gisleneData);
-    } catch (error) { toast.error('Erro ao cadastrar Gislene.'); }
-  };
-
-  const handleQuickInviteMonali = async () => {
-    const email = 'monali@roderbrasil.com.br';
-    const existing = users.find(u => u.email === email);
-    if (existing) { toast.info('Monalí já está cadastrada!'); handleShareAccess(existing); return; }
-    try {
-      const tempId = `monali_${Date.now()}`;
-      const data: UserProfile = {
-        uid: tempId, name: 'Monalí Souza', email: email, phone: '14998115211', role: 'internal_seller',
-        status: 'active', created_at: new Date().toISOString(), city: 'Pardinho', state: 'SP', is_commissionable: false
-      };
-      await setDoc(doc(db, 'users', tempId), data);
-      toast.success('Monalí cadastrada com sucesso!');
-      handleShareAccess(data);
-    } catch (error) { toast.error('Erro ao cadastrar Monalí.'); }
-  };
-
-  const handleQuickInviteHeloisa = async () => {
-    const email = 'heloisa@roderbrasil.com.br';
-    const existing = users.find(u => u.email === email);
-    if (existing) { toast.info('Heloisa já está cadastrada!'); handleShareAccess(existing); return; }
-    try {
-      const tempId = `heloisa_${Date.now()}`;
-      const data: UserProfile = {
-        uid: tempId, name: 'Heloisa Laira', email: email, phone: '14996305110', role: 'internal_seller',
-        status: 'active', created_at: new Date().toISOString(), city: 'Pardinho', state: 'SP', is_commissionable: false
-      };
-      await setDoc(doc(db, 'users', tempId), data);
-      toast.success('Heloisa cadastrada com sucesso!');
-      handleShareAccess(data);
-    } catch (error) { toast.error('Erro ao cadastrar Heloisa.'); }
-  };
-
   const filteredUsers = users.filter(u => {
     // Escopo da Luana/Triagem e Gerência Comercial: Vendedores e Triagem
     if ((isManager || isTriagem) && !isAdmin) {
@@ -1862,39 +1766,46 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                 <p className="text-xs text-muted-foreground hidden sm:block">
                   {isUsersView 
                     ? 'Gerencie perfis, acessos e status dos usuários do sistema.' 
-                    : 'Gerencie metas, envio de e-mails, instruções, monitoramento e conectividade offline.'}
+                    : 'Gerencie metas, envio de e-mails e monitoramento.'}
                 </p>
               </div>
             </div>
             
             {isUsersView && (
               <div className="flex gap-2">
-                <Button 
-                  onClick={mergeDuplicateUsers} 
-                  variant="outline" 
-                  size="sm" 
-                  disabled={isMerging}
-                  className="border-orange-500 text-orange-500 hover:bg-orange-500/5 text-[10px] h-8 px-4 font-bold uppercase tracking-wider flex shrink-0"
-                >
-                  {isMerging ? (
-                    <span className="flex items-center gap-1">
-                      <span className="animate-spin h-3 w-3 border-2 border-orange-500 border-t-transparent rounded-full" />
-                      Unificando...
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1">
-                      <Users className="h-3 w-3" /> Unificar Duplicados
-                    </span>
-                  )}
-                </Button>
-                <Button 
-                  onClick={syncAllExternalSellersPermissions} 
-                  variant="outline" 
-                  size="sm" 
-                  className="border-primary text-primary hover:bg-primary/5 text-[10px] h-8 px-4 font-bold uppercase tracking-wider hidden sm:flex shrink-0"
-                >
-                  <Shield className="h-3 w-3 mr-1" /> Resetar Vendedores
-                </Button>
+                <details className="relative shrink-0 group">
+                  <summary className="list-none cursor-pointer inline-flex items-center rounded-md border border-border bg-background hover:bg-accent text-[10px] h-8 px-4 font-bold uppercase tracking-wider select-none [&::-webkit-details-marker]:hidden">
+                    Ferramentas
+                  </summary>
+                  <div className="absolute right-0 z-20 mt-1 flex flex-col gap-2 rounded-md border border-border bg-card p-2 shadow-lg w-max">
+                    <Button 
+                      onClick={mergeDuplicateUsers} 
+                      variant="outline" 
+                      size="sm" 
+                      disabled={isMerging}
+                      className="border-orange-500 text-orange-500 hover:bg-orange-500/5 text-[10px] h-8 px-4 font-bold uppercase tracking-wider"
+                    >
+                      {isMerging ? (
+                        <span className="flex items-center gap-1">
+                          <span className="animate-spin h-3 w-3 border-2 border-orange-500 border-t-transparent rounded-full" />
+                          Unificando...
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1">
+                          <Users className="h-3 w-3" /> Unificar Duplicados
+                        </span>
+                      )}
+                    </Button>
+                    <Button 
+                      onClick={syncAllExternalSellersPermissions} 
+                      variant="outline" 
+                      size="sm" 
+                      className="border-primary text-primary hover:bg-primary/5 text-[10px] h-8 px-4 font-bold uppercase tracking-wider"
+                    >
+                      <Shield className="h-3 w-3 mr-1" /> Resetar Vendedores
+                    </Button>
+                  </div>
+                </details>
                 <Button onClick={() => { resetForm(); setDialogTab('general'); setIsDialogOpen(true); }} size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground text-[10px] h-8 px-4 font-bold uppercase tracking-wider shadow-sm shrink-0">
                   <UserPlus className="h-3 w-3 mr-1" /> Novo Usuário
                 </Button>
@@ -1905,21 +1816,6 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
           {/* Quick Invite Badges positioned at the top for users view */}
           {isUsersView && (
             <div className="flex overflow-x-auto pb-1 -mx-1 px-1 gap-2 no-scrollbar">
-              <Button onClick={handleQuickInviteRogerio} variant="outline" size="sm" className="border-green-600/30 text-green-600 bg-green-500/5 hover:bg-green-600/10 font-bold shrink-0 text-[10px] h-8 px-3">
-                <Plus className="h-3 w-3 mr-1" /> Rogério
-              </Button>
-              <Button onClick={handleQuickInviteLuana} variant="outline" size="sm" className="border-blue-600/30 text-blue-600 bg-blue-500/5 hover:bg-blue-600/10 font-bold shrink-0 text-[10px] h-8 px-3">
-                <Plus className="h-3 w-3 mr-1" /> Luana
-              </Button>
-              <Button onClick={handleQuickInviteGislene} variant="outline" size="sm" className="border-purple-600/30 text-purple-600 bg-purple-500/5 hover:bg-purple-600/10 font-bold shrink-0 text-[10px] h-8 px-3">
-                <Plus className="h-3 w-3 mr-1" /> Gislene
-              </Button>
-              <Button onClick={handleQuickInviteMonali} variant="outline" size="sm" className="border-orange-600/30 text-orange-600 bg-orange-50/50 hover:bg-orange-600/10 font-bold shrink-0 text-[10px] h-8 px-3">
-                <Plus className="h-3 w-3 mr-1" /> Monalí
-              </Button>
-              <Button onClick={handleQuickInviteHeloisa} variant="outline" size="sm" className="border-pink-600/30 text-pink-600 bg-pink-500/5 hover:bg-pink-600/10 font-bold shrink-0 text-[10px] h-8 px-3">
-                <Plus className="h-3 w-3 mr-1" /> Heloisa
-              </Button>
               <Link to="/contrato?preview=true" target="_blank" className="inline-flex items-center justify-center rounded-md text-[10px] font-bold border border-border bg-background hover:bg-accent h-8 px-3 shrink-0">
                 <FileText className="h-3 w-3 mr-1" /> Contrato
               </Link>
@@ -2214,32 +2110,6 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                           <td className="px-2 py-4 text-right">
                             {(isAdmin || ((isManager || isTriagem) && ['external_seller', 'internal_seller', 'triagem'].includes(user.role as string))) && (
                               <div className="flex justify-end gap-0.5">
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon" 
-                                  className="h-7 w-7 text-blue-500 hover:bg-blue-500/10"
-                                  onClick={async () => {
-                                    if (!window.confirm(`Deseja restaurar as permissões padrão para ${user.name}? Isso pode resolver problemas de acesso a menus.`)) return;
-                                    try {
-                                      const defaults = ROLE_DEFAULTS[user.role] || ROLE_DEFAULTS.external_seller;
-                                      const sidebar: Record<string, boolean> = {};
-                                      sidebarItems.forEach(i => sidebar[i.id] = defaults.sidebar.includes(i.id));
-                                      const dashboard_cards: Record<string, boolean> = {};
-                                      dashboardCards.forEach(c => dashboard_cards[c.id] = defaults.dashboard.includes(c.id));
-                                      
-                                      await updateDoc(doc(db, 'users', user.uid), {
-                                        permissions: { sidebar, dashboard_cards },
-                                        updated_at: new Date().toISOString()
-                                      });
-                                      toast.success('Permissões restauradas com sucesso.');
-                                    } catch (e: any) {
-                                      toast.error('Erro ao restaurar: ' + e.message);
-                                    }
-                                  }}
-                                  title="Restaurar Permissões Padrão"
-                                >
-                                  <RefreshCw className="h-3.5 w-3.5" />
-                                </Button>
                                 <Button 
                                   variant="ghost" 
                                   size="icon" 
@@ -2629,83 +2499,6 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                           </div>
                         </div>
                       )}
-
-                      <div className="flex items-center justify-between p-3 rounded-lg bg-background border border-border">
-                        <div className="space-y-0.5">
-                          <Label className="text-sm">Nova Indicação (Admin)</Label>
-                          <p className="text-[10px] text-muted-foreground">Avisar gestores sobre novos leads.</p>
-                        </div>
-                        <Switch 
-                          checked={notificationSettings.new_indication_admin} 
-                          onCheckedChange={(v) => setNotificationSettings({...notificationSettings, new_indication_admin: v})}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 rounded-lg bg-background border border-border">
-                        <div className="space-y-0.5">
-                          <Label className="text-sm">Confirmação de Recebimento (Parceiro)</Label>
-                          <p className="text-[10px] text-muted-foreground">Avisar o indicador que sua indicação foi recebida.</p>
-                        </div>
-                        <Switch 
-                          checked={notificationSettings.confirmation_partner} 
-                          onCheckedChange={(v) => setNotificationSettings({...notificationSettings, confirmation_partner: v})}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 rounded-lg bg-background border border-border">
-                        <div className="space-y-0.5">
-                          <Label className="text-sm">Mudança de Status (Parceiro)</Label>
-                          <p className="text-[10px] text-muted-foreground">Avisar o indicador quando o lead avança.</p>
-                        </div>
-                        <Switch 
-                          checked={notificationSettings.status_change_partner} 
-                          onCheckedChange={(v) => setNotificationSettings({...notificationSettings, status_change_partner: v})}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 rounded-lg bg-background border border-border">
-                        <div className="space-y-0.5">
-                          <Label className="text-sm">Comissão Aprovada</Label>
-                          <p className="text-[10px] text-muted-foreground">Avisar o parceiro que o pagamento foi liberado.</p>
-                        </div>
-                        <Switch 
-                          checked={notificationSettings.commission_approved_partner} 
-                          onCheckedChange={(v) => setNotificationSettings({...notificationSettings, commission_approved_partner: v})}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 rounded-lg bg-background border border-border">
-                        <div className="space-y-0.5">
-                          <Label className="text-sm">Relatório Mensal (Diretoria/Gestão)</Label>
-                          <p className="text-[10px] text-muted-foreground">Resumo completo enviado no dia 1º.</p>
-                        </div>
-                        <Switch 
-                          checked={notificationSettings.monthly_report_directors} 
-                          onCheckedChange={(v) => setNotificationSettings({...notificationSettings, monthly_report_directors: v})}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 rounded-lg bg-background border border-border">
-                        <div className="space-y-0.5">
-                          <Label className="text-sm">Relatório Mensal (Indicadores)</Label>
-                          <p className="text-[10px] text-muted-foreground">Extrato de comissões por parceiro (dia 1-5).</p>
-                        </div>
-                        <Switch 
-                          checked={notificationSettings.monthly_report_partners} 
-                          onCheckedChange={(v) => setNotificationSettings({...notificationSettings, monthly_report_partners: v})}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 rounded-lg bg-background border border-border">
-                        <div className="space-y-0.5">
-                          <Label className="text-sm">Lembrete de Pagamento (Financeiro)</Label>
-                          <p className="text-[10px] text-muted-foreground">Total de comissões a pagar, enviado no dia 7.</p>
-                        </div>
-                        <Switch 
-                          checked={!!notificationSettings.payment_reminder_finance} 
-                          onCheckedChange={(v) => setNotificationSettings({...notificationSettings, payment_reminder_finance: v})}
-                        />
-                      </div>
 
                       <div className="space-y-2 pt-2">
                         <Label htmlFor="director_emails" className="text-xs">E-mails da Diretoria (Separados por vírgula)</Label>

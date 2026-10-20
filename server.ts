@@ -44,6 +44,7 @@ import { injetarPrevia, previaPadrao, previaDoEquipamento, codigoLimpo, SITE_PRE
 import { criarImagemPrevia, candidatasDoLink, urlImagemPrevia, MAX_ORIGEM_BYTES, PASTA_CACHE } from "./server/previaImagem";
 import { fotosExternas, RodadaEmAndamento } from "./server/fotosExternas";
 import { registrarDiagnosticoComissao, moverComissoesDoProvisorio, loteEmPartes } from "./server/diagnosticoComissao";
+import { garantirEmailsLigados } from "./server/emailsSempreLigados";
 import { relatorioDiretoriaDia1, relatorioParceirosDia1, lembreteNfDia5, lembreteFinanceiroDia7, ligarEmailsComissaoUmaVez } from "./server/relatoriosComissao";
 
 let __currentDir: string;
@@ -5873,6 +5874,8 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     setTimeout(() => { if (db) backfillDonoIndicacoes(); }, 8000);
     // liga os três e-mails de comissão uma vez só (trava em cron_locks; depois vale o que estiver na tela)
     setTimeout(() => { if (db) ligarEmailsComissaoUmaVez(db).catch(() => {}); }, 9000);
+    // os seis avisos por e-mail não têm mais interruptor na tela: ficam sempre ligados
+    setTimeout(() => { if (db) garantirEmailsLigados(db).catch(() => {}); }, 12000);
 
     // Auto-heal Luana Camargo user profile in Firestore
     setTimeout(async () => {
