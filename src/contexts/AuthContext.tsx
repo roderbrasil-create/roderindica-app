@@ -6,7 +6,7 @@ import {
   GoogleAuthProvider, 
   signInWithPopup
 } from 'firebase/auth';
-import { doc, onSnapshot, collection, query, where, writeBatch, getDocs, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { auth, db, reivindicarPerfilDetalhado, loginComSenhaEmAndamento } from '../lib/firebase';
 import { UserProfile, UserRole } from '../types';
@@ -109,14 +109,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (cachedProfile && !impersonatedProfile) {
         try {
           const parsed = JSON.parse(cachedProfile);
-          if (parsed && parsed.name && parsed.name.includes('Jefferson')) {
-            const userEmail = parsed.email?.toLowerCase() || '';
-            if (userEmail === 'roderbrasil@gmail.com' || userEmail === 'roderindica@gmail.com' || userEmail === 'jefferson@roderbrasil.com.br' || userEmail === 'jeferson@roderbrasil.com.br') {
-              console.log("Self-healing Jeferson's name spelling in local cache...");
-              parsed.name = parsed.name.replace('Jefferson', 'Jeferson');
-              localStorage.setItem('roder_profile_cache', JSON.stringify(parsed));
-            }
-          }
           setProfile(parsed);
         } catch (e) {
           localStorage.removeItem('roder_profile_cache');
@@ -214,114 +206,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
-        // 1. One-time check/migration logic for Email (resolving accent differences & duplicates)
-        if (user.email) {
-          try {
-            const targetEmail = user.email.toLowerCase().trim();
-            // Use a secure filtered query that regular users have permission to execute
-            const q = query(collection(db, 'users'), where('email', '==', targetEmail));
-            const querySnapshot = await getDocs(q);
-            
-            let tempProfileDocs: any[] = [];
-            let realProfileDoc: any = null;
-            
-            for (const docSnap of querySnapshot.docs) {
-              if (docSnap.id === user.uid) {
-                realProfileDoc = docSnap;
-              } else {
-                tempProfileDocs.push(docSnap);
-              }
-            }
-            
-            if (tempProfileDocs.length > 0) {
-              const batch = writeBatch(db);
-              const realRef = doc(db, 'users', user.uid);
-              
-              let mergedProfile: any = {};
-              if (realProfileDoc) {
-                mergedProfile = { ...realProfileDoc.data() };
-              }
-              
-              for (const tempDoc of tempProfileDocs) {
-                const tempData = tempDoc.data();
-                
-                // Keep the strongest role (admin, manager, triagem, etc.)
-                const rolesPriority = ['admin', 'manager', 'financial', 'triagem', 'internal_seller', 'marketing', 'vendedor_padrao', 'external_seller', ''];
-                const currentRoleIdx = rolesPriority.indexOf(mergedProfile.role || '');
-                const tempRoleIdx = rolesPriority.indexOf(tempData.role || '');
-                const bestRole = (currentRoleIdx !== -1 && tempRoleIdx !== -1 && tempRoleIdx < currentRoleIdx)
-                  ? tempData.role
-                  : (mergedProfile.role || tempData.role || 'internal_seller');
-                
-                // Preserve lead receiver status
-                const isLeadReceiver = mergedProfile.is_lead_receiver || tempData.is_lead_receiver || false;
-
-                // Merge permissions specifically to ensure they aren't lost
-                const currentPermissions = mergedProfile.permissions || {};
-                const tempPermissions = tempData.permissions || {};
-                const mergedPermissions = {
-                  sidebar: { ...(tempPermissions.sidebar || {}), ...(currentPermissions.sidebar || {}) },
-                  dashboard_cards: { ...(tempPermissions.dashboard_cards || {}), ...(currentPermissions.dashboard_cards || {}) }
-                };
-                
-                mergedProfile = {
-                  ...tempData,
-                  ...mergedProfile, // keep realProfile info if any over temp
-                  role: bestRole,
-                  is_lead_receiver: isLeadReceiver,
-                  permissions: mergedPermissions,
-                  uid: user.uid,
-                  status: 'active',
-                  updated_at: new Date().toISOString()
-                };
-                
-                batch.delete(doc(db, 'users', tempDoc.id));
-                
-                // Keep historical references updated (indications & fair_leads matching temp ID)
-                try {
-                  const indQ = query(collection(db, 'indications'), where('internal_seller_uid', '==', tempDoc.id));
-                  const indSnap = await getDocs(indQ);
-                  indSnap.forEach(indDoc => {
-                    batch.update(doc(db, 'indications', indDoc.id), {
-                      internal_seller_uid: user.uid,
-                      updated_at: new Date().toISOString()
-                    });
-                  });
-
-                  const indQ2 = query(collection(db, 'indications'), where('assigned_to_uid', '==', tempDoc.id));
-                  const indSnap2 = await getDocs(indQ2);
-                  indSnap2.forEach(indDoc => {
-                    batch.update(doc(db, 'indications', indDoc.id), {
-                      assigned_to_uid: user.uid,
-                      updated_at: new Date().toISOString()
-                    });
-                  });
-
-                  const fairQ = query(collection(db, 'fair_leads'), where('assigned_to_uid', '==', tempDoc.id));
-                  const fairSnap = await getDocs(fairQ);
-                  fairSnap.forEach(fairDoc => {
-                    batch.update(doc(db, 'fair_leads', fairDoc.id), {
-                      assigned_to_uid: user.uid,
-                      updated_at: new Date().toISOString()
-                    });
-                  });
-                } catch (updateRefErr) {
-                  console.error("Non-blocking reference update error during login merge:", updateRefErr);
-                }
-              }
-              
-              // senha inicial e data dela não vão para o próprio cadastro (as regras recusam)
-              delete mergedProfile.initial_password;
-              delete mergedProfile.initial_password_set_at;
-              batch.set(realRef, mergedProfile);
-              await batch.commit();
-              console.log("Successfully merged duplicate/temp profile in AuthContext for:", user.email);
-              userDocExists = true;
-            }
-          } catch (mergeErr) {
-            console.error("Non-blocking profile merge error:", mergeErr);
-          }
-        }
+        // A junção do pré-cadastro (por e-mail) acontece só no servidor, no passo 0 acima. A cópia que
+        // havia aqui juntava QUALQUER users/ com o mesmo e-mail e forçava "active" no navegador; com
+        // o cadastro de usuário aberto no Firebase isso deixava um cadastro forjado virar ativo.
 
         if (!isMounted) return;
 
@@ -334,74 +221,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const userEmail = user.email?.toLowerCase() || '';
             const displayName = (user.displayName || profileData.name || '').toLowerCase();
 
-            // Correct name spelling for Jeferson Roder (only one F)
-            if ((userEmail === 'roderbrasil@gmail.com' || userEmail === 'roderindica@gmail.com' || userEmail === 'jefferson@roderbrasil.com.br' || userEmail === 'jeferson@roderbrasil.com.br') && 
-                profileData.name && (profileData.name.includes('Jefferson') || profileData.name === 'Admin')) {
-              console.log("Self-healing Jeferson's name spelling in Firestore user profile...");
-              const correctedName = profileData.name.replace('Jefferson', 'Jeferson');
-              profileData.name = correctedName;
-              localStorage.setItem('roder_profile_cache', JSON.stringify(profileData));
-              updateDoc(doc(db, 'users', user.uid), {
-                name: correctedName,
-                updated_at: new Date().toISOString()
-              }).catch(err => {
-                console.error("Failed to update Jeferson's name in Firestore:", err);
-              });
-            }
-
-            // Self-healing display name for Luana Camargo (contato@roderbrasil.com.br / luana@roderbrasil.com.br)
-            const isLuana = userEmail === 'contato@roderbrasil.com.br' || 
-                            userEmail === 'luana@roderbrasil.com.br' || 
-                            userEmail === 'luana@roder.com.br' ||
-                            (profileData.name && (profileData.name.includes('Contato_Roder') || profileData.name.includes('Contato Roder')));
-            if (isLuana && profileData.name !== 'Luana Camargo') {
-              console.log("Self-healing Luana Camargo's display name in Firestore user profile...");
-              profileData.name = 'Luana Camargo';
-              localStorage.setItem('roder_profile_cache', JSON.stringify(profileData));
-              updateDoc(doc(db, 'users', user.uid), {
-                name: 'Luana Camargo',
-                updated_at: new Date().toISOString()
-              }).catch(err => {
-                console.error("Failed to update Luana's name in Firestore:", err);
-              });
-            }
-
-            // Self-healing for Vanessa Camargo if her role got corrupted/incorrectly-guessed as internal_seller or anything else
             // só e-mail da Roder: antes um parceiro com "finance" ou "vanessa" no e-mail virava financeiro sozinho
             const isVanessaOrFinance = userEmail.endsWith('@roderbrasil.com.br') && (userEmail.includes('vanessa') || userEmail.includes('finance'));
-            
-            const fDefaults = {
-              sidebar: ['dashboard', 'products_stock', 'products_registered', 'accessories', 'finance', 'reports', 'profile'],
-              dashboard_cards: ['stats', 'commissions_summary', 'goals', 'recent_indications', 'conversion_ranking', 'manager_financial', 'equipment_banner', 'quick_actions']
-            };
 
-            const hasLackingPermissions = !profileData.permissions?.sidebar || 
-                                          !fDefaults.sidebar.every(k => profileData.permissions.sidebar[k] === true) ||
-                                          !profileData.permissions?.dashboard_cards ||
-                                          !fDefaults.dashboard_cards.every(k => profileData.permissions.dashboard_cards[k] === true);
-
-            if (isVanessaOrFinance && 
-                profileData.role !== 'admin' && 
-                profileData.role !== 'manager' && 
-                (profileData.role !== 'financial' || hasLackingPermissions)) {
-              console.log("Self-healing Vanessa's profile to financial with full permissions...");
-              const fPermissions = {
-                sidebar: fDefaults.sidebar.reduce((acc, item) => ({ ...acc, [item]: true }), {}),
-                dashboard_cards: fDefaults.dashboard_cards.reduce((acc, item) => ({ ...acc, [item]: true }), {})
-              };
-              const { updateDoc } = await import('firebase/firestore');
-              // com as regras novas a pessoa não muda o próprio papel; se recusar, segue com o perfil atual
-              try {
-                await updateDoc(doc(db, 'users', user.uid), {
-                  role: 'financial',
-                  permissions: fPermissions,
-                  updated_at: new Date().toISOString()
-                });
-                return;
-              } catch (e) {
-                console.warn('[AUTH] ajuste automático do financeiro recusado:', e);
-              }
-            }
             const isExplicitMasterAdmin = [
               'roderbrasil@gmail.com',
               'roderindica@gmail.com',
@@ -451,41 +273,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               'luana@roderbrasil.com.br'
             ].includes(userEmail);
 
-            // Step A: Check if this user was pre-registered in users collection by email
-            let foundByEmail = false;
-            if (userEmail) {
-              try {
-                const q = query(collection(db, 'users'), where('email', '==', userEmail));
-                const querySnapshot = await getDocs(q);
-                if (!querySnapshot.empty) {
-                  const docs = querySnapshot.docs;
-                  let mergedData: any = {};
-                  for (const d of docs) {
-                    mergedData = { ...d.data(), ...mergedData };
-                  }
-                  delete mergedData.initial_password;
-                  delete mergedData.initial_password_set_at;
-                  const { setDoc, deleteDoc } = await import('firebase/firestore');
-                  for (const d of docs) {
-                    if (d.id !== user.uid) {
-                      await deleteDoc(doc(db, 'users', d.id));
-                    }
-                  }
-                  await setDoc(doc(db, 'users', user.uid), {
-                    ...mergedData,
-                    uid: user.uid,
-                    status: mergedData.status || 'active',
-                    updated_at: new Date().toISOString()
-                  });
-                  foundByEmail = true;
-                  return; // snapshot will trigger again with exists() = true
-                }
-              } catch (lookupErr) {
-                console.warn("[AUTH] Error checking pre-registered email:", lookupErr);
-              }
-            }
+            // (a busca de pré-cadastro por e-mail é do servidor: reivindicar-perfil, no passo 0)
 
-            // Step B: If not pre-registered, only Master Admins are allowed to auto-initialize
+            // Sem pré-cadastro (o servidor já tentou), só os Master Admins are allowed to auto-initialize
             if (isExplicitMasterAdmin) {
               console.log("Auto-initializing master admin profile for:", userEmail);
               try {

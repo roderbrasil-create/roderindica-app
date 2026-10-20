@@ -179,6 +179,8 @@ const NavItemComponent = React.memo(({
                   if (role === 'external_seller') return isExternalSeller;
                   if (role === 'financial' || role === 'finance') return isFinancial;
                   if (role === 'marketing') return isMarketing;
+                  // financeiro e fiscal de verdade, sem admin (que já vê a Central de Negócios)
+                  if (role === 'somente_financeiro') return ['financial', 'fiscal', 'finance'].includes(String(profile?.role));
                   return profile?.role === role;
                 });
               }).map((subItem) => (
@@ -320,7 +322,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     const isFairsPath = path.startsWith('/feiras') || path === '/cadastro-rapido';
     const isFinancialPath = path === '/comissoes' || path === '/consulta-financeira' || path.startsWith('/financeiro');
     const isComercialPath = path.startsWith('/comercial');
-    const isTechnicalPath = path === '/dossie' || path === '/relatorios-ia' || path === '/manual-ia' || path === '/manual-tecnico';
+    const isTechnicalPath = path === '/dossie' || path === '/relatorios-ia' || path === '/manual-ia';
 
     if (isFairsPath) {
       setFairsMenuOpen(true);
@@ -456,7 +458,8 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
       subItems: [
         { name: 'Relatório de Comissões', path: '/comissoes', icon: DollarSign },
         { name: 'Consulta Financeira', path: '/consulta-financeira', icon: History },
-        { name: 'Faturamentos (Vendas)', path: '/indicacoes', icon: Filter },
+        // só para quem não vê a Central de Negócios (financeiro e fiscal)
+        { name: 'Faturamentos', path: '/indicacoes', icon: Filter, roles: ['somente_financeiro'] },
         { name: 'Demonstrativo de KPIs', path: '/financeiro/kpis', icon: BarChart3 },
       ]
     },

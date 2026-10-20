@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import fs from 'node:fs';
 import { emailConfiavelDoToken, ehDiretoriaPeloToken, papelDeQuemChama, deveMarcarEmailConfirmado, classificarConta, podeConfirmarPrimeiroAcesso, podeDefinirSenha, ehIdDePreCadastro, papeisDaContaAlvo, escolherPreCadastros, camposDoPreCadastro } from '../server/emailConfiavel.ts';
-import { hostDeFotoAgendor, urlDeFotoAgendor } from '../server/fotoAgendor.ts';
 
 const token = (email: string, confirmado: boolean, provedor = 'password') =>
   ({ uid: 'u1', email, email_verified: confirmado, firebase: { sign_in_provider: provedor } });
@@ -214,29 +213,6 @@ test('servidor: no primeiro acesso a marca da senha inicial é apagada junto com
   assert.ok(apaga < trecho.indexOf('await lote.commit()'));
   const bloco = trecho.slice(trecho.indexOf('temporarios.forEach((t: any) => {'), apaga);
   assert.ok(bloco.includes('lote.delete(t.ref)'));
-});
-
-test('foto do Agendor: só https de agendor.com.br, S3 ou CloudFront', () => {
-  assert.equal(urlDeFotoAgendor('https://app.agendor.com.br/foto.jpg'), true);
-  assert.equal(urlDeFotoAgendor('https://agendor-prod.s3.amazonaws.com/p/1.png'), true);
-  assert.equal(urlDeFotoAgendor('https://d1234.cloudfront.net/1.png'), true);
-  assert.equal(urlDeFotoAgendor('http://app.agendor.com.br/foto.jpg'), false);
-  assert.equal(urlDeFotoAgendor('https://169.254.169.254/latest/meta-data'), false);
-  assert.equal(urlDeFotoAgendor('https://agendor.com.br.evil.com/x.png'), false);
-  assert.equal(urlDeFotoAgendor('https://evilagendor.com.br/x.png'), false);
-  assert.equal(urlDeFotoAgendor('https://user:pw@app.agendor.com.br/x.png'), false);
-  assert.equal(urlDeFotoAgendor('https://app.agendor.com.br:8443/x.png'), false);
-  assert.equal(hostDeFotoAgendor('metadata.google.internal'), false);
-});
-
-test('servidor: a rota da foto do Agendor exige o dono e usa o download protegido', () => {
-  const fonte = fs.readFileSync(new URL('../server.ts', import.meta.url), 'utf8');
-  const i = fonte.indexOf('app.get("/api/admin/agendor-foto"');
-  const trecho = fonte.slice(i, fonte.indexOf('app.get("/api/documento"', i));
-  assert.ok(trecho.includes("me.role !== 'admin'"));
-  assert.ok(trecho.includes('urlDeFotoAgendor(url)'));
-  assert.ok(trecho.includes('baixarExterna(url, 8000, 10 * 1024 * 1024, { hostPermitido: hostDeFotoAgendor })'));
-  assert.ok(!/await fetch\(url/.test(trecho));
 });
 
 // PODER AUTO-CRIADO (20/10/2026). O dono do e-mail X cria uma segunda conta com senha (Q), grava

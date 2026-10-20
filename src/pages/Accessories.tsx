@@ -1739,8 +1739,8 @@ export default function Accessories() {
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto space-y-4 py-2 pr-1">
-            {/* Quick Action: Official Roder Kits */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between p-3.5 rounded-xl bg-blue-50/80 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 gap-3">
+            {/* Quick Action: Official Roder Kits (oculto: carga de uso único, o código fica guardado) */}
+            <div className="hidden flex-col sm:flex-row items-stretch sm:items-center justify-between p-3.5 rounded-xl bg-blue-50/80 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 gap-3">
               <div className="flex items-center gap-3">
                 <div className="h-9 w-9 rounded-lg bg-blue-600 flex items-center justify-center text-white shrink-0 shadow-sm">
                   <Zap className="h-5 w-5" />

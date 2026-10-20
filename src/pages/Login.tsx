@@ -62,57 +62,8 @@ export default function Login() {
       let userDoc = await getDoc(userDocRef);
       let profileData: any = userDoc.exists() ? userDoc.data() : null;
 
-      // 2. If not found by UID, search for pre-registered user in users collection by email
-      if (!profileData && targetEmail) {
-        const q = query(collection(db, 'users'), where('email', '==', targetEmail));
-        const querySnapshot = await getDocs(q);
-        
-        if (!querySnapshot.empty) {
-          // Found pre-created profile(s) created in Admin screen!
-          // Merge duplicates if any and link to authUser.uid
-          const docs = querySnapshot.docs;
-          let mergedData: any = {};
-          
-          for (const d of docs) {
-            const currentData = d.data();
-            const rolesPriority = ['admin', 'manager', 'triagem', 'internal_seller', 'financial', 'marketing', 'vendedor_padrao', 'external_seller', ''];
-            const currentRoleIdx = rolesPriority.indexOf(mergedData.role || '');
-            const tempRoleIdx = rolesPriority.indexOf(currentData.role || '');
-            const bestRole = (currentRoleIdx !== -1 && tempRoleIdx !== -1 && tempRoleIdx < currentRoleIdx)
-              ? currentData.role
-              : (mergedData.role || currentData.role || 'external_seller');
-            
-            mergedData = {
-              ...currentData,
-              ...mergedData,
-              role: bestRole,
-              is_lead_receiver: mergedData.is_lead_receiver || currentData.is_lead_receiver || false,
-              permissions: {
-                sidebar: { ...(currentData.permissions?.sidebar || {}), ...(mergedData.permissions?.sidebar || {}) },
-                dashboard_cards: { ...(currentData.permissions?.dashboard_cards || {}), ...(mergedData.permissions?.dashboard_cards || {}) }
-              }
-            };
-          }
-          
-          const batch = writeBatch(db);
-          for (const d of docs) {
-            if (d.id !== authUser.uid) {
-              batch.delete(doc(db, 'users', d.id));
-            }
-          }
-          
-          const finalProfile = {
-            ...mergedData,
-            uid: authUser.uid,
-            status: mergedData.status || 'active',
-            updated_at: new Date().toISOString()
-          };
-
-          batch.set(doc(db, 'users', authUser.uid), finalProfile);
-          await batch.commit();
-          profileData = finalProfile;
-        }
-      }
+      // (a junção do pré-cadastro por e-mail é só do servidor: reivindicar-perfil. A cópia que havia
+      // aqui juntava qualquer users/ com o mesmo e-mail e forçava "active" no navegador.)
 
       // 3. Fallback only for master admins if their document was deleted
       if (!profileData && isMasterAdmin) {
@@ -236,28 +187,8 @@ export default function Login() {
       let userDoc = await getDoc(doc(db, 'users', authUser.uid));
       let profileData: any = userDoc.exists() ? userDoc.data() : null;
 
-      // If not found by UID, search by email
-      if (!profileData && targetEmail) {
-        const q = query(collection(db, 'users'), where('email', '==', targetEmail));
-        const snap = await getDocs(q);
-        if (!snap.empty) {
-          const docs = snap.docs;
-          let mergedData: any = {};
-          for (const d of docs) {
-            mergedData = { ...d.data(), ...mergedData };
-            if (d.id !== authUser.uid) {
-              await deleteDoc(doc(db, 'users', d.id));
-            }
-          }
-          profileData = {
-            ...mergedData,
-            uid: authUser.uid,
-            status: mergedData.status || 'active',
-            updated_at: new Date().toISOString()
-          };
-          await setDoc(doc(db, 'users', authUser.uid), profileData);
-        }
-      }
+      // (a junção do pré-cadastro por e-mail é só do servidor: reivindicar-perfil. A cópia que havia
+      // aqui juntava qualquer users/ com o mesmo e-mail e forçava "active" no navegador.)
 
       // STRICT CHECK: user must exist in users collection
       if (!profileData && !isMasterAdmin) {

@@ -5,7 +5,7 @@ import { collection, query, onSnapshot, orderBy, addDoc, updateDoc, doc, deleteD
 import { db, storage, auth } from '../lib/firebase';
 import { CryptoService } from '../lib/CryptoService';
 import { AuditService, AuditAction } from '../lib/AuditService';
-import { runSelfHealing } from '../lib/SelfHealing';
+import { corrigirFaixaCmf500UmaVez } from '../lib/migracaoFaixaCmf500';
 import { Product } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -36,13 +36,11 @@ import {
   Package,
   List,
   LayoutGrid,
-  CloudDownload,
   ArrowLeft,
   GripVertical,
   Megaphone,
   Layers,
   ClipboardCheck,
-  Image as ImageIcon,
   Play,
 } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -89,7 +87,6 @@ import { MulcherTechnicalDelivery } from '../components/catalog/MulcherTechnical
 import { FresaSshFicha } from '../components/catalog/FresaSshFicha';
 import { TrituradorLoaderFaeFicha } from '../components/catalog/TrituradorLoaderFaeFicha';
 import { EngateRapidoFicha } from '../components/catalog/EngateRapidoFicha';
-import { AgendorPhotosDialog } from '../components/catalog/AgendorPhotosDialog';
 import { GarraEstufagemFicha } from '../components/catalog/GarraEstufagemFicha';
 import { CabecotePodaFicha } from '../components/catalog/CabecotePodaFicha';
 import { CabecoteGmt035Ficha } from '../components/catalog/CabecoteGmt035Ficha';
@@ -751,7 +748,7 @@ export default function Catalog() {
   const navigate = useNavigate();
   const location = useLocation();
   const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [modelUploading, setModelUploading] = useState(false);
@@ -782,13 +779,12 @@ export default function Catalog() {
     setViewMode(mode);
     localStorage.setItem('catalog_view_mode', mode);
   };
-  const [animationType, setAnimationType] = useState<'tilt' | 'rotate'>('rotate'); // Default to rotate as requested
+  const [animationType] = useState<'tilt' | 'rotate'>('rotate'); // Default to rotate as requested
   const [isHighTipFichaOpen, setIsHighTipFichaOpen] = useState(false);
   const [isFresaSshFichaOpen, setIsFresaSshFichaOpen] = useState(false);
   const [isTrituradorLoaderFaeFichaOpen, setIsTrituradorLoaderFaeFichaOpen] = useState(false);
   const [trituradorLoaderFaeDefaultModel, setTrituradorLoaderFaeDefaultModel] = useState<string>('fae-uml-ssl-vt-175');
   const [isEngateRapidoFichaOpen, setIsEngateRapidoFichaOpen] = useState(false);
-  const [isAgendorPhotosOpen, setIsAgendorPhotosOpen] = useState(false);
   const [isGarraEstufagemFichaOpen, setIsGarraEstufagemFichaOpen] = useState(false);
   const [isCabecotePodaFichaOpen, setIsCabecotePodaFichaOpen] = useState(false);
   const [isCabecoteGmt035FichaOpen, setIsCabecoteGmt035FichaOpen] = useState(false);
@@ -1089,95 +1085,8 @@ export default function Catalog() {
       const garraTracadora = data.find(p => p.name === 'Garra Traçadora');
       const miniSkidder = data.find(p => p.name === 'Mini Skidder');
 
-      // Make Engate Rápido completely permanent for all users!
-      const engateRapido = data.find(p => p.name?.toLowerCase().includes('engate'));
-      if (!engateRapido && data.length > 0) {
-        addEngateRapido();
-      } else if (engateRapido?.is_blocked) {
-        updateDoc(doc(db, 'products', engateRapido.id), { is_blocked: false });
-      }
-
-      // Make Garfo Paleteiro completely permanent for all users!
-      const garfoPaleteiro = data.find(p => p.name === 'Garfo Paleteiro');
-      if (!garfoPaleteiro && data.length > 0) {
-        addGarfoPaleteiro();
-      } else if (garfoPaleteiro) {
-        if (garfoPaleteiro.is_blocked) {
-          updateDoc(doc(db, 'products', garfoPaleteiro.id), { is_blocked: false });
-        }
-        const hasGpr4500 = garfoPaleteiro.models?.some((m: any) => m.id === 'gpr-4500');
-        if (!hasGpr4500 && data.length > 0) {
-          addGarfoPaleteiro();
-        }
-      }
-
-      // Make Garfo Top Clamp completely permanent for all users!
-      const garfoTopClamp = data.find(p => p.name === 'Garfo Top Clamp');
-      if (!garfoTopClamp && data.length > 0) {
-        addGarfoTopClamp();
-      } else if (garfoTopClamp) {
-        if (garfoTopClamp.is_blocked) {
-          updateDoc(doc(db, 'products', garfoTopClamp.id), { is_blocked: false });
-        }
-        const hasTopClamp = garfoTopClamp.models?.some((m: any) => m.id === 'top-clamp');
-        if (!hasTopClamp && data.length > 0) {
-          addGarfoTopClamp();
-        }
-      }
-
-      // Make Caçamba High Tip and Prolongador com Concha completely permanent for all users!
-      const cacambaHighTip = data.find(p => p.name === 'Caçamba High Tip');
-      if (!cacambaHighTip && data.length > 0) {
-        addCacambaHighTip();
-      } else if (cacambaHighTip) {
-        if (cacambaHighTip.is_blocked) {
-          updateDoc(doc(db, 'products', cacambaHighTip.id), { is_blocked: false });
-        }
-        const hasCht70 = cacambaHighTip.models?.some((m: any) => m.id === 'cht-70');
-        const hasCht100 = cacambaHighTip.models?.some((m: any) => m.id === 'cht-100');
-        const hasChtMedidas = cacambaHighTip.models?.some((m: any) => m.technical_specs?.medida_a !== undefined);
-        const hasOldPeso = cacambaHighTip.models?.some((m: any) => m.technical_specs?.peso === 'A definir');
-        
-        if ((!hasCht70 || !hasCht100 || !hasChtMedidas || hasOldPeso) && data.length > 0) {
-          addCacambaHighTip();
-        }
-      }
-
-      const prolongadorConcha = data.find(p => p.name === 'Prolongador com Concha');
-      if (!prolongadorConcha && data.length > 0) {
-        addProlongadorComConcha();
-      } else if (prolongadorConcha) {
-        if (prolongadorConcha.is_blocked) {
-          updateDoc(doc(db, 'products', prolongadorConcha.id), { is_blocked: false });
-        }
-        const hasPcr1400 = prolongadorConcha.models?.some((m: any) => m.id === 'pcr-1400');
-        const hasConchaVolume = prolongadorConcha.models?.some((m: any) => m.technical_specs?.volume_concha !== undefined);
-        if ((!hasPcr1400 || !hasConchaVolume) && data.length > 0) {
-          addProlongadorComConcha();
-        }
-      }
-
-      // Make Cabeçote de Poda GP 150 and GMT 035 completely permanent for all users!
-      const cabecotePoda = data.find(p => p.name === 'Cabeçote de Poda GP 150');
-      if (!cabecotePoda && data.length > 0) {
-        addCabecotePodaGP150();
-      } else if (cabecotePoda) {
-        if (cabecotePoda.is_blocked) {
-          updateDoc(doc(db, 'products', cabecotePoda.id), { is_blocked: false });
-        }
-      }
-
-      const cabecoteGmt035 = data.find(p => p.name === 'Cabeçote de Poda e Colheita GMT 035' || p.name?.includes('GMT 035'));
-      if (!cabecoteGmt035 && data.length > 0) {
-        addCabecoteGmt035();
-      } else if (cabecoteGmt035) {
-        if (cabecoteGmt035.is_blocked) {
-          updateDoc(doc(db, 'products', cabecoteGmt035.id), { is_blocked: false });
-        }
-      }
-
       if (user?.email === 'roderbrasil@gmail.com' || user?.email === 'roderindica@gmail.com') {
-        runSelfHealing(data, db);
+        corrigirFaixaCmf500UmaVez(data, db);
         const fellerTesoura = data.find(p => p.name === 'Feller Tesoura');
         if (!fellerTesoura && data.length > 0) {
           addFellerTesoura();
@@ -1830,114 +1739,6 @@ export default function Catalog() {
     }
   };
 
-  const addCabecotePodaGP150 = async () => {
-    try {
-      const q = query(collection(db, 'products'), where('name', '==', 'Cabeçote de Poda GP 150'));
-      const snap = await getDocs(q);
-
-      if (!snap.empty) {
-        const productDoc = snap.docs[0];
-        if (productDoc.data().is_blocked) {
-          await updateDoc(doc(db, 'products', productDoc.id), { is_blocked: false });
-        }
-        return;
-      }
-
-      const cabecotePoda = {
-        name: 'Cabeçote de Poda GP 150',
-        description: 'O Cabeçote de Poda GP 150 Roder (Garra de Poda GP 150) é o equipamento de alta precisão projetado exclusivamente para caminhões com sistema de braço isolado em operações de poda urbana e manejo em Linha Viva (próximo à rede elétrica). Oferece máxima segurança operacional sem risco de queda para o operador, acoplado diretamente na ponta do braço isolado com controle remoto integrado.',
-        category: 'Cabeçote Florestal',
-        image_url: 'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/06/img-cabecote-florestal-poda-arvores.jpg.webp',
-        video_url: 'https://roderbrasil.com.br/maquina-urbana/cabecote-florestal-poda-arvores/',
-        pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Cabecote-de-Poda-Roder.pdf',
-        is_blocked: false,
-        created_at: new Date().toISOString(),
-        models: [
-          {
-            id: 'gp-150',
-            name: 'GP 150',
-            base_value: 0,
-            pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Cabecote-de-Poda-Roder.pdf',
-            parts_manual_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Cabecote-de-Poda-Roder.pdf',
-            images: [
-              'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/06/img-cabecote-florestal-poda-arvores.jpg.webp'
-            ],
-            technical_specs: {
-              dimensoes: '620 x 550 x 430 mm',
-              abertura_maxima: '520 mm',
-              diametro_corte: '150 mm (até 200 mm galhos)',
-              peso: '130 kg',
-              capacidade_carga: '50 kg',
-              vazao: '25 a 40 L/min',
-              pressao: 'Serra: 200-230 bar | Garra/Giro: 150-220 bar',
-              giro_360: 'Rotator 360° Infinito (Junta Rotativa)',
-              maquina_base: 'Caminhão c/ Braço Isolado',
-              finame: '04072997'
-            }
-          }
-        ]
-      };
-
-      await addDoc(collection(db, 'products'), cabecotePoda);
-    } catch (err) {
-      console.error('Error adding Cabeçote de Poda GP 150:', err);
-    }
-  };
-
-  const addCabecoteGmt035 = async () => {
-    try {
-      const q = query(collection(db, 'products'), where('name', '==', 'Cabeçote de Poda e Colheita GMT 035'));
-      const snap = await getDocs(q);
-
-      if (!snap.empty) {
-        const productDoc = snap.docs[0];
-        if (productDoc.data().is_blocked) {
-          await updateDoc(doc(db, 'products', productDoc.id), { is_blocked: false });
-        }
-        return;
-      }
-
-      const gmt035 = {
-        name: 'Cabeçote de Poda e Colheita GMT 035',
-        description: 'O Cabeçote de Poda e Colheita GMT 035 (Capacidade de corte 40 cm) é um equipamento multifuncional de alto rendimento projetado para guindastes tipo Munck, gruas florestais, miniescavadeiras e escavadeiras de até 8 toneladas. Equipado com serra de garra compacta, acoplador rápido GMT C10 e opção do Sistema TTC (Total Tree Control) para remoção segura de árvores na posição vertical.',
-        category: 'Cabeçote Florestal',
-        image_url: 'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/06/img-cabecote-florestal-poda-arvores.jpg.webp',
-        video_url: 'https://roderbrasil.com.br/maquina-urbana/cabecote-florestal-poda-arvores/',
-        pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Cabecote-de-Poda-Roder.pdf',
-        is_blocked: false,
-        created_at: new Date().toISOString(),
-        models: [
-          {
-            id: 'gmt-035',
-            name: 'GMT 035 TTC',
-            base_value: 0,
-            pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Cabecote-de-Poda-Roder.pdf',
-            parts_manual_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Cabecote-de-Poda-Roder.pdf',
-            images: [
-              'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/06/img-cabecote-florestal-poda-arvores.jpg.webp'
-            ],
-            technical_specs: {
-              abertura_maxima: '85 cm (33")',
-              diametro_corte: '40 cm (16") único / até 60 cm duplo',
-              comprimento_lamina: '52 cm (20")',
-              peso: '245 kg (Grapple Saw) | 275 kg (TTC)',
-              capacidade_carga: '1.500 kg (3.300 lbs)',
-              vazao: '35 a 65 L/min',
-              pressao: '185 a 250 Bar (2683 - 3626 psi)',
-              sistema_ttc: 'Total Tree Control (Bloqueio Duplo)',
-              maquina_base: 'Guindaste Munck, Grua ou Escavadeira ≤ 8t',
-              linhas_requeridas: '4 linhas hidráulicas na lança + dreno'
-            }
-          }
-        ]
-      };
-
-      await addDoc(collection(db, 'products'), gmt035);
-    } catch (err) {
-      console.error('Error adding Cabeçote de Poda GMT 035:', err);
-    }
-  };
-
   const addCabecoteMultifuncional = async () => {
     try {
       setLoading(true);
@@ -2152,292 +1953,6 @@ export default function Catalog() {
     }
   };
 
-  const addProlongadorComConcha = async () => {
-    try {
-      setLoading(true);
-      const q = query(collection(db, 'products'), where('name', '==', 'Prolongador com Concha'));
-      const snap = await getDocs(q);
-
-      const prolongadorData = {
-        name: 'Prolongador com Concha',
-        description: 'O Prolongador com Concha Roder (também conhecido como Prolongador com Caçamba) é um equipamento robusto e de alta produtividade, especially projetado para acoplamento em pás carregadeiras florestais e industriais. Proporciona maior alcance vertical e horizontal na movimentação de materiais a granel, biomassa, cavacos, serragem e resíduos em geral. Fabricado em aço estrutural de alta resistência mecânica, garante máxima estabilidade e segurança nas operações de carregamento de caminhões basculantes e carretas graneleiras de grande porte.',
-        category: 'Carregadores e Garras',
-        image_url: 'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-prolongador-com-concha.jpg.webp',
-        video_url: '',
-        pdf_url: '',
-        is_blocked: false,
-        created_at: snap.empty ? new Date().toISOString() : (snap.docs[0].data() as any).created_at,
-        models: [
-          {
-            id: 'pcr-1400',
-            name: 'PCR 1400',
-            base_value: 0,
-            pdf_url: '',
-            images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-prolongador-com-concha.jpg.webp'],
-            technical_specs: {
-              maquina_base: '6 a 10 Ton.',
-              trator: '6 a 10 Ton.',
-              volume_concha: '1,4 m³',
-              peso: '900',
-              capacidade_de_carga: '800'
-            }
-          },
-          {
-            id: 'pcr-1700',
-            name: 'PCR 1700',
-            base_value: 0,
-            pdf_url: '',
-            images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-prolongador-com-concha.jpg.webp'],
-            technical_specs: {
-              maquina_base: '6 a 10 Ton.',
-              trator: '6 a 10 Ton.',
-              volume_concha: '1,7 m³',
-              peso: '975',
-              capacidade_de_carga: '1350'
-            }
-          },
-          {
-            id: 'pcr-3000',
-            name: 'PCR 3000',
-            base_value: 0,
-            pdf_url: '',
-            images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-prolongador-com-concha.jpg.webp'],
-            technical_specs: {
-              maquina_base: '10 a 17 Ton.',
-              trator: '10 a 17 Ton.',
-              volume_concha: '3,0 m³',
-              peso: '1530',
-              capacidade_de_carga: '1600'
-            }
-          }
-        ]
-      };
-
-      if (!snap.empty) {
-        await updateDoc(doc(db, 'products', snap.docs[0].id), prolongadorData);
-      } else {
-        await addDoc(collection(db, 'products'), prolongadorData);
-      }
-      toast.success('Prolongador com Concha sincronizado com sucesso!');
-    } catch (err) {
-      console.error('Error adding Prolongador com Concha:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const addCacambaHighTip = async () => {
-    try {
-      setLoading(true);
-      const q = query(collection(db, 'products'), where('name', '==', 'Caçamba High Tip'));
-      const snap = await getDocs(q);
-      
-      const cacambaData = {
-        name: 'Caçamba High Tip',
-        description: 'A Caçamba High Tip Roder, também conhecida como Caçamba de Despejo Alto, é a escolha ideal para operações que exigem o despejo de materiais em pontos elevados, como caminhões basculantes, carretas graneleiras, silos, moegas ou contêineres altos.\n\nProjetada para ser acoplada a carregadeiras de pneus, a caçamba High Tip da Roder proporciona maior alcance vertical e excelente capacidade volumétrica, garantindo eficiência logística e menor tempo de ciclo nas operações de carga e descarga.',
-        category: 'Carregadores e Garras',
-        image_url: 'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp',
-        video_url: '',
-        pdf_url: 'https://roderbrasil.com.br/maquinas-florestais/cacamba-high-tip/',
-        is_blocked: false,
-        created_at: snap.empty ? new Date().toISOString() : (snap.docs[0].data() as any).created_at,
-        models: [
-          {
-            id: 'cht-20',
-            name: 'Caçamba High Tip 2,0 m³',
-            base_value: 0,
-            images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp'],
-            technical_specs: {
-              capacidade: '2,0 m³',
-              peso: '1.000 kg',
-              maquina_base: '8 a 10 Ton.',
-              tipo_material: 'Material leve e volumoso ou pesado em compactas',
-              medida_a: '900 mm',
-              medida_b: '2.400 mm',
-              medida_c: '1.600 mm'
-            }
-          },
-          {
-            id: 'cht-25',
-            name: 'Caçamba High Tip 2,5 m³',
-            base_value: 0,
-            images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp'],
-            technical_specs: {
-              capacidade: '2,5 m³',
-              peso: '1.800 kg',
-              maquina_base: '10 a 12 Ton.',
-              tipo_material: 'Pesado / Médio em máquinas pequenas',
-              medida_a: '1.125 mm',
-              medida_b: '2.780 mm',
-              medida_c: '1.800 mm'
-            }
-          },
-          {
-            id: 'cht-28',
-            name: 'Caçamba High Tip 2,8 m³',
-            base_value: 0,
-            images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp'],
-            technical_specs: {
-              capacidade: '2,8 m³',
-              peso: '1.800 kg',
-              maquina_base: '12 a 14 Ton.',
-              tipo_material: 'Pesado / Médio em máquinas médias',
-              medida_a: '1.210 mm',
-              medida_b: '2.786 mm',
-              medida_c: '1.800 mm'
-            }
-          },
-          {
-            id: 'cht-30',
-            name: 'Caçamba High Tip 3,0 m³',
-            base_value: 0,
-            images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp'],
-            technical_specs: {
-              capacidade: '3,0 m³',
-              peso: '1.800 kg',
-              maquina_base: '10 a 12 Ton. (Leve) / 14 a 18 Ton. (Pesado)',
-              tipo_material: 'Leve (máq. pequenas) ou Pesado (máq. médias)',
-              medida_a: '1.295 mm',
-              medida_b: '2.786 mm',
-              medida_c: '1.800 mm'
-            }
-          },
-          {
-            id: 'cht-40',
-            name: 'Caçamba High Tip 4,0 m³',
-            base_value: 0,
-            images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp'],
-            technical_specs: {
-              capacidade: '4,0 m³',
-              peso: '2.000 kg',
-              maquina_base: '12 a 14 Ton. (Leve)',
-              tipo_material: 'Leve / Volumoso em máquinas médias',
-              medida_a: '1.350 mm',
-              medida_b: '2.800 mm',
-              medida_c: '2.300 mm'
-            }
-          },
-          {
-            id: 'cht-50',
-            name: 'Caçamba High Tip 5,0 m³',
-            base_value: 0,
-            images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp'],
-            technical_specs: {
-              capacidade: '5,0 m³',
-              peso: '2.200 kg',
-              maquina_base: '14 a 18 Ton. (Leve)',
-              tipo_material: 'Leve / Altamente volumoso',
-              medida_a: '1.360 mm',
-              medida_b: '2.950 mm',
-              medida_c: '2.700 mm'
-            }
-          },
-          {
-            id: 'cht-70',
-            name: 'Caçamba High Tip 7,0 m³',
-            base_value: 0,
-            images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp'],
-            technical_specs: {
-              capacidade: '7,0 m³',
-              peso: '2.500 kg',
-              maquina_base: '16 a 18 Ton. (Leve / Volumoso)',
-              tipo_material: 'Materiais extremamente leves (cavacos, serragem, casca de pinus)',
-              medida_a: '1.500 mm',
-              medida_b: '2.950 mm',
-              medida_c: '2.800 mm'
-            }
-          },
-          {
-            id: 'cht-80',
-            name: 'Caçamba High Tip 8,0 m³',
-            base_value: 0,
-            images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp'],
-            technical_specs: {
-              capacidade: '8,0 m³',
-              peso: '2.700 kg',
-              maquina_base: '18 a 22 Ton. (Leve / Volumoso)',
-              tipo_material: 'Materiais extremamente leves e volumosos (cavacos, serragem, casca de pinus, bagaço)',
-              medida_a: '1.650 mm',
-              medida_b: '2.950 mm',
-              medida_c: '2.850 mm'
-            }
-          },
-          {
-            id: 'cht-100',
-            name: 'Caçamba High Tip 10,0 m³',
-            base_value: 0,
-            images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Cacamba-High-Tip.jpg.webp'],
-            technical_specs: {
-              capacidade: '10,0 m³',
-              peso: '3.000 kg',
-              maquina_base: '22 a 26 Ton. (Grandes Pás Carregadeiras / Leve / Volumoso)',
-              tipo_material: 'Materiais ultra leves e grandes volumes (cavacos, biomassa, cascas)',
-              medida_a: '1.850 mm',
-              medida_b: '2.950 mm',
-              medida_c: '2.900 mm'
-            }
-          }
-        ]
-      };
-
-      if (!snap.empty) {
-        await updateDoc(doc(db, 'products', snap.docs[0].id), cacambaData);
-      } else {
-        await addDoc(collection(db, 'products'), cacambaData);
-      }
-      toast.success('Caçamba High Tip sincronizada com sucesso!');
-    } catch (err) {
-      console.error('Error adding Caçamba High Tip:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const addEngateRapido = async () => {
-    try {
-      setLoading(true);
-      const q = query(collection(db, 'products'), where('name', '==', 'Engate Rápido para Pá Carregadeiras'));
-      const snap = await getDocs(q);
-      
-      const engateData = {
-        name: 'Engate Rápido para Pá Carregadeiras',
-        description: 'O Engate Rápido Hidráulico Roder para pás carregadeiras é um equipamento de alta performance projetado exclusivamente sob medida para cada marca e modelo de máquina. Com sistema acionado de dentro da cabine via botão, o operador realiza o engate e desengate de implementos (como caçamba original e garfo pallet) sem a necessidade de sair da cabine, garantindo máxima eficiência operacional e segurança física. A Roder fornece junto ao orçamento a instalação completa da linha hidráulica extra na pá carregadeira. O sistema pode ser configurado em 3ª função padrão (2 vias, ideal para engate rápido e implementos fixos como a Garra Frontal ou garras de estufagem AF) ou em 3ª e 4ª funções extras (4 vias, necessária para equipamentos rotativos com rotador, como o Carregador Frontal ou garras de estufagem AFG com giro, permitindo giro e fechamento simultâneo).',
-        category: 'Carregadores e Garras',
-        image_url: 'https://images.unsplash.com/photo-1579684389782-64d84b5e901a?q=80&w=800',
-        video_url: '',
-        pdf_url: 'https://roderbrasil.com.br/maquinas-florestais/engate-rapido/',
-        is_blocked: false,
-        created_at: snap.empty ? new Date().toISOString() : (snap.docs[0].data() as any).created_at,
-        models: [
-          {
-            id: 'er-sob-medida',
-            name: 'Engate Rápido Sob Medida',
-            base_value: 0,
-            images: ['https://images.unsplash.com/photo-1579684389782-64d84b5e901a?q=80&w=800'],
-            technical_specs: {
-              maquina_base: 'Dimensionado sob medida para cada marca/modelo',
-              instalacao_hidraulica: '3ª Função (2 vias) ou 3ª+4ª Função (4 vias)',
-              acionamento: 'Eletro-hidráulico de dentro da cabine',
-              tempo_de_ciclo: 'Troca de implementos em menos de 30 segundos',
-              compatibilidade: 'Caçamba original, garfo pallet, concha High Tip, garras'
-            }
-          }
-        ]
-      };
-
-      if (!snap.empty) {
-        await updateDoc(doc(db, 'products', snap.docs[0].id), engateData);
-      } else {
-        await addDoc(collection(db, 'products'), engateData);
-      }
-      toast.success('Engate Rápido sincronizado com sucesso!');
-    } catch (err) {
-      console.error('Error adding Engate Rápido:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
    const addGarraFrontal = async () => {
      try {
        setLoading(true);
@@ -2610,118 +2125,6 @@ export default function Catalog() {
        setLoading(false);
      }
    };
-
-    const addGarfoPaleteiro = async () => {
-      try {
-        setLoading(true);
-        const snapAll = await getDocs(collection(db, 'products'));
-        const existingDoc = snapAll.docs.find(d => d.data().name?.toLowerCase() === 'garfo paleteiro');
-        
-        const garfoData = {
-          name: 'Garfo Paleteiro',
-          description: 'O Garfo Paleteiro Roder para pás carregadeiras é um equipamento de alta robustez e excelente capacidade de carga, projetado para otimizar a movimentação de pallets, madeiras e fardos em ambientes industriais, florestais e agrícolas. Fabricado sob medida, garante perfeita compatibilidade mecânica, segurança absoluta e alta durabilidade na operação.',
-          category: 'Carregadores e Garras',
-          image_url: 'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Garfo-Paleteiro.jpg.webp',
-          video_url: '',
-          pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garfo-Paleteiro-Roder.pdf',
-          is_blocked: false,
-          created_at: !existingDoc ? new Date().toISOString() : (existingDoc.data() as any).created_at,
-          models: [
-            {
-              id: 'gpr-4500',
-              name: 'GPR 4500',
-              base_value: 0,
-              pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garfo-Paleteiro-Roder.pdf',
-              images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Garfo-Paleteiro.jpg.webp'],
-              technical_specs: {
-                trator: '6 a 9 Ton.',
-                peso_do_equipamento: '520',
-                capacidade_de_carga: '4500',
-                altura_total: '1500',
-                largura_total: '1380',
-                comprimento_util_garfo: '1200'
-              }
-            },
-            {
-              id: 'gpr-7000',
-              name: 'GPR 7000',
-              base_value: 0,
-              pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garfo-Paleteiro-Roder.pdf',
-              images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Garfo-Paleteiro.jpg.webp'],
-              technical_specs: {
-                trator: '8 a 12 Ton.',
-                peso_do_equipamento: '600',
-                capacidade_de_carga: '7000',
-                altura_total: '1500',
-                largura_total: '1380',
-                comprimento_util_garfo: '1200'
-              }
-            }
-          ]
-        };
-
-        if (existingDoc) {
-          await updateDoc(doc(db, 'products', existingDoc.id), garfoData);
-        } else {
-          await addDoc(collection(db, 'products'), garfoData);
-        }
-        
-        toast.success('Garfo Paleteiro sincronizado com sucesso!');
-      } catch (err) {
-        console.error('Error adding Garfo Paleteiro:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    const addGarfoTopClamp = async () => {
-      try {
-        setLoading(true);
-        const snapAll = await getDocs(collection(db, 'products'));
-        const existingDoc = snapAll.docs.find(d => d.data().name?.toLowerCase() === 'garfo top clamp');
-        
-        const topClampData = {
-          name: 'Garfo Top Clamp',
-          description: 'O Garfo Paleteiro com Top Clamp (prensa superior) Roder é a solução definitiva para o manuseio seguro, ágil e altamente produtivo de toras, madeiras, fardos e paletes. Projetado para pás carregadeiras de 9 a 17 toneladas, o equipamento combina a versatilidade dos garfos paleteiros com o travamento hidráulico superior do Top Clamp, impedindo a queda ou escorregamento dos materiais durante o transporte em terrenos irregulares.',
-          category: 'Carregadores e Garras',
-          image_url: 'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/06/img-garfo-top-clamp.jpg.webp',
-          video_url: '',
-          pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garfo-Paleteiro-Top-Clamp.pdf',
-          is_blocked: false,
-          created_at: !existingDoc ? new Date().toISOString() : (existingDoc.data() as any).created_at,
-          models: [
-            {
-              id: 'top-clamp',
-              name: 'TOP CLAMP',
-              base_value: 0,
-              pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garfo-Paleteiro-Top-Clamp.pdf',
-              images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/06/img-garfo-top-clamp.jpg.webp'],
-              technical_specs: {
-                trator: '9 - 17 Ton.',
-                peso_do_equipamento: '1220',
-                capacidade_de_carga: '7000',
-                medida_a: '1900',
-                medida_b: '1530',
-                medida_c: '1600',
-                medida_d: '1800'
-              }
-            }
-          ]
-        };
-
-        if (existingDoc) {
-          await updateDoc(doc(db, 'products', existingDoc.id), topClampData);
-        } else {
-          await addDoc(collection(db, 'products'), topClampData);
-        }
-        
-        toast.success('Garfo Top Clamp sincronizado com sucesso!');
-      } catch (err) {
-        console.error('Error adding Garfo Top Clamp:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
 
     const addDesbastadorFlorestalFAE = async () => {
       try {
@@ -5395,26 +4798,6 @@ export default function Catalog() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {isAdmin && (
-                    <div className="flex items-center bg-muted/50 rounded-lg p-1 border border-border">
-                      <Button 
-                        variant={animationType === 'tilt' ? 'default' : 'ghost'} 
-                        size="sm" 
-                        className="h-7 md:h-8 text-[9px] md:text-xs px-2 md:px-3"
-                        onClick={() => setAnimationType('tilt')}
-                      >
-                        Tilt
-                      </Button>
-                      <Button 
-                        variant={animationType === 'rotate' ? 'default' : 'ghost'} 
-                        size="sm" 
-                        className="h-7 md:h-8 text-[9px] md:text-xs px-2 md:px-3"
-                        onClick={() => setAnimationType('rotate')}
-                      >
-                        Giro
-                      </Button>
-                    </div>
-                  )}
                   <div className="flex gap-2">
                     <Button 
                       variant="outline"
@@ -5516,47 +4899,6 @@ export default function Catalog() {
                       <Layers className="h-4 w-4 mr-1 md:mr-2" /> <span>Nova Família</span>
                     </Button>
                   )}
-                  {isAdmin && ['jeferson@roderbrasil.com.br', 'roderbrasil@gmail.com'].includes(String(user?.email || '').toLowerCase()) && (
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsAgendorPhotosOpen(true)}
-                      className="flex-1 md:flex-none h-9 px-3 text-[10px] md:h-10 md:px-4 md:text-xs"
-                    >
-                      <ImageIcon className="h-4 w-4 mr-1 md:mr-2" /> <span>Fotos do Agendor</span>
-                    </Button>
-                  )}
-                  <div className="hidden md:flex gap-2">
-                    {(isAdmin || isManager) && !products.some(p => p.name === 'Cabeçote Multifuncional') && (
-                      <Button 
-                        variant="outline" 
-                        onClick={addCabecoteMultifuncional} 
-                        disabled={loading}
-                        className="border-primary text-primary hover:bg-primary/10 font-bold h-9 md:h-10 text-xs"
-                      >
-                        <CloudDownload className="h-4 w-4 mr-1" /> Sinc. Cabeçote
-                      </Button>
-                    )}
-                    {(isAdmin || isManager) && !products.some(p => p.name === 'Garra Traçadora') && (
-                      <Button 
-                        variant="outline" 
-                        onClick={addGarraTracadora} 
-                        disabled={loading}
-                        className="border-green-600 text-green-600 hover:bg-green-600/10 font-bold h-9 md:h-10 text-xs"
-                      >
-                        <CloudDownload className="h-4 w-4 mr-1" /> Sinc. Garra
-                      </Button>
-                    )}
-                    {(isAdmin || isManager) && (
-                      <Button 
-                        variant="outline" 
-                        onClick={addGarraEstufagem} 
-                        disabled={loading}
-                        className="border-orange-600 text-orange-600 hover:bg-orange-600/10 font-bold h-9 md:h-10 text-xs"
-                      >
-                        <CloudDownload className="h-4 w-4 mr-1" /> Sinc. Estufagem
-                      </Button>
-                    )}
-                  </div>
                 </div>
               </div>
             </div>
@@ -7230,7 +6572,6 @@ export default function Catalog() {
           />
         )}
 
-        <AgendorPhotosDialog open={isAgendorPhotosOpen} onClose={() => setIsAgendorPhotosOpen(false)} products={products} />
         {isTrituradorLoaderFaeFichaOpen && (
           <TrituradorLoaderFaeFicha 
             onClose={() => {
