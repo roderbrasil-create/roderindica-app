@@ -861,10 +861,10 @@ REGRAS DE COMPATIBILIDADE E DIMENSIONAMENTO:
                   <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-2 md:col-span-2">
                     <div className="flex items-center gap-2 text-orange-600 font-bold text-sm">
                       <Cpu className="w-4 h-4" />
-                      CMF em CAT 320 nova (kits 9000.9000.9035 e 9000.9000.9003, a confirmar por foto e vídeo)
+                      CMF em CAT 320 nova (kits 9000.9000.9035 e 9000.9000.9003, só após o vendedor afirmar a configuração)
                     </div>
                     <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                      Com fatia extra dupla já acionada no joystick eletrônico, só faltando a tubulação: kit 9035 (toda a linha hidráulica do CMF 500, 600 e 800). Sem fatia extra: 9035 mais o kit de baixa 9003 (bomba extra na tampa da bomba original, comando hidráulico duplo para o giro do rotator). Sempre por foto e vídeo; o técnico Roder define. Cliente sem a informação: peça o contato do vendedor ou da concessionária.
+                      Se o vendedor afirma fatia extra dupla já acionada no joystick eletrônico, só faltando a tubulação: kit 9035 (toda a linha hidráulica do CMF 500, 600 e 800). Se afirma GC ou NG sem fatia extra: o kit de baixa 9003 (bomba extra, comando elétrico que recebe o fluxo dela e caixa elétrica; sem tubulações nem mangueiras) mais o 9035 para as linhas. Sem a afirmação, não se cita código: peça o vídeo ao cliente ou o contato do vendedor ou da concessionária. O kit também depende do suporte do implemento (link, ponteira, lança extensora). O técnico Roder confirma na conferência final.
                     </p>
                   </div>
 

@@ -73,7 +73,13 @@ test('a amostra NÃO entra no prompt de vídeos nem nos ids que o consultor pode
 
 test('regra de prompt: não afirma kit por modelo nem serial, pede confirmação e não inventa código', () => {
   const r = REGRA_KIT_CONFIRMACAO;
-  assert.match(r, /NUNCA afirme kit nem fatia extra só pelo modelo ou pelo número de série/);
+  assert.match(r, /NUNCA cite código de kit, NUNCA liste opções de kit e NUNCA escreva "possível kit"/);
+  assert.match(r, /Não decida por modelo nem por número de série/);
+  assert.match(r, /o primeiro passo é pedir ao cliente o vídeo no modelo do vídeo de amostra/);
+  assert.match(r, /botão "Pedir confirmação da máquina ao cliente" está logo abaixo/);
+  assert.match(r, /PASSO 2, a única exceção: se o vendedor AFIRMA a configuração/);
+  assert.match(r, /"Acho que tem", "deve ter" ou ausência de informação NÃO valem: volte ao passo 1/);
+  assert.match(r, /o técnico Roder confirma na conferência final/);
   assert.match(r, /FATIA EXTRA COM SAÍDA DUPLA \(duas saídas, com os dois tampões\)/);
   assert.match(r, /NÃO exija "linhas hidráulicas no braço"/);
   assert.match(r, /Komatsu, Hyundai, JCB, John Deere/);
@@ -86,12 +92,22 @@ test('regra de prompt: não afirma kit por modelo nem serial, pede confirmação
   assert.match(r, /kit de baixa/);
   assert.match(r, /o técnico confirma a pressão; cadastro do 9003: 190 bar/);
   assert.ok(!/200 bar/.test(r));
-  assert.match(r, /possibilidade do kit 9000\.9000\.9035/);
-  assert.match(r, /mais o 9000\.9000\.9003/);
+  assert.ok(!/possibilidade|possível kit/i.test(r.replace('NUNCA escreva "possível kit"', '')), 'a regra não apresenta kit como possibilidade');
+  assert.match(r, /o kit de baixa 9000\.9000\.9003 para a linha do rotator mais o kit de linhas do equipamento/);
+  // (a) na dúvida, vídeo OU contato do vendedor; (b) o kit depende do suporte do implemento
+  assert.match(r, /peça sempre ao cliente o vídeo \(no modelo do vídeo de amostra\) OU o contato do vendedor da máquina/);
+  assert.match(r, /modelo da máquina EM CONJUNTO com o tipo de suporte do implemento \(link, ponteira, lança extensora/);
+  assert.match(r, /garra de carregamento com link e com ponteira usam kits hidráulicos diferentes/);
+  assert.match(r, /NÃO liste códigos para o vendedor/);
+  assert.match(r, /pergunte|peça também o tipo de suporte \(link, ponteira ou lança extensora\)/);
+  // o 9003 sozinho não tem tubulações nem mangueiras
+  assert.match(r, /9000\.9000\.9003 sozinho NÃO tem tubulações nem mangueiras/);
+  assert.match(r, /bomba de engrenagem extra \(48 cc\), o comando elétrico de uma seção \(80 L\).*caixa elétrica de controle/);
+  assert.match(r, /SEMPRE precisa de outro kit com as linhas hidráulicas/);
   assert.match(r, /sem item cadastrado, diga que o técnico informa o código/);
   assert.match(r, /Não dê a entender que a concessionária é obrigatória antes da análise/);
   assert.match(r, /técnico Roder responsável/);
-  assert.match(r, /Não invente código/);
+  assert.match(r, /Só cite código que esteja na lista de kits cadastrados/);
   assert.match(r, /braço e lança da máquina, mostrando as tubulações/);
   assert.match(r, /comando hidráulico, que fica atrás do motor de giro/);
   assert.match(r, /os joysticks e os pedais/);
@@ -104,7 +120,7 @@ test('regra de prompt: não afirma kit por modelo nem serial, pede confirmação
   assert.ok(server.includes('${REGRA_KIT_CONFIRMACAO}'));
   assert.ok(server.includes('DIRETRIZ CRÍTICA PARA INSTALAÇÃO DE GARRA EM ESCAVADEIRAS SEM FATIA EXTRA'));
   assert.ok(server.includes('9000.9000.9016'));
-  assert.match(r, /já informou e confirmou a configuração/);
+  assert.match(r, /se o vendedor AFIRMA a configuração/);
   // a regra só cita o código do kit de baixa que está cadastrado; nenhum outro
   assert.ok(!/9000\.9000\.(9015|9016|9018)/.test(r));
 });
@@ -132,9 +148,12 @@ test('prompt inteiro: nenhuma regra antiga afirma fatia, bujão ou kit só pelo 
   });
   assert.ok(achados >= 5, 'a conferência precisa achar os kits do prompt');
   // lista de kits cadastrados e correções aprovadas também levam a ressalva
-  assert.match(server, /kits de instalação cadastrados para referência\. \$\{RESSALVA_KIT\}/);
-  assert.match(server, /só pelo modelo ou pelo número de série, trate como possibilidade/);
-  assert.match(RESSALVA_KIT, /POSSIBILIDADES, nunca afirme pelo modelo nem pelo serial/);
+  assert.match(server, /USE ESTA LISTA SOMENTE quando o vendedor AFIRMOU a configuração da máquina.*\$\{RESSALVA_KIT\}/);
+  assert.match(server, /só pelo modelo ou pelo número de série, IGNORE o código e aplique a regra de confirmação/);
+  assert.match(RESSALVA_KIT, /NÃO cite código de kit, NÃO liste opções de kit e NÃO escreva "possível kit"/);
+  assert.match(RESSALVA_KIT, /primeiro passo é pedir ao cliente o vídeo no modelo do vídeo de amostra/);
+  assert.match(RESSALVA_KIT, /vídeo \(no modelo\) OU o contato do vendedor da máquina/);
+  assert.match(RESSALVA_KIT, /modelo da máquina EM CONJUNTO com o tipo de suporte do implemento/);
   assert.match(RESSALVA_KIT, /saída dupla/);
   assert.ok(!/linhas do braço/.test(RESSALVA_KIT));
   // vídeo das linhas do braço é complemento opcional, nunca requisito, também nas regras antigas
@@ -174,19 +193,18 @@ test('caso real do Yuri: CMF 600 na CAT 320 com série e "configuração padrão
   assert.equal(perguntaDeKit('CAT 320 série BR630653 configuração padrão, o que incluir na proposta do CMF 600? kit completo?'), true);
   const r = REGRA_KIT_CONFIRMACAO;
   assert.match(r, /PROPOSTA OU LISTA DE COMPONENTES/);
-  assert.match(r, /NÃO entregue lista fechada/);
-  assert.match(r, /não use a série nem o "padrão"/);
+  assert.match(r, /NÃO entregue lista de kit, válvulas e linhas, nem cite código/);
+  assert.match(r, /"padrão" e série não são afirmação/);
   assert.match(r, /joystick hidráulico, nova com joystick eletrônico/);
-  assert.match(r, /peça o vídeo na sequência \(braço e lança com as tubulações, comando atrás do motor de giro, joysticks e pedais, porta traseira e bomba em CAT nova\)/);
+  assert.match(r, /peça o vídeo no modelo do vídeo de amostra e aponte o botão/);
   assert.match(r, /técnico Roder confirma os kits/);
-  assert.match(r, /cabeçote multifuncional, informe que na CAT 320 nova sem fatia extra existe a opção do kit 9035 mais o kit de baixa 9003, a confirmar pelo técnico/);
-  assert.match(r, /Só cite códigos de kit que apareçam na lista de kits cadastrados fornecida no contexto/);
+  assert.ok(!/existe a opção do kit 9035/.test(r), 'sem opção de kit antes da afirmação');
+  assert.match(r, /Só cite código que esteja na lista de kits cadastrados do contexto/);
   assert.ok(!/já cadastrados|9053|9026/.test(r), 'a regra não afirma que códigos fora do repositório estão cadastrados');
   assert.match(r, /técnico informa/);
   // o único código da regra é o do kit de baixa que existe no repositório (constants.ts e manual), citado como exemplo
   assert.deepEqual([...new Set(r.match(/\d{4}\.\d{4}\.\d{4}/g) || [])].sort(), ['9000.9000.9003', '9000.9000.9035']);
   assert.match(readFileSync(new URL('../src/constants.ts', import.meta.url), 'utf8'), /9000\.9000\.9003/);
-  assert.match(r, /ex.: 9000\.9000\.9035 e 9000\.9000\.9003/);
   const server = readFileSync(new URL('../server.ts', import.meta.url), 'utf8');
   assert.ok(server.includes('${REGRA_KIT_CONFIRMACAO}'));
 });
@@ -233,14 +251,14 @@ test('regras antigas não contradizem a regra nova (CMF sem fatia extra, requisi
   assert.ok(server.includes('Requisito geral: fatia extra com saída dupla, confirmada por foto e vídeo, exceto o kit de baixa em CAT 320 nova para garra e CMF.'));
   assert.ok(server.includes('(a concessionária só entra se faltar fatia extra em CAT nova)'));
   assert.equal((server.match(/O 9016 deriva da bomba principal e NÃO é o kit de baixa/g) || []).length, 2);
-  assert.match(RESSALVA_KIT, /ou depois de o vendedor informar e confirmar essa configuração/);
+  assert.match(RESSALVA_KIT, /Só quando o vendedor afirmar a configuração você pode citar os kits cadastrados/);
 });
 
 test('últimas sobras: viabilidade do 9016, pedido de foto e vídeo, e títulos de kit nos documentos', () => {
   const ler = (c: string) => readFileSync(new URL(`../${c}`, import.meta.url), 'utf8');
   const server = ler('server.ts');
   assert.ok(!/instalação da garra é totalmente viável/.test(server));
-  assert.ok(server.includes('o kit possível, a confirmar pelo técnico Roder'));
+  assert.ok(server.includes('Só se o vendedor AFIRMAR que a máquina não tem fatia extra, o kit é o'));
   assert.ok(!/algumas marcas\/modelos não possuem/.test(server));
   assert.ok(!/solicitar uma foto ou vídeo do comando/.test(server));
   assert.ok(!/pedir fotos ou vídeos do comando hidráulico do cliente/.test(server));
@@ -259,13 +277,16 @@ test('CMF em CAT 320 nova: kits 9035 e 9003, confirmação sempre e contato da c
   const ler = (c: string) => readFileSync(new URL(`../${c}`, import.meta.url), 'utf8');
   const t = TEXTO_CMF_CAT320;
   assert.ok(!/[—–]/.test(t));
-  assert.match(t, /COM fatia extra dupla já acionada no joystick eletrônico, faltando só a tubulação: possibilidade do kit 9000\.9000\.9035/);
+  assert.match(t, /\(a\) fatia extra dupla já acionada no joystick eletrônico, faltando só a tubulação: kit 9000\.9000\.9035/);
   assert.match(t, /toda a linha hidráulica do CMF e vale para CMF 500, 600 e 800/);
-  assert.match(t, /SEM fatia extra: possibilidade do 9000\.9000\.9035 mais o 9000\.9000\.9003/);
-  assert.match(t, /bomba extra na tampa da bomba original, que alimenta um comando hidráulico duplo para a linha de giro do rotator/);
+  assert.match(t, /SÓ quando o VENDEDOR AFIRMAR a configuração/);
+  assert.ok(!/possibilidade/i.test(t));
+  assert.match(t, /GC ou NG SEM fatia extra: kit de baixa 9000\.9000\.9003 .* MAIS o 9000\.9000\.9035 para as linhas/);
+  assert.match(t, /9003 sozinho NÃO tem tubulações nem mangueiras/);
+  assert.match(t, /Sem a afirmação do vendedor, NÃO cite nenhum desses códigos/);
   assert.match(t, /CAT mais antiga de comando pilotado sem fatia extra: precisa de fatia ou bomba extra, e o técnico Roder define/);
-  assert.match(t, /Garra de carregamento usa o 9003 para o rotator, mas outro kit para a garra: o técnico informa/);
-  assert.match(t, /Sempre confirmar por foto e vídeo, no modelo do vídeo de amostra, mesmo que o cliente diga que a máquina não tem preparação nenhuma/);
+  assert.match(t, /Garra de carregamento usa o 9003 para o rotator, mais o kit de linhas da garra: o técnico informa o código/);
+  assert.match(t, /peça o vídeo no modelo do vídeo de amostra e aponte o botão/);
   assert.match(t, /peça o contato do vendedor ou da concessionária da máquina; a Roder fala com ele .* só então passa o valor do kit/);
   assert.match(t, /a Roder orienta o vendedor a repassar esse valor ao cliente/);
   assert.deepEqual([...new Set(t.match(/\d{4}\.\d{4}\.\d{4}/g) || [])].sort(), ['9000.9000.9003', '9000.9000.9035']);
@@ -285,4 +306,27 @@ test('CMF em CAT 320 nova: kits 9035 e 9003, confirmação sempre e contato da c
   }
   assert.ok(!/bloquinho de pressão piloto com botão que a Roder adiciona/.test(server + REGRA_KIT_CONFIRMACAO));
   assert.ok(!/o CMF pode ir sem fatia extra com o kit de baixa \(bomba extra com comando próprio/.test(server + ler('AGENTS.md')));
+});
+
+test('9003 sozinho não tem tubulações nem mangueiras (conferido nos itens do cadastro) e o texto descreve só o que há nele', async () => {
+  const { INSTALLATION_KITS } = await import('../src/constants');
+  const { KIT_BAIXA_SEM_LINHAS } = await import('../src/lib/confirmacaoMaquina');
+  const k = INSTALLATION_KITS.find(x => x.code === '9000.9000.9003')!;
+  const descr = k.items.map(i => i.description).join(' | ');
+  assert.ok(!/TUBO|MANGUEIRA|R2 -|R12 -|FG /i.test(descr), 'o 9003 não tem tubo nem mangueira');
+  assert.match(descr, /BOMBA ENGRENAGEM 48 CC/);
+  assert.match(descr, /COMANDO ELETRICO 80LTS/);
+  assert.match(descr, /CAIXA ELETRICA/);
+  assert.match(KIT_BAIXA_SEM_LINHAS, /bomba de engrenagem extra \(48 cc\)/);
+  assert.match(KIT_BAIXA_SEM_LINHAS, /comando elétrico de uma seção \(80 L\)/);
+  assert.match(KIT_BAIXA_SEM_LINHAS, /caixa elétrica de controle/);
+});
+
+test('sem afirmação do vendedor não há código nem opção: o contexto de kits só vale após a afirmação, e o botão do vídeo vem primeiro', () => {
+  const server = readFileSync(new URL('../server.ts', import.meta.url), 'utf8');
+  assert.match(server, /USE ESTA LISTA SOMENTE quando o vendedor AFIRMOU a configuração/);
+  assert.ok(!/POSSIBILIDADES|como possibilidade|kit possível/.test(server + RESSALVA_KIT + REGRA_KIT_CONFIRMACAO));
+  assert.ok(REGRA_KIT_CONFIRMACAO.indexOf('PASSO 1') < REGRA_KIT_CONFIRMACAO.indexOf('PASSO 2'));
+  assert.match(REGRA_KIT_CONFIRMACAO, /acrescente "confirmar_maquina": true/);
+  assert.ok(!/[—–]/.test(REGRA_KIT_CONFIRMACAO + RESSALVA_KIT));
 });
