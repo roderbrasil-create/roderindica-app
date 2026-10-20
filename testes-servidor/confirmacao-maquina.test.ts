@@ -83,7 +83,7 @@ test('regra de prompt: não afirma kit por modelo nem serial, pede confirmação
   assert.match(r, /o técnico Roder informa o código/);
   assert.match(r, /Não dê a entender que a concessionária é obrigatória antes da análise/);
   assert.match(r, /técnico Roder responsável/);
-  assert.match(r, /NUNCA invente código/);
+  assert.match(r, /Não invente código/);
   assert.match(r, /bloco de válvulas, mostrando as fatias e as saídas/);
   assert.match(r, /DOIS joysticks/);
   assert.ok(!/\d\s*%|comiss/i.test(r));
@@ -96,7 +96,7 @@ test('regra de prompt: não afirma kit por modelo nem serial, pede confirmação
   assert.ok(server.includes('9000.9000.9016'));
   assert.match(r, /já informou e confirmou a configuração/);
   // nada de código novo: o kit de baixa não tem código cadastrado e a regra não inventa um
-  assert.ok(!/9000\.9000\.\d{4}/.test(r));
+  assert.ok(!/9000\.9000\.(9015|9016|9018)/.test(r));
 });
 
 test('prompt inteiro: nenhuma regra antiga afirma fatia, bujão ou kit só pelo modelo', () => {
@@ -154,4 +154,26 @@ test('o <painel> com confirmar_maquina chega ao app e some do texto', () => {
   assert.equal(texto, 'Preciso confirmar.');
   assert.equal(painel?.confirmar_maquina, true);
   assert.equal(separarPainel('<painel>{"confirmar_maquina":"sim"}</painel>').painel, null);
+});
+
+test('caso real do Yuri: CMF 600 na CAT 320 com série e "configuração padrão" não vira lista fechada', () => {
+  const pergunta = 'proposta de Cabeçote Multifuncional CMF 600 para cliente no exterior, escavadeira CAT 320, série BR630653, configuração padrão e sem função hidráulica adicional. Quais componentes incluir (kit hidráulico, linhas auxiliares, dreno, comandos, suporte, outro)?';
+  // o botão de pedir confirmação aparece, mesmo sem o consultor marcar o painel
+  assert.equal(perguntaDeKit(pergunta), true);
+  assert.equal(precisaConfirmarMaquina(null, pergunta), true);
+  assert.equal(perguntaDeKit('CAT 320 série BR630653 configuração padrão, o que incluir na proposta do CMF 600? kit completo?'), true);
+  const r = REGRA_KIT_CONFIRMACAO;
+  assert.match(r, /PROPOSTA OU LISTA DE COMPONENTES/);
+  assert.match(r, /NÃO entregue lista fechada/);
+  assert.match(r, /não use a série nem o "padrão"/);
+  assert.match(r, /joystick hidráulico, nova com joystick eletrônico/);
+  assert.match(r, /foto do comando, da bomba, dos dois joysticks e o vídeo/);
+  assert.match(r, /técnico Roder confirma os kits/);
+  assert.match(r, /cabeçote multifuncional, informe que na CAT 320 nova sem fatia extra existe a opção do kit de baixa mais o kit de linhas/);
+  assert.match(r, /9000\.9000\.9053 e 9000\.9000\.9026\) só podem aparecer como possibilidades/);
+  assert.match(r, /técnico informa/);
+  // os únicos códigos da regra são esses dois, já cadastrados na Roder, e a válvula 3000.5003.0194 fica nas regras antigas
+  assert.deepEqual([...new Set(r.match(/\d{4}\.\d{4}\.\d{4}/g) || [])].sort(), ['9000.9000.9026', '9000.9000.9053']);
+  const server = readFileSync(new URL('../server.ts', import.meta.url), 'utf8');
+  assert.ok(server.includes('${REGRA_KIT_CONFIRMACAO}'));
 });
