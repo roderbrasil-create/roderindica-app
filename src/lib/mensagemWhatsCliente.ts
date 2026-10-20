@@ -10,7 +10,6 @@ interface ProdutoMin { name?: string; description?: string; technical_specs?: Es
 
 const MAX_CARACTERISTICAS = 4;
 
-const vazio = (v: unknown) => v === undefined || v === null || String(v).trim() === '' || String(v).trim() === '-';
 const soNumero = (v: string) => /^[\d.,\s]+$/.test(v);
 
 // Ordem de importância para o cliente; cada item: chaves aceitas, rótulo e unidade quando vier só o número
@@ -26,27 +25,65 @@ const ESPECS: Array<{ chaves: string[]; rotulo: string; unidade?: string }> = [
   { chaves: ['giro_360'], rotulo: 'Giro 360°' },
 ];
 
-const texto = (v: unknown) => String(v).replace(/\s+/g, ' ').trim();
+// Travessão vindo do cadastro: entre números vira "a" ("160 – 280 hp" vira "160 a 280 hp"); no resto, vírgula
+const semTravessao = (v: string) => v
+  .replace(/(\d)\s*[—–]\s*(\d)/g, '$1 a $2')
+  .replace(/\s*[—–]\s*/g, ', ');
+const texto = (v: unknown) => semTravessao(String(v).replace(/\s+/g, ' ').trim());
+
+// Só texto não vazio ou número finito maior que zero; objeto, lista, 0 e NaN não entram
+const valido = (v: unknown): boolean => {
+  if (typeof v === 'number') return Number.isFinite(v) && v > 0;
+  if (typeof v !== 'string') return false;
+  const t = v.trim();
+  if (!t || t === '-') return false;
+  if (/^[\d.,\s]+$/.test(t)) { const n = Number(t.replace(/\./g, '').replace(',', '.')); return Number.isFinite(n) && n > 0; }
+  return true;
+};
 
 // "13 a 22 Ton." vira "13 a 22 t"
 const faixaCurta = (f: string) => texto(f).replace(/\s*ton\.?$/i, ' t').replace(/\s+t$/i, ' t');
 
+// A faixa de máquina depende do tipo: tonelada é escavadeira (ou pá carregadeira, pelo nome da linha),
+// hp/cv é trator. Qualquer outra coisa (ex.: "Pá Carregadeira") não vira frase. Mesmo critério do server/previaLink.ts
+function itemDaFaixa(bruto: string, nomeLinha: string): { item: string; trator: boolean } | null {
+  const f = faixaCurta(bruto);
+  if (/\b(hp|cv)\b/i.test(f)) return { item: `Indicado para tratores de ${f}`, trator: true };
+  if (/\d/.test(f) && /\bt$/i.test(f)) {
+    const alvo = /carregadeira|engate/i.test(nomeLinha) ? 'pás carregadeiras' : 'escavadeiras';
+    return { item: `Indicado para ${alvo} de ${f}`, trator: false };
+  }
+  return null;
+}
+
+const frasesDa = (d: unknown): string[] => {
+  if (typeof d !== 'string') return [];
+  return texto(d).split(/(?<=[.!?])\s+/).map(x => x.trim()).filter(Boolean)
+    .map(x => (x.length > 120 ? `${x.slice(0, 117).replace(/\s+\S*$/, '')}...` : x));
+};
+
 export function caracteristicasDoModelo(prod: ProdutoMin, model: ModeloMin): string[] {
   const sp: Espec = { ...(prod.technical_specs || {}), ...(model.technical_specs || {}) };
   const itens: string[] = [];
-  const faixa = faixaDoModelo(model);
-  if (!vazio(faixa)) itens.push(`Indicado para escavadeiras de ${faixaCurta(faixa)}`);
+  let tratorNaFaixa = false;
+  const bruto = faixaDoModelo(model);
+  if (valido(bruto)) {
+    const f = itemDaFaixa(String(bruto), prod.name || '');
+    if (f) { itens.push(f.item); tratorNaFaixa = f.trator; }
+  }
   for (const e of ESPECS) {
     if (itens.length >= MAX_CARACTERISTICAS) break;
-    const chave = e.chaves.find(c => !vazio(sp[c]));
+    // o trator já saiu na faixa: não repete
+    if (tratorNaFaixa && e.rotulo === 'Trator') continue;
+    const chave = e.chaves.find(c => valido(sp[c]));
     if (!chave) continue;
     const v = texto(sp[chave]);
     itens.push(`${e.rotulo} ${soNumero(v) && e.unidade ? `${v} ${e.unidade}` : v}`);
   }
-  // cadastro magro: completa com a primeira frase da descrição, curta
-  if (itens.length < 2) {
-    const frase = texto(prod.description || '').split(/(?<=[.!?])\s+/)[0] || '';
-    if (frase) itens.push(frase.length > 120 ? `${frase.slice(0, 117).replace(/\s+\S*$/, '')}...` : frase);
+  // cadastro magro: completa com frases curtas da descrição até ter 2; sem dado, não inventa
+  for (const fr of frasesDa(prod.description)) {
+    if (itens.length >= 2) break;
+    itens.push(fr);
   }
   return itens.slice(0, MAX_CARACTERISTICAS);
 }

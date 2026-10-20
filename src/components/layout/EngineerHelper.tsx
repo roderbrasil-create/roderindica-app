@@ -3155,7 +3155,7 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
     const abrir = (link: string, janela: Window | null) => {
       const url = linkWhatsSemNumero(textoEquipamentoCliente(prod, model, link));
       if (janela && !janela.closed) {
-        try { janela.location.href = url; return; } catch { /* cai no aviso */ }
+        try { janela.location.href = url; return; } catch { try { janela.close(); } catch { /* nada */ } }
       }
       toast('Toque para abrir o WhatsApp', { duration: 15000, action: { label: 'Abrir WhatsApp', onClick: () => { window.open(url, '_blank', 'noopener'); } } });
     };
@@ -5495,12 +5495,12 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                     </button>
                     {/* o explorador antigo sempre oferecia indicar: parceiro indica, visitante pede orçamento */}
                     {(podeIndicar || perfilConsultor === 'visitante') && (
-                      <button type="button" onClick={() => handleMakeIndication(prod, model)} className="h-11 min-h-[44px] w-full rounded-xl bg-[#1B1E22] text-[#fff] font-extrabold text-[14.5px] flex items-center justify-center gap-1.5 active:scale-[0.98] transition">
+                      <button type="button" onClick={() => handleMakeIndication(prod, model)} className={cn(!podeEnviarFicha && 'col-span-2', "h-11 min-h-[44px] w-full rounded-xl bg-[#1B1E22] text-[#fff] font-extrabold text-[14.5px] flex items-center justify-center gap-1.5 active:scale-[0.98] transition")}>
                         <UserPlus className="h-4 w-4" /> Indicar
                       </button>
                     )}
                     {podeEnviarFicha && (
-                      <button type="button" onClick={() => enviarFicha(prod, model)} className="h-auto min-h-[44px] w-full rounded-xl bg-[#1FA855] text-white font-extrabold text-[14.5px] leading-tight flex items-center justify-center gap-1.5 active:scale-[0.98] transition">
+                      <button type="button" onClick={() => enviarFicha(prod, model)} className={cn(!(podeIndicar || perfilConsultor === 'visitante') && 'col-span-2', "h-auto min-h-[44px] w-full rounded-xl bg-[#1FA855] text-white font-extrabold text-[14.5px] leading-tight flex items-center justify-center gap-1.5 active:scale-[0.98] transition")}>
                         <Send className="h-4 w-4 shrink-0" /> Enviar PDF
                       </button>
                     )}
