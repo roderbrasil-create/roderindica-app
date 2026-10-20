@@ -44,6 +44,7 @@ import { injetarPrevia, previaPadrao, previaDoEquipamento, codigoLimpo, SITE_PRE
 import { criarImagemPrevia, candidatasDoLink, urlImagemPrevia, MAX_ORIGEM_BYTES, PASTA_CACHE } from "./server/previaImagem";
 import { fotosExternas, RodadaEmAndamento } from "./server/fotosExternas";
 import { registrarDiagnosticoComissao, moverComissoesDoProvisorio, loteEmPartes } from "./server/diagnosticoComissao";
+import { conciliarComTrava, registrarCorrecoesAutomaticas } from "./server/conciliacaoComissao";
 import { relatorioDiretoriaDia1, relatorioParceirosDia1, lembreteNfDia5, lembreteFinanceiroDia7, ligarEmailsComissaoUmaVez } from "./server/relatoriosComissao";
 
 let __currentDir: string;
@@ -1503,6 +1504,8 @@ Retorne um array JSON no formato exato:
 
   // Diagnóstico de comissão do parceiro (server/diagnosticoComissao.ts)
   registrarDiagnosticoComissao(app, { db, exigirAdmin, exigirGestao: exigirGestaoComissao, arrayUnion: (...v: any[]) => admin.firestore.FieldValue.arrayUnion(...v) });
+  // "Correções automáticas" da mesma tela: o que a correção automática de comissão fez (só leitura)
+  registrarCorrecoesAutomaticas(app, { db, exigirAdmin });
 
   app.get('/api/admin/regras/estado', async (req, res) => {
     if (!(await exigirAdmin(req, res))) return;
@@ -5488,6 +5491,14 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     }
   }, { timezone: BR_TIMEZONE });
 
+  // Correção automática de comissão (server/conciliacaoComissao.ts): comissão em outro código vai
+  // para o parceiro da indicação, venda faturada recente sem comissão ganha a dela. Todo dia às
+  // 7h30, antes dos e-mails das 8h, para o e-mail do dia 1 já sair com o valor certo.
+  cron.schedule('30 7 * * *', async () => {
+    if (!db) return;
+    await conciliarComTrava({ db, arrayUnion: (...v: any[]) => admin.firestore.FieldValue.arrayUnion(...v) }, 'diária');
+  }, { timezone: BR_TIMEZONE });
+
   // Day 7: Payment Reminder to Finance
   cron.schedule('0 8 7 * *', async () => {
     console.log("[Schedule] Generating Day 7 Finance Reminders...");
@@ -8359,6 +8370,8 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     setTimeout(() => { if (db) backfillDonoIndicacoes(); }, 8000);
     // liga os três e-mails de comissão uma vez só (trava em cron_locks; depois vale o que estiver na tela)
     setTimeout(() => { if (db) ligarEmailsComissaoUmaVez(db).catch(() => {}); }, 9000);
+    // correção automática de comissão logo depois do início (trava em cron_locks contra dois processos)
+    setTimeout(() => { if (db) conciliarComTrava({ db, arrayUnion: (...v: any[]) => admin.firestore.FieldValue.arrayUnion(...v) }, 'início do servidor').catch(() => {}); }, 15000);
 
     // Auto-heal Luana Camargo user profile in Firestore
     setTimeout(async () => {

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Search, Loader2, Link2, BadgePlus, AlertTriangle, CheckCircle2, Info, Stethoscope, ArrowRightLeft } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Search, Loader2, Link2, BadgePlus, AlertTriangle, CheckCircle2, Info, Stethoscope, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -8,10 +8,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { maskCurrency, unmaskCurrency } from '../../lib/masks';
 
 // Diagnóstico de comissão do parceiro (só o administrador). Procura o parceiro e mostra, venda por
-// venda, por que a comissão não aparece no painel dele, com o botão que conserta cada problema.
-// O servidor faz a conta (server/diagnosticoComissao.ts) com a mesma regra do faturamento.
+// venda, por que a comissão não aparece no painel dele. Comissão em nome de outro código não tem
+// botão: a correção automática do servidor (server/conciliacaoComissao.ts) leva a comissão para o
+// parceiro da indicação sozinha, e "Correções automáticas" mostra o que ela fez e o que ficou travado.
 
-type Falta = { codigo: string; texto: string; acao?: 'ligar' | 'gerar' | 'transferir'; tipo?: 'info' | 'problema' };
+type Falta = { codigo: string; texto: string; acao?: 'ligar' | 'gerar'; tipo?: 'info' | 'problema' };
+type ItemCorrecao = { tipo?: 'movida' | 'criada'; em?: string; indicacao_id: string | null; cliente: string; parceiro: string; valor?: number; de_nome?: string | null; de_uid?: string | null; month?: number; year?: number; motivo?: string };
+type Correcoes = { ultima: { rodada_em: string; origem: string; movidas: ItemCorrecao[]; criadas: ItemCorrecao[]; travadas: ItemCorrecao[]; erros: string[] } | null; historico: ItemCorrecao[] };
 type Usuario = { uid: string; name: string; email: string; role: string; status: string; commission_rate: number | null; comissionavel: boolean; repetido?: boolean };
 type Comissao = { id: string; indication_id: string | null; external_seller_uid: string | null; external_seller_name: string | null; value: number; status: string | null; month: number | null; year: number | null; conta_nome?: string | null };
 type Indicacao = {
@@ -51,9 +54,15 @@ export default function DiagnosticoComissao() {
   const [buscando, setBuscando] = useState(false);
   const [erro, setErro] = useState('');
   const [res, setRes] = useState<Resultado | null>(null);
-  // Ligar (só a indicação) ou Transferir (indicação e comissões). Começa sem conta marcada de propósito:
+  // Ligar (só a indicação, sem comissão lançada). Começa sem conta marcada de propósito:
   // com cadastro repetido, a primeira da lista é tão provável quanto a errada.
-  const [ligar, setLigar] = useState<{ ind: Indicacao; uid: string; modo: 'ligar' | 'transferir' } | null>(null);
+  const [ligar, setLigar] = useState<{ ind: Indicacao; uid: string } | null>(null);
+  const [correcoes, setCorrecoes] = useState<Correcoes | null>(null);
+  const [erroCorrecoes, setErroCorrecoes] = useState('');
+
+  useEffect(() => {
+    chamar('/api/admin/diagnostico-comissao/correcoes').then(setCorrecoes).catch((e: any) => setErroCorrecoes(e.message));
+  }, []);
   const [conta, setConta] = useState('');
   const [gerar, setGerar] = useState<{ ind: Indicacao; desconto: string; previa: any; erro: string; carregando: boolean } | null>(null);
   const [gravando, setGravando] = useState(false);
@@ -90,10 +99,8 @@ export default function DiagnosticoComissao() {
     if (!ligar?.uid) return;
     setGravando(true);
     try {
-      const r = await chamar(`/api/admin/diagnostico-comissao/${ligar.modo}`, { indicacaoId: ligar.ind.id, uid: ligar.uid });
-      toast.success(ligar.modo === 'transferir'
-        ? `Venda transferida para ${r.nome}${r.comissoes ? ', com a comissão' : ''}.`
-        : `Indicação ligada a ${r.nome}.`);
+      const r = await chamar('/api/admin/diagnostico-comissao/ligar', { indicacaoId: ligar.ind.id, uid: ligar.uid });
+      toast.success(`Indicação ligada a ${r.nome}.`);
       setLigar(null); buscar(res?.termo || termo);
     } catch (e: any) { toast.error(e.message); }
     finally { setGravando(false); }
@@ -108,9 +115,11 @@ export default function DiagnosticoComissao() {
         <CardTitle className="text-lg font-bold flex items-center gap-2">
           <Stethoscope className="h-5 w-5 text-primary" /> Diagnóstico de comissão
         </CardTitle>
-        <p className="text-xs text-muted-foreground">Procure o parceiro para ver por que a comissão não aparece no painel dele e consertar venda por venda.</p>
+        <p className="text-xs text-muted-foreground">Procure o parceiro para ver por que a comissão não aparece no painel dele. Comissão em outro código é corrigida sozinha pelo servidor.</p>
       </CardHeader>
       <CardContent className="space-y-4">
+        <CorrecoesAutomaticas correcoes={correcoes} erro={erroCorrecoes} />
+
         <form className="flex gap-2" onSubmit={e => { e.preventDefault(); setConta(''); buscar(termo, ''); }}>
           <Input value={termo} onChange={e => setTermo(e.target.value)} placeholder="Nome, e-mail ou código do parceiro" className="h-11 bg-background" aria-label="Parceiro" />
           <Button type="submit" disabled={buscando} className="h-11 px-4 bg-[#facc15] text-black hover:bg-[#eab308] font-bold shrink-0">
@@ -153,7 +162,7 @@ export default function DiagnosticoComissao() {
             {res.varias_contas && (
               <fieldset className="space-y-2 rounded-lg border border-amber-300 dark:border-amber-800 p-3">
                 <legend className="px-1 text-xs font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">Conta em que o parceiro entra</legend>
-                <p className="text-[12px] text-muted-foreground">Escolha a conta que o parceiro usa para entrar no Roder Indica. O que estiver nas outras aparece com o botão Transferir.</p>
+                <p className="text-[12px] text-muted-foreground">Escolha a conta que o parceiro usa para entrar no Roder Indica. O que estiver nas outras aparece marcado em vermelho.</p>
                 {parceiros.map(u => (
                   <label key={u.uid} className={`flex items-center gap-3 rounded-lg border p-3 min-h-[44px] cursor-pointer ${res.conta_escolhida === u.uid ? 'border-primary bg-primary/5' : 'border-border'}`}>
                     <input type="radio" name="conta-parceiro" className="h-4 w-4" checked={res.conta_escolhida === u.uid} disabled={buscando}
@@ -206,14 +215,8 @@ export default function DiagnosticoComissao() {
                           </span>
                           {f.acao === 'ligar' && (
                             <Button size="sm" variant="outline" className="h-10 sm:h-8 shrink-0" disabled={!parceiros.length}
-                              onClick={() => setLigar({ ind, uid: '', modo: 'ligar' })}>
+                              onClick={() => setLigar({ ind, uid: '' })}>
                               <Link2 className="h-4 w-4 mr-1.5" /> Ligar ao parceiro
-                            </Button>
-                          )}
-                          {f.acao === 'transferir' && (
-                            <Button size="sm" variant="outline" className="h-10 sm:h-8 shrink-0 border-amber-400" disabled={!parceiros.length}
-                              onClick={() => setLigar({ ind, uid: '', modo: 'transferir' })}>
-                              <ArrowRightLeft className="h-4 w-4 mr-1.5" /> Transferir
                             </Button>
                           )}
                           {f.acao === 'gerar' && (
@@ -260,11 +263,9 @@ export default function DiagnosticoComissao() {
       <Dialog open={!!ligar} onOpenChange={o => { if (!o) setLigar(null); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{ligar?.modo === 'transferir' ? 'Transferir a venda' : 'Ligar ao parceiro'}</DialogTitle>
+            <DialogTitle>Ligar ao parceiro</DialogTitle>
             <DialogDescription>
-              {ligar?.modo === 'transferir'
-                ? `A indicação de ${ligar?.ind.client_name} e as comissões dela passam para a conta escolhida, juntas. Comissão paga ou com a nota fiscal já enviada não é transferida.`
-                : `A indicação de ${ligar?.ind.client_name} passa a ser do parceiro escolhido. Ela aparece no painel dele e a comissão sai em nome dele.`}
+              {`A indicação de ${ligar?.ind.client_name} passa a ser do parceiro escolhido. Ela aparece no painel dele e a comissão sai em nome dele.`}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -279,7 +280,7 @@ export default function DiagnosticoComissao() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setLigar(null)}>Cancelar</Button>
             <Button onClick={confirmarLigar} disabled={gravando || !ligar?.uid} className="bg-[#facc15] text-black hover:bg-[#eab308] font-bold">
-              {gravando && <Loader2 className="h-4 w-4 animate-spin mr-2" />} {!ligar?.uid ? 'Escolha a conta' : `${ligar.modo === 'transferir' ? 'Transferir para' : 'Ligar a'} ${nomeUsuario(ligar.uid)}`}
+              {gravando && <Loader2 className="h-4 w-4 animate-spin mr-2" />} {!ligar?.uid ? 'Escolha a conta' : `Ligar a ${nomeUsuario(ligar.uid)}`}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -323,5 +324,59 @@ export default function DiagnosticoComissao() {
         </DialogContent>
       </Dialog>
     </Card>
+  );
+}
+
+// O que a correção automática de comissão fez, sem botão nenhum: comissões levadas para o parceiro
+// da indicação, comissões lançadas em venda faturada sem elas, e o que ficou travado (pago,
+// aguardando pagamento ou fechamento travado), que só o financeiro acerta.
+function CorrecoesAutomaticas({ correcoes, erro }: { correcoes: Correcoes | null; erro: string }) {
+  const quando = (v?: string) => v ? new Date(v).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
+  const ultima = correcoes?.ultima || null;
+  const feitas = correcoes?.historico || [];
+  const travadas = ultima?.travadas || [];
+  return (
+    <section className="space-y-2 rounded-lg border border-border bg-background p-3">
+      <h3 className="text-xs font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"><Wand2 className="h-4 w-4" /> Correções automáticas</h3>
+      {erro && <p className="text-[13px] font-bold text-red-600">{erro}</p>}
+      {!erro && !correcoes && <p className="flex items-center gap-2 text-[13px] text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Carregando...</p>}
+      {correcoes && !ultima && <p className="text-[13px] text-muted-foreground">A correção ainda não rodou. Ela roda sozinha logo depois que o servidor liga e todo dia às 7h30.</p>}
+      {ultima && (
+        <p className="text-[12px] text-muted-foreground">Última rodada: {quando(ultima.rodada_em)} ({ultima.origem}) · {ultima.movidas.length} movida(s), {ultima.criadas.length} lançada(s), {travadas.length} travada(s). Roda sozinha todo dia às 7h30.</p>
+      )}
+      {feitas.length > 0 && (
+        <ul className="space-y-1.5">
+          {feitas.map((f, i) => (
+            <li key={i} className="flex gap-2 text-[13px] rounded-md border border-emerald-200 dark:border-emerald-900 bg-emerald-50/60 dark:bg-emerald-950/20 px-2 py-1.5">
+              <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald-600" />
+              <span className="min-w-0">
+                <strong>{f.parceiro}</strong> · {f.cliente || '(sem cliente)'} · {maskCurrency(Number(f.valor) || 0)}
+                <span className="block text-[12px] text-muted-foreground">
+                  {f.tipo === 'criada'
+                    ? `Comissão lançada (venda faturada sem comissão), pagamento em ${mes(f.month ?? null, f.year ?? null)}.`
+                    : `Comissão levada de ${f.de_nome || f.de_uid || 'outro código'} para ${f.parceiro}: ${f.motivo || 'quem recebe é o parceiro da indicação'}.`}
+                  {' '}{quando(f.em)}
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {correcoes && ultima && !feitas.length && <p className="text-[13px] text-muted-foreground">Nenhuma comissão precisou ser corrigida até agora.</p>}
+      {travadas.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-[12px] font-bold text-amber-800 dark:text-amber-300">Não mexidas (precisam do financeiro ou de um cadastro):</p>
+          <ul className="space-y-1.5">
+            {travadas.map((t, i) => (
+              <li key={i} className="flex gap-2 text-[13px] text-amber-900 dark:text-amber-200">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                <span className="min-w-0"><strong>{t.parceiro}</strong>{t.cliente ? ` · ${t.cliente}` : ''}: {t.motivo}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {(ultima?.erros || []).length > 0 && <p className="text-[12px] text-red-600">Erros na última rodada: {ultima!.erros.join(' · ')}</p>}
+    </section>
   );
 }

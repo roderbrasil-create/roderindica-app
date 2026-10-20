@@ -4,8 +4,9 @@
 // parceiro, e esse documento só nasce no faturamento (handleFinishSale) se a indicação já estiver
 // ligada ao uid dele e tiver produto comissionável. Qualquer elo solto (indicação ligada só pelo
 // nome, uid de um cadastro antigo, produto não cadastrado) dava zero sem aviso nenhum.
-// Aqui o administrador procura o parceiro e vê, venda por venda, qual elo está faltando, com o
-// botão que conserta: ligar a indicação ao parceiro, ou gerar a comissão que ficou faltando.
+// Aqui o administrador procura o parceiro e vê, venda por venda, qual elo está faltando. Comissão
+// em nome de outro código não tem mais botão: a correção automática (server/conciliacaoComissao.ts)
+// leva a comissão para o parceiro da indicação sozinha, e o que ela não pode mexer aparece aqui.
 // Separado do server.ts para o teste rodar com um Firestore em memória.
 import {
   calcularComissao, mesDaComissao, diaEmBrasilia, papelComissionavel, taxaDoParceiro, baseBrutaDosProdutos, itemComissionavel, UIDS_DE_SISTEMA,
@@ -45,7 +46,7 @@ const ROTULO_STATUS: Record<string, string> = {
 
 const chaveMes = (m: number, a: number) => a * 12 + (m - 1);
 
-export type Falta = { codigo: string; texto: string; acao?: 'ligar' | 'gerar' | 'transferir'; tipo?: 'info' | 'problema' };
+export type Falta = { codigo: string; texto: string; acao?: 'ligar' | 'gerar'; tipo?: 'info' | 'problema' };
 
 type Deps = { db: any; agora?: () => Date };
 
@@ -103,7 +104,7 @@ export async function diagnosticar(deps: Deps, termoBruto: string, opcoes: { con
   const nomesAchados = new Set<string>(achados.map((u: any) => normalizar(u.name)).filter(Boolean));
 
   // Mais de uma conta que recebe comissão: o administrador escolhe aquela em que o parceiro entra,
-  // e tudo o que estiver nas outras aparece com o botão de transferir.
+  // e tudo o que estiver nas outras aparece marcado (a correção vai por "Trocar Indicador").
   const contasComissionaveis = achados.filter((u: any) => papelComissionavel(u.role));
   const variasContas = contasComissionaveis.length > 1;
   const contaEscolhida = variasContas && opcoes.conta
@@ -169,8 +170,9 @@ export async function diagnosticar(deps: Deps, termoBruto: string, opcoes: { con
     const falta: Falta[] = [];
     let parceiroOk = false;
     // com comissão já lançada, trocar só a indicação deixaria a comissão no código antigo:
-    // aí o conserto é transferir (indicação e comissões juntas)
-    const troca: 'ligar' | 'transferir' = comms.length ? 'transferir' : 'ligar';
+    // aí não há botão aqui (a troca vai por "Trocar Indicador", que leva a comissão junto)
+    const troca: 'ligar' | undefined = comms.length ? undefined : 'ligar';
+    const TROCAR = ' Para mudar de conta, use "Trocar Indicador" na tela de Indicações: a comissão vai junto.';
     if (!uidInd) falta.push({ codigo: 'sem_uid', texto: 'Indicação sem parceiro ligado. A comissão não nasce no faturamento e o painel do parceiro não enxerga a venda.', acao: troca });
     else if (UIDS_DE_SISTEMA.includes(uidInd)) falta.push({ codigo: 'uid_sistema', texto: `Ligada a "${uidInd}", que não é um parceiro.`, acao: troca });
     else if (!parceiro) falta.push({ codigo: 'uid_inexistente', texto: 'Ligada a um código de parceiro que não existe mais no cadastro (cadastro antigo ou apagado). O painel do parceiro não enxerga esta venda.', acao: troca });
@@ -179,7 +181,7 @@ export async function diagnosticar(deps: Deps, termoBruto: string, opcoes: { con
       parceiroOk = true;
       if (achados.length && !uids.has(uidInd)) falta.push({ codigo: 'outro_parceiro', texto: `Ligada a outro cadastro: ${parceiro.name || uidInd}.`, acao: troca });
       else if (contaEscolhida && uidInd !== contaEscolhida.uid) {
-        falta.push({ codigo: 'conta_repetida', texto: `Esta venda está na conta ${nomeConta(uidInd)}, mas o parceiro entra com a conta ${nomeConta(contaEscolhida.uid)}. O painel dele não mostra esta venda.`, acao: 'transferir' });
+        falta.push({ codigo: 'conta_repetida', texto: `Esta venda está na conta ${nomeConta(uidInd)}, mas o parceiro entra com a conta ${nomeConta(contaEscolhida.uid)}. O painel dele não mostra esta venda.` + TROCAR });
       }
     }
 
@@ -199,9 +201,9 @@ export async function diagnosticar(deps: Deps, termoBruto: string, opcoes: { con
       } else {
         for (const c of comms) {
           if (c.value <= 0) falta.push({ codigo: 'comissao_zero', texto: `Comissão lançada com valor zero (${c.id}).` });
-          if (uidInd && c.external_seller_uid !== uidInd) falta.push({ codigo: 'comissao_outro_uid', texto: `A comissão está em nome de outro código (${c.external_seller_name || c.external_seller_uid || 'vazio'}): o painel do parceiro não soma ela.`, acao: 'transferir' });
+          if (uidInd && c.external_seller_uid !== uidInd) falta.push({ codigo: 'comissao_outro_uid', texto: `A comissão está em nome de outro código (${c.external_seller_name || c.external_seller_uid || 'vazio'}): o painel do parceiro não soma ela. A correção automática leva a comissão para o parceiro da indicação; se ela continuar aqui, veja o motivo em "Correções automáticas".` });
           else if (contaEscolhida && c.external_seller_uid !== contaEscolhida.uid && uidInd === contaEscolhida.uid) {
-            falta.push({ codigo: 'comissao_conta_repetida', texto: `A comissão de ${brl(c.value)} está na conta ${nomeConta(c.external_seller_uid)}, e o parceiro entra com a conta ${nomeConta(contaEscolhida.uid)}.`, acao: 'transferir' });
+            falta.push({ codigo: 'comissao_conta_repetida', texto: `A comissão de ${brl(c.value)} está na conta ${nomeConta(c.external_seller_uid)}, e o parceiro entra com a conta ${nomeConta(contaEscolhida.uid)}. A correção automática leva a comissão para o parceiro da indicação.` });
           }
           if (c.status !== 'paid' && c.month && c.year && chaveMes(c.month, c.year) < mesAgora) {
             falta.push({ codigo: 'comissao_atrasada', texto: `Comissão de ${String(c.month).padStart(2, '0')}/${c.year} ainda não está como paga.` });
@@ -242,7 +244,7 @@ export async function diagnosticar(deps: Deps, termoBruto: string, opcoes: { con
   const avisosGerais: string[] = [];
   if (!achados.length) avisosGerais.push('Nenhum usuário encontrado com esse nome, e-mail ou código.');
   duplicados.forEach(d => avisosGerais.push(`Cadastro repetido (${d.motivo}): ${d.uids.length} usuários. A venda pode estar ligada a um e o parceiro entrando com o outro.`));
-  if (variasContas && !contaEscolhida) avisosGerais.push(`Há ${contasComissionaveis.length} contas que recebem comissão. Escolha abaixo a conta em que o parceiro entra para ver o que precisa ser transferido.`);
+  if (variasContas && !contaEscolhida) avisosGerais.push(`Há ${contasComissionaveis.length} contas que recebem comissão. Escolha abaixo a conta em que o parceiro entra para ver o que está fora dela.`);
   if (!avisos.monthly_report_partners) avisosGerais.push('E-mail mensal ao parceiro (dia 1 e lembrete do dia 5) está desligado em Configurações > Central de Notificações.');
   if (!avisos.monthly_report_directors) avisosGerais.push('Relatório mensal da diretoria e do financeiro (dia 1) está desligado.');
   if (!avisos.payment_reminder_finance) avisosGerais.push('Lembrete de pagamento ao financeiro (dia 7) está desligado.');
@@ -313,7 +315,9 @@ export async function previaGeracao(deps: Deps, indId: string, desconto?: number
 }
 
 // Cria commissions/{id da indicação} exatamente como o faturamento cria. Nunca sobrescreve.
-export async function gerarComissao(deps: DepsEscrita, indId: string, autor: { uid: string; nome: string }, desconto?: number) {
+type OpcoesGerar = { geradoPor?: string; textoHistorico?: string };
+
+export async function gerarComissao(deps: DepsEscrita, indId: string, autor: { uid: string; nome: string }, desconto?: number, opcoes: OpcoesGerar = {}) {
   const { db, arrayUnion } = deps;
   const agora = deps.agora ? deps.agora() : new Date();
   exigirId(indId);
@@ -328,6 +332,12 @@ export async function gerarComissao(deps: DepsEscrita, indId: string, autor: { u
     const legado = await tx.get(db.collection('commissions').where('indication_id', '==', indId));
     const r = conferirGeracao(indId, ind, p?.exists ? p.data() : null, desconto, agora);
     if (ja.exists || !legado.empty) throw erro(409, 'Já existe comissão lançada para esta venda. Nada foi alterado.');
+    // Fechamento do mês já pago ou aguardando pagamento: a comissão nova seria lida como paga pelos
+    // e-mails do dia 1, 5 e 7 (comissoesDoCiclo) sem ninguém ter pago.
+    const fech = await tx.get(db.collection('monthly_statements').doc(`${r.uid}_${r.mes.month}_${r.mes.year}`));
+    if (fech.exists && fechamentoTravado(fech.data())) {
+      throw erro(409, `O fechamento de ${mmaa(r.mes.month, r.mes.year)} de ${r.nomeParceiro} já está ${rotuloFechamento(fech.data())}. A comissão entraria nele como paga sem ter sido paga. Acerte com o financeiro antes.`);
+    }
     const nowIso = agora.toISOString();
     tx.set(commRef, {
       indication_id: indId,
@@ -344,7 +354,7 @@ export async function gerarComissao(deps: DepsEscrita, indId: string, autor: { u
       year: r.mes.year,
       sale_date: ind.sale_date || null,
       created_at: nowIso,
-      generated_by: 'diagnostico_admin',
+      generated_by: opcoes.geradoPor || 'diagnostico_admin',
       generated_by_uid: autor.uid,
     });
     tx.update(indRef, {
@@ -358,7 +368,7 @@ export async function gerarComissao(deps: DepsEscrita, indId: string, autor: { u
       ...(ind.finance_notice_sent_at ? {} : { finance_notice_pending: true, finance_notice_due_at: new Date(agora.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString() }),
       negotiation_history: arrayUnion({
         id: idHist(), type: 'status_change', author_name: autor.nome || 'Administrador', created_at: nowIso,
-        content: `COMISSÃO LANÇADA PELO DIAGNÓSTICO: a venda estava faturada sem comissão. Comissão de ${brl(r.calc.valor)} sobre a base comissionável de ${brl(r.calc.base)}` + (r.calc.desconto > 0 ? `, já com o desconto de ${brl(r.calc.desconto)} abatido` : '') + `, para pagamento em ${String(r.mes.month).padStart(2, '0')}/${r.mes.year}.`,
+        content: `${opcoes.textoHistorico || 'COMISSÃO LANÇADA PELO DIAGNÓSTICO'}: a venda estava faturada sem comissão. Comissão de ${brl(r.calc.valor)} sobre a base comissionável de ${brl(r.calc.base)}` + (r.calc.desconto > 0 ? `, já com o desconto de ${brl(r.calc.desconto)} abatido` : '') + `, para pagamento em ${String(r.mes.month).padStart(2, '0')}/${r.mes.year}.`,
         attachments: [],
       }),
     });
@@ -383,7 +393,7 @@ export async function ligarParceiro(deps: DepsEscrita, indId: string, uid: strin
     if (!papelComissionavel(user.role)) throw erro(409, `${user.name || 'Este usuário'} é da equipe Roder e não recebe comissão. Escolha o parceiro indicador.`);
     const novoUid = String(user.uid || u.id || uid);
     const outra = comms.docs.find((c: any) => (c.data() || {}).external_seller_uid !== novoUid);
-    if (outra) throw erro(409, `Já existe comissão lançada para esta venda em nome de ${(outra.data() || {}).external_seller_name || 'outro código'}. Use "Transferir" para levar a indicação e a comissão juntas.`);
+    if (outra) throw erro(409, `Já existe comissão lançada para esta venda em nome de ${(outra.data() || {}).external_seller_name || 'outro código'}. Use "Trocar Indicador" na tela de Indicações para levar a indicação e a comissão juntas.`);
     const nowIso = agora.toISOString();
     const antes = ind.external_seller_name || ind.external_seller_uid || 'ninguém';
     tx.update(indRef, {
@@ -511,6 +521,8 @@ export async function transferirIndicacao(deps: DepsEscrita, indId: string, uid:
         transferred_from_uid: cd.external_seller_uid || null,
         transferred_at: nowIso,
         updated_at: nowIso,
+        // a marca do primeiro acesso (moverComissoesDoProvisorio) sai quando a comissão chega
+        ...(cd.transferencia_pendente ? { transferencia_pendente: null } : {}),
       });
     }
     // fechamento ainda aguardando NF na conta antiga: a comissão sai da lista e do total dele.
@@ -531,7 +543,9 @@ export async function transferirIndicacao(deps: DepsEscrita, indId: string, uid:
       updated_at: nowIso,
       negotiation_history: arrayUnion({
         id: idHist(), type: 'system', author_name: autor.nome || 'Administrador', created_at: nowIso,
-        content: `Venda transferida pelo ${origem}: antes ${antes}${antesUid ? ` (${antesUid})` : ''}, agora ${nome} (${novoUid}).`
+        content: (antesUid === novoUid
+          ? `Comissão levada para ${nome} (${novoUid}) pela ${origem}: ela estava em outro código, e quem recebe é o parceiro da indicação.`
+          : `Venda transferida pelo ${origem}: antes ${antes}${antesUid ? ` (${antesUid})` : ''}, agora ${nome} (${novoUid}).`)
           + (comms.length ? ` ${comms.length === 1 ? 'A comissão de' : `As ${comms.length} comissões, somando`} ${brl(somaComissoes)} ${comms.length === 1 ? 'foi junto' : 'foram juntas'}.` : ''),
         attachments: [],
       }),
@@ -678,10 +692,8 @@ export function registrarDiagnosticoComissao(app: any, deps: DepsEscrita & { exi
     const q = await deps.exigirAdmin(req, res); if (!q) return;
     try { return res.json(await ligarParceiro(deps, String(req.body?.indicacaoId || ''), String(req.body?.uid || ''), { uid: q.uid, nome: await nomeDe(q) })); } catch (e) { return responderErro(res, e); }
   });
-  app.post('/api/admin/diagnostico-comissao/transferir', async (req: any, res: any) => {
-    const q = await deps.exigirAdmin(req, res); if (!q) return;
-    try { return res.json(await transferirIndicacao(deps, String(req.body?.indicacaoId || ''), String(req.body?.uid || ''), { uid: q.uid, nome: await nomeDe(q) })); } catch (e) { return responderErro(res, e); }
-  });
+  // Sem rota de "Transferir" de propósito (pedido do Jeferson): comissão em nome de outro código é
+  // levada para o parceiro da indicação pela correção automática (server/conciliacaoComissao.ts).
   // "Trocar Indicador" da tela de Indicações numa venda faturada: a comissão vai junto (admin e gerente)
   app.post('/api/indicacoes/trocar-indicador', async (req: any, res: any) => {
     const exigir = deps.exigirGestao || deps.exigirAdmin;

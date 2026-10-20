@@ -6,6 +6,7 @@ import {
   calcularComissao, mesDaComissao, taxaDoParceiro, papelComissionavel, temParceiroSemUid,
 } from '../src/lib/calculoComissao.ts';
 import { diagnosticar, gerarComissao, previaGeracao, ligarParceiro, nomeCasa, normalizar, nomeContido, transferirIndicacao, moverComissoesDoProvisorio, loteEmPartes } from '../server/diagnosticoComissao.ts';
+import { conciliarComissoes, conciliarComTrava, lerCorrecoes, DOC_TRAVA, DOC_RESULTADO } from '../server/conciliacaoComissao.ts';
 import {
   comissoesDoCiclo, agruparPorParceiro, comTravaMensal, relatorioParceirosDia1, lembreteNfDia5, lembreteFinanceiroDia7, relatorioDiretoriaDia1, mesEmBrasilia,
   ligarEmailsComissaoUmaVez,
@@ -466,7 +467,7 @@ test('REPETIDO: nome dentro do outro (nos dois sentidos) e mesmo e-mail viram ca
   assert.ok(r2.avisos_gerais.some((a: string) => a.includes('Escolha abaixo a conta')));
 });
 
-test('CONTA ESCOLHIDA: tudo o que está em outra conta aparece com Transferir', async () => {
+test('CONTA ESCOLHIDA: tudo o que está em outra conta aparece marcado, sem botão de transferir', async () => {
   const db = cenarioRafael();
   db.dados.indications.i_raf2 = { status: 'sold', client_name: 'Venda na conta 2', external_seller_uid: 'raf2', external_seller_name: 'rafael maqloc', commissioned_products: PRODUTOS };
   db.dados.commissions.i_raf2 = { indication_id: 'i_raf2', external_seller_uid: 'raf2', external_seller_name: 'rafael maqloc', value: 500, status: 'waiting_nf', month: 11, year: 2026 };
@@ -475,15 +476,16 @@ test('CONTA ESCOLHIDA: tudo o que está em outra conta aparece com Transferir', 
   const ind = r.indicacoes.find((i: any) => i.id === 'i_raf2');
   assert.equal(ind.conta, 'raf2');
   assert.equal(ind.fora_da_conta, true);
-  assert.equal(ind.falta.find((f: any) => f.codigo === 'conta_repetida').acao, 'transferir');
+  assert.equal(ind.falta.find((f: any) => f.codigo === 'conta_repetida').acao, undefined);
+  assert.match(ind.falta.find((f: any) => f.codigo === 'conta_repetida').texto, /Trocar Indicador/);
   assert.equal(ind.comissoes[0].conta_nome, 'rafael maqloc');
   const ok = r.indicacoes.find((i: any) => i.id === 'i_ok');
   assert.equal(ok.fora_da_conta, false);
-  assert.ok(!ok.falta.some((f: any) => f.acao === 'transferir'));
-  // comissão em outro código que a indicação: transferir
+  assert.ok(!ok.falta.some((f: any) => f.acao && !['ligar', 'gerar'].includes(f.acao)));
+  // comissão em outro código que a indicação: a correção automática resolve, sem botão
   db.dados.commissions.i_ok.external_seller_uid = 'raf2';
   const r3: any = await diagnosticar({ db, agora: () => AGORA }, 'rafael maqloc', { conta: 'raf' });
-  assert.equal(r3.indicacoes.find((i: any) => i.id === 'i_ok').falta.find((f: any) => f.codigo === 'comissao_outro_uid').acao, 'transferir');
+  assert.equal(r3.indicacoes.find((i: any) => i.id === 'i_ok').falta.find((f: any) => f.codigo === 'comissao_outro_uid').acao, undefined);
   // conta que não está na busca é ignorada
   const r4: any = await diagnosticar({ db, agora: () => AGORA }, 'rafael maqloc', { conta: 'car' });
   assert.equal(r4.conta_escolhida, null);
@@ -705,4 +707,147 @@ test('E-MAILS LIGADOS UMA VEZ: liga os três, e depois o que a tela mudar fica',
   const vazio = bancoFalso({});
   assert.equal(await ligarEmailsComissaoUmaVez(vazio), 'ligado');
   assert.equal(vazio.dados.settings.notifications.payment_reminder_finance, true);
+});
+
+// ---------- Correção automática (server/conciliacaoComissao.ts) ----------
+const CMF600 = [{ code: '1000.0600', name: 'CABEÇOTE CMF 600', quantity: 1, base_value: 200000 }, { code: '9000.9000.1', name: 'Kit hidráulico', quantity: 1, base_value: 30000 }];
+function cenarioLuiz(extra: any = {}) {
+  const base: any = {
+    users: {
+      raf: { uid: 'raf', name: 'Rafael - MAQLOC', email: 'rafael@maqloc.com.br', role: 'external_seller', status: 'active', commission_rate: 3 },
+      gis: { uid: 'gis', name: 'Gislene', email: 'gislene@roderbrasil.com.br', role: 'manager', status: 'active' },
+    },
+    indications: {
+      i_luiz: { status: 'sold', client_name: 'LUIZ OTAVIO', external_seller_uid: 'raf', external_seller_name: 'Rafael - MAQLOC', commissioned_products: CMF600, sale_value: 230000, sale_date: '2026-10-06', updated_at: '2026-10-06T15:00:00Z' },
+    },
+    commissions: {
+      i_luiz: { indication_id: 'i_luiz', external_seller_uid: 'temp_1759', external_seller_name: 'Rafael - MAQLOC', value: 6000, status: 'waiting_nf', month: 11, year: 2026 },
+    },
+    monthly_statements: {},
+  };
+  for (const [col, docs] of Object.entries(extra)) base[col] = { ...(base[col] || {}), ...(docs as any) };
+  return bancoFalso(base);
+}
+const depsC = (db: any) => ({ db, arrayUnion, agora: () => AGORA, log: () => {} });
+
+test('CORREÇÃO: comissão órfã num provisório apagado vai para o parceiro da indicação, com o fechamento antigo limpo', async () => {
+  const db = cenarioLuiz({ monthly_statements: { temp_1759_11_2026: { seller_uid: 'temp_1759', month: 11, year: 2026, status: 'waiting_nf', total_value: 6000, commission_ids: ['i_luiz'] } } });
+  db.dados.commissions.i_luiz.transferencia_pendente = { para_uid: 'raf', motivo: 'x', em: '2026-10-07' };
+  const r = await conciliarComissoes(depsC(db));
+  assert.equal(r.movidas.length, 1);
+  assert.deepEqual({ cliente: r.movidas[0].cliente, parceiro: r.movidas[0].parceiro, de: r.movidas[0].de_uid, para: r.movidas[0].para_uid, valor: r.movidas[0].valor },
+    { cliente: 'LUIZ OTAVIO', parceiro: 'Rafael - MAQLOC', de: 'temp_1759', para: 'raf', valor: 6000 });
+  const c = db.dados.commissions.i_luiz;
+  assert.equal(c.external_seller_uid, 'raf');
+  assert.equal(c.transferred_from_uid, 'temp_1759');
+  assert.equal(c.transferencia_pendente, null, 'a marca do primeiro acesso sai');
+  assert.ok(!db.dados.monthly_statements.temp_1759_11_2026, 'fechamento que ficou vazio é apagado');
+  const h = db.dados.indications.i_luiz.negotiation_history.at(-1).content;
+  assert.match(h, /Comissão levada para Rafael - MAQLOC \(raf\) pela correção automática/);
+  assert.doesNotMatch(h, /%|\u2014/);
+  assert.equal(r.criadas.length, 0, 'não cria outra comissão');
+});
+
+test('CORREÇÃO: conta repetida, a comissão segue a indicação; provisório com o mesmo e-mail vai para a conta definitiva', async () => {
+  // a) indicação na conta definitiva, comissão na outra conta definitiva
+  let db = cenarioLuiz({ users: { raf_old: { uid: 'raf_old', name: 'Rafael', email: 'rafa@gmail.com', role: 'external_seller', status: 'active' } } });
+  db.dados.commissions.i_luiz.external_seller_uid = 'raf_old';
+  let r = await conciliarComissoes(depsC(db));
+  assert.equal(r.movidas.length, 1);
+  assert.equal(db.dados.commissions.i_luiz.external_seller_uid, 'raf');
+  assert.equal(db.dados.indications.i_luiz.external_seller_uid, 'raf');
+  // b) indicação E comissão num provisório (temp_) com o e-mail do Rafael: os dois vão para a conta dele
+  db = cenarioLuiz({ users: { temp_99: { uid: 'temp_99', name: 'Rafael MAQLOC', email: 'rafael@maqloc.com.br', role: 'external_seller', status: 'pending' } } });
+  db.dados.indications.i_luiz.external_seller_uid = 'temp_99';
+  db.dados.commissions.i_luiz.external_seller_uid = 'temp_99';
+  r = await conciliarComissoes(depsC(db));
+  assert.equal(r.movidas.length, 1);
+  assert.match(r.movidas[0].motivo, /provisório.*mesmo e-mail/);
+  assert.equal(db.dados.indications.i_luiz.external_seller_uid, 'raf');
+  assert.equal(db.dados.commissions.i_luiz.external_seller_uid, 'raf');
+  // c) nome parecido sem e-mail igual e com duas contas possíveis: não adivinha
+  db = cenarioLuiz({ users: { raf2: { uid: 'raf2', name: 'Rafael - MAQLOC', email: 'outro@gmail.com', role: 'external_seller', status: 'active' } } });
+  db.dados.indications.i_luiz.external_seller_uid = 'sumiu';
+  db.dados.indications.i_luiz.external_seller_email = '';
+  db.dados.commissions.i_luiz.external_seller_uid = 'sumiu';
+  r = await conciliarComissoes(depsC(db));
+  assert.equal(r.movidas.length, 0);
+  assert.equal(db.dados.commissions.i_luiz.external_seller_uid, 'sumiu');
+  assert.ok(r.travadas.some(t => /não existe mais/.test(t.motivo)));
+});
+
+test('CORREÇÃO: comissão paga ou aguardando pagamento não é mexida, e aparece no relatório', async () => {
+  for (const st of ['paid', 'waiting_payment']) {
+    const db = cenarioLuiz();
+    db.dados.commissions.i_luiz.status = st;
+    const antes = structuredClone(db.dados);
+    const r = await conciliarComissoes(depsC(db));
+    assert.equal(r.movidas.length, 0);
+    assert.deepEqual(db.dados, antes, 'nada mudou no banco');
+    assert.equal(r.travadas.length, 1);
+    assert.match(r.travadas[0].motivo, /Não foi mexida/);
+    assert.equal(r.travadas[0].cliente, 'LUIZ OTAVIO');
+  }
+});
+
+test('CORREÇÃO: fechamento do destino pago ou aguardando pagamento vira relatório, e não transferência', async () => {
+  const db = cenarioLuiz({ monthly_statements: { raf_11_2026: { seller_uid: 'raf', seller_name: 'Rafael - MAQLOC', month: 11, year: 2026, status: 'waiting_payment', total_value: 900 } } });
+  const r = await conciliarComissoes(depsC(db));
+  assert.equal(r.movidas.length, 0);
+  assert.equal(db.dados.commissions.i_luiz.external_seller_uid, 'temp_1759');
+  assert.equal(r.travadas.length, 1);
+  assert.match(r.travadas[0].motivo, /fechamento de 11\/2026.*aguardando pagamento/);
+  // o financeiro reabriu o fechamento: a próxima rodada leva a comissão
+  db.dados.monthly_statements.raf_11_2026.status = 'waiting_nf';
+  const r2 = await conciliarComissoes(depsC(db));
+  assert.equal(r2.movidas.length, 1);
+  assert.equal(db.dados.commissions.i_luiz.external_seller_uid, 'raf');
+});
+
+test('CORREÇÃO: venda faturada recente sem comissão ganha a dela pela conta do faturamento; antiga só é avisada', async () => {
+  const db = cenarioLuiz({ indications: {
+    i_antiga: { status: 'sold', client_name: 'Venda de 2025', external_seller_uid: 'raf', commissioned_products: CMF600, sale_date: '2025-03-01', updated_at: '2025-03-01T10:00:00Z' },
+    i_gerente: { status: 'sold', client_name: 'Venda da gerente', external_seller_uid: 'gis', commissioned_products: CMF600, sale_date: '2026-10-10' },
+    i_agora: { status: 'sold', client_name: 'Estorno em andamento', external_seller_uid: 'raf', commissioned_products: CMF600, sale_date: '2026-10-19', updated_at: new Date(AGORA.getTime() - 5 * 60000).toISOString() },
+  } });
+  delete db.dados.commissions.i_luiz;
+  const r = await conciliarComissoes(depsC(db));
+  assert.equal(r.criadas.length, 1);
+  const c = db.dados.commissions.i_luiz;
+  const esperado = calcularComissao(CMF600, 0, 3);
+  assert.equal(c.value, esperado.valor);
+  assert.equal(c.external_seller_uid, 'raf');
+  assert.equal(c.status, 'waiting_nf');
+  assert.equal(c.generated_by, 'correcao_automatica');
+  assert.equal(r.criadas[0].cliente, 'LUIZ OTAVIO');
+  assert.ok(!db.dados.commissions.i_antiga);
+  assert.ok(r.travadas.some(t => t.indicacao_id === 'i_antiga' && /antiga demais/.test(t.motivo)));
+  assert.ok(!db.dados.commissions.i_gerente, 'perfil da equipe não ganha comissão');
+  assert.ok(!db.dados.commissions.i_agora, 'indicação mexida agora fica para a próxima rodada');
+  assert.doesNotMatch(db.dados.indications.i_luiz.negotiation_history.at(-1).content, /%|\u2014/);
+});
+
+test('CORREÇÃO: a segunda rodada não faz nada, o histórico guarda o que foi feito e a trava impede rodar junto', async () => {
+  const db = cenarioLuiz({ indications: { i_nova: { status: 'sold', client_name: 'Serraria Nova', external_seller_uid: 'raf', commissioned_products: CMF600, sale_date: '2026-10-08', updated_at: '2026-10-08T10:00:00Z' } } });
+  const r1: any = await conciliarComTrava(depsC(db), 'início do servidor');
+  assert.equal(r1.movidas.length, 1);
+  assert.equal(r1.criadas.length, 1);
+  assert.ok(!db.dados.cron_locks[DOC_TRAVA], 'a trava sai no fim');
+  const antes = structuredClone({ i: db.dados.indications, c: db.dados.commissions, m: db.dados.monthly_statements });
+  const r2: any = await conciliarComTrava(depsC(db), 'diária');
+  assert.equal(r2.movidas.length, 0);
+  assert.equal(r2.criadas.length, 0);
+  assert.equal(r2.travadas.length, 0);
+  assert.deepEqual({ i: db.dados.indications, c: db.dados.commissions, m: db.dados.monthly_statements }, antes);
+  const lido = await lerCorrecoes(db);
+  assert.equal(lido.historico.length, 2, 'o que foi feito na primeira continua aparecendo');
+  assert.equal(lido.ultima.origem, 'diária');
+  assert.ok(lido.historico.every((h: any) => h.parceiro === 'Rafael - MAQLOC' && h.cliente));
+  assert.ok(db.dados.cron_locks[DOC_RESULTADO]);
+  // outra rodada em andamento (trava recente): esta é pulada
+  db.dados.cron_locks[DOC_TRAVA] = { started_at: AGORA.toISOString() };
+  assert.equal(await conciliarComTrava(depsC(db), 'diária'), null);
+  // trava velha (processo morto no meio) é retomada
+  db.dados.cron_locks[DOC_TRAVA] = { started_at: '2026-10-18T00:00:00Z' };
+  assert.ok(await conciliarComTrava(depsC(db), 'diária'));
 });
