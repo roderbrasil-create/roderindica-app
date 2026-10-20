@@ -219,7 +219,7 @@ REGRAS DE COMPATIBILIDADE E DIMENSIONAMENTO:
 6. Hidráulica, Rotatores e Tabelas Oficiais de Códigos:
    - Rotatores Roder: Giro infinito contínuo 360° (3t, 6t, 10t, 16t). Padrão dimensional biela 100mm, furo para pino de 45mm.
    - QUADRO 1 - ACESSÓRIOS DE MONTAGEM (Padrão 1000.XXXX.XXXX): Códigos oficiais para ponteiras de biela 4/6, suportes de destocador/triturador e links de garra para ${uniqueAccessories.length} máquinas escavadeiras homologadas.
-   - QUADRO 2 - KITS OFICIAIS DE INSTALAÇÃO HIDRÁULICA (Padrão 9000.9000.9000 a 9000.9000.9060): 56+ kits completos para destocador, CMF, garras e kit de derivação da bomba para máquinas sem fatia extra original (Cód. 9000.9000.9016).`;
+   - QUADRO 2 - KITS OFICIAIS DE INSTALAÇÃO HIDRÁULICA (Padrão 9000.9000.9000 a 9000.9000.9060): 56+ kits completos para destocador, CMF, garras e kit de derivação da bomba para máquinas sem fatia extra original (Cód. 9000.9000.9016, quando confirmado por foto e vídeo).`;
 
   const handleCopyPrompt = () => {
     navigator.clipboard.writeText(systemPromptText);
@@ -861,7 +861,7 @@ REGRAS DE COMPATIBILIDADE E DIMENSIONAMENTO:
                   <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-2">
                     <div className="flex items-center gap-2 text-orange-600 font-bold text-sm">
                       <Cpu className="w-4 h-4" />
-                      Kit Sem Fatia Extra (9000.9000.9016)
+                      Kit Sem Fatia Extra (9000.9000.9016, quando confirmado por foto e vídeo)
                     </div>
                     <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                       Para escavadeiras que, depois de confirmado por foto e vídeo, não têm fatia extra com saída dupla no comando (nunca pelo modelo), o kit deriva pressão da bomba principal. O 9016 não é o kit de baixa. Em marcha lenta sem mover a lança, a rotação do rotator fica lenta por projeto (vazão mínima da bomba), normalizando ao operar qualquer função.

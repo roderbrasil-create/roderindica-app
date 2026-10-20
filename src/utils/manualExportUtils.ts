@@ -102,7 +102,7 @@ export function getTabPlainText(
     case 'hydraulics':
       return `RODER BRASIL - DIRETRIZES HIDRÁULICAS, INSTALAÇÃO & RETROFIT
 
-1. KIT PARA MÁQUINAS SEM FATIA EXTRA (CÓDIGO 9000.9000.9016):
+1. KIT PARA MÁQUINAS SEM FATIA EXTRA (CÓDIGO 9000.9000.9016, quando confirmado por foto e vídeo):
    - Derivação direta da bomba principal para válvula de duas solenoides de baixo fluxo.
    - Em marcha lenta e sem mover o braço/lança, o giro fica lento por projeto (bomba em deslocamento mínimo). A rotação normaliza ao acionar qualquer outra função da escavadeira.
 

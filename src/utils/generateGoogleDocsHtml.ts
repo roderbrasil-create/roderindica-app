@@ -93,7 +93,7 @@ export function generateTechnicalManualHtml({
 
   const hydraData = [
     [
-      'Máquinas Sem Fatia Extra (Kit 9000.9000.9016)',
+      'Máquinas Sem Fatia Extra (Kit 9000.9000.9016, quando confirmado por foto e vídeo)',
       'Deriva pressão diretamente da bomba principal. Em marcha lenta (idle), o giro da garra fica lento, normalizando ao acionar funções simultâneas (lança, braço, giro). Para CMF é fisicamente possível mas NÃO RECOMENDADO por segurança.'
     ],
     [

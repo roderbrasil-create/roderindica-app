@@ -226,3 +226,22 @@ test('regras antigas não contradizem a regra nova (CMF sem fatia extra, requisi
   assert.equal((server.match(/O 9016 deriva da bomba principal e NÃO é o kit de baixa/g) || []).length, 2);
   assert.match(RESSALVA_KIT, /ou depois de o vendedor informar e confirmar essa configuração/);
 });
+
+test('últimas sobras: viabilidade do 9016, pedido de foto e vídeo, e títulos de kit nos documentos', () => {
+  const ler = (c: string) => readFileSync(new URL(`../${c}`, import.meta.url), 'utf8');
+  const server = ler('server.ts');
+  assert.ok(!/instalação da garra é totalmente viável/.test(server));
+  assert.ok(server.includes('o kit possível, a confirmar pelo técnico Roder'));
+  assert.ok(!/algumas marcas\/modelos não possuem/.test(server));
+  assert.ok(!/solicitar uma foto ou vídeo do comando/.test(server));
+  assert.ok(!/pedir fotos ou vídeos do comando hidráulico do cliente/.test(server));
+  assert.ok(!/pede marca, modelo e fotos do comando/.test(server));
+  assert.ok(!/pedir a marca e o modelo da sua máquina e fotos do comando/.test(server));
+  assert.equal((server.match(/fotos \(bloco de comando, bomba, os dois joysticks\) e vídeo \(cabine e comando\)/g) || []).length, 2);
+  // todo título ou linha de documento que cita o 9016 ligado a "sem fatia extra" leva a ressalva
+  for (const f of ['src/utils/manualExportUtils.ts', 'src/pages/IAManual.tsx', 'src/utils/generateTechnicalPdf.ts', 'src/utils/generateTechnicalDocx.ts', 'src/utils/generateGoogleDocsHtml.ts', 'src/components/catalog/EstudosComparativosModal.tsx']) {
+    const linhas = ler(f).split('\n').filter(l => /sem fatia extra/i.test(l) && /9000\.9000\.9016/.test(l));
+    assert.ok(linhas.length > 0, f);
+    for (const l of linhas) assert.ok(/quando confirmado por foto e vídeo/.test(l), `${f}: ${l.trim().slice(0, 90)}`);
+  }
+});

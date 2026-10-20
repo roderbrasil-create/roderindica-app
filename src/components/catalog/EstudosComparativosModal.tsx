@@ -627,7 +627,7 @@ export function EstudosComparativosModal({ onClose, initialSearch = '' }: Estudo
 
     {
       id: 'kit-sem-fatia-extra',
-      title: 'Instalação em Escavadeiras Sem Fatia Extra de Comando (Kit 9000.9000.9016)',
+      title: 'Instalação em Escavadeiras Sem Fatia Extra de Comando (Kit 9000.9000.9016, quando confirmado por foto e vídeo)',
       category: 'Hidráulica & Segurança',
       keywords: ['fatia extra', 'comando', 'kit', '9000.9000.9016', 'rotator', 'escavadeira'],
       summary: 'Funcionamento do Kit 9000.9000.9016 em escavadeiras sem comando extra e características operacionais de vazão.',
@@ -643,7 +643,7 @@ export function EstudosComparativosModal({ onClose, initialSearch = '' }: Estudo
                   Orientações de Adequação Hidráulica
                 </span>
                 <h2 className="text-lg sm:text-xl font-black text-slate-950 uppercase">
-                  MÁQUINAS SEM FATIA EXTRA DE COMANDO • KIT 9016
+                  MÁQUINAS SEM FATIA EXTRA DE COMANDO • KIT 9016 (QUANDO CONFIRMADO POR FOTO E VÍDEO)
                 </h2>
               </div>
             </div>
