@@ -40,6 +40,7 @@ import { REGRA_KIT_CONFIRMACAO, TEXTO_CMF_CAT320, RESSALVA_KIT, instrucaoAmostra
 import { registrarConsultorParceiro, BUCKETS_VIDEO } from "./server/consultorParceiro";
 import { criarBibliotecaVideos, instrucaoVideos, sanitizarPainel } from "./server/videosConsultor";
 import { criarRotasArquivosVideos } from "./server/arquivosVideosConsultor";
+import { parseKitsText } from "./server/kitsPdf";
 import { instrucaoPerfilConsultor } from "./server/consultorPerfil";
 import { injetarPrevia, previaPadrao, previaDoEquipamento, codigoLimpo, SITE_PREVIA } from "./server/previaLink";
 import { criarImagemPrevia, candidatasDoLink, urlImagemPrevia, MAX_ORIGEM_BYTES, PASTA_CACHE, baixarExterna } from "./server/previaImagem";
@@ -750,122 +751,8 @@ Retorne estritamente um array JSON com os kits encontrados:
         return res.status(400).json({ error: "Nenhum texto ou arquivo PDF legível recebido. Você também pode colar o texto do relatório diretamente." });
       }
 
-      // Robust kit parser supporting multi-line wrapped text from DBCorp PCR reports
-      const kitsMap = new Map<string, { code: string; description: string; items: { code: string; description: string; quantity: number }[] }>();
-
-      const lines = text.split(/\r?\n/);
-      let currentKitCode: string | null = null;
-      let pendingItem: { code: string; descParts: string[]; qty?: number } | null = null;
-
-      const flushPendingItem = () => {
-        if (pendingItem && currentKitCode && kitsMap.has(currentKitCode)) {
-          const itemCode = pendingItem.code;
-          const cleanDesc = pendingItem.descParts.join(' ').replace(/\s+/g, ' ').trim();
-          const qty = pendingItem.qty !== undefined && !isNaN(pendingItem.qty) ? pendingItem.qty : 1;
-          const currentKit = kitsMap.get(currentKitCode)!;
-          const existingIdx = currentKit.items.findIndex(it => it.code === itemCode);
-          if (existingIdx >= 0) {
-            currentKit.items[existingIdx] = { code: itemCode, description: cleanDesc || currentKit.items[existingIdx].description, quantity: qty };
-          } else {
-            currentKit.items.push({ code: itemCode, description: cleanDesc, quantity: qty });
-          }
-        }
-        pendingItem = null;
-      };
-
-      for (let i = 0; i < lines.length; i++) {
-        let line = lines[i].trim();
-        if (!line) continue;
-
-        // Skip report headers/footers
-        if (
-          line.startsWith('Roder Máquinas') ||
-          line.startsWith('Quant. Item Pai') ||
-          line.includes('DBCorp PCR') ||
-          line.startsWith('Nível Nº Item') ||
-          line.startsWith('Filtros:') ||
-          line.includes('Relatório de Estruturas') ||
-          line === 'Item' || line === 'Item UN Versão' || line === 'UN' || line === 'Versão'
-        ) {
-          continue;
-        }
-
-        // Check for kit header line (code 9000.9000.9xxx or general kit code)
-        const kitMatch = line.match(/(9000\.\d{4}\.\d{4}|\d{4}\.\d{4}\.\d{4})\s*(.*)/i);
-        const isChildItem = line.match(/\d{4}\.\d{4}\.\d{4}\s+.+?\s+(UN|PC|MT|PAR)\s+[\d,]+/i) || line.match(/^\d+\s+\d+\s+\d{4}\.\d{4}\.\d{4}/);
-
-        if (kitMatch && !isChildItem) {
-          flushPendingItem();
-          const code = kitMatch[1].trim();
-          let desc = (kitMatch[2] || '').trim();
-          desc = desc.replace(/^Item\s+UN\s+Versão\s+/i, '').replace(/\s+UN\s*\d*$/i, '').trim();
-
-          // Check if next line is continuation of kit title (before any item line)
-          let nextLineIdx = i + 1;
-          while (nextLineIdx < lines.length) {
-            const nextL = lines[nextLineIdx].trim();
-            if (!nextL) { nextLineIdx++; continue; }
-            if (nextL.match(/^Nível/i) || nextL.match(/^\d+\s+\d+\s+\d{4}\.\d{4}\.\d{4}/) || nextL.match(/^(?:9000|\d{4})\.\d{4}\.\d{4}/)) {
-              break;
-            }
-            if (!nextL.match(/DBCorp|Roder|Quant\.|Filtros/i)) {
-              const cleanNext = nextL.replace(/\s+UN\s*\d*$/i, '').replace(/^UN\s*\d*$/i, '').trim();
-              if (cleanNext && cleanNext !== '1' && cleanNext !== 'UN') {
-                desc = (desc + ' ' + cleanNext).trim();
-              }
-            }
-            i = nextLineIdx;
-            nextLineIdx++;
-            break;
-          }
-
-          currentKitCode = code;
-          if (!kitsMap.has(code)) {
-            kitsMap.set(code, { code, description: desc, items: [] });
-          } else if (desc) {
-            kitsMap.get(code)!.description = desc;
-          }
-          continue;
-        }
-
-        // Check for item row: starts with e.g. "1 1 5000.1001.0016" or "5000.1001.0016"
-        const itemStartMatch = line.match(/(?:^|\s)(\d{4}\.\d{4}\.\d{4})\s*(.*)/);
-        if (itemStartMatch && currentKitCode) {
-          const itemCode = itemStartMatch[1].trim();
-          if (itemCode === currentKitCode) continue;
-
-          flushPendingItem();
-          let rest = itemStartMatch[2].trim();
-          let qty: number | undefined;
-
-          const unitQtyMatch = rest.match(/(.*?)\s+(UN|PC|MT|PAR)\s+([\d]+(?:[,\.]\d+)?)/i);
-          if (unitQtyMatch) {
-            const descPart = unitQtyMatch[1].trim();
-            qty = parseFloat(unitQtyMatch[3].replace(',', '.'));
-            pendingItem = { code: itemCode, descParts: descPart ? [descPart] : [], qty };
-            flushPendingItem();
-          } else {
-            pendingItem = { code: itemCode, descParts: rest ? [rest] : [] };
-          }
-          continue;
-        }
-
-        // Continuation of pending item description or quantity
-        if (pendingItem) {
-          const unitQtyMatch = line.match(/(.*?)\s*(?:UN|PC|MT|PAR)\s+([\d]+(?:[,\.]\d+)?)/i);
-          if (unitQtyMatch) {
-            const descPart = unitQtyMatch[1].trim();
-            if (descPart) pendingItem.descParts.push(descPart);
-            pendingItem.qty = parseFloat(unitQtyMatch[2].replace(',', '.'));
-            flushPendingItem();
-          } else if (!line.match(/^\d+\/\d+\/\d{4}$/) && !line.match(/^[\d\s]+$/)) {
-            pendingItem.descParts.push(line);
-          }
-        }
-      }
-      flushPendingItem();
-
-      let parsedKits = Array.from(kitsMap.values());
+      // Parser único (server/kitsPdf.ts): aceita o texto do pdf-parse e o do pdftotext -layout, sem deduplicar itens repetidos.
+      let parsedKits = parseKitsText(text);
       console.log(`[PARSE-PDF] Local regex extracted ${parsedKits.length} kits from text.`);
 
       // If regex found 0 kits but we have text, trigger Gemini text structuring fallback

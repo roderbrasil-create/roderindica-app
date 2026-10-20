@@ -69,6 +69,7 @@ import {
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
+import { computeKitsDiff } from '../lib/kitsDiff';
 
 const getDisplayImageUrl = (url: string | undefined): string => {
   if (!url) return '';
@@ -484,76 +485,6 @@ export default function Accessories() {
     } else {
       toast.success(`${officialKits.length} kits homologados carregados (${diff.added.length} novos para adicionar, ${diff.updated.length} para atualizar).`);
     }
-  };
-
-  const computeKitsDiff = (parsedKits: InstallationKit[], existingKits: InstallationKit[]) => {
-    const existingMap = new Map<string, InstallationKit>();
-    existingKits.forEach(k => existingMap.set(k.code.trim(), k));
-
-    const added: { parsedKit: InstallationKit; type: 'ADDED'; changes: string[] }[] = [];
-    const updated: { parsedKit: InstallationKit; existingKit?: InstallationKit; type: 'UPDATED'; changes: string[] }[] = [];
-    const unchanged: { parsedKit: InstallationKit; existingKit?: InstallationKit; type: 'UNCHANGED'; changes: string[] }[] = [];
-
-    parsedKits.forEach(pKit => {
-      const code = pKit.code.trim();
-      const existing = existingMap.get(code);
-
-      if (!existing) {
-        added.push({
-          parsedKit: pKit,
-          type: 'ADDED',
-          changes: ['Novo kit cadastrado']
-        });
-      } else {
-        const changes: string[] = [];
-
-        // Check description change
-        if (pKit.description.trim() !== existing.description.trim()) {
-          changes.push(`Descrição alterada: "${existing.description}" ➔ "${pKit.description}"`);
-        }
-
-        // Check items
-        const exItemsMap = new Map<string, number>();
-        (existing.items || []).forEach(it => exItemsMap.set(it.code, it.quantity));
-
-        const newItemsMap = new Map<string, number>();
-        (pKit.items || []).forEach(it => newItemsMap.set(it.code, it.quantity));
-
-        // Added or changed items
-        (pKit.items || []).forEach(it => {
-          if (!exItemsMap.has(it.code)) {
-            changes.push(`Item adicionado: ${it.code} (${it.description}) - Qtd: ${it.quantity}`);
-          } else if (exItemsMap.get(it.code) !== it.quantity) {
-            changes.push(`Qtd alterada no item ${it.code}: ${exItemsMap.get(it.code)} ➔ ${it.quantity}`);
-          }
-        });
-
-        // Removed items
-        (existing.items || []).forEach(it => {
-          if (!newItemsMap.has(it.code)) {
-            changes.push(`Item removido: ${it.code} (${it.description})`);
-          }
-        });
-
-        if (changes.length > 0) {
-          updated.push({
-            parsedKit: pKit,
-            existingKit: existing,
-            type: 'UPDATED',
-            changes
-          });
-        } else {
-          unchanged.push({
-            parsedKit: pKit,
-            existingKit: existing,
-            type: 'UNCHANGED',
-            changes: []
-          });
-        }
-      }
-    });
-
-    return { added, updated, unchanged };
   };
 
   const processPdfBase64OrText = async (fileBase64?: string, rawText?: string) => {

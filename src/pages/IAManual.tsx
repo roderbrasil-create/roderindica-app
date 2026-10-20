@@ -219,7 +219,7 @@ REGRAS DE COMPATIBILIDADE E DIMENSIONAMENTO:
 6. Hidráulica, Rotatores e Tabelas Oficiais de Códigos:
    - Rotatores Roder: Giro infinito contínuo 360° (3t, 6t, 10t, 16t). Padrão dimensional biela 100mm, furo para pino de 45mm.
    - QUADRO 1 - ACESSÓRIOS DE MONTAGEM (Padrão 1000.XXXX.XXXX): Códigos oficiais para ponteiras de biela 4/6, suportes de destocador/triturador e links de garra para ${uniqueAccessories.length} máquinas escavadeiras homologadas.
-   - QUADRO 2 - KITS OFICIAIS DE INSTALAÇÃO HIDRÁULICA (Padrão 9000.9000.9000 a 9000.9000.9060): 56+ kits completos para destocador, CMF, garras e kit de derivação da bomba para máquinas sem fatia extra original (Cód. 9000.9000.9016, quando confirmado por foto e vídeo).`;
+   - QUADRO 2 - KITS OFICIAIS DE INSTALAÇÃO HIDRÁULICA (Padrão 9000.9000.9000 a 9000.9000.9060): 58 kits completos para destocador, CMF, garras e kit de derivação da bomba para máquinas sem fatia extra original (Cód. 9000.9000.9016, quando confirmado por foto e vídeo).`;
 
   const handleCopyPrompt = () => {
     navigator.clipboard.writeText(systemPromptText);

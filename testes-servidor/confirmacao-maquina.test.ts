@@ -263,7 +263,7 @@ test('CMF em CAT 320 nova: kits 9035 e 9003, confirmação sempre e contato da c
   assert.deepEqual([...new Set(t.match(/\d{4}\.\d{4}\.\d{4}/g) || [])].sort(), ['9000.9000.9003', '9000.9000.9035']);
   // 9035 e 9003 estão cadastrados (a regra só cita código cadastrado), nas duas fontes
   const constants = ler('src/constants.ts');
-  assert.match(constants, /code: '9000\.9000\.9035',\s*description: 'KIT INSTALACAO CMF500\/600 EM ESCAVADEIRA - \(MAQUINA COM FATIA EXTRA ACIONADA SEM LINHA\)'/);
+  assert.match(constants, /code: .9000\.9000\.9035.,\s*description: .KIT INSTALACAO CMF500\/600 EM ESCAVADEIRA - \( MAQUINA COM FATIA EXTRA "ACIONADA" SEM LINHA\)./);
   assert.match(constants, /code: '9000\.9000\.9003'/);
   assert.match(ler('src/data/equipmentManualData.ts'), /'9000\.9000\.9035', 'KIT INSTALACAO CMF500\/600 EM ESCAVADEIRA/);
   // o prompt usa o texto único, e AGENTS, estudo e manuais falam o mesmo
