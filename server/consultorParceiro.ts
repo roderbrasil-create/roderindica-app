@@ -23,7 +23,6 @@ export interface DepsConsultorParceiro {
   ipDe: (req: any) => string;
   criarLinkCurto: (uid: string, pid: string, mid: string) => Promise<string | null>;
   enviarEmail?: (to: string, subject: string, html: string) => Promise<any>;
-  sincronizarAgendor?: (id: string, dados: any) => Promise<any>;
   agora?: () => Date;
   // FieldValue.delete() do Firestore: apaga o token antigo que versões anteriores gravavam em users/{uid}
   campoApagado?: () => any;
@@ -401,14 +400,10 @@ export function criarRotasConsultorParceiro(deps: DepsConsultorParceiro) {
       await ref.set(dados);
       res.json({ ok: true, id: ref.id });
 
-      // depois de responder: sino da gestão, e-mails e Agendor (como o envio pelo app)
+      // depois de responder: sino da gestão e e-mails (como o envio pelo app)
       (async () => {
         await avisarGestao('Nova Indicação Recebida', `${dono.nome || 'Parceiro'} enviou uma nova indicação para ${cliente} pela conversa do consultor.`).catch(() => {});
         await enviarEmails(dados, dono).catch(() => {});
-        try {
-          const ag = await db.collection('settings').doc('agendor').get();
-          if (ag.exists && ag.data()?.enabled && deps.sincronizarAgendor) await deps.sincronizarAgendor(ref.id, dados);
-        } catch { /* a indicação já está gravada */ }
       })();
     } catch {
       if (!res.headersSent) res.status(500).json({ error: 'Não consegui enviar a indicação. Tente de novo.' });
