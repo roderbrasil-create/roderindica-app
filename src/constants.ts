@@ -106,6 +106,7 @@ export interface InstallationKit {
     code: string;
     quantity: number;
     description: string;
+    unit?: string; // só quando não é UN (MT, PC, PAR)
   }[];
 }
 
@@ -556,7 +557,7 @@ export const INSTALLATION_KITS: InstallationKit[] = [
       { code: '3000.5000.0318', description: 'Adaptador Painel 9/16 JIC', quantity: 1 },
       { code: '3000.5000.0317', description: 'Adaptador Painel 7/8 JIC', quantity: 1 },
       { code: '2000.1000.3147', description: 'CHAPA PAINEL 9/16 -7/8 INSTALACAO', quantity: 1 },
-      { code: '3000.5003.0006', description: 'VALVULA CONTROLE FLUXO UNIDIRECIONAL 1/4 BSP', quantity: 1 },
+      { code: '3000.5003.0006', description: 'VALVULA CONTROLE FLUXO UNIDIRECIONAL 1/4 BSP', quantity: 1, unit: 'PC' },
       { code: '3000.5000.0291', description: 'ADAPTADOR MACHO/MACHO 1/4 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC', quantity: 1 },
       { code: '3000.5000.0321', description: 'ADAPTADOR MACHO/FEMEA 1/4 BSP X 9/16 JIC', quantity: 1 },
       { code: '3000.5000.0274', description: 'ADAPTADOR MACHO/FEMEA 90GRAUS 9/16 JIC X 9/16 JIC', quantity: 2 },
@@ -760,7 +761,7 @@ export const INSTALLATION_KITS: InstallationKit[] = [
       { code: '3000.5001.1042', description: '3/8 R2 - 2000 MM X FG 9/16 JIC X FG 9/16 JIC', quantity: 1 },
       { code: '3000.5000.0318', description: 'Adaptador Painel 9/16 JIC', quantity: 1 },
       { code: '3000.5000.0317', description: 'Adaptador Painel 7/8 JIC', quantity: 1 },
-      { code: '3000.5003.0006', description: 'VALVULA CONTROLE FLUXO UNIDIRECIONAL 1/4 BSP', quantity: 1 },
+      { code: '3000.5003.0006', description: 'VALVULA CONTROLE FLUXO UNIDIRECIONAL 1/4 BSP', quantity: 1, unit: 'PC' },
       { code: '3000.5000.0291', description: 'ADAPTADOR MACHO/MACHO 1/4 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC', quantity: 4 },
       { code: '3000.5000.0321', description: 'ADAPTADOR MACHO/FEMEA 1/4 BSP X 9/16 JIC', quantity: 2 },
       { code: '3000.5000.0274', description: 'ADAPTADOR MACHO/FEMEA 90GRAUS 9/16 JIC X 9/16 JIC', quantity: 2 },
@@ -789,7 +790,7 @@ export const INSTALLATION_KITS: InstallationKit[] = [
       { code: '3000.1001.0069', description: 'PARAFUSO ALLEN 12.9-M8 X 160', quantity: 4 },
       { code: '3000.1003.0005', description: 'Porca M8 parlock', quantity: 6 },
       { code: '3000.2001.0338', description: 'Oring D.I. 26,70 x 1,78 - NBR-90sh - ref. Parker 2023', quantity: 2 },
-      { code: '3000.5003.0092', description: 'VALVULA SOLENOIDE DVS90-6-G1/2- 6 VIAS PADRAO G1/2, VAZAO HIDRAULICA MAX. DE 90 LPM COM BOBINA DE ACIONAMENTO 12 OU 24 VDC, UTILIZADA PARA ACIONAMENTO DE MOVIMENTOS HIDRAULICOS EM EQUIPAMENTOS_NCM:8481.80.92', quantity: 2 },
+      { code: '3000.5003.0092', description: 'VALVULA SOLENOIDE DVS90-6-G1/2- 6 VIAS PADRAO G1/2, VAZAO HIDRAULICA MAX. DE 90 LPM COM BOBINA DE ACIONAMENTO 12 OU 24 VDC, UTILIZADA PARA ACIONAMENTO DE MOVIMENTOS HIDRAULICOS EM EQUIPAMENTOS_NCM:8481.80.92', quantity: 2, unit: 'PC' },
       { code: '3000.5000.0364', description: 'ABRACADEIRA DUPLA TUBO 25MM P/ SOLDAR', quantity: 4 },
       { code: '3000.5000.0276', description: 'ADAPTADOR MACHO/FEMEA 90GRAUS 1.1/16 JIC X 1.1/16 JIC', quantity: 2 },
       { code: '5000.1001.0059', description: 'MANOPLA JOYSTICK 3 BOTOES- PADRAO FLORESTAL', quantity: 1 },
@@ -801,7 +802,7 @@ export const INSTALLATION_KITS: InstallationKit[] = [
     description: 'KIT ELETRO HIDRAULICO PA CARREGADEIRA PARA INSTALACAO DE 3ª FUNCAO 24V',
     items: [
       { code: '5000.1001.0051', description: 'CAIXA ELETRICA 01 FUNCAO 12/24V', quantity: 1 },
-      { code: '3000.5003.0092', description: 'VALVULA SOLENOIDE DVS90-6-G1/2- 6 VIAS PADRAO G1/2, VAZAO HIDRAULICA MAX. DE 90 LPM COM BOBINA DE ACIONAMENTO 12 OU 24 VDC, UTILIZADA PARA ACIONAMENTO DE MOVIMENTOS HIDRAULICOS EM EQUIPAMENTOS_NCM:8481.80.92', quantity: 1 },
+      { code: '3000.5003.0092', description: 'VALVULA SOLENOIDE DVS90-6-G1/2- 6 VIAS PADRAO G1/2, VAZAO HIDRAULICA MAX. DE 90 LPM COM BOBINA DE ACIONAMENTO 12 OU 24 VDC, UTILIZADA PARA ACIONAMENTO DE MOVIMENTOS HIDRAULICOS EM EQUIPAMENTOS_NCM:8481.80.92', quantity: 1, unit: 'PC' },
       { code: '3000.5000.0288', description: 'Adaptador macho/macho 1/2 BSP x 1.1/16 JIC', quantity: 4 },
       { code: '3000.5000.0283', description: 'ADAPTADOR MACHO/MACHO 1/2 BSPP PARALELO COM ANEL VEDACAO ED X 7/8 JIC', quantity: 2 },
       { code: '2000.1000.0743', description: 'SUPORTE VALVULA 6 VIAS', quantity: 1 },
@@ -917,7 +918,7 @@ export const INSTALLATION_KITS: InstallationKit[] = [
       { code: '3000.5001.1042', description: '3/8 R2 - 2000 MM X FG 9/16 JIC X FG 9/16 JIC', quantity: 1 },
       { code: '3000.5000.0318', description: 'Adaptador Painel 9/16 JIC', quantity: 1 },
       { code: '3000.5000.0317', description: 'Adaptador Painel 7/8 JIC', quantity: 1 },
-      { code: '3000.5003.0006', description: 'VALVULA CONTROLE FLUXO UNIDIRECIONAL 1/4 BSP', quantity: 1 },
+      { code: '3000.5003.0006', description: 'VALVULA CONTROLE FLUXO UNIDIRECIONAL 1/4 BSP', quantity: 1, unit: 'PC' },
       { code: '3000.5000.0291', description: 'ADAPTADOR MACHO/MACHO 1/4 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC', quantity: 4 },
       { code: '3000.5000.0321', description: 'ADAPTADOR MACHO/FEMEA 1/4 BSP X 9/16 JIC', quantity: 1 },
       { code: '3000.5000.0274', description: 'ADAPTADOR MACHO/FEMEA 90GRAUS 9/16 JIC X 9/16 JIC', quantity: 2 },
@@ -1034,7 +1035,7 @@ export const INSTALLATION_KITS: InstallationKit[] = [
       { code: '5000.1001.0027', description: 'Conector para Reles com 5 Vias', quantity: 2 },
       { code: '3000.1002.0046', description: 'PARAFUSO 4,2 X 13MM FLANGEADO CROMADO PONTA AGULHA', quantity: 2 },
       { code: '5000.1001.0038', description: 'Caixa PVC 154 x 110 x 70mm S.SX.161 LIGHT IP55 - STECK', quantity: 1 },
-      { code: '5000.1001.0030', description: 'Cabo PP 3 x 1,00mm PT', quantity: 2.5 },
+      { code: '5000.1001.0030', description: 'Cabo PP 3 x 1,00mm PT', quantity: 2.5, unit: 'MT' },
       { code: '5000.1001.0005', description: 'Rele Auxiliar 4 pinos 12 Volts c/ Suporte 40A', quantity: 2 }
     ]
   },
@@ -1378,9 +1379,9 @@ export const INSTALLATION_KITS: InstallationKit[] = [
       { code: '3000.5000.0287', description: 'Adaptador macho/macho 7/8 UNF x 7/8 JIC', quantity: 7 },
       { code: '3000.5000.0366', description: 'BUJAO FEMEA SEXTAVADO EXTERNO 7/8 JIC', quantity: 1 },
       { code: '3000.5000.0426', description: 'ABRACADEIRA MANGOTE PESADO 32MM MSA 54-62 (PARA MANGUEIRA SUCCAO 2)', quantity: 2 },
-      { code: '3000.5001.0029', description: 'MANGUEIRA HIDRAULICA R4 2 (SUCCAO)', quantity: 0.8 },
+      { code: '3000.5001.0029', description: 'MANGUEIRA HIDRAULICA R4 2 (SUCCAO)', quantity: 0.8, unit: 'MT' },
       { code: '3000.5000.0436', description: 'MACHO FIXO 2 NPT X 2 (MANGUEIRA DE 2")', quantity: 1 },
-      { code: '3000.5000.0516', description: 'FLANGE BIPARTIDA 2 (PARA FLANGE Ø71,4)', quantity: 1 },
+      { code: '3000.5000.0516', description: 'FLANGE BIPARTIDA 2 (PARA FLANGE Ø71,4)', quantity: 1, unit: 'PAR' },
       { code: '3000.5000.0517', description: 'FLANGE RETA 71,4MM X 2"', quantity: 1 },
       { code: '3000.5001.1179', description: '1/4 R17 - 550 MM X FG 9/16 JIC X FG 90° 9/16 JIC', quantity: 1 },
       { code: '3000.5001.1188', description: '3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC', quantity: 12 },

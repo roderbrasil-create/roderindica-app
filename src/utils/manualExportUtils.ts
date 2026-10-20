@@ -1,3 +1,4 @@
+import { formatarQuantidadeKit } from '../lib/kitQuantidade';
 import { AccessoryData, InstallationKit, deduplicateAccessories } from '../constants';
 import { Product } from '../types';
 import { EQUIPMENT_SPEC_TABLES } from '../data/equipmentManualData';
@@ -157,7 +158,7 @@ export function getTabPlainText(
       for (const kit of kits) {
         text += `• Código: ${kit.code} - ${kit.description}\n`;
         if (kit.items && kit.items.length > 0) {
-          text += `  Componentes: ${kit.items.map(i => `${i.quantity || 1}x ${i.description} (${i.code})`).join('; ')}\n`;
+          text += `  Componentes: ${kit.items.map(i => `${formatarQuantidadeKit(i)}${i.unit ? ' de' : 'x'} ${i.description} (${i.code})`).join('; ')}\n`;
         }
       }
       return text;

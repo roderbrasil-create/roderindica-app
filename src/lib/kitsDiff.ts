@@ -2,7 +2,7 @@
 export interface KitComparavel {
   code: string;
   description: string;
-  items?: { code: string; description: string; quantity: number }[];
+  items?: { code: string; description: string; quantity: number; unit?: string }[];
 }
 
 export type MudancaKit<K, T extends 'ADDED' | 'UPDATED' | 'UNCHANGED'> = {

@@ -85,3 +85,32 @@ test('plano B da tela usa o mesmo parser do servidor, sem parser local duplicado
   assert.match(tela, /from '\.\.\/\.\.\/server\/kitsPdf'/);
   assert.ok(!tela.includes('itemRegex'), 'parser local antigo voltou');
 });
+
+test('quantidade de todo item é inteira e >= 1, salvo os dois itens em MT (cabo do 9040 e mangueira do 9056)', () => {
+  const fora: string[] = [];
+  for (const k of INSTALLATION_KITS) for (const i of k.items) {
+    if (i.unit === 'MT') continue;
+    if (!Number.isInteger(i.quantity) || i.quantity < 1) fora.push(`${k.code} ${i.code} ${i.quantity}`);
+  }
+  assert.deepEqual(fora, []);
+  const mt = INSTALLATION_KITS.flatMap(k => k.items.filter(i => i.unit === 'MT').map(i => `${k.code}|${i.code}|${i.quantity}`));
+  assert.deepEqual(mt, ['9000.9000.9040|5000.1001.0030|2.5', '9000.9000.9056|3000.5001.0029|0.8']);
+});
+
+test('formatarQuantidadeKit: inteiro sem casas, MT com vírgula e unidade, nunca 0,01', async () => {
+  const { formatarQuantidadeKit } = await import('../src/lib/kitQuantidade');
+  assert.equal(formatarQuantidadeKit({ quantity: 14 }), '14');
+  assert.equal(formatarQuantidadeKit({ quantity: 2.5, unit: 'MT' }), '2,5 MT');
+  assert.equal(formatarQuantidadeKit({ quantity: 0.8, unit: 'MT' }), '0,8 MT');
+  assert.equal(formatarQuantidadeKit({ quantity: 1, unit: 'PC' }), '1 PC');
+});
+
+test('9015 é o kit de garra + lança extensora do PDF, sem o link 1000.0000.0120 dentro', () => {
+  const k = INSTALLATION_KITS.find(x => x.code === '9000.9000.9015')!;
+  assert.match(k.description, /^KIT INSTALACAO GARRA \+ LANCA EXTENSORA EM ESCAVADEIRA/);
+  assert.equal(k.items.length, 14);
+  assert.ok(!k.items.some(i => i.code === '1000.0000.0120'));
+  const server = readFileSync(new URL('../server.ts', import.meta.url), 'utf8');
+  assert.ok(!/Kit Hidráulico \*\*9000\.9000\.9015/.test(server));
+  assert.match(server, /NUNCA diga que o 9015 inclui o link/);
+});

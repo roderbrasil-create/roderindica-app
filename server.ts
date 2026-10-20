@@ -2520,7 +2520,7 @@ ${REGRA_KIT_CONFIRMACAO}
     - **Link para Garra com Biela (Instalação Prática de Garra Florestal)**:
       - **REGRA DE FILTRO**: Se o usuário NÃO perguntou especificamente sobre o "link", **NUNCA** mencione o código do link ou o kit de instalação para link. Seja direto e responda apenas o solicitado (Ponteira).
       - **Quando o Link é Solicitado**: Explique que é possível e facilite a troca rápida com a concha original.
-      - **Códigos de Link (Escavadeiras 22t pino 80mm)**: Link **1000.0000.0120** e Kit Hidráulico **9000.9000.9015**. ${RESSALVA_KIT}
+      - **Códigos de Link (Escavadeiras 22t pino 80mm)**: o link é o item **1000.0000.0120** (item separado, não faz parte de nenhum kit hidráulico). O kit **9000.9000.9015** ("Kit instalação garra + lança extensora em escavadeira, máquina com fatia extra sem linha") é outro item, só para garra com lança extensora em máquina com fatia extra sem linha. NUNCA diga que o 9015 inclui o link nem trate os dois como um conjunto. ${RESSALVA_KIT}
       - **Instalação com Ponteira (Padrão)**: Se a pergunta for sobre instalação com ponteira (ou se "link" não for mencionado), indique o item: **"Kit de instalação garra em escavadeira, máquina com fatia extra, sem linha"**. ${RESSALVA_KIT}
       - **Identificação de Kits**: Os kits para garra/CMF/traçadora que NÃO mencionam "link" referem-se automaticamente à montagem com ponteira.
       - **Acoplamento**: Use engates rápidos flat-face para facilitar a troca.
