@@ -621,3 +621,11 @@ test('PARCEIRO com senha e e-mail NÃO confirmado não lê indicação pelo e-ma
   await assertFails(getDoc(doc(falso, 'indications', 'ind_mail')));
   await assertSucceeds(getDoc(doc(fs_('parceiro'), 'indications', 'ind_mail')));
 });
+
+test('CONTA COM SENHA NÃO confirmada mas com users/{uid}.role internal_seller continua equipe (o papel vem do cadastro)', async () => {
+  await semRegras((db) => setDoc(doc(db, 'users', 'u_vend_nc'), { email: 'vendedora@gmail.com', role: 'internal_seller', status: 'active' }));
+  const db = contaSenha('u_vend_nc', 'vendedora@gmail.com', false);
+  await assertSucceeds(setDoc(doc(db, 'settings', 'notifications'), { manager_emails: [] }));
+  await assertSucceeds(getDocs(collection(db, 'indications')));
+  await assertSucceeds(getDoc(doc(db, 'users', 'u_gis')));
+});

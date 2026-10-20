@@ -1393,7 +1393,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
   });
   const [savingGoals, setSavingGoals] = useState(false);
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
-  const [passwordForUser, setPasswordForUser] = useState({ email: '', password: '', name: '' });
+  const [passwordForUser, setPasswordForUser] = useState({ email: '', password: '', name: '', uid: '' });
   const [isSettingPassword, setIsSettingPassword] = useState(false);
   const [shareUserModal, setShareUserModal] = useState<UserProfile | null>(null);
   // Link pessoal do parceiro no Consultor Roder (sem senha). Só Jeferson, Gislene e Luana.
@@ -1772,20 +1772,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
 
         // If a password was provided or updated, sync with Firebase Auth
         if (initialPwd && initialPwd !== editingUser.initial_password && initialPwd.length >= 6 && finalEmail && !finalEmail.endsWith('@mobile.roder.com.br')) {
-          try {
-            const token = await auth.currentUser?.getIdToken();
-            if (token) {
-              const baseUrl = getApiBaseUrl();
-              await fetch(`${baseUrl}/api/admin/set-user-password`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ email: finalEmail, password: initialPwd, token })
-              });
-            }
-          } catch (authErr) {
-            console.warn('Auth password sync notice:', authErr);
-          }
+          await sincronizarSenhaNoLogin(finalEmail, initialPwd, editingUser.uid);
         }
 
         setUsers(prev => prev.map(u => u.uid === editingUser.uid ? { ...u, ...userData } : u));
@@ -1802,20 +1789,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
 
         // If initial password was supplied, sync with Firebase Auth
         if (initialPwd && initialPwd.length >= 6 && finalEmail && !finalEmail.endsWith('@mobile.roder.com.br')) {
-          try {
-            const token = await auth.currentUser?.getIdToken();
-            if (token) {
-              const baseUrl = getApiBaseUrl();
-              await fetch(`${baseUrl}/api/admin/set-user-password`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ email: finalEmail, password: initialPwd, token })
-              });
-            }
-          } catch (authErr) {
-            console.warn('Auth password sync notice on creation:', authErr);
-          }
+          await sincronizarSenhaNoLogin(finalEmail, initialPwd, tempId);
         }
         
         if (!formData.email) {
@@ -1953,6 +1927,26 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
       `Qualquer dúvida, fale com a Luana!`;
   };
 
+  // Senha da conta de login pelo servidor, mandando o código do cadastro (o servidor recusa e-mail
+  // com dois cadastros sem ele). O resultado vai para a tela: recusa e "vai precisar entrar de novo".
+  const sincronizarSenhaNoLogin = async (email: string, senha: string, uid?: string) => {
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) return;
+      const r = await fetch(`${getApiBaseUrl()}/api/admin/set-user-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email, password: senha, uid: uid || undefined, token })
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.success) toast.error(`A senha de login não foi trocada: ${j.error || 'erro no servidor'}`, { duration: 9000 });
+      else if (j.precisa_entrar_de_novo) toast.info('A pessoa vai precisar entrar de novo com a senha nova em todos os aparelhos.', { duration: 8000 });
+    } catch (authErr) {
+      console.warn('Auth password sync notice:', authErr);
+    }
+  };
+
   const handleSetPasswordManually = async (shareAfterward = false) => {
     if (!passwordForUser.email || !passwordForUser.password || passwordForUser.password.length < 6) {
       toast.error('Informe um e-mail válido e uma senha com pelo menos 6 caracteres.');
@@ -1974,6 +1968,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
         body: JSON.stringify({
           email: passwordForUser.email,
           password: passwordForUser.password,
+          uid: passwordForUser.uid || undefined,
           token: token
         })
       });
@@ -2011,7 +2006,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
         // Small delay before closing to avoid React/DOM race conditions with sonner toast
         setTimeout(() => {
           setIsPasswordDialogOpen(false);
-          setPasswordForUser({ email: '', password: '', name: '' });
+          setPasswordForUser({ email: '', password: '', name: '', uid: '' });
           setIsSettingPassword(false);
         }, 100);
         return; // Success handled
@@ -2151,25 +2146,8 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
           updated_at: new Date().toISOString()
         });
 
-        // 2. Sync with Firebase Auth in background
-        try {
-          const token = await auth.currentUser?.getIdToken();
-          if (token && shareUserModal.email) {
-            const baseUrl = getApiBaseUrl();
-            await fetch(`${baseUrl}/api/admin/set-user-password`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
-              body: JSON.stringify({
-                email: shareUserModal.email,
-                password: trimmedPwd,
-                token
-              })
-            });
-          }
-        } catch (authErr) {
-          console.warn('Auth sync notice:', authErr);
-        }
+        // 2. Sync with Firebase Auth
+        if (shareUserModal.email) await sincronizarSenhaNoLogin(shareUserModal.email, trimmedPwd, shareUserModal.uid);
 
         // Update local state
         setUsers(prev => prev.map(u => u.uid === shareUserModal.uid ? { ...u, initial_password: trimmedPwd } : u));
@@ -2673,7 +2651,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                                     size="icon" 
                                     className="h-7 w-7 text-indigo-600 hover:bg-indigo-500/10" 
                                     onClick={() => {
-                                      setPasswordForUser({ email: user.email || '', password: user.initial_password || '', name: user.name });
+                                      setPasswordForUser({ email: user.email || '', password: user.initial_password || '', name: user.name, uid: user.uid || '' });
                                       setIsPasswordDialogOpen(true);
                                     }}
                                     title="Definir Senha Manualmente"
@@ -2893,7 +2871,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                               size="icon" 
                               className="h-7 w-7 text-indigo-600" 
                               onClick={() => {
-                                setPasswordForUser({ email: user.email || '', password: user.initial_password || '', name: user.name });
+                                setPasswordForUser({ email: user.email || '', password: user.initial_password || '', name: user.name, uid: user.uid || '' });
                                 setIsPasswordDialogOpen(true);
                               }}
                               disabled={user.email?.endsWith('@mobile.roder.com.br')}

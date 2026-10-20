@@ -318,3 +318,10 @@ test('fotos de fora: duas rodadas ao mesmo tempo, a segunda é barrada; trava ve
   agora = new Date(agora.getTime() + 11 * 60_000);
   assert.equal((await fotosExternas(deps, false, 'admin')).ok, true);
 });
+
+test('destino com lista de nomes: cada salto tem de estar na lista (foto do Agendor)', async () => {
+  const publico = async () => [{ address: '93.184.216.34', family: 4 }];
+  const lista = (h: string) => h === 'agendor.com.br' || h.endsWith('.agendor.com.br');
+  assert.ok(await conferirDestino('https://app.agendor.com.br/a.jpg', { resolver: publico, hostPermitido: lista }));
+  assert.equal(await conferirDestino('https://site.com/a.jpg', { resolver: publico, hostPermitido: lista }), null);
+});

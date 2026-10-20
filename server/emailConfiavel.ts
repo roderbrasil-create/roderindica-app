@@ -42,3 +42,67 @@ export function deveMarcarEmailConfirmado(contaAuth: any, cadastro: any): boolea
   if (emailCadastro && emailCadastro !== email) return false;
   return true;
 }
+
+// Por que uma conta com senha ficou SEM confirmar na rodada única. A tela de Regras mostra a lista
+// para o dono decidir antes de publicar (cada uma passa a entrar como parceiro sem cadastro).
+export type MotivoPendente = 'sem_cadastro' | 'cadastro_inativo' | 'email_diferente' | 'pre_cadastro_por_email' | 'diretoria';
+
+// O que a rodada única faz com uma conta: 'pular' (não é conta com senha sem confirmar),
+// 'marcar' (cadastro ativo do mesmo uid e e-mail) ou o motivo de ter ficado como está.
+// A diretoria nunca é marcada aqui: ela vira admin pelo e-mail, então o e-mail dela tem de ser
+// confirmado de verdade (Google ou "Esqueci a senha"), e não por dedução do servidor.
+export function classificarConta(contaAuth: any, cadastro: any, temPreCadastroPorEmail: boolean): 'pular' | 'marcar' | MotivoPendente {
+  if (!contaAuth || contaAuth.emailVerified === true) return 'pular';
+  const email = String(contaAuth.email || '').toLowerCase().trim();
+  if (!email) return 'pular';
+  const temSenha = Array.isArray(contaAuth.providerData) && contaAuth.providerData.some((p: any) => p?.providerId === 'password');
+  if (!temSenha) return 'pular';
+  if (EMAILS_DIRETORIA.includes(email)) return 'diretoria';
+  if (!cadastro) return temPreCadastroPorEmail ? 'pre_cadastro_por_email' : 'sem_cadastro';
+  if (cadastro.status !== 'active') return 'cadastro_inativo';
+  const emailCadastro = String(cadastro.email || '').toLowerCase().trim();
+  if (emailCadastro && emailCadastro !== email) return 'email_diferente';
+  return 'marcar';
+}
+
+// PRIMEIRO ACESSO DE PRÉ-CADASTRADO COM CONTA DE SENHA NÃO CONFIRMADA. Só vale quando dá para
+// provar que quem entrou sabe a senha que a Roder definiu: login por senha, o cadastro provisório
+// tem senha inicial, e o login aconteceu DEPOIS do momento em que o servidor gravou essa senha
+// (initial_password_set_at, gravado só por /api/admin/set-user-password). Quem criou a conta por
+// fora antes disso perdeu a senha dele na troca; cadastro antigo sem a data não passa (a Roder
+// redefine a senha e aí passa).
+export function podeConfirmarPrimeiroAcesso(dec: any, provisorio: any): boolean {
+  if (!dec || dec.firebase?.sign_in_provider !== 'password') return false;
+  if (!provisorio || !String(provisorio.initial_password || '')) return false;
+  const definidaEm = Date.parse(String(provisorio.initial_password_set_at || ''));
+  if (!Number.isFinite(definidaEm)) return false;
+  const entrouEm = Number(dec.auth_time);
+  if (!Number.isFinite(entrouEm) || entrouEm <= 0) return false;
+  return entrouEm * 1000 > definidaEm;
+}
+
+// QUEM PODE DEFINIR A SENHA DE QUEM (tela de Usuários). O admin (ou a diretoria confirmada) define
+// de qualquer um. Gerente e triagem só dos papéis que eles também podem cadastrar pelas regras
+// (papelQueGestaoDa em firestore.rules), tirando a própria triagem: trocar a senha de quem cuida da
+// equipe é entrar como essa pessoa. Conta que entra com Google também fica só com o admin: senha
+// nova numa conta Google abre um segundo jeito de entrar que o dono não pediu.
+export const PAPEIS_QUE_GESTAO_DEFINE_SENHA = ['external_seller', 'vendedor_padrao', 'internal_seller', 'financial',
+  'finance', 'fiscal', 'marketing', 'assistant', ''];
+
+export function podeDefinirSenha(p: {
+  papelQuemPede: string; diretoria: boolean; papeisAlvo: string[]; emailAlvo: string; temGoogle: boolean;
+}): { ok: boolean; status?: number; erro?: string } {
+  const admin = p.diretoria || p.papelQuemPede === 'admin';
+  if (admin) return { ok: true };
+  if (!['manager', 'triagem'].includes(p.papelQuemPede)) {
+    return { ok: false, status: 403, erro: 'Acesso negado. Só administrador, gerente e triagem definem senhas.' };
+  }
+  const email = String(p.emailAlvo || '').toLowerCase().trim();
+  if (EMAILS_DIRETORIA.includes(email) || p.papeisAlvo.some(r => !PAPEIS_QUE_GESTAO_DEFINE_SENHA.includes(String(r || '')))) {
+    return { ok: false, status: 403, erro: 'Só o administrador troca a senha de contas de gestão (administrador, gerente e triagem).' };
+  }
+  if (p.temGoogle) {
+    return { ok: false, status: 403, erro: 'Esta pessoa entra com o Google. Só o administrador pode pôr senha nessa conta.' };
+  }
+  return { ok: true };
+}

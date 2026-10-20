@@ -6,7 +6,7 @@ import {
   sendPasswordResetEmail,
   signOut
 } from 'firebase/auth';
-import { auth, db, reivindicarPerfil } from '../lib/firebase';
+import { auth, db, reivindicarPerfil, reivindicarPerfilDetalhado } from '../lib/firebase';
 import { doc, getDoc, setDoc, collection, query, where, getDocs, deleteDoc, writeBatch } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -203,11 +203,31 @@ export default function Login() {
     setLoading(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, password);
-      const authUser = userCredential.user;
+      let authUser = userCredential.user;
       const targetEmail = (authUser.email || cleanEmail).toLowerCase().trim();
       const isMasterAdmin = MASTER_ADMIN_EMAILS.includes(targetEmail);
 
-      await reivindicarPerfil();
+      // E-mail confirmado pelo servidor depois do último token: pega um token novo antes de tudo
+      try {
+        const tk = await authUser.getIdTokenResult();
+        if (tk.claims.email_verified !== true) {
+          await authUser.reload();
+          if (auth.currentUser?.emailVerified) await auth.currentUser.getIdToken(true);
+        }
+      } catch { /* segue com o token que tem */ }
+
+      const reivindicado = await reivindicarPerfilDetalhado();
+      if (reivindicado.entrar_de_novo) {
+        // primeiro acesso confirmado pelo servidor, que derrubou os logins antigos (inclusive este):
+        // entra de novo com a mesma senha para o token novo já sair confirmado
+        authUser = (await signInWithEmailAndPassword(auth, cleanEmail, password)).user;
+      } else if (reivindicado.motivo === 'email_nao_confirmado' && !(await getDoc(doc(db, 'users', authUser.uid)).catch(() => null))?.exists()) {
+        // Sem cadastro próprio e sem e-mail confirmado, a busca do cadastro pelo e-mail logo abaixo
+        // é recusada pelas regras, e a pessoa via só "erro de permissão"
+        await signOut(auth);
+        toast.error('Seu e-mail ainda não foi confirmado neste acesso. Peça à Roder para redefinir sua senha e entre de novo com a senha nova.', { duration: 10000 });
+        return;
+      }
 
       // Check if user has a document in 'users' collection
       let userDoc = await getDoc(doc(db, 'users', authUser.uid));
