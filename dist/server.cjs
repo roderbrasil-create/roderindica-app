@@ -22,7 +22,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 
 // server.ts
-var import_crypto2 = __toESM(require("crypto"), 1);
+var import_crypto4 = __toESM(require("crypto"), 1);
 var import_express = __toESM(require("express"), 1);
 var import_vite = require("vite");
 var import_path = __toESM(require("path"), 1);
@@ -868,15 +868,452 @@ function instrucaoPerfilConsultor(userInfo, equipe) {
 - Sinta-se \xE0 vontade para ser mais t\xE9cnico e usar termos de revenda, comiss\xE3o, estoque e especifica\xE7\xF5es de montagem e instala\xE7\xE3o.`;
 }
 
+// server/previaImagem.ts
+var import_crypto2 = __toESM(require("crypto"), 1);
+var import_dns = __toESM(require("dns"), 1);
+var import_http = __toESM(require("http"), 1);
+var import_https = __toESM(require("https"), 1);
+var import_net = __toESM(require("net"), 1);
+var OG_LARGURA = 1200;
+var OG_ALTURA = 630;
+var OG_MAX_BYTES = 290 * 1024;
+var MAX_ORIGEM_BYTES = 15 * 1024 * 1024;
+var TEMPO_EXTERNA_MS = 4e3;
+var VERSAO_ARTE = "a2";
+var LIMITE_PIXELS = 4e7;
+var TEMPO_ARTE_PROVISORIA_MS = 3 * 60 * 1e3;
+var TEMPO_CANDIDATAS_MS = 2 * 60 * 1e3;
+var MAX_REDIRECIONAMENTOS = 3;
+var PORTAS_PERMITIDAS = [80, 443];
+var CODIGO_PADRAO = "PADRAO";
+var PASTA_CACHE = "og_cache";
+var FAIXA = 70;
+var MARGEM = 24;
+var FUNDO = "#f1f2f4";
+var LARANJA = "#f97316";
+var hostPrivado = (h) => /^(localhost|0\.0\.0\.0|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|\[?::1\]?$|.*\.local$|.*\.internal$|.*\.localhost$)/i.test(h);
+var BLOQUEADOS_V4 = new import_net.default.BlockList();
+var BLOQUEADOS_V6 = new import_net.default.BlockList();
+(() => {
+  const b = BLOQUEADOS_V4;
+  for (const [ip, bits] of [
+    ["0.0.0.0", 8],
+    ["10.0.0.0", 8],
+    ["100.64.0.0", 10],
+    ["127.0.0.0", 8],
+    ["169.254.0.0", 16],
+    ["172.16.0.0", 12],
+    ["192.0.0.0", 24],
+    ["192.0.2.0", 24],
+    ["192.168.0.0", 16],
+    ["198.18.0.0", 15],
+    ["198.51.100.0", 24],
+    ["203.0.113.0", 24],
+    ["224.0.0.0", 4],
+    ["240.0.0.0", 4]
+  ]) b.addSubnet(ip, bits, "ipv4");
+  for (const [ip, bits] of [
+    ["::", 96],
+    ["::ffff:0:0", 96],
+    ["64:ff9b::", 96],
+    ["100::", 64],
+    ["2001:db8::", 32],
+    ["fc00::", 7],
+    ["fe80::", 10],
+    ["fec0::", 10],
+    ["ff00::", 8]
+  ]) BLOQUEADOS_V6.addSubnet(ip, bits, "ipv6");
+})();
+function ipBloqueado(ip) {
+  const limpo = String(ip || "").replace(/^\[|\]$/g, "").split("%")[0];
+  const tipo = import_net.default.isIP(limpo);
+  if (tipo === 4) return BLOQUEADOS_V4.check(limpo, "ipv4");
+  if (tipo === 6) return BLOQUEADOS_V6.check(limpo, "ipv6");
+  return true;
+}
+function fonteDaFoto(u, site, buckets) {
+  const s = String(u || "").trim();
+  if (!s || s.length > 2e3) return null;
+  const banco = s.match(/^db-file:\/\/([A-Za-z0-9_-]{1,128})$/);
+  if (banco) return { tipo: "banco", id: banco[1] };
+  if (s.startsWith("/") && !s.startsWith("//")) {
+    const caminho = s.split(/[?#]/)[0];
+    if (caminho.split("/").some((t) => t === "..")) return null;
+    const foto = caminho.match(/^\/api\/foto\/([A-Za-z0-9_-]{1,128})$/);
+    if (foto) return { tipo: "banco", id: foto[1] };
+    return { tipo: "local", caminho };
+  }
+  let x;
+  try {
+    x = new URL(s);
+  } catch {
+    return null;
+  }
+  if (!/^https?:$/.test(x.protocol) || x.username || x.password || hostPrivado(x.hostname)) return null;
+  if (import_net.default.isIP(x.hostname.replace(/^\[|\]$/g, "")) && ipBloqueado(x.hostname)) return null;
+  try {
+    const nosso = new URL(site);
+    if (x.hostname === nosso.hostname || x.hostname === `www.${nosso.hostname}`) {
+      const foto = x.pathname.match(/^\/api\/foto\/([A-Za-z0-9_-]{1,128})$/);
+      if (foto) return { tipo: "banco", id: decodeURIComponent(foto[1]) };
+      if (!x.pathname.split("/").some((t) => t === "..")) return { tipo: "local", caminho: decodeURIComponent(x.pathname) };
+    }
+    if (x.hostname === "firebasestorage.googleapis.com") {
+      const m = x.pathname.match(/^\/v0\/b\/([^/]+)\/o\/([^/]+)$/);
+      if (m && buckets.includes(decodeURIComponent(m[1]))) return { tipo: "storage", bucket: decodeURIComponent(m[1]), caminho: decodeURIComponent(m[2]) };
+    } else if (x.hostname === "storage.googleapis.com") {
+      const m = x.pathname.match(/^\/([^/]+)\/(.+)$/);
+      if (m && buckets.includes(decodeURIComponent(m[1]))) return { tipo: "storage", bucket: decodeURIComponent(m[1]), caminho: decodeURIComponent(m[2]) };
+    }
+  } catch {
+    return null;
+  }
+  return { tipo: "externa", url: x.toString() };
+}
+function candidatasDoLink(p, m) {
+  const lista = [...Array.isArray(m?.images) ? m.images : [], m?.image_url, p?.image_url, ...Array.isArray(p?.images) ? p.images : []].filter((i) => typeof i === "string" && i.trim() && !/run\.app/.test(i)).map((i) => i.trim());
+  return [...new Set(lista)].slice(0, 4);
+}
+function versaoDaPrevia(candidatas) {
+  return import_crypto2.default.createHash("sha1").update(`${VERSAO_ARTE}|${candidatas.join("|")}`).digest("hex").slice(0, 10);
+}
+function urlImagemPrevia(site, codigo, candidatas) {
+  const c = candidatas.length ? codigo : CODIGO_PADRAO;
+  return `${site.replace(/\/$/, "")}/og/${c}-${versaoDaPrevia(candidatas)}.jpg`;
+}
+function lerNomeArquivo(nome) {
+  const m = String(nome || "").match(/^([A-Za-z0-9]{1,12})(?:-[a-f0-9]{4,16})?\.jpe?g$/);
+  return m ? { codigo: m[1].toUpperCase() } : null;
+}
+var resolverPadrao = (host) => import_dns.default.promises.lookup(host, { all: true, verbatim: true });
+async function conferirDestino(url, op = {}) {
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  if (!/^https?:$/.test(u.protocol) || u.username || u.password) return null;
+  const porta = u.port ? Number(u.port) : u.protocol === "https:" ? 443 : 80;
+  if (!(op.portas || PORTAS_PERMITIDAS).includes(porta)) return null;
+  const host = u.hostname.replace(/^\[|\]$/g, "");
+  const permitido = op.ipPermitido || ((ip) => !ipBloqueado(ip));
+  if (import_net.default.isIP(host)) return permitido(host) ? { u, ip: host, familia: import_net.default.isIP(host) } : null;
+  if (hostPrivado(host)) return null;
+  let enderecos;
+  try {
+    enderecos = await (op.resolver || resolverPadrao)(host);
+  } catch {
+    return null;
+  }
+  if (!enderecos.length || enderecos.some((e) => !permitido(e.address))) return null;
+  return { u, ip: enderecos[0].address, familia: enderecos[0].family || import_net.default.isIP(enderecos[0].address) };
+}
+function pedirUmSalto(alvo, sinal) {
+  return new Promise((resolve, reject) => {
+    const mod = alvo.u.protocol === "https:" ? import_https.default : import_http.default;
+    const req = mod.request(alvo.u, {
+      method: "GET",
+      signal: sinal,
+      agent: false,
+      // a conexão vai para o IP conferido; o nome continua no Host e no SNI do https
+      lookup: ((_h, opcoes, cb) => {
+        if (opcoes?.all) cb(null, [{ address: alvo.ip, family: alvo.familia }]);
+        else cb(null, alvo.ip, alvo.familia);
+      }),
+      headers: { "User-Agent": "Mozilla/5.0 (RoderIndica; previa do link)", Accept: "image/jpeg,image/png,image/webp,image/*;q=0.8" }
+    }, resolve);
+    req.on("error", reject);
+    req.end();
+  });
+}
+async function lerStreamComTeto(r, teto) {
+  const tamanho = Number(r.headers["content-length"] || 0);
+  if (tamanho && tamanho > teto) {
+    r.destroy();
+    return null;
+  }
+  const partes = [];
+  let total = 0;
+  for await (const pedaco of r) {
+    total += pedaco.length;
+    if (total > teto) {
+      r.destroy();
+      return null;
+    }
+    partes.push(pedaco);
+  }
+  return Buffer.concat(partes);
+}
+async function baixarExterna(url, tempoMs = TEMPO_EXTERNA_MS, teto = MAX_ORIGEM_BYTES, op = {}) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), op.tempoMs ?? tempoMs);
+  const limite = op.teto ?? teto;
+  try {
+    let atual = url;
+    for (let salto = 0; salto <= MAX_REDIRECIONAMENTOS; salto++) {
+      const alvo = await conferirDestino(atual, op);
+      if (!alvo) return null;
+      const r = await pedirUmSalto(alvo, ctl.signal);
+      const st = r.statusCode || 0;
+      if ([301, 302, 303, 307, 308].includes(st)) {
+        const destino = r.headers.location;
+        r.resume();
+        if (!destino) return null;
+        try {
+          atual = new URL(String(destino), alvo.u).toString();
+        } catch {
+          return null;
+        }
+        continue;
+      }
+      if (st < 200 || st >= 300) {
+        r.resume();
+        return null;
+      }
+      const tipo = String(r.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
+      if (tipo && !tipo.startsWith("image/") && tipo !== "application/octet-stream") {
+        r.destroy();
+        return null;
+      }
+      const bytes = await lerStreamComTeto(r, limite);
+      return bytes ? { bytes, tipo } : null;
+    }
+    return null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(t);
+  }
+}
+var GuardaRecente = class {
+  constructor(maxItens = 80, maxBytes = 20 * 1024 * 1024) {
+    this.maxItens = maxItens;
+    this.maxBytes = maxBytes;
+    this.mapa = /* @__PURE__ */ new Map();
+    this.total = 0;
+  }
+  get(k) {
+    const v = this.mapa.get(k);
+    if (v) {
+      this.mapa.delete(k);
+      this.mapa.set(k, v);
+    }
+    return v;
+  }
+  set(k, v) {
+    const antigo = this.mapa.get(k);
+    if (antigo) {
+      this.total -= antigo.length;
+      this.mapa.delete(k);
+    }
+    this.mapa.set(k, v);
+    this.total += v.length;
+    while (this.mapa.size > this.maxItens || this.total > this.maxBytes) {
+      const [k0, v0] = this.mapa.entries().next().value;
+      this.mapa.delete(k0);
+      this.total -= v0.length;
+    }
+  }
+  get tamanho() {
+    return this.mapa.size;
+  }
+};
+async function montarArte(sharp, foto, logoHorizontal, logoRedonda) {
+  const altoFoto = OG_ALTURA - FAIXA;
+  const camadas = [];
+  const centro = async (buf, maxL, maxA, topoArea) => {
+    const { data, info } = await sharp(buf, { failOn: "none", limitInputPixels: LIMITE_PIXELS }).rotate().resize({ width: maxL, height: maxA, fit: "inside" }).flatten({ background: "#ffffff" }).png().toBuffer({ resolveWithObject: true });
+    return { input: data, left: Math.round((OG_LARGURA - info.width) / 2), top: Math.round(topoArea + (altoFoto - info.height) / 2) };
+  };
+  if (foto) camadas.push(await centro(foto, OG_LARGURA - MARGEM * 2, altoFoto - MARGEM * 2, 0));
+  else if (logoRedonda) {
+    const { data, info } = await sharp(logoRedonda, { limitInputPixels: LIMITE_PIXELS }).resize({ width: 380, height: 380, fit: "inside" }).png().toBuffer({ resolveWithObject: true });
+    camadas.push({ input: data, left: Math.round((OG_LARGURA - info.width) / 2), top: Math.round((altoFoto - info.height) / 2) });
+  }
+  camadas.push({ input: { create: { width: OG_LARGURA, height: FAIXA, channels: 3, background: "#ffffff" } }, left: 0, top: altoFoto });
+  camadas.push({ input: { create: { width: OG_LARGURA, height: 5, channels: 3, background: LARANJA } }, left: 0, top: altoFoto });
+  if (logoHorizontal && foto) {
+    const { data, info } = await sharp(logoHorizontal, { limitInputPixels: LIMITE_PIXELS }).resize({ height: 46, width: 300, fit: "inside" }).png().toBuffer({ resolveWithObject: true });
+    camadas.push({ input: data, left: 32, top: altoFoto + 5 + Math.round((FAIXA - 5 - info.height) / 2) });
+  }
+  const base = await sharp({ create: { width: OG_LARGURA, height: OG_ALTURA, channels: 3, background: FUNDO } }).composite(camadas).png().toBuffer();
+  let saida = Buffer.alloc(0);
+  for (const q of [82, 74, 66, 58, 50, 42, 34]) {
+    saida = await sharp(base).jpeg({ quality: q, mozjpeg: true, chromaSubsampling: "4:2:0" }).toBuffer();
+    if (saida.length <= OG_MAX_BYTES) break;
+  }
+  return saida;
+}
+function criarImagemPrevia(deps) {
+  const memoria = new GuardaRecente();
+  const provisorias = /* @__PURE__ */ new Map();
+  const listas = /* @__PURE__ */ new Map();
+  const emAndamento = /* @__PURE__ */ new Map();
+  const baixar = deps.baixar || ((u) => baixarExterna(u));
+  const log = deps.log || (() => {
+  });
+  const agora = deps.agora || (() => Date.now());
+  async function bytesDaFonte(f) {
+    try {
+      if (f.tipo === "banco") {
+        const snap = await deps.db.collection("app_files").doc(f.id).get();
+        const dados = String(snap.exists && snap.data()?.data || "");
+        const m = dados.match(/^data:image\/[a-z0-9.+-]+;base64,(.+)$/is);
+        return m ? Buffer.from(m[1], "base64") : null;
+      }
+      if (f.tipo === "storage") return await deps.lerStorage(f.bucket, f.caminho);
+      if (f.tipo === "local") return deps.lerLocal ? deps.lerLocal(f.caminho) : null;
+      const r = await baixar(f.url);
+      return r?.bytes || null;
+    } catch {
+      return null;
+    }
+  }
+  async function lerCandidatas(codigo) {
+    if (!codigo || codigo === CODIGO_PADRAO) return [];
+    try {
+      const link = await deps.db.collection("links_curtos").doc(codigo).get();
+      if (!link?.exists) return [];
+      const l = link.data();
+      const prod = await deps.db.collection("products").doc(String(l.pid || "_")).get();
+      if (!prod?.exists) return [];
+      const p = prod.data();
+      const m = (p.models || []).find((x) => x.id === l.mid) || null;
+      return candidatasDoLink(p, m);
+    } catch {
+      return [];
+    }
+  }
+  function candidatasGuardadas(codigo) {
+    const g = listas.get(codigo);
+    if (g && g.ate > agora()) return g.candidatas;
+    if (g) listas.delete(codigo);
+    return null;
+  }
+  async function candidatasDoCodigo(codigo) {
+    const g = candidatasGuardadas(codigo);
+    if (g) return g;
+    const candidatas = await lerCandidatas(codigo);
+    if (listas.size >= 1e3) listas.clear();
+    listas.set(codigo, { candidatas, ate: agora() + TEMPO_CANDIDATAS_MS });
+    return candidatas;
+  }
+  async function gerar(chave, candidatas) {
+    const sharp = await deps.carregarSharp();
+    if (!sharp) return { jpeg: null, provisoria: false };
+    let foto = null;
+    for (const c of candidatas) {
+      const f = fonteDaFoto(c, deps.site, deps.buckets);
+      if (!f) continue;
+      const bytes = await bytesDaFonte(f);
+      if (!bytes) continue;
+      try {
+        const meta = await sharp(bytes, { failOn: "none", limitInputPixels: LIMITE_PIXELS }).metadata();
+        if (meta?.width && meta?.height && meta.width * meta.height <= LIMITE_PIXELS) {
+          foto = bytes;
+          break;
+        }
+      } catch {
+      }
+    }
+    const arte = await montarArte(sharp, foto, deps.logoHorizontal?.() || null, deps.logoRedonda?.() || null);
+    const provisoria = !foto && candidatas.length > 0;
+    if (provisoria) log(`[OG] nenhuma foto abriu para ${chave}; vai a arte padr\xE3o por ${TEMPO_ARTE_PROVISORIA_MS / 6e4} min e tenta de novo depois`);
+    return { jpeg: arte, provisoria };
+  }
+  async function arteDoCodigo(codigoBruto) {
+    const codigo = String(codigoBruto || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
+    const candidatas = await candidatasDoCodigo(codigo);
+    const chave = versaoDaPrevia(candidatas);
+    const daMemoria = memoria.get(chave);
+    if (daMemoria) return { jpeg: daMemoria, chave, provisoria: false };
+    const prov = provisorias.get(chave);
+    if (prov && prov.ate > agora()) return { jpeg: prov.jpeg, chave, provisoria: true };
+    if (prov) provisorias.delete(chave);
+    let tarefa = emAndamento.get(chave);
+    if (!tarefa) {
+      tarefa = (async () => {
+        try {
+          const guardada = deps.lerCache ? await deps.lerCache(chave).catch(() => null) : null;
+          if (guardada && guardada.length) return { jpeg: guardada, provisoria: false };
+          const nova = await gerar(chave, candidatas);
+          if (nova.jpeg && !nova.provisoria && deps.gravarCache) deps.gravarCache(chave, nova.jpeg).catch((e) => log(`[OG] n\xE3o gravou o cache ${chave}: ${e?.message || e}`));
+          return nova;
+        } finally {
+          emAndamento.delete(chave);
+        }
+      })();
+      emAndamento.set(chave, tarefa);
+    }
+    const { jpeg, provisoria } = await tarefa;
+    if (jpeg && provisoria) {
+      if (provisorias.size >= 200) provisorias.clear();
+      provisorias.set(chave, { jpeg, ate: agora() + TEMPO_ARTE_PROVISORIA_MS });
+    } else if (jpeg) memoria.set(chave, jpeg);
+    return { jpeg, chave, provisoria };
+  }
+  async function rota(req, res) {
+    const nome = lerNomeArquivo(String(req.params?.arquivo || ""));
+    if (!nome) {
+      res.status(404).end();
+      return;
+    }
+    if (deps.limitar && !candidatasGuardadas(nome.codigo) && deps.limitar(req)) {
+      res.setHeader("Retry-After", "60");
+      res.status(429).end();
+      return;
+    }
+    try {
+      const { jpeg, provisoria } = await arteDoCodigo(nome.codigo);
+      if (jpeg) {
+        res.setHeader("Content-Type", "image/jpeg");
+        res.setHeader("Content-Length", String(jpeg.length));
+        res.setHeader("Cache-Control", provisoria ? "public, max-age=300" : "public, max-age=86400, s-maxage=604800");
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        res.status(200).end(jpeg);
+        return;
+      }
+    } catch (e) {
+      log(`[OG] erro ao montar ${nome.codigo}: ${e?.message || e}`);
+    }
+    const pronta = deps.artePadraoPronta?.();
+    if (pronta) {
+      res.setHeader("Content-Type", "image/jpeg");
+      res.setHeader("Content-Length", String(pronta.length));
+      res.setHeader("Cache-Control", "public, max-age=600");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.status(200).end(pronta);
+      return;
+    }
+    const logo = deps.logoRedonda?.();
+    if (logo) {
+      res.setHeader("Content-Type", "image/png");
+      res.setHeader("Content-Length", String(logo.length));
+      res.setHeader("Cache-Control", "public, max-age=600");
+      res.status(200).end(logo);
+      return;
+    }
+    res.status(404).end();
+  }
+  function esquentar(codigo) {
+    arteDoCodigo(codigo).catch(() => {
+    });
+  }
+  return { rota, arteDoCodigo, esquentar, candidatasDoCodigo, memoria };
+}
+
 // server/previaLink.ts
-var SITE_PREVIA = "https://roderindica.com";
+var SITE_PREVIA = (/^https:\/\/[a-z0-9.-]+$/i.test(String(process.env.SITE_PUBLICO || "")) ? String(process.env.SITE_PUBLICO) : "https://roderindica.com").replace(/\/$/, "");
+var ehArteOg = (u) => /\/og\/[A-Za-z0-9]{1,12}-[a-f0-9]{4,16}\.jpg$/.test(String(u || ""));
+var urlPreviaPadrao = () => urlImagemPrevia(SITE_PREVIA, "", []);
 var escHtml2 = (t) => String(t ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 var codigoLimpo = (c) => String(c || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
 function previaPadrao(codigo) {
   return {
     titulo: "Roder M\xE1quinas e Equipamentos",
     descricao: "Fotos, v\xEDdeo, ficha t\xE9cnica e or\xE7amento.",
-    imagem: `${SITE_PREVIA}/marca/roder-redondo-512.png`,
+    imagem: urlPreviaPadrao(),
     url: `${SITE_PREVIA}/o/${codigoLimpo(codigo)}`
   };
 }
@@ -898,10 +1335,18 @@ function metaPrevia(d) {
     `<meta property="og:title" content="${escHtml2(d.titulo)}" />`,
     `<meta property="og:description" content="${escHtml2(d.descricao)}" />`,
     `<meta property="og:image" content="${escHtml2(d.imagem)}" />`,
+    ...d.imagem.startsWith("https://") ? [`<meta property="og:image:secure_url" content="${escHtml2(d.imagem)}" />`] : [],
+    // largura, altura e tipo deixam o WhatsApp montar a prévia grande sem baixar a imagem antes
+    ...ehArteOg(d.imagem) ? [
+      `<meta property="og:image:type" content="image/jpeg" />`,
+      `<meta property="og:image:width" content="${OG_LARGURA}" />`,
+      `<meta property="og:image:height" content="${OG_ALTURA}" />`
+    ] : [],
     `<meta property="og:image:alt" content="${escHtml2(d.titulo)}" />`,
     `<meta property="og:url" content="${escHtml2(d.url)}" />`,
     `<meta name="description" content="${escHtml2(d.descricao)}" />`,
-    `<meta name="twitter:card" content="summary_large_image" />`
+    `<meta name="twitter:card" content="summary_large_image" />`,
+    `<meta name="twitter:image" content="${escHtml2(d.imagem)}" />`
   ].join("\n    ");
 }
 function injetarPrevia(html, d) {
@@ -913,6 +1358,203 @@ function injetarPrevia(html, d) {
   </head>`);
   return `${bloco}
 ${saida}`;
+}
+
+// server/fotosExternas.ts
+var import_crypto3 = __toESM(require("crypto"), 1);
+var MAX_URLS_POR_RODADA = 60;
+var SIMULTANEAS = 4;
+var TRAVA_MS = 10 * 60 * 1e3;
+var COLECAO_ESTADO = "manutencao_estado";
+var DOC_TRAVA = "fotos_externas";
+var MAX_FALHAS_LEMBRADAS = 1e3;
+var RodadaEmAndamento = class extends Error {
+  constructor() {
+    super("J\xE1 tem uma rodada de fotos rodando. Espere alguns minutos e tente de novo.");
+  }
+};
+function referenciasExternas(produtos, site, buckets) {
+  const saida = [];
+  const olhar = (pid, produto, campo, v) => {
+    if (typeof v !== "string" || !v.trim()) return;
+    if (fonteDaFoto(v, site, buckets)?.tipo === "externa") saida.push({ pid, produto, campo, url: v.trim() });
+  };
+  for (const { id, data: p } of produtos) {
+    const nome = String(p?.name || id);
+    olhar(id, nome, "image_url", p?.image_url);
+    (Array.isArray(p?.images) ? p.images : []).forEach((u, j) => olhar(id, nome, `images[${j}]`, u));
+    (Array.isArray(p?.models) ? p.models : []).forEach((m, i) => {
+      const nm = `${nome} ${m?.name || ""}`.trim();
+      (Array.isArray(m?.images) ? m.images : []).forEach((u, j) => olhar(id, nm, `models[${i}].images[${j}]`, u));
+      olhar(id, nm, `models[${i}].image_url`, m?.image_url);
+    });
+  }
+  return saida;
+}
+function trocarEnderecos(p, mapa) {
+  let trocas = 0;
+  const t = (v) => typeof v === "string" && mapa[v.trim()] ? (trocas++, mapa[v.trim()]) : v;
+  const novo = {};
+  if ("image_url" in (p || {})) novo.image_url = t(p.image_url);
+  if (Array.isArray(p?.images)) novo.images = p.images.map(t);
+  if (Array.isArray(p?.models)) novo.models = p.models.map((m) => {
+    const x = { ...m };
+    if (Array.isArray(m?.images)) x.images = m.images.map(t);
+    if ("image_url" in (m || {})) x.image_url = t(m.image_url);
+    return x;
+  });
+  return { novo, trocas };
+}
+var EXT = { jpeg: "jpg", jpg: "jpg", png: "png", webp: "webp", gif: "gif", avif: "avif" };
+async function pegarTrava(db2, dono, agora) {
+  const ref = db2.collection(COLECAO_ESTADO).doc(DOC_TRAVA);
+  return db2.runTransaction(async (t) => {
+    const s = await t.get(ref);
+    const d = s.exists ? s.data() : {};
+    if (d?.travado_ate && new Date(d.travado_ate).getTime() > agora.getTime() && d.dono !== dono) throw new RodadaEmAndamento();
+    t.set(ref, { ...d, dono, travado_ate: new Date(agora.getTime() + TRAVA_MS).toISOString() });
+    return Array.isArray(d?.falhas) ? d.falhas.map(String) : [];
+  });
+}
+async function soltarTrava(db2, dono, falhas) {
+  const ref = db2.collection(COLECAO_ESTADO).doc(DOC_TRAVA);
+  await db2.runTransaction(async (t) => {
+    const s = await t.get(ref);
+    const d = s.exists ? s.data() : {};
+    if (d?.dono && d.dono !== dono) return;
+    t.set(ref, { ...d, dono: "", travado_ate: "", ...falhas ? { falhas: falhas.slice(-MAX_FALHAS_LEMBRADAS) } : {} });
+  });
+}
+async function fotosExternas(deps, aplicar, quem) {
+  const agora = () => deps.agora?.() || /* @__PURE__ */ new Date();
+  const dono = import_crypto3.default.randomUUID();
+  const falhasAntes = await pegarTrava(deps.db, dono, agora());
+  let falhasDepois = null;
+  try {
+    const snap = await deps.db.collection("products").get();
+    const produtos = snap.docs.map((d) => ({ id: d.id, data: d.data() }));
+    const refs = referenciasExternas(produtos, deps.site, deps.buckets);
+    const unicas = [...new Set(refs.map((r) => r.url))];
+    const jaFalhou = new Set(falhasAntes);
+    const fila = [...unicas.filter((u) => !jaFalhou.has(u)), ...unicas.filter((u) => jaFalhou.has(u))];
+    const nestaRodada = fila.slice(0, MAX_URLS_POR_RODADA);
+    const sharp = await deps.carregarSharp();
+    const baixar = deps.baixar || ((u) => baixarExterna(u, 15e3, MAX_ORIGEM_BYTES));
+    const itens = nestaRodada.map((url) => {
+      const usos = refs.filter((r) => r.url === url);
+      return { url, usos: usos.length, produtos: [...new Set(usos.map((r) => r.produto))].slice(0, 6), ok: false };
+    });
+    let proximo = 0;
+    const trabalhar = async () => {
+      while (proximo < itens.length) {
+        const it = itens[proximo++];
+        try {
+          const r = await baixar(it.url);
+          if (!r) {
+            it.motivo = "n\xE3o baixou (fora do ar, lento ou acima de 15 MB)";
+            continue;
+          }
+          let formato = (r.tipo.split("/")[1] || "").replace("jpg", "jpeg");
+          if (sharp) {
+            try {
+              const meta = await sharp(r.bytes, { failOn: "none", limitInputPixels: LIMITE_PIXELS }).metadata();
+              formato = String(meta?.format || "");
+              if (!meta?.width) throw new Error("sem imagem");
+            } catch {
+              it.motivo = "o arquivo n\xE3o \xE9 uma imagem (ou \xE9 grande demais)";
+              continue;
+            }
+          } else if (!r.tipo.startsWith("image/")) {
+            it.motivo = "o arquivo n\xE3o \xE9 uma imagem";
+            continue;
+          }
+          if (!EXT[formato]) {
+            it.motivo = `formato ${formato || "desconhecido"} n\xE3o usado no app`;
+            continue;
+          }
+          it.ok = true;
+          it.bytes = r.bytes.length;
+          it.formato = formato;
+          if (aplicar) {
+            const nome = import_crypto3.default.createHash("sha1").update(it.url).digest("hex").slice(0, 20);
+            try {
+              it.novo = await deps.gravar(`catalogo_site/${nome}.${EXT[formato]}`, r.bytes, `image/${formato === "jpg" ? "jpeg" : formato}`);
+            } catch (e) {
+              it.ok = false;
+              it.motivo = `n\xE3o gravou no Storage: ${String(e?.message || e).slice(0, 120)}`;
+            }
+          }
+        } catch (e) {
+          it.ok = false;
+          it.motivo = `erro: ${String(e?.message || e).slice(0, 120)}`;
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: SIMULTANEAS }, trabalhar));
+    const mapa = {};
+    for (const it of itens) if (it.ok && it.novo) mapa[it.url] = it.novo;
+    const alterados = [];
+    const erros = [];
+    if (aplicar && Object.keys(mapa).length) {
+      const registro = deps.db.collection("manutencao_fotos_externas").doc();
+      await registro.set({
+        feito_em: agora().toISOString(),
+        quem,
+        situacao: "trocando",
+        mapa: Object.entries(mapa).map(([de, para]) => ({ de, para })),
+        produtos_alterados: [],
+        erros: []
+      });
+      try {
+        for (const pid of [...new Set(refs.filter((r) => mapa[r.url]).map((r) => r.pid))]) {
+          try {
+            const ref = deps.db.collection("products").doc(pid);
+            const trocas = await deps.db.runTransaction(async (t) => {
+              const s = await t.get(ref);
+              if (!s.exists) return 0;
+              const { novo, trocas: trocas2 } = trocarEnderecos(s.data(), mapa);
+              if (trocas2) t.update(ref, novo);
+              return trocas2;
+            });
+            if (trocas) alterados.push({ pid, trocas });
+          } catch (e) {
+            erros.push({ pid, erro: String(e?.message || e).slice(0, 200) });
+          }
+        }
+      } finally {
+        await registro.set({
+          feito_em: agora().toISOString(),
+          quem,
+          situacao: erros.length ? "concluido_com_erros" : "concluido",
+          mapa: Object.entries(mapa).map(([de, para]) => ({ de, para })),
+          produtos_alterados: alterados,
+          erros,
+          terminado_em: agora().toISOString()
+        });
+      }
+    }
+    const okAgora = new Set(itens.filter((i) => i.ok).map((i) => i.url));
+    const falhouAgora = itens.filter((i) => !i.ok).map((i) => i.url);
+    if (aplicar) falhasDepois = [...falhasAntes.filter((u) => !okAgora.has(u) && !falhouAgora.includes(u)), ...falhouAgora];
+    const faltam = aplicar ? Math.max(0, unicas.length - itens.filter((i) => i.ok && i.novo).length) : Math.max(0, unicas.length - itens.length);
+    return {
+      ok: true,
+      aplicado: aplicar,
+      referencias: refs.length,
+      fotos_de_fora: unicas.length,
+      nesta_rodada: itens.length,
+      limite_por_rodada: MAX_URLS_POR_RODADA,
+      copiaveis: itens.filter((i) => i.ok).length,
+      com_problema: itens.filter((i) => !i.ok).length,
+      produtos_alterados: alterados.length,
+      erros_ao_trocar: erros.length,
+      faltam_para_proxima_rodada: faltam,
+      itens
+    };
+  } finally {
+    await soltarTrava(deps.db, dono, falhasDepois).catch(() => {
+    });
+  }
 }
 
 // server.ts
@@ -1168,7 +1810,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-20a consultor-videos";
+  const RELEASE_LABEL = "2026-10-20d consultor-enxuto";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -1336,7 +1978,7 @@ async function startServer() {
       if (!name || typeof name !== "string" || name.trim().length === 0) {
         return res.status(400).json({ success: false, error: "O nome do aplicativo ou destino \xE9 obrigat\xF3rio." });
       }
-      const randomHex = import_crypto2.default.randomBytes(16).toString("hex");
+      const randomHex = import_crypto4.default.randomBytes(16).toString("hex");
       const apiKey = `rod_live_${randomHex}`;
       const keyDoc = {
         name: name.trim(),
@@ -3253,7 +3895,7 @@ Regras de Neg\xF3cio e Diretrizes de Engenharia Roder:
 9. DIMENSIONAMENTO E PRODUTIVIDADE DO CABE\xC7OTE MULTIFUNCIONAL CMF 600 (REGRAS CR\xCDTICAS DE ENGENHARIA):
    - Se perguntarem como determinar o tamanho correto para uma ca\xE7amba ou cabe\xE7ote multifuncional (CMF) para uma escavadeira:
      - Para escavadeiras na faixa de 13 a 22 toneladas (como a CAT 313, Hyundai 130, etc.) em opera\xE7\xE3o de colheita de eucalipto, pinus e reflorestamento, a indica\xE7\xE3o t\xE9cnica ideal e exata \xE9 SEMPRE e EXCLUSIVAMENTE o Cabe\xE7ote Multifuncional CMF 600. N\xE3o cite ou sugira o modelo CMF 500 para essa faixa, nem d\xEA outras op\xE7\xF5es para n\xE3o confundir o usu\xE1rio. Recomende o CMF 600 de forma direta e sem hesita\xE7\xE3o como a \xFAnica escolha correta, pois ele \xE9 o mais vendido (98% das vendas) e \xE1gil com estoque frequente.
-     - O cabe\xE7ote multifuncional CMF 500 \xE9 mais indicado para escavadeiras de 8 a 14 toneladas, sendo que na m\xE1quina de 14 toneladas ele j\xE1 trabalha com a sua melhor performance. Pode ser instalado em escavadeiras de at\xE9 22 toneladas. Para uma m\xE1quina grande de 22 toneladas, \xE9 poss\xEDvel trabalhar com o CMF 500, por\xE9m, pelo tamanho da m\xE1quina, peso e for\xE7a do bra\xE7o, o operador deve tomar cuidado para n\xE3o danificar o equipamento. Por isso, recomendamos o CMF 600 para m\xE1quinas de 22 toneladas. Mas existem clientes reais que trabalham com o CMF 500 em m\xE1quinas de at\xE9 22 toneladas.
+     - REGRA DE INDICA\xC7\xC3O DO CMF 500 x CMF 600 (Jeferson, 19/10/2026): indique o CMF 500 para escavadeiras de 8 a 13 toneladas. Acima de 13 toneladas, indique SEMPRE o CMF 600 (melhor equipamento, tamb\xE9m para rebrota). Fisicamente o CMF 500 pode ir at\xE9 22 toneladas, mas essa N\xC3O \xE9 a recomenda\xE7\xE3o: s\xF3 comente se perguntarem, e mesmo assim recomende o CMF 600. O CMF 500 n\xE3o \xE9 recomendado para rebrota.
      - OPERA\xC7\xC3O EM REBROTA COM CMF 500: N\xE3o recomendamos o CMF 500 para corte em \xE1rea de rebrota por conta da corrente fina (.404), pois cortar v\xE1rios fustes exige maior esfor\xE7o do conjunto de corte. Para isso, a corrente do cabe\xE7ote CMF 600 \xE9 a melhor e mais indicada, que trabalha com corrente 3/4" e sabre mais resistente (padr\xE3o das tra\xE7adoras maiores). Mas tamb\xE9m temos clientes que trabalham com rebrota com CMF 500, por\xE9m deve-se ter um cuidado operacional muito maior para n\xE3o entortar o sabre durante a opera\xE7\xE3o.
      - Quando questionado sobre qual cabe\xE7ote multifuncional \xE9 ideal para m\xE1quinas na faixa de 20 a 30 toneladas, recomende preferencialmente o CMF 600, mas mencione que o CMF 800 s\xF3 \xE9 de fato recomendado quando o cliente necessita cortar \xE1rvores de grande porte com at\xE9 80 cent\xEDmetros de di\xE2metro (por exemplo, em \xE1reas de mata nativa que exigem maior \xE1rea de corte). O CMF 800 nunca est\xE1 em estoque a pronta entrega; ele \xE9 produzido estritamente sob encomenda. Recomende sempre preferencialmente o CMF 600, a menos que o di\xE2metro de corte exija realmente o CMF 800.
    - PRODUTIVIDADE E PERFORMANCE DO CMF 600:
@@ -3283,7 +3925,7 @@ Regras de Neg\xF3cio e Diretrizes de Engenharia Roder:
        \u2022 Vaz\xE3o extra para passagem livre de \xF3leo.
        \u2022 Permite rota\xE7\xE3o/giro infinito e ilimitado ao cabe\xE7ote, eliminando o problema de mangueiras externas girando fora do cabe\xE7ote.
    - Se perguntarem as principais diferen\xE7as entre o cabe\xE7ote multifuncional CMF 500 e CMF 600:
-     - Porte de M\xE1quina: O CMF 500 \xE9 mais indicado para escavadeiras de 8 a 14 toneladas (com melhor performance em 14t), podendo ser instalado em at\xE9 22t (com ressalva de cuidado operacional). J\xE1 o CMF 600 \xE9 a escolha perfeita para m\xE1quinas de 13 a 22 toneladas (e recomendado para 22t).
+     - Porte de M\xE1quina: O CMF 500 \xE9 indicado para escavadeiras de 8 a 13 toneladas. Acima de 13 toneladas, a indica\xE7\xE3o \xE9 SEMPRE o CMF 600 (13 a 22 toneladas). O CMF 500 at\xE9 cabe fisicamente em m\xE1quinas de at\xE9 22 toneladas, mas n\xE3o \xE9 a recomenda\xE7\xE3o da Roder.
      - Tipo de corrente e Rebrota: O CMF 500 utiliza corrente .404 (harvester convencional), por isso n\xE3o \xE9 recomendado para \xE1reas de rebrota onde o corte de v\xE1rios fustes exige muito do sabre (embora existam clientes que utilizam CMF 500 em rebrota com alta habilidade operacional para n\xE3o entortar o sabre). O CMF 600 utiliza corrente de bitola 3/4" e sabre refor\xE7ado (padr\xE3o das tra\xE7adoras maiores), sendo o melhor e mais indicado para rebrota e tra\xE7amento pesado de m\xFAltiplos fustes.
      - Robustez geral: O CMF 600 \xE9 um cabe\xE7ote significativamente mais robusto e dur\xE1vel sob condi\xE7\xF5es severas.
 
@@ -5002,31 +5644,119 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       res.status(500).send("Erro");
     }
   });
-  const fotoDaPrevia = /* @__PURE__ */ new Map();
-  async function fotoAbre(u) {
+  const BUCKETS_PROJETO = [...new Set([config.storageBucket, `${config.projectId}.appspot.com`, ...BUCKETS_VIDEO].filter(Boolean))];
+  const PASTA_PUBLICA = import_path.default.resolve(process.cwd(), "public");
+  const lerArquivoSeguro = (raiz, relativo) => {
     try {
-      if (u.startsWith("db-file://")) {
-        const snap = await db.collection("app_files").doc(u.slice(10)).get();
-        return /^data:image\/(jpeg|png|webp|gif);base64,/.test(String(snap.data()?.data || ""));
-      }
-      if (u.startsWith("/")) return true;
-      const ctl = new AbortController();
-      const t = setTimeout(() => ctl.abort(), 1500);
-      const r = await fetch(u, { method: "GET", headers: { Range: "bytes=0-1023" }, signal: ctl.signal });
-      clearTimeout(t);
-      try {
-        await r.body?.cancel();
-      } catch {
-      }
-      return (r.ok || r.status === 206) && /^image\//i.test(r.headers.get("content-type") || "");
+      const alvo = import_path.default.resolve(raiz, "." + import_path.default.posix.normalize("/" + relativo));
+      if (!alvo.startsWith(raiz + import_path.default.sep)) return null;
+      const st = import_fs.default.statSync(alvo);
+      if (!st.isFile() || st.size > MAX_ORIGEM_BYTES) return null;
+      return import_fs.default.readFileSync(alvo);
     } catch {
-      return false;
+      return null;
     }
-  }
+  };
+  let sharpCarregado = void 0;
+  const logoHorizontal = /* @__PURE__ */ (() => {
+    let b;
+    return () => b === void 0 ? b = lerArquivoSeguro(PASTA_PUBLICA, "/marca/roder-horizontal.png") || lerArquivoSeguro(import_path.default.resolve(process.cwd(), "dist"), "/marca/roder-horizontal.png") : b;
+  })();
+  const logoRedonda = /* @__PURE__ */ (() => {
+    let b;
+    return () => b === void 0 ? b = lerArquivoSeguro(PASTA_PUBLICA, "/marca/roder-redondo-512.png") || lerArquivoSeguro(import_path.default.resolve(process.cwd(), "dist"), "/marca/roder-redondo-512.png") : b;
+  })();
+  const bucketCache = () => (0, import_storage.getStorage)(adminApp).bucket(config.storageBucket || `${config.projectId}.appspot.com`);
+  const imagemPrevia = criarImagemPrevia({
+    db,
+    site: SITE_PREVIA,
+    buckets: BUCKETS_PROJETO,
+    // sharp é nativo (vem do node_modules instalado no servidor). Se faltar, a rota manda a logo.
+    carregarSharp: async () => {
+      if (sharpCarregado !== void 0) return sharpCarregado;
+      try {
+        const m = await import("sharp");
+        sharpCarregado = m.default || m;
+      } catch (e) {
+        console.error("[OG] biblioteca sharp n\xE3o carregou; pr\xE9via vai com a logo:", e?.message || e);
+        sharpCarregado = null;
+      }
+      return sharpCarregado;
+    },
+    lerStorage: async (bucket, caminho) => {
+      const file = (0, import_storage.getStorage)(adminApp).bucket(bucket).file(caminho);
+      const [meta] = await file.getMetadata().catch(() => [null]);
+      if (!meta || Number(meta.size || 0) > MAX_ORIGEM_BYTES) return null;
+      const [buf] = await file.download();
+      return buf;
+    },
+    lerCache: async (chave) => {
+      const file = bucketCache().file(`${PASTA_CACHE}/${chave}.jpg`);
+      const [existe] = await file.exists();
+      if (!existe) return null;
+      const [buf] = await file.download();
+      return buf;
+    },
+    gravarCache: async (chave, jpeg) => {
+      await bucketCache().file(`${PASTA_CACHE}/${chave}.jpg`).save(jpeg, { contentType: "image/jpeg", resumable: false, metadata: { cacheControl: "public, max-age=31536000" } });
+    },
+    lerLocal: (caminho) => caminho.startsWith("/uploads/") ? lerArquivoSeguro(uploadsDir, caminho.slice("/uploads".length)) : lerArquivoSeguro(PASTA_PUBLICA, caminho),
+    logoHorizontal,
+    logoRedonda,
+    // JPEG pronto para quando o sharp não carregar (a og:image:type do HTML é image/jpeg)
+    artePadraoPronta: /* @__PURE__ */ (() => {
+      let b;
+      return () => b === void 0 ? b = lerArquivoSeguro(PASTA_PUBLICA, "/og-padrao.jpg") || lerArquivoSeguro(import_path.default.resolve(process.cwd(), "dist"), "/og-padrao.jpg") : b;
+    })(),
+    // código fora da memória obriga a ler o banco: no máximo 60 por minuto por endereço
+    limitar: (req) => passouLimite(`og:${ipDe(req)}`, 60, 6e4),
+    log: (m) => console.warn(m)
+  });
+  app.get("/og/:arquivo", (req, res) => {
+    imagemPrevia.rota(req, res);
+  });
+  app.post("/api/admin/fotos-externas", async (req, res) => {
+    const q = await exigirAdmin(req, res);
+    if (!q) return;
+    try {
+      const aplicar = String(req.query.aplicar || "0") === "1";
+      const bucketDestino = config.storageBucket || `${config.projectId}.appspot.com`;
+      const r = await fotosExternas({
+        db,
+        site: SITE_PREVIA,
+        buckets: BUCKETS_PROJETO,
+        bucketDestino,
+        carregarSharp: async () => {
+          try {
+            const m = await import("sharp");
+            return m.default || m;
+          } catch {
+            return null;
+          }
+        },
+        gravar: async (caminho, bytes, tipo) => {
+          const token = import_crypto4.default.randomUUID();
+          await (0, import_storage.getStorage)(adminApp).bucket(bucketDestino).file(caminho).save(bytes, {
+            contentType: tipo,
+            resumable: false,
+            metadata: { cacheControl: "public, max-age=31536000", metadata: { firebaseStorageDownloadTokens: token } }
+          });
+          return `https://firebasestorage.googleapis.com/v0/b/${bucketDestino}/o/${encodeURIComponent(caminho)}?alt=media&token=${token}`;
+        }
+      }, aplicar, q.email || q.uid);
+      res.json(r);
+    } catch (e) {
+      if (e instanceof RodadaEmAndamento) return res.status(409).json({ ok: false, error: e.message });
+      res.status(500).json({ ok: false, error: e?.message || "Erro ao conferir as fotos." });
+    }
+  });
   const escHtml3 = (t) => String(t || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   async function criarLinkCurto(uid, pid, mid) {
     const existente = await db.collection("links_curtos").where("uid", "==", uid).where("pid", "==", pid).where("mid", "==", mid).limit(1).get();
-    if (!existente.empty) return existente.docs[0].id;
+    if (!existente.empty) {
+      imagemPrevia.esquentar(existente.docs[0].id);
+      return existente.docs[0].id;
+    }
     for (let tentativa = 0; tentativa < 6; tentativa++) {
       const codigo = novoCodigo();
       const ref = db.collection("links_curtos").doc(codigo);
@@ -5036,7 +5766,10 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
         t.set(ref, { uid, pid, mid, created_at: (/* @__PURE__ */ new Date()).toISOString() });
         return true;
       });
-      if (criado) return codigo;
+      if (criado) {
+        imagemPrevia.esquentar(codigo);
+        return codigo;
+      }
     }
     return null;
   }
@@ -5081,19 +5814,9 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
           if (prod.exists) {
             const p = prod.data();
             const m = (p.models || []).find((x) => x.id === l.mid) || null;
-            let imagem = "";
-            const candidatas = [...m?.images || [], p.image_url].filter((i) => typeof i === "string" && i && !/run\.app/.test(i));
-            const guardada = fotoDaPrevia.get(codigo);
-            if (guardada && guardada.ate > Date.now()) imagem = guardada.url;
-            else {
-              for (const c of candidatas.slice(0, 3)) {
-                if (await fotoAbre(c)) {
-                  imagem = absoluta(c);
-                  break;
-                }
-              }
-              fotoDaPrevia.set(codigo, { url: imagem, ate: Date.now() + 36e5 });
-            }
+            const candidatas = candidatasDoLink(p, m);
+            const imagem = urlImagemPrevia(SITE_PREVIA, codigo, candidatas);
+            imagemPrevia.esquentar(codigo);
             previa = previaDoEquipamento(codigo, p, m, imagem);
           }
         }
@@ -5996,7 +6719,7 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
               cancelled_automatically_at: nowIso2,
               updated_at: nowIso2,
               negotiation_history: import_firebase_admin.default.firestore.FieldValue.arrayUnion({
-                id: import_crypto2.default.randomBytes(6).toString("hex"),
+                id: import_crypto4.default.randomBytes(6).toString("hex"),
                 type: "status_change",
                 author_name: "Sistema",
                 created_at: nowIso2,

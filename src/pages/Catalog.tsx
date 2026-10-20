@@ -1975,7 +1975,7 @@ export default function Catalog() {
               corrente: '0,404',
               vazao: '100 a 200',
               pressao: '200 a 220',
-              peso_operacional: '8 a 22 Ton.',
+              peso_operacional: '8 a 13 Ton.',
               motor: '24 cc'
             }
           },
@@ -3241,7 +3241,7 @@ export default function Catalog() {
               corrente: '0,404',
               vazao: '100 a 200',
               pressao: '200 a 220',
-              peso_operacional: '8 a 22 Ton.',
+              peso_operacional: '8 a 13 Ton.',
               motor: '24 cc'
             }
           },

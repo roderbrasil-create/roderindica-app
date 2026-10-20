@@ -14,10 +14,10 @@ const INDEX = `<!doctype html>
   <body><div id="root"></div></body>
 </html>`;
 
-test('código desconhecido: prévia padrão da Roder, com a logo e o endereço do próprio código', () => {
+test('código desconhecido: prévia padrão da Roder, com a arte padrão (JPEG do servidor) e o endereço do próprio código', () => {
   const html = injetarPrevia(INDEX, previaPadrao('zz9<x>'));
   assert.match(html, /<title>Roder Máquinas e Equipamentos<\/title>/);
-  assert.match(html, /og:image" content="https:\/\/roderindica\.com\/marca\/roder-redondo-512\.png"/);
+  assert.match(html, /og:image" content="https:\/\/roderindica\.com\/og\/PADRAO-[a-f0-9]{10}\.jpg"/);
   assert.match(html, /og:url" content="https:\/\/roderindica\.com\/o\/ZZ9X"/);
   assert.match(html, /og:type" content="website"/);
   // a og:image antiga do index.html sai: duas deixam o WhatsApp escolher a errada

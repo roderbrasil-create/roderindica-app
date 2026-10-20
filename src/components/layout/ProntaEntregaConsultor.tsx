@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Package } from 'lucide-react';
+import { MessageCircle, Package, Play, UserPlus } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import type { ItemProntaEntrega } from '../../lib/prontaEntrega';
 import { AcoesVideo, BotaoVerVideo, PlayerVideo } from '../video/VideoEquipamento';
@@ -263,6 +263,139 @@ function CartaoVideoCarrossel({ v, i, n, compacto, foto, fotoReserva, aberto, on
             </button>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+// Faixa compacta da tela inicial do celular (pedido do Jeferson, 19/10/2026: o cartão grande
+// tomava a tela e o consultor nem parecia um chat). Um cartão baixo (~96 px): foto à esquerda,
+// nome e selo no meio, botões de ícone à direita. Gira sozinho a cada 5 s e passa com o dedo.
+export function FaixaProntaEntrega({ itens, foto, onPerguntar, onIndicar }: {
+  itens: ItemProntaEntrega[];
+  foto: FotoFn;
+  onPerguntar: (it: ItemProntaEntrega) => void;
+  onIndicar?: (it: ItemProntaEntrega) => void;
+}) {
+  const trilho = useRef<HTMLDivElement>(null);
+  const [atual, setAtual] = useState(0);
+  const atualRef = useRef(0);
+  atualRef.current = atual;
+  const [parado, setParado] = useState(false);
+  const soltar = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [menosMovimento] = useState(usaMenosMovimento);
+  const [videoAberto, setVideoAberto] = useState<string | null>(null);
+  const n = itens.length;
+
+  const irPara = (i: number) => {
+    const el = trilho.current;
+    if (!el) return;
+    el.scrollTo({ left: i * el.clientWidth, behavior: menosMovimento ? 'auto' : 'smooth' });
+  };
+  const aoRolar = () => {
+    const el = trilho.current;
+    if (!el || !el.clientWidth) return;
+    const i = Math.max(0, Math.min(n - 1, Math.round(el.scrollLeft / el.clientWidth)));
+    if (i !== atualRef.current) { setAtual(i); setVideoAberto(null); }
+  };
+  useEffect(() => { if (atual >= n) setAtual(0); }, [n]);
+  useEffect(() => {
+    if (menosMovimento || parado || videoAberto || n < 2) return;
+    const t = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      irPara((atualRef.current + 1) % n);
+    }, TEMPO_MS);
+    return () => clearInterval(t);
+  }, [menosMovimento, parado, videoAberto, n]);
+  useEffect(() => () => { if (soltar.current) clearTimeout(soltar.current); }, []);
+  const parar = () => { if (soltar.current) clearTimeout(soltar.current); setParado(true); };
+  const seguir = (depois: number) => {
+    if (soltar.current) clearTimeout(soltar.current);
+    soltar.current = setTimeout(() => setParado(false), depois);
+  };
+
+  if (!n) return null;
+  const itVideo = itens.find(it => it.chave === videoAberto && it.video);
+
+  return (
+    <div
+      className="pe-faixa"
+      aria-roledescription="carrossel"
+      aria-label="Equipamentos à pronta entrega"
+      onTouchStart={parar}
+      onTouchEnd={() => seguir(4000)}
+      onTouchCancel={() => seguir(4000)}
+      onPointerEnter={(e) => { if (e.pointerType === 'mouse') parar(); }}
+      onPointerLeave={(e) => { if (e.pointerType === 'mouse') seguir(0); }}
+      onFocusCapture={parar}
+      onBlurCapture={(e) => { if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return; seguir(1500); }}
+    >
+      <div ref={trilho} onScroll={aoRolar} className="flex overflow-x-auto snap-x snap-mandatory rounded-2xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {itens.map((it, i) => (
+          <div
+            key={it.chave}
+            role="group"
+            aria-roledescription="item"
+            aria-label={`${i + 1} de ${n}: ${it.nome}`}
+            className="snap-center shrink-0 w-full h-[104px] flex items-stretch gap-2 rounded-2xl border border-[#E2E5E8] bg-white p-1.5 pr-2"
+          >
+            <button
+              type="button"
+              onClick={() => onPerguntar(it)}
+              aria-label={`Perguntar sobre ${it.nome}`}
+              className="min-w-0 flex-1 h-auto p-0 flex items-center gap-2.5 bg-transparent text-left active:opacity-80"
+            >
+              <span className="h-[78px] w-[78px] shrink-0 rounded-xl bg-gradient-to-b from-[#F4F5F6] to-[#E3E6E9] flex items-center justify-center overflow-hidden">
+                <Foto foto={foto} src={it.foto} className="max-w-full max-h-[72px] m-0 p-1 border-0 bg-transparent shadow-none hover:scale-100 object-contain mix-blend-multiply" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-1.5">
+                  <span className="bg-[#F6C400] text-[#111] text-[10.5px] font-extrabold px-2 py-[3px] rounded-full leading-none whitespace-nowrap">Pronta entrega</span>
+                  {n > 1 && <span className="text-[11px] font-bold text-[#8A9097] whitespace-nowrap">{i + 1}/{n}</span>}
+                </span>
+                <span className="fonte-titulo block mt-1 text-[14.5px] font-extrabold leading-tight text-[#1B1E22] line-clamp-2 break-words">{it.nome}</span>
+                {it.para && <span className="block mt-0.5 text-[12px] leading-tight text-[#5E6672] truncate">{it.para}</span>}
+              </span>
+            </button>
+            <span className="shrink-0 flex flex-col justify-center gap-1">
+              {it.video && (
+                <button
+                  type="button"
+                  onClick={() => { parar(); setVideoAberto(videoAberto === it.chave ? null : it.chave); }}
+                  aria-label={`Ver vídeo de ${it.nome}`}
+                  title="Ver vídeo"
+                  className="h-11 w-11 min-h-[44px] min-w-[44px] p-0 rounded-full bg-[#1B1E22] text-[#fff] flex items-center justify-center active:scale-95 transition"
+                >
+                  <Play className="h-4 w-4 fill-[#F6C400] text-[#F6C400]" />
+                </button>
+              )}
+              {onIndicar ? (
+                <button
+                  type="button"
+                  onClick={() => onIndicar(it)}
+                  aria-label={`Indicar ${it.nome}`}
+                  title="Indicar"
+                  className="h-11 w-11 min-h-[44px] min-w-[44px] p-0 rounded-full bg-[#F6C400] text-[#1B1E22] flex items-center justify-center active:scale-95 transition"
+                >
+                  <UserPlus className="h-[18px] w-[18px]" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onPerguntar(it)}
+                  aria-label={`Perguntar sobre ${it.nome}`}
+                  title="Perguntar"
+                  className="h-11 w-11 min-h-[44px] min-w-[44px] p-0 rounded-full border border-[#DADDE1] bg-white text-[#1B1E22] flex items-center justify-center active:scale-95 transition"
+                >
+                  <MessageCircle className="h-[18px] w-[18px]" />
+                </button>
+              )}
+            </span>
+          </div>
+        ))}
+      </div>
+      {itVideo && itVideo.video && (
+        <PlayerVideo url={itVideo.video} titulo={itVideo.nome} onFechar={() => { setVideoAberto(null); seguir(TEMPO_MS); }} pid={itVideo.produto?.id} mid={itVideo.modelo?.id} className="mt-2 [&>div:first-child]:rounded-xl" />
       )}
     </div>
   );

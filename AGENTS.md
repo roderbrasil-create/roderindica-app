@@ -26,8 +26,8 @@
   - **Alternativa Recomendada**: Indique a aquisição de uma **escavadeira de esteira pequena (7 a 8 toneladas)**. Essas escavadeiras são ágeis, fáceis de transportar, têm excelente alcance/movimentos superiores e alta economia de combustível por hora de trabalho.
 
 - **Cabeçote CMF 500 - Porte de Máquina, Performance e Operação em Rebrota**:
-  - **Faixa de Aplicação Ideal**: O CMF 500 é mais indicado para escavadeiras de **8 a 14 toneladas**. Na máquina de **14 toneladas**, ele já trabalha com a sua melhor performance.
-  - **Instalação em Máquinas de até 22 Toneladas**: Pode ser instalado em escavadeiras de até **22 toneladas**. Porém, em uma máquina grande de 22t, devido ao tamanho, peso e força bruta do braço, o operador deve tomar cuidado especial para não danificar o equipamento. Por isso, recomendamos o **CMF 600** para máquinas de 22 toneladas. Contudo, existem clientes que trabalham com o CMF 500 em máquinas de até 22 toneladas.
+  - **Regra de Indicação (Jeferson, 19/10/2026)**: Indique o CMF 500 para escavadeiras de **8 a 13 toneladas**. Acima de **13 toneladas**, indique **SEMPRE o CMF 600** (13 a 22 toneladas), que é o melhor equipamento, inclusive para rebrota.
+  - **Limite Físico x Recomendação**: Fisicamente o CMF 500 pode ser instalado em escavadeiras de até **22 toneladas**, mas essa **não é a recomendação** da Roder. Acima de 13 toneladas a indicação é o CMF 600.
   - **Operação em Área de Rebrota**: A Roder **NÃO recomenda** o CMF 500 para corte em área de rebrota por conta de sua corrente mais fina (passo .404), pois cortar vários fustes simultaneamente exige maior esforço do conjunto de corte.
   - **Indicação Técnica para Rebrota**: Para rebrota, a corrente do **CMF 600** é a melhor e mais indicada, pois opera com **corrente 3/4"** e sabre mais resistente (padrão das traçadoras maiores).
   - **Uso do CMF 500 em Rebrota (Exceção/Habilidade Operacional)**: Existem clientes que operam em rebrota utilizando o CMF 500, porém deve-se ter um cuidado operacional muito maior para não entortar o sabre durante a operação, exigindo alta habilidade do operador.
