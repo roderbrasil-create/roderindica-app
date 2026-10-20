@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import {
   REGRA_KIT_CONFIRMACAO, RESSALVA_KIT, perguntaDeKit, textoPedirConfirmacaoMaquina, videoAmostraDe, linkPublicoDoVideo,
-  precisaConfirmarMaquina, instrucaoAmostra, AVISO_SEM_AMOSTRA,
+  precisaConfirmarMaquina, instrucaoAmostra, AVISO_SEM_AMOSTRA, TEXTO_CMF_CAT320,
 } from '../src/lib/confirmacaoMaquina.ts';
 import { montarListaVideos, videosParaPrompt } from '../src/lib/videosConsultor.ts';
 import { instrucaoVideos, sanitizarPainel } from '../server/videosConsultor.ts';
@@ -80,7 +80,8 @@ test('regra de prompt: não afirma kit por modelo nem serial, pede confirmação
   assert.match(r, /kit de baixa/);
   assert.match(r, /o técnico confirma a pressão; cadastro do 9003: 190 bar/);
   assert.ok(!/200 bar/.test(r));
-  assert.match(r, /DOIS kits/);
+  assert.match(r, /possibilidade do kit 9000\.9000\.9035/);
+  assert.match(r, /mais o 9000\.9000\.9003/);
   assert.match(r, /sem item cadastrado, diga que o técnico informa o código/);
   assert.match(r, /Não dê a entender que a concessionária é obrigatória antes da análise/);
   assert.match(r, /técnico Roder responsável/);
@@ -170,14 +171,14 @@ test('caso real do Yuri: CMF 600 na CAT 320 com série e "configuração padrão
   assert.match(r, /joystick hidráulico, nova com joystick eletrônico/);
   assert.match(r, /foto do comando, da bomba, dos dois joysticks e o vídeo/);
   assert.match(r, /técnico Roder confirma os kits/);
-  assert.match(r, /cabeçote multifuncional, informe que na CAT 320 nova sem fatia extra existe a opção do kit de baixa mais o kit de linhas/);
+  assert.match(r, /cabeçote multifuncional, informe que na CAT 320 nova sem fatia extra existe a opção do kit 9035 mais o kit de baixa 9003, a confirmar pelo técnico/);
   assert.match(r, /Só cite códigos de kit que apareçam na lista de kits cadastrados fornecida no contexto/);
   assert.ok(!/já cadastrados|9053|9026/.test(r), 'a regra não afirma que códigos fora do repositório estão cadastrados');
   assert.match(r, /técnico informa/);
   // o único código da regra é o do kit de baixa que existe no repositório (constants.ts e manual), citado como exemplo
-  assert.deepEqual([...new Set(r.match(/\d{4}\.\d{4}\.\d{4}/g) || [])].sort(), ['9000.9000.9003']);
+  assert.deepEqual([...new Set(r.match(/\d{4}\.\d{4}\.\d{4}/g) || [])].sort(), ['9000.9000.9003', '9000.9000.9035']);
   assert.match(readFileSync(new URL('../src/constants.ts', import.meta.url), 'utf8'), /9000\.9000\.9003/);
-  assert.match(r, /ex\.: 9000\.9000\.9003, KIT BAIXA PRESSAO CAT320GC\/NG/);
+  assert.match(r, /ex.: 9000\.9000\.9035 e 9000\.9000\.9003/);
   const server = readFileSync(new URL('../server.ts', import.meta.url), 'utf8');
   assert.ok(server.includes('${REGRA_KIT_CONFIRMACAO}'));
 });
@@ -219,7 +220,7 @@ test('regras antigas não contradizem a regra nova (CMF sem fatia extra, requisi
   assert.ok(i > 0 && !/komatsu|volvo/i.test(modal.slice(i, i + 400)));
   assert.ok(!/PC200, PC210, Volvo 200/.test(modal));
   // texto novo presente
-  assert.ok(server.includes('CMF sem fatia extra: em CAT 320 nova (joystick eletrônico)'));
+  assert.ok(server.includes('${TEXTO_CMF_CAT320}'));
   assert.ok(server.includes('A fatia extra com saída dupla é o requisito geral. Exceções: garra de carregamento, garras florestais e CMF na CAT 320 nova (kit de baixa).'));
   assert.ok(server.includes('Requisito geral: fatia extra com saída dupla, confirmada por foto e vídeo, exceto o kit de baixa em CAT 320 nova para garra e CMF.'));
   assert.ok(server.includes('(a concessionária só entra se faltar fatia extra em CAT nova)'));
@@ -244,4 +245,36 @@ test('últimas sobras: viabilidade do 9016, pedido de foto e vídeo, e títulos 
     assert.ok(linhas.length > 0, f);
     for (const l of linhas) assert.ok(/quando confirmado por foto e vídeo/.test(l), `${f}: ${l.trim().slice(0, 90)}`);
   }
+});
+
+test('CMF em CAT 320 nova: kits 9035 e 9003, confirmação sempre e contato da concessionária', () => {
+  const ler = (c: string) => readFileSync(new URL(`../${c}`, import.meta.url), 'utf8');
+  const t = TEXTO_CMF_CAT320;
+  assert.ok(!/[—–]/.test(t));
+  assert.match(t, /COM fatia extra dupla já acionada no joystick eletrônico, faltando só a tubulação: possibilidade do kit 9000\.9000\.9035/);
+  assert.match(t, /toda a linha hidráulica do CMF e vale para CMF 500, 600 e 800/);
+  assert.match(t, /SEM fatia extra: possibilidade do 9000\.9000\.9035 mais o 9000\.9000\.9003/);
+  assert.match(t, /bomba extra na tampa da bomba original, que alimenta um comando hidráulico duplo para a linha de giro do rotator/);
+  assert.match(t, /CAT mais antiga de comando pilotado sem fatia extra: precisa de fatia ou bomba extra, e o técnico Roder define/);
+  assert.match(t, /Garra de carregamento usa o 9003 para o rotator, mas outro kit para a garra: o técnico informa/);
+  assert.match(t, /Sempre confirmar por foto e vídeo, no modelo do vídeo de amostra, mesmo que o cliente diga que a máquina não tem preparação nenhuma/);
+  assert.match(t, /peça o contato do vendedor ou da concessionária da máquina; a Roder fala com ele .* só então passa o valor do kit/);
+  assert.match(t, /a Roder orienta o vendedor a repassar esse valor ao cliente/);
+  assert.deepEqual([...new Set(t.match(/\d{4}\.\d{4}\.\d{4}/g) || [])].sort(), ['9000.9000.9003', '9000.9000.9035']);
+  // 9035 e 9003 estão cadastrados (a regra só cita código cadastrado), nas duas fontes
+  const constants = ler('src/constants.ts');
+  assert.match(constants, /code: .9000\.9000\.9035.,\s*description: .KIT INSTALACAO CMF500\/600 EM ESCAVADEIRA - \( MAQUINA COM FATIA EXTRA "ACIONADA" SEM LINHA\)./);
+  assert.match(constants, /code: '9000\.9000\.9003'/);
+  assert.match(ler('src/data/equipmentManualData.ts'), /'9000\.9000\.9035', 'KIT INSTALACAO CMF500\/600 EM ESCAVADEIRA/);
+  // o prompt usa o texto único, e AGENTS, estudo e manuais falam o mesmo
+  const server = ler('server.ts');
+  assert.equal((server.match(/\$\{TEXTO_CMF_CAT320\}/g) || []).length, 2);
+  for (const f of ['AGENTS.md', 'src/components/catalog/EstudosComparativosModal.tsx', 'src/utils/manualExportUtils.ts', 'src/pages/IAManual.tsx']) {
+    const c = ler(f);
+    assert.ok(c.includes('9000.9000.9035') && c.includes('9003'), `${f}: 9035 e 9003`);
+    assert.ok(/contato do vendedor ou da concessionária/.test(c), `${f}: contato da concessionária`);
+    assert.ok(!/bloquinho de pressão piloto com botão que a Roder adiciona/.test(c), f);
+  }
+  assert.ok(!/bloquinho de pressão piloto com botão que a Roder adiciona/.test(server + REGRA_KIT_CONFIRMACAO));
+  assert.ok(!/o CMF pode ir sem fatia extra com o kit de baixa \(bomba extra com comando próprio/.test(server + ler('AGENTS.md')));
 });

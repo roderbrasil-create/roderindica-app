@@ -219,7 +219,7 @@ REGRAS DE COMPATIBILIDADE E DIMENSIONAMENTO:
 6. Hidráulica, Rotatores e Tabelas Oficiais de Códigos:
    - Rotatores Roder: Giro infinito contínuo 360° (3t, 6t, 10t, 16t). Padrão dimensional biela 100mm, furo para pino de 45mm.
    - QUADRO 1 - ACESSÓRIOS DE MONTAGEM (Padrão 1000.XXXX.XXXX): Códigos oficiais para ponteiras de biela 4/6, suportes de destocador/triturador e links de garra para ${uniqueAccessories.length} máquinas escavadeiras homologadas.
-   - QUADRO 2 - KITS OFICIAIS DE INSTALAÇÃO HIDRÁULICA (Padrão 9000.9000.9000 a 9000.9000.9060): 56+ kits completos para destocador, CMF, garras e kit de derivação da bomba para máquinas sem fatia extra original (Cód. 9000.9000.9016, quando confirmado por foto e vídeo).`;
+   - QUADRO 2 - KITS OFICIAIS DE INSTALAÇÃO HIDRÁULICA (Padrão 9000.9000.9000 a 9000.9000.9060): 58 kits completos para destocador, CMF, garras e kit de derivação da bomba para máquinas sem fatia extra original (Cód. 9000.9000.9016, quando confirmado por foto e vídeo).`;
 
   const handleCopyPrompt = () => {
     navigator.clipboard.writeText(systemPromptText);
@@ -858,6 +858,16 @@ REGRAS DE COMPATIBILIDADE E DIMENSIONAMENTO:
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-2 md:col-span-2">
+                    <div className="flex items-center gap-2 text-orange-600 font-bold text-sm">
+                      <Cpu className="w-4 h-4" />
+                      CMF em CAT 320 nova (kits 9000.9000.9035 e 9000.9000.9003, a confirmar por foto e vídeo)
+                    </div>
+                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                      Com fatia extra dupla já acionada no joystick eletrônico, só faltando a tubulação: kit 9035 (toda a linha hidráulica do CMF 500, 600 e 800). Sem fatia extra: 9035 mais o kit de baixa 9003 (bomba extra na tampa da bomba original, comando hidráulico duplo para o giro do rotator). Sempre por foto e vídeo; o técnico Roder define. Cliente sem a informação: peça o contato do vendedor ou da concessionária.
+                    </p>
+                  </div>
+
                   <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-2">
                     <div className="flex items-center gap-2 text-orange-600 font-bold text-sm">
                       <Cpu className="w-4 h-4" />

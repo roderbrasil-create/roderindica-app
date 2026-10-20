@@ -69,6 +69,8 @@ import {
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
+import { computeKitsDiff } from '../lib/kitsDiff';
+import { parseKitsText } from '../../server/kitsPdf';
 
 const getDisplayImageUrl = (url: string | undefined): string => {
   if (!url) return '';
@@ -329,150 +331,8 @@ export default function Accessories() {
     setTimeout(() => setCopiedCode(null), 2000);
   };
 
-  const parseKitText = (text: string): InstallationKit[] => {
-    if (!text || !text.trim()) return [];
-
-    const kitsMap = new Map<string, { code: string; description: string; items: { code: string; description: string; quantity: number }[] }>();
-    const lines = text.split(/\r?\n/);
-    let currentKitCode: string | null = null;
-    let pendingItem: { code: string; descParts: string[]; qty?: number } | null = null;
-
-    const flushPendingItem = () => {
-      if (pendingItem && currentKitCode && kitsMap.has(currentKitCode)) {
-        const itemCode = pendingItem.code;
-        const cleanDesc = pendingItem.descParts.join(' ').replace(/\s+/g, ' ').trim();
-        const qty = pendingItem.qty !== undefined && !isNaN(pendingItem.qty) ? pendingItem.qty : 1;
-        const currentKit = kitsMap.get(currentKitCode)!;
-        const existingIdx = currentKit.items.findIndex(it => it.code === itemCode);
-        if (existingIdx >= 0) {
-          currentKit.items[existingIdx] = { code: itemCode, description: cleanDesc || currentKit.items[existingIdx].description, quantity: qty };
-        } else {
-          currentKit.items.push({ code: itemCode, description: cleanDesc, quantity: qty });
-        }
-      }
-      pendingItem = null;
-    };
-
-    for (let i = 0; i < lines.length; i++) {
-      let line = lines[i].trim();
-      if (!line) continue;
-
-      if (
-        line.startsWith('Roder Máquinas') ||
-        line.startsWith('Quant. Item Pai') ||
-        line.includes('DBCorp PCR') ||
-        line.startsWith('Nível Nº Item') ||
-        line.startsWith('Filtros:') ||
-        line.includes('Relatório de Estruturas') ||
-        line === 'Item' || line === 'Item UN Versão' || line === 'UN' || line === 'Versão'
-      ) {
-        continue;
-      }
-
-      const kitMatch = line.match(/(9000\.\d{4}\.\d{4}|\d{4}\.\d{4}\.\d{4})\s*(.*)/i);
-      const isChildItem = line.match(/\d{4}\.\d{4}\.\d{4}\s+.+?\s+(UN|PC|MT|PAR)\s+[\d,]+/i) || line.match(/^\d+\s+\d+\s+\d{4}\.\d{4}\.\d{4}/);
-
-      if (kitMatch && !isChildItem) {
-        flushPendingItem();
-        const code = kitMatch[1].trim();
-        let desc = (kitMatch[2] || '').trim();
-        desc = desc.replace(/^Item\s+UN\s+Versão\s+/i, '').replace(/\s+UN\s*\d*$/i, '').trim();
-
-        let nextLineIdx = i + 1;
-        while (nextLineIdx < lines.length) {
-          const nextL = lines[nextLineIdx].trim();
-          if (!nextL) { nextLineIdx++; continue; }
-          if (nextL.match(/^Nível/i) || nextL.match(/^\d+\s+\d+\s+\d{4}\.\d{4}\.\d{4}/) || nextL.match(/^(?:9000|\d{4})\.\d{4}\.\d{4}/)) {
-            break;
-          }
-          if (!nextL.match(/DBCorp|Roder|Quant\.|Filtros/i)) {
-            const cleanNext = nextL.replace(/\s+UN\s*\d*$/i, '').replace(/^UN\s*\d*$/i, '').trim();
-            if (cleanNext && cleanNext !== '1' && cleanNext !== 'UN') {
-              desc = (desc + ' ' + cleanNext).trim();
-            }
-          }
-          i = nextLineIdx;
-          nextLineIdx++;
-          break;
-        }
-
-        currentKitCode = code;
-        if (!kitsMap.has(code)) {
-          kitsMap.set(code, { code, description: desc, items: [] });
-        } else if (desc) {
-          kitsMap.get(code)!.description = desc;
-        }
-        continue;
-      }
-
-      const itemStartMatch = line.match(/(?:^|\s)(\d{4}\.\d{4}\.\d{4})\s*(.*)/);
-      if (itemStartMatch && currentKitCode) {
-        const itemCode = itemStartMatch[1].trim();
-        if (itemCode === currentKitCode) continue;
-
-        flushPendingItem();
-        let rest = itemStartMatch[2].trim();
-        let qty: number | undefined;
-
-        const unitQtyMatch = rest.match(/(.*?)\s+(UN|PC|MT|PAR)\s+([\d]+(?:[,\.]\d+)?)/i);
-        if (unitQtyMatch) {
-          const descPart = unitQtyMatch[1].trim();
-          qty = parseFloat(unitQtyMatch[3].replace(',', '.'));
-          pendingItem = { code: itemCode, descParts: descPart ? [descPart] : [], qty };
-          flushPendingItem();
-        } else {
-          pendingItem = { code: itemCode, descParts: rest ? [rest] : [] };
-        }
-        continue;
-      }
-
-      if (pendingItem) {
-        const unitQtyMatch = line.match(/(.*?)\s*(?:UN|PC|MT|PAR)\s+([\d]+(?:[,\.]\d+)?)/i);
-        if (unitQtyMatch) {
-          const descPart = unitQtyMatch[1].trim();
-          if (descPart) pendingItem.descParts.push(descPart);
-          pendingItem.qty = parseFloat(unitQtyMatch[2].replace(',', '.'));
-          flushPendingItem();
-        } else if (!line.match(/^\d+\/\d+\/\d{4}$/) && !line.match(/^[\d\s]+$/)) {
-          pendingItem.descParts.push(line);
-        }
-      }
-    }
-    flushPendingItem();
-
-    const result = Array.from(kitsMap.values()) as unknown as InstallationKit[];
-    if (result.length > 0) return result;
-
-    // Fallback to legacy block match if line parser found 0
-    const kitBlocks = text.split(/Item UN Versão/i);
-    const parsedKits: any[] = [];
-    kitBlocks.forEach(block => {
-      if (!block.trim()) return;
-      const kitHeaderMatch = block.match(/(\d{4}\.\d{4}\.\d{4})\s+(.+?)\s+UN\s+1/);
-      if (kitHeaderMatch) {
-        const kitCode = kitHeaderMatch[1];
-        let kitDesc = kitHeaderMatch[2].trim().split(/Nível NºItem Descrição/i)[0].trim();
-        const items: any[] = [];
-        const itemRegex = /(\d{4,5}\.\d{4}\.\d{4})\s+(.+?)\s+UN\s+([\d,.]+)/g;
-        let itemMatch;
-        while ((itemMatch = itemRegex.exec(block)) !== null) {
-          const fullCode = itemMatch[1];
-          let realCode = fullCode.length > 12 ? fullCode.slice(-14) : fullCode;
-          if (realCode === kitCode) continue;
-          items.push({
-            code: realCode,
-            description: itemMatch[2].trim(),
-            quantity: parseFloat(itemMatch[3].replace(',', '.'))
-          });
-        }
-        if (items.length > 0) {
-          parsedKits.push({ code: kitCode, description: kitDesc, items });
-        }
-      }
-    });
-
-    return parsedKits as InstallationKit[];
-  };
+  // Mesmo parser do servidor (server/kitsPdf.ts), para o plano B local nao divergir da rota.
+  const parseKitText = (text: string): InstallationKit[] => parseKitsText(text || "") as unknown as InstallationKit[];
 
   const handleSyncOfficialRoderKits = () => {
     const officialKits = DEFAULT_KITS as unknown as InstallationKit[];
@@ -484,76 +344,6 @@ export default function Accessories() {
     } else {
       toast.success(`${officialKits.length} kits homologados carregados (${diff.added.length} novos para adicionar, ${diff.updated.length} para atualizar).`);
     }
-  };
-
-  const computeKitsDiff = (parsedKits: InstallationKit[], existingKits: InstallationKit[]) => {
-    const existingMap = new Map<string, InstallationKit>();
-    existingKits.forEach(k => existingMap.set(k.code.trim(), k));
-
-    const added: { parsedKit: InstallationKit; type: 'ADDED'; changes: string[] }[] = [];
-    const updated: { parsedKit: InstallationKit; existingKit?: InstallationKit; type: 'UPDATED'; changes: string[] }[] = [];
-    const unchanged: { parsedKit: InstallationKit; existingKit?: InstallationKit; type: 'UNCHANGED'; changes: string[] }[] = [];
-
-    parsedKits.forEach(pKit => {
-      const code = pKit.code.trim();
-      const existing = existingMap.get(code);
-
-      if (!existing) {
-        added.push({
-          parsedKit: pKit,
-          type: 'ADDED',
-          changes: ['Novo kit cadastrado']
-        });
-      } else {
-        const changes: string[] = [];
-
-        // Check description change
-        if (pKit.description.trim() !== existing.description.trim()) {
-          changes.push(`Descrição alterada: "${existing.description}" ➔ "${pKit.description}"`);
-        }
-
-        // Check items
-        const exItemsMap = new Map<string, number>();
-        (existing.items || []).forEach(it => exItemsMap.set(it.code, it.quantity));
-
-        const newItemsMap = new Map<string, number>();
-        (pKit.items || []).forEach(it => newItemsMap.set(it.code, it.quantity));
-
-        // Added or changed items
-        (pKit.items || []).forEach(it => {
-          if (!exItemsMap.has(it.code)) {
-            changes.push(`Item adicionado: ${it.code} (${it.description}) - Qtd: ${it.quantity}`);
-          } else if (exItemsMap.get(it.code) !== it.quantity) {
-            changes.push(`Qtd alterada no item ${it.code}: ${exItemsMap.get(it.code)} ➔ ${it.quantity}`);
-          }
-        });
-
-        // Removed items
-        (existing.items || []).forEach(it => {
-          if (!newItemsMap.has(it.code)) {
-            changes.push(`Item removido: ${it.code} (${it.description})`);
-          }
-        });
-
-        if (changes.length > 0) {
-          updated.push({
-            parsedKit: pKit,
-            existingKit: existing,
-            type: 'UPDATED',
-            changes
-          });
-        } else {
-          unchanged.push({
-            parsedKit: pKit,
-            existingKit: existing,
-            type: 'UNCHANGED',
-            changes: []
-          });
-        }
-      }
-    });
-
-    return { added, updated, unchanged };
   };
 
   const processPdfBase64OrText = async (fileBase64?: string, rawText?: string) => {

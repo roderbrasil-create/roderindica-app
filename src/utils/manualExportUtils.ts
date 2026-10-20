@@ -106,6 +106,11 @@ export function getTabPlainText(
    - Derivação direta da bomba principal para válvula de duas solenoides de baixo fluxo.
    - Em marcha lenta e sem mover o braço/lança, o giro fica lento por projeto (bomba em deslocamento mínimo). A rotação normaliza ao acionar qualquer outra função da escavadeira.
 
+1.1 CMF EM CAT 320 NOVA (possibilidades a confirmar por foto e vídeo; o técnico Roder define):
+   - Com fatia extra dupla já acionada no joystick eletrônico, só faltando a tubulação: kit 9000.9000.9035 (toda a linha hidráulica do CMF 500, 600 e 800).
+   - Sem fatia extra: 9000.9000.9035 mais 9000.9000.9003 (kit de baixa: bomba extra na tampa da bomba original, comando hidráulico duplo para a linha de giro do rotator).
+   - Máquina nova e cliente sem a informação: pedir o contato do vendedor ou da concessionária; a Roder passa o valor do kit só depois de saber como a máquina será fornecida.
+
 2. ROTATOR RODER - PADRÃO DIMENSIONAL & GIRO INFINITO:
    - Grafia correta: "Rotator" (com T).
    - Giro 360° infinito e ilimitado contínuo em todos os modelos.
