@@ -5455,9 +5455,6 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
               <b.icone className="h-4 w-4" /> <span className="hidden min-[1360px]:inline">{b.rotulo}</span>
             </button>
           ))}
-          <button type="button" onClick={handleForceUpdate} title="Buscar atualizações" className="h-9 w-9 rounded-full border border-white/25 text-[#fff]/80 hover:bg-white/10 flex items-center justify-center transition">
-            <RefreshCw className="h-4 w-4" />
-          </button>
           {nomeUsuario && (
             <span className="ml-1 h-9 px-3.5 rounded-full border border-white/25 text-[#fff] text-[13.5px] font-semibold flex items-center gap-1.5 max-w-[260px]">
               <User className="h-4 w-4 text-[#F6C400] shrink-0" />

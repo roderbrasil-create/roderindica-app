@@ -320,7 +320,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     const isFairsPath = path.startsWith('/feiras') || path === '/cadastro-rapido';
     const isFinancialPath = path === '/comissoes' || path === '/consulta-financeira' || path.startsWith('/financeiro');
     const isComercialPath = path.startsWith('/comercial');
-    const isTechnicalPath = path === '/dossie' || path === '/relatorios-ia' || path === '/manual-ia' || path === '/manual-tecnico';
+    const isTechnicalPath = path === '/dossie' || path === '/relatorios-ia' || path === '/manual-ia';
 
     if (isFairsPath) {
       setFairsMenuOpen(true);
@@ -456,7 +456,6 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
       subItems: [
         { name: 'Relatório de Comissões', path: '/comissoes', icon: DollarSign },
         { name: 'Consulta Financeira', path: '/consulta-financeira', icon: History },
-        { name: 'Faturamentos (Vendas)', path: '/indicacoes', icon: Filter },
         { name: 'Demonstrativo de KPIs', path: '/financeiro/kpis', icon: BarChart3 },
       ]
     },

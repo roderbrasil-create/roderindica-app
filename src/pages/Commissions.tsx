@@ -1822,15 +1822,6 @@ export default function Commissions() {
                         <MessageSquare className="h-4 w-4 shrink-0" /> Cobrar NF via WhatsApp
                       </Button>
                     )}
-
-                    {isInternalFinances && isWaitingPayment && (
-                      <Button
-                        onClick={() => handleMarkAsPaidDirect(statement)}
-                        className="w-full bg-green-600/10 hover:bg-green-600 hover:text-white text-green-500 font-extrabold text-[11px] h-8"
-                      >
-                        Marcar Executado Direct 🚀
-                      </Button>
-                    )}
                   </CardContent>
                 </Card>
               );

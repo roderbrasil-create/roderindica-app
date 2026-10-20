@@ -289,11 +289,7 @@ function AppContent() {
                   </PrivateRoute>
                 } />
 
-                <Route path="/financeiro" element={
-                  <PrivateRoute roles={['admin', 'manager', 'financial']}>
-                    <Commissions />
-                  </PrivateRoute>
-                } />
+                <Route path="/financeiro" element={<Navigate to="/comissoes" replace />} />
 
                 <Route path="/financeiro/kpis" element={
                   <PrivateRoute roles={['admin', 'manager', 'financial', 'fiscal']}>
@@ -338,12 +334,6 @@ function AppContent() {
                 } />
 
                 <Route path="/manual-ia" element={
-                  <PrivateRoute roles={['admin', 'manager', 'internal_seller', 'triagem', 'external_seller', 'vendedor_padrao', 'financial', 'marketing']}>
-                    <IAManual />
-                  </PrivateRoute>
-                } />
-
-                <Route path="/manual-tecnico" element={
                   <PrivateRoute roles={['admin', 'manager', 'internal_seller', 'triagem', 'external_seller', 'vendedor_padrao', 'financial', 'marketing']}>
                     <IAManual />
                   </PrivateRoute>
