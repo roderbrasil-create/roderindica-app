@@ -5329,8 +5329,9 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
     setFolhaEquip(false);
     enviarPronto(`Me fale sobre o ${tituloFicha(prod, model)}`);
   };
-  // mesma regra da aba Produtividade do explorador antigo: garra traçadora (GT)
-  const ehGtCel = (prod: Product, model: ProductModel) =>
+  // Produtividade aparece quando o modelo tem texto de produtividade (cadastro ou padrão) ou é garra traçadora
+  const temProdutividadeCel = (prod: Product, model: ProductModel) =>
+    !!(String((model as any).productivity_text || '').trim() || DEFAULT_PRODUCTIVITIES[model.name]) ||
     model.name.toUpperCase().includes('GT') ||
     String(prod.category || '').toUpperCase().includes('TRAÇADORA') ||
     prod.name.toUpperCase().includes('TRAÇADORA');
@@ -5415,8 +5416,8 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                         <Send className="h-4 w-4" /> Enviar ficha
                       </button>
                     )}
-                    {ehGtCel(prod, model) && (
-                      <button type="button" onClick={() => { setFolhaEquip(false); enviarPronto(`Produção da ${model.name}`); }} disabled={loading} className="h-11 min-h-[44px] w-full rounded-xl border-2 border-[#E2E5E8] bg-white text-[#1B1E22] font-extrabold text-[14.5px] flex items-center justify-center gap-1.5 active:scale-[0.98] transition disabled:opacity-50">
+                    {temProdutividadeCel(prod, model) && (
+                      <button type="button" onClick={() => { setSelectedModel(model); setFolhaEquip(false); enviarPronto(`Produtividade do ${tituloFicha(prod, model)}`); }} disabled={loading} className="h-11 min-h-[44px] w-full rounded-xl border-2 border-[#E2E5E8] bg-white text-[#1B1E22] font-extrabold text-[14.5px] flex items-center justify-center gap-1.5 active:scale-[0.98] transition disabled:opacity-50">
                         <Sparkles className="h-4 w-4" /> Produtividade
                       </button>
                     )}
