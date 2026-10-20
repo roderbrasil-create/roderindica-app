@@ -1810,7 +1810,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-20c estufagem-pa";
+  const RELEASE_LABEL = "2026-10-20d consultor-enxuto";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -3895,7 +3895,7 @@ Regras de Neg\xF3cio e Diretrizes de Engenharia Roder:
 9. DIMENSIONAMENTO E PRODUTIVIDADE DO CABE\xC7OTE MULTIFUNCIONAL CMF 600 (REGRAS CR\xCDTICAS DE ENGENHARIA):
    - Se perguntarem como determinar o tamanho correto para uma ca\xE7amba ou cabe\xE7ote multifuncional (CMF) para uma escavadeira:
      - Para escavadeiras na faixa de 13 a 22 toneladas (como a CAT 313, Hyundai 130, etc.) em opera\xE7\xE3o de colheita de eucalipto, pinus e reflorestamento, a indica\xE7\xE3o t\xE9cnica ideal e exata \xE9 SEMPRE e EXCLUSIVAMENTE o Cabe\xE7ote Multifuncional CMF 600. N\xE3o cite ou sugira o modelo CMF 500 para essa faixa, nem d\xEA outras op\xE7\xF5es para n\xE3o confundir o usu\xE1rio. Recomende o CMF 600 de forma direta e sem hesita\xE7\xE3o como a \xFAnica escolha correta, pois ele \xE9 o mais vendido (98% das vendas) e \xE1gil com estoque frequente.
-     - O cabe\xE7ote multifuncional CMF 500 \xE9 mais indicado para escavadeiras de 8 a 14 toneladas, sendo que na m\xE1quina de 14 toneladas ele j\xE1 trabalha com a sua melhor performance. Pode ser instalado em escavadeiras de at\xE9 22 toneladas. Para uma m\xE1quina grande de 22 toneladas, \xE9 poss\xEDvel trabalhar com o CMF 500, por\xE9m, pelo tamanho da m\xE1quina, peso e for\xE7a do bra\xE7o, o operador deve tomar cuidado para n\xE3o danificar o equipamento. Por isso, recomendamos o CMF 600 para m\xE1quinas de 22 toneladas. Mas existem clientes reais que trabalham com o CMF 500 em m\xE1quinas de at\xE9 22 toneladas.
+     - REGRA DE INDICA\xC7\xC3O DO CMF 500 x CMF 600 (Jeferson, 19/10/2026): indique o CMF 500 para escavadeiras de 8 a 13 toneladas. Acima de 13 toneladas, indique SEMPRE o CMF 600 (melhor equipamento, tamb\xE9m para rebrota). Fisicamente o CMF 500 pode ir at\xE9 22 toneladas, mas essa N\xC3O \xE9 a recomenda\xE7\xE3o: s\xF3 comente se perguntarem, e mesmo assim recomende o CMF 600. O CMF 500 n\xE3o \xE9 recomendado para rebrota.
      - OPERA\xC7\xC3O EM REBROTA COM CMF 500: N\xE3o recomendamos o CMF 500 para corte em \xE1rea de rebrota por conta da corrente fina (.404), pois cortar v\xE1rios fustes exige maior esfor\xE7o do conjunto de corte. Para isso, a corrente do cabe\xE7ote CMF 600 \xE9 a melhor e mais indicada, que trabalha com corrente 3/4" e sabre mais resistente (padr\xE3o das tra\xE7adoras maiores). Mas tamb\xE9m temos clientes que trabalham com rebrota com CMF 500, por\xE9m deve-se ter um cuidado operacional muito maior para n\xE3o entortar o sabre durante a opera\xE7\xE3o.
      - Quando questionado sobre qual cabe\xE7ote multifuncional \xE9 ideal para m\xE1quinas na faixa de 20 a 30 toneladas, recomende preferencialmente o CMF 600, mas mencione que o CMF 800 s\xF3 \xE9 de fato recomendado quando o cliente necessita cortar \xE1rvores de grande porte com at\xE9 80 cent\xEDmetros de di\xE2metro (por exemplo, em \xE1reas de mata nativa que exigem maior \xE1rea de corte). O CMF 800 nunca est\xE1 em estoque a pronta entrega; ele \xE9 produzido estritamente sob encomenda. Recomende sempre preferencialmente o CMF 600, a menos que o di\xE2metro de corte exija realmente o CMF 800.
    - PRODUTIVIDADE E PERFORMANCE DO CMF 600:
@@ -3925,7 +3925,7 @@ Regras de Neg\xF3cio e Diretrizes de Engenharia Roder:
        \u2022 Vaz\xE3o extra para passagem livre de \xF3leo.
        \u2022 Permite rota\xE7\xE3o/giro infinito e ilimitado ao cabe\xE7ote, eliminando o problema de mangueiras externas girando fora do cabe\xE7ote.
    - Se perguntarem as principais diferen\xE7as entre o cabe\xE7ote multifuncional CMF 500 e CMF 600:
-     - Porte de M\xE1quina: O CMF 500 \xE9 mais indicado para escavadeiras de 8 a 14 toneladas (com melhor performance em 14t), podendo ser instalado em at\xE9 22t (com ressalva de cuidado operacional). J\xE1 o CMF 600 \xE9 a escolha perfeita para m\xE1quinas de 13 a 22 toneladas (e recomendado para 22t).
+     - Porte de M\xE1quina: O CMF 500 \xE9 indicado para escavadeiras de 8 a 13 toneladas. Acima de 13 toneladas, a indica\xE7\xE3o \xE9 SEMPRE o CMF 600 (13 a 22 toneladas). O CMF 500 at\xE9 cabe fisicamente em m\xE1quinas de at\xE9 22 toneladas, mas n\xE3o \xE9 a recomenda\xE7\xE3o da Roder.
      - Tipo de corrente e Rebrota: O CMF 500 utiliza corrente .404 (harvester convencional), por isso n\xE3o \xE9 recomendado para \xE1reas de rebrota onde o corte de v\xE1rios fustes exige muito do sabre (embora existam clientes que utilizam CMF 500 em rebrota com alta habilidade operacional para n\xE3o entortar o sabre). O CMF 600 utiliza corrente de bitola 3/4" e sabre refor\xE7ado (padr\xE3o das tra\xE7adoras maiores), sendo o melhor e mais indicado para rebrota e tra\xE7amento pesado de m\xFAltiplos fustes.
      - Robustez geral: O CMF 600 \xE9 um cabe\xE7ote significativamente mais robusto e dur\xE1vel sob condi\xE7\xF5es severas.
 
