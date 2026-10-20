@@ -11,6 +11,8 @@ export interface PainelConversa {
   produto?: string;
   // ids da biblioteca de vídeos (no máximo 3); quem mostra confere de novo contra a lista que tem
   videos?: string[];
+  // kit de instalação depende da configuração da máquina: mostra "Pedir confirmação da máquina ao cliente"
+  confirmar_maquina?: boolean;
 }
 
 const RE_PAINEL = /<\s*painel\s*>([\s\S]*?)<\s*\/\s*painel\s*>/gi;
@@ -51,6 +53,7 @@ export const lerPainel = (json: string): PainelConversa | null => {
     if (produto) painel.produto = produto;
     const videos = lerIdsVideos(bruto.videos);
     if (videos.length) painel.videos = videos;
+    if (bruto.confirmar_maquina === true) painel.confirmar_maquina = true;
     return Object.keys(painel).length ? painel : null;
   } catch {
     return null;

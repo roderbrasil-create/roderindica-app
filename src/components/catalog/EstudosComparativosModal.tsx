@@ -557,7 +557,7 @@ export function EstudosComparativosModal({ onClose, initialSearch = '' }: Estudo
                 A biela para acoplar nos rotatores padrão RODER deve possuir obrigatoriamente um <strong className="text-slate-950 font-black">furo para pino de 45 mm</strong> com <strong className="text-slate-950 font-black">largura de biela de exatamente 100 mm</strong>.
               </p>
               <p className="text-xs font-bold text-slate-700 italic">
-                Sempre solicite ao vendedor que confirme com a concessionária ou forneça um vídeo detalhado das linhas hidráulicas e da ponta do braço antes do fechamento.
+                Peça foto do comando, da bomba, dos dois joysticks e vídeo; o técnico Roder confirma.
               </p>
             </div>
           </div>
@@ -627,9 +627,9 @@ export function EstudosComparativosModal({ onClose, initialSearch = '' }: Estudo
 
     {
       id: 'kit-sem-fatia-extra',
-      title: 'Instalação em Escavadeiras Sem Fatia Extra de Comando (Kit 9000.9000.9016)',
+      title: 'Instalação em Escavadeiras Sem Fatia Extra de Comando (Kit 9000.9000.9016, quando confirmado por foto e vídeo)',
       category: 'Hidráulica & Segurança',
-      keywords: ['fatia extra', 'comando', 'kit', '9000.9000.9016', 'rotator', 'escavadeira', 'komatsu', 'volvo'],
+      keywords: ['fatia extra', 'comando', 'kit', '9000.9000.9016', 'rotator', 'escavadeira'],
       summary: 'Funcionamento do Kit 9000.9000.9016 em escavadeiras sem comando extra e características operacionais de vazão.',
       badge: 'Manual do Técnico',
       badgeColor: 'bg-slate-800 text-white font-black',
@@ -643,7 +643,7 @@ export function EstudosComparativosModal({ onClose, initialSearch = '' }: Estudo
                   Orientações de Adequação Hidráulica
                 </span>
                 <h2 className="text-lg sm:text-xl font-black text-slate-950 uppercase">
-                  MÁQUINAS SEM FATIA EXTRA DE COMANDO • KIT 9016
+                  MÁQUINAS SEM FATIA EXTRA DE COMANDO • KIT 9016 (QUANDO CONFIRMADO POR FOTO E VÍDEO)
                 </h2>
               </div>
             </div>
@@ -655,7 +655,7 @@ export function EstudosComparativosModal({ onClose, initialSearch = '' }: Estudo
           <div className="bg-slate-100 border-2 border-slate-300 p-4 rounded-xl space-y-1">
             <p className="font-black text-slate-950 text-sm sm:text-base">Aplicação:</p>
             <p className="text-sm font-bold text-slate-900 leading-relaxed">
-              Escavadeiras que não possuem a fatia extra original de fábrica no comando (ex: Komatsu PC200, PC210, Volvo 200, etc.) utilizam o <strong className="text-slate-950 font-black">Kit 9000.9000.9016</strong>.
+              Escavadeiras que não possuem a fatia extra original de fábrica no comando (depois de confirmado por foto e vídeo, nunca pelo modelo) utilizam o <strong className="text-slate-950 font-black">Kit 9000.9000.9016</strong>.
             </p>
           </div>
 
@@ -673,10 +673,9 @@ export function EstudosComparativosModal({ onClose, initialSearch = '' }: Estudo
           </div>
 
           <div className="bg-red-100 border-2 border-red-400 p-4 rounded-xl space-y-1.5 text-red-950 shadow-sm">
-            <p className="font-black uppercase text-sm sm:text-base">Risco em Cabeçote Multifuncional:</p>
+            <p className="font-black uppercase text-sm sm:text-base">Cabeçote Multifuncional sem fatia extra:</p>
             <p className="text-sm font-bold leading-relaxed">
-              Para o cabeçote multifuncional, a instalação física sem fatia extra é viável, porém a operação de colheita torna-se perigosa sem a fatia extra original. Por conta disso, a Roder <strong className="text-red-950 font-black underline">NÃO recomenda</strong> instalar cabeçotes multifuncionais sem fatia extra original de comando.
-            </p>
+              Em CAT 320 nova (joystick eletrônico), o cabeçote multifuncional pode ir sem fatia extra com o kit de baixa (bomba extra com comando próprio; o técnico confirma a pressão, cadastro do 9003: 190 bar), mais o kit de linhas e tubulações. Em CAT 320 nova a fatia é instalada pela concessionária; nas outras máquinas, o técnico Roder define após foto e vídeo; não declare "perigoso" ou "inviável" só pelo modelo.</p>
           </div>
         </div>
       )

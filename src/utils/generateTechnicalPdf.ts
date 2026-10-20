@@ -241,7 +241,7 @@ export function generateTechnicalPdf({
 
   const hydraData = [
     [
-      'Máquinas Sem Fatia Extra (Kit 9000.9000.9016)',
+      'Máquinas Sem Fatia Extra (Kit 9000.9000.9016, quando confirmado por foto e vídeo)',
       'Deriva pressão diretamente da bomba principal. Em marcha lenta (idle), o giro da garra fica lento, normalizando ao acionar funções simultâneas (lança, braço, giro). Para CMF é fisicamente possível mas NÃO RECOMENDADO por segurança.'
     ],
     [
@@ -485,7 +485,7 @@ REGRAS DE COMPATIBILIDADE E DIMENSIONAMENTO:
 6. Hidráulica, Rotatores, Acessórios e Kits de Instalação:
    - Rotator Roder: Giro infinito contínuo 360° (3t, 6t, 10t, 16t). Padrão biela 100mm x pino 45mm.
    - Quadro 1 - Acessórios de Montagem (Padrão 1000.XXXX.XXXX): Ponteiras de biela 4/6, suportes de destocador/triturador e links de garra para 43+ modelos de máquinas base.
-   - Quadro 2 - Kits de Instalação Hidráulica (Padrão 9000.9000.9000 a 9000.9000.9060): Kits completos para destocador, CMF, garras, feller e derivação sem fatia extra (9000.9000.9016).`;
+   - Quadro 2 - Kits de Instalação Hidráulica (Padrão 9000.9000.9000 a 9000.9000.9060): Kits completos para destocador, CMF, garras, feller e derivação sem fatia extra (9000.9000.9016, quando confirmado por foto e vídeo).`;
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.2);

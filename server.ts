@@ -36,6 +36,7 @@ import admin from "firebase-admin";
 import { getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { ACCESSORIES_DATA, INSTALLATION_KITS } from "./src/constants.js";
+import { REGRA_KIT_CONFIRMACAO, RESSALVA_KIT, instrucaoAmostra, videoAmostraDe } from "./src/lib/confirmacaoMaquina";
 import { registrarConsultorParceiro, BUCKETS_VIDEO } from "./server/consultorParceiro";
 import { criarBibliotecaVideos, instrucaoVideos, sanitizarPainel } from "./server/videosConsultor";
 import { criarRotasArquivosVideos } from "./server/arquivosVideosConsultor";
@@ -2241,7 +2242,7 @@ Retorne um array JSON no formato exato:
                   const qData = doc.data();
                   items.push(`- Pergunta Similar: "${qData.question}"\n  Resposta Correta/Aprimorada a ser usada: "${qData.improvedAnswer}"`);
                 });
-                improvedKnowledgeContext = `\n\n11. BASE DE CONHECIMENTO ADICIONAL (CORREÇÕES APROVADAS PELA GERÊNCIA/ADMINISTRAÇÃO):\nUse as orientações abaixo se a pergunta do usuário for similar a estas dúvidas mapeadas de forma prioritária para dar a resposta correta:\n${items.join("\n")}`;
+                improvedKnowledgeContext = `\n\n11. BASE DE CONHECIMENTO ADICIONAL (CORREÇÕES APROVADAS PELA GERÊNCIA/ADMINISTRAÇÃO):\nUse as orientações abaixo se a pergunta do usuário for similar a estas dúvidas mapeadas de forma prioritária para dar a resposta correta. Se alguma orientação abaixo indicar kit, fatia extra ou válvulas só pelo modelo ou pelo número de série, trate como possibilidade e aplique a regra de confirmação da máquina:\n${items.join("\n")}`;
               }
             } else {
               console.warn("Could not load improved questions context:", improvedSnapResult.reason);
@@ -2386,7 +2387,7 @@ C. FOTO: mostre no máximo 1 foto, somente do equipamento que você está recome
 D. Não ofereça listas de outros equipamentos que o usuário não pediu.
 E. ROTATOR DE GARRA FLORESTAL (orientação da Roder): garra R600 ou maior em escavadeira acima de 20 t = sempre com Rotator IR10 (garra CA), para trabalho pesado. Garra R400 a R600 em escavadeira de 12 a 16 t = Rotator de 12 t ou 16 t (preferir 16 t). Nunca indique rotator de 16 t para garra R800/R1000 em máquina acima de 20 t.
 F. INSTALAÇÃO (o que entra na venda, orientação da Roder). 95% das vendas são completas: equipamento, frete, instalação pelo técnico Roder na cidade do cliente, regulagem e orientação ao operador. Nunca prometa instalação onde ela não existe:
-   - ESCAVADEIRA (garras florestais e traçadoras, garra rachadora, Clamshell, cabeçotes CMF, feller tesoura e de disco, destocador, sacador, trituradores FAE de escavadeira): instalação hidráulica completa, adequação e regulagem de pressão. O vendedor pede marca, modelo e fotos do comando para confirmar se a máquina tem fatia extra e válvula de regulagem de pressão na fatia extra.
+   - ESCAVADEIRA (garras florestais e traçadoras, garra rachadora, Clamshell, cabeçotes CMF, feller tesoura e de disco, destocador, sacador, trituradores FAE de escavadeira): instalação hidráulica completa, adequação e regulagem de pressão. O vendedor pede fotos (bloco de comando, bomba, os dois joysticks) e vídeo (cabine e comando) para confirmar se a máquina tem fatia extra e válvula de regulagem de pressão na fatia extra.
    - PÁ CARREGADEIRA: Engate Rápido hidráulico precisa da 3ª função (linha extra) para engatar e desengatar; vendemos junto o adaptador para a concha original do cliente. Garra Frontal / Top Clamp, Triturador FAE p/ pá e Carregador Frontal CFR precisam de 3ª e 4ª função (CFR: giro horário/anti-horário do rotator e abre/fecha da garra = 4 mangueiras).
    - Caçamba High Tip e Prolongador com Concha: precisam de uma linha extra bidirecional (3ª função) para o basculante. Se a pá NÃO tem engate rápido nem linha extra, a Roder instala engate + 3ª função (com 3ª e 4ª função o operador não precisa trocar a função entre engate e basculante). Se a pá JÁ tem engate rápido original e linha extra bidirecional, não precisa de instalação: a Roder fabrica o equipamento com o gancho traseiro na medida do engate original.
    - Garfo Paleteiro GPR 4500 / GPR 7000: só mecânico, sem instalação (vai no lugar dos pinos). Normalmente é vendido com o engate rápido, e o garfo já vai com o gancho do engate para o operador trocar entre concha e garfo sem descer da máquina.
@@ -2475,21 +2476,20 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
       • **Rotatores para Garras Traçadoras (Porte Médio e Grande)**: Há duas opções principais: 1) **Rotator IR10**; ou 2) **Rotor de giro livre RR550-7** (Capacidade 55t, swivel 7 passagens, giro livre ilimitado).
       • **COMPATIBILIDADE RR550-7**: O Rotator RR550-7 é indicado estritamente para as garras **GT 600X e modelos acima**.
       • ATENÇÃO À GRAFIA: O termo correto é estritamente **Rotator** (com "t"). NUNCA use o termo "Rotador" sob nenhuma hipótese.
+${REGRA_KIT_CONFIRMACAO}
    - DIRETRIZ CRÍTICA PARA INSTALAÇÃO DE GARRA EM ESCAVADEIRAS SEM FATIA EXTRA DE COMANDO (MUITO IMPORTANTE):
-      • Se o vendedor perguntar sobre a instalação de garras em escavadeiras que **NÃO** possuem a fatia extra de comando original (como Komatsu PC200, Komatsu PC210, Volvo 200 ou qualquer outro modelo sem fatia extra original):
-        - **Solução Técnico-Oficial**: Explique que a instalação da garra é totalmente viável utilizando o **Kit de Instalação de Garra para Máquinas sem Fatia Extra - Código 9000.9000.9016**.
-        - **Como Funciona o Kit 9000.9000.9016**: Este kit deriva a pressão hidráulica diretamente da bomba principal da escavadeira para alimentar uma válvula com duas solenoides. Como opera com baixo fluxo, ele é utilizado exclusivamente para fazer a rotação do rotator de forma independente, sem necessitar de uma fatia extra no comando principal.
+      • Se o vendedor perguntar sobre a instalação de garras em escavadeiras que, **depois de confirmado**, NÃO possuem a fatia extra de comando original (a ausência nunca se presume pelo modelo; só vale quando confirmado: PC200, PC210, Volvo 200 e outros variam de máquina para máquina):
+        - **Solução Técnico-Oficial**: Explique que o kit possível, a confirmar pelo técnico Roder, é o **Kit de Instalação de Garra para Máquinas sem Fatia Extra - Código 9000.9000.9016**. ${RESSALVA_KIT}
+        - **Como Funciona o Kit 9000.9000.9016**: Este kit deriva a pressão hidráulica diretamente da bomba principal da escavadeira para alimentar uma válvula com duas solenoides. Como opera com baixo fluxo, ele é utilizado exclusivamente para fazer a rotação do rotator de forma independente, sem necessitar de uma fatia extra no comando principal. O 9016 deriva da bomba principal e NÃO é o kit de baixa.
         - **Condição Crítica/Deficiência que o Cliente DEVE Saber**: Como a vazão é derivada diretamente da bomba principal, quando a escavadeira está estática (ou seja, quando o operador não está executando nenhuma outra função como levantar o braço, fechar a lança ou girar a cabine), a bomba trabalha no deslocamento mínimo. Consequentemente, se o operador acionar apenas os botões de rotação do rotator sem realizar nenhuma outra operação, o giro da garra será **extremamente lento** ("fluxo muito lento / rotação lenta").
         - **Normalização da Velocidade**: No entanto, quando o operador está executando qualquer outra função simultaneamente (por exemplo, durante a operação florestal em que ele move o braço, levanta a lança ou gira a cabine ao mesmo tempo em que rotaciona a garra), o fluxo da bomba aumenta e a rotação do rotator é **normalizada**. Essa oscilação é uma característica normal do projeto para máquinas sem fatia extra original e não um defeito.
         - **Como Evitar essa Deficiência**: Se o cliente preferir que o funcionamento seja 100% perfeito e constante sem essa oscilação de velocidade:
-          1. O cliente deve adquirir e mandar instalar uma fatia/seção extra de comando original na escavadeira.
-          2. Ou deve utilizar outra máquina que já possua uma fatia extra disponível no comando principal para que a Roder possa instalar a linha extra padrão (puxando diretamente do comando).
+          1. Ter a fatia extra com saída dupla (duas saídas tampadas) instalada e confirmada pelo técnico Roder. Em CAT 320 nova a Roder não instala fatia: o cliente pede à concessionária.
+          2. Ou utilizar outra máquina que já possua essa fatia extra com saída dupla no comando, para que a Roder possa instalar a linha extra padrão (puxando diretamente do comando).
 
     - DIRETRIZ CRÍTICA PARA INSTALAÇÃO DE CABEÇOTE MULTIFUNCIONAL EM ESCAVADEIRAS SEM FATIA EXTRA DE COMANDO:
        • Se algum vendedor ou cliente perguntar sobre a possibilidade de instalar ou operar um cabeçote multifuncional (como o CMF 500) em uma escavadeira que não possui fatia extra de comando original de fábrica:
-         - **Viabilidade de Instalação**: Explique que é perfeitamente viável realizar a instalação hidráulica das linhas em uma escavadeira sem fatia extra original. Essa instalação retira a pressão hidráulica diretamente da bomba principal (comportando-se de forma idêntica à instalação de um braço de carregamento / garra carregadora) e serve funcionalmente para a operação básica do cabeçote multifuncional.
-         - **Risco de Segurança (Altamente Perigoso)**: No entanto, para as operações reais de colheita florestal (harvesting), a falta da fatia extra original de comando torna toda a atividade extremamente perigosa operacionalmente.
-         - **Recomendação Oficial (NÃO RECOMENDADO)**: Portanto, para o cabeçote multifuncional, a Roder **NÃO recomenda** de forma alguma realizar a instalação em máquinas sem fatia extra original. O correto e estritamente indicado é que a máquina possua a fatia extra de comando original para garantir a segurança no corte e derrubada de árvores, além do fluxo de potência adequado para a colheita florestal. É fisicamente viável de instalar, mas altamente contraindicado devido aos severos riscos de segurança operacional.
+         - **Viabilidade de Instalação**: CMF sem fatia extra: em CAT 320 nova (joystick eletrônico), o CMF pode ir sem fatia extra com o kit de baixa (bomba extra com comando próprio; o técnico confirma a pressão, cadastro do 9003: 190 bar), mais o kit de linhas e tubulações; o técnico Roder confirma por foto e vídeo, sem inventar código. Em CAT 320 nova a fatia é instalada pela concessionária; nas outras máquinas, o técnico Roder define após foto e vídeo. Não declare "perigoso" ou "inviável" só pelo modelo.
 
     - RECOMENDAÇÃO CRÍTICA DE CABEÇOTE MULTIFUNCIONAL CMF 500 EM RETROESCAVADEIRA:
      • Se algum vendedor perguntar ou sugerir instalar ou trabalhar com o cabeçote multifuncional CMF 500 em uma retroescavadeira:
@@ -2633,8 +2633,8 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
     - **Link para Garra com Biela (Instalação Prática de Garra Florestal)**:
       - **REGRA DE FILTRO**: Se o usuário NÃO perguntou especificamente sobre o "link", **NUNCA** mencione o código do link ou o kit de instalação para link. Seja direto e responda apenas o solicitado (Ponteira).
       - **Quando o Link é Solicitado**: Explique que é possível e facilite a troca rápida com a concha original.
-      - **Códigos de Link (Escavadeiras 22t pino 80mm)**: Link **1000.0000.0120** e Kit Hidráulico **9000.9000.9015**.
-      - **Instalação com Ponteira (Padrão)**: Se a pergunta for sobre instalação com ponteira (ou se "link" não for mencionado), indique o item: **"Kit de instalação garra em escavadeira, máquina com fatia extra, sem linha"**.
+      - **Códigos de Link (Escavadeiras 22t pino 80mm)**: Link **1000.0000.0120** e Kit Hidráulico **9000.9000.9015**. ${RESSALVA_KIT}
+      - **Instalação com Ponteira (Padrão)**: Se a pergunta for sobre instalação com ponteira (ou se "link" não for mencionado), indique o item: **"Kit de instalação garra em escavadeira, máquina com fatia extra, sem linha"**. ${RESSALVA_KIT}
       - **Identificação de Kits**: Os kits para garra/CMF/traçadora que NÃO mencionam "link" referem-se automaticamente à montagem com ponteira.
       - **Acoplamento**: Use engates rápidos flat-face para facilitar a troca.
     - **Compatibilidade e Diretrizes de Escavadeiras com Harvester ou Linha F (Florestal) de Fábrica**:
@@ -2645,7 +2645,7 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
         2. Modificar as linhas hidráulicas de saída do comando da máquina para operarem de forma bidirecional (fornecendo pressão nos dois sentidos, e não apenas pressão em um sentido e retorno livre no outro).
         3. Instalar um novo chicote elétrico e dois novos botões no joystick para comandar a linha extra do rotator.
         4. **Nota de Irreversibilidade**: Essas modificações tornam **impossível** retornar ao uso com o Harvester após a alteração. Diante disso, explique com clareza que garras, cabeçotes multifuncionais, fellers e outros acessórios não são compatíveis diretamente com as linhas de Harvester.
-      - **Escavadeiras com Linhas F (Padrão Florestal) de Concessionária**: Estas máquinas costumam vir de fábrica com proteções físicas (cabine, vidros Lexsan e proteções de estrutura). No entanto, o vendedor deve **sempre confirmar com a concessionária/fornecedor qual é a configuração exata das linhas hidráulicas**, garantindo se existem linhas bidirecionais (tanto da caçamba quanto outra linha auxiliar bidirecional) para permitir a instalação de novos acessórios.
+      - **Escavadeiras com Linhas F (Padrão Florestal) de Concessionária**: Estas máquinas costumam vir de fábrica com proteções físicas (cabine, vidros Lexsan e proteções de estrutura). No entanto, o vendedor deve **sempre confirmar por foto e vídeo (a concessionária só entra se faltar fatia extra em CAT nova) qual é a configuração exata das linhas hidráulicas**, verificando as linhas bidirecionais disponíveis (informativo, não é requisito do kit; o requisito é a fatia extra com saída dupla).
       - **Ausência Crítica de Cilindro e Links da Caçamba**: Este é o detalhe mais importante! Escavadeiras que trabalham com Harvester ou que vêm de fábrica com a letra F (florestal) normalmente **NÃO vêm equipadas com o cilindro da caçamba, nem com as bielas/links e pinos originais para montagem da caçamba**. Sem esse cilindro da caçamba e os links/pinos originais instalados, é **estritamente IMPOSSÍVEL instalar equipamentos que necessitam do movimento do cilindro da caçamba**, como: **feller de disco, feller tesoura, desbastador, triturador e a própria caçamba/concha da escavadeira**.
       - **Compatibilidade de Ponteiras e Bielas**: É necessário verificar se a ponteira e a biela para pendurar o rotator são compatíveis. A biela para encaixar nos rotatores padrão RODER deve obrigatoriamente conter um **furo para pino de 45 mm com largura de biela de 100 mm** (as medidas dos rotatores padrão). Solicite ao fornecedor/cliente as informações ou um vídeo mostrando as linhas hidráulicas até a ponta, onde estão ligadas no comando da máquina, se retornam direto para o tanque e se operam por joysticks (as manoplas originais são substituídas no harvester).
       - **Rotator - Grafia Correta e Giro Infinito**:
@@ -2844,9 +2844,9 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
 
       • **DIRETRIZ DE VERIFICAÇÃO DE LINHA EXTRA E FATIA EXTRA NA ESCAVADEIRA**:
         - Como muitas escavadeiras vêm com linhas extras de fábrica ou adaptadas, é fundamental sempre observar se a máquina do cliente já possui essa tubulação.
-        - **Disponibilidade da Fatia Extra**: Muitas máquinas já vêm de fábrica com a fatia extra disponível no comando com dupla saída (bidirecional), mas algumas marcas/modelos não possuem. É essencial solicitar uma foto ou vídeo do comando hidráulico da máquina para confirmar a existência da fatia extra com os bujões onde a linha hidráulica será conectada.
+        - **Disponibilidade da Fatia Extra**: Muitas máquinas já vêm de fábrica com a fatia extra disponível no comando com dupla saída (bidirecional), mas a configuração varia de máquina para máquina. É essencial solicitar fotos e vídeo do comando hidráulico da máquina para confirmar a existência da fatia extra com os bujões onde a linha hidráulica será conectada.
         - **IMPORTANTE - Modelos Caterpillar (Cat 312, Cat 313, Cat 314, Cat 316, Cat 318, Cat 320)**:
-          - Esses modelos CAT **possuem os tampões/bujões da fatia extra disponíveis no comando**, porém **NÃO vêm de fábrica originalmente com as duas válvulas de alívio de pressão** instaladas na fatia extra.
+          - Nos modelos CAT 312 a 320 a configuração varia: a fatia extra, os tampões ou bujões e as válvulas de alívio NUNCA devem ser dados como certos pelo modelo. Confirme pelas fotos do comando e pelo vídeo da cabine e do comando antes de falar o que a máquina tem (CAT 320 nova, com joystick eletrônico, segue a regra prioritária de kit acima). Quando a fatia extra for confirmada, lembre que de fábrica ela costuma NÃO vir com as duas válvulas de alívio de pressão.
           - Para esses modelos, as duas válvulas de alívio de pressão devem ser obrigatoriamente adquiridas para permitir a regulagem e funcionamento seguro do implemento.
           - **Código de Cadastro Roder da Válvula de Alívio de Pressão CAT**: **3000.5003.0194** (Código Original CAT: **309-9973**).
           - O vendedor deve sempre informar o cliente sobre a necessidade dessas duas válvulas. Caso a Roder não as tenha em estoque para fornecer, o cliente deverá comprá-las diretamente em uma concessionária Caterpillar para que fiquem disponíveis para o nosso técnico realizar a instalação no comando no dia da montagem.
@@ -2855,11 +2855,11 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
         - **Tipos de Acionamento Comuns**:
           1. **Pedal Mecânico**: Algumas máquinas possuem o acionamento da linha extra em um pedal mecânico no piso da cabine.
           2. **Botão no Joystick**: Outras máquinas acionam a função por meio de botões proporcionais ou liga/desliga integrados no próprio joystick da escavadeira.
-        - **Recomendação de Vídeo Detalhado**: Oriente o vendedor a pedir para o cliente gravar um **vídeo detalhado** e enviá-lo à nossa equipe de vendas. Nesse vídeo, é fundamental que o cliente mostre:
+        - **Recomendação de Vídeo**: Oriente o vendedor a pedir para o cliente gravar um **vídeo** da cabine e do comando no modelo do vídeo de amostra e enviá-lo à nossa equipe de vendas. O essencial são as fotos do comando (bloco de válvulas), da bomba e dos dois joysticks. Se o cliente puder, o vídeo pode mostrar também, como COMPLEMENTO OPCIONAL (nunca requisito):
           1. O acionamento da linha (se o fluxo sai em ambas as linhas de mangueira ou apenas em uma/unidirecional).
-          2. A **tubulação extra** até onde ela vai na ponta do braço, mostrando claramente se contém registros ou bujões na ponta da tubulação.
-          3. As **duas linhas hidráulicas**, demonstrando se estão ligadas no comando hidráulico da máquina ou se uma delas retorna diretamente para o tanque.
-          Com base nessa filmagem completa, poderemos identificar com exatidão a configuração da máquina, o tipo de linha e definir qual **kit hidráulico complementar** a Roder precisa fornecer para a perfeita instalação.
+          2. A **tubulação extra** (se existir) até onde ela vai na ponta do braço, mostrando claramente se contém registros ou bujões na ponta da tubulação.
+          3. As **duas linhas hidráulicas** (se existirem), demonstrando se estão ligadas no comando hidráulico da máquina ou se uma delas retorna diretamente para o tanque.
+          Com base nas fotos e no vídeo, o técnico Roder responsável identifica a configuração da máquina e define qual **kit hidráulico complementar** a Roder precisa fornecer para a perfeita instalação.
 
       • **GARRAS TRAÇADORAS (Acima de GT 400: GT 400, GT 600X, GT 800X, GT 1000X)**:
         Exigem rigorosamente **8 linhas de mangueiras** chegando no equipamento para alimentação completa:
@@ -2891,29 +2891,28 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
           - Embora seja perfeitamente viável para o operador realizar esse processo de troca sozinho se ele se sentir seguro e capaz de manusear os pinos pesados, a Roder recomenda fortemente que a atividade seja executada em **duas pessoas** por motivos de segurança e alta produtividade.
           - Nessa configuração recomendada, um **mecânico de apoio no solo** atua em conjunto enquanto o **operador permanece com total segurança dentro da cabine** da máquina comandando os movimentos finos do joystick. O operador alinha com precisão o braço no link enquanto o mecânico de apoio no solo retira/coloca os pinos e engata rapidamente as mangueiras. Esse trabalho em dupla reduz o tempo de montagem, evita riscos físicos e garante máxima segurança operacional.
 
-      • **DIRETRIZ DE ESCOLHA DA GARRA E KIT DE INSTALAÇÃO NA CAT 313 (E ESCAVADEIRAS DE 12 A 18 TONELADAS)**:
+      • **DIRETRIZ DE ESCOLHA DA GARRA E KIT DE INSTALAÇÃO NA CAT 313 (E ESCAVADEIRAS DE 12 A 18 TONELADAS)** (a escolha da garra vale pelo porte; os kits abaixo seguem a regra de confirmação: ${RESSALVA_KIT}):
         - **Seleção da Garra para Alimentação de Picador/Carregador vs. Carregamento**:
           - Se o vendedor ou o cliente perguntar qual garra utilizar na **CAT 313** para **alimentação do picador/carregador** e também para **carregamento**:
             1. A garra **R400** é a ideal e mais segura para a **alimentação do picador/carregador**. O vendedor deve explicar com clareza ao cliente que uma garra R600 (que é maior, tem uma abertura muito larga e é mais pesada) pode facilmente causar danos físicos severos à calha/funil/caçamba de entrada do próprio picador durante a operação de alimentação.
             2. Para a atividade exclusiva de **carregamento de toras** (fora da boca do picador), a garra **R600** é perfeitamente recomendada e trará uma produtividade/eficiência de trabalho muito superior.
             3. **Decisão do Cliente**: O vendedor deve expor esses prós e contras de forma transparente para que o próprio cliente tome a decisão consciente, avaliando o ganho de eficiência no carregamento (com a R600) em relação ao risco de avarias no picador durante a alimentação.
-        - **Kit de Instalação de Garra com Rotador (9000.9000.9018)**:
-          - **Kit Código 9000.9000.9018**: Kit de instalação de **Garra Florestal** (e **NÃO para Destocador!**) para quando a máquina **já possui a fatia extra (extra slice)** original disponível no comando hidráulico, mas **NÃO possui a linha hidráulica física** (tubulações/mangueiras físicas) instalada ao longo do braço.
+        - **Kit para máquina com fatia extra de saída dupla já disponível**: o código do kit depende da configuração confirmada e o técnico Roder informa. Cite só códigos que apareçam na lista de kits cadastrados do contexto, sempre como possibilidade. É kit de Garra Florestal (NÃO para Destocador). ${RESSALVA_KIT}
         - **Kit de Instalação de Garra para Máquinas sem Fatia Extra de Comando (9000.9000.9016)**:
-          - **Kit Código 9000.9000.9016**: Kit de instalação de **Garra Florestal** especial para escavadeiras que **NÃO possuem a fatia extra original** de fábrica no comando (como PC200 Komatsu, PC210 Komatsu, Volvo 200, etc.).
+          - **Kit Código 9000.9000.9016**: Kit de instalação de **Garra Florestal** especial para escavadeiras que, **depois de confirmado**, NÃO possuem a fatia extra original no comando (não presuma por modelo: PC200, PC210, Volvo 200 e outras variam). ${RESSALVA_KIT}
           - **Funcionamento**: Deriva fluxo diretamente da bomba para uma válvula de duas solenoides com baixo fluxo para o rotator.
           - **Comportamento Esperado (Oscilação de Velocidade)**: Por derivar direto da bomba principal, quando a máquina está estática (idle/marcha lenta e sem realizar outras funções), a bomba está no mínimo e o giro do rotator fica extremamente lento. O fluxo e a velocidade de rotação do rotator se normalizam apenas quando o operador realiza alguma outra função simultânea na máquina (ex: girar a cabine, elevar/baixar o braço ou lança). Isso é normal e esperado para o kit 9000.9000.9016.
-          - **Solução sem Deficiência**: Se o cliente preferir rotação constante sem essa oscilação de velocidade, ele deve comprar/instalar a fatia extra original de comando ou dispor de outra máquina que possua essa fatia original no comando para puxar a linha dali.
+          - **Solução sem Deficiência**: Se o cliente preferir rotação constante sem essa oscilação de velocidade, ele precisa de fatia extra com saída dupla (duas saídas tampadas) instalada e confirmada pelo técnico Roder (em CAT 320 nova a Roder não instala fatia: o cliente pede à concessionária) ou dispor de outra máquina que já possua essa fatia no comando para puxar a linha dali. O 9016 deriva da bomba principal e NÃO é o kit de baixa.
         - **Necessidade Crucial de Válvulas de Alívio na CAT (Cat 312, 313, 314, 316, 318, 320)**:
-          - É requisito obrigatório e indispensável que a máquina do cliente possua a **fatia extra original** disponível no comando hidráulico.
+          - Requisito geral: fatia extra com saída dupla, confirmada por foto e vídeo, exceto o kit de baixa em CAT 320 nova para garra e CMF.
           - Sempre que for realizada uma proposta ou consulta sobre escavadeiras **CAT 312, 313, 314, 316, 318 ou 320**, o vendedor **DEVE obrigatoriamente verificar se a máquina já possui as duas válvulas de alívio de pressão** na fatia extra do comando hidráulico.
-          - Como é sabido, essas escavadeiras CAT saem de fábrica com o espaço e os tampões/bujões da fatia extra disponíveis, mas **originalmente NÃO contêm as duas válvulas de alívio de pressão** instaladas na fatia.
+          - Nos modelos CAT 312 a 320 a configuração varia: a fatia extra, os tampões ou bujões e as válvulas de alívio NUNCA devem ser dados como certos pelo modelo. Confirme pelas fotos do comando e pelo vídeo da cabine e do comando antes de falar o que a máquina tem. Quando a fatia extra for confirmada, ela costuma NÃO vir de fábrica com as duas válvulas de alívio de pressão.
           - **Regra de Fornecimento e Orçamento das Válvulas**:
             - As duas válvulas de alívio de pressão para o comando da escavadeira **NÃO fazem parte dos componentes de nenhum kit hidráulico de instalação da Roder** (seja para garra ou qualquer outro implemento). Elas são componentes exclusivos e necessários do próprio comando da máquina base.
             - Portanto, o vendedor da Roder deve verificar imediatamente se a Roder possui essas duas válvulas disponíveis em estoque para fornecer e, se aplicável, **fazer um orçamento separado contemplando essas duas válvulas**, já que elas são cobradas à parte.
             - A Roder possui essas válvulas sob o **código Roder: 3000.5003.0194** (Código Original CAT: **309-9973**).
             - Caso a Roder não as tenha em estoque para fornecer, o cliente **DEVE comprar as duas válvulas diretamente na concessionária Caterpillar** para deixar disponível no dia da montagem, permitindo que nosso técnico faça a instalação correta no comando.
-            - O vendedor deve sempre pedir fotos ou vídeos do comando hidráulico do cliente para confirmar a necessidade real dessas duas válvulas.
+            - O vendedor deve sempre pedir fotos e vídeo do comando hidráulico do cliente para confirmar a necessidade real dessas duas válvulas.
 
       • **CABEÇOTE MULTIFUNCIONAL (Modelos: CMF500, CMF600, CMF800)**:
         - **Vias e Mangueiras Requeridas**: Necessitam de exatamente **6 linhas de mangueiras hidráulicas** chegando no equipamento para alimentação completa das suas funções:
@@ -2921,9 +2920,9 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
           2. **Giro Horário e Anti-Horário 360° (Turret/Rotator)**: 2 mangueiras que **NÃO são conectadas na linha da caçamba**! Elas são conectadas à **fatia extra (extra slice)** ou à **linha extra bidirecional** da máquina.
              - Se a máquina já possuir uma linha extra bidirecional, o acionamento do giro será derivado diretamente dela, normalmente comandado por botões no joystick.
              - Se a máquina não possuir uma linha extra de fábrica, ela deve obrigatoriamente ter a **fatia extra (extra slice) disponível no comando hidráulico**, para que a equipe técnica da Roder realize a instalação da linha extra a partir dessa fatia.
-             - A fatia extra no comando da máquina é indispensável para qualquer instalação de equipamento. Sempre orientamos em nossos orçamentos que a máquina do cliente deve possuir a fatia extra disponível contendo as **duas válvulas de alívio de pressão**, possibilitando regular a pressão de saída de cada um dos sentidos do giro.
+             - A fatia extra com saída dupla é o requisito geral. Exceções: garra de carregamento, garras florestais e CMF na CAT 320 nova (kit de baixa). Sempre orientamos em nossos orçamentos que a máquina do cliente deve possuir a fatia extra disponível contendo as **duas válvulas de alívio de pressão**, possibilitando regular a pressão de saída de cada um dos sentidos do giro.
              - Se a máquina contiver a fatia extra com as duas válvulas, a equipe da Roder realizará a linha hidráulica completa pelo braço da máquina e instalará a linha elétrica de pilotagem para comandar a fatia extra, testando e ajustando todo o sistema para o cliente.
-             - **Instalação Sem Fatia Extra de Comando (Permitida mas NÃO Recomendada por Segurança)**: Caso a máquina do cliente NÃO possua a fatia extra de comando, é fisicamente possível realizar a instalação das linhas para o cabeçote multifuncional retirando a pressão hidráulica diretamente da bomba principal (funcionando de forma similar a um braço de carregamento / garra carregadora). Essa função servirá para a operação do cabeçote. No entanto, para as operações reais de colheita florestal (harvesting), a ausência da fatia extra original de comando torna a atividade altamente perigosa. Diante disso, a Roder NÃO recomenda de forma alguma fazer a instalação de cabeçotes multifuncionais sem a fatia extra de comando, sendo altamente recomendado que a máquina base possua a fatia extra original.
+             - **Instalação Sem Fatia Extra de Comando**: CMF sem fatia extra: em CAT 320 nova (joystick eletrônico), o CMF pode ir sem fatia extra com o kit de baixa (bomba extra com comando próprio; o técnico confirma a pressão, cadastro do 9003: 190 bar), mais o kit de linhas e tubulações; o técnico Roder confirma por foto e vídeo, sem inventar código. Em CAT 320 nova a fatia é instalada pela concessionária; nas outras máquinas, o técnico Roder define após foto e vídeo. Não declare "perigoso" ou "inviável" só pelo modelo.
           3. **Linha de Dreno da Carcaça**: 1 mangueira conectada diretamente ao tanque de retorno livre da máquina (não pode passar pelo filtro de retorno e **NUNCA pode ultrapassar 5 bar**, devendo trabalhar rigorosamente na faixa de **0 a 5 bar**).
           4. **Linha de Pilotagem (6ª Linha)**: 1 mangueira de controle ligada a uma válvula de pilotagem que é instalada na escavadeira e acionada por botão elétrico.
         - **Rotador de Alta Capacidade**: Utiliza um rotator super-resistente de **16 toneladas** de capacidade, equipado com canais e passagens internas de óleo adicionais. Isso possibilita que todas as mangueiras passem por dentro do corpo do rotator, permitindo que o cabeçote faça giro 360° infinito sem mangueiras externas expostas se torcendo ou rotacionando ao redor do cabeçote.
@@ -3217,7 +3216,7 @@ ${stockContext || "Não há itens em estoque hoje."}
 Aqui está a tabela/quadro oficial de compatibilidade de acessórios e ponteiras de escavadeiras cadastradas (consulte esta lista para responder sobre códigos de ponteiras, pinos e suportes de cada marca/modelo de máquina):
 ${accessoriesContext || "Não há tabela de acessórios cadastrada."}
 
-Aqui estão os kits de instalação cadastrados para referência:
+Aqui estão os kits de instalação cadastrados para referência. ${RESSALVA_KIT}
 ${kitsContext || "Não há kits de instalação cadastrados."}${improvedKnowledgeContext}`;
 
           if (chatHistory && Array.isArray(chatHistory)) {
@@ -3255,12 +3254,13 @@ ${kitsContext || "Não há kits de instalação cadastrados."}${improvedKnowledg
           // Só é pedido quando o app que perguntou sabe tirar o bloco do texto (args.painel).
           const querPainel = args.painel === true;
           const instrucaoPainel = querPainel ? `\n\nPAINEL ESCONDIDO (obrigatório quando houver dado): no fim de TODA resposta, depois de todo o texto (e depois do [[OPCOES]] se houver), acrescente um bloco escondido exatamente neste formato, numa linha só, com JSON válido:
-<painel>{"maquina":{"nome":"","tipo":"","potencia":"","transmissao":"","serve":"sim|nao|verificar","motivo":""},"perguntas":["..."],"alternativas":[{"nome":"","obs":""}],"produto":"<nome do modelo Roder principal>","videos":["<id da lista de vídeos>"]}</painel>
+<painel>{"maquina":{"nome":"","tipo":"","potencia":"","transmissao":"","serve":"sim|nao|verificar","motivo":""},"perguntas":["..."],"alternativas":[{"nome":"","obs":""}],"produto":"<nome do modelo Roder principal>","videos":["<id da lista de vídeos>"],"confirmar_maquina":true}</painel>
 - Coloque só os campos que se aplicam à conversa; os outros ficam fora do JSON.
 - "maquina": a máquina base ou o trator do cliente citado na conversa (nome com marca e modelo; tipo ou transmissão, ex.: "Powershift, não é CVT"; potência ou porte, ex.: "220 cv" ou "20 t"; "serve" diz se ela atende o equipamento indicado: "sim", "nao" ou "verificar"; "motivo" em até 8 palavras).
 - "perguntas": no máximo 3 perguntas curtas que o vendedor deve fazer ao cliente para confirmar a indicação.
 - "alternativas": no máximo 3 opções que servem (máquinas, tratores ou modelos Roder), com "obs" de até 4 palavras (ex.: "CVT de série").
 - "produto": o nome exato do modelo Roder principal da resposta, como está no catálogo (ex.: "SSH 150", "R400", "CMF 600").
+- "confirmar_maquina": true só quando a pergunta for qual kit de instalação usar numa máquina (regra de confirmação da máquina).
 - "videos": só quando houver vídeo útil, seguindo a lista VÍDEOS DISPONÍVEIS mais abaixo (o bloco pode ter só "videos" e "produto").
 - Se nada disso se aplica (ex.: saudação), não escreva o bloco. Nunca mencione o bloco no texto e nunca escreva <painel> em outro lugar da resposta. O texto da resposta continua curto, em português, seguindo todas as regras acima.` : '';
 
@@ -3269,12 +3269,12 @@ ${kitsContext || "Não há kits de instalação cadastrados."}${improvedKnowledg
           if (querPainel) {
             try { videosDisponiveis = await bibliotecaVideos.listar(); } catch { videosDisponiveis = []; }
           }
-          const idsVideos = new Set(videosDisponiveis.map((v: any) => String(v.id)));
+          const idsVideos = new Set(videosDisponiveis.filter((v: any) => v.tipo !== 'amostra').map((v: any) => String(v.id)));
           // a pergunta e as últimas mensagens: os vídeos do equipamento citado vão primeiro na lista
           const conversaRecente = [...(Array.isArray(chatHistory) ? chatHistory.slice(-6) : []).map((m: any) => String(m?.content || '').slice(0, 600)), String(question || '')].join(' ');
-          const instrucaoDosVideos = querPainel ? instrucaoVideos(videosDisponiveis, conversaRecente) : '';
+          const instrucaoDosVideos = querPainel ? instrucaoVideos(videosDisponiveis, conversaRecente) + instrucaoAmostra(!!videoAmostraDe(videosDisponiveis)) : '';
 
-          const finalSystemInstruction = systemInstruction + userTypeInstruction + contextoTrator + `\n\nLEMBRETE FINAL (PRIORIDADE MÁXIMA): siga as REGRAS PRIORITÁRIAS A, B, C e D do início. Resposta curta e direta; se faltar dado essencial, pergunte antes; no máximo 1 foto e só do equipamento recomendado.` + instrucaoPainel + instrucaoDosVideos;
+          const finalSystemInstruction = systemInstruction + userTypeInstruction + contextoTrator + `\n\nLEMBRETE FINAL (PRIORIDADE MÁXIMA): siga as REGRAS PRIORITÁRIAS A, B, C e D do início. Resposta curta e direta; se faltar dado essencial, pergunte antes; no máximo 1 foto e só do equipamento recomendado. Pergunta de QUAL KIT usar numa máquina: nunca afirme o kit pelo modelo ou pelo número de série; explique em 2 frases, diga o que confirmar e ofereça o pedido de confirmação ao cliente.` + instrucaoPainel + instrucaoDosVideos;
 
           const startTime = Date.now();
           const response = await generateContentWithRetry(ai, {
@@ -4867,7 +4867,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       try { const u = new URL(String(req.body?.link || '')); if (u.origin === SITE) link = escHtml(u.toString()); } catch { /* fica o site */ }
       // Mesmos textos de src/lib/instalacao.ts (tela final do cliente). Mudou lá, muda aqui.
       const PERFIS: Record<string, { itens: string[]; consultor: string }> = {
-        completa: { itens: ['equipamento', 'frete até a sua cidade', 'instalação hidráulica na sua máquina por técnico Roder', 'regulagem e orientação ao operador'], consultor: 'Ele vai pedir a marca e o modelo da sua máquina e fotos do comando hidráulico, para confirmar se ela tem fatia extra e válvula de regulagem de pressão. É com isso que a Roder prepara a instalação hidráulica completa.' },
+        completa: { itens: ['equipamento', 'frete até a sua cidade', 'instalação hidráulica na sua máquina por técnico Roder', 'regulagem e orientação ao operador'], consultor: 'Ele vai pedir fotos (bloco de comando, bomba, os dois joysticks) e vídeo (cabine e comando), para confirmar se ela tem fatia extra e válvula de regulagem de pressão. É com isso que a Roder prepara a instalação hidráulica completa.' },
         linha_extra: { itens: ['equipamento com o encaixe do engate da sua pá carregadeira', 'frete até a sua cidade', 'instalação da linha extra (3ª função), se a sua máquina ainda não tiver'], consultor: 'Ele vai confirmar o modelo da sua pá carregadeira e se ela já tem engate rápido e linha extra bidirecional (3ª função). Se já tiver, não precisa de instalação. Se não tiver, a Roder instala.' },
         garfo: { itens: ['equipamento', 'frete até a sua cidade'], consultor: 'Ele vai confirmar o modelo da sua pá carregadeira e se ela usa engate rápido, para o garfo ir com o encaixe certo.' },
         trator_tecnico: { itens: ['equipamento', 'frete até a sua cidade', 'técnico Roder acompanha a primeira instalação no trator', 'orientação de trabalho ao operador no início'], consultor: 'Ele vai confirmar o modelo e a potência do seu trator.' },

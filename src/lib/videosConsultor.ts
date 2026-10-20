@@ -8,14 +8,18 @@
 import { tituloFicha } from './tituloFicha';
 import { videoDoEquipamento, videoValido } from './videoEquipamento';
 
-export type TipoVideo = 'campo' | 'marketing' | 'instalacao' | 'catalogo';
+export type TipoVideo = 'campo' | 'marketing' | 'instalacao' | 'amostra' | 'catalogo';
 
 export const TIPOS_VIDEO: { id: Exclude<TipoVideo, 'catalogo'>; rotulo: string }[] = [
   { id: 'campo', rotulo: 'Em campo' },
   { id: 'marketing', rotulo: 'Marketing' },
   { id: 'instalacao', rotulo: 'Instalação' },
+  // vídeo-modelo que o cliente recebe para filmar a própria máquina (não é vídeo de equipamento)
+  { id: 'amostra', rotulo: 'Amostra de filmagem' },
 ];
-export const ROTULO_TIPO: Record<TipoVideo, string> = { campo: 'Em campo', marketing: 'Marketing', instalacao: 'Instalação', catalogo: 'Catálogo' };
+// A amostra não é de um equipamento: o cadastro grava este produto_id fixo
+export const PRODUTO_AMOSTRA = 'geral';
+export const ROTULO_TIPO: Record<TipoVideo, string> = { campo: 'Em campo', marketing: 'Marketing', instalacao: 'Instalação', amostra: 'Amostra de filmagem', catalogo: 'Catálogo' };
 
 // O que sai para o navegador e para o prompt. Nada de quem cadastrou nem datas: a lista é pública
 // (o parceiro pelo link e o visitante não têm login).
@@ -54,7 +58,7 @@ export function lerVideoDoBanco(id: string, d: any): VideoConsultor | null {
   const url = videoValido(d.video_url);
   const pid = texto(d.produto_id, 80);
   if (!url || !pid) return null;
-  const tipo: TipoVideo = ['campo', 'marketing', 'instalacao'].includes(d.tipo) ? d.tipo : 'campo';
+  const tipo: TipoVideo = ['campo', 'marketing', 'instalacao', 'amostra'].includes(d.tipo) ? d.tipo : 'campo';
   const thumb = /^https:\/\//i.test(String(d.thumb_url || '')) ? String(d.thumb_url).slice(0, 2000) : '';
   const dur = Number(d.duracao_s);
   return {
@@ -150,6 +154,7 @@ export function pontosNaConversa(v: VideoConsultor, conversa: string): number {
 // lista (biblioteca, que tem contexto, e então o catálogo). Contexto cortado e no máximo 60 linhas.
 export function videosParaPrompt(lista: VideoConsultor[], max = MAX_VIDEOS_PROMPT, conversa = ''): string {
   const ordenada = (lista || [])
+    .filter(v => v.tipo !== 'amostra')
     .map((v, i) => ({ v, i, pts: pontosNaConversa(v, conversa) }))
     .sort((a, b) => b.pts - a.pts || a.i - b.i)
     .map(x => x.v);
