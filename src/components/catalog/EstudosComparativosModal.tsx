@@ -675,7 +675,7 @@ export function EstudosComparativosModal({ onClose, initialSearch = '' }: Estudo
           <div className="bg-red-100 border-2 border-red-400 p-4 rounded-xl space-y-1.5 text-red-950 shadow-sm">
             <p className="font-black uppercase text-sm sm:text-base">Cabeçote Multifuncional sem fatia extra:</p>
             <p className="text-sm font-bold leading-relaxed">
-              Em CAT 320 nova (joystick eletrônico), o cabeçote multifuncional pode ir sem fatia extra com o kit de baixa (bomba extra com comando próprio; o técnico confirma a pressão, cadastro do 9003: 190 bar), mais o kit de linhas e tubulações. Em CAT 320 nova a fatia é instalada pela concessionária; nas outras máquinas, o técnico Roder define após foto e vídeo; não declare "perigoso" ou "inviável" só pelo modelo.</p>
+              CMF em CAT 320 nova (GC, NG ou eletrônica, joystick eletrônico): com fatia extra dupla já acionada, falta só a tubulação e a possibilidade é o kit 9000.9000.9035 (traz toda a linha hidráulica do CMF 500, 600 e 800). Sem fatia extra, a possibilidade é o 9035 mais o kit de baixa 9000.9000.9003 (bomba extra na tampa da bomba original, que alimenta um comando hidráulico duplo para a linha de giro do rotator). Em CAT 320 nova a fatia é instalada pela concessionária; nas outras máquinas, o técnico Roder define após foto e vídeo. Sempre confirmar por foto e vídeo, mesmo que o cliente diga que a máquina não tem preparação; se o cliente não souber, peça o contato do vendedor ou da concessionária, e a Roder passa o valor do kit só depois de saber como a máquina será fornecida. Não declare "perigoso" ou "inviável" só pelo modelo.</p>
           </div>
         </div>
       )

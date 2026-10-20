@@ -182,6 +182,12 @@ export const INSTALLATION_KITS: InstallationKit[] = [
     ]
   },
   {
+    // Vale para CMF 500, 600 e 800. Itens ainda não cadastrados: o técnico Roder informa a composição.
+    code: '9000.9000.9035',
+    description: 'KIT INSTALACAO CMF500/600 EM ESCAVADEIRA - (MAQUINA COM FATIA EXTRA ACIONADA SEM LINHA)',
+    items: []
+  },
+  {
     code: '9000.9000.9015',
     description: 'KIT INSTALACAO GARRA + LINK EM ESCAVADEIRA - (MAQUINA COM FATIA EXTRA SEM LINHA)',
     items: [

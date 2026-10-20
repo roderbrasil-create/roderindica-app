@@ -36,7 +36,7 @@ import admin from "firebase-admin";
 import { getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { ACCESSORIES_DATA, INSTALLATION_KITS } from "./src/constants.js";
-import { REGRA_KIT_CONFIRMACAO, RESSALVA_KIT, instrucaoAmostra, videoAmostraDe } from "./src/lib/confirmacaoMaquina";
+import { REGRA_KIT_CONFIRMACAO, TEXTO_CMF_CAT320, RESSALVA_KIT, instrucaoAmostra, videoAmostraDe } from "./src/lib/confirmacaoMaquina";
 import { registrarConsultorParceiro, BUCKETS_VIDEO } from "./server/consultorParceiro";
 import { criarBibliotecaVideos, instrucaoVideos, sanitizarPainel } from "./server/videosConsultor";
 import { criarRotasArquivosVideos } from "./server/arquivosVideosConsultor";
@@ -2489,7 +2489,7 @@ ${REGRA_KIT_CONFIRMACAO}
 
     - DIRETRIZ CRÍTICA PARA INSTALAÇÃO DE CABEÇOTE MULTIFUNCIONAL EM ESCAVADEIRAS SEM FATIA EXTRA DE COMANDO:
        • Se algum vendedor ou cliente perguntar sobre a possibilidade de instalar ou operar um cabeçote multifuncional (como o CMF 500) em uma escavadeira que não possui fatia extra de comando original de fábrica:
-         - **Viabilidade de Instalação**: CMF sem fatia extra: em CAT 320 nova (joystick eletrônico), o CMF pode ir sem fatia extra com o kit de baixa (bomba extra com comando próprio; o técnico confirma a pressão, cadastro do 9003: 190 bar), mais o kit de linhas e tubulações; o técnico Roder confirma por foto e vídeo, sem inventar código. Em CAT 320 nova a fatia é instalada pela concessionária; nas outras máquinas, o técnico Roder define após foto e vídeo. Não declare "perigoso" ou "inviável" só pelo modelo.
+         - **Viabilidade de Instalação**: ${TEXTO_CMF_CAT320}
 
     - RECOMENDAÇÃO CRÍTICA DE CABEÇOTE MULTIFUNCIONAL CMF 500 EM RETROESCAVADEIRA:
      • Se algum vendedor perguntar ou sugerir instalar ou trabalhar com o cabeçote multifuncional CMF 500 em uma retroescavadeira:
@@ -2922,7 +2922,7 @@ ${REGRA_KIT_CONFIRMACAO}
              - Se a máquina não possuir uma linha extra de fábrica, ela deve obrigatoriamente ter a **fatia extra (extra slice) disponível no comando hidráulico**, para que a equipe técnica da Roder realize a instalação da linha extra a partir dessa fatia.
              - A fatia extra com saída dupla é o requisito geral. Exceções: garra de carregamento, garras florestais e CMF na CAT 320 nova (kit de baixa). Sempre orientamos em nossos orçamentos que a máquina do cliente deve possuir a fatia extra disponível contendo as **duas válvulas de alívio de pressão**, possibilitando regular a pressão de saída de cada um dos sentidos do giro.
              - Se a máquina contiver a fatia extra com as duas válvulas, a equipe da Roder realizará a linha hidráulica completa pelo braço da máquina e instalará a linha elétrica de pilotagem para comandar a fatia extra, testando e ajustando todo o sistema para o cliente.
-             - **Instalação Sem Fatia Extra de Comando**: CMF sem fatia extra: em CAT 320 nova (joystick eletrônico), o CMF pode ir sem fatia extra com o kit de baixa (bomba extra com comando próprio; o técnico confirma a pressão, cadastro do 9003: 190 bar), mais o kit de linhas e tubulações; o técnico Roder confirma por foto e vídeo, sem inventar código. Em CAT 320 nova a fatia é instalada pela concessionária; nas outras máquinas, o técnico Roder define após foto e vídeo. Não declare "perigoso" ou "inviável" só pelo modelo.
+             - **Instalação Sem Fatia Extra de Comando**: ${TEXTO_CMF_CAT320}
           3. **Linha de Dreno da Carcaça**: 1 mangueira conectada diretamente ao tanque de retorno livre da máquina (não pode passar pelo filtro de retorno e **NUNCA pode ultrapassar 5 bar**, devendo trabalhar rigorosamente na faixa de **0 a 5 bar**).
           4. **Linha de Pilotagem (6ª Linha)**: 1 mangueira de controle ligada a uma válvula de pilotagem que é instalada na escavadeira e acionada por botão elétrico.
         - **Rotador de Alta Capacidade**: Utiliza um rotator super-resistente de **16 toneladas** de capacidade, equipado com canais e passagens internas de óleo adicionais. Isso possibilita que todas as mangueiras passem por dentro do corpo do rotator, permitindo que o cabeçote faça giro 360° infinito sem mangueiras externas expostas se torcendo ou rotacionando ao redor do cabeçote.
