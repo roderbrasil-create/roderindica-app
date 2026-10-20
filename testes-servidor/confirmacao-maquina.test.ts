@@ -80,7 +80,7 @@ test('regra de prompt: não afirma kit por modelo nem serial, pede confirmação
   assert.match(r, /kit de baixa/);
   assert.match(r, /até 200 bar/);
   assert.match(r, /DOIS kits/);
-  assert.match(r, /o técnico Roder informa o código/);
+  assert.match(r, /sem item cadastrado, diga que o técnico informa o código/);
   assert.match(r, /Não dê a entender que a concessionária é obrigatória antes da análise/);
   assert.match(r, /técnico Roder responsável/);
   assert.match(r, /Não invente código/);
@@ -95,7 +95,7 @@ test('regra de prompt: não afirma kit por modelo nem serial, pede confirmação
   assert.ok(server.includes('DIRETRIZ CRÍTICA PARA INSTALAÇÃO DE GARRA EM ESCAVADEIRAS SEM FATIA EXTRA'));
   assert.ok(server.includes('9000.9000.9016'));
   assert.match(r, /já informou e confirmou a configuração/);
-  // nada de código novo: o kit de baixa não tem código cadastrado e a regra não inventa um
+  // a regra só cita o código do kit de baixa que está cadastrado; nenhum outro
   assert.ok(!/9000\.9000\.(9015|9016|9018)/.test(r));
 });
 
@@ -170,10 +170,13 @@ test('caso real do Yuri: CMF 600 na CAT 320 com série e "configuração padrão
   assert.match(r, /foto do comando, da bomba, dos dois joysticks e o vídeo/);
   assert.match(r, /técnico Roder confirma os kits/);
   assert.match(r, /cabeçote multifuncional, informe que na CAT 320 nova sem fatia extra existe a opção do kit de baixa mais o kit de linhas/);
-  assert.match(r, /9000\.9000\.9053 e 9000\.9000\.9026\) só podem aparecer como possibilidades/);
+  assert.match(r, /Só cite códigos de kit que apareçam na lista de kits cadastrados fornecida no contexto/);
+  assert.ok(!/já cadastrados|9053|9026/.test(r), 'a regra não afirma que códigos fora do repositório estão cadastrados');
   assert.match(r, /técnico informa/);
-  // os únicos códigos da regra são esses dois, já cadastrados na Roder, e a válvula 3000.5003.0194 fica nas regras antigas
-  assert.deepEqual([...new Set(r.match(/\d{4}\.\d{4}\.\d{4}/g) || [])].sort(), ['9000.9000.9026', '9000.9000.9053']);
+  // o único código da regra é o do kit de baixa que existe no repositório (constants.ts e manual), citado como exemplo
+  assert.deepEqual([...new Set(r.match(/\d{4}\.\d{4}\.\d{4}/g) || [])].sort(), ['9000.9000.9003']);
+  assert.match(readFileSync(new URL('../src/constants.ts', import.meta.url), 'utf8'), /9000\.9000\.9003/);
+  assert.match(r, /ex\.: 9000\.9000\.9003, KIT BAIXA PRESSAO CAT320GC\/NG/);
   const server = readFileSync(new URL('../server.ts', import.meta.url), 'utf8');
   assert.ok(server.includes('${REGRA_KIT_CONFIRMACAO}'));
 });
@@ -182,6 +185,9 @@ test('regras antigas não contradizem a regra nova (CMF sem fatia extra, requisi
   const server = readFileSync(new URL('../server.ts', import.meta.url), 'utf8');
   const modal = readFileSync(new URL('../src/components/catalog/EstudosComparativosModal.tsx', import.meta.url), 'utf8');
   const manual = readFileSync(new URL('../src/data/equipmentManualData.ts', import.meta.url), 'utf8');
+  const iaManual = readFileSync(new URL('../src/pages/IAManual.tsx', import.meta.url), 'utf8');
+  assert.ok(!/Komatsu PC200\/210, Volvo 200/.test(iaManual), 'IAManual');
+  assert.ok(!/pelo vídeo do braço/.test(server));
   for (const proibido of [
     /NÃO recomenda\*{0,2} de forma alguma/,
     /indispensável para qualquer instalação/,

@@ -864,7 +864,7 @@ REGRAS DE COMPATIBILIDADE E DIMENSIONAMENTO:
                       Kit Sem Fatia Extra (9000.9000.9016)
                     </div>
                     <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                      Para escavadeiras sem seção auxiliar no comando (Komatsu PC200/210, Volvo 200, etc.), o kit deriva pressão da bomba principal. Em marcha lenta sem mover a lança, a rotação do rotator fica lenta por projeto (vazão mínima da bomba), normalizando ao operar qualquer função.
+                      Para escavadeiras que, depois de confirmado por foto e vídeo, não têm fatia extra com saída dupla no comando (nunca pelo modelo), o kit deriva pressão da bomba principal. O 9016 não é o kit de baixa. Em marcha lenta sem mover a lança, a rotação do rotator fica lenta por projeto (vazão mínima da bomba), normalizando ao operar qualquer função.
                     </p>
                   </div>
 
