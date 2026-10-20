@@ -897,7 +897,8 @@ test('CORREÇÃO: indicação estornada (marca ou histórico antigo) não tem a 
   const r = await conciliarComissoes(depsC(db));
   assert.deepEqual(r.criadas.map(c => c.indicacao_id), ['i_luiz']);
   assert.ok(!db.dados.commissions.i_marca && !db.dados.commissions.i_hist);
-  assert.equal(r.travadas.filter(t => /já foi estornada/.test(t.motivo)).length, 2);
+  assert.equal(r.travadas.filter(t => /já foi estornada/.test(t.motivo)).length, 1, 'histórico: estorno completo');
+  assert.equal(r.travadas.filter(t => /Estorno incompleto.*Refaça o estorno/.test(t.motivo)).length, 1, 'só a marca: estorno interrompido');
 });
 
 test('CORREÇÃO: a lista de travadas tem teto, com as mais recentes primeiro, e o total fica registrado', async () => {
@@ -1001,4 +1002,48 @@ test('CORREÇÃO: movidas, criadas e erros também têm teto no documento gravad
   assert.equal(doc.ultima.movidas_total, 231);
   assert.ok(doc.historico.length <= 100);
   assert.ok(JSON.stringify(doc).length < 600000, 'abaixo de 1 MB com folga');
+});
+
+
+test('CORREÇÃO: comissão de conta definitiva nunca é levada para um provisório sem conta única (dois e-mails iguais)', async () => {
+  const db = cenarioLuiz({ users: {
+    temp_9: { uid: 'temp_9', name: 'Rafael', email: 'rafael@maqloc.com.br', role: 'external_seller', status: 'pending' },
+    raf2: { uid: 'raf2', name: 'Rafael Segundo', email: 'rafael@maqloc.com.br', role: 'external_seller', status: 'active' },
+  } });
+  db.dados.indications.i_luiz.external_seller_uid = 'temp_9';
+  db.dados.commissions.i_luiz.external_seller_uid = 'raf';
+  const antes = structuredClone(db.dados);
+  const r = await conciliarComissoes(depsC(db));
+  assert.equal(r.movidas.length, 0);
+  assert.deepEqual(db.dados.commissions, antes.commissions, 'a comissão continua na conta definitiva');
+  assert.equal(db.dados.indications.i_luiz.external_seller_uid, 'temp_9');
+  assert.ok(r.travadas.some(t => /cadastro provisório \(temp_9\)/.test(t.motivo)));
+});
+
+test('GERAR: dentro da transação, indicação com estornado_em (ou estorno no histórico) não ganha comissão pela correção automática', async () => {
+  const base = { status: 'sold', client_name: 'X', external_seller_uid: 'raf', commissioned_products: CMF600, sale_date: '2026-10-08', commission_rate_applied: 3, discount_amount: 0 };
+  for (const extra of [{ estornado_em: '2026-10-08T11:00:00Z' }, { negotiation_history: [{ content: 'ESTORNO DE FATURAMENTO: x' }] }]) {
+    const db = cenarioLuiz({ indications: { i_x: { ...base, ...extra } } });
+    await assert.rejects(() => gerarComissao({ db, arrayUnion, agora: () => AGORA } as any, 'i_x', { uid: 'sistema', nome: 'Correção' }, undefined, { recusarEstornada: true, usarTaxaGravada: true }), /estornada/);
+    assert.ok(!db.dados.commissions.i_x, 'nada foi criado');
+    // o administrador, pelo Diagnóstico, continua podendo gerar (decisão humana)
+    await gerarComissao({ db, arrayUnion, agora: () => AGORA } as any, 'i_x', { uid: 'adm', nome: 'Adm' });
+    assert.ok(db.dados.commissions.i_x);
+  }
+});
+
+test('CORREÇÃO: erro ao limpar a marca ou ler o fechamento vai para erros e a rodada continua e salva o resultado', async () => {
+  const db = cenarioLuiz({ indications: { i_b: { status: 'sold', client_name: 'B', external_seller_uid: 'raf', commissioned_products: CMF600, sale_date: '2026-10-08', updated_at: '2026-10-08T10:00:00Z', commission_rate_applied: 3, discount_amount: 0 } } });
+  db.dados.commissions.i_luiz.external_seller_uid = 'raf';
+  db.dados.commissions.i_luiz.transferencia_pendente = { para_uid: 'raf' };
+  const col = db.collection;
+  db.collection = (n: string) => {
+    const c = col(n);
+    if (n !== 'monthly_statements') return c;
+    return { ...c, doc: () => ({ get: async () => { throw new Error('falha de rede'); } }) };
+  };
+  const r: any = await conciliarComTrava(depsC(db), 'diária');
+  assert.ok(r, 'a rodada terminou');
+  assert.ok(r.erros.some((e: string) => /fechamento/.test(e)));
+  assert.ok(db.dados.cron_locks[DOC_RESULTADO], 'o resultado foi salvo');
 });

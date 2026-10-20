@@ -13,6 +13,11 @@ import {
 } from '../src/lib/calculoComissao';
 export { UIDS_DE_SISTEMA };
 
+// Indicação que já teve o faturamento estornado: marca nova (estornado_em) ou linha do histórico
+export const temMarcaDeEstorno = (ind: any) => !!ind?.estornado_em;
+export const temEstornoNoHistorico = (ind: any) => Array.isArray(ind?.negotiation_history) &&
+  ind.negotiation_history.some((h: any) => /^ESTORNO DE FATURAMENTO/i.test(String(h?.content || '')));
+
 export const normalizar = (v: any) => String(v ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '')
   .toLowerCase().replace(/[^a-z0-9@._]+/g, ' ').replace(/\s+/g, ' ').trim();
 
@@ -320,7 +325,7 @@ export async function previaGeracao(deps: Deps, indId: string, desconto?: number
 // semAvisoFinanceiro: a correção automática não programa o aviso ao financeiro comissão por comissão
 // (a primeira rodada poderia soltar dezenas de e-mails de uma vez); o financeiro já recebe tudo nos
 // relatórios do dia 1, 5 e 7.
-type OpcoesGerar = { geradoPor?: string; textoHistorico?: string; semAvisoFinanceiro?: boolean; usarTaxaGravada?: boolean };
+type OpcoesGerar = { geradoPor?: string; textoHistorico?: string; semAvisoFinanceiro?: boolean; usarTaxaGravada?: boolean; recusarEstornada?: boolean };
 
 export async function gerarComissao(deps: DepsEscrita, indId: string, autor: { uid: string; nome: string }, desconto?: number, opcoes: OpcoesGerar = {}) {
   const { db, arrayUnion } = deps;
@@ -335,6 +340,11 @@ export async function gerarComissao(deps: DepsEscrita, indId: string, autor: { u
     const p = uid && !UIDS_DE_SISTEMA.includes(uid) ? await tx.get(db.collection('users').doc(uid)) : null;
     const ja = await tx.get(commRef);
     const legado = await tx.get(db.collection('commissions').where('indication_id', '==', indId));
+    // Conferido de novo DENTRO da transação, com o documento fresco: entre o estorno gravar a marca
+    // e a venda sair de faturada, a leitura do início da rodada já está velha.
+    if (opcoes.recusarEstornada && (temMarcaDeEstorno(ind) || temEstornoNoHistorico(ind))) {
+      throw erro(409, 'Esta indicação foi estornada (ou está com o estorno em andamento). A comissão não é lançada sozinha.');
+    }
     const r = conferirGeracao(indId, ind, p?.exists ? p.data() : null, desconto, agora, !!opcoes.usarTaxaGravada);
     if (ja.exists || !legado.empty) throw erro(409, 'Já existe comissão lançada para esta venda. Nada foi alterado.');
     // Fechamento do mês já pago ou aguardando pagamento: a comissão nova seria lida como paga pelos

@@ -462,9 +462,13 @@ export default function Indications() {
     }
   };
 
+  // Trava síncrona contra dois cliques no estorno da mesma venda
+  const estornandoRef = useRef<Set<string>>(new Set());
   const handleUndoInvoice = async (ind: Indication) => {
+    if (estornandoRef.current.has(ind.id)) return;
     if (!window.confirm(`Deseja realmente estornar o faturamento da venda de "${ind.client_name}"? Isso moverá o status de volta para Negociação, reverterá a baixa de estoque automática e excluirá a comissão vinculada de forma definitiva.`)) return;
     
+    estornandoRef.current.add(ind.id);
     try {
       const toastId = toast.loading('Processando estorno/reversão...');
       
@@ -493,21 +497,20 @@ export default function Indications() {
       const salesSnap = await getDocs(salesQuery);
 
       for (const docSnap of salesSnap.docs) {
-        const saleData = docSnap.data();
-        const stockItemId = saleData.stock_item_id;
-        const qtySold = saleData.quantity_sold || 0;
-        // Devolução e apagamento da baixa no MESMO lote: nunca devolve duas vezes numa nova tentativa
-        const lote = writeBatch(db);
-        if (stockItemId && qtySold > 0) {
+        // Lê a baixa, devolve ao estoque e apaga a baixa na MESMA transação: um segundo clique ou uma
+        // nova tentativa não devolve duas vezes (a baixa já apagada é pulada).
+        await runTransaction(db, async (tx) => {
+          const baixaRef = doc(db, 'stock_sales', docSnap.id);
+          const baixa = await tx.get(baixaRef);
+          if (!baixa.exists()) return;
+          const dados: any = baixa.data();
+          const qtd = Number(dados.quantity_sold) || 0;
+          const itemRef = dados.stock_item_id && qtd > 0 ? doc(db, 'stock_items', dados.stock_item_id) : null;
+          const item = itemRef ? await tx.get(itemRef) : null;
           // increment no servidor: somar ao número lido antes perdia baixas feitas no meio tempo
-          const stockItemRef = doc(db, 'stock_items', stockItemId);
-          const stockItemSnap = await getDoc(stockItemRef);
-          if (stockItemSnap.exists()) {
-            lote.update(stockItemRef, { quantity: increment(qtySold), updated_at: new Date().toISOString() });
-          }
-        }
-        lote.delete(doc(db, 'stock_sales', docSnap.id));
-        await lote.commit();
+          if (itemRef && item && item.exists()) tx.update(itemRef, { quantity: increment(qtd), updated_at: new Date().toISOString() });
+          tx.delete(baixaRef);
+        });
       }
 
       // 4. Só agora a venda sai de faturada
@@ -533,6 +536,8 @@ export default function Indications() {
     } catch (err: any) {
       console.error("Error reversing invoice:", err);
       toast.error('Erro ao estornar faturamento: ' + err.message);
+    } finally {
+      estornandoRef.current.delete(ind.id);
     }
   };
 
