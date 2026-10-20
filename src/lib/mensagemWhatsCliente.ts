@@ -10,7 +10,8 @@ interface ProdutoMin { name?: string; description?: string; technical_specs?: Es
 
 const MAX_CARACTERISTICAS = 4;
 
-const soNumero = (v: string) => /^[\d.,\s]+$/.test(v);
+// número ou faixa "N a N" / "N - N", sem letras ("1e3" não passa): é onde a unidade entra
+const soNumero = (v: string) => /^\d[\d.,]*(\s*(a|-|–)\s*\d[\d.,]*)?$/i.test(v.trim());
 
 // Ordem de importância para o cliente; cada item: chaves aceitas, rótulo e unidade quando vier só o número
 const ESPECS: Array<{ chaves: string[]; rotulo: string; unidade?: string }> = [
@@ -20,7 +21,7 @@ const ESPECS: Array<{ chaves: string[]; rotulo: string; unidade?: string }> = [
   { chaves: ['capacidade_carga', 'capacidade_de_carga'], rotulo: 'Capacidade de carga' },
   { chaves: ['area_carga', 'area_da_garra'], rotulo: 'Área de carga', unidade: 'm²' },
   { chaves: ['trator_hp', 'potencia_do_trator', 'trator'], rotulo: 'Trator' },
-  { chaves: ['vazao', 'vazão'], rotulo: 'Vazão', unidade: 'l/min' },
+  { chaves: ['vazao', 'vazão'], rotulo: 'Vazão', unidade: 'L/min' },
   { chaves: ['pressao_trabalho', 'pressao'], rotulo: 'Pressão', unidade: 'bar' },
   { chaves: ['giro_360'], rotulo: 'Giro 360°' },
 ];
@@ -37,6 +38,7 @@ const valido = (v: unknown): boolean => {
   if (typeof v !== 'string') return false;
   const t = v.trim();
   if (!t || t === '-') return false;
+  if (/^(undefined|null|nan|\[object .*\])$/i.test(t)) return false;
   if (/^[\d.,\s]+$/.test(t)) { const n = Number(t.replace(/\./g, '').replace(',', '.')); return Number.isFinite(n) && n > 0; }
   return true;
 };

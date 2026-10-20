@@ -65,3 +65,14 @@ test('completa até 2 com frases da descrição; sem dado não inventa', () => {
   assert.deepEqual(caracteristicasDoModelo(d, { name: 'M' }), ['Primeira frase.', 'Segunda frase.']);
   assert.deepEqual(caracteristicasDoModelo({ name: 'X' }, { name: 'M' }), []);
 });
+
+test('strings lixo (NaN, undefined, null, [object Object]) são ignoradas', () => {
+  const c = caracteristicasDoModelo({ name: 'X' }, { name: 'M', technical_specs: { peso: 'NaN', diametro_corte: 'undefined', abertura_maxima: 'null', vazao: '[object Object]', pressao: ' Null ' } as any });
+  assert.deepEqual(c, []);
+});
+
+test('faixa numérica sem letras ganha a unidade; com letras fica como está; 1e3 não passa', () => {
+  const c = caracteristicasDoModelo({ name: 'UML/EX/VT' }, { name: 'M', technical_specs: { peso: '1.100 a 1.350', vazao: '110 a 220', pressao: '220 - 350', diametro_corte: '1e3' } as any });
+  assert.deepEqual(c, ['Peso 1.100 a 1.350 kg', 'Corte até 1e3', 'Vazão 110 a 220 L/min', 'Pressão 220 - 350 bar']);
+  assert.deepEqual(caracteristicasDoModelo({ name: 'X' }, { name: 'M', technical_specs: { vazao: 'Até 200 l/min' } as any }), ['Vazão Até 200 l/min']);
+});
