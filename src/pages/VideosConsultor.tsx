@@ -14,6 +14,7 @@ import { apagarArquivoBiblioteca, enviarArquivoBiblioteca, MAX_VIDEO_BIBLIOTECA_
 import { LIMITE_VIDEO_ARQUIVO_MB } from '../lib/videoEquipamento';
 import { cn } from '../lib/utils';
 import { lerVideoLocal } from '../lib/quadroDoVideo';
+import { videoAmostraDe } from '../lib/confirmacaoMaquina';
 import { tituloFicha } from '../lib/tituloFicha';
 import {
   capaDoVideo, formatarDuracao, lerVideoDoBanco, MAX_CONTEXTO, MAX_TITULO, PRODUTO_AMOSTRA, ROTULO_TIPO, TIPOS_VIDEO,
@@ -32,6 +33,7 @@ type Rascunho = {
   modelo_id: string;
   titulo: string;
   contexto: string;
+  maquina: string; // só da amostra: quais máquinas o vídeo modelo cobre (vai em modelo_nome)
   tipo: Exclude<TipoVideo, 'catalogo'>;
   video_url: string;
   thumb_url: string;
@@ -39,7 +41,7 @@ type Rascunho = {
   no_carrossel: boolean;
   ativo: boolean;
 };
-const vazio = (): Rascunho => ({ produto_id: '', modelo_id: '', titulo: '', contexto: '', tipo: 'campo', video_url: '', thumb_url: '', duracao_s: 0, no_carrossel: false, ativo: true });
+const vazio = (): Rascunho => ({ produto_id: '', modelo_id: '', titulo: '', contexto: '', maquina: '', tipo: 'campo', video_url: '', thumb_url: '', duracao_s: 0, no_carrossel: false, ativo: true });
 
 const PASTA = 'consultor_videos';
 // o mesmo teto do servidor (server/arquivosVideosConsultor.ts), assinado no endereço de envio
@@ -121,6 +123,9 @@ export default function VideosConsultor() {
     .sort((a, b) => (a!.ordem || 0) - (b!.ordem || 0)) as Linha[], [docs]);
   const doCatalogo = useMemo(() => videosDoCatalogo(produtos, new Set(linhas.map(l => l.video_url))), [produtos, linhas]);
 
+  // o texto pronto do WhatsApp usa o primeiro vídeo modelo ativo (mesma regra de videoAmostraDe)
+  const emUsoId = videoAmostraDe(linhas.filter(l => l.ativo))?.id || '';
+
   const prodDe = (pid: string) => produtos.find(p => p.id === pid);
   const fotoDe = (v: Pick<VideoConsultor, 'produto_id' | 'modelo_id'>) => {
     const p = prodDe(v.produto_id);
@@ -142,7 +147,7 @@ export default function VideosConsultor() {
     enviadosAgora.current = [];
     original.current = { video_url: l.video_url, thumb_url: l.thumb_url || '' };
     setForm({
-      id: l.id, produto_id: l.produto_id, modelo_id: l.modelo_id || '', titulo: l.titulo, contexto: l.contexto,
+      id: l.id, produto_id: l.produto_id, modelo_id: l.modelo_id || '', titulo: l.titulo, contexto: l.contexto, maquina: l.tipo === 'amostra' ? (l.modelo_nome || '') : '',
       tipo: (l.tipo === 'catalogo' ? 'campo' : l.tipo), video_url: l.video_url, thumb_url: l.thumb_url || '',
       duracao_s: l.duracao_s || 0, no_carrossel: !!l.no_carrossel, ativo: l.ativo,
     });
@@ -208,7 +213,7 @@ export default function VideosConsultor() {
     const m = p && form.modelo_id ? (p.models || []).find(x => x.id === form.modelo_id) : undefined;
     const amostra = form.tipo === 'amostra';
     if (!p && !amostra) { toast.error('Escolha o equipamento.'); return; }
-    if (!form.titulo.trim()) { toast.error('Escreva um título curto.'); return; }
+    if (!form.titulo.trim()) { toast.error(amostra ? 'Escreva o título do vídeo modelo.' : 'Escreva um título curto.'); return; }
     if (!form.video_url.trim()) { toast.error('Envie o vídeo ou cole o link do YouTube.'); return; }
     if (!/^https:\/\//i.test(form.video_url.trim())) { toast.error('O link do vídeo tem de começar com https://'); return; }
     setSalvando(true);
@@ -226,10 +231,10 @@ export default function VideosConsultor() {
         // a amostra de filmagem não é de um equipamento: vale para qualquer pedido de confirmação
         produto_id: p && !amostra ? p.id : PRODUTO_AMOSTRA,
         modelo_id: amostra ? '' : (m?.id || ''),
-        equipamento_nome: amostra ? 'Todos os equipamentos' : (p?.name || ''),
-        modelo_nome: amostra ? '' : (m?.name || ''),
+        equipamento_nome: amostra ? 'Vídeo modelo' : (p?.name || ''),
+        modelo_nome: amostra ? form.maquina.trim().slice(0, 80) : (m?.name || ''),
         tipo: form.tipo,
-        contexto: form.contexto.trim().slice(0, MAX_CONTEXTO),
+        contexto: amostra ? '' : form.contexto.trim().slice(0, MAX_CONTEXTO),
         titulo: form.titulo.trim().slice(0, MAX_TITULO),
         video_url: form.video_url.trim(),
         thumb_url: thumb || '',
@@ -271,7 +276,7 @@ export default function VideosConsultor() {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h1 className="fonte-titulo m-0 text-[22px] sm:text-[26px] font-extrabold leading-tight text-foreground">Vídeos do consultor</h1>
-            <p className="m-0 mt-1 text-[14px] text-muted-foreground">Cada vídeo ligado a um equipamento. O consultor mostra quando perguntam, e os marcados passam no carrossel.</p>
+            <p className="m-0 mt-1 text-[14px] text-muted-foreground">Cada vídeo ligado a um equipamento, mais o vídeo modelo de filmagem, que vale para qualquer equipamento. O consultor mostra quando perguntam, e os marcados passam no carrossel.</p>
           </div>
           <button type="button" onClick={() => abrirNovo()} className="h-11 shrink-0 rounded-xl bg-[#F6C400] px-4 text-[14.5px] font-extrabold text-[#1B1E22] flex items-center gap-1.5 active:scale-[0.98] transition">
             <Plus className="h-4 w-4" /> <span className="hidden min-[400px]:inline">Novo vídeo</span><span className="min-[400px]:hidden">Novo</span>
@@ -296,8 +301,12 @@ export default function VideosConsultor() {
                   <Miniatura v={l} foto={fotoDe(l)} />
                 </button>
                 <div className={cn('min-w-0', !l.ativo && 'opacity-60')}>
-                  <p className="m-0 text-[14.5px] font-extrabold leading-tight break-words">{nomeDe(l)}</p>
+                  <p className="m-0 text-[14.5px] font-extrabold leading-tight break-words">{l.tipo === 'amostra' ? 'Vídeo modelo' : nomeDe(l)}</p>
                   <p className="m-0 mt-0.5 text-[13.5px] font-semibold text-[#3E444B] break-words">{l.titulo}</p>
+                  {l.tipo === 'amostra' && l.modelo_nome && <p className="m-0 mt-0.5 text-[12.5px] text-[#5E6672]">Máquina: {l.modelo_nome}</p>}
+                  {l.tipo === 'amostra' && l.id === emUsoId && l.ativo && (
+                    <p className="m-0 mt-1 inline-block rounded-md bg-[#DCFCE7] px-2 py-0.5 text-[11.5px] font-extrabold text-[#14532D]">Em uso no texto do WhatsApp</p>
+                  )}
                   {l.contexto && <p className="m-0 mt-0.5 text-[12.5px] text-[#5E6672] line-clamp-2">{l.contexto}</p>}
                   <div className="mt-1 md:hidden"><SeloTipo tipo={l.tipo} /></div>
                 </div>
@@ -367,9 +376,27 @@ export default function VideosConsultor() {
               <button type="button" onClick={fechar} aria-label="Fechar" className="h-11 w-11 p-0 rounded-xl bg-transparent text-[#1B1E22] flex items-center justify-center"><X className="h-5 w-5" /></button>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 py-4 space-y-4">
+              <div>
+                <span className="text-[13px] font-bold text-[#3E444B]">Tipo</span>
+                <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {TIPOS_VIDEO.map(t => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setForm({ ...form, tipo: t.id })}
+                      aria-pressed={form.tipo === t.id}
+                      className={cn('h-auto min-h-[44px] rounded-xl border-[1.5px] px-1.5 text-[14px] font-extrabold leading-tight transition',
+                        form.tipo === t.id ? 'border-[#1B1E22] bg-[#1B1E22] text-white' : 'border-[#C9CED4] bg-white text-[#1B1E22]')}
+                    >
+                      {t.rotulo}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {form.tipo === 'amostra' ? (
                 <p className="m-0 rounded-xl bg-[#FFF8DB] px-3 py-2.5 text-[13.5px] leading-snug text-[#5E4A00]">
-                  Amostra de filmagem: o vídeo que o cliente recebe para filmar a própria máquina. Não é de um equipamento. Vale um por vez: o consultor usa o primeiro ativo da lista.
+                  Vídeo modelo: mostra como o cliente deve filmar a escavadeira para o técnico avaliar. Vale para qualquer equipamento.
                 </p>
               ) : (
               <div className="grid gap-3 sm:grid-cols-2">
@@ -400,16 +427,29 @@ export default function VideosConsultor() {
               )}
 
               <label className="block">
-                <span className="text-[13px] font-bold text-[#3E444B]">Título</span>
+                <span className="text-[13px] font-bold text-[#3E444B]">Título{form.tipo === 'amostra' && <span className="font-medium text-[#6B7178]"> (obrigatório)</span>}</span>
                 <input
                   value={form.titulo}
                   maxLength={MAX_TITULO}
                   onChange={(e) => setForm({ ...form, titulo: e.target.value })}
-                  placeholder="Ex.: Traçando eucalipto de 3 m"
+                  placeholder={form.tipo === 'amostra' ? 'Ex.: Como filmar a escavadeira (modelo geral)' : 'Ex.: Traçando eucalipto de 3 m'}
                   className="mt-1 h-11 w-full rounded-xl border border-[#C9CED4] bg-white px-3 text-[16px] text-[#1B1E22] placeholder-[#8A9097]"
                 />
               </label>
 
+              {form.tipo === 'amostra' ? (
+                <label className="block">
+                  <span className="text-[13px] font-bold text-[#3E444B]">Máquina <span className="font-medium text-[#6B7178]">(opcional)</span></span>
+                  <input
+                    value={form.maquina}
+                    maxLength={80}
+                    onChange={(e) => setForm({ ...form, maquina: e.target.value })}
+                    placeholder="Ex.: CAT 320 nova"
+                    className="mt-1 h-11 w-full rounded-xl border border-[#C9CED4] bg-white px-3 text-[16px] text-[#1B1E22] placeholder-[#8A9097]"
+                  />
+                  <span className="mt-1 block text-[12.5px] leading-snug text-[#5E6672]">Se este vídeo modelo cobre só um tipo de máquina, escreva aqui. Pode haver vários vídeos modelo.</span>
+                </label>
+              ) : (
               <label className="block">
                 <span className="text-[13px] font-bold text-[#3E444B]">Contexto</span>
                 <textarea
@@ -424,24 +464,7 @@ export default function VideosConsultor() {
                   O consultor lê este texto para escolher o vídeo. Diga a operação, o material ou a madeira, e a máquina base.
                 </span>
               </label>
-
-              <div>
-                <span className="text-[13px] font-bold text-[#3E444B]">Tipo</span>
-                <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {TIPOS_VIDEO.map(t => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => setForm({ ...form, tipo: t.id })}
-                      aria-pressed={form.tipo === t.id}
-                      className={cn('h-auto min-h-[44px] rounded-xl border-[1.5px] px-1.5 text-[14px] font-extrabold leading-tight transition',
-                        form.tipo === t.id ? 'border-[#1B1E22] bg-[#1B1E22] text-white' : 'border-[#C9CED4] bg-white text-[#1B1E22]')}
-                    >
-                      {t.rotulo}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              )}
 
               <div>
                 <span className="text-[13px] font-bold text-[#3E444B]">Vídeo</span>
