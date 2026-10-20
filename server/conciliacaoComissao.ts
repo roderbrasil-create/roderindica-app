@@ -29,7 +29,9 @@ export type Travada = { indicacao_id: string | null; cliente: string; parceiro: 
 export type ResultadoConciliacao = {
   rodada_em: string; terminou_em: string; origem: string;
   movidas: Movida[]; criadas: Criada[]; travadas: Travada[]; travadas_total: number; erros: string[];
+  adiadas: Adiada[];
 };
+export type Adiada = { indicacao_id: string; cliente: string; parceiro: string };
 
 // Só o servidor lê e grava aqui (o navegador não tem regra para cron_locks)
 export const DOC_TRAVA = 'conciliacao_comissao_rodando';
@@ -44,6 +46,9 @@ const MINUTOS_SEM_MEXER = 30;
 const MAX_HISTORICO = 100;
 // A lista "travadas" vai dentro de um documento do Firestore (limite de 1 MB): fica só com as mais recentes
 export const MAX_TRAVADAS = 200;
+// Teto de comissões CRIADAS por rodada: evita uma rajada de lançamentos no primeiro deploy. O que passar
+// do teto fica em "adiadas" e é pego na rodada seguinte. Mover comissão fora do lugar não tem teto.
+export const MAX_CRIADAS_POR_RODADA = 20;
 // Mesmo teto para movidas, criadas e erros no documento gravado (o total fica ao lado)
 export const MAX_LISTA_NO_DOC = 200;
 const MAX_TEXTO_NO_DOC = 400;
@@ -68,7 +73,7 @@ export async function conciliarComissoes(deps: Deps, origem = 'diária'): Promis
   const { db } = deps;
   const log = deps.log || console.log;
   const agora = deps.agora ? deps.agora() : new Date();
-  const res: ResultadoConciliacao = { rodada_em: agora.toISOString(), terminou_em: '', origem, movidas: [], criadas: [], travadas: [], travadas_total: 0, erros: [] };
+  const res: ResultadoConciliacao = { rodada_em: agora.toISOString(), terminou_em: '', origem, movidas: [], criadas: [], travadas: [], travadas_total: 0, erros: [], adiadas: [] };
   // quanto mais recente a venda, mais cedo na lista; no fim fica só o teto
   const todasTravadas: { t: Travada; ordem: number }[] = [];
   let quandoAtual: any = '';
@@ -90,7 +95,7 @@ export async function conciliarComissoes(deps: Deps, origem = 'diária'): Promis
   const porNome = (n: string) => n ? unica(definitivas.filter(u => normalizar(u.name) === n)) : null;
 
   const indSnap = await db.collection('indications')
-    .select('status', 'client_name', 'external_seller_uid', 'external_seller_name', 'external_seller_email', 'sale_date', 'updated_at', 'commissioned_products', 'discount_amount', 'delivery_date', 'commission_rate_applied', 'estornado_em')
+    .select('status', 'client_name', 'external_seller_uid', 'external_seller_name', 'external_seller_email', 'sale_date', 'updated_at', 'commissioned_products', 'discount_amount', 'delivery_date', 'commission_rate_applied', 'estornado_em', 'commission_value')
     .get();
   const indicacoes = new Map<string, any>();
   indSnap.docs.forEach((d: any) => indicacoes.set(d.id, d.data() || {}));
@@ -277,6 +282,12 @@ export async function conciliarComissoes(deps: Deps, origem = 'diária'): Promis
       travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: 'Venda faturada sem comissão, e os produtos da indicação não dão base de comissão (sem produto ou só kit, frete e instalação). Vincule os produtos vendidos.' });
       continue;
     }
+    // Se a venda gravou o valor da comissão, o recálculo tem de bater. Diferença = dado mudou depois do
+    // faturamento (produtos, desconto, taxa): criar sozinho pagaria um valor que ninguém conferiu.
+    if (typeof ind.commission_value === 'number' && ind.commission_value > 0 && Math.abs(ind.commission_value - calc.valor) > 0.01) {
+      travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: `valor recalculado difere do gravado no faturamento (recalculado ${brl(calc.valor)}, gravado ${brl(ind.commission_value)}). Não foi lançada sozinha. Confira e gere pelo Diagnóstico de comissão.` });
+      continue;
+    }
     // Comissão antiga sem indication_id (de antes do vínculo) do mesmo parceiro, no mesmo dia da venda
     // ou com o mesmo valor no mesmo mês: pode ser a desta venda. Criar outra pagaria duas vezes.
     // (A comissão não guarda o nome do cliente, então não dá para casar por ele.)
@@ -303,6 +314,10 @@ export async function conciliarComissoes(deps: Deps, origem = 'diária'): Promis
     catch (e: any) { res.erros.push(`${cliente || indId}: não consegui ler o fechamento: ${e?.message || e}`); continue; }
     if (fechTravado) {
       travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: `Venda faturada sem comissão, mas o fechamento de ${String(mes.month).padStart(2, '0')}/${mes.year} de ${nomeDest} já está pago ou aguardando pagamento. Acerte com o financeiro.` });
+      continue;
+    }
+    if (res.criadas.length >= MAX_CRIADAS_POR_RODADA) {
+      res.adiadas.push({ indicacao_id: indId, cliente, parceiro: nomeDest });
       continue;
     }
     try {
@@ -333,7 +348,8 @@ function paraDocumento(r: ResultadoConciliacao): any {
     ...r,
     movidas: limita(r.movidas), criadas: limita(r.criadas), travadas: limita(r.travadas),
     erros: r.erros.slice(0, MAX_LISTA_NO_DOC).map(corta),
-    movidas_total: r.movidas.length, criadas_total: r.criadas.length, erros_total: r.erros.length,
+    adiadas: limita(r.adiadas),
+    movidas_total: r.movidas.length, criadas_total: r.criadas.length, adiadas_total: r.adiadas.length, erros_total: r.erros.length,
   };
 }
 
@@ -377,7 +393,7 @@ export async function conciliarComTrava(deps: Deps, origem: string): Promise<Res
     ];
     const historico = [...novos, ...(Array.isArray(antes.historico) ? antes.historico : [])].slice(0, MAX_HISTORICO);
     await docRes.set({ ultima: paraDocumento(r), historico, atualizado_em: r.terminou_em });
-    log(`[CORRECAO-COMISSAO] Rodada ${origem}: ${r.movidas.length} movida(s), ${r.criadas.length} criada(s), ${r.travadas.length} travada(s), ${r.erros.length} erro(s).`);
+    log(`[CORRECAO-COMISSAO] Rodada ${origem}: ${r.movidas.length} movida(s), ${r.criadas.length} criada(s), ${r.travadas.length} travada(s), ${r.adiadas.length} adiada(s), ${r.erros.length} erro(s).`);
     return r;
   } catch (e: any) {
     console.error('[CORRECAO-COMISSAO] Erro:', e?.message);

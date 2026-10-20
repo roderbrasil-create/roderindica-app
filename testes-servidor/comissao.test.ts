@@ -7,7 +7,7 @@ import {
 } from '../src/lib/calculoComissao.ts';
 import { diagnosticar, gerarComissao, previaGeracao, ligarParceiro, nomeCasa, normalizar, nomeContido, transferirIndicacao, moverComissoesDoProvisorio, loteEmPartes } from '../server/diagnosticoComissao.ts';
 import { readFileSync } from 'node:fs';
-import { conciliarComissoes, conciliarComTrava, CAMPOS_COMISSAO, lerCorrecoes, DOC_TRAVA, DOC_RESULTADO } from '../server/conciliacaoComissao.ts';
+import { conciliarComissoes, MAX_CRIADAS_POR_RODADA, conciliarComTrava, CAMPOS_COMISSAO, lerCorrecoes, DOC_TRAVA, DOC_RESULTADO } from '../server/conciliacaoComissao.ts';
 import {
   comissoesDoCiclo, agruparPorParceiro, comTravaMensal, relatorioParceirosDia1, lembreteNfDia5, lembreteFinanceiroDia7, relatorioDiretoriaDia1, mesEmBrasilia,
   ligarEmailsComissaoUmaVez,
@@ -1107,4 +1107,34 @@ test('CORREÇÃO: venda refaturada depois do estorno pode ganhar a comissão; es
   r = await conciliarComissoes(depsC(db2));
   assert.equal(r.criadas.length, 0);
   assert.ok(r.travadas.some(t => /já foi estornada/.test(t.motivo)));
+});
+
+test('CORREÇÃO: valor recalculado diferente do gravado no faturamento vai para travadas e não cria a comissão', async () => {
+  const db = cenarioLuiz();
+  delete db.dados.commissions.i_luiz;
+  db.dados.indications.i_luiz.commission_value = calcularComissao(CMF600, 0, 3).valor + 5;
+  let r = await conciliarComissoes(depsC(db));
+  assert.equal(r.criadas.length, 0);
+  assert.ok(!db.dados.commissions.i_luiz);
+  assert.ok(r.travadas.some(t => t.indicacao_id === 'i_luiz' && /valor recalculado difere do gravado no faturamento/.test(t.motivo)));
+  // diferença de até um centavo passa; venda sem valor gravado também
+  const db2 = cenarioLuiz();
+  delete db2.dados.commissions.i_luiz;
+  db2.dados.indications.i_luiz.commission_value = calcularComissao(CMF600, 0, 3).valor + 0.005;
+  r = await conciliarComissoes(depsC(db2));
+  assert.equal(r.criadas.length, 1);
+});
+
+test('CORREÇÃO: no máximo MAX_CRIADAS_POR_RODADA comissões criadas por rodada, o resto fica adiado e entra na seguinte', async () => {
+  const extra: any = {};
+  for (let i = 0; i < MAX_CRIADAS_POR_RODADA + 5; i++) {
+    extra[`i_lote_${i}`] = { status: 'sold', client_name: `Serraria ${i}`, external_seller_uid: 'raf', commissioned_products: CMF600, sale_date: '2026-10-08', updated_at: '2026-10-08T10:00:00Z', commission_rate_applied: 3, discount_amount: 0 };
+  }
+  const db = cenarioLuiz({ indications: extra });
+  const r = await conciliarComissoes(depsC(db));
+  assert.equal(r.criadas.length, MAX_CRIADAS_POR_RODADA);
+  assert.equal(r.adiadas.length, 5);
+  const r2 = await conciliarComissoes(depsC(db));
+  assert.equal(r2.criadas.length, 5);
+  assert.equal(r2.adiadas.length, 0);
 });

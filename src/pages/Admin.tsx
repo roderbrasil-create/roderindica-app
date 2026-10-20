@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import Layout from '../components/layout/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { sendPasswordResetEmail } from 'firebase/auth';
-import { collection, query, onSnapshot, orderBy, doc, updateDoc, setDoc, deleteDoc, where, getDocs, writeBatch, Timestamp, addDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, doc, updateDoc, setDoc, deleteDoc, where, getDocs, writeBatch, addDoc } from 'firebase/firestore';
 import { lerComCache } from '../lib/leiturasCompartilhadas';
 import { db, auth } from '../lib/firebase';
 import { UserProfile, UserRole, UserStatus, AITeaching, RoderApiKey } from '../types';
@@ -13,7 +13,6 @@ import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import RegrasSeguranca from '../components/admin/RegrasSeguranca';
-import FotosExternas from '../components/admin/FotosExternas';
 import DiagnosticoComissao from '../components/admin/DiagnosticoComissao';
 import { 
   UserPlus, 
@@ -35,7 +34,6 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
-  Settings,
   Send,
   AlertCircle,
   ChevronLeft,
@@ -49,12 +47,7 @@ import {
   Activity,
   User,
   Calendar,
-  Trophy,
-  Laptop,
-  Smartphone,
-  Award,
   Brain,
-  Wrench,
   MessageCircle,
   Code2,
   Copy,
@@ -62,9 +55,6 @@ import {
   Power,
   BookOpen
 } from 'lucide-react';
-import { HelpTooltip } from '../components/base/HelpTooltip';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { 
   Tabs, 
   TabsContent, 
@@ -81,12 +71,9 @@ import {
 } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Progress } from '../components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Switch } from '../components/ui/switch';
 import { Link, useNavigate } from 'react-router-dom';
-import { usePWA } from '../contexts/PWAContext';
-import { Wifi, WifiOff, Download } from 'lucide-react';
 import { getApiBaseUrl } from '../lib/utils';
 
 import { maskPhone, maskCpfCnpj } from '../lib/masks';
@@ -97,7 +84,6 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
   const { user, profile, startImpersonation, realProfile, isAdmin, isManager, isTriagem, isMarketing } = useAuth();
   const navigate = useNavigate();
   
-  const { isOffline, canInstall, isDownloading, downloadProgress, pendingSyncCount, installApp, syncDataLocally, processSyncQueue } = usePWA();
   const [activeTab, setActiveTab] = useState(isUsersView ? 'users' : defaultTab);
   
   // Sync the controlled tab state when props change
@@ -345,218 +331,6 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
     }
   };
 
-  const handleDownloadProcedurePDF = () => {
-    try {
-      const doc = new jsPDF('p', 'mm', 'a4');
-      
-      // Top Orange Line (Barra superior decorativa Roder)
-      doc.setFillColor(234, 88, 12); // Roder Orange (ea580c)
-      doc.rect(15, 10, 180, 2.2, 'F');
-      
-      // Header Left
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(20);
-      doc.setTextColor(15, 23, 42); // Slate 900
-      doc.text('RODER', 15, 21);
-      
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.5);
-      doc.setTextColor(100, 100, 100);
-      doc.text('MÁQUINAS E EQUIPAMENTOS', 15, 25);
-      
-      // Header Right
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(11.5);
-      doc.setTextColor(234, 88, 12); // Roder Orange
-      doc.text('PROCEDIMENTO DE ATENDIMENTO', 195, 21, { align: 'right' });
-      
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.setTextColor(100, 100, 100);
-      doc.text('Canal Oficial: RODER Indica (Leads de Indicação)', 195, 25, { align: 'right' });
-      
-      // Dividing Line
-      doc.setDrawColor(226, 232, 240); // Slate 200
-      doc.setLineWidth(0.4);
-      doc.line(15, 28, 195, 28);
-      
-      // Title
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10.5);
-      doc.setTextColor(15, 23, 42);
-      doc.text('PROCEDIMENTO OPERACIONAL PADRÃO (POP) - TRATAMENTO DE LEADS', 15, 34);
-      
-      // Introduction
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.2);
-      doc.setTextColor(51, 65, 85); // Slate 700
-      const introText = "O presente documento formaliza a diretriz estratégica e comercial para o atendimento de leads recebidos pelo canal oficial RODER Indica. Estas regras visam assegurar agilidade comercial, máxima conversão, clareza no contato com o cliente e respeito ao direito de comissão de região do Vendedor Externo.";
-      const splitIntro = doc.splitTextToSize(introText, 180);
-      doc.text(splitIntro, 15, 39);
-      
-      let currentY = 39 + (splitIntro.length * 3.8) + 3;
-      
-      // Section 1: Filosofia e Regra de Ouro
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9.5);
-      doc.setTextColor(234, 88, 12);
-      doc.text('1. FILOSOFIA DE VELOCIDADE & REGRA DE OURO', 15, currentY);
-      
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.setTextColor(51, 65, 85);
-      const ruleText = "Os leads de indicações têm alto interesse e confiança na marca. O primeiro contato com o cliente pode ser por WhatsApp (preferencialmente) ou ligação telefônica. Se o vendedor interno achar interessante, deve primeiro falar com o parceiro identificado para solicitar mais informações sobre o cliente antes de contatá-lo, promovendo plena sinergia desde o início.";
-      const splitRule = doc.splitTextToSize(ruleText, 180);
-      doc.text(splitRule, 15, currentY + 4);
-      
-      currentY = currentY + 4 + (splitRule.length * 3.6) + 4;
-      
-      // Section 2: Tabela de Responsabilidades
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9.5);
-      doc.setTextColor(234, 88, 12);
-      doc.text('2. ATRIBUIÇÕES E COMPARATIVO DE PAPÉIS', 15, currentY);
-      
-      const tableRows = [
-        [
-          'Primeiro Contato',
-          'Contata via WhatsApp/Ligação (normalmente WhatsApp). Se achar interessante, liga primeiro para o parceiro para solicitar informações antes de falar com o cliente.',
-          'NÃO interfere no contato inicial para manter a agilidade e evitar duplicidade de contatos.',
-          'Cadastra a indicação e, ao receber o e-mail informando o vendedor responsável, envia fotos/vídeos da máquina base via WhatsApp.'
-        ],
-        [
-          'Especificações',
-          'Identifica a Máquina Base (marca, modelo, porte) para dimensionar o acessório perfeito.',
-          'Auxilia indicando modelos que já operam com sucesso em clientes próximos da região.',
-          'Fornece detalhes sobre o modelo de máquina que o cliente possui ou pretende adquirir.'
-        ],
-        [
-          'Orçamento',
-          'Coleta os dados, formata a proposta técnica e envia com extrema rapidez ao cliente via WhatsApp.',
-          'Acompanha a negociação pelo CRM e fica disponível para sanar dúvidas se necessário.',
-          'Acompanha a negociação por e-mails de atualização e pela plataforma RODER Indica em tempo real.'
-        ],
-        [
-          'Visita / Suporte',
-          'Se o cliente solicitar visita física ou quiser ver o acessório trabalhando, aciona o Vendedor Externo.',
-          'Realiza a visita técnica presencial, demonstra o equipamento e apresenta referências locais.',
-          'Fica à disposição para apoiar na ponte de comunicação local ou acompanhar se solicitado.'
-        ],
-        [
-          'Comissionamento',
-          'Comissionado internamente de acordo com as regras de vendas da fábrica.',
-          'Garantido! Recebe integralmente a comissão padrão territorial da venda.',
-          'Garantido! Recebe comissão de indicação pré-definida em seu perfil.'
-        ]
-      ];
-      
-      autoTable(doc, {
-        startY: currentY + 3.5,
-        margin: { left: 15, right: 15 },
-        head: [['AÇÃO / FUNÇÃO', 'VENDEDOR INTERNO (FÁBRICA)', 'VENDEDOR EXTERNO (REGIÃO)', 'PARCEIRO INDICADOR']],
-        body: tableRows,
-        theme: 'striped',
-        headStyles: { fillColor: [15, 23, 42], fontSize: 6.8, fontStyle: 'bold', textColor: [255, 255, 255] },
-        styles: { fontSize: 6.2, cellPadding: 1.5, textColor: [51, 65, 85] },
-        columnStyles: {
-          0: { cellWidth: 26, fontStyle: 'bold', textColor: [15, 23, 42] },
-          1: { cellWidth: 51 },
-          2: { cellWidth: 51 },
-          3: { cellWidth: 52 }
-        },
-        didDrawPage: (data) => {
-          currentY = data.cursor ? data.cursor.y : currentY + 45;
-        }
-      });
-      
-      currentY = currentY + 4;
-      
-      // Section 3: Fluxo Passo a Passo
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9.5);
-      doc.setTextColor(234, 88, 12);
-      doc.text('3. FLUXO OPERACIONAL DE ATENDIMENTO', 15, currentY);
-      
-      const stepsText = [
-        "Passo 1 (Triagem & Análise de Duplicidade): Luana recebe a indicação e analisa se já existe atendimento ou negociação ativa com o cliente para o mesmo equipamento. Se não houver atendimento anterior cadastrado, a indicação é ACEITA (válida e protegida por 60 dias). Caso já exista orçamento ou negociação em andamento, a indicação NÃO é aceita. Todas as informações do início da triagem são formalmente registradas no histórico.",
-        "Passo 2 (Distribuição Comercial): Se aceita, Luana direciona o lead ao Vendedor Interno em até 4 horas (limite máximo para evitar distribuição automática por balanceamento).",
-        "Passo 3 (Sinergia com o Parceiro): Se interessante, o Vendedor Interno entra em contato primeiro com o parceiro identificado para solicitar mais informações antes de contatar o cliente.",
-        "Passo 4 (Contato Multicanal com Cliente): O Vendedor Interno contata o cliente por WhatsApp (normalmente) ou ligação telefônica, citando a indicação do parceiro.",
-        "Passo 5 (Mídias & CRM): O parceiro envia fotos/vídeos da máquina base por WhatsApp após receber o e-mail de aviso do vendedor designado, acompanhando tudo em tempo real pela plataforma e e-mails."
-      ];
-      
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.5);
-      doc.setTextColor(51, 65, 85);
-      
-      let stepY = currentY + 4;
-      stepsText.forEach((step) => {
-        const splitStep = doc.splitTextToSize(step, 180);
-        doc.text('•', 15, stepY);
-        doc.text(splitStep, 19, stepY);
-        stepY += (splitStep.length * 3.3) + 0.8;
-      });
-      
-      // Section 4: Dimensionamento & Compatibilidade de Garras
-      currentY = stepY + 2.5;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9.5);
-      doc.setTextColor(234, 88, 12);
-      doc.text('4. DIMENSIONAMENTO & COMPATIBILIDADE DE GARRAS', 15, currentY);
-
-      const techBullets = [
-        "Regra de Ouro: Sempre dimensione a garra com base no porte/força da máquina base, e nunca pelo peso da carga.",
-        "Risco de Força: Máquinas grandes exercem enorme esforço ao apoiar a garra no chão. Garras subdimensionadas quebram.",
-        "Escavadeiras (7 a 10 Ton.): R360/R360G é fisicamente viável, mas alerta de instabilidade (levantar traseira/falta de giro se arrastar árvores) é obrigatório.",
-        "Rotator & Ponteiras (7 a 10 Ton.): Para R280 e R360 em máquinas de 7 a 10t, utilize Rotator de 6t e ponteiras/bielas dimensionadas para caçamba de 6t.",
-        "Alimentação de Picador (>= 14 Ton.): Siga a potência do picador: até 600 cv use R400; até 1.000 cv use R600. A máquina base define a compatibilidade, o picador define a capacidade."
-      ];
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.5);
-      doc.setTextColor(51, 65, 85);
-
-      let bulletY = currentY + 3.8;
-      techBullets.forEach((bullet) => {
-        const splitBullet = doc.splitTextToSize(bullet, 180);
-        doc.text('•', 15, bulletY);
-        doc.text(splitBullet, 19, bulletY);
-        bulletY += (splitBullet.length * 3.3) + 0.8;
-      });
-
-      currentY = bulletY + 2.5;
-      
-      // Box CRM Integration
-      doc.setFillColor(248, 250, 252); // Slate 50
-      doc.setDrawColor(203, 213, 225); // Slate 300
-      doc.rect(15, currentY, 180, 18, 'FD');
-      
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
-      doc.setTextColor(15, 23, 42);
-      doc.text('INTEGRAÇÃO AUTOMÁTICA COM O CRM AGENDOR - SINCRONISMO EM TEMPO REAL:', 18, currentY + 4.5);
-      
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.2);
-      doc.setTextColor(51, 65, 85);
-      const crmDesc = "A interação comercial, histórico, propostas e faturamentos são registrados exclusivamente no CRM Agendor pelo Vendedor Interno. Os dados cadastrados ou atualizados no Agendor são espelhados em tempo real na plataforma RODER Indica, permitindo que o parceiro acompanhe o status da negociação de forma transparente, com zero retrabalho de digitação.";
-      const splitCrm = doc.splitTextToSize(crmDesc, 174);
-      doc.text(splitCrm, 18, currentY + 8);
-      
-      // Footer text
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7);
-      doc.setTextColor(100, 100, 100);
-      doc.text(`Diretriz Interna Oficial | Canal Comercial RODER Indica | Documento em uma única folha | Gerado em ${new Date().toLocaleDateString('pt-BR')}`, 15, 284);
-      
-      doc.save('Procedimento_Atendimento_Roder_Indica.pdf');
-      toast.success('Procedimento oficial de atendimento baixado em PDF com sucesso!');
-    } catch (err: any) {
-      console.error('Error generating PDF:', err);
-      toast.error('Erro ao gerar PDF: ' + err.message);
-    }
-  };
-
   const hasEditAccess = canManageAll || isTriagem || isMarketing;
 
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -578,7 +352,6 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
     senderEmail: 'vendas@roderbrasil.com.br'
   });
   const [notificationSettings, setNotificationSettings] = useState({
-    new_indication_admin: true,
     confirmation_partner: true,
     status_change_partner: true,
     budget_upload_client: false, // Default is false, decision by seller
@@ -599,15 +372,6 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
   const [showPassword, setShowPassword] = useState(false);
   const [approvalQueue, setApprovalQueue] = useState<any[]>([]);
   const [approvingId, setApprovingId] = useState<string | null>(null);
-
-  // Agendor CRM Settings State
-  const [agendorSettings, setAgendorSettings] = useState({
-    enabled: false,
-    apiToken: '',
-  });
-  const [savingAgendor, setSavingAgendor] = useState(false);
-  const [testingAgendor, setTestingAgendor] = useState(false);
-  const [showAgendorToken, setShowAgendorToken] = useState(false);
 
   // AI Training Monitoring State
   const [teachings, setTeachings] = useState<AITeaching[]>([]);
@@ -1256,105 +1020,6 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
 
   // Goals State
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
-  const [activeNodesList, setActiveNodesList] = useState<any[]>([]);
-
-  const getTopConnectedUsers = () => {
-    const enriched = users.map((u) => {
-      const charSum = (u.email || '').split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
-      const isOnline = activeNodesList.some(node => node.uid === u.uid || node.email === u.email);
-      const hasRecentLog = auditLogs.some(log => log.user_uid === u.uid || log.user_email === u.email);
-
-      const nameLower = (u.name || '').toLowerCase();
-      const emailLower = (u.email || '').toLowerCase();
-      
-      const isMarlosOrElissangela = 
-        nameLower.includes('cesar') || 
-        nameLower.includes('schmidt') || 
-        nameLower.includes('marlos') || 
-        nameLower.includes('elissangela') || 
-        nameLower.includes('elissângela') || 
-        nameLower.includes('rhoder') ||
-        emailLower.includes('cesar') || 
-        emailLower.includes('schmidt') || 
-        emailLower.includes('marlos') || 
-        emailLower.includes('elissangela') || 
-        emailLower.includes('rhoder');
-
-      let hours = 0;
-      let days = 0;
-
-      if (isMarlosOrElissangela) {
-        // Specifically César Schmidt (Marlos) and Elissângela Rhoder have not accessed the app, so they are 0h / 0d
-        hours = 0;
-        days = 0;
-      } else if (u.role === 'admin' || (u.email && (u.email.includes('gislene') || u.email.includes('roderindica') || u.email.includes('roderbrasil')))) {
-        // Core active admins have high metrics
-        hours = 215 + (charSum % 25);
-        days = 24 + (charSum % 4);
-      } else if (u.role === 'manager' || (u.email && u.email.includes('luana'))) {
-        // High manager metrics
-        hours = 168 + (charSum % 15);
-        days = 20 + (charSum % 3);
-      } else if (isOnline) {
-        // Other currently active users
-        hours = 6 + (charSum % 14);
-        days = 1 + (charSum % 3);
-      } else if (hasRecentLog) {
-        // Users who have actions registered in audit logs
-        hours = 2 + (charSum % 8);
-        days = 1 + (charSum % 2);
-      } else {
-        // Any user who has not accessed the platform has exactly 0 hours and 0 days
-        hours = 0;
-        days = 0;
-      }
-
-      return {
-        uid: u.uid,
-        name: u.name || (u.email ? u.email.split('@')[0] : 'usuário'),
-        email: u.email || '',
-        role: u.role || 'user',
-        hours,
-        days,
-        isOnline
-      };
-    });
-
-    const sorted = [...enriched].sort((a, b) => b.hours - a.hours);
-
-    if (sorted.length < 10) {
-      const extraPioneers = [
-        { name: "Gislene (Gerente)", email: "gislene@roderbrasil.com.br", role: "manager", hours: 194, days: 25, isOnline: activeNodesList.some(n => n.email?.includes('gislene')) },
-        { name: "Luana (Triagem)", email: "luana@roderbrasil.com.br", role: "triagem", hours: 176, days: 23, isOnline: activeNodesList.some(n => n.email?.includes('luana')) },
-        { name: "Roder Distribuidor SC", email: "sc.vendas@roder.com", role: "external_seller", hours: 142, days: 21, isOnline: false },
-        { name: "Roder Distribuidor PR", email: "pr.vendas@roder.com", role: "external_seller", hours: 135, days: 20, isOnline: false },
-        { name: "Avanço Comercial SP", email: "sp.avanco@roder.com", role: "external_seller", hours: 118, days: 18, isOnline: false },
-        { name: "AgroPeças RS", email: "rs.agro@roder.com", role: "external_seller", hours: 104, days: 17, isOnline: false },
-        { name: "Oeste Tratores MS", email: "ms.oeste@roder.com", role: "external_seller", hours: 95, days: 16, isOnline: false },
-        { name: "Norte Forte PA", email: "pa.norte@roder.com", role: "external_seller", hours: 88, days: 15, isOnline: false },
-        { name: "Cerrado Máquinas GO", email: "go.cerrado@roder.com", role: "external_seller", hours: 74, days: 12, isOnline: false },
-        { name: "Triângulo Máquinas MG", email: "mg.triangulo@roder.com", role: "external_seller", hours: 62, days: 11, isOnline: false }
-      ];
-
-      for (const p of extraPioneers) {
-        if (sorted.length >= 10) break;
-        if (!sorted.some(s => s.email === p.email)) {
-          sorted.push({
-            uid: `sim_${p.email}`,
-            name: p.name,
-            email: p.email,
-            role: p.role,
-            hours: p.hours,
-            days: p.days,
-            isOnline: p.isOnline
-          });
-        }
-      }
-    }
-
-    return sorted.slice(0, 10);
-  };
-
   useEffect(() => {
     if (!isAdmin && !isManager) return;
     const q = query(collection(db, 'approval_queue'), where('status', '==', 'pending'), orderBy('created_at', 'desc'));
@@ -1366,29 +1031,6 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
 
   useEffect(() => {
     const unsubscribe = AuditService.getRecentLogs(setAuditLogs);
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    // Keep a generous 30 minutes window to fetch any potential active nodes (tolerates clock skew)
-    const thirtyMinsAgo = new Date();
-    thirtyMinsAgo.setMinutes(thirtyMinsAgo.getMinutes() - 30);
-    const tsThreshold = Timestamp.fromDate(thirtyMinsAgo);
-
-    const q = query(collection(db, 'edge_nodes'), where('last_seen', '>=', tsThreshold));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const now = new Date();
-      // Filter in-memory: only display nodes seen within 10 minutes (using absolute difference for clock skew)
-      const nodes = snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter((node: any) => {
-          const lastSeenDate = node.last_seen?.toDate ? node.last_seen.toDate() : null;
-          if (!lastSeenDate) return false;
-          const diffMins = Math.abs(now.getTime() - lastSeenDate.getTime()) / 60000;
-          return diffMins <= 10;
-        });
-      setActiveNodesList(nodes);
-    });
     return () => unsubscribe();
   }, []);
 
@@ -1551,12 +1193,6 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
       }
     });
 
-    const unsubAgendor = onSnapshot(doc(db, 'settings', 'agendor'), (snap) => {
-      if (snap.exists()) {
-        setAgendorSettings(snap.data() as any);
-      }
-    });
-
     const unsubGoals = onSnapshot(doc(db, 'settings', 'goals'), (snap) => {
       if (snap.exists()) {
         setGoals(snap.data() as any);
@@ -1566,7 +1202,6 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
     return () => {
       unsubEmail();
       unsubNotifications();
-      unsubAgendor();
       unsubGoals();
     };
   }, []);
@@ -1697,45 +1332,6 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
       }
     } catch (error: any) {
       toast.error('Erro técnico: ' + error.message, { id: toastId });
-    }
-  };
-
-  const handleSaveAgendorSettings = async () => {
-    setSavingAgendor(true);
-    try {
-      await setDoc(doc(db, 'settings', 'agendor'), agendorSettings);
-      toast.success('Configurações de integração do Agendor salvas!');
-    } catch (error: any) {
-      toast.error('Erro ao salvar configurações do Agendor: ' + error.message);
-    } finally {
-      setSavingAgendor(false);
-    }
-  };
-
-  const handleTestAgendorConnection = async () => {
-    setTestingAgendor(true);
-    const toastId = toast.loading('Testando conexão com o Agendor...');
-    try {
-      const response = await fetch('/api/agendor/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          apiToken: agendorSettings.apiToken,
-          indicatorName: realProfile?.name || profile?.name || 'Jeferson Roder',
-          indicatorEmail: realProfile?.email || profile?.email || 'jeferson@roderbrasil.com.br',
-          indicatorPhone: realProfile?.phone || profile?.phone || '(14) 99811-5110'
-        })
-      });
-      const data = await response.json();
-      if (response.ok && data.success) {
-        toast.success(data.message || `Conexão efetuada com sucesso! ${data.users?.length || 0} usuários mapeados no Agendor.`, { id: toastId, duration: 12000 });
-      } else {
-        toast.error('Falha de conexão: ' + (data.error || 'Erro desconhecido'), { id: toastId });
-      }
-    } catch (error: any) {
-      toast.error('Erro na chamada da API: ' + error.message, { id: toastId });
-    } finally {
-      setTestingAgendor(false);
     }
   };
 
@@ -2042,101 +1638,6 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
     }
   };
 
-  const handleQuickInviteRogerio = async () => {
-    const rogerioEmail = 'rogerio@roderbrasil.com.br';
-    const existing = users.find(u => u.email === rogerioEmail);
-    
-    if (existing) {
-      toast.info('Rogério já está cadastrado!');
-      handleShareAccess(existing);
-      return;
-    }
-
-    try {
-      const tempId = `rogerio_${Date.now()}`;
-      const rogerioData: UserProfile = {
-        uid: tempId,
-        name: 'Rogério',
-        email: rogerioEmail,
-        phone: '14998665110',
-        role: 'manager',
-        status: 'active',
-        created_at: new Date().toISOString(),
-      };
-
-      await setDoc(doc(db, 'users', tempId), rogerioData);
-      toast.success('Rogério cadastrado com sucesso!');
-      handleShareAccess(rogerioData);
-    } catch (error) {
-      console.error('Error inviting Rogério:', error);
-      toast.error('Erro ao cadastrar Rogério.');
-    }
-  };
-
-  const handleQuickInviteLuana = async () => {
-    const luanaEmail = 'contato@roderbrasil.com.br';
-    const existing = users.find(u => u.email === luanaEmail);
-    if (existing) { toast.info('Luana já está cadastrada!'); handleShareAccess(existing); return; }
-    try {
-      const tempId = `luana_${Date.now()}`;
-      const luanaData: UserProfile = {
-        uid: tempId, name: 'Luana Camargo', email: luanaEmail, phone: '', role: 'triagem',
-        status: 'active', created_at: new Date().toISOString(), is_lead_receiver: true
-      };
-      await setDoc(doc(db, 'users', tempId), luanaData);
-      toast.success('Luana cadastrada com sucesso!');
-      handleShareAccess(luanaData);
-    } catch (error) { toast.error('Erro ao cadastrar Luana.'); }
-  };
-
-  const handleQuickInviteGislene = async () => {
-    const gisleneEmail = 'gislene@roderbrasil.com.br';
-    const existing = users.find(u => u.email === gisleneEmail);
-    if (existing) { toast.info('Gislene já está cadastrada!'); handleShareAccess(existing); return; }
-    try {
-      const tempId = `gislene_${Date.now()}`;
-      const gisleneData: UserProfile = {
-        uid: tempId, name: 'Gislene', email: gisleneEmail, phone: '', role: 'manager',
-        status: 'active', created_at: new Date().toISOString()
-      };
-      await setDoc(doc(db, 'users', tempId), gisleneData);
-      toast.success('Gislene cadastrada com sucesso!');
-      handleShareAccess(gisleneData);
-    } catch (error) { toast.error('Erro ao cadastrar Gislene.'); }
-  };
-
-  const handleQuickInviteMonali = async () => {
-    const email = 'monali@roderbrasil.com.br';
-    const existing = users.find(u => u.email === email);
-    if (existing) { toast.info('Monalí já está cadastrada!'); handleShareAccess(existing); return; }
-    try {
-      const tempId = `monali_${Date.now()}`;
-      const data: UserProfile = {
-        uid: tempId, name: 'Monalí Souza', email: email, phone: '14998115211', role: 'internal_seller',
-        status: 'active', created_at: new Date().toISOString(), city: 'Pardinho', state: 'SP', is_commissionable: false
-      };
-      await setDoc(doc(db, 'users', tempId), data);
-      toast.success('Monalí cadastrada com sucesso!');
-      handleShareAccess(data);
-    } catch (error) { toast.error('Erro ao cadastrar Monalí.'); }
-  };
-
-  const handleQuickInviteHeloisa = async () => {
-    const email = 'heloisa@roderbrasil.com.br';
-    const existing = users.find(u => u.email === email);
-    if (existing) { toast.info('Heloisa já está cadastrada!'); handleShareAccess(existing); return; }
-    try {
-      const tempId = `heloisa_${Date.now()}`;
-      const data: UserProfile = {
-        uid: tempId, name: 'Heloisa Laira', email: email, phone: '14996305110', role: 'internal_seller',
-        status: 'active', created_at: new Date().toISOString(), city: 'Pardinho', state: 'SP', is_commissionable: false
-      };
-      await setDoc(doc(db, 'users', tempId), data);
-      toast.success('Heloisa cadastrada com sucesso!');
-      handleShareAccess(data);
-    } catch (error) { toast.error('Erro ao cadastrar Heloisa.'); }
-  };
-
   const filteredUsers = users.filter(u => {
     // Escopo da Luana/Triagem e Gerência Comercial: Vendedores e Triagem
     if ((isManager || isTriagem) && !isAdmin) {
@@ -2265,39 +1766,46 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                 <p className="text-xs text-muted-foreground hidden sm:block">
                   {isUsersView 
                     ? 'Gerencie perfis, acessos e status dos usuários do sistema.' 
-                    : 'Gerencie metas, envio de e-mails, instruções, monitoramento e conectividade offline.'}
+                    : 'Gerencie metas, envio de e-mails e monitoramento.'}
                 </p>
               </div>
             </div>
             
             {isUsersView && (
               <div className="flex gap-2">
-                <Button 
-                  onClick={mergeDuplicateUsers} 
-                  variant="outline" 
-                  size="sm" 
-                  disabled={isMerging}
-                  className="border-orange-500 text-orange-500 hover:bg-orange-500/5 text-[10px] h-8 px-4 font-bold uppercase tracking-wider flex shrink-0"
-                >
-                  {isMerging ? (
-                    <span className="flex items-center gap-1">
-                      <span className="animate-spin h-3 w-3 border-2 border-orange-500 border-t-transparent rounded-full" />
-                      Unificando...
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1">
-                      <Users className="h-3 w-3" /> Unificar Duplicados
-                    </span>
-                  )}
-                </Button>
-                <Button 
-                  onClick={syncAllExternalSellersPermissions} 
-                  variant="outline" 
-                  size="sm" 
-                  className="border-primary text-primary hover:bg-primary/5 text-[10px] h-8 px-4 font-bold uppercase tracking-wider hidden sm:flex shrink-0"
-                >
-                  <Shield className="h-3 w-3 mr-1" /> Resetar Vendedores
-                </Button>
+                <details className="relative shrink-0 group">
+                  <summary className="list-none cursor-pointer inline-flex items-center rounded-md border border-border bg-background hover:bg-accent text-[10px] h-8 px-4 font-bold uppercase tracking-wider select-none [&::-webkit-details-marker]:hidden">
+                    Ferramentas
+                  </summary>
+                  <div className="absolute right-0 z-20 mt-1 flex flex-col gap-2 rounded-md border border-border bg-card p-2 shadow-lg w-max">
+                    <Button 
+                      onClick={mergeDuplicateUsers} 
+                      variant="outline" 
+                      size="sm" 
+                      disabled={isMerging}
+                      className="border-orange-500 text-orange-500 hover:bg-orange-500/5 text-[10px] h-8 px-4 font-bold uppercase tracking-wider"
+                    >
+                      {isMerging ? (
+                        <span className="flex items-center gap-1">
+                          <span className="animate-spin h-3 w-3 border-2 border-orange-500 border-t-transparent rounded-full" />
+                          Unificando...
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1">
+                          <Users className="h-3 w-3" /> Unificar Duplicados
+                        </span>
+                      )}
+                    </Button>
+                    <Button 
+                      onClick={syncAllExternalSellersPermissions} 
+                      variant="outline" 
+                      size="sm" 
+                      className="border-primary text-primary hover:bg-primary/5 text-[10px] h-8 px-4 font-bold uppercase tracking-wider"
+                    >
+                      <Shield className="h-3 w-3 mr-1" /> Resetar Vendedores
+                    </Button>
+                  </div>
+                </details>
                 <Button onClick={() => { resetForm(); setDialogTab('general'); setIsDialogOpen(true); }} size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground text-[10px] h-8 px-4 font-bold uppercase tracking-wider shadow-sm shrink-0">
                   <UserPlus className="h-3 w-3 mr-1" /> Novo Usuário
                 </Button>
@@ -2308,21 +1816,6 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
           {/* Quick Invite Badges positioned at the top for users view */}
           {isUsersView && (
             <div className="flex overflow-x-auto pb-1 -mx-1 px-1 gap-2 no-scrollbar">
-              <Button onClick={handleQuickInviteRogerio} variant="outline" size="sm" className="border-green-600/30 text-green-600 bg-green-500/5 hover:bg-green-600/10 font-bold shrink-0 text-[10px] h-8 px-3">
-                <Plus className="h-3 w-3 mr-1" /> Rogério
-              </Button>
-              <Button onClick={handleQuickInviteLuana} variant="outline" size="sm" className="border-blue-600/30 text-blue-600 bg-blue-500/5 hover:bg-blue-600/10 font-bold shrink-0 text-[10px] h-8 px-3">
-                <Plus className="h-3 w-3 mr-1" /> Luana
-              </Button>
-              <Button onClick={handleQuickInviteGislene} variant="outline" size="sm" className="border-purple-600/30 text-purple-600 bg-purple-500/5 hover:bg-purple-600/10 font-bold shrink-0 text-[10px] h-8 px-3">
-                <Plus className="h-3 w-3 mr-1" /> Gislene
-              </Button>
-              <Button onClick={handleQuickInviteMonali} variant="outline" size="sm" className="border-orange-600/30 text-orange-600 bg-orange-50/50 hover:bg-orange-600/10 font-bold shrink-0 text-[10px] h-8 px-3">
-                <Plus className="h-3 w-3 mr-1" /> Monalí
-              </Button>
-              <Button onClick={handleQuickInviteHeloisa} variant="outline" size="sm" className="border-pink-600/30 text-pink-600 bg-pink-500/5 hover:bg-pink-600/10 font-bold shrink-0 text-[10px] h-8 px-3">
-                <Plus className="h-3 w-3 mr-1" /> Heloisa
-              </Button>
               <Link to="/contrato?preview=true" target="_blank" className="inline-flex items-center justify-center rounded-md text-[10px] font-bold border border-border bg-background hover:bg-accent h-8 px-3 shrink-0">
                 <FileText className="h-3 w-3 mr-1" /> Contrato
               </Link>
@@ -2359,19 +1852,6 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                   <TrendingUp className="h-4 w-4 shrink-0" /> <span>Metas</span>
                 </TabsTrigger>
               )}
-              {(isAdmin || isManager || isMarketing) && (
-                <TabsTrigger 
-                  value="instructions" 
-                  className={cn(
-                    "flex-1 flex items-center justify-center gap-2 py-3 px-4 text-[11px] md:text-xs font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer h-11",
-                    activeTab === 'instructions' 
-                      ? "bg-orange-600 text-white shadow-[0_4px_12px_rgba(234,88,12,0.3)] border border-orange-600 scale-[1.02] z-10" 
-                      : "bg-transparent text-muted-foreground hover:text-foreground border border-transparent hover:bg-muted/30"
-                  )}
-                >
-                  <FileText className="h-4 w-4 shrink-0" /> <span>Instruções</span>
-                </TabsTrigger>
-              )}
               {isAdmin && (
                 <TabsTrigger 
                   value="system" 
@@ -2406,17 +1886,6 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                   )}
                 </TabsTrigger>
               )}
-              <TabsTrigger 
-                value="connectivity" 
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-2 py-3 px-4 text-[11px] md:text-xs font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer h-11",
-                  activeTab === 'connectivity' 
-                    ? "bg-orange-600 text-white shadow-[0_4px_12px_rgba(234,88,12,0.3)] border border-orange-600 scale-[1.02] z-10" 
-                    : "bg-transparent text-muted-foreground hover:text-foreground border border-transparent hover:bg-muted/30"
-                )}
-              >
-                <Wifi className="h-4 w-4 shrink-0" /> <span>Conectividade</span>
-              </TabsTrigger>
               {(isAdmin || isManager || realProfile?.email === 'roderbrasil@gmail.com') && (
                 <TabsTrigger 
                   value="ai_monitoring" 
@@ -2641,32 +2110,6 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                           <td className="px-2 py-4 text-right">
                             {(isAdmin || ((isManager || isTriagem) && ['external_seller', 'internal_seller', 'triagem'].includes(user.role as string))) && (
                               <div className="flex justify-end gap-0.5">
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon" 
-                                  className="h-7 w-7 text-blue-500 hover:bg-blue-500/10"
-                                  onClick={async () => {
-                                    if (!window.confirm(`Deseja restaurar as permissões padrão para ${user.name}? Isso pode resolver problemas de acesso a menus.`)) return;
-                                    try {
-                                      const defaults = ROLE_DEFAULTS[user.role] || ROLE_DEFAULTS.external_seller;
-                                      const sidebar: Record<string, boolean> = {};
-                                      sidebarItems.forEach(i => sidebar[i.id] = defaults.sidebar.includes(i.id));
-                                      const dashboard_cards: Record<string, boolean> = {};
-                                      dashboardCards.forEach(c => dashboard_cards[c.id] = defaults.dashboard.includes(c.id));
-                                      
-                                      await updateDoc(doc(db, 'users', user.uid), {
-                                        permissions: { sidebar, dashboard_cards },
-                                        updated_at: new Date().toISOString()
-                                      });
-                                      toast.success('Permissões restauradas com sucesso.');
-                                    } catch (e: any) {
-                                      toast.error('Erro ao restaurar: ' + e.message);
-                                    }
-                                  }}
-                                  title="Restaurar Permissões Padrão"
-                                >
-                                  <RefreshCw className="h-3.5 w-3.5" />
-                                </Button>
                                 <Button 
                                   variant="ghost" 
                                   size="icon" 
@@ -2975,7 +2418,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
             </TabsContent>
 
           <TabsContent value="settings">
-            {isAdmin && <div className="max-w-5xl"><RegrasSeguranca /><FotosExternas /></div>}
+            {isAdmin && <div className="max-w-5xl"><RegrasSeguranca /></div>}
             {isAdmin && <div className="max-w-5xl"><DiagnosticoComissao /></div>}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-5xl">
               <div className="flex flex-col gap-6">
@@ -3057,83 +2500,6 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                         </div>
                       )}
 
-                      <div className="flex items-center justify-between p-3 rounded-lg bg-background border border-border">
-                        <div className="space-y-0.5">
-                          <Label className="text-sm">Nova Indicação (Admin)</Label>
-                          <p className="text-[10px] text-muted-foreground">Avisar gestores sobre novos leads.</p>
-                        </div>
-                        <Switch 
-                          checked={notificationSettings.new_indication_admin} 
-                          onCheckedChange={(v) => setNotificationSettings({...notificationSettings, new_indication_admin: v})}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 rounded-lg bg-background border border-border">
-                        <div className="space-y-0.5">
-                          <Label className="text-sm">Confirmação de Recebimento (Parceiro)</Label>
-                          <p className="text-[10px] text-muted-foreground">Avisar o indicador que sua indicação foi recebida.</p>
-                        </div>
-                        <Switch 
-                          checked={notificationSettings.confirmation_partner} 
-                          onCheckedChange={(v) => setNotificationSettings({...notificationSettings, confirmation_partner: v})}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 rounded-lg bg-background border border-border">
-                        <div className="space-y-0.5">
-                          <Label className="text-sm">Mudança de Status (Parceiro)</Label>
-                          <p className="text-[10px] text-muted-foreground">Avisar o indicador quando o lead avança.</p>
-                        </div>
-                        <Switch 
-                          checked={notificationSettings.status_change_partner} 
-                          onCheckedChange={(v) => setNotificationSettings({...notificationSettings, status_change_partner: v})}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 rounded-lg bg-background border border-border">
-                        <div className="space-y-0.5">
-                          <Label className="text-sm">Comissão Aprovada</Label>
-                          <p className="text-[10px] text-muted-foreground">Avisar o parceiro que o pagamento foi liberado.</p>
-                        </div>
-                        <Switch 
-                          checked={notificationSettings.commission_approved_partner} 
-                          onCheckedChange={(v) => setNotificationSettings({...notificationSettings, commission_approved_partner: v})}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 rounded-lg bg-background border border-border">
-                        <div className="space-y-0.5">
-                          <Label className="text-sm">Relatório Mensal (Diretoria/Gestão)</Label>
-                          <p className="text-[10px] text-muted-foreground">Resumo completo enviado no dia 1º.</p>
-                        </div>
-                        <Switch 
-                          checked={notificationSettings.monthly_report_directors} 
-                          onCheckedChange={(v) => setNotificationSettings({...notificationSettings, monthly_report_directors: v})}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 rounded-lg bg-background border border-border">
-                        <div className="space-y-0.5">
-                          <Label className="text-sm">Relatório Mensal (Indicadores)</Label>
-                          <p className="text-[10px] text-muted-foreground">Extrato de comissões por parceiro (dia 1-5).</p>
-                        </div>
-                        <Switch 
-                          checked={notificationSettings.monthly_report_partners} 
-                          onCheckedChange={(v) => setNotificationSettings({...notificationSettings, monthly_report_partners: v})}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 rounded-lg bg-background border border-border">
-                        <div className="space-y-0.5">
-                          <Label className="text-sm">Lembrete de Pagamento (Financeiro)</Label>
-                          <p className="text-[10px] text-muted-foreground">Total de comissões a pagar, enviado no dia 7.</p>
-                        </div>
-                        <Switch 
-                          checked={!!notificationSettings.payment_reminder_finance} 
-                          onCheckedChange={(v) => setNotificationSettings({...notificationSettings, payment_reminder_finance: v})}
-                        />
-                      </div>
-
                       <div className="space-y-2 pt-2">
                         <Label htmlFor="director_emails" className="text-xs">E-mails da Diretoria (Separados por vírgula)</Label>
                         <Input 
@@ -3174,91 +2540,6 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                       >
                         {savingNotifications ? 'Salvando...' : 'Salvar Preferências'}
                       </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Coluna 2: Integração Agendor CRM (desligada em out/2026) */}
-              <div className="hidden">
-                <Card className="bg-card border-border shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="text-xl font-bold flex items-center gap-2">
-                      <Settings className="h-5 w-5 text-primary" /> Integração Agendor CRM
-                    </CardTitle>
-                    <p className="text-xs text-muted-foreground">Sincronize contatos, empresas e indicações automaticamente.</p>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    <div className="p-4 rounded-lg bg-emerald-500/5 border border-emerald-500/20 space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div className="space-y-0.5">
-                          <Label className="text-sm font-semibold flex items-center gap-1.5 text-emerald-500">
-                            <CheckCircle2 className="h-4 w-4" /> Ativar Integração
-                          </Label>
-                          <p className="text-[10px] text-muted-foreground">Se ativo, novas indicações serão enviadas automaticamente para o Agendor.</p>
-                        </div>
-                        <Switch 
-                          checked={agendorSettings.enabled} 
-                          onCheckedChange={(v) => setAgendorSettings({...agendorSettings, enabled: v})}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="agendor_token" className="text-xs font-semibold flex items-center gap-1">
-                          <Key className="h-3.5 w-3.5 text-primary" /> Token de API do Agendor
-                        </Label>
-                        <div className="relative">
-                          <Input 
-                            id="agendor_token"
-                            type={showAgendorToken ? "text" : "password"}
-                            placeholder="Insira o Token obtido no perfil do Agendor"
-                            value={agendorSettings.apiToken}
-                            onChange={(e) => setAgendorSettings({...agendorSettings, apiToken: e.target.value})}
-                            className="bg-background border-border text-xs pr-10"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowAgendorToken(!showAgendorToken)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                          >
-                            {showAgendorToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                          </button>
-                        </div>
-                        <p className="text-[10px] text-muted-foreground leading-relaxed">
-                          Para obter seu Token, acesse o <strong>Agendor &gt; Menu &gt; Configurações &gt; Integrações &gt; API</strong> ou use as credenciais de Gislene no site do Agendor para gerá-lo.
-                        </p>
-                      </div>
-
-                      <div className="p-3.5 bg-slate-500/5 border border-border rounded-lg space-y-2">
-                        <h4 className="text-[11px] font-bold uppercase text-amber-500 flex items-center gap-1">
-                          <AlertCircle className="h-3.5 w-3.5" /> Como Funciona a Integração
-                        </h4>
-                        <ul className="text-[10px] text-muted-foreground space-y-1.5 list-disc pl-4 leading-normal">
-                          <li><strong>Contatos unificados:</strong> O sistema busca ou cria automaticamente a Pessoa e a Empresa no Agendor antes de registrar o negócio.</li>
-                          <li><strong>Sincronismo de Indicações:</strong> Novas solicitações de orçamento do Roder Indica são convertidas instantaneamente em <strong>Negócios (Deals)</strong> na etapa de <strong>Lead</strong> no Agendor.</li>
-                          <li><strong>Rastreabilidade total:</strong> Cada indicação sincronizada salva a referência ID do Agendor no Roder Indica para consultas futuras.</li>
-                        </ul>
-                      </div>
-
-                      <div className="flex gap-2">
-                        <Button 
-                          onClick={handleSaveAgendorSettings} 
-                          disabled={savingAgendor} 
-                          className="flex-1 bg-primary hover:bg-primary/90 text-xs font-bold"
-                        >
-                          {savingAgendor ? 'Salvando...' : 'Salvar Configurações'}
-                        </Button>
-                        <Button 
-                          variant="outline"
-                          onClick={handleTestAgendorConnection} 
-                          disabled={testingAgendor || !agendorSettings.apiToken} 
-                          className="flex-1 border-border text-xs font-bold"
-                        >
-                          {testingAgendor ? 'Testando...' : 'Testar Conexão'}
-                        </Button>
-                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -3313,292 +2594,6 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                 </CardContent>
               </Card>
             </div>
-          </TabsContent>
-
-          <TabsContent value="instructions">
-            <Card className="bg-card border-border shadow-md">
-              <CardHeader>
-                <CardTitle className="text-xl flex items-center gap-2">
-                  <FileText className="h-6 w-6 text-primary" /> Regras de Negócio e Instruções do Sistema
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <h3 className="font-bold text-primary uppercase tracking-wider text-sm border-b border-border pb-2">Pessoal Chave</h3>
-                    <ul className="space-y-2 text-sm">
-                      <li className="flex items-center gap-2">
-                        <Badge variant="outline">Gislene</Badge> Gerente Comercial
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <Badge variant="outline">Luana</Badge> Responsável pela triagem e gestão de leads
-                      </li>
-                    </ul>
-
-                    <h3 className="font-bold text-primary uppercase tracking-wider text-sm border-b border-border pb-2 mt-6">Regras de Negociações</h3>
-                    <ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground">
-                      <li>Validade da Proposta: 60 dias após upload do orçamento.</li>
-                      <li>Proteção de Lead: 60 dias após envio do orçamento. Se não houver venda, o lead é cancelado mas pode ser renovado se houver interesse comprovado.</li>
-                    </ul>
-                  </div>
-
-                  <div className="space-y-4">
-                    <h3 className="font-bold text-primary uppercase tracking-wider text-sm border-b border-border pb-2">Cálculo de Comissões</h3>
-                    <div className="p-4 rounded-lg bg-muted/50 border border-border text-sm space-y-3">
-                      <p>1. A comissão é calculada sobre o <strong>valor base da comissão</strong>.</p>
-                      <p>2. Se houver desconto, deve ser deduzido do <strong>valor base</strong> antes de aplicar a taxa.</p>
-                      <p>3. A taxa de comissão é fixa baseada no perfil do indicador e não muda durante a negociação.</p>
-                    </div>
-
-                    <h3 className="font-bold text-orange-500 uppercase tracking-wider text-sm border-b border-orange-500/20 pb-2 mt-6">Alertas para Gerência (Gislene/Luana)</h3>
-                    <div className="p-4 rounded-lg bg-orange-500/5 border border-orange-500/20 text-sm flex items-start gap-3">
-                      <Shield className="h-5 w-5 text-orange-500 mt-0.5" />
-                      <p className="text-orange-200">
-                        Exibir aviso se uma indicação estiver em "negociação" mas não tiver um <strong>valor base de comissão</strong> preenchido.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-8 p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                  <h3 className="font-bold text-blue-400 text-sm mb-2 flex items-center gap-2">
-                    <Settings className="h-4 w-4" /> Suporte Técnico e Acesso
-                  </h3>
-                  <p className="text-xs text-blue-200/70 leading-relaxed">
-                    Administradores e Gerentes possuem o botão "OLHO" na lista de usuários que permite simular a visão de qualquer outro perfil (Impersonate). 
-                    O email principal para administração é <strong>roderindica@gmail.com</strong>.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-card border-border shadow-md mt-6">
-              <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border pb-4">
-                <div>
-                  <CardTitle className="text-xl flex items-center gap-2 text-primary font-bold">
-                    <Award className="h-6 w-6 text-primary" /> Procedimento Oficial de Atendimento (RODER Indica)
-                  </CardTitle>
-                  <p className="text-xs text-muted-foreground mt-1">Diretrizes oficiais para atendimento ágil e alta conversão de leads indicados</p>
-                </div>
-                <Button 
-                  onClick={handleDownloadProcedurePDF}
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs uppercase gap-1.5 h-9"
-                >
-                  <Download className="h-4 w-4" /> Baixar PDF com Logo
-                </Button>
-              </CardHeader>
-              <CardContent className="space-y-6 pt-6">
-                <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 text-sm leading-relaxed text-muted-foreground">
-                            Por esta razão, o <strong>primeiro contato deve ser realizado direta e exclusivamente pelo Vendedor Interno da Fábrica</strong>, em coordenação inicial com o parceiro indicador se necessário.
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  {/* Left block - O Vendedor Interno */}
-                  <div className="space-y-4 border border-border p-5 rounded-xl bg-muted/20">
-                    <h3 className="font-bold text-primary uppercase tracking-wider text-xs border-b border-border pb-2 flex items-center gap-2">
-                      <User className="h-4 w-4 text-primary" /> Atuação do Vendedor Interno (Fábrica)
-                    </h3>
-                    <ul className="space-y-3 text-xs leading-relaxed text-muted-foreground">
-                      <li className="flex items-start gap-2">
-                        <span className="text-primary font-bold mt-0.5">•</span>
-                        <span><strong>Interação Inicial Inteligente:</strong> Se achar interessante, o vendedor interno deve entrar em contato primeiro com o parceiro identificado para solicitar mais informações sobre o cliente antes de contatar o cliente propriamente dito. Isso agiliza muito o levantamento de dados e estabelece uma forte sinergia.</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-primary font-bold mt-0.5">•</span>
-                        <span><strong>Contato Multicanal com Cliente:</strong> O contato com o cliente pode ser realizado por WhatsApp ou ligação telefônica, sendo que normalmente nos comunicamos via WhatsApp. O vendedor apresenta-se, cita explicitamente a indicação e fundamenta o levantamento técnico complementar.</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-primary font-bold mt-0.5">•</span>
-                        <span><strong>Elaboração de Orçamento:</strong> Elabora e envia a proposta técnica comercial com máxima agilidade diretamente ao cliente, registrando-a no CRM Agendor para sincronização automática.</span>
-                      </li>
-                    </ul>
-                  </div>
-
-                  {/* Right block - O Vendedor Externo */}
-                  <div className="space-y-4 border border-border p-5 rounded-xl bg-muted/20">
-                    <h3 className="font-bold text-primary uppercase tracking-wider text-xs border-b border-border pb-2 flex items-center gap-2">
-                      <Users className="h-4 w-4 text-primary" /> Atuação do Vendedor Externo (Região)
-                    </h3>
-                    <ul className="space-y-3 text-xs leading-relaxed text-muted-foreground">
-                      <li className="flex items-start gap-2">
-                        <span className="text-primary font-bold mt-0.5">•</span>
-                        <span><strong>Comissão Territorial Garantida:</strong> Mesmo que a venda seja conduzida e fechada de forma direta pela fábrica com o vendedor interno, o Vendedor Externo da região tem o direito de receber integralmente sua <strong>comissão padrão de território</strong>.</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-primary font-bold mt-0.5">•</span>
-                        <span><strong>Sem Interferência Inicial:</strong> O externo <strong>não</strong> deve intervir ou fazer contato direto no primeiro momento, para manter a comunicação clara e focada no vendedor interno, evitando excesso de pessoas falando com o cliente.</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-primary font-bold mt-0.5">•</span>
-                        <span><strong>Apoio Presencial & Referências:</strong> É acionado apenas se o cliente solicitar uma visita física presencial ou desejar referências de máquinas operando na região. Como conhece muito bem o território local e os proprietários próximos, o vendedor externo traz excelente segurança para o fechamento.</span>
-                      </li>
-                    </ul>
-                  </div>
-
-                  {/* Third block - O Parceiro Indicador */}
-                  <div className="space-y-4 border border-border p-5 rounded-xl bg-muted/20">
-                    <h3 className="font-bold text-primary uppercase tracking-wider text-xs border-b border-border pb-2 flex items-center gap-2">
-                      <Award className="h-4 w-4 text-primary" /> Atuação do Parceiro Indicador
-                    </h3>
-                    <ul className="space-y-3 text-xs leading-relaxed text-muted-foreground">
-                      <li className="flex items-start gap-2">
-                        <span className="text-primary font-bold mt-0.5">•</span>
-                        <span><strong>Apoio de Mídia via WhatsApp:</strong> Assim que recebe os dados do cliente e o e-mail informando qual é o vendedor interno responsável pelo atendimento, o parceiro identificado pode enviar fotos, vídeos e outros detalhes da máquina base do cliente diretamente via WhatsApp para o vendedor.</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-primary font-bold mt-0.5">•</span>
-                        <span><strong>Acompanhamento da Negociação:</strong> O parceiro terá todas as informações e poderá acompanhar o andamento da negociação tanto pelo recebimento de e-mails de atualização de status quanto pela plataforma, que exibe o status e quaisquer alterações em tempo real.</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-primary font-bold mt-0.5">•</span>
-                        <span><strong>Sinergia desde o Início:</strong> Mantém-se integrado e disponível para apoiar a negociação caso seja necessário em conjunto com a fábrica.</span>
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-
-                <div className="border border-border rounded-xl overflow-hidden mt-4">
-                  <div className="bg-muted p-3 border-b border-border text-xs font-bold uppercase text-foreground">
-                    Comparativo de Atribuições Comerciais
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-muted/30 border-b border-border text-muted-foreground">
-                          <th className="p-3 font-semibold">Atividade</th>
-                          <th className="p-3 font-semibold">Vendedor Interno (Fábrica)</th>
-                          <th className="p-3 font-semibold">Vendedor Externo (Região)</th>
-                          <th className="p-3 font-semibold">Parceiro Indicador</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border text-muted-foreground">
-                        <tr>
-                          <td className="p-3 font-bold text-foreground">Primeiro Contato</td>
-                          <td className="p-3">Se necessário, alinha antes com o parceiro indicador para obter fotos/vídeos da máquina. Se não, faz contato direto com o cliente.</td>
-                          <td className="p-3">Não intervém no primeiro momento (evita duplicidade e ruído).</td>
-                          <td className="p-3">Informa detalhes/fotos/vídeos da máquina ao vendedor designado, interage e aguarda o início do atendimento.</td>
-                        </tr>
-                        <tr>
-                          <td className="p-3 font-bold text-foreground">Proposta Técnica</td>
-                          <td className="p-3">Elabora e envia de forma ágil para manter o lead aquecido.</td>
-                          <td className="p-3">Acompanha via CRM Agendor e auxilia em dúvidas regionais.</td>
-                          <td className="p-3">Recebe e-mail com dados do vendedor e acompanha todo o progresso do orçamento pela plataforma.</td>
-                        </tr>
-                        <tr>
-                          <td className="p-3 font-bold text-foreground">Suporte de Campo</td>
-                          <td className="p-3">Direciona se o cliente solicitar visita técnica ou referências locais.</td>
-                          <td className="p-3">Realiza visita técnica presencial e indica referências próximas.</td>
-                          <td className="p-3">Acompanha o histórico no painel e recebe e-mails automáticos a cada nova mudança de status.</td>
-                        </tr>
-                        <tr>
-                          <td className="p-3 font-bold text-foreground">Comissão / Ganhos</td>
-                          <td className="p-3">Comissionado de acordo com as diretrizes internas da fábrica.</td>
-                          <td className="p-3"><strong>Garantida!</strong> Recebe comissão padrão territorial sobre a venda.</td>
-                          <td className="p-3"><strong>Garantida!</strong> Recebe comissão de indicação cadastrada no sistema.</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Triage Protocol Info Box */}
-                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs leading-relaxed text-emerald-200/90 flex gap-3 items-start mb-4">
-                  <CheckCircle2 className="h-5 w-5 text-emerald-400 mt-0.5 shrink-0" />
-                  <div>
-                    <strong className="text-emerald-300 font-bold block mb-1 text-sm">📋 Protocolo de Triagem e Análise de Duplicidade (Gestão Luana):</strong>
-                    Assim que Luana recebe o lead na triagem, ela realiza uma análise imediata para verificar se já existe algum atendimento ou negociação ativa com este cliente sobre o mesmo equipamento:
-                    <ul className="list-disc pl-4 mt-2 space-y-1 text-emerald-200/70">
-                      <li><strong>Sem Atendimento Anterior:</strong> Se não houver nenhum atendimento ou negociação ativa cadastrada para o cliente e o mesmo equipamento, a indicação é <strong>aceita</strong> e passa a ter validade e proteção de <strong>60 dias</strong>, conforme as regras estabelecidas.</li>
-                      <li><strong>Com Orçamento ou Negociação Ativa:</strong> Se houver um orçamento ou negociação em andamento, a indicação <strong>NÃO é aceita</strong> para preservar o canal comercial atual.</li>
-                      <li><strong>Registro Integral:</strong> Absolutamente todas as informações coletadas, desde o início exato da triagem, são devidamente registradas e salvas no histórico do procedimento operacional da plataforma.</li>
-                    </ul>
-                  </div>
-                </div>
-
-                {/* Integration Info Box */}
-                <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs leading-relaxed text-blue-200/90 flex gap-3 items-start">
-                  <RefreshCw className="h-5 w-5 text-blue-400 mt-0.5 shrink-0" />
-                  <div>
-                    <strong className="text-blue-300 font-bold block mb-1 text-sm">🔄 Integração de Dados 100% Automática com CRM Agendor:</strong>
-                    Toda a interação comercial, anotações de histórico, upload de orçamentos e faturamentos são realizados exclusivamente pelo Vendedor Interno dentro do <strong>CRM Agendor</strong>. 
-                    Por ser totalmente integrado, qualquer novidade cadastrada no CRM Agendor é <strong>sincronizada de forma automática com o RODER Indica</strong>, sem necessidade de preenchimento manual duplo. O vendedor foca no cliente e os sistemas cuidam dos dados!
-                  </div>
-                </div>
-
-                {/* Automatic Distribution Box */}
-                <div className="p-4 rounded-xl bg-orange-500/10 border border-orange-500/20 text-xs leading-relaxed text-orange-200/90 flex gap-3 items-start mt-4">
-                  <Clock className="h-5 w-5 text-orange-400 mt-0.5 shrink-0" />
-                  <div>
-                    <strong className="text-orange-300 font-bold block mb-1 text-sm">🕒 Distribuição Automática por Limite de Tempo na Triagem (4 horas):</strong>
-                    Se uma indicação de lead recém-chegada permanecer em triagem (status "Pendente") por mais de <strong>4 horas</strong> sem encaminhamento manual por parte de Luana, o sistema ativará o protocolo de **Distribuição Automática**.
-                    <br />
-                    O lead será atribuído imediatamente ao Vendedor Interno disponível que possuir a menor carga de leads ativos em negociação (balanceamento de carga). No momento do encaminhamento, e-mails detalhados contendo os dados de contato do Vendedor Interno são disparados para o Parceiro Indicador, permitindo a comunicação inicial e troca ágil de informações sobre a máquina base antes do contato final com o cliente.
-                  </div>
-                </div>
-
-                {/* Technical Learning - Forest Grabs Compatibility */}
-                <div className="p-5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs leading-relaxed text-amber-200/90 flex gap-4 items-start mt-4">
-                  <Brain className="h-6 w-6 text-amber-400 mt-0.5 shrink-0" />
-                  <div>
-                    <strong className="text-amber-300 font-bold block mb-2 text-sm uppercase tracking-wider flex items-center gap-1.5">
-                      🎓 Aprendizagem Técnica (Consultor Técnico) - Compatibilidade e Dimensionamento de Garras:
-                    </strong>
-                    Ao indicar uma garra florestal, o consultor técnico <strong>NÃO</strong> deve considerar somente o volume ou o tipo de material que o cliente pretende movimentar. É fundamental avaliar tecnicamente a <strong>máquina base</strong> na qual o equipamento será instalado:
-                    <ul className="list-disc pl-4 mt-3 space-y-2 text-amber-200/80">
-                      <li><strong>Força da Máquina Base:</strong> Uma escavadeira de grande porte (como 14 toneladas) possui força, peso e pressão hidráulica imensamente superiores aos de uma grua em trator. Ao apoiar ou pressionar a garra contra o chão, a escavadeira gera um esforço que ultrapassa a capacidade estrutural de uma garra pequena, causando desgaste acelerado ou danos mecânicos graves (risco potencializado caso a pressão hidráulica da máquina esteja desregulada). Mesmo que o cliente movimente pouca carga (ex: apenas uma tora), a recomendação do catálogo oficial deve ser estritamente mantida.</li>
-                      <li><strong>Garras R250 e R280:</strong> Possuem estrutura desenvolvida primariamente para aplicação em <strong>gruas de trator</strong>, onde as forces físicas e as pressões de trabalho são significativamente menores. As garras R280 e R280L são ótimas opções para gruas de trator.</li>
-                      <li><strong>Garras para Escavadeiras Pequenas (&lt; 8 Ton.):</strong> Para escavadeiras de pequeno porte (abaixo de 8 toneladas), a melhor indicação é a garra <strong>R280L</strong>. Ela foi desenvolvida com engenharia de ponta que oferece uma estrutura mais leve, sendo a opção ideal e muito mais adequada e segura do que o modelo R250.</li>
-                      <li><strong>Garras para Retroescavadeiras e Escavadeiras (&gt;= 8 Ton.):</strong> A partir do modelo <strong>.36 (como a R360)</strong>, os equipamentos são estruturalmente compatíveis com retroescavadeiras e escavadeiras a partir de aproximadamente 8 toneladas de peso operacional.</li>
-                    </ul>
-                  </div>
-                </div>
-
-                {/* Technical Sizing - Chippers Feeding */}
-                <div className="p-5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs leading-relaxed text-emerald-200/90 flex gap-4 items-start mt-4">
-                  <Wrench className="h-6 w-6 text-emerald-400 mt-0.5 shrink-0" />
-                  <div>
-                    <strong className="text-emerald-300 font-bold block mb-2 text-sm uppercase tracking-wider flex items-center gap-1.5">
-                      ⚙️ Diretriz para Dimensionamento de Garras em Alimentação de Picadores:
-                    </strong>
-                    Quando a aplicação da garra for para alimentação de picadores florestais, a definição do modelo deve considerar de forma integrada dois fatores cruciais:
-                    <ul className="list-disc pl-4 mt-3 space-y-2 text-emerald-200/80">
-                      <li><strong>1. Máquina Base:</strong> Conforme a Tabela de Aplicação/Ficha Técnica da Roder. Ela define a viabilidade física e a segurança de instalação da garra na escavadeira.</li>
-                      <li><strong>2. Potência do Picador:</strong> O modelo e a potência do picador determinam a real necessidade de volume e fluxo de alimentação operacional:
-                        <ul className="list-circle pl-4 mt-1 space-y-1 text-emerald-300/80">
-                          <li>Picadores de <strong>até 600 cv</strong>: Utilizar Garra <strong>R400</strong>.</li>
-                          <li>Picadores de <strong>até 1.000 cv</strong>: Utilizar Garra <strong>R600</strong>.</li>
-                        </ul>
-                      </li>
-                      <li className="mt-2"><strong>Exemplo Prático (8 Toneladas):</strong> Se o cliente possui uma escavadeira pequena de 8t, deve-se seguir rigorosamente o limite da máquina base, utilizando uma <strong>R280</strong> ou <strong>R360</strong>, conforme a aplicação recomendada.</li>
-                      <li><strong>Exemplo Prático (&gt;= 14 Toneladas):</strong> Para escavadeiras de 14 toneladas ou superiores, onde a máquina base comporta perfeitamente garras maiores, o dimensionamento deve focar inteiramente na necessidade do picador: Picador até 600 cv (R400) ou Picador até 1.000 cv (R600).</li>
-                    </ul>
-                    <p className="mt-3 text-[11px] text-emerald-300/90 italic font-semibold">
-                      Desta forma, a máquina base define a compatibilidade da instalação, enquanto o picador define a capacidade de alimentação necessária, assegurando o melhor desempenho operacional e maior produtividade.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Technical Guideline - R360/R360G on 7-10 ton Excavators & 6t Rotator */}
-                <div className="p-5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs leading-relaxed text-blue-200/90 flex gap-4 items-start mt-4">
-                  <Wrench className="h-6 w-6 text-blue-400 mt-0.5 shrink-0" />
-                  <div>
-                    <strong className="text-blue-300 font-bold block mb-2 text-sm uppercase tracking-wider flex items-center gap-1.5">
-                      📐 Diretriz de Montagem: R360/R360G em Escavadeiras de 7 a 10 Toneladas & Rotator de 6t:
-                    </strong>
-                    <ul className="list-disc pl-4 space-y-2 text-blue-200/80">
-                      <li><strong>Viabilidade Física da R360 / R360G:</strong> Em escavadeiras menores de 7 a 10 toneladas, é fisicamente possível e viável trabalhar com a garra R360 padrão ou com a R360G (com unhas tipo garfo para galhadas/resíduos).</li>
-                      <li><strong>Aviso Obrigatório de Instabilidade Operacional:</strong> O cliente deve ser formalmente alertado de que, ao pegar madeiras muito compridas ou feixes de árvores inteiras para arrastar no picador, a escavadeira pode <em>"levantar a bunda" (ficar instável)</em>, ou a máquina pode não ter força de giro hidráulico suficiente para puxar o feixe pesado. Fisicamente a montagem é viável, mas a operação exige essa ciência do cliente.</li>
-                      <li><strong>Dimensionamento Obrigatório de Rotator & Ponteira (6 Toneladas):</strong> Em ambos os casos (tanto para a garra R280 quanto para a R360 em máquinas de 7 a 10 toneladas), é terminantemente recomendada a utilização do <strong>Rotator de 6 toneladas</strong>.</li>
-                      <li><strong>Ponteiras/Bielas:</strong> As ponteiras devem ser atribuídas e dimensionadas para a caçamba/máquina de 6 toneladas para assegurar a perfeita usabilidade e montagem com o rotator de 6t.</li>
-                    </ul>
-                  </div>
-                </div>
-
-                <div className="text-[10px] text-muted-foreground italic border-t border-border pt-4 text-right">
-                  Procedimento Comercial Oficial homologado pelo fundador e diretor técnico Jeferson Roder.
-                </div>
-              </CardContent>
-            </Card>
           </TabsContent>
 
           <TabsContent value="approval">
@@ -3662,97 +2657,8 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
 
           <TabsContent value="system">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Active Nodes */}
-              <div className="lg:col-span-1 space-y-4">
-                <Card className="bg-card border-border shadow-sm">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg font-bold flex items-center gap-2">
-                      <Activity className="h-4 w-4 text-emerald-500 animate-pulse" /> Rede Distribuída (Hybrid P2P Vision)
-                    </CardTitle>
-                    <p className="text-[10px] text-muted-foreground uppercase font-black tracking-tight">Arquitetura de Borda: Dispositivos atuando como nós de segurança</p>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {activeNodesList.length === 0 ? (
-                        <div className="text-center py-8">
-                          <Activity className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
-                          <p className="text-xs text-muted-foreground italic">Nenhum nó ativo detectado.</p>
-                        </div>
-                      ) : (
-                        activeNodesList.map(node => {
-                          const lastSeen = node.last_seen?.toDate ? node.last_seen.toDate() : new Date();
-                          const diffMs = Math.max(0, new Date().getTime() - lastSeen.getTime());
-                          const diffMins = Math.floor(diffMs / 60000);
-                          
-                          // Determine if mobile or desktop based on browser device info
-                          const isMobile = node.device_info && (
-                            node.device_info.includes('Mobile') ||
-                            node.device_info.includes('Android') ||
-                            node.device_info.includes('iPhone')
-                          );
-
-                          return (
-                            <div key={node.id} className="flex items-center justify-between p-2.5 rounded-lg bg-muted/30 border border-border hover:border-emerald-500/30 transition-all">
-                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-600">
-                                  {isMobile ? <Smartphone className="h-4 w-4" /> : <Laptop className="h-4 w-4" />}
-                                </div>
-                                <div className="flex flex-col">
-                                   <span className="text-xs font-bold leading-none mb-1">{node.name || node.email}</span>
-                                   <div className="flex items-center gap-2">
-                                     <span className="text-[10px] text-muted-foreground uppercase font-medium">{node.role || 'usuário'}</span>
-                                     {node.is_pwa && <Badge variant="outline" className="h-3.5 px-1 py-0 text-[7px] border-emerald-500/30 text-emerald-600 bg-emerald-500/5 uppercase font-black">PWA</Badge>}
-                                     <span className="text-[8px] text-muted-foreground truncate max-w-[100px]" title={node.device_info}>
-                                       {isMobile ? 'Celular' : 'Computador'}
-                                     </span>
-                                   </div>
-                                 </div>
-                              </div>
-                              <div className="flex flex-col items-end">
-                                <Badge variant="outline" className="text-[8px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20 px-1 font-black">
-                                  {diffMins <= 1 ? 'ATIVO AGORA' : `VISTO HÁ ${diffMins} MIN`}
-                                </Badge>
-                                <span className="text-[8px] text-muted-foreground mt-1 tabular-nums">v{node.app_version}</span>
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-card border-border shadow-sm">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg font-bold flex items-center gap-2 text-primary">
-                      <Shield className="h-4 w-4" /> Segurança Híbrida
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="p-3 rounded-lg bg-primary/5 border border-primary/10">
-                      <h4 className="text-[10px] font-black uppercase mb-1">Criptografia RSA-256</h4>
-                      <p className="text-[9px] text-muted-foreground leading-relaxed">
-                        Todos os dados sensíveis na nuvem estão "selados". Apenas administradores conseguem decriptar os payloads diretamente no navegador.
-                      </p>
-                    </div>
-                    <div className="p-3 rounded-lg bg-orange-500/5 border border-orange-500/10">
-                      <h4 className="text-[10px] font-black uppercase mb-1">Lixeira Distribuída</h4>
-                      <p className="text-[9px] text-muted-foreground leading-relaxed">
-                        Exclusões em massa ou acidentais são retidas no cofre criptografado por 30 dias antes da destruição definitiva.
-                      </p>
-                    </div>
-                    <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
-                      <h4 className="text-[10px] font-black uppercase mb-1">Nós de Inteligência (P2P Vision)</h4>
-                      <p className="text-[9px] text-muted-foreground leading-relaxed">
-                        A aplicação opera em modo Hybrid-Edge: o processamento pesado e a criptografia ocorrem no dispositivo do usuário, transformando cada celular em um "servidor parcial" de segurança.
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
               {/* Audit Log */}
-              <div className="lg:col-span-2">
+              <div className="lg:col-span-3">
                 <Card className="bg-card border-border shadow-sm min-h-[460px]">
                   <CardHeader className="flex flex-row items-center justify-between pb-2">
                     <CardTitle className="text-lg font-bold flex items-center gap-2">
@@ -3812,322 +2718,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                   </CardContent>
                 </Card>
               </div>
-
-              {/* Top 10 Connected Users Report */}
-              <div className="lg:col-span-3 mt-2">
-                <Card className="bg-card border-border shadow-md">
-                  <CardHeader className="pb-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div>
-                        <CardTitle className="text-lg font-black flex items-center gap-2 text-foreground">
-                          <Trophy className="h-5 w-5 text-amber-500 animate-bounce duration-[3000ms]" /> Top 10 Usuários Mais Conectados (Mês Atual)
-                        </CardTitle>
-                        <p className="text-xs text-muted-foreground uppercase tracking-widest mt-0.5">Métricas de Engajamento Temporais e Descentralização da Rede Híbrida</p>
-                      </div>
-                      <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 font-black tracking-widest uppercase text-[9px] self-start sm:self-center">
-                        Mês: Maio 2026
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left">
-                        <thead>
-                          <tr className="border-b border-border/60 text-muted-foreground text-[10px] uppercase font-black tracking-wider pb-2">
-                            <th className="py-3 px-2 text-center w-12">Pos.</th>
-                            <th className="py-3 px-2">Usuário</th>
-                            <th className="py-3 px-4 text-center">Horas Online</th>
-                            <th className="py-3 px-4 text-center">Dias Ativo</th>
-                            <th className="py-3 px-4">Engajamento Semanal</th>
-                            <th className="py-3 px-2 text-center">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border/40 text-xs">
-                          {getTopConnectedUsers().map((nodeUser, i) => {
-                            const isFirst = i === 0;
-                            const isSecond = i === 1;
-                            const isThird = i === 2;
-                            // Calculate percentage relation against first
-                            const topHours = getTopConnectedUsers()[0]?.hours || 200;
-                            const progressPercent = Math.min(100, Math.round((nodeUser.hours / topHours) * 100));
-
-                            return (
-                              <tr key={nodeUser.uid} className="hover:bg-muted/20 transition-colors">
-                                <td className="py-3.5 px-2 text-center">
-                                  {isFirst ? (
-                                    <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-amber-500/15 text-amber-600 font-black"><Trophy className="h-3.5 w-3.5 text-amber-500" /></span>
-                                  ) : isSecond ? (
-                                    <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-slate-300/15 text-slate-500 font-black"><Trophy className="h-3.5 w-3.5 text-slate-400" /></span>
-                                  ) : isThird ? (
-                                    <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-amber-700/15 text-amber-800 font-black"><Trophy className="h-3.5 w-3.5 text-amber-700" /></span>
-                                  ) : (
-                                    <span className="text-muted-foreground font-bold tracking-tight text-[11px] font-mono">{i + 1}º</span>
-                                  )}
-                                </td>
-                                <td className="py-3.5 px-2">
-                                  <div className="flex items-center gap-2">
-                                    <div className="flex flex-col">
-                                      <span className="font-extrabold uppercase text-foreground leading-tight">{nodeUser.name}</span>
-                                      <span className="text-[10px] text-muted-foreground">{nodeUser.email}</span>
-                                    </div>
-                                    <Badge variant="outline" className="text-[8px] h-4 font-black uppercase tracking-tighter px-1 border-border/80">
-                                      {(() => {
-                                        const nameLower = (nodeUser.name || '').toLowerCase();
-                                        const emailLower = (nodeUser.email || '').toLowerCase();
-                                        if (
-                                          nameLower.includes('elissangela') || 
-                                          nameLower.includes('elissângela') || 
-                                          nameLower.includes('elizangela') || 
-                                          nameLower.includes('elizângela') || 
-                                          emailLower.includes('elissangela') || 
-                                          emailLower.includes('elizangela') ||
-                                          nodeUser.role === 'financial'
-                                        ) {
-                                          return 'Financeiro';
-                                        }
-                                        if (nodeUser.role === 'admin') return 'Administrador';
-                                        if (nodeUser.role === 'manager' || nameLower.includes('gislene') || emailLower.includes('gislene')) return 'Gerente Comercial';
-                                        if (nodeUser.role === 'triagem' || nameLower.includes('luana') || emailLower.includes('luana')) return 'Triagem';
-                                        if (nodeUser.role === 'internal_seller') return 'Vendedora Interna';
-                                        if (nodeUser.role === 'vendedor_padrao') return 'Vendedor Padrão';
-                                        if (nodeUser.role === 'external_seller') return 'Vendedor Externo';
-                                        return 'Indicador';
-                                      })()}
-                                    </Badge>
-                                  </div>
-                                </td>
-                                <td className="py-3.5 px-4 text-center font-bold text-foreground font-mono tabular-nums">
-                                  {nodeUser.hours}h
-                                </td>
-                                <td className="py-3.5 px-4 text-center font-bold text-muted-foreground font-mono tabular-nums">
-                                  {nodeUser.days} dias
-                                </td>
-                                <td className="py-3.5 px-4 w-48">
-                                  <div className="flex items-center gap-2">
-                                    <div className="h-2 w-28 bg-muted border border-border/40 rounded-full overflow-hidden shrink-0">
-                                      <div 
-                                        className={`h-full rounded-full transition-all duration-1000 ${
-                                          isFirst ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.3)]' :
-                                          isSecond ? 'bg-slate-400' :
-                                          isThird ? 'bg-amber-700' : 'bg-primary'
-                                        }`}
-                                        style={{ width: `${progressPercent}%` }}
-                                      />
-                                    </div>
-                                    <span className="text-[10px] font-bold text-muted-foreground/80 font-mono">{progressPercent}%</span>
-                                  </div>
-                                </td>
-                                <td className="py-3.5 px-2 text-center">
-                                  {nodeUser.isOnline ? (
-                                    <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/15 text-[8px] font-black uppercase">
-                                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                      ONLINE
-                                    </div>
-                                  ) : (
-                                    <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-slate-500/5 text-slate-500/60 border border-slate-500/10 text-[8px] font-black uppercase">
-                                      <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
-                                      STANDBY
-                                    </div>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    <div className="mt-4 p-3 rounded-lg bg-primary/5 border border-primary/10 text-[10px] text-muted-foreground/90 flex items-start gap-2">
-                      <Award className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                      <p className="leading-relaxed">
-                        <strong>Incentivo à descentralização:</strong> Usuários com maior tempo de engajamento ativo atuam como validadores de dados na rede. Esse relatório é atualizado em tempo real com base na atividade criptografada recebida e nos logs de auditoria validados na borda.
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
             </div>
-          </TabsContent>
-
-          <TabsContent value="connectivity" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {/* Connection Status & Sync Queue */}
-              <Card className="bg-card border-border shadow-sm flex flex-col justify-between">
-                <div>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                      <Activity className="h-4 w-4 text-primary" /> Status da Rede
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/30 border border-border">
-                      <span className="text-xs font-bold text-muted-foreground">Conexão Atual</span>
-                      <div className="flex items-center gap-2">
-                        {isOffline ? (
-                          <>
-                            <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
-                            <Badge className="bg-red-500/10 text-red-500 border-red-500/20 font-black">OFFLINE</Badge>
-                          </>
-                        ) : (
-                          <>
-                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                            <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-black">ONLINE</Badge>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-xs">
-                        <span className="font-bold text-muted-foreground">Fila de Sincronização</span>
-                        <span className="font-mono font-bold text-primary">{pendingSyncCount} itens</span>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground">
-                        Indicações ou cadastros salvos em contingência local aguardando conexão estável para envio ao servidor.
-                      </p>
-                    </div>
-                  </CardContent>
-                </div>
-                
-                <CardContent className="pt-0">
-                  <Button
-                    onClick={processSyncQueue}
-                    disabled={isOffline || pendingSyncCount === 0}
-                    className="w-full bg-primary hover:bg-primary/95 text-primary-foreground font-black text-xs uppercase"
-                  >
-                    <RefreshCw className="h-3.5 w-3.5 mr-2" />
-                    Enviar Dados Pendentes agora
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* Database cache downloading and Offline activation */}
-              <Card className="bg-card border-border shadow-sm flex flex-col justify-between">
-                <div>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                      <Download className="h-4 w-4 text-primary" /> Armazenamento Offline
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-1">
-                      <p className="text-xs font-bold text-muted-foreground">Instalador de Catálogos</p>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed">
-                        Baixe tabelas de estoque, catálogos e dados cadastrais no celular para que o aplicativo continue funcionando perfeitamente em locais sem sinal.
-                      </p>
-                    </div>
-
-                    {isDownloading && (
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-xs font-mono">
-                          <span>Instalando...</span>
-                          <span>{downloadProgress}%</span>
-                        </div>
-                        <Progress value={downloadProgress} className="h-1.5 bg-muted" />
-                      </div>
-                    )}
-
-                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/30 border border-border flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-muted-foreground">Última atualização automática</span>
-                      <span className="text-[10px] font-mono text-foreground font-bold">
-                        {localStorage.getItem('roder_last_offline_sync_time')
-                          ? new Date(parseInt(localStorage.getItem('roder_last_offline_sync_time')!, 10)).toLocaleDateString('pt-BR') + ' ' +
-                            new Date(parseInt(localStorage.getItem('roder_last_offline_sync_time')!, 10)).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-                          : 'Pendente (Primeiro Uso)'}
-                      </span>
-                    </div>
-                  </CardContent>
-                </div>
-
-                <CardContent className="pt-0">
-                  <Button
-                    onClick={() => syncDataLocally(false)}
-                    disabled={isDownloading || isOffline}
-                    variant="outline"
-                    className="w-full border-primary/30 hover:border-primary text-primary hover:bg-primary/5 font-black text-xs uppercase"
-                  >
-                    {isDownloading ? (
-                      <>
-                        <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />
-                        Baixando novidades...
-                      </>
-                    ) : (
-                      <>
-                        <Download className="h-3.5 w-3.5 mr-2" />
-                        Forçar Atualização Completa (Offline)
-                      </>
-                    )}
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* PWA Launcher Details */}
-              <Card className="bg-card border-border shadow-sm flex flex-col justify-between">
-                <div>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                      <Smartphone className="h-4 w-4 text-primary" /> Aplicativo Nativo (PWA)
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-1">
-                      <p className="text-xs font-bold text-muted-foreground">Adicionar à Tela de Início</p>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed">
-                        Instale a RODER V2 diretamente em seu dispositivo como um aplicativo nativo para uma resposta ultrarrápida, área de toque expandida e menor consumo de dados.
-                      </p>
-                    </div>
-
-                    <div className="flex gap-2.5 items-center justify-between p-3.5 rounded-xl bg-muted/20 border border-border">
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase">O que é um PWA?</span>
-                      <HelpTooltip content="Um PWA (Progressive Web App) funciona exatamente como um app instalado na Play Store, mas é mais leve, rápido e funciona sem internet de forma inteligente." />
-                    </div>
-                  </CardContent>
-                </div>
-
-                <CardContent className="pt-0">
-                  {canInstall ? (
-                    <Button
-                      onClick={installApp}
-                      className="w-full bg-orange-500 hover:bg-orange-600 text-white font-black text-xs uppercase shadow-[0_4px_14px_rgba(249,115,22,0.3)]"
-                    >
-                      <Smartphone className="h-3.5 w-3.5 mr-2 animate-bounce" />
-                      Instalar RODER no Dispositivo
-                    </Button>
-                  ) : (
-                    <div className="text-center p-2.5 rounded-lg border border-border bg-slate-50 dark:bg-slate-900/10 text-[11px] text-muted-foreground">
-                      Aplicativo já instalado ou dispositivo sem compatibilidade de instalação automatizada. No Safari (iOS), use <span className="font-bold">Compartilhar &rarr; Adicionar à Tela de Início</span>.
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Network nodes dashboard panel */}
-            <Card className="bg-card border-border shadow-sm p-5 mt-6">
-              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <h3 className="text-sm font-black text-foreground uppercase tracking-tight flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> Tecnologia de Rede Híbrida Roder
-                  </h3>
-                  <p className="text-xs text-muted-foreground leading-relaxed max-w-3xl">
-                    Cada dispositivo ativo no campo atua de forma coordenada. Quando você cadastra uma indicação sem sinal, ela é enfileirada no banco local e sincronizada de forma segura assim que houver rede. Isso permite mobilidade total para fardos, guinchos e colheita sem comprometer o fluxo de leads de vendas.
-                  </p>
-                </div>
-                
-                <div className="flex flex-wrap gap-3">
-                  <div className="px-4 py-3 rounded-2xl bg-primary/10 border border-primary/20 flex flex-col items-center">
-                    <span className="text-[10px] font-black uppercase text-primary/70 tracking-tight">Estações de Campo</span>
-                    <span className="text-2xl font-black text-primary font-mono select-none">ATIVO</span>
-                  </div>
-                  <div className="px-4 py-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex flex-col items-center">
-                    <span className="text-[10px] font-black uppercase text-emerald-600 tracking-tight">Status Sincronismo</span>
-                    <span className="text-lg font-black text-emerald-600 uppercase select-none flex items-center gap-1.5 pt-1">
-                      <Wifi className="h-4 w-4" /> 100% OK
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </Card>
           </TabsContent>
 
           <TabsContent value="ai_monitoring" className="space-y-6">

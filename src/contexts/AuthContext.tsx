@@ -6,7 +6,7 @@ import {
   GoogleAuthProvider, 
   signInWithPopup
 } from 'firebase/auth';
-import { doc, onSnapshot, collection, query, where, writeBatch, getDocs, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, where, writeBatch, getDocs, getDoc } from 'firebase/firestore';
 import { auth, db, reivindicarPerfil } from '../lib/firebase';
 import { UserProfile, UserRole } from '../types';
 import { AuditService, AuditAction } from '../lib/AuditService';
@@ -108,14 +108,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (cachedProfile && !impersonatedProfile) {
         try {
           const parsed = JSON.parse(cachedProfile);
-          if (parsed && parsed.name && parsed.name.includes('Jefferson')) {
-            const userEmail = parsed.email?.toLowerCase() || '';
-            if (userEmail === 'roderbrasil@gmail.com' || userEmail === 'roderindica@gmail.com' || userEmail === 'jefferson@roderbrasil.com.br' || userEmail === 'jeferson@roderbrasil.com.br') {
-              console.log("Self-healing Jeferson's name spelling in local cache...");
-              parsed.name = parsed.name.replace('Jefferson', 'Jeferson');
-              localStorage.setItem('roder_profile_cache', JSON.stringify(parsed));
-            }
-          }
           setProfile(parsed);
         } catch (e) {
           localStorage.removeItem('roder_profile_cache');
@@ -303,74 +295,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const userEmail = user.email?.toLowerCase() || '';
             const displayName = (user.displayName || profileData.name || '').toLowerCase();
 
-            // Correct name spelling for Jeferson Roder (only one F)
-            if ((userEmail === 'roderbrasil@gmail.com' || userEmail === 'roderindica@gmail.com' || userEmail === 'jefferson@roderbrasil.com.br' || userEmail === 'jeferson@roderbrasil.com.br') && 
-                profileData.name && (profileData.name.includes('Jefferson') || profileData.name === 'Admin')) {
-              console.log("Self-healing Jeferson's name spelling in Firestore user profile...");
-              const correctedName = profileData.name.replace('Jefferson', 'Jeferson');
-              profileData.name = correctedName;
-              localStorage.setItem('roder_profile_cache', JSON.stringify(profileData));
-              updateDoc(doc(db, 'users', user.uid), {
-                name: correctedName,
-                updated_at: new Date().toISOString()
-              }).catch(err => {
-                console.error("Failed to update Jeferson's name in Firestore:", err);
-              });
-            }
-
-            // Self-healing display name for Luana Camargo (contato@roderbrasil.com.br / luana@roderbrasil.com.br)
-            const isLuana = userEmail === 'contato@roderbrasil.com.br' || 
-                            userEmail === 'luana@roderbrasil.com.br' || 
-                            userEmail === 'luana@roder.com.br' ||
-                            (profileData.name && (profileData.name.includes('Contato_Roder') || profileData.name.includes('Contato Roder')));
-            if (isLuana && profileData.name !== 'Luana Camargo') {
-              console.log("Self-healing Luana Camargo's display name in Firestore user profile...");
-              profileData.name = 'Luana Camargo';
-              localStorage.setItem('roder_profile_cache', JSON.stringify(profileData));
-              updateDoc(doc(db, 'users', user.uid), {
-                name: 'Luana Camargo',
-                updated_at: new Date().toISOString()
-              }).catch(err => {
-                console.error("Failed to update Luana's name in Firestore:", err);
-              });
-            }
-
-            // Self-healing for Vanessa Camargo if her role got corrupted/incorrectly-guessed as internal_seller or anything else
             // só e-mail da Roder: antes um parceiro com "finance" ou "vanessa" no e-mail virava financeiro sozinho
             const isVanessaOrFinance = userEmail.endsWith('@roderbrasil.com.br') && (userEmail.includes('vanessa') || userEmail.includes('finance'));
-            
-            const fDefaults = {
-              sidebar: ['dashboard', 'products_stock', 'products_registered', 'accessories', 'finance', 'reports', 'profile'],
-              dashboard_cards: ['stats', 'commissions_summary', 'goals', 'recent_indications', 'conversion_ranking', 'manager_financial', 'equipment_banner', 'quick_actions']
-            };
 
-            const hasLackingPermissions = !profileData.permissions?.sidebar || 
-                                          !fDefaults.sidebar.every(k => profileData.permissions.sidebar[k] === true) ||
-                                          !profileData.permissions?.dashboard_cards ||
-                                          !fDefaults.dashboard_cards.every(k => profileData.permissions.dashboard_cards[k] === true);
-
-            if (isVanessaOrFinance && 
-                profileData.role !== 'admin' && 
-                profileData.role !== 'manager' && 
-                (profileData.role !== 'financial' || hasLackingPermissions)) {
-              console.log("Self-healing Vanessa's profile to financial with full permissions...");
-              const fPermissions = {
-                sidebar: fDefaults.sidebar.reduce((acc, item) => ({ ...acc, [item]: true }), {}),
-                dashboard_cards: fDefaults.dashboard_cards.reduce((acc, item) => ({ ...acc, [item]: true }), {})
-              };
-              const { updateDoc } = await import('firebase/firestore');
-              // com as regras novas a pessoa não muda o próprio papel; se recusar, segue com o perfil atual
-              try {
-                await updateDoc(doc(db, 'users', user.uid), {
-                  role: 'financial',
-                  permissions: fPermissions,
-                  updated_at: new Date().toISOString()
-                });
-                return;
-              } catch (e) {
-                console.warn('[AUTH] ajuste automático do financeiro recusado:', e);
-              }
-            }
             const isExplicitMasterAdmin = [
               'roderbrasil@gmail.com',
               'roderindica@gmail.com',

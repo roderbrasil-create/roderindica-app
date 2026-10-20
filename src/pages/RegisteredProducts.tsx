@@ -670,15 +670,6 @@ export default function RegisteredProducts() {
                   <FileSpreadsheet className={cn("h-4 w-4 mr-2", syncing && "animate-spin")} />
                   Sincronizar Planilha
                 </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={() => syncFromStock()} 
-                  disabled={syncing}
-                  className="border-primary text-primary hover:bg-primary/10 font-bold uppercase tracking-wider text-[10px] h-10"
-                >
-                  <RefreshCw className={cn("h-4 w-4 mr-2", syncing && "animate-spin")} />
-                  Sincronizar Estoque
-                </Button>
                 <Button onClick={() => {
                   setEditingProduct(null);
                   setFormData({ code: '', name: '', base_price: 0, category: '', is_commissionable: true, image_url: '' });
