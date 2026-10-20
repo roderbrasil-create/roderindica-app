@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { getGTProductivityData } from '../../lib/produtividadeGt';
-import { Sparkles, MessageSquare, X, Minus, Send, Calculator, Wrench, HelpCircle, AlertTriangle, Play, RefreshCw, Trash2, ChevronLeft, ChevronRight, CheckCircle, Package, Layers, Tractor, FileText, Mic, Square, Loader2, Brain, BookOpen, ExternalLink, Share2, Video, Phone, QrCode, Bot, User, Briefcase, ChevronDown, EllipsisVertical, RotateCcw, Menu, Search, UserPlus } from 'lucide-react';
+import { Sparkles, MessageSquare, X, Minus, Send, Calculator, Wrench, HelpCircle, AlertTriangle, Play, RefreshCw, Trash2, ChevronLeft, ChevronRight, CheckCircle, Package, Layers, Tractor, FileText, Mic, Square, Loader2, Brain, BookOpen, ExternalLink, Share2, Video, Phone, QrCode, Bot, User, Briefcase, ChevronDown, EllipsisVertical, RotateCcw, Menu, Search, UserPlus, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { cn, getApiBaseUrl } from '../../lib/utils';
@@ -31,7 +31,8 @@ import { ehFichaPropria } from '../../lib/fichaPropria';
 import { CartaoFicha } from '../catalog/CartaoFicha';
 import { useVoltarFecha } from '../../lib/useVoltarFecha';
 import { montarProntaEntrega, itemProntoDe, type ItemProntaEntrega } from '../../lib/prontaEntrega';
-import { CarrosselProntaEntrega, ListaProntaEntrega, AvisoProntaEntrega } from './ProntaEntregaConsultor';
+import { faixaDoModelo } from '../../lib/faixaCmf';
+import { CarrosselProntaEntrega, ListaProntaEntrega, AvisoProntaEntrega, FaixaProntaEntrega } from './ProntaEntregaConsultor';
 import { abrirDocumento } from '../../lib/abrirDocumento';
 import { videoDoEquipamento } from '../../lib/videoEquipamento';
 import { ContextoVideo, PlayerVideo } from '../video/VideoEquipamento';
@@ -637,7 +638,7 @@ export function abrirConsultorEmJanela(pergunta?: string): boolean {
 export default function EngineerHelper({ isFullPage = false }: { isFullPage?: boolean } = {}) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, profile, isAdmin, isManager, isTriagem, isImpersonating } = useAuth();
+  const { user, profile, isAdmin, isManager, isTriagem, isImpersonating, stopImpersonation } = useAuth();
   // Sessão anônima do Firebase (estoque público, cadastro rápido) NÃO é uma pessoa logada:
   // sem isto o parceiro do link e o visitante perdiam o fluxo deles nesse mesmo navegador.
   const logado = !!user && !user.isAnonymous;
@@ -3028,8 +3029,8 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
     if (!prod.models) return [];
     const bands = new Set<string>();
     prod.models.forEach(m => {
-      const mb = m.technical_specs?.maquina_base || m.technical_specs?.peso_operacional;
-      if (mb) bands.add(mb.trim());
+      const mb = faixaDoModelo(m);
+      if (mb) bands.add(mb);
     });
     return Array.from(bands);
   };
@@ -3038,8 +3039,8 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
   const getCompatibleModels = (prod: Product, band: string) => {
     if (!prod.models) return [];
     return prod.models.filter(m => {
-      const mb = m.technical_specs?.maquina_base || m.technical_specs?.peso_operacional;
-      return mb && mb.trim().toLowerCase() === band.toLowerCase();
+      const mb = faixaDoModelo(m);
+      return mb && mb.toLowerCase() === band.toLowerCase();
     });
   };
 
@@ -5287,25 +5288,18 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
 /* na folha de equipamentos o cabeçalho do explorador sai: a folha já tem título, "Ver todos" e fechar */
 .ccel .ccel-folha > div > div:first-child{display:none}
 .ccel .ccel-folha > div{border:0;box-shadow:none;background:transparent;padding-top:4px}
+.ccel .ccel-folha .font-mono{font-family:inherit}
+.ccel .ccel-folha [class*="max-h-[1"]{max-height:none}
 .ccel .msg-consultor{max-width:88%;padding:12px 15px}
 .ccel .msg-usuario{padding:11px 15px}
 .ccel .msg-consultor,.ccel .msg-usuario,.ccel .msg-consultor .markdown-body{font-size:15.5px}
 @layer base{.ccel textarea.ccel-campo{min-height:44px !important}}
 `;
+  // admin em "ver como" com o consultor aberto pelo app (no link público não há simulação)
+  const simulandoCel = !!isImpersonating && logado;
   const toqueCel = typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
   const primeiroNomeCel = nomeUsuario.split(' ')[0] || '';
   const saudacaoPerfil = ehParceiroConsultor ? 'Tire dúvidas ou indique um cliente.' : 'Informe a máquina do cliente e o equipamento.';
-  // Equipe: 4 famílias em destaque na tela de início; o resto fica no atalho Equipamentos
-  const equipDestaqueEquipe = (() => {
-    const ordem = [/garra.*florest/i, /cabe[cç]ote/i, /tra[cç]ador/i, /fresa|ssh/i];
-    const escolhidos: Product[] = [];
-    for (const re of ordem) {
-      const p = catalogProducts.find(x => re.test(x.name || '') && !escolhidos.includes(x));
-      if (p) escolhidos.push(p);
-    }
-    for (const p of catalogProducts) { if (escolhidos.length >= 4) break; if (!escolhidos.includes(p)) escolhidos.push(p); }
-    return escolhidos.slice(0, 4);
-  })();
   const fotoProdutoCel = (prod: Product) =>
     prod.image_url || ((prod as any).images || []).find(Boolean) || (prod.models || []).map(m => fotoDoModelo(prod, m)).find(Boolean) || '';
   // Abre a folha de equipamentos; com um equipamento, já entra no guia dele (igual ao explorador)
@@ -5315,6 +5309,128 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
     setExplorerMinimized(false);
     setFolhaEquip(true);
   };
+
+  // Guia de equipamentos dentro da folha do celular, no desenho claro (pedido do Jeferson, 19/10/2026:
+  // a versão do computador aparecia com letra de máquina de escrever, cartão apertado e "Ver ficha"
+  // difícil de tocar). Faixa de máquina, depois os modelos com "Ver ficha" e "Perguntar" de 44 px.
+  const pesoComUnidade = (m: ProductModel) => {
+    const sp: any = m.technical_specs || {};
+    const bruto = String(sp.peso ?? sp.peso_do_equipamento ?? sp.peso_kg ?? sp.peso_estimado ?? '').trim();
+    if (!bruto || bruto === '-') return '';
+    return /^[\d.,\s]+$/.test(bruto) ? `${bruto} kg` : bruto;
+  };
+  const faixaLegivel = (f: string) => String(f || '').replace(/\s*ton\.?$/i, ' t').replace(/\s+t$/i, ' t');
+  const voltarGuiaCel = () => {
+    if (selectedWeightBand) { setSelectedWeightBand(null); setSelectedModel(null); return; }
+    setSelectedProduct(null);
+    setSelectedModel(null);
+  };
+  const perguntarModeloCel = (prod: Product, model: ProductModel) => {
+    setFolhaEquip(false);
+    enviarPronto(`Me fale sobre o ${tituloFicha(prod, model)}`);
+  };
+  // Produtividade aparece quando o modelo tem texto de produtividade (cadastro ou padrão) ou é garra traçadora
+  const temProdutividadeCel = (prod: Product, model: ProductModel) =>
+    !!(String((model as any).productivity_text || '').trim() || DEFAULT_PRODUCTIVITIES[model.name]) ||
+    model.name.toUpperCase().includes('GT') ||
+    String(prod.category || '').toUpperCase().includes('TRAÇADORA') ||
+    prod.name.toUpperCase().includes('TRAÇADORA');
+  const blocoExploradorCel = selectedProduct ? (() => {
+    const prod = selectedProduct;
+    const faixas = getWeightBands(prod);
+    const modelos = selectedWeightBand
+      ? (getCompatibleModels(prod, selectedWeightBand).length ? getCompatibleModels(prod, selectedWeightBand) : (prod.models || []))
+      : [];
+    const mostrarModelos = !!selectedWeightBand || faixas.length === 0;
+    const lista = selectedWeightBand ? modelos : (prod.models || []);
+    return (
+      <div className="space-y-3 pt-1">
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={voltarGuiaCel} aria-label="Voltar" className="h-11 w-11 shrink-0 p-0 rounded-xl bg-white border border-[#E2E5E8] text-[#1B1E22] flex items-center justify-center active:scale-95 transition">
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <div className="min-w-0">
+            <p className="m-0 fonte-titulo text-[16px] font-extrabold leading-tight text-[#1B1E22] break-words">{prod.name}</p>
+            {selectedWeightBand && selectedWeightBand !== 'Geral' && (
+              <p className="m-0 mt-0.5 text-[13px] text-[#5B6168]">Escavadeiras de {faixaLegivel(selectedWeightBand)}</p>
+            )}
+          </div>
+        </div>
+        {!mostrarModelos ? (
+          <div className="space-y-2">
+            <p className="m-0 px-0.5 text-[14.5px] font-semibold text-[#3E444B]">Qual o tamanho da máquina do cliente?</p>
+            {faixas.map(f => (
+              <button
+                key={f}
+                type="button"
+                onClick={() => { setSelectedWeightBand(f); setSelectedModel(null); }}
+                className="w-full h-auto min-h-[52px] px-4 py-2.5 rounded-2xl border border-[#E2E5E8] bg-white flex items-center justify-between gap-3 text-left active:scale-[0.99] transition"
+              >
+                <span className="text-[15.5px] font-bold text-[#1B1E22]">Máquinas de {faixaLegivel(f)}</span>
+                <ChevronRight className="h-5 w-5 shrink-0 text-[#9AA1A9]" />
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            <p className="m-0 px-0.5 text-[14.5px] font-semibold text-[#3E444B]">{lista.length === 1 ? 'Modelo indicado' : 'Modelos indicados'}</p>
+            {lista.map(model => {
+              const pronto = checkModelStock(model);
+              const faixa = faixaDoModelo(model);
+              const peso = pesoComUnidade(model);
+              const resumo = [faixa ? `Escavadeiras de ${faixaLegivel(faixa)}` : '', peso ? `Peso ${peso}` : ''].filter(Boolean).join(' · ');
+              const foto = fotoDoModelo(prod, model);
+              return (
+                <div key={model.id} className={cn('rounded-2xl border bg-white p-3', selectedModel?.id === model.id ? 'border-[#F6C400]' : 'border-[#E2E5E8]')}>
+                  <div className="flex items-center gap-3">
+                    <span className="h-14 w-14 shrink-0 rounded-xl bg-gradient-to-b from-[#F4F5F6] to-[#E3E6E9] flex items-center justify-center overflow-hidden">
+                      {foto
+                        ? <MarkdownImage src={foto} className="max-w-full max-h-full m-0 p-1 border-0 bg-transparent shadow-none hover:scale-100 object-contain mix-blend-multiply" />
+                        : <Package className="h-6 w-6 text-[#9AA1A9]" />}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="m-0 fonte-titulo text-[16.5px] font-extrabold leading-tight text-[#1B1E22] break-words">{model.name}</p>
+                        <span className={cn('shrink-0 rounded-full px-2 py-[3px] text-[11px] font-extrabold leading-none whitespace-nowrap', pronto ? 'bg-[#F6C400] text-[#111]' : 'bg-[#ECEEF0] text-[#5B6168]')}>
+                          {pronto ? 'Pronta entrega' : 'Sob encomenda'}
+                        </span>
+                      </div>
+                      {resumo && <p className="m-0 mt-1 text-[13px] leading-snug text-[#5B6168]">{resumo}</p>}
+                    </div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <button type="button" onClick={() => verFicha(prod, model)} className="h-11 min-h-[44px] w-full rounded-xl border-2 border-[#1B1E22] bg-white text-[#1B1E22] font-extrabold text-[14.5px] flex items-center justify-center gap-1.5 active:scale-[0.98] transition">
+                      <FileText className="h-4 w-4" /> Ver ficha
+                    </button>
+                    <button type="button" onClick={() => perguntarModeloCel(prod, model)} disabled={loading} className="h-11 min-h-[44px] w-full rounded-xl bg-[#F6C400] text-[#1B1E22] font-extrabold text-[14.5px] flex items-center justify-center gap-1.5 active:scale-[0.98] transition disabled:opacity-50">
+                      <MessageSquare className="h-4 w-4" /> Perguntar
+                    </button>
+                    {/* o explorador antigo sempre oferecia indicar: parceiro indica, visitante pede orçamento */}
+                    {(podeIndicar || perfilConsultor === 'visitante') && (
+                      <button type="button" onClick={() => handleMakeIndication(prod, model)} className="h-11 min-h-[44px] w-full rounded-xl bg-[#1B1E22] text-white font-extrabold text-[14.5px] flex items-center justify-center gap-1.5 active:scale-[0.98] transition">
+                        <UserPlus className="h-4 w-4" /> Indicar
+                      </button>
+                    )}
+                    {podeEnviarFicha && (
+                      <button type="button" onClick={() => enviarFicha(prod, model)} className="h-11 min-h-[44px] w-full rounded-xl bg-[#1FA855] text-white font-extrabold text-[14.5px] flex items-center justify-center gap-1.5 active:scale-[0.98] transition">
+                        <Send className="h-4 w-4" /> Enviar ficha
+                      </button>
+                    )}
+                    {temProdutividadeCel(prod, model) && (
+                      <button type="button" onClick={() => { setFolhaEquip(false); enviarPronto(`Produtividade do ${tituloFicha(prod, model)}`); }} disabled={loading} className="h-11 min-h-[44px] w-full rounded-xl border-2 border-[#E2E5E8] bg-white text-[#1B1E22] font-extrabold text-[14.5px] flex items-center justify-center gap-1.5 active:scale-[0.98] transition disabled:opacity-50">
+                        <Sparkles className="h-4 w-4" /> Produtividade
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            {lista.length === 0 && <p className="py-3 text-[14px] text-[#6B7178]">Nenhum modelo cadastrado.</p>}
+          </div>
+        )}
+      </div>
+    );
+  })() : null;
 
   const blocoPc = (
     <div className="cpc-claro fixed inset-0 z-[45] flex flex-col bg-[#ECEEF0] text-[#1B1E22] font-sans notranslate" translate="no">
@@ -5604,7 +5720,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
             exit={hasRightDock ? { opacity: 0, x: 50 } : { opacity: 0, y: 50, scale: 0.95 }}
             transition={{ duration: 0.25 }}
             className={cn(
-              "cpc-claro ccel fixed bg-[#ECEEF0] border-[#D3D7DC] flex flex-col overflow-hidden z-[45] text-[#1B1E22] font-sans notranslate",
+              "cpc-claro ccel fixed bg-[#ECEEF0] border-[#D3D7DC] flex flex-col overflow-hidden z-[90] sm:z-[45] text-[#1B1E22] font-sans notranslate",
               isFullPage
                 ? "inset-0 w-full h-full max-h-none rounded-none border-0 sm:top-auto sm:left-auto sm:bottom-6 sm:right-6 sm:w-[480px] sm:h-[85vh] sm:max-h-[800px] sm:border sm:rounded-2xl sm:shadow-3xl"
                 : hasRightDock
@@ -5616,12 +5732,25 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
           >
             <style>{estiloPc + estiloCel}</style>
 
+            {/* "Ver como" no celular: o consultor cobre a tela toda (inclusive a barra laranja do app),
+                então a barra da simulação vem aqui dentro, para o admin saber de quem é a tela e poder sair */}
+            {simulandoCel && (
+              <div className="ccel-simulacao sm:hidden relative z-20 shrink-0 bg-[#EA580C] text-[#fff] flex items-center justify-between gap-2 pl-3 pr-2 pb-1 pt-[calc(env(safe-area-inset-top,0px)+4px)]">
+                <span className="min-w-0 flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider">
+                  <Eye className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{profile?.name}</span>
+                </span>
+                <button type="button" onClick={stopImpersonation} className="h-11 min-h-[44px] shrink-0 px-3 rounded-lg bg-white text-[#C2410C] text-[10.5px] font-black uppercase tracking-wider flex items-center gap-1">
+                  <EyeOff className="h-3.5 w-3.5" /> Sair da simulação
+                </button>
+              </div>
+            )}
             {/* Barra do topo: logo, nova conversa e o menu com todas as ações */}
             {/* "CONSULTOR" fica no centro exato da barra, qualquer que seja a largura da logo e dos
                 botões da direita (pedido do Jeferson em 19/10/2026). Para não encostar nele em tela
                 estreita: o nome some abaixo de 460px e, no painel flutuante, o "Minimizar" (que
                 também está no menu) some abaixo de 420px. */}
-            <header className="relative z-20 shrink-0 bg-[#1B1E22] flex items-center gap-1 pl-3 pr-1.5 pb-1.5 pt-[calc(env(safe-area-inset-top,0px)+6px)] sm:pt-1.5">
+            <header className={cn("relative z-20 shrink-0 bg-[#1B1E22] flex items-center gap-1 pl-3 pr-1.5 pb-1.5", simulandoCel ? "pt-1.5 sm:pt-1.5" : "pt-[calc(env(safe-area-inset-top,0px)+6px)] sm:pt-1.5")}>
               <span className="ccel-titulo pointer-events-none absolute inset-x-0 bottom-1.5 h-11 flex items-center justify-center">
                 <span className="fonte-titulo text-[16px] font-extrabold tracking-[0.06em] text-[#F6C400] whitespace-nowrap">CONSULTOR</span>
               </span>
@@ -5653,7 +5782,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
             {menuCel && (
               <>
                 <button type="button" aria-label="Fechar menu" onClick={() => setMenuCel(false)} className="absolute inset-0 z-30 h-auto w-auto p-0 bg-black/20 cursor-default" />
-                <div role="menu" className="absolute right-2 top-[calc(env(safe-area-inset-top,0px)+54px)] sm:top-[54px] z-40 w-[250px] max-w-[calc(100%-16px)] rounded-2xl bg-white border border-[#E2E5E8] shadow-[0_12px_32px_rgba(0,0,0,0.18)] py-1.5 overflow-hidden">
+                <div role="menu" className={cn("absolute right-2 z-40 w-[250px] max-w-[calc(100%-16px)] rounded-2xl bg-white border border-[#E2E5E8] shadow-[0_12px_32px_rgba(0,0,0,0.18)] py-1.5 overflow-hidden", simulandoCel ? "top-[calc(env(safe-area-inset-top,0px)+106px)] sm:top-[54px]" : "top-[calc(env(safe-area-inset-top,0px)+54px)] sm:top-[54px]")}>
                   {nomeUsuario && (
                     <p className="m-0 px-4 pt-1.5 pb-2 mb-1 border-b border-[#ECEEF0] text-[13px] text-[#5B6168] truncate">
                       <User className="inline h-4 w-4 -mt-0.5 mr-1.5 text-[#8A6500]" />{nomeUsuario}{papelUsuario ? ` · ${papelUsuario}` : ''}
@@ -5692,126 +5821,20 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
 
                 {/* Conversa (ou a tela de início) */}
                 <div ref={listaCelRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3.5 pt-4 pb-3">
-                  {conversaVazia && onboardingStep === 'COMPLETED' ? (perfilConsultor !== 'visitante' ? (
-                    <div className="space-y-5">
+                  {conversaVazia && onboardingStep === 'COMPLETED' ? (
+                    /* Tela de início com cara de chat (pedido do Jeferson, 19/10/2026): a saudação e uma
+                       faixa baixa da pronta entrega. As sugestões ficam em chips logo acima da caixa de texto. */
+                    <div className="space-y-3">
                       <div className="msg-consultor border">
                         <p className="text-[15.5px] leading-relaxed text-[#1B1E22] m-0">
-                          {primeiroNomeCel ? `Olá, ${primeiroNomeCel}! ` : 'Olá! '}{saudacaoPerfil}
+                          {primeiroNomeCel ? `Olá, ${primeiroNomeCel}! ` : 'Olá! '}
+                          {perfilConsultor !== 'visitante' ? saudacaoPerfil : (podeIndicar ? 'Pergunte sobre um equipamento ou faça uma indicação.' : 'Pergunte sobre um equipamento ou a máquina do cliente.')}
                         </p>
                       </div>
-
-                      {/* começou a digitar: a tela de início sai e fica só a conversa */}
-                      {!inputValue.trim() && (<>
-                        {ehParceiroConsultor && podeIndicar && (
-                          <button type="button" onClick={tocarIndicar} className="w-full min-h-[56px] h-auto px-4 py-3 rounded-2xl bg-[#F6C400] text-[#1B1E22] flex items-center gap-3 text-left active:scale-[0.99] transition">
-                            <UserPlus className="h-6 w-6 shrink-0" />
-                            <span className="min-w-0">
-                              <span className="block text-[16px] font-extrabold leading-tight">Indicar um cliente</span>
-                              <span className="block text-[13.5px] font-medium leading-snug text-[#3E444B]">Passe os dados ou mande um link para ele</span>
-                            </span>
-                          </button>
-                        )}
-
-                        {prontaEntrega.length > 0 && (
-                          <section>
-                            <p className="ccel-rotulo">Pronta entrega</p>
-                            <CarrosselProntaEntrega itens={prontaEntrega} foto={fotoPe} onPerguntar={perguntarProntaEntrega} onIndicar={onIndicarPe} />
-                          </section>
-                        )}
-
-                        {ehEquipeConsultor && (
-                          <section>
-                            <p className="ccel-rotulo">Perguntas técnicas</p>
-                            <div className="space-y-2">
-                              {PERGUNTAS_TECNICAS_EQUIPE.map(q => (
-                                <button key={q} type="button" onClick={() => enviarPronto(q)} className="w-full h-auto min-h-12 px-4 py-2.5 rounded-2xl border border-[#E2E5E8] bg-white text-left text-[15px] font-medium text-[#1B1E22] leading-snug active:scale-[0.99] transition">
-                                  {q}
-                                </button>
-                              ))}
-                            </div>
-                          </section>
-                        )}
-
-                        {ehEquipeConsultor && equipDestaqueEquipe.length > 0 && (
-                          <section>
-                            <p className="ccel-rotulo">Equipamentos</p>
-                            <div className="grid grid-cols-2 gap-2">
-                              {equipDestaqueEquipe.map(prod => {
-                                const foto = fotoProdutoCel(prod);
-                                return (
-                                  <button key={prod.id} type="button" onClick={() => abrirEquipamentoCel(prod)} className="h-auto min-h-[56px] p-2.5 rounded-2xl border border-[#E2E5E8] bg-white flex items-center gap-2.5 text-left active:scale-[0.98] transition">
-                                    <span className="h-9 w-9 shrink-0 rounded-[10px] bg-[#FFF6D1] flex items-center justify-center overflow-hidden">
-                                      {foto
-                                        ? <MarkdownImage src={foto} className="max-w-full max-h-full m-0 p-0.5 border-0 bg-transparent shadow-none hover:scale-100 object-contain mix-blend-multiply" />
-                                        : <Package className="h-5 w-5 text-[#B08A00]" />}
-                                    </span>
-                                    <span className="min-w-0 text-[14.5px] font-bold leading-snug text-[#1B1E22] break-words line-clamp-2">{prod.name}</span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </section>
-                        )}
-                      </>)}
-                    </div>
-                  ) : (
-                    <div className="space-y-5">
-                      <div className="msg-consultor border">
-                        <p className="text-[15.5px] leading-relaxed text-[#1B1E22] m-0">
-                          {primeiroNomeCel ? `Olá, ${primeiroNomeCel}! ` : 'Olá! '}{podeIndicar ? 'Pergunte sobre um equipamento ou faça uma indicação.' : 'Pergunte sobre um equipamento ou a máquina do cliente.'}
-                        </p>
-                      </div>
-
-                      {podeIndicar && (
-                        <button type="button" onClick={tocarIndicar} className="w-full min-h-[56px] h-auto px-4 py-3 rounded-2xl bg-[#F6C400] text-[#1B1E22] flex items-center gap-3 text-left active:scale-[0.99] transition">
-                          <UserPlus className="h-6 w-6 shrink-0" />
-                          <span className="min-w-0">
-                            <span className="block text-[16px] font-extrabold leading-tight">Indicar um cliente</span>
-                            <span className="block text-[13.5px] font-medium leading-snug text-[#3E444B]">Passe os dados ou mande um link para ele</span>
-                          </span>
-                        </button>
+                      {perfilConsultor !== 'visitante' && prontaEntrega.length > 0 && !inputValue.trim() && (
+                        <FaixaProntaEntrega itens={prontaEntrega} foto={fotoPe} onPerguntar={perguntarProntaEntrega} onIndicar={onIndicarPe} />
                       )}
-
-                      <section>
-                        <p className="ccel-rotulo">Equipamentos</p>
-                        {loadingExplorer ? (
-                          <p className="py-3 text-[14px] text-[#6B7178] flex items-center gap-2"><RefreshCw className="h-4 w-4 animate-spin" /> Carregando catálogo...</p>
-                        ) : (
-                          <div className="grid grid-cols-2 gap-2">
-                            {catalogProducts.map(prod => {
-                              const foto = fotoProdutoCel(prod);
-                              return (
-                                <button
-                                  key={prod.id}
-                                  type="button"
-                                  onClick={() => abrirEquipamentoCel(prod)}
-                                  className="h-auto min-h-[64px] p-2.5 rounded-2xl border border-[#E2E5E8] bg-white flex items-center gap-2.5 text-left active:scale-[0.98] transition"
-                                >
-                                  <span className="h-10 w-10 shrink-0 rounded-[10px] bg-[#FFF6D1] flex items-center justify-center overflow-hidden">
-                                    {foto
-                                      ? <MarkdownImage src={foto} className="max-w-full max-h-full m-0 p-0.5 border-0 bg-transparent shadow-none hover:scale-100 object-contain mix-blend-multiply" />
-                                      : <Package className="h-5 w-5 text-[#B08A00]" />}
-                                  </span>
-                                  <span className="min-w-0 text-[14.5px] font-bold leading-snug text-[#1B1E22] break-words line-clamp-2">{prod.name}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </section>
-
-                      <section>
-                        <p className="ccel-rotulo">Perguntas comuns</p>
-                        <div className="space-y-2">
-                          {sugestoesPc.map(q => (
-                            <button key={q} type="button" onClick={() => enviarPronto(q)} className="w-full h-auto min-h-12 px-4 py-2.5 rounded-2xl border border-[#E2E5E8] bg-white text-left text-[15px] font-medium text-[#1B1E22] leading-snug active:scale-[0.99] transition">
-                              {q}
-                            </button>
-                          ))}
-                        </div>
-                      </section>
                     </div>
-                  )
                   ) : (
                     <div className="space-y-4">{listaMensagens}</div>
                   )}
@@ -5819,7 +5842,23 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
 
                 {/* Caixa de texto, com os atalhos logo acima durante a conversa */}
                 <div className="shrink-0 px-3 pt-1 pb-[calc(env(safe-area-inset-bottom,0px)+10px)]">
-                  {onboardingStep === 'COMPLETED' && perfilConsultor !== 'visitante' && (
+                  {conversaVazia && onboardingStep === 'COMPLETED' && !inputValue.trim() && (
+                    <div className="ccel-atalhos flex gap-2 overflow-x-auto pb-2 -mx-3 px-3">
+                      {podeIndicar && !fluxoInd && (ehParceiroConsultor || perfilConsultor === 'visitante') && (
+                        <button type="button" onClick={tocarIndicar} disabled={loading} className="ccel-chip border-[#F6C400] bg-[#F6C400] font-extrabold">
+                          <UserPlus className="h-4 w-4" /> Indicar um cliente
+                        </button>
+                      )}
+                      {/* Equipamentos logo no começo: é curto e substitui a grade que saiu da tela de início */}
+                      <button type="button" onClick={() => abrirEquipamentoCel()} className="ccel-chip">
+                        <Menu className="h-4 w-4" /> Equipamentos
+                      </button>
+                      {(ehEquipeConsultor ? PERGUNTAS_TECNICAS_EQUIPE.slice(0, 2) : sugestoesPc.slice(0, ehParceiroConsultor || podeIndicar ? 1 : 2)).map(q => (
+                        <button key={q} type="button" onClick={() => enviarPronto(q)} className="ccel-chip font-semibold">{q}</button>
+                      ))}
+                    </div>
+                  )}
+                  {!conversaVazia && onboardingStep === 'COMPLETED' && perfilConsultor !== 'visitante' && (
                     <div className="ccel-atalhos flex gap-2 overflow-x-auto pb-2 -mx-3 px-3">
                       {ehParceiroConsultor ? (<>
                         {podeIndicar && !fluxoInd && (
@@ -5900,7 +5939,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                             if (!loading) handleSend();
                           }
                         }}
-                        placeholder={onboardingStep === 'COMPLETED' ? 'Pergunte ao consultor...' : 'Digite sua resposta...'}
+                        placeholder={onboardingStep === 'COMPLETED' ? 'Escreva sua pergunta...' : 'Digite sua resposta...'}
                         enterKeyHint={toqueCel ? 'enter' : 'send'}
                         className="ccel-campo flex-1 min-w-0 resize-none border-0 bg-transparent p-0 py-[11px] text-[16px] leading-[22px] font-medium text-[#1B1E22] placeholder-[#8A9097] outline-none shadow-none focus:ring-0"
                       />
@@ -6007,7 +6046,11 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                       </div>
                     </>
                   ) : (
-                    <div className="cpc-explorador ccel-folha flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 pb-3">{blocoExplorador}</div>
+                    selectedProduct.name.toLowerCase().includes('caçamba') ? (
+                      <div className="cpc-explorador ccel-folha flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 pb-4">{blocoExplorador}</div>
+                    ) : (
+                      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pb-4">{blocoExploradorCel}</div>
+                    )
                   )}
                 </div>
               </div>
@@ -6138,45 +6181,49 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
         )}
       </AnimatePresence>
 
-      {isHighTipFichaOpen && (
-        <HighTipFicha onClose={() => setIsHighTipFichaOpen(false)} enviar={fichaParaEnviar} />
-      )}
+      {/* Fichas acima do consultor: no celular ele cobre a tela toda (z 90, acima do topo do app),
+          e várias fichas usam z-50, que ficariam escondidas atrás dele */}
+      <div className="relative z-[100]">
+        {isHighTipFichaOpen && (
+          <HighTipFicha onClose={() => setIsHighTipFichaOpen(false)} enviar={fichaParaEnviar} />
+        )}
 
-      {isFresaSshFichaOpen && (
-        <FresaSshFicha onClose={() => setIsFresaSshFichaOpen(false)} defaultModelId={fresaSshDefaultModel} enviar={fichaParaEnviar} />
-      )}
+        {isFresaSshFichaOpen && (
+          <FresaSshFicha onClose={() => setIsFresaSshFichaOpen(false)} defaultModelId={fresaSshDefaultModel} enviar={fichaParaEnviar} />
+        )}
 
-      {isEngateRapidoFichaOpen && (
-        <EngateRapidoFicha onClose={() => setIsEngateRapidoFichaOpen(false)} enviar={fichaParaEnviar} />
-      )}
+        {isEngateRapidoFichaOpen && (
+          <EngateRapidoFicha onClose={() => setIsEngateRapidoFichaOpen(false)} enviar={fichaParaEnviar} />
+        )}
 
-      {isGarraEstufagemFichaOpen && (
-        <GarraEstufagemFicha onClose={() => setIsGarraEstufagemFichaOpen(false)} enviar={fichaParaEnviar} />
-      )}
+        {isGarraEstufagemFichaOpen && (
+          <GarraEstufagemFicha onClose={() => setIsGarraEstufagemFichaOpen(false)} enviar={fichaParaEnviar} />
+        )}
 
-      {isTrituradorLoaderFaeFichaOpen && (
-        <TrituradorLoaderFaeFicha
-          onClose={() => setIsTrituradorLoaderFaeFichaOpen(false)}
-          defaultModelId={trituradorLoaderFaeDefaultModel}
-          enviar={fichaParaEnviar}
-        />
-      )}
+        {isTrituradorLoaderFaeFichaOpen && (
+          <TrituradorLoaderFaeFicha
+            onClose={() => setIsTrituradorLoaderFaeFichaOpen(false)}
+            defaultModelId={trituradorLoaderFaeDefaultModel}
+            enviar={fichaParaEnviar}
+          />
+        )}
 
-      {isSacadorSac500FichaOpen && (
-        <SacadorSac500Ficha onClose={() => setIsSacadorSac500FichaOpen(false)} enviar={fichaParaEnviar} />
-      )}
+        {isSacadorSac500FichaOpen && (
+          <SacadorSac500Ficha onClose={() => setIsSacadorSac500FichaOpen(false)} enviar={fichaParaEnviar} />
+        )}
 
-      {isCabecotePodaFichaOpen && (
-        <CabecotePodaFicha onClose={() => setIsCabecotePodaFichaOpen(false)} enviar={fichaParaEnviar} />
-      )}
+        {isCabecotePodaFichaOpen && (
+          <CabecotePodaFicha onClose={() => setIsCabecotePodaFichaOpen(false)} enviar={fichaParaEnviar} />
+        )}
 
-      {isCabecoteGmt035FichaOpen && (
-        <CabecoteGmt035Ficha onClose={() => setIsCabecoteGmt035FichaOpen(false)} enviar={fichaParaEnviar} />
-      )}
+        {isCabecoteGmt035FichaOpen && (
+          <CabecoteGmt035Ficha onClose={() => setIsCabecoteGmt035FichaOpen(false)} enviar={fichaParaEnviar} />
+        )}
 
-      {fichaPadrao && (
-        <FichaPadrao product={fichaPadrao.product} model={fichaPadrao.model} onClose={() => setFichaPadrao(null)} />
-      )}
+        {fichaPadrao && (
+          <FichaPadrao product={fichaPadrao.product} model={fichaPadrao.model} onClose={() => setFichaPadrao(null)} />
+        )}
+      </div>
 
       {/* 1. Share Modal */}
       <AnimatePresence>
