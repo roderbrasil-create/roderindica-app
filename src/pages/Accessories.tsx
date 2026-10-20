@@ -69,6 +69,7 @@ import {
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
+import { formatarQuantidadeKit } from '../lib/kitQuantidade';
 import { computeKitsDiff } from '../lib/kitsDiff';
 import { parseKitsText } from '../../server/kitsPdf';
 
@@ -725,7 +726,7 @@ export default function Accessories() {
       const tableData = selectedKit.items.map(item => [
         item.code,
         item.description,
-        item.quantity.toString()
+        formatarQuantidadeKit(item)
       ]);
 
       autoTable(doc, {
@@ -1155,7 +1156,7 @@ export default function Accessories() {
                                               key={i} 
                                               className="border-b border-border hover:bg-muted/30 transition-colors cursor-pointer group"
                                               onClick={() => {
-                                                const text = `${item.code} ${item.description} ${item.quantity}`;
+                                                const text = `${item.code} ${item.description} ${formatarQuantidadeKit(item)}`;
                                                 navigator.clipboard.writeText(text);
                                                 toast.success('Linha copiada!');
                                               }}
@@ -1171,7 +1172,7 @@ export default function Accessories() {
                                               </td>
                                               <td className="px-4 md:px-6 py-4 text-center">
                                                 <Badge variant="outline" className="h-7 md:h-8 min-w-[28px] md:min-w-[32px] rounded-full flex items-center justify-center px-2 font-black border-primary/30 text-primary text-xs bg-primary/5">
-                                                  {item.quantity}
+                                                  {formatarQuantidadeKit(item)}
                                                 </Badge>
                                               </td>
                                             </tr>
@@ -1466,7 +1467,7 @@ export default function Accessories() {
                         />
                         <Input 
                           className="text-xs" 
-                          type="number"
+                          type="number" min="0" step="any"
                           value={item.quantity} 
                           onChange={e => {
                             const newItems = [...(kitForm.items || [])];
