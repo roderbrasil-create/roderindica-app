@@ -24,6 +24,8 @@ test('equipe que entrou pelo link da equipe (sem login) também é equipe', () =
 test('o servidor decide a equipe quando sabe: navegador dizendo equipe não basta', () => {
   // quem se diz admin pelo navegador, mas o token não confirma, recebe a diretriz de parceiro
   assert.match(instrucaoPerfilConsultor({ role: 'admin', equipe: true }, false), /PARCEIRO\/VENDEDOR/);
+  // sem token conferido no servidor (undefined), vale o perfil informado: admin logado continua equipe
+  assert.match(instrucaoPerfilConsultor({ role: 'admin', equipe: true }, undefined), /EQUIPE RODER/);
   assert.match(instrucaoPerfilConsultor({ role: 'external_seller' }, true), /EQUIPE RODER/);
 });
 

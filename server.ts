@@ -3396,7 +3396,8 @@ ${kitsContext || "Não há kits de instalação cadastrados."}${improvedKnowledg
           // Equipe: com login, o papel conferido pelo token; sem login, só o link /consultor-equipe
           // (e-mail conferido em /api/consultor/equipe), que chega como vendedor com equipe = true
           const q = await quemChama(req);
-          const equipe = q ? ehEquipe(q) : (userInfo.equipe === true && userInfo.role === 'vendedor');
+          // Sem token conferido (o consultor nem sempre manda), vale a regra antiga pelo perfil informado
+          const equipe = q ? ehEquipe(q) : undefined;
           const userTypeInstruction = instrucaoPerfilConsultor(userInfo, equipe);
 
           let contextoTrator = "";

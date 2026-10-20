@@ -3497,8 +3497,7 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                     : <Package className="h-5 w-5 text-[#9AA1A9]" />}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="m-0 fonte-titulo text-[15.5px] font-extrabold leading-tight text-[#1B1E22] truncate">{model.name || tituloFicha(prod, model)}</p>
-                  {model.name && <p className="m-0 text-[12px] leading-tight text-[#6B7178] truncate">{prod.name}</p>}
+                  <p className="m-0 fonte-titulo text-[15.5px] font-extrabold leading-tight text-[#1B1E22] truncate">{tituloFicha(prod, model)}</p>
                 </div>
                 <button type="button" onClick={() => verFicha(prod, model)} className="h-10 shrink-0 px-2.5 whitespace-nowrap rounded-[10px] border-[1.5px] border-[#1B1E22] bg-white text-[#1B1E22] font-extrabold text-[13.5px] active:scale-95 transition">Ver ficha</button>
                 {podeEnviarFicha && (
