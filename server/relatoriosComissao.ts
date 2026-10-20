@@ -532,7 +532,8 @@ export async function ligarEmailsComissaoUmaVez(db: any, agora: Date = new Date(
     console.log('[EMAILS-COMISSAO] Ligados: e-mail do parceiro (dia 1 e dia 5), relatório da diretoria (dia 1) e lembrete ao financeiro (dia 7).');
     return 'ligado';
   } catch (e: any) {
-    await trava.set({ error: String(e?.message || e), failed_at: new Date().toISOString() }, { merge: true }).catch(() => {});
+    // apaga a trava para tentar de novo no próximo início: um erro passageiro não pode deixar os e-mails desligados
+    await trava.delete().catch(() => {});
     console.error('[EMAILS-COMISSAO] Erro ao ligar:', e?.message);
     return 'erro';
   }
