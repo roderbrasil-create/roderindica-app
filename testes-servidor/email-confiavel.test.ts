@@ -138,7 +138,7 @@ test('senha pela tela de Usuários: gestão não troca senha de gestão, de cont
 test('TRIAGEM E GERENTE DE OUTRO E-MAIL: users/temp_x sem papel com o e-mail da conta de um gerente não troca a senha dele', () => {
   // conta de login do gerente: uid u_ger, e o users/u_ger dele tem outro e-mail (ou vazio)
   for (const cadastroDaConta of [{ existe: true, role: 'manager' }, { existe: true, role: 'admin' }]) {
-    const alvo = papeisDaContaAlvo({ cadastroAlvoId: 'temp_x', cadastroAlvoRole: '', papeisPorEmail: [''], contaUid: 'u_ger', cadastroDaConta });
+    const alvo = papeisDaContaAlvo({ cadastroAlvoId: 'temp_x', cadastroAlvoEhPreCadastro: true, cadastroAlvoRole: '', papeisPorEmail: [''], contaUid: 'u_ger', cadastroDaConta });
     assert.equal(alvo.ok, true);
     assert.ok(alvo.papeisAlvo.includes(cadastroDaConta.role));
     const r = podeDefinirSenha({ papelQuemPede: 'triagem', diretoria: false, papeisAlvo: alvo.papeisAlvo, emailAlvo: 'ger@x.com', temGoogle: false });
@@ -146,19 +146,44 @@ test('TRIAGEM E GERENTE DE OUTRO E-MAIL: users/temp_x sem papel com o e-mail da 
     assert.equal(r.status, 403);
   }
   // o admin continua podendo
-  const adm = papeisDaContaAlvo({ cadastroAlvoId: 'temp_x', cadastroAlvoRole: '', papeisPorEmail: [''], contaUid: 'u_ger', cadastroDaConta: { existe: true, role: 'manager' } });
+  const adm = papeisDaContaAlvo({ cadastroAlvoId: 'temp_x', cadastroAlvoEhPreCadastro: true, cadastroAlvoRole: '', papeisPorEmail: [''], contaUid: 'u_ger', cadastroDaConta: { existe: true, role: 'manager' } });
   assert.equal(podeDefinirSenha({ papelQuemPede: 'admin', diretoria: false, papeisAlvo: adm.papeisAlvo, emailAlvo: 'ger@x.com', temGoogle: false }).ok, true);
 });
 
 test('conta de login sem cadastro próprio: só pré-cadastro recebe senha; o mesmo uid não é conferido duas vezes', () => {
-  assert.equal(papeisDaContaAlvo({ cadastroAlvoId: 'temp_x', cadastroAlvoRole: '', papeisPorEmail: [''], contaUid: 'u_fora', cadastroDaConta: { existe: false } }).ok, true);
-  assert.equal(papeisDaContaAlvo({ cadastroAlvoId: 'phone_1499', cadastroAlvoRole: 'external_seller', papeisPorEmail: [], contaUid: 'u_fora', cadastroDaConta: { existe: false } }).ok, true);
-  const recusa = papeisDaContaAlvo({ cadastroAlvoId: 'u_outro', cadastroAlvoRole: 'external_seller', papeisPorEmail: ['external_seller'], contaUid: 'u_fora', cadastroDaConta: { existe: false } });
+  assert.equal(papeisDaContaAlvo({ cadastroAlvoId: 'temp_x', cadastroAlvoEhPreCadastro: true, cadastroAlvoRole: '', papeisPorEmail: [''], contaUid: 'u_fora', cadastroDaConta: { existe: false } }).ok, true);
+  assert.equal(papeisDaContaAlvo({ cadastroAlvoId: 'phone_1499', cadastroAlvoEhPreCadastro: true, cadastroAlvoRole: 'external_seller', papeisPorEmail: [], contaUid: 'u_fora', cadastroDaConta: { existe: false } }).ok, true);
+  const recusa = papeisDaContaAlvo({ cadastroAlvoId: 'u_outro', cadastroAlvoEhPreCadastro: false, cadastroAlvoRole: 'external_seller', papeisPorEmail: ['external_seller'], contaUid: 'u_fora', cadastroDaConta: { existe: false } });
   assert.equal(recusa.ok, false);
   assert.equal(recusa.status, 409);
   // conta nova (sem login ainda) ou conta do próprio cadastro: só os papéis dos cadastros
-  assert.deepEqual(papeisDaContaAlvo({ cadastroAlvoId: 'temp_x', cadastroAlvoRole: 'external_seller', papeisPorEmail: ['external_seller'], contaUid: null, cadastroDaConta: null }), { ok: true, papeisAlvo: ['external_seller', 'external_seller'] });
-  assert.equal(papeisDaContaAlvo({ cadastroAlvoId: 'u_1', cadastroAlvoRole: 'internal_seller', papeisPorEmail: ['internal_seller'], contaUid: 'u_1', cadastroDaConta: null }).ok, true);
+  assert.deepEqual(papeisDaContaAlvo({ cadastroAlvoId: 'temp_x', cadastroAlvoEhPreCadastro: true, cadastroAlvoRole: 'external_seller', papeisPorEmail: ['external_seller'], contaUid: null, cadastroDaConta: null }), { ok: true, papeisAlvo: ['external_seller', 'external_seller'] });
+  assert.equal(papeisDaContaAlvo({ cadastroAlvoId: 'u_1', cadastroAlvoEhPreCadastro: false, cadastroAlvoRole: 'internal_seller', papeisPorEmail: ['internal_seller'], contaUid: 'u_1', cadastroDaConta: null }).ok, true);
+});
+
+test('CONVITE RÁPIDO: heloisa_ com conta de login e sem users/{uid} recebe senha; o id que é uid real nunca é pré-cadastro', () => {
+  const heloisa = papeisDaContaAlvo({ cadastroAlvoId: 'heloisa_1', cadastroAlvoEhPreCadastro: true, cadastroAlvoRole: 'internal_seller', papeisPorEmail: ['internal_seller'], contaUid: 'u_helo', cadastroDaConta: { existe: false } });
+  assert.equal(heloisa.ok, true);
+  assert.equal(podeDefinirSenha({ papelQuemPede: 'manager', diretoria: false, papeisAlvo: heloisa.papeisAlvo, emailAlvo: 'h@x.com', temGoogle: false }).ok, true);
+  // o admin com convite rápido (sem users/{uid}) também não fica trancado
+  assert.equal(papeisDaContaAlvo({ cadastroAlvoId: 'gislene_1', cadastroAlvoEhPreCadastro: true, cadastroAlvoRole: 'admin', papeisPorEmail: ['admin'], contaUid: 'u_g', cadastroDaConta: { existe: false } }).ok, true);
+  // id com cara de pré-cadastro mas que é uid real de outra conta: o servidor manda false e vira 409
+  const forjado = papeisDaContaAlvo({ cadastroAlvoId: 'temp_forjado', cadastroAlvoEhPreCadastro: false, cadastroAlvoRole: '', papeisPorEmail: [''], contaUid: 'u_ger', cadastroDaConta: { existe: false } });
+  assert.equal(forjado.ok, false);
+  assert.equal(forjado.status, 409);
+  // takeover da triagem continua recusado quando a conta do gerente tem cadastro próprio
+  const t = papeisDaContaAlvo({ cadastroAlvoId: 'temp_x', cadastroAlvoEhPreCadastro: true, cadastroAlvoRole: '', papeisPorEmail: [''], contaUid: 'u_ger', cadastroDaConta: { existe: true, role: 'manager' } });
+  assert.equal(podeDefinirSenha({ papelQuemPede: 'triagem', diretoria: false, papeisAlvo: t.papeisAlvo, emailAlvo: 'ger@x.com', temGoogle: false }).ok, false);
+});
+
+test('servidor: pré-cadastro decidido pelo Auth, checkRevoked em quemChama, e-mail com maiúsculas e erro do registro', () => {
+  const fonte = fs.readFileSync(new URL('../server.ts', import.meta.url), 'utf8');
+  assert.ok(fonte.includes('admin.auth().getUser(cadastroAlvo.id)'));
+  assert.ok(fonte.includes('cadastroAlvoEhPreCadastro,'));
+  const q = fonte.indexOf('async function quemChama(');
+  assert.ok(fonte.slice(q, q + 900).includes('verifyIdToken(token, true)'));
+  assert.ok(fonte.includes("codigo: 'token_revogado'"));
+  assert.ok(fonte.includes("console.error(\"[AUTH-ADMIN] FALHA ao gravar o registro"));
 });
 
 test('servidor: a troca de senha confere o cadastro da conta de login, checkRevoked e registra o que a gestão fez', () => {

@@ -567,6 +567,7 @@ async function startServer() {
     async (req: any, res: any, next: any) => {
       if (req.method === 'OPTIONS') return next();
       if (ehGestao(await quemChama(req))) return next();
+      if (negarSessaoRevogada(req, res)) return;
       return res.status(403).json({ success: false, error: 'Acesso restrito à gestão.' });
     });
 
@@ -1385,7 +1386,15 @@ Retorne um array JSON no formato exato:
     try {
       const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
       if (!token || token.length < 100) return null;
-      const dec: any = await admin.auth().verifyIdToken(token);
+      // checkRevoked: sessão derrubada (senha trocada pelo admin, por exemplo) deixa de valer aqui
+      // também. Quem chama as rotas de gestão com login revogado recebe 401 "token_revogado".
+      let dec: any;
+      try {
+        dec = await admin.auth().verifyIdToken(token, true);
+      } catch (e: any) {
+        if (e?.code === 'auth/id-token-revoked') req.sessaoRevogada = true;
+        return null;
+      }
       if (dec.firebase?.sign_in_provider === 'anonymous') return null;
       const email = (dec.email || '').toLowerCase();
       let role = '';
@@ -1395,6 +1404,12 @@ Retorne um array JSON no formato exato:
       role = papelDeQuemChama(dec, role);
       return { uid: dec.uid, email, role };
     } catch { return null; }
+  }
+  // Resposta para login revogado: 401 com código claro (o app manda a pessoa entrar de novo).
+  function negarSessaoRevogada(req: any, res: any): boolean {
+    if (!req.sessaoRevogada) return false;
+    res.status(401).json({ ok: false, success: false, codigo: 'token_revogado', error: 'Seu acesso precisa ser feito de novo. Entre outra vez com seu e-mail e senha.' });
+    return true;
   }
   const envioPublicoPorIp = new Map<string, number[]>();
   const EQUIPE_RODER = ['admin', 'manager', 'triagem', 'internal_seller', 'financial', 'finance', 'fiscal', 'marketing', 'assistant', 'vendedor_padrao'];
@@ -1525,12 +1540,14 @@ Retorne um array JSON no formato exato:
   }
   async function exigirAdmin(req: any, res: any) {
     const q = await quemChama(req);
+    if (negarSessaoRevogada(req, res)) return null;
     if (!q || q.role !== 'admin') { res.status(403).json({ ok: false, error: 'Só o administrador.' }); return null; }
     return q;
   }
 
   async function exigirGestaoComissao(req: any, res: any) {
     const q = await quemChama(req);
+    if (negarSessaoRevogada(req, res)) return null;
     if (!ehGestao(q)) { res.status(403).json({ ok: false, error: 'Só o administrador ou a gerência podem trocar o indicador de uma venda faturada.' }); return null; }
     return q;
   }
@@ -4553,7 +4570,14 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       // gestão, a troca é do admin, mesmo que o pedido venha pelo cadastro de parceiro.
       const emailAlvo = String(email).toLowerCase().trim();
       const uidAlvo = String(req.body?.uid || '').trim();
-      const porEmail = await db.collection('users').where('email', '==', emailAlvo).get();
+      // Cadastro antigo pode ter o e-mail gravado com maiúsculas: consulta também o valor original,
+      // senão ele escaparia da conferência de papel.
+      const consultasEmail = [emailAlvo, ...(String(email).trim() !== emailAlvo ? [String(email).trim()] : [])];
+      const docsPorEmail = new Map<string, any>();
+      for (const e of consultasEmail) {
+        (await db.collection('users').where('email', '==', e).get()).docs.forEach((d: any) => docsPorEmail.set(d.id, d));
+      }
+      const porEmail = { docs: Array.from(docsPorEmail.values()), empty: docsPorEmail.size === 0, size: docsPorEmail.size };
       let cadastroAlvo: any = null;
       if (uidAlvo) {
         const snap = await db.collection('users').doc(uidAlvo).get();
@@ -4580,8 +4604,19 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         const sc = await db.collection('users').doc(contaExistente.uid).get();
         cadastroDaConta = { existe: sc.exists, role: String((sc.data() as any)?.role || '') };
       }
+      // Pré-cadastro = o id do cadastro NÃO é uma conta de login (decidido pelo Auth, e não pelo
+      // prefixo: os botões de convite rápido criam rogerio_, heloisa_ etc.). Se o id é um uid real,
+      // nunca é pré-cadastro, para ninguém forjar um "temp_" no lugar de uma conta existente.
+      let cadastroAlvoEhPreCadastro = false;
+      if (contaExistente && contaExistente.uid !== cadastroAlvo.id) {
+        try { await admin.auth().getUser(cadastroAlvo.id); } catch (e: any) {
+          if (e?.code !== 'auth/user-not-found') throw e;
+          cadastroAlvoEhPreCadastro = true;
+        }
+      }
       const alvo = papeisDaContaAlvo({
         cadastroAlvoId: cadastroAlvo.id,
+        cadastroAlvoEhPreCadastro,
         cadastroAlvoRole: String((cadastroAlvo.data() as any)?.role || ''),
         papeisPorEmail: porEmail.docs.map(d => String((d.data() as any)?.role || '')),
         contaUid: contaExistente?.uid || null,
@@ -4647,7 +4682,8 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
             tipo: contaExistente ? 'senha_trocada' : 'conta_criada',
           });
         } catch (regErr: any) {
-          console.warn("[AUTH-ADMIN] Não consegui gravar o registro da senha definida pela gestão:", regErr?.message);
+          // Não bloqueia a troca (a senha já mudou), mas o admin precisa saber que o registro falhou.
+          console.error("[AUTH-ADMIN] FALHA ao gravar o registro da senha definida pela gestão (senhas_definidas_pela_gestao):", regErr?.message, { quem: requesterUid, alvo: emailAlvo });
         }
       }
 
