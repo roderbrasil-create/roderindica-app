@@ -47,3 +47,26 @@ test('o prompt do consultor traz o link dos nove modelos e a regra de não falar
   for (const m of MODELOS_FICHA_ESCAVADEIRA) assert.ok(fonte.includes(`(${linkFichaEscavadeira(m.chave)})`), m.chave);
   assert.ok(fonte.includes('Nunca informe número de dentes desses trituradores de escavadeira'));
 });
+
+test('decisão do link: modelo válido abre, desconhecido e ssh-150 avisam, outros links seguem o caminho antigo', async () => {
+  const { decidirLinkFichaFae } = await import('../src/lib/fichaEscavadeira.ts');
+  for (const m of MODELOS_FICHA_ESCAVADEIRA) {
+    const d = decidirLinkFichaFae(linkFichaEscavadeira(m.chave), [produto]);
+    assert.equal(d.acao, 'abrir');
+    if (d.acao === 'abrir') assert.equal(d.model.name, m.nome);
+  }
+  assert.equal(decidirLinkFichaFae('ficha-fae:ssh-150', [produto]).acao, 'avisar');
+  assert.equal(decidirLinkFichaFae('ficha-fae:xyz', [produto]).acao, 'avisar');
+  assert.equal(decidirLinkFichaFae('ficha-fae:', [produto]).acao, 'avisar');
+  assert.equal(decidirLinkFichaFae('FICHA-FAE:ssh-150', [produto]).acao, 'avisar');
+  assert.equal(decidirLinkFichaFae('ficha-fae:umm', []).acao, 'avisar');
+  assert.equal(decidirLinkFichaFae('fresa-ssh', [produto]).acao, 'ignorar');
+});
+
+test('openTechnicalSheet usa a decisão e retorna antes de fichaEspecialDe', async () => {
+  const { readFileSync } = await import('node:fs');
+  const f = readFileSync(new URL('../src/components/layout/EngineerHelper.tsx', import.meta.url), 'utf8');
+  const i = f.indexOf('decidirLinkFichaFae(url, catalogProducts)');
+  assert.ok(i > 0 && i < f.indexOf('const tipo = fichaEspecialDe(url, modelName)'));
+  assert.ok(f.slice(i, i + 400).includes("acao === 'avisar'"));
+});

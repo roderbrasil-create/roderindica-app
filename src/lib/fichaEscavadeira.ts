@@ -63,3 +63,19 @@ export function acharFichaEscavadeira<M extends ModeloLike, P extends ProdutoLik
   }
   return null;
 }
+
+// Decide o que fazer com um link do consultor. Tudo que começa com "ficha-fae:" é tratado aqui e
+// nunca segue para as outras fichas (ex.: "ficha-fae:ssh-150" não pode abrir a ficha da SSH).
+export type DecisaoLinkFichaFae<P, M> =
+  | { acao: 'ignorar' }
+  | { acao: 'abrir'; product: P; model: M }
+  | { acao: 'avisar'; aviso: string };
+
+export function decidirLinkFichaFae<M extends ModeloLike, P extends ProdutoLike<M>>(url: string, produtos: P[]): DecisaoLinkFichaFae<P, M> {
+  if (!String(url || '').trim().toLowerCase().startsWith(PREFIXO_LINK_FICHA_FAE)) return { acao: 'ignorar' };
+  const chave = chaveDoLinkFichaFae(url);
+  if (!chave) return { acao: 'avisar', aviso: 'Não reconheci o modelo dessa ficha. Procure na lista de equipamentos.' };
+  const achada = acharFichaEscavadeira<M, P>(produtos, chave);
+  if (!achada) return { acao: 'avisar', aviso: 'Não achei essa ficha no catálogo agora. Procure o modelo na lista de equipamentos.' };
+  return { acao: 'abrir', ...achada };
+}
