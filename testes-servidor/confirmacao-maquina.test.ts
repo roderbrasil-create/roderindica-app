@@ -330,3 +330,15 @@ test('sem afirmação do vendedor não há código nem opção: o contexto de ki
   assert.match(REGRA_KIT_CONFIRMACAO, /acrescente "confirmar_maquina": true/);
   assert.ok(!/[—–]/.test(REGRA_KIT_CONFIRMACAO + RESSALVA_KIT));
 });
+
+test('suporte nunca é presumido: sem "ponteira por padrão", sem "indique o item" e sem "automaticamente" na falta de link', () => {
+  const ler = (c: string) => readFileSync(new URL(`../${c}`, import.meta.url), 'utf8');
+  for (const f of ['server.ts', 'AGENTS.md']) {
+    const c = ler(f);
+    assert.ok(!/Instalação com Ponteira \((Padrão|Solicitação Direta)\)/.test(c), `${f}: ponteira por padrão voltou`);
+    assert.ok(!/referem-se automaticamente à montagem/.test(c), `${f}: presunção de ponteira voltou`);
+    assert.ok(!/indique o item: \*\*"Kit de instalação garra/.test(c), `${f}: indique o item voltou`);
+    assert.match(c, /só depois de o vendedor AFIRMAR a configuração da máquina e de confirmado o tipo de suporte \(link, ponteira ou lança extensora\)/i);
+    assert.match(c, /NÃO decide o suporte/);
+  }
+});

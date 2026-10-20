@@ -84,10 +84,10 @@
   - **Rotator de 12 t ou 16 t**: Exige obrigatoriamente a Garra **Modelo CB** (Cabeçote Baixo).
   - **Regra de Escolha**: O rotator depende da preferência do cliente ou disponibilidade. Se o cliente escolher o IR10, o vendedor deve selecionar a garra CA. Se escolher 12 t ou 16 t, deve selecionar a garra CB.
   - **Diretriz de Comunicação**: **NÃO** mencione espontaneamente a preferência pelo IR10 ou a diferença CA/CB. Fale sobre isso apenas se houver necessidade real, se perguntarem especificamente sobre o rotator ou se houver dúvidas sobre o acoplamento.
-  - **Identificação Implícita**: Os kits de instalação para **garra, cabeçote multifuncional ou garra traçadora** que NÃO mencionam "link" no nome referem-se automaticamente à montagem **com ponteira**. A ponteira não é descrita no nome do kit por ser o padrão base.
+  - **Identificação de Kits**: a ausência de "link" no nome do kit de **garra, cabeçote multifuncional ou garra traçadora** NÃO decide o suporte (pode ser ponteira ou lança extensora). O tipo de suporte deve ser perguntado ao vendedor, nunca presumido.
   - **Filtro de Informação (Link)**: Se o usuário NÃO perguntou especificamente sobre o "link", **NUNCA** mencione o código do link ou o kit de instalação para link. Seja direto e responda apenas o solicitado.
   - **Quando o Link é Solicitado**: Caso a pergunta seja sobre o link, forneça o código do link e a opção do **"Kit de instalação para garra com link"**.
-  - **Instalação com Ponteira (Solicitação Direta)**: Se a pergunta for especificamente sobre o kit para montagem com ponteira, indique o item: **"Kit de instalação garra em escavadeira, máquina com fatia extra, sem linha"**.
+  - **Suporte do implemento**: só depois de o vendedor AFIRMAR a configuração da máquina e de confirmado o tipo de suporte (link, ponteira ou lança extensora), cite o kit cadastrado correspondente; sem isso, peça o vídeo e o tipo de suporte, sem citar kit.
 
 - **Garras R280 e R360/R360G em Escavadeiras Menores (7 a 10 Toneladas)**:
   - **Uso da R360 e R360G**: É fisicamente possível trabalhar com a garra R360 padrão ou R360G (unhas tipo garfo) em escavadeiras de 7 a 10 toneladas.
