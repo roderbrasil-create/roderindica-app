@@ -5417,7 +5417,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                       </button>
                     )}
                     {temProdutividadeCel(prod, model) && (
-                      <button type="button" onClick={() => { setSelectedModel(model); setFolhaEquip(false); enviarPronto(`Produtividade do ${tituloFicha(prod, model)}`); }} disabled={loading} className="h-11 min-h-[44px] w-full rounded-xl border-2 border-[#E2E5E8] bg-white text-[#1B1E22] font-extrabold text-[14.5px] flex items-center justify-center gap-1.5 active:scale-[0.98] transition disabled:opacity-50">
+                      <button type="button" onClick={() => { setFolhaEquip(false); enviarPronto(`Produtividade do ${tituloFicha(prod, model)}`); }} disabled={loading} className="h-11 min-h-[44px] w-full rounded-xl border-2 border-[#E2E5E8] bg-white text-[#1B1E22] font-extrabold text-[14.5px] flex items-center justify-center gap-1.5 active:scale-[0.98] transition disabled:opacity-50">
                         <Sparkles className="h-4 w-4" /> Produtividade
                       </button>
                     )}
