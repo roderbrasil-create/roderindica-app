@@ -14,7 +14,8 @@ import { ref, uploadBytes, getBytes } from 'firebase/storage';
 let env;
 const PROJ = 'demo-roder';
 
-// Contas de teste. "password" simula conta criada pela tela de Usuários.
+// Contas de teste. "password" simula conta com senha. As da equipe valem pelo PAPEL gravado em
+// users/{uid}, e não pelo e-mail: desde 19/10/2026 o e-mail de conta com senha só vale confirmado.
 const contas = {
   jeferson: { uid: 'u_jef', token: { email: 'roderbrasil@gmail.com', email_verified: true, firebase: { sign_in_provider: 'google.com' } } },
   gislene: { uid: 'u_gis', token: { email: 'gislene@roder.com.br', email_verified: false, firebase: { sign_in_provider: 'password' } } },
@@ -568,4 +569,54 @@ test('ANÔNIMO e SEM LOGIN não listam indicações (as páginas públicas só c
   await assertFails(getDocs(collection(fs_('anonimo'), 'indications')));
   await assertFails(getDocs(collection(fs_(null), 'indications')));
   await assertFails(getDoc(doc(fs_(null), 'indications', 'ind1')));
+});
+
+// =====================================================================
+// E-MAIL SÓ VALE CONFIRMADO (19/10/2026). O cadastro de usuário fica ligado no Firebase (o app
+// usa login anônimo), então qualquer um cria qualquer@roderbrasil.com.br com senha pela API, sem
+// acesso à caixa daquele e-mail. Essa conta não pode passar por equipe nem por diretoria.
+// =====================================================================
+const contaSenha = (uid, email, confirmado) => env.authenticatedContext(uid,
+  { email, email_verified: confirmado, firebase: { sign_in_provider: 'password' } }).firestore();
+
+test('CONTA COM SENHA criada por fora (@roderbrasil, e-mail NÃO confirmado) não é equipe', async () => {
+  const db = contaSenha('u_falso', 'qualquer@roderbrasil.com.br', false);
+  await assertFails(getDoc(doc(db, 'settings', 'notifications')));
+  await assertFails(updateDoc(doc(db, 'stock_items', 's1'), { quantity: 99 }));
+  await assertFails(getDoc(doc(db, 'users', 'u_gis')));
+  await assertFails(getDocs(collection(db, 'users')));
+  await assertFails(getDocs(collection(db, 'indications')));
+});
+
+test('CONTA COM SENHA da equipe com e-mail CONFIRMADO pelo servidor continua equipe', async () => {
+  const db = contaSenha('u_rog2', 'rogerio2@roderbrasil.com.br', true);
+  await assertSucceeds(getDoc(doc(db, 'settings', 'notifications')));
+  await assertSucceeds(updateDoc(doc(db, 'stock_items', 's1'), { quantity: 3 }));
+});
+
+test('DIRETORIA: conta com senha do e-mail do Jeferson SEM confirmação não é admin', async () => {
+  const db = contaSenha('u_falso_dir', 'jeferson@roderbrasil.com.br', false);
+  await assertFails(getDoc(doc(db, 'settings', 'email')));
+  await assertFails(getDoc(doc(db, 'api_keys', 'k1')));
+  await assertFails(setDoc(doc(db, 'users', 'u_falso_dir'), { role: 'admin', status: 'active', email: 'jeferson@roderbrasil.com.br' }));
+});
+
+test('DIRETORIA: o mesmo e-mail CONFIRMADO é admin', async () => {
+  const db = contaSenha('u_dir', 'jeferson@roderbrasil.com.br', true);
+  await assertSucceeds(getDoc(doc(db, 'settings', 'email')));
+});
+
+test('PRÉ-CADASTRO: conta com senha sem confirmação não lê o cadastro pelo e-mail (telefone, PIX, senha inicial)', async () => {
+  await semRegras((db) => setDoc(doc(db, 'users', 'temp_pre'), { email: 'precadastro@gmail.com', role: 'external_seller', status: 'pending', pix: '123', initial_password: 'x' }));
+  const falso = contaSenha('u_pre_falso', 'precadastro@gmail.com', false);
+  await assertFails(getDocs(query(collection(falso, 'users'), where('email', '==', 'precadastro@gmail.com'))));
+  const real = contaSenha('u_pre', 'precadastro@gmail.com', true);
+  await assertSucceeds(getDocs(query(collection(real, 'users'), where('email', '==', 'precadastro@gmail.com'))));
+});
+
+test('PARCEIRO com senha e e-mail NÃO confirmado não lê indicação pelo e-mail gravado nela', async () => {
+  await semRegras((db) => setDoc(doc(db, 'indications', 'ind_mail'), { status: 'pending', external_seller_email: 'parceiro@gmail.com' }));
+  const falso = contaSenha('u_par_falso', 'parceiro@gmail.com', false);
+  await assertFails(getDoc(doc(falso, 'indications', 'ind_mail')));
+  await assertSucceeds(getDoc(doc(fs_('parceiro'), 'indications', 'ind_mail')));
 });

@@ -23,8 +23,9 @@ export function filtrosDoParceiro(
   // E-mail do PRÓPRIO login, que é o que a regra confere. Quem está "vendo como" o parceiro é
   // admin e lê tudo, então ali vale o e-mail do cadastro do parceiro.
   const vendoComo = !!perfilReal?.uid && perfilReal.uid !== perfil.uid;
-  // e-mail não confirmado (login Google raro) faria a regra recusar a busca inteira: aí fica só o uid
-  const emailConfiavel = !!auth.currentUser && (auth.currentUser.emailVerified || auth.currentUser.providerData.some(p => p.providerId === 'password'));
+  // e-mail não confirmado faria a regra recusar a busca inteira: aí fica só o uid. Conta com
+  // senha não conta mais como confirmada sozinha (19/10/2026, ver server/emailConfiavel.ts).
+  const emailConfiavel = !!auth.currentUser && auth.currentUser.emailVerified;
   const email = vendoComo ? perfil.email : (emailConfiavel ? auth.currentUser?.email : null);
   if (email) f.push(where('external_seller_email', '==', email.toLowerCase()));
   return f;

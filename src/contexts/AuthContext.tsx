@@ -161,6 +161,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
+        // E-mail confirmado pelo servidor depois do login (19/10/2026): o token antigo continua
+        // dizendo "não confirmado" por até 1 hora, e as regras só confiam no confirmado. Recarrega
+        // a conta e, se ela já estiver confirmada, pede um token novo antes de ler qualquer coisa.
+        if (!user.isAnonymous && user.email) {
+          try {
+            const tk = await user.getIdTokenResult();
+            if (tk.claims.email_verified !== true) {
+              await user.reload();
+              if (auth.currentUser?.emailVerified) await auth.currentUser.getIdToken(true);
+            }
+          } catch (e) {
+            console.warn('Não consegui renovar o token do login:', e);
+          }
+        }
+
         const userDocRef = doc(db, 'users', user.uid);
         
         // Check if the user document already exists directly to skip email searches and list queries

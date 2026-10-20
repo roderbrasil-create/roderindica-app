@@ -41,6 +41,7 @@ import { instrucaoPerfilConsultor } from "./server/consultorPerfil";
 import { injetarPrevia, previaPadrao, previaDoEquipamento, codigoLimpo, SITE_PREVIA } from "./server/previaLink";
 import { criarImagemPrevia, candidatasDoLink, urlImagemPrevia, MAX_ORIGEM_BYTES, PASTA_CACHE } from "./server/previaImagem";
 import { fotosExternas, RodadaEmAndamento } from "./server/fotosExternas";
+import { emailConfiavelDoToken, ehDiretoriaPeloToken, papelDeQuemChama, deveMarcarEmailConfirmado } from "./server/emailConfiavel";
 
 let __currentDir: string;
 try {
@@ -1382,8 +1383,9 @@ Retorne um array JSON no formato exato:
       const email = (dec.email || '').toLowerCase();
       let role = '';
       try { role = String((await db.collection('users').doc(dec.uid).get()).data()?.role || ''); } catch { /* sem banco: fica só o e-mail */ }
-      // diretoria reconhecida pelo e-mail verificado, mesmo se o cadastro estiver com outro papel
-      if (dec.email_verified && ['roderbrasil@gmail.com', 'roderindica@gmail.com', 'jeferson@roderbrasil.com.br'].includes(email)) role = 'admin';
+      // Papel pelo cadastro. A diretoria vale pelo e-mail só CONFIRMADO: conta com senha criada
+      // por fora (cadastro aberto no Firebase) não confirma e-mail nenhum. Ver server/emailConfiavel.ts
+      role = papelDeQuemChama(dec, role);
       return { uid: dec.uid, email, role };
     } catch { return null; }
   }
@@ -1598,17 +1600,15 @@ Retorne um array JSON no formato exato:
       const dec: any = await admin.auth().verifyIdToken(token, true);
       const email = String(dec.email || '').toLowerCase().trim();
       if (!email || dec.firebase?.sign_in_provider === 'anonymous') return res.status(401).json({ ok: false });
-      // Conta com senha só nasce pela tela de Usuários (o app não tem cadastro aberto), então vale.
-      // Para garantir, o cadastro público fica DESLIGADO no Firebase (Authentication > Configurações).
-      if (!dec.email_verified && dec.firebase?.sign_in_provider !== 'password') {
+      // Só e-mail CONFIRMADO. Antes a conta com senha valia sozinha, e com o cadastro aberto no
+      // Firebase qualquer pessoa criava a conta do e-mail de um pré-cadastrado e herdava o papel
+      // dele. A conta com senha que a tela de Usuários cria já nasce confirmada pelo servidor.
+      if (!emailConfiavelDoToken(dec)) {
         return res.json({ ok: true, merged: false, motivo: 'email_nao_confirmado' });
       }
 
       const achados = await db.collection('users').where('email', '==', email).get();
-      let temporarios = achados.docs.filter(d => d.id !== dec.uid);
-      // Conta com senha e e-mail não confirmado: só vale o pré-cadastro em que o admin definiu a
-      // senha (aí a conta de login foi criada pelo próprio servidor, e não por quem chegou primeiro).
-      if (!dec.email_verified) temporarios = temporarios.filter(d => !!(d.data() as any).initial_password);
+      const temporarios = achados.docs.filter(d => d.id !== dec.uid);
       if (temporarios.length === 0) return res.json({ ok: true, merged: false });
 
       const realRef = db.collection('users').doc(dec.uid);
@@ -4421,13 +4421,13 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         // Fallback check for super admins if DB fails
       }
       
+      // Papel pelo cadastro; diretoria só pelo e-mail CONFIRMADO do login. Antes valia também o
+      // e-mail gravado no cadastro (que a própria pessoa edita) e o e-mail do token sem confirmação:
+      // qualquer um gravava "roderbrasil@gmail.com" no próprio cadastro e trocava senha da equipe.
       const isAdmin = requesterData?.role === 'admin' || 
                       requesterData?.role === 'manager' ||
                       requesterData?.role === 'triagem' ||
-                      requesterData?.email === 'roderbrasil@gmail.com' || 
-                      requesterData?.email === 'roderindica@gmail.com' ||
-                      decodedToken.email === 'roderbrasil@gmail.com' ||
-                      decodedToken.email === 'roderindica@gmail.com';
+                      ehDiretoriaPeloToken(decodedToken);
       
       if (!isAdmin) {
         console.warn(`[AUTH-ADMIN] Access denied for ${requesterData?.email || decodedToken.email || requesterUid}`);
@@ -4444,7 +4444,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         const papelAlvo = alvo.empty ? '' : String(alvo.docs[0].data().role || '');
         const alvoProtegido = papelAlvo === 'admin' || papelAlvo === 'manager' ||
           ['roderbrasil@gmail.com', 'roderindica@gmail.com', 'jeferson@roderbrasil.com.br'].includes(String(email).toLowerCase().trim());
-        if (alvoProtegido && requesterData?.role !== 'admin') {
+        if (alvoProtegido && requesterData?.role !== 'admin' && !ehDiretoriaPeloToken(decodedToken)) {
           return res.status(403).json({ error: "Só o administrador troca a senha de contas de gestão." });
         }
       }
@@ -4456,9 +4456,14 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         userRecord = await admin.auth().getUserByEmail(email);
         console.log(`[AUTH-ADMIN] User found (UID: ${userRecord.uid}). Updating password...`);
         // Update existing user
+        // A senha agora é a que o admin definiu, então o e-mail passa a valer como confirmado
+        // (as regras só confiam em e-mail confirmado). Conta que ainda não estava confirmada pode
+        // ter sido criada por fora, por quem não é dono do e-mail: os logins abertos dela caem.
         await admin.auth().updateUser(userRecord.uid, {
-          password: password
+          password: password,
+          emailVerified: true
         });
+        if (!userRecord.emailVerified) await admin.auth().revokeRefreshTokens(userRecord.uid);
         console.log(`[AUTH-ADMIN] Password updated successfully for ${email}`);
       } catch (err: any) {
         if (err.code === 'auth/user-not-found') {
@@ -8766,11 +8771,69 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     }
   };
 
+  // ===============================================================
+  // E-MAIL CONFIRMADO DA EQUIPE (uma vez só, 19/10/2026). As regras deixaram de aceitar conta
+  // com senha como e-mail confirmado (ver server/emailConfiavel.ts). As contas que a tela de
+  // Usuários criou antes de 19/10 já nasciam confirmadas; esta rodada pega as que sobraram
+  // (senha definida numa conta que já existia, ou conta feita no console do Firebase).
+  // Marca SÓ quem tem cadastro ATIVO no app com o mesmo uid e o mesmo e-mail. Conta desconhecida
+  // fica como está: é exatamente o caso da conta criada por fora, que não pode virar equipe.
+  // Publicar as regras novas só DEPOIS de ver a linha [EMAIL-CONFIRMADO] no log.
+  // ===============================================================
+  const marcarContasDaEquipe = async () => {
+    const nomeTrava = 'marcar_email_confirmado_equipe_v1';
+    const trava = db.collection('cron_locks').doc(nomeTrava);
+    try {
+      await trava.create({ job: nomeTrava, started_at: new Date().toISOString() });
+    } catch (e: any) {
+      if (e?.code === 6) {
+        const t: any = (await trava.get()).data() || {};
+        const velha = !t.finished_at && t.started_at && Date.now() - new Date(t.started_at).getTime() > 30 * 60 * 1000;
+        if (!velha) return;
+        await trava.set({ started_at: new Date().toISOString(), retomada: true }, { merge: true });
+      } else {
+        console.error('[EMAIL-CONFIRMADO] Não consegui criar a trava:', e?.message);
+        return;
+      }
+    }
+    try {
+      const n = { contas: 0, comSenhaSemConfirmar: 0, marcadas: 0, semCadastroAtivo: 0 };
+      const marcadas: string[] = [];
+      let pagina: string | undefined;
+      do {
+        const lista = await admin.auth().listUsers(1000, pagina);
+        for (const conta of lista.users) {
+          n.contas++;
+          const temSenha = conta.providerData.some(p => p.providerId === 'password');
+          if (!temSenha || conta.emailVerified || !conta.email) continue;
+          n.comSenhaSemConfirmar++;
+          const cadastro = (await db.collection('users').doc(conta.uid).get()).data();
+          if (deveMarcarEmailConfirmado(conta, cadastro)) {
+            await admin.auth().updateUser(conta.uid, { emailVerified: true });
+            n.marcadas++;
+            marcadas.push(String(conta.email).toLowerCase());
+          } else {
+            n.semCadastroAtivo++;
+          }
+        }
+        pagina = lista.pageToken;
+      } while (pagina);
+      await trava.set({ finished_at: new Date().toISOString(), ...n, marcadas_emails: marcadas.slice(0, 200) }, { merge: true });
+      console.log(`[EMAIL-CONFIRMADO] Contas lidas: ${n.contas}. Com senha e e-mail não confirmado: ${n.comSenhaSemConfirmar}. Marcadas como confirmadas (cadastro ativo): ${n.marcadas}. Deixadas como estão (sem cadastro ativo): ${n.semCadastroAtivo}.`);
+    } catch (e: any) {
+      // falhou no meio: apaga a trava para tentar de novo no próximo início (marcar de novo não faz mal)
+      console.error('[EMAIL-CONFIRMADO] Erro:', e?.message);
+      try { await trava.delete(); } catch { /* sem trava para apagar */ }
+    }
+  };
+
   const onServerListen = () => {
     console.log(`Server running on port/socket: ${PORT}`);
     
     // dono das indicações antigas (uma vez só, com trava): ver backfillDonoIndicacoes
     setTimeout(() => { if (db) backfillDonoIndicacoes(); }, 8000);
+    // e-mail confirmado das contas com senha da equipe (uma vez só, com trava): ver marcarContasDaEquipe
+    setTimeout(() => { if (db) marcarContasDaEquipe(); }, 12000);
 
     // Auto-heal Luana Camargo user profile in Firestore
     setTimeout(async () => {
