@@ -88,6 +88,8 @@ import { Wifi, WifiOff, Download } from 'lucide-react';
 import { getApiBaseUrl } from '../lib/utils';
 
 import { maskPhone, maskCpfCnpj } from '../lib/masks';
+import { textoLinkParceiro } from '../lib/consultorIndicar';
+import { Link2 } from 'lucide-react';
 
 export default function Admin({ isUsersView = false, defaultTab = 'settings' }: { isUsersView?: boolean; defaultTab?: string }) {
   const { user, profile, startImpersonation, realProfile, isAdmin, isManager, isTriagem, isMarketing } = useAuth();
@@ -1393,6 +1395,40 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
   const [passwordForUser, setPasswordForUser] = useState({ email: '', password: '', name: '' });
   const [isSettingPassword, setIsSettingPassword] = useState(false);
   const [shareUserModal, setShareUserModal] = useState<UserProfile | null>(null);
+  // Link pessoal do parceiro no Consultor Roder (sem senha). Só Jeferson, Gislene e Luana.
+  const podeLinkConsultor = isAdmin || isManager;
+  const [linkConsultorEm, setLinkConsultorEm] = useState<string | null>(null);
+  // texto que o navegador não deixou copiar sozinho (iPhone pede um toque novo depois de esperar o servidor)
+  const [textoLinkConsultor, setTextoLinkConsultor] = useState<string | null>(null);
+  const copiarTexto = async (texto: string) => {
+    try { await navigator.clipboard.writeText(texto); return true; } catch { /* tenta o jeito antigo */ }
+    try {
+      const area = document.createElement('textarea');
+      area.value = texto; area.setAttribute('readonly', ''); area.style.position = 'fixed'; area.style.opacity = '0';
+      document.body.appendChild(area); area.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(area);
+      return ok;
+    } catch { return false; }
+  };
+  const linkDoConsultor = async (u: UserProfile, novo = false) => {
+    if (novo && !window.confirm(`Gerar um novo link do consultor para ${u.name}? O link antigo para de funcionar.`)) return;
+    setLinkConsultorEm(u.uid);
+    try {
+      const r = await fetch(`/api/consultor/links/${encodeURIComponent(u.uid)}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ novo }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.caminho) throw new Error(j.error || 'Não consegui gerar o link.');
+      const texto = textoLinkParceiro(u.name, `${window.location.origin}${j.caminho}`);
+      if (await copiarTexto(texto)) toast.success(novo ? 'Novo link gerado. Texto copiado. Envie para o parceiro.' : 'Texto copiado. Envie para o parceiro.');
+      else setTextoLinkConsultor(texto);
+    } catch (e: any) {
+      toast.error(e?.message || 'Não consegui gerar o link.');
+    } finally {
+      setLinkConsultorEm(null);
+    }
+  };
   const [sharePassword, setSharePassword] = useState('');
   const [shareIncludePassword, setShareIncludePassword] = useState(true);
   const [showSharePassword, setShowSharePassword] = useState(false);
@@ -2654,6 +2690,30 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                                   >
                                     <Mail className="h-3.5 w-3.5" />
                                   </Button>
+                                {podeLinkConsultor && user.role === 'external_seller' && user.status !== 'inactive' && (
+                                  <>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7 text-amber-600 hover:bg-amber-500/10"
+                                      disabled={linkConsultorEm === user.uid}
+                                      onClick={() => linkDoConsultor(user)}
+                                      title="Link do consultor (copia o texto para o parceiro)"
+                                    >
+                                      {linkConsultorEm === user.uid ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7 text-amber-700 hover:bg-amber-500/10"
+                                      disabled={linkConsultorEm === user.uid}
+                                      onClick={() => linkDoConsultor(user, true)}
+                                      title="Gerar novo link do consultor (o antigo para de funcionar)"
+                                    >
+                                      <RefreshCw className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </>
+                                )}
                                 <Button 
                                   variant="ghost" 
                                   size="icon" 
@@ -2873,6 +2933,27 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                           </div>
                         )}
                       </div>
+
+                      {podeLinkConsultor && user.role === 'external_seller' && user.status !== 'inactive' && (
+                        <div className="flex gap-2 pt-1">
+                          <Button
+                            variant="outline"
+                            className="h-11 flex-1 gap-1.5 text-[13px] font-bold"
+                            disabled={linkConsultorEm === user.uid}
+                            onClick={() => linkDoConsultor(user)}
+                          >
+                            {linkConsultorEm === user.uid ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />} Link do consultor
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            className="h-11 px-3 text-[12.5px] font-semibold text-muted-foreground"
+                            disabled={linkConsultorEm === user.uid}
+                            onClick={() => linkDoConsultor(user, true)}
+                          >
+                            Gerar novo link
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -5303,6 +5384,21 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
           </DialogContent>
         </Dialog>
       </div>
+      {textoLinkConsultor && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 p-3" onClick={() => setTextoLinkConsultor(null)}>
+          <div className="w-full max-w-md rounded-2xl bg-card border border-border p-4 space-y-3" onClick={e => e.stopPropagation()}>
+            <p className="font-bold text-foreground">Link do consultor pronto</p>
+            <textarea readOnly value={textoLinkConsultor} className="w-full h-40 rounded-xl border border-border bg-background p-3 text-sm text-foreground" />
+            <div className="flex gap-2">
+              <Button variant="outline" className="h-11 flex-1" onClick={() => setTextoLinkConsultor(null)}>Fechar</Button>
+              <Button className="h-11 flex-1 font-bold" onClick={async () => {
+                if (await copiarTexto(textoLinkConsultor)) { toast.success('Texto copiado. Envie para o parceiro.'); setTextoLinkConsultor(null); }
+                else toast.error('Não consegui copiar. Selecione o texto e copie.');
+              }}>Copiar texto</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

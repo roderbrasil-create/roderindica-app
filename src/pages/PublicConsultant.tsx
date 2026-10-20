@@ -1,5 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { toast } from 'sonner';
+import { getApiBaseUrl } from '../lib/utils';
+import { CHAVE_PARCEIRO_LINK, TOKEN_LINK_VALIDO } from '../lib/consultorIndicar';
 import EngineerHelper from '../components/layout/EngineerHelper';
 import { useManifestoConsultor } from '../lib/useManifestoConsultor';
 import { useAuth } from '../contexts/AuthContext';
@@ -71,9 +74,74 @@ function generateConsultantIcon(): string {
   return canvas.toDataURL('image/png');
 }
 
+// Link pessoal do parceiro (/consultor?p=<token>): o servidor diz de quem é o link. O token fica
+// guardado no aparelho, então reabrir /consultor ou o app instalado continua sabendo quem é.
+// O token novo é guardado ANTES de perguntar ao servidor (com "pendente"), porque a barra de
+// endereço é limpa na hora: se a internet cair no primeiro acesso, o link não se perde e a
+// conferência é refeita na próxima abertura. Enquanto pendente, o consultor segue como visitante.
+// Só um 404 (link desligado ou trocado: gerar novo desliga o antigo) apaga a identidade guardada.
+type ParceiroGuardado = { token: string; nome?: string; primeiroNome?: string; pendente?: boolean };
+function lerParceiroGuardado(): ParceiroGuardado | null {
+  try {
+    const p = JSON.parse(localStorage.getItem(CHAVE_PARCEIRO_LINK) || 'null');
+    return p && TOKEN_LINK_VALIDO.test(String(p.token || '')) ? p : null;
+  } catch { return null; }
+}
+function guardarParceiro(p: ParceiroGuardado) {
+  try { localStorage.setItem(CHAVE_PARCEIRO_LINK, JSON.stringify(p)); } catch { /* navegador sem armazenamento */ }
+}
+
+function useParceiroDoLink(tokenUrl: string | null) {
+  const [pronto, setPronto] = useState(() => !tokenUrl && !lerParceiroGuardado());
+  useEffect(() => {
+    const anterior = lerParceiroGuardado();
+    const tokenNovo = tokenUrl && TOKEN_LINK_VALIDO.test(tokenUrl) ? tokenUrl : null;
+    if (tokenNovo && anterior?.token !== tokenNovo) {
+      // guarda primeiro: a barra de endereço é limpa logo abaixo
+      guardarParceiro({ token: tokenNovo, pendente: true });
+    }
+    if (tokenUrl) {
+      // o token não fica na barra de endereço (nem no histórico de quem pegar o celular)
+      try { const u = new URL(window.location.href); u.searchParams.delete('p'); window.history.replaceState(window.history.state, '', u.pathname + u.search + u.hash); } catch { /* segue */ }
+    }
+    const guardado = lerParceiroGuardado();
+    const token = tokenNovo || guardado?.token;
+    if (!token) { setPronto(true); return; }
+    const ctl = new AbortController();
+    let vivo = true;
+    const espera = setTimeout(() => ctl.abort(), 5000);
+    fetch(`${getApiBaseUrl()}/api/consultor/parceiro/${encodeURIComponent(token)}`, { signal: ctl.signal })
+      .then(async r => {
+        if (r.status === 404) {
+          // resposta definitiva: só apaga se ainda for o mesmo token guardado
+          try { if (lerParceiroGuardado()?.token === token) localStorage.removeItem(CHAVE_PARCEIRO_LINK); } catch { /* sem armazenamento */ }
+          if (vivo) toast.error('Este link do consultor não vale mais. Peça um novo ao comercial da Roder.');
+          return;
+        }
+        if (!r.ok) return; // servidor fora ou erro: mantém o guardado (pendente tenta de novo na próxima abertura)
+        const j = await r.json();
+        const atual = lerParceiroGuardado();
+        if (atual && atual.token !== token) return; // outro link chegou no meio do caminho
+        if (!atual || atual.pendente) {
+          // outro parceiro ou primeiro acesso: começa uma conversa nova, sem o "Quem é você?"
+          try {
+            sessionStorage.removeItem('roder_helper_messages');
+            sessionStorage.removeItem('roder_helper_fluxo_ind');
+          } catch { /* sem armazenamento */ }
+        }
+        guardarParceiro({ token, nome: j.nome || '', primeiroNome: j.primeiroNome || '' });
+      })
+      .catch(() => { /* sem internet ou demorou: segue com o que estava guardado e tenta na próxima */ })
+      .finally(() => { clearTimeout(espera); if (vivo) setPronto(true); });
+    return () => { vivo = false; clearTimeout(espera); ctl.abort(); };
+  }, [tokenUrl]);
+  return pronto;
+}
+
 export default function PublicConsultant() {
   const [searchParams] = useSearchParams();
   const ref = searchParams.get('ref');
+  const parceiroPronto = useParceiroDoLink(searchParams.get('p'));
   // Logado no Roder Indica (mesmo navegador): o consultor usa o papel da pessoa (equipe ou parceiro)
   // e não pergunta "Quem é você?". Espera o login ser lido para não piscar a pergunta.
   const { loading } = useAuth();
@@ -167,7 +235,7 @@ export default function PublicConsultant() {
   return (
     <div className="w-full h-[100dvh] bg-slate-950 flex flex-col relative font-sans overflow-hidden">
       {/* On top, we render the EngineerHelper. Since isFullPage={true} is passed, it covers the whole viewport on mobile. */}
-      {carregandoLogin ? null : <EngineerHelper isFullPage={true} />}
+      {carregandoLogin || !parceiroPronto ? null : <EngineerHelper isFullPage={true} />}
     </div>
   );
 }
