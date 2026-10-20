@@ -56,12 +56,26 @@ export function calcularComissao(produtos: ProdutoComissao[] | undefined | null,
 
 // Mês/ano da comissão (o mês em que ela é paga): o mês seguinte para faturamento novo, ou o mês
 // corrente quando a entrega já aconteceu (entrega retroativa).
+// Tudo no horário de Brasília: o servidor roda em UTC, e às 21h do último dia do mês ele já está
+// no mês seguinte. A comissão faturada na noite de 31/10 caía em 12 em vez de 11.
+const FUSO_BR = 'America/Sao_Paulo';
+export function diaEmBrasilia(d: Date): string {
+  return d.toLocaleDateString('en-CA', { timeZone: FUSO_BR }); // AAAA-MM-DD
+}
+// "2026-10-31" é o dia como está; data com hora ("2026-11-01T02:00:00Z") vira o dia em Brasília
+function diaDaEntrega(v: string): string | null {
+  const s = String(v).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : diaEmBrasilia(d);
+}
 export function mesDaComissao(dataEntrega: string | undefined | null, agora: Date = new Date()): { month: number; year: number } {
-  const mesAtual = agora.getMonth() + 1;
-  const anoAtual = agora.getFullYear();
+  const hoje = diaEmBrasilia(agora);
+  const [anoAtual, mesAtual] = hoje.split('-').map(Number);
   if (dataEntrega) {
-    const d = new Date(dataEntrega + 'T23:59:59');
-    if (d <= agora) return { month: mesAtual, year: anoAtual };
+    const dia = diaDaEntrega(dataEntrega);
+    // entrega já passou (o dia dela acabou): mês corrente
+    if (dia && dia < hoje) return { month: mesAtual, year: anoAtual };
   }
   return mesAtual === 12 ? { month: 1, year: anoAtual + 1 } : { month: mesAtual + 1, year: anoAtual };
 }

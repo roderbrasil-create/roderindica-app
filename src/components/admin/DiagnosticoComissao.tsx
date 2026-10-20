@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Loader2, Link2, BadgePlus, AlertTriangle, CheckCircle2, Info, Stethoscope } from 'lucide-react';
+import { Search, Loader2, Link2, BadgePlus, AlertTriangle, CheckCircle2, Info, Stethoscope, ArrowRightLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -11,11 +11,12 @@ import { maskCurrency, unmaskCurrency } from '../../lib/masks';
 // venda, por que a comissão não aparece no painel dele, com o botão que conserta cada problema.
 // O servidor faz a conta (server/diagnosticoComissao.ts) com a mesma regra do faturamento.
 
-type Falta = { codigo: string; texto: string; acao?: 'ligar' | 'gerar'; tipo?: 'info' | 'problema' };
-type Usuario = { uid: string; name: string; email: string; role: string; status: string; commission_rate: number | null; comissionavel: boolean };
-type Comissao = { id: string; indication_id: string | null; external_seller_uid: string | null; external_seller_name: string | null; value: number; status: string | null; month: number | null; year: number | null };
+type Falta = { codigo: string; texto: string; acao?: 'ligar' | 'gerar' | 'transferir'; tipo?: 'info' | 'problema' };
+type Usuario = { uid: string; name: string; email: string; role: string; status: string; commission_rate: number | null; comissionavel: boolean; repetido?: boolean };
+type Comissao = { id: string; indication_id: string | null; external_seller_uid: string | null; external_seller_name: string | null; value: number; status: string | null; month: number | null; year: number | null; conta_nome?: string | null };
 type Indicacao = {
   id: string; client_name: string; status: string | null; ligado_por: string[];
+  conta: string | null; conta_nome: string | null; fora_da_conta: boolean;
   external_seller_uid: string | null; external_seller_name: string | null; external_seller_email: string | null; indicator_name: string | null;
   sale_value: number; base_commission_value: number; commission_value: number; discount_amount: number;
   produtos: { total: number; comissionaveis: number; base_bruta: number; itens: { code: string; name: string; quantity: number; base_value: number; conta: boolean }[] };
@@ -26,6 +27,7 @@ type Indicacao = {
 };
 type Resultado = {
   termo: string; usuarios: Usuario[]; duplicados: { motivo: string; uids: string[] }[]; indicacoes: Indicacao[];
+  varias_contas: boolean; conta_escolhida: string | null;
   comissoes: Comissao[]; extratos: { id: string; month: number; year: number; status: string | null; total_value: number; nf_enviada: boolean }[];
   avisos: { existe: boolean; monthly_report_partners: boolean; monthly_report_directors: boolean; payment_reminder_finance: boolean };
   avisos_gerais: string[];
@@ -49,14 +51,17 @@ export default function DiagnosticoComissao() {
   const [buscando, setBuscando] = useState(false);
   const [erro, setErro] = useState('');
   const [res, setRes] = useState<Resultado | null>(null);
-  const [ligar, setLigar] = useState<{ ind: Indicacao; uid: string } | null>(null);
+  // Ligar (só a indicação) ou Transferir (indicação e comissões). Começa sem conta marcada de propósito:
+  // com cadastro repetido, a primeira da lista é tão provável quanto a errada.
+  const [ligar, setLigar] = useState<{ ind: Indicacao; uid: string; modo: 'ligar' | 'transferir' } | null>(null);
+  const [conta, setConta] = useState('');
   const [gerar, setGerar] = useState<{ ind: Indicacao; desconto: string; previa: any; erro: string; carregando: boolean } | null>(null);
   const [gravando, setGravando] = useState(false);
 
-  const buscar = async (t = termo) => {
+  const buscar = async (t = termo, c = conta) => {
     if (t.trim().length < 2) { setErro('Digite o nome, o e-mail ou o código do parceiro.'); return; }
     setBuscando(true); setErro('');
-    try { setRes(await chamar(`/api/admin/diagnostico-comissao?parceiro=${encodeURIComponent(t.trim())}`)); }
+    try { setRes(await chamar(`/api/admin/diagnostico-comissao?parceiro=${encodeURIComponent(t.trim())}${c ? `&conta=${encodeURIComponent(c)}` : ''}`)); }
     catch (e: any) { setErro(e.message); setRes(null); }
     finally { setBuscando(false); }
   };
@@ -85,8 +90,10 @@ export default function DiagnosticoComissao() {
     if (!ligar?.uid) return;
     setGravando(true);
     try {
-      const r = await chamar('/api/admin/diagnostico-comissao/ligar', { indicacaoId: ligar.ind.id, uid: ligar.uid });
-      toast.success(`Indicação ligada a ${r.nome}.`);
+      const r = await chamar(`/api/admin/diagnostico-comissao/${ligar.modo}`, { indicacaoId: ligar.ind.id, uid: ligar.uid });
+      toast.success(ligar.modo === 'transferir'
+        ? `Venda transferida para ${r.nome}${r.comissoes ? ', com a comissão' : ''}.`
+        : `Indicação ligada a ${r.nome}.`);
       setLigar(null); buscar(res?.termo || termo);
     } catch (e: any) { toast.error(e.message); }
     finally { setGravando(false); }
@@ -104,7 +111,7 @@ export default function DiagnosticoComissao() {
         <p className="text-xs text-muted-foreground">Procure o parceiro para ver por que a comissão não aparece no painel dele e consertar venda por venda.</p>
       </CardHeader>
       <CardContent className="space-y-4">
-        <form className="flex gap-2" onSubmit={e => { e.preventDefault(); buscar(); }}>
+        <form className="flex gap-2" onSubmit={e => { e.preventDefault(); setConta(''); buscar(termo, ''); }}>
           <Input value={termo} onChange={e => setTermo(e.target.value)} placeholder="Nome, e-mail ou código do parceiro" className="h-11 bg-background" aria-label="Parceiro" />
           <Button type="submit" disabled={buscando} className="h-11 px-4 bg-[#facc15] text-black hover:bg-[#eab308] font-bold shrink-0">
             {buscando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
@@ -135,11 +142,26 @@ export default function DiagnosticoComissao() {
                       </div>
                       <p className="text-muted-foreground text-[13px] truncate">{u.email || 'sem e-mail'}</p>
                       <p className="text-[11px] font-mono text-muted-foreground break-all">{u.uid}</p>
+                      {u.repetido && <p className="text-[11px] font-bold text-amber-700 dark:text-amber-300">Cadastro repetido do mesmo parceiro</p>}
                       <p className="text-[12px] mt-1">Taxa do cadastro: <strong>{u.commission_rate !== null && u.commission_rate !== undefined ? `${u.commission_rate}%` : 'não definida (vale a do sistema)'}</strong>{u.status && u.status !== 'active' ? <span className="text-red-600 font-bold"> · {u.status}</span> : null}</p>
                     </div>
                   ))}
                 </div>
               </section>
+            )}
+
+            {res.varias_contas && (
+              <fieldset className="space-y-2 rounded-lg border border-amber-300 dark:border-amber-800 p-3">
+                <legend className="px-1 text-xs font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">Conta em que o parceiro entra</legend>
+                <p className="text-[12px] text-muted-foreground">Escolha a conta que o parceiro usa para entrar no Roder Indica. O que estiver nas outras aparece com o botão Transferir.</p>
+                {parceiros.map(u => (
+                  <label key={u.uid} className={`flex items-center gap-3 rounded-lg border p-3 min-h-[44px] cursor-pointer ${res.conta_escolhida === u.uid ? 'border-primary bg-primary/5' : 'border-border'}`}>
+                    <input type="radio" name="conta-parceiro" className="h-4 w-4" checked={res.conta_escolhida === u.uid} disabled={buscando}
+                      onChange={() => { setConta(u.uid); buscar(res.termo, u.uid); }} />
+                    <span className="min-w-0"><span className="block font-bold text-sm truncate">{u.name || '(sem nome)'}</span><span className="block text-[12px] text-muted-foreground truncate">{u.email || 'sem e-mail'} · <span className="font-mono">{u.uid}</span></span></span>
+                  </label>
+                ))}
+              </fieldset>
             )}
 
             <section className="space-y-2">
@@ -159,6 +181,9 @@ export default function DiagnosticoComissao() {
                         : <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 shrink-0">{problemas.length} {problemas.length === 1 ? 'problema' : 'problemas'}</span>}
                     </div>
                     <p className="text-[12px]">Parceiro na indicação: <strong>{ind.external_seller_name || ind.indicator_name || '-'}</strong> <span className="font-mono text-muted-foreground break-all">({ind.external_seller_uid || 'sem código'})</span></p>
+                    {res.varias_contas && (
+                      <p className={`text-[12px] font-bold ${ind.fora_da_conta ? 'text-red-700 dark:text-red-300' : 'text-muted-foreground'}`}>Conta: {ind.conta_nome || 'nenhuma'}{ind.conta ? <span className="font-mono font-normal"> ({ind.conta})</span> : null}</p>
+                    )}
                     <dl className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[12px]">
                       <div className="rounded-md bg-muted/50 p-2"><dt className="text-muted-foreground">Venda</dt><dd className="font-bold">{maskCurrency(ind.sale_value)}</dd></div>
                       <div className="rounded-md bg-muted/50 p-2"><dt className="text-muted-foreground">Base dos produtos</dt><dd className="font-bold">{maskCurrency(ind.produtos.base_bruta)}</dd></div>
@@ -169,6 +194,7 @@ export default function DiagnosticoComissao() {
                     {ind.comissoes.map(c => (
                       <p key={c.id} className="text-[12px] rounded-md border border-border px-2 py-1">
                         Comissão {maskCurrency(c.value)} · {STATUS_COMISSAO[c.status || ''] || c.status || '-'} · pagamento {mes(c.month, c.year)} · em nome de {c.external_seller_name || c.external_seller_uid || '-'}
+                        {res.varias_contas && <> · conta <strong>{c.conta_nome || c.external_seller_uid || '-'}</strong></>}
                       </p>
                     ))}
                     <ul className="space-y-1.5">
@@ -180,8 +206,14 @@ export default function DiagnosticoComissao() {
                           </span>
                           {f.acao === 'ligar' && (
                             <Button size="sm" variant="outline" className="h-10 sm:h-8 shrink-0" disabled={!parceiros.length}
-                              onClick={() => setLigar({ ind, uid: parceiros[0]?.uid || '' })}>
+                              onClick={() => setLigar({ ind, uid: '', modo: 'ligar' })}>
                               <Link2 className="h-4 w-4 mr-1.5" /> Ligar ao parceiro
+                            </Button>
+                          )}
+                          {f.acao === 'transferir' && (
+                            <Button size="sm" variant="outline" className="h-10 sm:h-8 shrink-0 border-amber-400" disabled={!parceiros.length}
+                              onClick={() => setLigar({ ind, uid: '', modo: 'transferir' })}>
+                              <ArrowRightLeft className="h-4 w-4 mr-1.5" /> Transferir
                             </Button>
                           )}
                           {f.acao === 'gerar' && (
@@ -228,16 +260,18 @@ export default function DiagnosticoComissao() {
       <Dialog open={!!ligar} onOpenChange={o => { if (!o) setLigar(null); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Ligar ao parceiro</DialogTitle>
+            <DialogTitle>{ligar?.modo === 'transferir' ? 'Transferir a venda' : 'Ligar ao parceiro'}</DialogTitle>
             <DialogDescription>
-              A indicação de {ligar?.ind.client_name} passa a ser do parceiro escolhido. Ela aparece no painel dele e a comissão sai em nome dele.
+              {ligar?.modo === 'transferir'
+                ? `A indicação de ${ligar?.ind.client_name} e as comissões dela passam para a conta escolhida, juntas. Comissão paga ou com a nota fiscal já enviada não é transferida.`
+                : `A indicação de ${ligar?.ind.client_name} passa a ser do parceiro escolhido. Ela aparece no painel dele e a comissão sai em nome dele.`}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
             {parceiros.map(u => (
               <label key={u.uid} className={`flex items-center gap-3 rounded-lg border p-3 cursor-pointer ${ligar?.uid === u.uid ? 'border-primary bg-primary/5' : 'border-border'}`}>
                 <input type="radio" name="parceiro" checked={ligar?.uid === u.uid} onChange={() => ligar && setLigar({ ...ligar, uid: u.uid })} className="h-4 w-4" />
-                <span className="min-w-0"><span className="block font-bold text-sm truncate">{u.name}</span><span className="block text-[12px] text-muted-foreground truncate">{u.email}</span></span>
+                <span className="min-w-0"><span className="block font-bold text-sm truncate">{u.name}{res?.conta_escolhida === u.uid ? ' (conta em que ele entra)' : ''}</span><span className="block text-[12px] text-muted-foreground truncate">{u.email} · <span className="font-mono">{u.uid}</span></span></span>
               </label>
             ))}
             {ligar?.ind.external_seller_uid && <p className="text-[12px] text-muted-foreground">Hoje está ligada a {ligar.ind.external_seller_name || ligar.ind.external_seller_uid}.</p>}
@@ -245,7 +279,7 @@ export default function DiagnosticoComissao() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setLigar(null)}>Cancelar</Button>
             <Button onClick={confirmarLigar} disabled={gravando || !ligar?.uid} className="bg-[#facc15] text-black hover:bg-[#eab308] font-bold">
-              {gravando && <Loader2 className="h-4 w-4 animate-spin mr-2" />} Ligar a {ligar ? nomeUsuario(ligar.uid) : ''}
+              {gravando && <Loader2 className="h-4 w-4 animate-spin mr-2" />} {!ligar?.uid ? 'Escolha a conta' : `${ligar.modo === 'transferir' ? 'Transferir para' : 'Ligar a'} ${nomeUsuario(ligar.uid)}`}
             </Button>
           </DialogFooter>
         </DialogContent>

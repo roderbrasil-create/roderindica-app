@@ -123,11 +123,15 @@ export async function relatorioParceirosDia1(deps: DepsRelatorio) {
       const financeReplyTo = deps.getFinanceReplyTo(notif);
       const firstName = String(partner.name || '').split(' ')[0] || 'parceiro';
       const linhas = g.itens.map(c => ({ c, x: inds.get(c.indication_id) || {} }));
+      // comissão de mês anterior que não foi paga entra no total: aí não são só as vendas do mês
+      const temAcumulado = g.itens.some(c => c.acumulado);
 
       const html = `
         <div style="font-family: Arial, sans-serif; color: #1f2937; max-width: 620px;">
           <p style="font-size: 16px;">Olá, ${firstName}!</p>
-          <p style="font-size: 15px; line-height: 1.6;">É um prazer informar que as suas indicações geraram vendas em <strong>${monthName}</strong>. Muito obrigado pela parceria e pela confiança na Roder.</p>
+          <p style="font-size: 15px; line-height: 1.6;">${temAcumulado
+            ? `Este é o resumo das suas <strong>comissões a receber</strong>: as de <strong>${monthName}</strong> e as de meses anteriores que ficaram acumuladas para este pagamento. Muito obrigado pela parceria e pela confiança na Roder.`
+            : `É um prazer informar que as suas indicações geraram vendas em <strong>${monthName}</strong>. Muito obrigado pela parceria e pela confiança na Roder.`}</p>
 
           <div style="background: #fff7ed; border: 1px solid #fed7aa; padding: 18px; border-radius: 10px; margin: 20px 0; text-align: center;">
             <p style="margin: 0; font-size: 13px; color: #9a3412; text-transform: uppercase; letter-spacing: .05em;">Sua comissão a receber</p>
@@ -164,7 +168,7 @@ export async function relatorioParceirosDia1(deps: DepsRelatorio) {
         </div>
       `;
 
-      await deps.enviar(partner.email, `Sua comissão Roder de ${monthName}: ${formatCurrency(totalCommissions)}`, html, { replyTo: financeReplyTo, fromName: 'Roder Máquinas' });
+      await deps.enviar(partner.email, temAcumulado ? `Suas comissões Roder a receber: ${formatCurrency(totalCommissions)}` : `Sua comissão Roder de ${monthName}: ${formatCurrency(totalCommissions)}`, html, { replyTo: financeReplyTo, fromName: 'Roder Máquinas' });
       enviados++;
     }
     return { enviados };
@@ -505,4 +509,31 @@ export async function lembreteFinanceiroDia7(deps: DepsRelatorio) {
     for (const email of emailsDoFinanceiro(notif)) { await deps.enviar(email, `URGENTE: Pagamento de Comissões do Mês`, html); enviados++; }
     return { enviados };
   });
+}
+
+// ---------- Liga os três e-mails de comissão, uma vez só (pedido do Jeferson, 19/10/2026) ----------
+// Os três interruptores nasceram desligados e ninguém ligou: o parceiro não recebia o aviso do dia 1
+// nem o lembrete da nota, e o financeiro não recebia o do dia 7. Liga os três UMA vez, com trava em
+// cron_locks: se depois alguém desligar na tela, o servidor não liga de novo a cada reinício.
+export const TRAVA_LIGAR_EMAILS = 'ligar_emails_comissao_v1';
+export async function ligarEmailsComissaoUmaVez(db: any, agora: Date = new Date()): Promise<'ligado' | 'ja_rodou' | 'erro'> {
+  const trava = db.collection('cron_locks').doc(TRAVA_LIGAR_EMAILS);
+  try {
+    await trava.create({ job: TRAVA_LIGAR_EMAILS, started_at: agora.toISOString() });
+  } catch (e: any) {
+    if (e?.code === 6) return 'ja_rodou';
+    console.error('[EMAILS-COMISSAO] Não consegui criar a trava:', e?.message);
+    return 'erro';
+  }
+  try {
+    const flags = { monthly_report_partners: true, monthly_report_directors: true, payment_reminder_finance: true };
+    await db.collection('settings').doc('notifications').set({ ...flags, updated_at: agora.toISOString() }, { merge: true });
+    await trava.set({ finished_at: new Date().toISOString(), ...flags }, { merge: true });
+    console.log('[EMAILS-COMISSAO] Ligados: e-mail do parceiro (dia 1 e dia 5), relatório da diretoria (dia 1) e lembrete ao financeiro (dia 7).');
+    return 'ligado';
+  } catch (e: any) {
+    await trava.set({ error: String(e?.message || e), failed_at: new Date().toISOString() }, { merge: true }).catch(() => {});
+    console.error('[EMAILS-COMISSAO] Erro ao ligar:', e?.message);
+    return 'erro';
+  }
 }

@@ -321,7 +321,31 @@ export default function Indications() {
     try {
       const docRef = doc(db, 'indications', id);
       const prevInd = indications.find(i => i.id === id);
-      
+
+      // Venda faturada: a comissão já nasceu no código do indicador antigo. Trocar só a indicação
+      // deixava a comissão lá e o painel do novo parceiro somando zero. O servidor troca as duas
+      // juntas (e recusa se a comissão já está paga ou com a nota enviada).
+      if (data.external_seller_uid && prevInd?.status === 'sold' && data.external_seller_uid !== prevInd.external_seller_uid) {
+        if (!(isAdmin || isManager)) {
+          toast.error('Venda já faturada: só o administrador ou a gerência trocam o indicador, porque a comissão vai junto. Peça para usar o Diagnóstico de comissão (Configurações).');
+          return;
+        }
+        const r = await fetch('/api/indicacoes/trocar-indicador', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ indicacaoId: id, uid: data.external_seller_uid }),
+        });
+        const j: any = await r.json().catch(() => ({}));
+        if (!r.ok || !j.ok) { toast.error(j.error || 'Não deu para trocar o indicador. Use o Diagnóstico de comissão (Configurações).'); return; }
+        await notifyManagers(
+          'Indicador Alterado',
+          `${profile?.name} alterou o indicador de ${prevInd?.client_name} para ${j.nome}${j.comissoes ? ' (a comissão foi junto)' : ''}.`,
+          `/indicacoes`
+        );
+        setIndications(prev => prev.map(ind => ind.id === id ? { ...ind, external_seller_uid: j.uid, external_seller_name: j.nome } : ind));
+        toast.success(j.comissoes ? 'Indicador trocado. A comissão foi junto.' : 'Indicador trocado.');
+        return;
+      }
+
       await updateDoc(docRef, {
         ...data,
         updated_at: new Date().toISOString()

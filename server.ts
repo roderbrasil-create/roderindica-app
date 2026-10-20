@@ -43,8 +43,8 @@ import { instrucaoPerfilConsultor } from "./server/consultorPerfil";
 import { injetarPrevia, previaPadrao, previaDoEquipamento, codigoLimpo, SITE_PREVIA } from "./server/previaLink";
 import { criarImagemPrevia, candidatasDoLink, urlImagemPrevia, MAX_ORIGEM_BYTES, PASTA_CACHE } from "./server/previaImagem";
 import { fotosExternas, RodadaEmAndamento } from "./server/fotosExternas";
-import { registrarDiagnosticoComissao } from "./server/diagnosticoComissao";
-import { relatorioDiretoriaDia1, relatorioParceirosDia1, lembreteNfDia5, lembreteFinanceiroDia7 } from "./server/relatoriosComissao";
+import { registrarDiagnosticoComissao, moverComissoesDoProvisorio } from "./server/diagnosticoComissao";
+import { relatorioDiretoriaDia1, relatorioParceirosDia1, lembreteNfDia5, lembreteFinanceiroDia7, ligarEmailsComissaoUmaVez } from "./server/relatoriosComissao";
 
 let __currentDir: string;
 try {
@@ -1495,8 +1495,14 @@ Retorne um array JSON no formato exato:
     return q;
   }
 
+  async function exigirGestaoComissao(req: any, res: any) {
+    const q = await quemChama(req);
+    if (!ehGestao(q)) { res.status(403).json({ ok: false, error: 'Só o administrador ou a gerência podem trocar o indicador de uma venda faturada.' }); return null; }
+    return q;
+  }
+
   // Diagnóstico de comissão do parceiro (server/diagnosticoComissao.ts)
-  registrarDiagnosticoComissao(app, { db, exigirAdmin, arrayUnion: (...v: any[]) => admin.firestore.FieldValue.arrayUnion(...v) });
+  registrarDiagnosticoComissao(app, { db, exigirAdmin, exigirGestao: exigirGestaoComissao, arrayUnion: (...v: any[]) => admin.firestore.FieldValue.arrayUnion(...v) });
 
   app.get('/api/admin/regras/estado', async (req, res) => {
     if (!(await exigirAdmin(req, res))) return;
@@ -1662,6 +1668,9 @@ Retorne um array JSON no formato exato:
         ligados[0].forEach(d => lote.update(d.ref, { internal_seller_uid: dec.uid, updated_at: perfil.updated_at }));
         ligados[1].forEach(d => lote.update(d.ref, { assigned_to_uid: dec.uid, updated_at: perfil.updated_at }));
         ligados[2].forEach(d => lote.update(d.ref, { assigned_to_uid: dec.uid, updated_at: perfil.updated_at }));
+        // a comissão e o fechamento mensal do provisório vão junto, senão o painel do parceiro
+        // mostra a venda e soma zero (server/diagnosticoComissao.ts)
+        await moverComissoesDoProvisorio(db, lote, t.id, dec.uid, perfil.updated_at);
       }
       await lote.commit();
       console.log(`[AUTH] Perfil pré-cadastrado passado para ${email} (${temporarios.length} provisório(s)).`);
@@ -8344,6 +8353,8 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     
     // dono das indicações antigas (uma vez só, com trava): ver backfillDonoIndicacoes
     setTimeout(() => { if (db) backfillDonoIndicacoes(); }, 8000);
+    // liga os três e-mails de comissão uma vez só (trava em cron_locks; depois vale o que estiver na tela)
+    setTimeout(() => { if (db) ligarEmailsComissaoUmaVez(db).catch(() => {}); }, 9000);
 
     // Auto-heal Luana Camargo user profile in Firestore
     setTimeout(async () => {

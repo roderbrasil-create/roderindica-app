@@ -8,12 +8,20 @@
 // botão que conserta: ligar a indicação ao parceiro, ou gerar a comissão que ficou faltando.
 // Separado do server.ts para o teste rodar com um Firestore em memória.
 import {
-  calcularComissao, mesDaComissao, papelComissionavel, taxaDoParceiro, baseBrutaDosProdutos, itemComissionavel, UIDS_DE_SISTEMA,
+  calcularComissao, mesDaComissao, diaEmBrasilia, papelComissionavel, taxaDoParceiro, baseBrutaDosProdutos, itemComissionavel, UIDS_DE_SISTEMA,
 } from '../src/lib/calculoComissao';
 export { UIDS_DE_SISTEMA };
 
 export const normalizar = (v: any) => String(v ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '')
   .toLowerCase().replace(/[^a-z0-9@._]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+// um nome inteiro dentro do outro, palavra por palavra ("rafael" dentro de "rafael maqloc")
+export function nomeContido(a: string, b: string): boolean {
+  if (!a || !b || a === b) return false;
+  const [curto, longo] = a.length <= b.length ? [a, b] : [b, a];
+  if (curto.length < 3) return false;
+  return ` ${longo} `.includes(` ${curto} `);
+}
 
 // "rafael maqloc" casa com "Rafael - MAQLOC" e com "Rafael Souza (MAQLOC)": toda palavra procurada
 // precisa estar no nome, em qualquer ordem
@@ -37,11 +45,11 @@ const ROTULO_STATUS: Record<string, string> = {
 
 const chaveMes = (m: number, a: number) => a * 12 + (m - 1);
 
-export type Falta = { codigo: string; texto: string; acao?: 'ligar' | 'gerar'; tipo?: 'info' | 'problema' };
+export type Falta = { codigo: string; texto: string; acao?: 'ligar' | 'gerar' | 'transferir'; tipo?: 'info' | 'problema' };
 
 type Deps = { db: any; agora?: () => Date };
 
-export async function diagnosticar(deps: Deps, termoBruto: string) {
+export async function diagnosticar(deps: Deps, termoBruto: string, opcoes: { conta?: string } = {}) {
   const { db } = deps;
   const agora = deps.agora ? deps.agora() : new Date();
   const termo = String(termoBruto || '').trim();
@@ -54,9 +62,39 @@ export async function diagnosticar(deps: Deps, termoBruto: string) {
   const porUid = new Map<string, any>();
   todos.forEach((u: any) => { porUid.set(u.uid, u); porUid.set(u.doc_id, u); });
 
-  const achados = todos.filter((u: any) => u.uid === termo || u.doc_id === termo
+  const achadosBusca = todos.filter((u: any) => u.uid === termo || u.doc_id === termo
     || (termoEmail && String(u.email || '').toLowerCase() === termoEmail)
     || (!termoEmail && nomeCasa(u.name, termoN)));
+
+  // Cadastro repetido: mesmo e-mail, mesmo nome (sem acento, minúsculo), ou um nome dentro do
+  // outro ("Rafael" e "Rafael - MAQLOC"), nos dois sentidos. O cadastro repetido entra na busca:
+  // é justamente nele que costuma estar a venda que some do painel.
+  const duplicados: { motivo: string; uids: string[] }[] = [];
+  const vistos = new Set<string>();
+  const extras = new Map<string, any>();
+  for (const u of achadosBusca) {
+    const nome = normalizar(u.name);
+    const email = String(u.email || '').toLowerCase();
+    const motivoDe = (o: any): string | null => {
+      if (o.uid === u.uid) return 'mesmo';
+      if (email && String(o.email || '').toLowerCase() === email) return 'mesmo e-mail';
+      const on = normalizar(o.name);
+      if (nome && on === nome) return 'mesmo nome';
+      if (nome && on && papelComissionavel(u.role) && papelComissionavel(o.role) && nomeContido(nome, on)) return 'nome parecido';
+      return null;
+    };
+    const iguais = todos.filter((o: any) => motivoDe(o));
+    const chave = iguais.map((o: any) => o.uid).sort().join(',');
+    if (iguais.length > 1 && !vistos.has(chave)) {
+      vistos.add(chave);
+      const motivos = new Set(iguais.map(motivoDe).filter(m => m && m !== 'mesmo'));
+      const motivo = motivos.has('mesmo e-mail') ? 'mesmo e-mail' : motivos.has('mesmo nome') ? 'mesmo nome' : 'nome parecido';
+      duplicados.push({ motivo, uids: iguais.map((o: any) => o.uid) });
+      iguais.forEach((o: any) => { if (!achadosBusca.includes(o)) extras.set(o.uid, o); });
+    }
+  }
+  const achados = [...achadosBusca, ...extras.values()];
+
   const uids = new Set<string>();
   achados.forEach((u: any) => { uids.add(u.uid); uids.add(u.doc_id); });
   if (!achados.length) uids.add(termo); // pode ser um uid antigo que não existe mais em users
@@ -64,19 +102,14 @@ export async function diagnosticar(deps: Deps, termoBruto: string) {
   if (termoEmail) emails.add(termoEmail);
   const nomesAchados = new Set<string>(achados.map((u: any) => normalizar(u.name)).filter(Boolean));
 
-  // cadastro repetido: mesmo nome (sem acento, minúsculo) ou mesmo e-mail em mais de um uid
-  const duplicados: { motivo: string; uids: string[] }[] = [];
-  const vistos = new Set<string>();
-  for (const u of achados) {
-    const nome = normalizar(u.name);
-    const email = String(u.email || '').toLowerCase();
-    const iguais = todos.filter((o: any) => (nome && normalizar(o.name) === nome) || (email && String(o.email || '').toLowerCase() === email));
-    const chave = iguais.map((o: any) => o.uid).sort().join(',');
-    if (iguais.length > 1 && !vistos.has(chave)) {
-      vistos.add(chave);
-      duplicados.push({ motivo: email && iguais.every((o: any) => String(o.email || '').toLowerCase() === email) ? 'mesmo e-mail' : 'mesmo nome', uids: iguais.map((o: any) => o.uid) });
-    }
-  }
+  // Mais de uma conta que recebe comissão: o administrador escolhe aquela em que o parceiro entra,
+  // e tudo o que estiver nas outras aparece com o botão de transferir.
+  const contasComissionaveis = achados.filter((u: any) => papelComissionavel(u.role));
+  const variasContas = contasComissionaveis.length > 1;
+  const contaEscolhida = variasContas && opcoes.conta
+    ? contasComissionaveis.find((u: any) => u.uid === opcoes.conta || u.doc_id === opcoes.conta) || null
+    : null;
+  const nomeConta = (uid: string | null) => { const u = uid ? porUid.get(uid) : null; return u ? (u.name || u.uid) : (uid || 'nenhuma'); };
 
   // Indicações: lê tudo (só os campos usados) porque o nome não tem busca no Firestore
   const indSnap = await db.collection('indications').select(...CAMPOS_IND).get();
@@ -109,6 +142,7 @@ export async function diagnosticar(deps: Deps, termoBruto: string) {
     external_seller_name: c.external_seller_name || null, value: Number(c.value) || 0, base_value_used: Number(c.base_value_used) || 0,
     status: c.status || null, month: c.month ?? null, year: c.year ?? null, sale_date: c.sale_date || null,
     created_at: c.created_at || null, achada_por: c.achada_por,
+    conta_nome: c.external_seller_uid ? nomeConta(c.external_seller_uid) : null,
   }));
 
   const extratos: any[] = [];
@@ -126,20 +160,27 @@ export async function diagnosticar(deps: Deps, termoBruto: string) {
     payment_reminder_finance: notif.payment_reminder_finance === true,
   };
 
-  const mesAgora = chaveMes(agora.getMonth() + 1, agora.getFullYear());
+  const [anoBr, mesBr] = diaEmBrasilia(agora).split('-').map(Number);
+  const mesAgora = chaveMes(mesBr, anoBr);
   const resultadoInd = limitadas.map(ind => {
     const uidInd = String(ind.external_seller_uid || '');
     const parceiro = uidInd ? porUid.get(uidInd) : null;
     const comms = listaComissoes.filter(c => c.indication_id === ind.id);
     const falta: Falta[] = [];
     let parceiroOk = false;
-    if (!uidInd) falta.push({ codigo: 'sem_uid', texto: 'Indicação sem parceiro ligado. A comissão não nasce no faturamento e o painel do parceiro não enxerga a venda.', acao: 'ligar' });
-    else if (UIDS_DE_SISTEMA.includes(uidInd)) falta.push({ codigo: 'uid_sistema', texto: `Ligada a "${uidInd}", que não é um parceiro.`, acao: 'ligar' });
-    else if (!parceiro) falta.push({ codigo: 'uid_inexistente', texto: 'Ligada a um código de parceiro que não existe mais no cadastro (cadastro antigo ou apagado). O painel do parceiro não enxerga esta venda.', acao: 'ligar' });
-    else if (!papelComissionavel(parceiro.role)) falta.push({ codigo: 'papel', texto: `Ligada a ${parceiro.name || uidInd}, com perfil ${parceiro.role}, que não recebe comissão.`, acao: 'ligar' });
+    // com comissão já lançada, trocar só a indicação deixaria a comissão no código antigo:
+    // aí o conserto é transferir (indicação e comissões juntas)
+    const troca: 'ligar' | 'transferir' = comms.length ? 'transferir' : 'ligar';
+    if (!uidInd) falta.push({ codigo: 'sem_uid', texto: 'Indicação sem parceiro ligado. A comissão não nasce no faturamento e o painel do parceiro não enxerga a venda.', acao: troca });
+    else if (UIDS_DE_SISTEMA.includes(uidInd)) falta.push({ codigo: 'uid_sistema', texto: `Ligada a "${uidInd}", que não é um parceiro.`, acao: troca });
+    else if (!parceiro) falta.push({ codigo: 'uid_inexistente', texto: 'Ligada a um código de parceiro que não existe mais no cadastro (cadastro antigo ou apagado). O painel do parceiro não enxerga esta venda.', acao: troca });
+    else if (!papelComissionavel(parceiro.role)) falta.push({ codigo: 'papel', texto: `Ligada a ${parceiro.name || uidInd}, com perfil ${parceiro.role}, que não recebe comissão.`, acao: troca });
     else {
       parceiroOk = true;
-      if (achados.length && !uids.has(uidInd)) falta.push({ codigo: 'outro_parceiro', texto: `Ligada a outro cadastro: ${parceiro.name || uidInd}.`, acao: 'ligar' });
+      if (achados.length && !uids.has(uidInd)) falta.push({ codigo: 'outro_parceiro', texto: `Ligada a outro cadastro: ${parceiro.name || uidInd}.`, acao: troca });
+      else if (contaEscolhida && uidInd !== contaEscolhida.uid) {
+        falta.push({ codigo: 'conta_repetida', texto: `Esta venda está na conta ${nomeConta(uidInd)}, mas o parceiro entra com a conta ${nomeConta(contaEscolhida.uid)}. O painel dele não mostra esta venda.`, acao: 'transferir' });
+      }
     }
 
     const produtos = ind.commissioned_products || [];
@@ -158,7 +199,10 @@ export async function diagnosticar(deps: Deps, termoBruto: string) {
       } else {
         for (const c of comms) {
           if (c.value <= 0) falta.push({ codigo: 'comissao_zero', texto: `Comissão lançada com valor zero (${c.id}).` });
-          if (uidInd && c.external_seller_uid !== uidInd) falta.push({ codigo: 'comissao_outro_uid', texto: `A comissão está em nome de outro código (${c.external_seller_name || c.external_seller_uid || 'vazio'}): o painel do parceiro não soma ela.` });
+          if (uidInd && c.external_seller_uid !== uidInd) falta.push({ codigo: 'comissao_outro_uid', texto: `A comissão está em nome de outro código (${c.external_seller_name || c.external_seller_uid || 'vazio'}): o painel do parceiro não soma ela.`, acao: 'transferir' });
+          else if (contaEscolhida && c.external_seller_uid !== contaEscolhida.uid && uidInd === contaEscolhida.uid) {
+            falta.push({ codigo: 'comissao_conta_repetida', texto: `A comissão de ${brl(c.value)} está na conta ${nomeConta(c.external_seller_uid)}, e o parceiro entra com a conta ${nomeConta(contaEscolhida.uid)}.`, acao: 'transferir' });
+          }
           if (c.status !== 'paid' && c.month && c.year && chaveMes(c.month, c.year) < mesAgora) {
             falta.push({ codigo: 'comissao_atrasada', texto: `Comissão de ${String(c.month).padStart(2, '0')}/${c.year} ainda não está como paga.` });
           }
@@ -172,6 +216,8 @@ export async function diagnosticar(deps: Deps, termoBruto: string) {
 
     return {
       id: ind.id, client_name: ind.client_name || '', status: ind.status || null, ligado_por: ind.ligado_por,
+      conta: uidInd || null, conta_nome: uidInd ? nomeConta(uidInd) : null,
+      fora_da_conta: !!contaEscolhida && (uidInd !== contaEscolhida.uid || comms.some(c => c.external_seller_uid !== contaEscolhida.uid)),
       external_seller_uid: ind.external_seller_uid || null, external_seller_name: ind.external_seller_name || null,
       external_seller_email: ind.external_seller_email || null, indicator_name: ind.indicator_name || null,
       indicator_uid: ind.indicator_uid || null, created_by: ind.created_by || null,
@@ -196,6 +242,7 @@ export async function diagnosticar(deps: Deps, termoBruto: string) {
   const avisosGerais: string[] = [];
   if (!achados.length) avisosGerais.push('Nenhum usuário encontrado com esse nome, e-mail ou código.');
   duplicados.forEach(d => avisosGerais.push(`Cadastro repetido (${d.motivo}): ${d.uids.length} usuários. A venda pode estar ligada a um e o parceiro entrando com o outro.`));
+  if (variasContas && !contaEscolhida) avisosGerais.push(`Há ${contasComissionaveis.length} contas que recebem comissão. Escolha abaixo a conta em que o parceiro entra para ver o que precisa ser transferido.`);
   if (!avisos.monthly_report_partners) avisosGerais.push('E-mail mensal ao parceiro (dia 1 e lembrete do dia 5) está desligado em Configurações > Central de Notificações.');
   if (!avisos.monthly_report_directors) avisosGerais.push('Relatório mensal da diretoria e do financeiro (dia 1) está desligado.');
   if (!avisos.payment_reminder_finance) avisosGerais.push('Lembrete de pagamento ao financeiro (dia 7) está desligado.');
@@ -208,8 +255,11 @@ export async function diagnosticar(deps: Deps, termoBruto: string) {
       uid: u.uid, doc_id: u.doc_id, name: u.name || '', email: u.email || '', role: u.role || '', status: u.status || '',
       commission_rate: u.commission_rate ?? null, // só o administrador chega aqui
       comissionavel: papelComissionavel(u.role),
+      repetido: extras.has(u.uid),
     })),
     duplicados,
+    varias_contas: variasContas,
+    conta_escolhida: contaEscolhida ? contaEscolhida.uid : null,
     indicacoes: resultadoInd,
     comissoes: listaComissoes,
     extratos,
@@ -225,6 +275,10 @@ const idHist = () => Math.random().toString(36).substring(2, 11);
 type DepsEscrita = Deps & { arrayUnion: (...v: any[]) => any };
 
 // Confere tudo o que a geração precisa. Usada pela prévia (sem gravar) e dentro da transação.
+function exigirId(indId: string) {
+  if (!String(indId || '').trim()) throw erro(400, 'Indicação não informada.');
+}
+
 function conferirGeracao(indId: string, ind: any, parceiro: any, descontoInformado: number | undefined, agora: Date) {
   if (!ind) throw erro(404, 'Indicação não encontrada.');
   if (ind.status !== 'sold') throw erro(409, 'A venda ainda não foi faturada. A comissão nasce no faturamento.');
@@ -244,6 +298,7 @@ function conferirGeracao(indId: string, ind: any, parceiro: any, descontoInforma
 export async function previaGeracao(deps: Deps, indId: string, desconto?: number) {
   const { db } = deps;
   const agora = deps.agora ? deps.agora() : new Date();
+  exigirId(indId);
   const s = await db.collection('indications').doc(indId).get();
   const ind = s.exists ? s.data() : null;
   const uid = String(ind?.external_seller_uid || '');
@@ -261,6 +316,7 @@ export async function previaGeracao(deps: Deps, indId: string, desconto?: number
 export async function gerarComissao(deps: DepsEscrita, indId: string, autor: { uid: string; nome: string }, desconto?: number) {
   const { db, arrayUnion } = deps;
   const agora = deps.agora ? deps.agora() : new Date();
+  exigirId(indId);
   const indRef = db.collection('indications').doc(indId);
   const commRef = db.collection('commissions').doc(indId);
   return db.runTransaction(async (tx: any) => {
@@ -313,6 +369,7 @@ export async function gerarComissao(deps: DepsEscrita, indId: string, autor: { u
 export async function ligarParceiro(deps: DepsEscrita, indId: string, uid: string, autor: { uid: string; nome: string }) {
   const { db, arrayUnion } = deps;
   const agora = deps.agora ? deps.agora() : new Date();
+  exigirId(indId);
   if (!uid) throw erro(400, 'Escolha o parceiro.');
   const indRef = db.collection('indications').doc(indId);
   return db.runTransaction(async (tx: any) => {
@@ -323,9 +380,10 @@ export async function ligarParceiro(deps: DepsEscrita, indId: string, uid: strin
     const comms = await tx.get(db.collection('commissions').where('indication_id', '==', indId));
     const ind = s.data() || {};
     const user = u.data() || {};
+    if (!papelComissionavel(user.role)) throw erro(409, `${user.name || 'Este usuário'} é da equipe Roder e não recebe comissão. Escolha o parceiro indicador.`);
     const novoUid = String(user.uid || u.id || uid);
     const outra = comms.docs.find((c: any) => (c.data() || {}).external_seller_uid !== novoUid);
-    if (outra) throw erro(409, `Já existe comissão lançada para esta venda em nome de ${(outra.data() || {}).external_seller_name || 'outro código'}. Estorne o faturamento antes de trocar o parceiro.`);
+    if (outra) throw erro(409, `Já existe comissão lançada para esta venda em nome de ${(outra.data() || {}).external_seller_name || 'outro código'}. Use "Transferir" para levar a indicação e a comissão juntas.`);
     const nowIso = agora.toISOString();
     const antes = ind.external_seller_name || ind.external_seller_uid || 'ninguém';
     tx.update(indRef, {
@@ -343,8 +401,144 @@ export async function ligarParceiro(deps: DepsEscrita, indId: string, uid: strin
   });
 }
 
+const ROTULO_STATUS_COMISSAO: Record<string, string> = { waiting_payment: 'aguardando pagamento (nota fiscal já enviada)', paid: 'paga' };
+
+// Transferir: a indicação E todas as comissões dela passam para a conta escolhida, numa transação.
+// Existe porque "ligar" só mexe na indicação: com a comissão já lançada no código antigo, o painel
+// do parceiro (que soma commissions pelo uid dele) continuava sem a venda. Caso típico: parceiro
+// com dois cadastros, a venda num e ele entrando com o outro.
+// Não mexe em comissão paga nem em comissão que já está num fechamento aguardando pagamento ou
+// pago: ali a nota fiscal saiu (ou o PIX caiu) em nome da conta antiga, e mudar só o código
+// deixaria o fechamento dizendo uma coisa e a comissão outra.
+export async function transferirIndicacao(deps: DepsEscrita, indId: string, uid: string, autor: { uid: string; nome: string }, origem = 'diagnóstico de comissão') {
+  const { db, arrayUnion } = deps;
+  const agora = deps.agora ? deps.agora() : new Date();
+  exigirId(indId);
+  if (!uid) throw erro(400, 'Escolha a conta para onde a venda vai.');
+  const indRef = db.collection('indications').doc(indId);
+  return db.runTransaction(async (tx: any) => {
+    // leituras primeiro (regra da transação do Firestore)
+    const s = await tx.get(indRef);
+    if (!s.exists) throw erro(404, 'Indicação não encontrada.');
+    const u = await tx.get(db.collection('users').doc(uid));
+    if (!u.exists) throw erro(404, 'Usuário não encontrado.');
+    const user = u.data() || {};
+    if (!papelComissionavel(user.role)) throw erro(409, `${user.name || 'Este usuário'} é da equipe Roder e não recebe comissão. Escolha o parceiro indicador.`);
+    const novoUid = String(user.uid || u.id || uid);
+    const ind = s.data() || {};
+    const comms = (await tx.get(db.collection('commissions').where('indication_id', '==', indId))).docs;
+
+    const fechamentos = new Map<string, any>(); // id -> { ref, data }
+    for (const c of comms) {
+      const cd = c.data() || {};
+      if (cd.status === 'paid' || cd.status === 'waiting_payment') {
+        throw erro(409, `A comissão desta venda já está ${ROTULO_STATUS_COMISSAO[cd.status]} na conta ${cd.external_seller_name || cd.external_seller_uid}. Não dá para transferir: a nota fiscal e o pagamento são dessa conta. Acerte com o financeiro antes.`);
+      }
+      const lidos: any[] = [];
+      if (cd.external_seller_uid && cd.month && cd.year) {
+        const f = await tx.get(db.collection('monthly_statements').doc(`${cd.external_seller_uid}_${cd.month}_${cd.year}`));
+        if (f.exists) lidos.push(f);
+      }
+      const q = await tx.get(db.collection('monthly_statements').where('commission_ids', 'array-contains', c.id));
+      lidos.push(...q.docs);
+      for (const f of lidos) {
+        const fd = f.data() || {};
+        const contem = (fd.commission_ids || []).includes(c.id);
+        // fechamento do mesmo código e mês sem lista de comissões vale para todas daquele mês
+        const doMesmoMes = fd.seller_uid === cd.external_seller_uid && fd.month === cd.month && fd.year === cd.year;
+        if ((contem || doMesmoMes) && (fd.status === 'waiting_payment' || fd.status === 'paid')) {
+          throw erro(409, `A comissão desta venda está no fechamento de ${String(fd.month).padStart(2, '0')}/${fd.year} da conta ${fd.seller_name || fd.seller_uid}, que está ${fd.status === 'paid' ? 'pago' : 'aguardando pagamento'}. Não dá para transferir: a nota fiscal e o pagamento são dessa conta. Acerte com o financeiro antes.`);
+        }
+        if (contem) {
+          const atual = fechamentos.get(f.id) || { ref: f.ref, data: fd, tirar: [] as { id: string; valor: number }[] };
+          atual.tirar.push({ id: c.id, valor: Number(cd.value) || 0 });
+          fechamentos.set(f.id, atual);
+        }
+      }
+    }
+    const jaNaConta = String(ind.external_seller_uid || '') === novoUid && comms.every((c: any) => (c.data() || {}).external_seller_uid === novoUid);
+    if (jaNaConta) throw erro(409, `A venda e as comissões já estão na conta ${user.name || novoUid}. Nada foi alterado.`);
+
+    const nowIso = agora.toISOString();
+    const nome = user.name || ind.external_seller_name || 'Parceiro';
+    const email = String(user.email || '').toLowerCase();
+    const antes = ind.external_seller_name || ind.external_seller_uid || 'ninguém';
+    const antesUid = ind.external_seller_uid || null;
+    let somaComissoes = 0;
+    for (const c of comms) {
+      const cd = c.data() || {};
+      somaComissoes += Number(cd.value) || 0;
+      if (cd.external_seller_uid === novoUid) continue;
+      tx.update(c.ref, {
+        external_seller_uid: novoUid,
+        external_seller_name: nome,
+        ...('external_seller_email' in cd ? { external_seller_email: email } : {}),
+        transferred_from_uid: cd.external_seller_uid || null,
+        transferred_at: nowIso,
+        updated_at: nowIso,
+      });
+    }
+    // fechamento ainda aguardando NF na conta antiga: a comissão sai da lista e do total dele
+    for (const f of fechamentos.values()) {
+      const ids = new Set(f.tirar.map((t: any) => t.id));
+      const menos = f.tirar.reduce((a: number, t: any) => a + t.valor, 0);
+      tx.update(f.ref, {
+        commission_ids: (f.data.commission_ids || []).filter((x: string) => !ids.has(x)),
+        total_value: Math.max(0, (Number(f.data.total_value) || 0) - menos),
+        updated_at: nowIso,
+      });
+    }
+    tx.update(indRef, {
+      external_seller_uid: novoUid,
+      external_seller_name: nome,
+      external_seller_email: email,
+      updated_at: nowIso,
+      negotiation_history: arrayUnion({
+        id: idHist(), type: 'system', author_name: autor.nome || 'Administrador', created_at: nowIso,
+        content: `Venda transferida pelo ${origem}: antes ${antes}${antesUid ? ` (${antesUid})` : ''}, agora ${nome} (${novoUid}).`
+          + (comms.length ? ` ${comms.length === 1 ? 'A comissão de' : `As ${comms.length} comissões, somando`} ${brl(somaComissoes)} ${comms.length === 1 ? 'foi junto' : 'foram juntas'}.` : ''),
+        attachments: [],
+      }),
+    });
+    return { ok: true, uid: novoUid, nome, comissoes: comms.length };
+  });
+}
+
+// Conta provisória (pré-cadastro) virando a conta definitiva no primeiro login: as comissões e os
+// fechamentos do código provisório vão junto com as indicações, no mesmo lote. Antes iam só as
+// indicações: a venda aparecia para o parceiro e a comissão dela ficava presa no código que acabou
+// de ser apagado. O id do fechamento leva o uid ({uid}_{mês}_{ano}): aí o documento é recriado
+// com o id novo e o velho apagado. Se o definitivo já tem fechamento daquele mês, junta os dois.
+// O lote é passado de fora (db.batch() do server.ts) e só recebe escritas aqui.
+export async function moverComissoesDoProvisorio(db: any, lote: any, deUid: string, paraUid: string, agoraIso: string) {
+  if (!deUid || !paraUid || deUid === paraUid) return { comissoes: 0, fechamentos: 0 };
+  const comms = await db.collection('commissions').where('external_seller_uid', '==', deUid).get();
+  comms.docs.forEach((c: any) => lote.update(c.ref, { external_seller_uid: paraUid, updated_at: agoraIso }));
+  const extratos = await db.collection('monthly_statements').where('seller_uid', '==', deUid).get();
+  for (const e of extratos.docs) {
+    const d = e.data() || {};
+    const novoId = e.id.includes(deUid) ? e.id.split(deUid).join(paraUid) : e.id;
+    if (novoId === e.id) { lote.update(e.ref, { seller_uid: paraUid, updated_at: agoraIso }); continue; }
+    const novoRef = db.collection('monthly_statements').doc(novoId);
+    const ja = await novoRef.get();
+    if (ja.exists) {
+      const j = ja.data() || {};
+      lote.set(novoRef, {
+        commission_ids: Array.from(new Set([...(j.commission_ids || []), ...(d.commission_ids || [])])),
+        total_value: (Number(j.total_value) || 0) + (Number(d.total_value) || 0),
+        nf_url: j.nf_url || d.nf_url || null,
+        updated_at: agoraIso,
+      }, { merge: true });
+    } else {
+      lote.set(novoRef, { ...d, ...('id' in d ? { id: novoId } : {}), seller_uid: paraUid, updated_at: agoraIso });
+    }
+    lote.delete(e.ref);
+  }
+  return { comissoes: comms.docs.length, fechamentos: extratos.docs.length };
+}
+
 // Rotas. exigirAdmin responde 403 sozinho e devolve null quando não é o administrador.
-export function registrarDiagnosticoComissao(app: any, deps: DepsEscrita & { exigirAdmin: (req: any, res: any) => Promise<any> }) {
+export function registrarDiagnosticoComissao(app: any, deps: DepsEscrita & { exigirAdmin: (req: any, res: any) => Promise<any>; exigirGestao?: (req: any, res: any) => Promise<any> }) {
   const responderErro = (res: any, e: any) => res.status(e?.status || 500).json({ ok: false, error: e?.message || 'Erro.' });
   const nomeDe = async (q: any) => {
     try { return String((await deps.db.collection('users').doc(q.uid).get()).data()?.name || q.email || 'Administrador'); } catch { return 'Administrador'; }
@@ -352,7 +546,7 @@ export function registrarDiagnosticoComissao(app: any, deps: DepsEscrita & { exi
 
   app.get('/api/admin/diagnostico-comissao', async (req: any, res: any) => {
     if (!(await deps.exigirAdmin(req, res))) return;
-    try { return res.json(await diagnosticar(deps, String(req.query?.parceiro || ''))); } catch (e) { return responderErro(res, e); }
+    try { return res.json(await diagnosticar(deps, String(req.query?.parceiro || ''), { conta: String(req.query?.conta || '') || undefined })); } catch (e) { return responderErro(res, e); }
   });
   app.post('/api/admin/diagnostico-comissao/previa', async (req: any, res: any) => {
     if (!(await deps.exigirAdmin(req, res))) return;
@@ -365,5 +559,15 @@ export function registrarDiagnosticoComissao(app: any, deps: DepsEscrita & { exi
   app.post('/api/admin/diagnostico-comissao/ligar', async (req: any, res: any) => {
     const q = await deps.exigirAdmin(req, res); if (!q) return;
     try { return res.json(await ligarParceiro(deps, String(req.body?.indicacaoId || ''), String(req.body?.uid || ''), { uid: q.uid, nome: await nomeDe(q) })); } catch (e) { return responderErro(res, e); }
+  });
+  app.post('/api/admin/diagnostico-comissao/transferir', async (req: any, res: any) => {
+    const q = await deps.exigirAdmin(req, res); if (!q) return;
+    try { return res.json(await transferirIndicacao(deps, String(req.body?.indicacaoId || ''), String(req.body?.uid || ''), { uid: q.uid, nome: await nomeDe(q) })); } catch (e) { return responderErro(res, e); }
+  });
+  // "Trocar Indicador" da tela de Indicações numa venda faturada: a comissão vai junto (admin e gerente)
+  app.post('/api/indicacoes/trocar-indicador', async (req: any, res: any) => {
+    const exigir = deps.exigirGestao || deps.exigirAdmin;
+    const q = await exigir(req, res); if (!q) return;
+    try { return res.json(await transferirIndicacao(deps, String(req.body?.indicacaoId || ''), String(req.body?.uid || ''), { uid: q.uid, nome: await nomeDe(q) }, 'Trocar Indicador')); } catch (e) { return responderErro(res, e); }
   });
 }
