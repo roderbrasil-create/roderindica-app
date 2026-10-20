@@ -246,12 +246,23 @@ test('fotos de fora: acha as referências, troca só as copiadas e o teste sem g
   assert.equal(novo.models[0].name, 'R400');
 
   const gravados: string[] = []; const escritas: string[] = [];
+  const estado = new Map<string, any>();
   const db: any = {
     collection: (c: string) => ({
       get: async () => ({ docs: produtos.map(p => ({ id: p.id, data: () => p.data })) }),
-      doc: (id?: string) => ({ id, set: async () => { escritas.push(`${c}/set`); }, get: async () => ({ exists: true, data: () => produtos.find(p => p.id === id)?.data }) }),
+      doc: (id?: string) => ({
+        id, c,
+        set: async (d: any) => { escritas.push(`${c}/set`); estado.set(`${c}/${id}`, d); },
+        get: async () => (c === 'products'
+          ? { exists: true, data: () => produtos.find(p => p.id === id)?.data }
+          : { exists: estado.has(`${c}/${id}`), data: () => estado.get(`${c}/${id}`) }),
+      }),
     }),
-    runTransaction: async (fn: any) => fn({ get: (r: any) => r.get(), update: () => { escritas.push('products/update'); } }),
+    runTransaction: async (fn: any) => fn({
+      get: (r: any) => r.get(),
+      set: (r: any, d: any) => { estado.set(`${r.c}/${r.id}`, d); },
+      update: () => { escritas.push('products/update'); },
+    }),
   };
   const deps = {
     db, site: SITE, buckets: BUCKETS, bucketDestino: BUCKETS[0], carregarSharp: async () => sharp,
@@ -269,5 +280,6 @@ test('fotos de fora: acha as referências, troca só as copiadas e o teste sem g
   assert.equal(gravados.length, 1);
   assert.match(gravados[0], /^catalogo_site\/[a-f0-9]{20}\.png$/); // formato real do arquivo, não o que o site diz
   assert.equal(feito.produtos_alterados, 1);
-  assert.deepEqual(escritas, ['products/update', 'manutencao_fotos_externas/set']);
+  // o mapa para voltar é gravado ANTES da troca e fechado depois
+  assert.deepEqual(escritas, ['manutencao_fotos_externas/set', 'products/update', 'manutencao_fotos_externas/set']);
 });

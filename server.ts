@@ -40,7 +40,7 @@ import { registrarConsultorParceiro, BUCKETS_VIDEO } from "./server/consultorPar
 import { instrucaoPerfilConsultor } from "./server/consultorPerfil";
 import { injetarPrevia, previaPadrao, previaDoEquipamento, codigoLimpo, SITE_PREVIA } from "./server/previaLink";
 import { criarImagemPrevia, candidatasDoLink, urlImagemPrevia, MAX_ORIGEM_BYTES, PASTA_CACHE } from "./server/previaImagem";
-import { fotosExternas } from "./server/fotosExternas";
+import { fotosExternas, RodadaEmAndamento } from "./server/fotosExternas";
 
 let __currentDir: string;
 try {
@@ -4666,6 +4666,10 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     lerLocal: (caminho) => caminho.startsWith('/uploads/') ? lerArquivoSeguro(uploadsDir, caminho.slice('/uploads'.length)) : lerArquivoSeguro(PASTA_PUBLICA, caminho),
     logoHorizontal,
     logoRedonda,
+    // JPEG pronto para quando o sharp não carregar (a og:image:type do HTML é image/jpeg)
+    artePadraoPronta: (() => { let b: Buffer | null | undefined; return () => (b === undefined ? (b = lerArquivoSeguro(PASTA_PUBLICA, '/og-padrao.jpg') || lerArquivoSeguro(path.resolve(process.cwd(), 'dist'), '/og-padrao.jpg')) : b); })(),
+    // código fora da memória obriga a ler o banco: no máximo 60 por minuto por endereço
+    limitar: (req) => passouLimite(`og:${ipDe(req)}`, 60, 60_000),
     log: (m) => console.warn(m),
   });
   // Antes do arquivo estático e do app: o robô do WhatsApp recebe a imagem direto, sem redirecionar
@@ -4693,6 +4697,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       }, aplicar, q.email || q.uid);
       res.json(r);
     } catch (e: any) {
+      if (e instanceof RodadaEmAndamento) return res.status(409).json({ ok: false, error: e.message });
       res.status(500).json({ ok: false, error: e?.message || 'Erro ao conferir as fotos.' });
     }
   });
