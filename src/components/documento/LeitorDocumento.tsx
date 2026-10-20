@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Download, Minus, Plus, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Download, ExternalLink } from 'lucide-react';
 import { auth } from '../../lib/firebase';
 import { getApiBaseUrl } from '../../lib/utils';
 import { ouvirDocumentos, PedidoDocumento, instalarInterceptor, abrirForaDoApp, idYoutube, idVimeo, idDrive } from '../../lib/abrirDocumento';
 import { useVoltarFecha } from '../../lib/useVoltarFecha';
 import { usePodeBaixarDocumento } from '../../lib/podeEnviarFicha';
+import { ZoomRolagem } from './ZoomRolagem';
 
 // Leitor de PDF, foto e vídeo dentro do app, com "Voltar" sempre visível no alto.
 // Desenha os PDFs com o pdf.js: o leitor nativo do iPhone dentro de um quadro mostra
@@ -80,7 +81,15 @@ export default function LeitorDocumento() {
   const podeBaixar = usePodeBaixarDocumento();
   const [estado, setEstado] = useState<'carregando' | 'pronto' | 'erro'>('carregando');
   const [erro, setErro] = useState('');
-  const [zoom, setZoom] = useState(1);
+  // Nitidez do PDF: o zoom em si (pinça, toque duplo e botões) é da ZoomRolagem, que amplia por transform;
+  // aqui só se pede ao pdf.js um desenho com mais pixels quando a pessoa amplia, para o texto não borrar
+  const [nitidez, setNitidez] = useState(1);
+  const adiaNitidez = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const aoZoom = (z: number) => {
+    if (adiaNitidez.current) clearTimeout(adiaNitidez.current);
+    adiaNitidez.current = setTimeout(() => setNitidez(antes => Math.max(antes, Math.min(3, Math.ceil(z * 2) / 2))), 280);
+  };
+  useEffect(() => () => { if (adiaNitidez.current) clearTimeout(adiaNitidez.current); }, []);
   const [arquivo, setArquivo] = useState<Arquivo | null>(null);
   const [imagemUrl, setImagemUrl] = useState('');
   // Link do Drive: tenta ler como PDF/foto; se não for (vídeo, planilha), usa a prévia do Drive
@@ -97,13 +106,14 @@ export default function LeitorDocumento() {
         window.dispatchEvent(new CustomEvent('roder:sem-internet', { detail: 'Não tem internet. O vídeo precisa de conexão.' }));
         return;
       }
-      setPedido(p); setZoom(1);
+      setPedido(p); setNitidez(1);
     });
   }, []);
 
   const limpar = () => {
     try { docRef.current?.destroy?.(); } catch { /* já liberado */ }
     docRef.current = null;
+    if (paginasRef.current) paginasRef.current.innerHTML = '';
     setArquivo(null);
     setImagemUrl('');
     setDrivePrevia(false);
@@ -169,34 +179,40 @@ export default function LeitorDocumento() {
 
   useEffect(() => () => { if (imagemUrl) URL.revokeObjectURL(imagemUrl); }, [imagemUrl]);
 
-  // Desenha as páginas (e redesenha quando muda o zoom)
+  // Desenha as páginas. O tamanho na tela é sempre o da largura (o zoom é transform da ZoomRolagem);
+  // `nitidez` só aumenta os pixels. Ao redesenhar mais nítido, as páginas novas são feitas fora da tela e
+  // trocadas de uma vez: apagar antes piscava branco e fazia a leitura pular.
   useEffect(() => {
     if (estado !== 'pronto' || !docRef.current || !paginasRef.current) return;
     let cancelado = false;
     const alvo = paginasRef.current;
-    alvo.innerHTML = '';
+    const jaTem = alvo.childElementCount > 0;
+    const fora = document.createElement('div');
+    const destino = jaTem ? fora : alvo;
+    if (!jaTem) alvo.innerHTML = '';
     (async () => {
       const docPdf = docRef.current;
-      const largura = Math.min(alvo.clientWidth || window.innerWidth, 1000) * zoom;
+      const largura = Math.min(alvo.clientWidth || window.innerWidth, 1000);
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       for (let n = 1; n <= docPdf.numPages; n++) {
         if (cancelado) return;
         const pagina = await docPdf.getPage(n);
         const base = pagina.getViewport({ scale: 1 });
         const escala = largura / base.width;
-        const vp = pagina.getViewport({ scale: escala * dpr });
+        const vp = pagina.getViewport({ scale: escala * dpr * nitidez });
         const canvas = document.createElement('canvas');
         canvas.width = Math.floor(vp.width);
         canvas.height = Math.floor(vp.height);
         canvas.style.width = `${Math.floor(largura)}px`;
-        canvas.style.height = `${Math.floor(vp.height / dpr)}px`;
+        canvas.style.height = `${Math.floor(base.height * escala)}px`;
         canvas.className = 'block mx-auto bg-white shadow-md mb-3';
-        alvo.appendChild(canvas);
+        destino.appendChild(canvas);
         await pagina.render({ canvasContext: canvas.getContext('2d')!, viewport: vp }).promise;
       }
+      if (!cancelado && jaTem) alvo.replaceChildren(...Array.from(fora.children));
     })();
     return () => { cancelado = true; };
-  }, [estado, zoom]);
+  }, [estado, nitidez]);
 
   useEffect(() => {
     if (!pedido) return;
@@ -263,12 +279,6 @@ export default function LeitorDocumento() {
           <ArrowLeft className="h-5 w-5" /> Voltar
         </button>
         <p className="flex-1 min-w-0 truncate font-bold text-sm text-slate-800">{pedido.titulo || (ehPlayer ? 'Vídeo' : 'Documento')}</p>
-        {ehPdfPronto && (
-          <>
-            <button type="button" aria-label="Diminuir" onClick={() => setZoom(z => Math.max(1, +(z - 0.5).toFixed(1)))} className="h-11 w-11 rounded-lg border border-slate-300 text-slate-800 flex items-center justify-center shrink-0"><Minus className="h-4 w-4" /></button>
-            <button type="button" aria-label="Aumentar" onClick={() => setZoom(z => Math.min(3, +(z + 0.5).toFixed(1)))} className="h-11 w-11 rounded-lg border border-slate-300 text-slate-800 flex items-center justify-center shrink-0"><Plus className="h-4 w-4" /></button>
-          </>
-        )}
         {ehPlayer && (
           <button type="button" aria-label="Abrir no navegador" onClick={() => abrirForaDoApp(pedido.url)} className="h-11 w-11 rounded-lg border border-slate-300 text-slate-800 flex items-center justify-center shrink-0"><ExternalLink className="h-4 w-4" /></button>
         )}
@@ -282,15 +292,15 @@ export default function LeitorDocumento() {
           {player}
         </div>
       ) : (
-        <div className="flex-1 overflow-auto p-2 md:p-4" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}>
+        <ZoomRolagem className="flex-1 min-h-0" onZoom={aoZoom} interiorClassName="p-2 md:p-4" interiorStyle={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }} reiniciarCom={pedido.url}>
           {estado === 'carregando' && (
-            <div className="flex flex-col items-center justify-center h-full text-slate-600 gap-3">
+            <div className="flex flex-col items-center justify-center min-h-[60vh] text-slate-600 gap-3">
               <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-orange-600" />
               <p className="text-sm font-medium">Abrindo documento...</p>
             </div>
           )}
           {estado === 'erro' && (
-            <div className="flex flex-col items-center justify-center h-full text-center gap-3 px-6">
+            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center gap-3 px-6">
               <p className="text-sm font-semibold text-slate-700">{erro}</p>
               <button
                 type="button"
@@ -302,10 +312,10 @@ export default function LeitorDocumento() {
             </div>
           )}
           {estado === 'pronto' && imagemUrl && (
-            <img src={imagemUrl} alt={pedido.titulo || ''} className="block mx-auto max-w-full bg-white shadow-md" style={{ width: `${zoom * 100}%`, maxWidth: zoom > 1 ? 'none' : '100%' }} />
+            <img src={imagemUrl} alt={pedido.titulo || ''} className="block mx-auto max-w-full bg-white shadow-md" />
           )}
           <div ref={paginasRef} className={ehPdfPronto ? '' : 'hidden'} />
-        </div>
+        </ZoomRolagem>
       )}
     </div>
   );

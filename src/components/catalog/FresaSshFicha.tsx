@@ -16,6 +16,7 @@ import { db } from '../../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { useVoltarFecha } from '../../lib/useVoltarFecha';
 import { BotaoEnviarFicha } from './BotaoEnviarFicha';
+import { ZoomRolagem } from '../documento/ZoomRolagem';
 
 // Cores da ficha técnica Roder (grafite, laranja e laranja claro)
 const COR_G = '#1B1E22';
@@ -606,7 +607,7 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150', enviar = fa
         </div>
 
         {/* Scrollable Printable Area */}
-        <div ref={wrapperRef} className="flex-1 min-h-0 overflow-y-auto p-2 sm:p-8 bg-neutral-100 flex flex-col items-center">
+        <ZoomRolagem className="flex-1 min-h-0 bg-neutral-100" interiorRef={wrapperRef} interiorClassName="p-2 sm:p-8 flex flex-col items-center">
 
           {/* Tabs inside app but hidden in print */}
           <div className="w-full max-w-4xl mx-auto mb-4 flex flex-wrap items-center justify-between gap-2 bg-white p-1.5 rounded-xl border border-neutral-200 no-print shrink-0">
@@ -912,7 +913,7 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150', enviar = fa
             </div>
           </div>
         </div>
-      </div>
+      </ZoomRolagem>
       </div>
     </div>
   );

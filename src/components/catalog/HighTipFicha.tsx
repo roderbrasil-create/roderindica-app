@@ -24,6 +24,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { compressFileToDataURL } from '../../lib/imageUtils';
 import { getApiBaseUrl } from '../../lib/utils';
 import { useVoltarFecha } from '../../lib/useVoltarFecha';
+import { ZoomRolagem } from '../documento/ZoomRolagem';
 
 
 interface HighTipFichaProps {
@@ -262,7 +263,7 @@ export function HighTipFicha({ onClose, enviar = false }: HighTipFichaProps) {
         </div>
 
         {/* Scrollable Printable Area */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-8 bg-neutral-100">
+        <ZoomRolagem className="flex-1 min-h-0 bg-neutral-100" interiorClassName="p-4 sm:p-8">
           <div className="bg-white text-neutral-900 mx-auto max-w-4xl p-6 sm:p-12 shadow-md border border-neutral-200 rounded-lg print-container font-sans leading-relaxed text-sm" ref={printRef}>
             
             {/* SHEET PAGE 1: INTRODUCTION & REINFORCEMENTS */}
@@ -736,7 +737,7 @@ export function HighTipFicha({ onClose, enviar = false }: HighTipFichaProps) {
             </div>
 
           </div>
-        </div>
+        </ZoomRolagem>
 
       </div>
     </div>

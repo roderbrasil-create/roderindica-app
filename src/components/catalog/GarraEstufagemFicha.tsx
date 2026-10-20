@@ -30,6 +30,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { compressFileToDataURL } from '../../lib/imageUtils';
 import { getApiBaseUrl } from '../../lib/utils';
 import { useVoltarFecha } from '../../lib/useVoltarFecha';
+import { ZoomRolagem } from '../documento/ZoomRolagem';
 
 interface GarraEstufagemFichaProps {
   onClose: () => void;
@@ -535,7 +536,7 @@ export function GarraEstufagemFicha({ onClose, defaultModelId = 'af_360', enviar
         </div>
 
         {/* Technical Sheet Viewer (Print Container Wrapper) */}
-        <div className="flex-1 overflow-y-auto bg-slate-950 p-4 md:p-8 flex justify-center">
+        <ZoomRolagem className="flex-1 bg-slate-950" interiorClassName="p-4 md:p-8 flex justify-center">
           <div className="w-full max-w-[794px]">
             <div 
               ref={printRef}
@@ -800,7 +801,7 @@ export function GarraEstufagemFicha({ onClose, defaultModelId = 'af_360', enviar
 
             </div>
           </div>
-        </div>
+        </ZoomRolagem>
 
       </div>
     </div>

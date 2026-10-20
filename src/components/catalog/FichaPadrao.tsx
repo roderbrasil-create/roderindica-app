@@ -8,6 +8,7 @@ import { useVoltarFecha } from '../../lib/useVoltarFecha';
 import { ehGarraTracadora } from '../../lib/produtividadeGt';
 import { ehFichaPropria } from '../../lib/fichaPropria';
 import { abrirDocumento } from '../../lib/abrirDocumento';
+import { ZoomRolagem } from '../documento/ZoomRolagem';
 import { tituloFicha } from '../../lib/tituloFicha';
 import { corrigirFaixaCmf500 } from '../../lib/faixaCmf';
 import {
@@ -703,7 +704,7 @@ export function FichaPadrao({ product, model, onClose, enviar = false }: FichaPa
                 <button
                   onClick={() => gerar('baixar')}
                   disabled={!!gerando}
-                  className="flex items-center gap-1.5 h-9 px-3 rounded-lg border border-border bg-background hover:bg-muted text-foreground font-black text-xs disabled:opacity-60"
+                  className="flex items-center gap-1.5 h-11 min-h-[44px] min-w-[44px] px-3 rounded-lg border border-border bg-background hover:bg-muted text-foreground font-black text-xs disabled:opacity-60"
                 >
                   {gerando === 'baixar' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
                   <span className="hidden sm:inline">Salvar PDF</span>
@@ -711,20 +712,20 @@ export function FichaPadrao({ product, model, onClose, enviar = false }: FichaPa
                 <button
                   onClick={() => gerar('enviar')}
                   disabled={!!gerando}
-                  className={`flex items-center gap-1.5 h-9 px-3 rounded-lg bg-[#1FA855] hover:bg-[#178a45] text-white font-black text-xs disabled:opacity-60 ${enviar ? 'ring-2 ring-offset-2 ring-[#1FA855] animate-pulse' : ''}`}
+                  className={`flex items-center gap-1.5 h-11 min-h-[44px] px-3 rounded-lg bg-[#1FA855] hover:bg-[#178a45] text-white font-black text-xs disabled:opacity-60 ${enviar ? 'ring-2 ring-offset-2 ring-[#1FA855] animate-pulse' : ''}`}
                 >
                   {gerando === 'enviar' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                   Enviar
                 </button>
               </>
             )}
-            <button onClick={onClose} aria-label="Fechar" className="h-9 w-9 shrink-0 flex items-center justify-center rounded-lg hover:bg-muted-foreground/10 text-muted-foreground">
+            <button onClick={onClose} aria-label="Fechar" className="h-11 w-11 min-h-[44px] min-w-[44px] p-0 shrink-0 flex items-center justify-center rounded-lg hover:bg-muted-foreground/10 text-muted-foreground">
               <X className="h-5 w-5 shrink-0" />
             </button>
           </div>
         </div>
 
-        <div ref={wrapperRef} className="flex-1 min-h-0 overflow-y-auto p-2 sm:p-8 bg-neutral-100 flex flex-col items-center">
+        <ZoomRolagem className="flex-1 min-h-0 bg-neutral-100" interiorRef={wrapperRef} interiorClassName="p-2 sm:p-8 flex flex-col items-center" reiniciarCom={modeloId}>
           {(modelos.length > 1 || temPdfSite) && (
             <div className="w-full max-w-4xl mx-auto mb-3 flex flex-wrap items-center justify-between gap-2 bg-white p-1.5 rounded-xl border border-neutral-200 shrink-0">
               <div className="flex flex-wrap gap-1 flex-1">
@@ -732,14 +733,14 @@ export function FichaPadrao({ product, model, onClose, enviar = false }: FichaPa
                   <button
                     key={x.id}
                     onClick={() => setModeloId(x.id)}
-                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all ${x.id === atual.id ? 'bg-[#1B1E22] text-white' : 'text-neutral-600 hover:bg-neutral-100'}`}
+                    className={`py-2 px-3 min-h-[44px] rounded-lg text-xs font-bold transition-all ${x.id === atual.id ? 'bg-[#1B1E22] text-white' : 'text-neutral-600 hover:bg-neutral-100'}`}
                   >
                     {x.name}
                   </button>
                 ))}
               </div>
               {temPdfSite && (
-                <a href={pdfSite} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-2 text-[11px] font-black text-neutral-700 hover:text-neutral-950 rounded-lg hover:bg-neutral-100">
+                <a href={pdfSite} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[44px] text-[11px] font-black text-neutral-700 hover:text-neutral-950 rounded-lg hover:bg-neutral-100">
                   <ExternalLink className="h-3 w-3" /> PDF do site
                 </a>
               )}
@@ -764,7 +765,7 @@ export function FichaPadrao({ product, model, onClose, enviar = false }: FichaPa
             </div>
           </div>
           )}
-        </div>
+        </ZoomRolagem>
       </div>
     </div>
   );

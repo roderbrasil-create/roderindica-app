@@ -25,6 +25,7 @@ import { db } from '../../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { getApiBaseUrl } from '../../lib/utils';
 import { useVoltarFecha } from '../../lib/useVoltarFecha';
+import { ZoomRolagem } from '../documento/ZoomRolagem';
 
 interface EngateRapidoFichaProps {
   onClose: () => void;
@@ -318,7 +319,7 @@ export function EngateRapidoFicha({ onClose, enviar = false }: EngateRapidoFicha
       </header>
 
       {/* Main Sheet Viewport (Clean, Centered, Edge-to-Edge) */}
-      <main className="flex-1 w-full overflow-y-auto overflow-x-auto p-4 md:p-8 flex flex-col items-center bg-slate-950">
+      <ZoomRolagem className="flex-1 w-full bg-slate-950" interiorClassName="p-4 md:p-8 flex flex-col items-center">
         <div id="print-container" className="space-y-8 w-full max-w-[794px] print:space-y-0 print:p-0">
           
           {/* ================= PAGE 1 ================= */}
@@ -738,7 +739,7 @@ export function EngateRapidoFicha({ onClose, enviar = false }: EngateRapidoFicha
           </div>
 
         </div>
-      </main>
+      </ZoomRolagem>
 
     </div>
   );
