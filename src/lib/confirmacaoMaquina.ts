@@ -6,6 +6,9 @@
 // Sem dependência do navegador: o servidor e os testes importam este arquivo.
 import type { VideoConsultor } from './videosConsultor';
 
+// Frase curta repetida ao lado de cada kit citado no prompt: kit é possibilidade, nunca resposta por modelo
+export const RESSALVA_KIT = 'Estes kits são POSSIBILIDADES, nunca afirme pelo modelo nem pelo serial. Só indique o kit depois que a fatia extra, a função dupla com duas saídas tampadas (garra traçadora) e as linhas do braço forem confirmadas.';
+
 export const REGRA_KIT_CONFIRMACAO = `
 REGRA PRIORITÁRIA DE KIT DE INSTALAÇÃO (vale acima das regras de kit mais abaixo, que continuam valendo como possibilidades):
    • Quando a pergunta for QUAL KIT de instalação, kit hidráulico ou mangueiras usar numa máquina (qualquer marca, e principalmente Caterpillar, que tem muitas configurações no 320 e nos outros), NUNCA afirme um kit só pelo modelo ou pelo número de série. Não escreva "o kit é tal" como resposta final.
@@ -13,6 +16,7 @@ REGRA PRIORITÁRIA DE KIT DE INSTALAÇÃO (vale acima das regras de kit mais aba
    • Diga o que precisa ser confirmado: se existe fatia extra no comando; no caso da GARRA TRAÇADORA, se a fatia extra é de FUNÇÃO DUPLA com as duas saídas tampadas (é o que o kit completo normalmente exige); e quais linhas hidráulicas já existem no braço.
    • Você pode citar os kits que costumam existir como POSSIBILIDADES (ex.: máquina com fatia extra sem linha, máquina sem fatia extra, máquina com linha de rompedor), sempre deixando claro que dependem da confirmação. Use só códigos que estejam na lista de kits cadastrados ou nas regras acima; NUNCA invente código de kit.
    • Termine oferecendo o pedido de confirmação ao cliente: fotos do comando hidráulico (bloco de válvulas), da bomba hidráulica e dos DOIS joysticks, mais um VÍDEO mostrando as linhas hidráulicas do braço. O app mostra abaixo da sua resposta o botão "Pedir confirmação da máquina ao cliente" com o texto pronto; diga ao vendedor que ele está logo abaixo. Não escreva o texto do pedido por extenso.
+   • Se o vendedor já informou e confirmou a configuração (fatia extra, linhas do braço), pode indicar o kit, citando o que foi confirmado.
    • No JSON do <painel>, quando aplicar esta regra, acrescente "confirmar_maquina": true.`;
 
 export const AVISO_SEM_AMOSTRA = 'Ainda não há vídeo de amostra cadastrado.';

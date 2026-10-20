@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import {
-  REGRA_KIT_CONFIRMACAO, perguntaDeKit, textoPedirConfirmacaoMaquina, videoAmostraDe, linkPublicoDoVideo,
+  REGRA_KIT_CONFIRMACAO, RESSALVA_KIT, perguntaDeKit, textoPedirConfirmacaoMaquina, videoAmostraDe, linkPublicoDoVideo,
   precisaConfirmarMaquina, instrucaoAmostra, AVISO_SEM_AMOSTRA,
 } from '../src/lib/confirmacaoMaquina.ts';
 import { montarListaVideos, videosParaPrompt } from '../src/lib/videosConsultor.ts';
@@ -80,6 +80,35 @@ test('regra de prompt: não afirma kit por modelo nem serial, pede confirmação
   assert.ok(server.includes('${REGRA_KIT_CONFIRMACAO}'));
   assert.ok(server.includes('DIRETRIZ CRÍTICA PARA INSTALAÇÃO DE GARRA EM ESCAVADEIRAS SEM FATIA EXTRA'));
   assert.ok(server.includes('9000.9000.9016'));
+  assert.match(r, /já informou e confirmou a configuração/);
+});
+
+test('prompt inteiro: nenhuma regra antiga afirma fatia, bujão ou kit só pelo modelo', () => {
+  const server = readFileSync(new URL('../server.ts', import.meta.url), 'utf8');
+  const ini = server.indexOf('const systemInstruction = PRIORITY_RULES');
+  const fim = server.indexOf('const finalSystemInstruction');
+  assert.ok(ini > 0 && fim > ini);
+  const prompt = server.slice(ini, fim);
+  const linhas = prompt.split('\n');
+  // afirmações por modelo, que o Jeferson mandou trocar
+  assert.ok(!/possuem os tamp/i.test(server), 'CAT "possuem os tampões" voltou');
+  assert.ok(!/saem de fábrica com o espaço e os tamp/i.test(server));
+  assert.ok(!/\*\*NÃO possuem a fatia extra original\*\* de fábrica no comando \(como PC200/.test(server));
+  assert.ok(!/que \*\*NÃO\*\* possuem a fatia extra de comando original \(como Komatsu/.test(server));
+  assert.ok(server.includes('NUNCA devem ser dados como certos pelo modelo'));
+  // todo kit 9015, 9016 ou 9018 e o kit "com fatia extra, sem linha" tem a ressalva por perto
+  let achados = 0;
+  linhas.forEach((l, i) => {
+    if (!/9000\.9000\.90(15|16|18)|máquina com fatia extra, sem linha/.test(l)) return;
+    achados++;
+    const perto = linhas.slice(Math.max(0, i - 2), i + 3).join('\n');
+    assert.ok(perto.includes('RESSALVA_KIT'), `kit sem ressalva: ${l.trim().slice(0, 90)}`);
+  });
+  assert.ok(achados >= 5, 'a conferência precisa achar os kits do prompt');
+  // lista de kits cadastrados e correções aprovadas também levam a ressalva
+  assert.match(server, /kits de instalação cadastrados para referência\. \$\{RESSALVA_KIT\}/);
+  assert.match(server, /só pelo modelo ou pelo número de série, trate como possibilidade/);
+  assert.match(RESSALVA_KIT, /POSSIBILIDADES, nunca afirme pelo modelo nem pelo serial/);
 });
 
 test('o consultor avisa o vendedor quando não há amostra cadastrada', () => {
