@@ -37,8 +37,20 @@ const milhar = (s: string) => {
 };
 // "200 - 360 (400) HP (CVT)" vira "200 a 360 (400)"
 const faixaTrator = (s: string) => s.replace(/\s*HP.*$/i, '').replace(/\s*-\s*/, ' a ').trim();
-// "58 + 4 dentes (Tipo A/3 + MH)" vira "58 + 4"
-const dentesCurto = (s: string) => s.match(/^\s*(\d+\s*\+\s*\d+)/)?.[1].replace(/\s*\+\s*/, ' + ') || s;
+// Regra da Roder: "58 + 4" = 58 dentes CENTRAIS + 4 LATERAIS (2 esquerdo + 2 direito).
+// "58 + 4 dentes (Tipo A/3 + MH)" vira { centrais: "58", laterais: "4" }
+const dentesDivisao = (s: string) => {
+  const m = s.match(/^\s*(\d+)\s*\+\s*(\d+)/);
+  if (!m) return null;
+  const lat = Number(m[2]);
+  return { centrais: m[1], laterais: m[2], lado: lat % 2 === 0 ? lat / 2 : null };
+};
+// "58 centrais + 4 laterais (2 esq. + 2 dir.)"; sem padrão reconhecido, devolve o texto original
+const dentesLongo = (s: string) => {
+  const d = dentesDivisao(s);
+  if (!d) return s;
+  return `${d.centrais} centrais + ${d.laterais} laterais${d.lado !== null ? ` (${d.lado} esq. + ${d.lado} dir.)` : ''}`;
+};
 
 
 interface FresaSshFichaProps {
@@ -528,7 +540,7 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150', enviar = fa
     ['Diâmetro do rotor', `${milhar(sp.diametro_rotor_mm)} mm`],
     ['Trituração máxima', `${milhar(sp.diametro_max_trituracao_mm)} mm`],
     ['Profundidade máxima', `${milhar(sp.profundidade_max_trabalho_mm)} mm`],
-    ['Dentes (A/3 + MH)', dentesCurto(sp.dentes_tipo)],
+    ['Dentes', dentesLongo(sp.dentes_tipo)],
   ];
 
   const tratores: { marca: string; serie: string; texto: string; serieDe: boolean }[] = [
@@ -836,7 +848,7 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150', enviar = fa
                         <th style={thComp}>Largura trabalho</th>
                         <th style={thComp}>Largura total</th>
                         <th style={thComp}>Peso</th>
-                        <th style={thComp}>Dentes</th>
+                        <th style={thComp}>Dentes (centrais + laterais)</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -851,7 +863,7 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150', enviar = fa
                             <td style={td}>{milhar(m.specs.largura_trabalho_mm)} mm</td>
                             <td style={td}>{milhar(m.specs.largura_total_mm)} mm</td>
                             <td style={td}>{milhar(m.specs.peso_kg)} kg</td>
-                            <td style={td}>{dentesCurto(m.specs.dentes_tipo)}</td>
+                            <td style={td}>{dentesLongo(m.specs.dentes_tipo)}</td>
                           </tr>
                         );
                       })}
@@ -896,7 +908,7 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150', enviar = fa
               <div style={{ background: COR_G, color: '#E6E8EB', borderRadius: '14px', padding: '15px 17px', display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '18px', fontSize: '11.3px', lineHeight: 1.5 }}>
                 <div>
                   <h3 style={{ fontFamily: FONTE_TIT, fontSize: '12.5px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#FFB27A', marginBottom: '5px' }}>Peças e suporte</h3>
-                  Dentes FAE originais tipo A/3 e MH, com pastilha de carboneto de tungstênio (vídea). Estoque na Matriz e em Sinop-MT: eixos, correias, rolamentos e dentes para reposição imediata.
+                  Dentes FAE originais: tipo A/3 nos dentes centrais e MH nos 4 dentes laterais (2 de cada lado), com pastilha de carboneto de tungstênio (vídea). Estoque na Matriz e em Sinop-MT: eixos, correias, rolamentos e dentes para reposição imediata.
                 </div>
                 <div>
                   <h3 style={{ fontFamily: FONTE_TIT, fontSize: '12.5px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#FFB27A', marginBottom: '5px' }}>Na entrega técnica</h3>
