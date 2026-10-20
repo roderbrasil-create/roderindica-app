@@ -25,9 +25,9 @@ test('mensagem pronta COM vídeo de amostra: leva o link, o vídeo do braço, a 
   const t = textoPedirConfirmacaoMaquina(LINK);
   semDefeito(t);
   assert.ok(t.includes(LINK));
-  assert.match(t, /linhas hidráulicas que existem no braço/);
-  assert.match(t, /cabine por dentro/);
-  assert.match(t, /comando hidráulico \(bloco de válvulas\)/);
+  assert.match(t, /vídeo curto da cabine e do comando/);
+  assert.match(t, /comando hidráulico \(bloco de válvulas, mostrando as fatias e as saídas\)/);
+  assert.ok(!/braço|concession/i.test(t), 'linhas do braço não são requisito e a concessionária não entra no pedido');
   assert.match(t, /bomba hidráulica/);
   assert.match(t, /dois joysticks/);
   assert.ok(t.length < 700, 'texto curto');
@@ -39,7 +39,8 @@ test('mensagem pronta SEM vídeo de amostra: sai igual, só que sem link e sem "
     semDefeito(t);
     assert.ok(!/https?:/.test(t) && !/db-file|javascript/.test(t));
     assert.ok(!/exemplo/.test(t));
-    assert.match(t, /linhas hidráulicas que existem no braço/);
+    assert.match(t, /vídeo curto mostrando a cabine e o comando/);
+    assert.ok(!/braço|concession/i.test(t));
     assert.match(t, /dois joysticks/);
   }
 });
@@ -66,13 +67,26 @@ test('a amostra NÃO entra no prompt de vídeos nem nos ids que o consultor pode
 
 test('regra de prompt: não afirma kit por modelo nem serial, pede confirmação e não inventa código', () => {
   const r = REGRA_KIT_CONFIRMACAO;
-  assert.match(r, /NUNCA afirme um kit só pelo modelo ou pelo número de série/);
-  assert.match(r, /fatia extra/);
-  assert.match(r, /FUNÇÃO DUPLA com as duas saídas tampadas/);
-  assert.match(r, /linhas hidráulicas já existem no braço/);
+  assert.match(r, /NUNCA afirme kit nem fatia extra só pelo modelo ou pelo número de série/);
+  assert.match(r, /FATIA EXTRA COM SAÍDA DUPLA \(duas saídas, com os dois tampões\)/);
+  assert.match(r, /NÃO exija "linhas hidráulicas no braço"/);
+  assert.match(r, /Komatsu, Hyundai, JCB, John Deere/);
+  assert.match(r, /320C, 320D, 320FM/);
+  assert.match(r, /320GC, 320NG/);
+  assert.match(r, /joystick ELETRÔNICO/);
+  assert.match(r, /a Roder NÃO instala fatia extra em CAT nova/);
+  assert.match(r, /pedir à concessionária que instale a fatia extra/);
+  assert.match(r, /EXCEÇÃO na CAT 320 nova/);
+  assert.match(r, /kit de baixa/);
+  assert.match(r, /até 200 bar/);
+  assert.match(r, /DOIS kits/);
+  assert.match(r, /o técnico Roder informa o código/);
+  assert.match(r, /Não dê a entender que a concessionária é obrigatória antes da análise/);
+  assert.match(r, /técnico Roder responsável/);
   assert.match(r, /NUNCA invente código/);
-  assert.match(r, /bloco de válvulas/);
+  assert.match(r, /bloco de válvulas, mostrando as fatias e as saídas/);
   assert.match(r, /DOIS joysticks/);
+  assert.ok(!/\d\s*%|comiss/i.test(r));
   assert.match(r, /confirmar_maquina/);
   assert.ok(!/[—–]/.test(r));
   // e está de fato dentro do prompt do consultor, sem apagar a regra antiga do kit sem fatia extra
@@ -81,6 +95,8 @@ test('regra de prompt: não afirma kit por modelo nem serial, pede confirmação
   assert.ok(server.includes('DIRETRIZ CRÍTICA PARA INSTALAÇÃO DE GARRA EM ESCAVADEIRAS SEM FATIA EXTRA'));
   assert.ok(server.includes('9000.9000.9016'));
   assert.match(r, /já informou e confirmou a configuração/);
+  // nada de código novo: o kit de baixa não tem código cadastrado e a regra não inventa um
+  assert.ok(!/9000\.9000\.\d{4}/.test(r));
 });
 
 test('prompt inteiro: nenhuma regra antiga afirma fatia, bujão ou kit só pelo modelo', () => {
@@ -109,6 +125,11 @@ test('prompt inteiro: nenhuma regra antiga afirma fatia, bujão ou kit só pelo 
   assert.match(server, /kits de instalação cadastrados para referência\. \$\{RESSALVA_KIT\}/);
   assert.match(server, /só pelo modelo ou pelo número de série, trate como possibilidade/);
   assert.match(RESSALVA_KIT, /POSSIBILIDADES, nunca afirme pelo modelo nem pelo serial/);
+  assert.match(RESSALVA_KIT, /saída dupla/);
+  assert.ok(!/linhas do braço/.test(RESSALVA_KIT));
+  // vídeo das linhas do braço é complemento opcional, nunca requisito, também nas regras antigas
+  assert.match(server, /COMPLEMENTO OPCIONAL \(nunca requisito\)/);
+  assert.ok(!/é fundamental que o cliente mostre/.test(server));
 });
 
 test('o consultor avisa o vendedor quando não há amostra cadastrada', () => {

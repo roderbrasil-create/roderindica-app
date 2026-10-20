@@ -2848,7 +2848,7 @@ ${REGRA_KIT_CONFIRMACAO}
         - Como muitas escavadeiras vêm com linhas extras de fábrica ou adaptadas, é fundamental sempre observar se a máquina do cliente já possui essa tubulação.
         - **Disponibilidade da Fatia Extra**: Muitas máquinas já vêm de fábrica com a fatia extra disponível no comando com dupla saída (bidirecional), mas algumas marcas/modelos não possuem. É essencial solicitar uma foto ou vídeo do comando hidráulico da máquina para confirmar a existência da fatia extra com os bujões onde a linha hidráulica será conectada.
         - **IMPORTANTE - Modelos Caterpillar (Cat 312, Cat 313, Cat 314, Cat 316, Cat 318, Cat 320)**:
-          - Nos modelos CAT 312 a 320 a configuração varia: a fatia extra, os tampões ou bujões e as válvulas de alívio NUNCA devem ser dados como certos pelo modelo. Confirme pelas fotos do comando e pelo vídeo do braço antes de falar o que a máquina tem. Quando a fatia extra for confirmada, lembre que de fábrica ela costuma NÃO vir com as duas válvulas de alívio de pressão.
+          - Nos modelos CAT 312 a 320 a configuração varia: a fatia extra, os tampões ou bujões e as válvulas de alívio NUNCA devem ser dados como certos pelo modelo. Confirme pelas fotos do comando e pelo vídeo da cabine e do comando antes de falar o que a máquina tem (CAT 320 nova, com joystick eletrônico, segue a regra prioritária de kit acima). Quando a fatia extra for confirmada, lembre que de fábrica ela costuma NÃO vir com as duas válvulas de alívio de pressão.
           - Para esses modelos, as duas válvulas de alívio de pressão devem ser obrigatoriamente adquiridas para permitir a regulagem e funcionamento seguro do implemento.
           - **Código de Cadastro Roder da Válvula de Alívio de Pressão CAT**: **3000.5003.0194** (Código Original CAT: **309-9973**).
           - O vendedor deve sempre informar o cliente sobre a necessidade dessas duas válvulas. Caso a Roder não as tenha em estoque para fornecer, o cliente deverá comprá-las diretamente em uma concessionária Caterpillar para que fiquem disponíveis para o nosso técnico realizar a instalação no comando no dia da montagem.
@@ -2857,11 +2857,11 @@ ${REGRA_KIT_CONFIRMACAO}
         - **Tipos de Acionamento Comuns**:
           1. **Pedal Mecânico**: Algumas máquinas possuem o acionamento da linha extra em um pedal mecânico no piso da cabine.
           2. **Botão no Joystick**: Outras máquinas acionam a função por meio de botões proporcionais ou liga/desliga integrados no próprio joystick da escavadeira.
-        - **Recomendação de Vídeo Detalhado**: Oriente o vendedor a pedir para o cliente gravar um **vídeo detalhado** e enviá-lo à nossa equipe de vendas. Nesse vídeo, é fundamental que o cliente mostre:
+        - **Recomendação de Vídeo**: Oriente o vendedor a pedir para o cliente gravar um **vídeo** da cabine e do comando no modelo do vídeo de amostra e enviá-lo à nossa equipe de vendas. O essencial são as fotos do comando (bloco de válvulas), da bomba e dos dois joysticks. Se o cliente puder, o vídeo pode mostrar também, como COMPLEMENTO OPCIONAL (nunca requisito):
           1. O acionamento da linha (se o fluxo sai em ambas as linhas de mangueira ou apenas em uma/unidirecional).
-          2. A **tubulação extra** até onde ela vai na ponta do braço, mostrando claramente se contém registros ou bujões na ponta da tubulação.
-          3. As **duas linhas hidráulicas**, demonstrando se estão ligadas no comando hidráulico da máquina ou se uma delas retorna diretamente para o tanque.
-          Com base nessa filmagem completa, poderemos identificar com exatidão a configuração da máquina, o tipo de linha e definir qual **kit hidráulico complementar** a Roder precisa fornecer para a perfeita instalação.
+          2. A **tubulação extra** (se existir) até onde ela vai na ponta do braço, mostrando claramente se contém registros ou bujões na ponta da tubulação.
+          3. As **duas linhas hidráulicas** (se existirem), demonstrando se estão ligadas no comando hidráulico da máquina ou se uma delas retorna diretamente para o tanque.
+          Com base nas fotos e no vídeo, o técnico Roder responsável identifica a configuração da máquina e define qual **kit hidráulico complementar** a Roder precisa fornecer para a perfeita instalação.
 
       • **GARRAS TRAÇADORAS (Acima de GT 400: GT 400, GT 600X, GT 800X, GT 1000X)**:
         Exigem rigorosamente **8 linhas de mangueiras** chegando no equipamento para alimentação completa:
