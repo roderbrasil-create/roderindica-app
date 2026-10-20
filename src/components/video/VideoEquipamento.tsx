@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useRef, useState } from 'r
 import { doc, getDoc } from 'firebase/firestore';
 import { Expand, Loader2, Play, Send, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { db } from '../../lib/firebase';
+import { auth, db } from '../../lib/firebase';
 import { cn, getApiBaseUrl } from '../../lib/utils';
 import { abrirDocumento } from '../../lib/abrirDocumento';
 import { comoTocar, idYoutube, textoVideoWhats, LIMITE_VIDEO_ARQUIVO_MB } from '../../lib/videoEquipamento';
@@ -53,6 +53,14 @@ function useFonte(src: string): { fonte: string; erro: boolean } {
 
 // o mesmo parceiro abrindo o mesmo vídeo várias vezes não pede outro link ao servidor
 const CACHE_LINK = new Map<string, string>();
+// Dono do link creditado, do mesmo jeito que o servidor decide (donoDoPedido): o login vale mais
+// que o link pessoal. Sem o dono na chave, duas pessoas no mesmo celular (o parceiro e alguém da
+// equipe, ou dois parceiros) reaproveitariam o link uma da outra e a indicação cairia no nome errado.
+function donoDoLink(token?: string): string {
+  const u = auth.currentUser;
+  if (u && !u.isAnonymous) return `uid:${u.uid}`;
+  return token ? `p:${token}` : 'anonimo';
+}
 
 // O Storage do Firebase não libera CORS para o navegador: o download do vídeo passa pelo servidor
 // (só o bucket do projeto e arquivos do banco; o servidor confere de novo)
@@ -64,22 +72,28 @@ const EXT_VIDEO = /\.(mp4|m4v|webm|mov)(?:$|[?#])/i;
 
 export function AcoesVideo({ pid, mid, titulo, url, compacto }: { pid?: string; mid?: string; titulo: string; url: string; compacto: boolean }) {
   const perm = useContext(ContextoVideo);
-  const chave = `${perm?.token || 'login'}:${pid}:${mid || ''}`;
+  const chave = `${donoDoLink(perm?.token)}:${pid}:${mid || ''}`;
   const [link, setLink] = useState(() => CACHE_LINK.get(chave) || '');
   // 'parado': o link ainda não existe (nasce só no primeiro toque em "Enviar no WhatsApp")
   // 'bloqueado': o celular barrou a janela do WhatsApp; o botão "Abrir WhatsApp" é um toque novo
   const [estado, setEstado] = useState<'parado' | 'gerando' | 'pronto' | 'bloqueado' | 'erro'>(() => CACHE_LINK.has(chave) ? 'pronto' : 'parado');
   const [baixado, setBaixado] = useState<File | null>(null);
   const [baixando, setBaixando] = useState(false);
+  // um pedido de link por vez: "Enviar o vídeo" e "Enviar no WhatsApp" tocados juntos não criam dois
+  const emCurso = useRef<Promise<string | null> | null>(null);
   const como = comoTocar(url);
   const arquivo = como?.tipo === 'arquivo';
   const ativo = !!perm?.podeCompartilhar && !!pid;
 
   // O link curto leva o crédito do parceiro: criar um a cada vídeo aberto enchia o banco de links
   // que ninguém mandou. Agora ele nasce só quando a pessoa decide mandar.
-  const gerar = async (): Promise<string | null> => {
+  const gerar = (): Promise<string | null> => {
     const guardado = CACHE_LINK.get(chave);
-    if (guardado) return guardado;
+    if (guardado) { if (guardado !== link) setLink(guardado); return Promise.resolve(guardado); }
+    if (!emCurso.current) emCurso.current = pedirLink().finally(() => { emCurso.current = null; });
+    return emCurso.current;
+  };
+  const pedirLink = async (): Promise<string | null> => {
     try {
       const r = await fetch(`${getApiBaseUrl()}/api/consultor/link-cliente`, {
         method: 'POST',
@@ -134,13 +148,18 @@ export function AcoesVideo({ pid, mid, titulo, url, compacto }: { pid?: string; 
     if (baixando) return;
     const id = `video-${pid}-${mid}`;
     setBaixando(true);
+    // O link com o crédito do parceiro nasce junto com o download, em paralelo: quando o vídeo
+    // termina de baixar o texto com o /o/ já está pronto para ir no "Enviar agora". Antes o texto
+    // só existia se a pessoa tivesse tocado em "Enviar no WhatsApp" primeiro, e o vídeo ia sem crédito.
+    const pLink = gerar();
     const cap = LIMITE_VIDEO_ARQUIVO_MB * 1024 * 1024;
     const grande = () => toast.info(`Vídeo grande demais para mandar como arquivo (mais de ${LIMITE_VIDEO_ARQUIVO_MB} MB). Use "Enviar no WhatsApp", que manda o link.`, { id });
     const naoEVideo = () => toast.error('Este arquivo não é um vídeo. Use "Enviar no WhatsApp", que manda o link.', { id, action: { label: 'Enviar no WhatsApp', onClick: () => { enviarWhats(); } } });
     try {
       const proxy = viaServidor(url);
+      // o servidor confere que este é o vídeo cadastrado DESTE equipamento
       const endereco = proxy
-        ? `${getApiBaseUrl()}/api/consultor/video-arquivo?url=${encodeURIComponent(url)}${perm?.token ? `&p=${encodeURIComponent(perm.token)}` : ''}`
+        ? `${getApiBaseUrl()}/api/consultor/video-arquivo?url=${encodeURIComponent(url)}&pid=${encodeURIComponent(pid || '')}${mid ? `&mid=${encodeURIComponent(mid)}` : ''}${perm?.token ? `&p=${encodeURIComponent(perm.token)}` : ''}`
         : url;
       toast.loading('Baixando o vídeo 0%', { id });
       const r = await fetch(endereco);
@@ -178,8 +197,12 @@ export function AcoesVideo({ pid, mid, titulo, url, compacto }: { pid?: string; 
       const f = new File([blob], nome, { type: tipo });
       const nav: any = navigator;
       if (!nav.canShare || !nav.canShare({ files: [f] })) { toast.info('Este celular não manda vídeo por aqui. Use "Enviar no WhatsApp".', { id }); return; }
+      toast.loading('Preparando o link...', { id });
+      const l = await pLink;
       setBaixado(f);
-      toast.success('Vídeo pronto. Toque em "Enviar agora".', { id });
+      // sem link o vídeo ainda pode ir, mas sem o crédito: a pessoa precisa saber antes de mandar
+      if (l) toast.success('Vídeo pronto. Toque em "Enviar agora".', { id });
+      else toast.warning('Vídeo pronto, mas o link com o seu crédito não foi gerado. "Enviar agora" manda só o vídeo; para levar o link, use "Enviar no WhatsApp".', { id, duration: 8000 });
     } catch {
       toast.error('Não consegui baixar o vídeo. Use "Enviar no WhatsApp", que manda o link.', { id });
     } finally {

@@ -8,6 +8,8 @@
 // nome dele (indicar, gerar link para o cliente) passa por estas rotas, que conferem o token.
 // Quem está logado no app usa o próprio login (o token do Firebase vale mais que o link).
 import crypto from 'crypto';
+import { Transform, pipeline } from 'stream';
+import { videoDoEquipamento } from '../src/lib/videoEquipamento';
 import {
   PAPEIS_QUE_INDICAM, TOKEN_LINK_VALIDO, lerCidadeUf, primeiroNome, validarCnpj, validarTelefoneBR,
 } from '../src/lib/consultorIndicar';
@@ -33,6 +35,10 @@ export interface DepsConsultorParceiro {
 // o navegador, então o download passa por aqui. Só o bucket do projeto e arquivos do banco (db-file://):
 // sem essa lista o servidor viraria um proxy aberto para qualquer endereço da internet.
 export const BUCKETS_VIDEO = ['gen-lang-client-0708423613.firebasestorage.app', 'gen-lang-client-0708423613.appspot.com'];
+// Só as pastas onde o catálogo grava vídeo (EnvioDeVideo em src/pages/Catalog.tsx: pasta="product_videos"
+// e pasta="model_videos"). Fora delas o bucket guarda fotos, fichas e anexos de indicação, que não são
+// do parceiro baixar trocando o endereço.
+export const PASTAS_VIDEO = ['product_videos/', 'model_videos/'];
 export const MAX_VIDEO_PROXY = 40 * 1024 * 1024; // o mesmo LIMITE_VIDEO_ARQUIVO_MB do navegador
 export type AlvoVideo = { tipo: 'storage'; bucket: string; caminho: string } | { tipo: 'banco'; id: string };
 
@@ -60,6 +66,8 @@ export function alvoDoVideo(url: string): AlvoVideo | null {
     } else return null;
   } catch { return null; }
   if (!BUCKETS_VIDEO.includes(bucket) || !caminho || caminho.length > 500 || /[\u0000-\u001f]/.test(caminho)) return null;
+  // "product_videos/../indicacoes/x" ou "product_videos//x" não passam: o caminho tem de ser um arquivo direto da pasta
+  if (!PASTAS_VIDEO.some(p => caminho.startsWith(p)) || caminho.split('/').some(t => !t || t === '.' || t === '..')) return null;
   return { tipo: 'storage', bucket, caminho };
 }
 
@@ -406,16 +414,29 @@ export function criarRotasConsultorParceiro(deps: DepsConsultorParceiro) {
     }
   }
 
-  // GET /api/consultor/video-arquivo?url=...&p=...  -> o arquivo de vídeo (até 40 MB)
+  // GET /api/consultor/video-arquivo?url=...&pid=...&mid=...&p=...  -> o arquivo de vídeo (até 40 MB)
   // Mesmo dono do link-cliente: parceiro pelo link ou login de quem pode indicar.
+  // O endereço tem de ser O vídeo daquele equipamento do catálogo (o mesmo videoDoEquipamento que o
+  // navegador usa). É isso que fecha o db-file://: app_files guarda também fotos e anexos, e sem a
+  // conferência qualquer id de documento sairia daqui. Uma leitura só (products/{pid}), sem varrer o catálogo.
   async function rotaVideoArquivo(req: any, res: any) {
     try {
       if (passouLimite(`consvid-ip:${ipDe(req)}`, LIMITE_IP_HORA, 60 * 60 * 1000)) return res.status(429).json({ error: 'Muitos pedidos. Espere alguns minutos.' });
-      const alvo = alvoDoVideo(String(req.query?.url || ''));
+      const url = String(req.query?.url || '').trim();
+      const alvo = alvoDoVideo(url);
       if (!alvo) return res.status(400).json({ error: 'Vídeo não permitido.' });
+      const pid = String(req.query?.pid || '');
+      const mid = String(req.query?.mid || '');
+      if (!/^[A-Za-z0-9_-]{1,80}$/.test(pid) || (mid && !/^[A-Za-z0-9_.-]{1,80}$/.test(mid))) return res.status(400).json({ error: 'Equipamento inválido.' });
       const dono = await donoDoPedido(req);
       if ('erro' in dono) return res.status(dono.erro).json({ error: dono.msg });
       if (passouLimite(`consvid:${dono.uid}`, LIMITE_VIDEO_HORA, 60 * 60 * 1000)) return res.status(429).json({ error: 'Muitos vídeos seguidos. Espere alguns minutos.' });
+      const p = await db.collection('products').doc(pid).get();
+      if (!p.exists) return res.status(404).json({ error: 'Equipamento não encontrado.' });
+      const pd: any = p.data() || {};
+      const modelo = mid ? (pd.models || []).find((x: any) => String(x?.id) === mid) : null;
+      if (mid && !modelo) return res.status(404).json({ error: 'Equipamento não encontrado.' });
+      if (videoDoEquipamento(pd, modelo) !== url) return res.status(403).json({ error: 'Este vídeo não é do equipamento.' });
       res.setHeader?.('Cache-Control', 'private, no-store');
       res.setHeader?.('X-Content-Type-Options', 'nosniff');
       if (alvo.tipo === 'banco') {
@@ -434,10 +455,36 @@ export function criarRotasConsultorParceiro(deps: DepsConsultorParceiro) {
       if (!arq) return res.status(404).json({ error: 'Vídeo não encontrado.' });
       if (!/^video\/[A-Za-z0-9.+-]+$/.test(arq.contentType || '')) { arq.stream?.destroy?.(); return res.status(415).json({ error: 'Este arquivo não é um vídeo.' }); }
       if (!(arq.tamanho > 0) || arq.tamanho > MAX_VIDEO_PROXY) { arq.stream?.destroy?.(); return res.status(413).json({ error: 'Vídeo grande demais.' }); }
-      res.setHeader?.('Content-Type', arq.contentType);
-      res.setHeader?.('Content-Length', String(arq.tamanho));
-      arq.stream.on('error', () => { if (!res.headersSent) res.status(500).json({ error: 'Não consegui baixar o vídeo.' }); else res.destroy?.(); });
-      arq.stream.pipe(res);
+      // O tipo de vídeo só vai no primeiro pedaço que chega do Storage. Se a leitura falhar antes,
+      // a resposta ainda está livre e sai como JSON de verdade (o res.json do Express não troca um
+      // Content-Type já gravado, e o navegador receberia "video/mp4" com uma mensagem de erro dentro).
+      // Por isso são dois pipelines: Storage até o portão, e o portão até a resposta só depois do
+      // primeiro pedaço. Um pipeline só até o res destruiria a resposta no erro, sem JSON nenhum.
+      // E pipeline, não pipe: se o celular desiste no meio (fechou a aba, caiu o 4G), o res fechado
+      // derruba o portão, que derruba a leitura do Storage, em vez de baixar 40 MB para ninguém.
+      await new Promise<void>(resolve => {
+        let comecou = false;
+        let fim = false;
+        const acabar = () => { if (!fim) { fim = true; resolve(); } };
+        const comecar = () => {
+          if (comecou) return;
+          comecou = true;
+          res.setHeader?.('Content-Type', arq.contentType);
+          res.setHeader?.('Content-Length', String(arq.tamanho));
+          pipeline(portao, res, () => acabar());
+        };
+        const portao = new Transform({
+          transform(pedaco, _cod, cb) { comecar(); cb(null, pedaco); },
+          flush(cb) { comecar(); cb(); },
+        });
+        pipeline(arq.stream, portao, (err: any) => {
+          if (err && !comecou) {
+            if (!res.headersSent) res.status(500).json({ error: 'Não consegui baixar o vídeo.' });
+            acabar();
+          }
+          // com o envio já começado, quem termina (ou derruba a resposta no erro) é o pipeline até o res
+        });
+      });
     } catch {
       if (!res.headersSent) res.status(500).json({ error: 'Não consegui baixar o vídeo.' });
     }

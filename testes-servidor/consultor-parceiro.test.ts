@@ -1,6 +1,8 @@
 // Rotas do consultor do parceiro com um Firestore em memória. Rodar: node --import tsx --test testes-servidor/consultor-parceiro.test.ts
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import http from 'node:http';
+import { Readable } from 'node:stream';
 import { criarRotasConsultorParceiro, alvoDoVideo, LIMITE_LINK_HORA, LIMITE_IP_HORA, MAX_VIDEO_PROXY } from '../server/consultorParceiro.ts';
 import { querIndicar, validarTelefoneBR, lerCidadeUf, validarCnpj } from '../src/lib/consultorIndicar.ts';
 
@@ -268,18 +270,25 @@ function limitadorReal() {
   };
 }
 
-test('VÍDEO: o proxy só aceita o bucket do projeto e arquivos do banco, nunca um endereço qualquer', () => {
+test('VÍDEO: o proxy só aceita as pastas de vídeo do catálogo no bucket do projeto, nunca um endereço qualquer', () => {
   const B = 'gen-lang-client-0708423613.firebasestorage.app';
-  assert.deepEqual(alvoDoVideo(`https://firebasestorage.googleapis.com/v0/b/${B}/o/videos%2Fcmf.mp4?alt=media&token=x`), { tipo: 'storage', bucket: B, caminho: 'videos/cmf.mp4' });
-  assert.deepEqual(alvoDoVideo(`https://storage.googleapis.com/${B}/videos/cmf.mp4`), { tipo: 'storage', bucket: B, caminho: 'videos/cmf.mp4' });
+  assert.deepEqual(alvoDoVideo(`https://firebasestorage.googleapis.com/v0/b/${B}/o/product_videos%2Fcmf.mp4?alt=media&token=x`), { tipo: 'storage', bucket: B, caminho: 'product_videos/cmf.mp4' });
+  assert.deepEqual(alvoDoVideo(`https://storage.googleapis.com/${B}/model_videos/cmf.mp4`), { tipo: 'storage', bucket: B, caminho: 'model_videos/cmf.mp4' });
   assert.deepEqual(alvoDoVideo('db-file://abc_123'), { tipo: 'banco', id: 'abc_123' });
   for (const ruim of [
-    'https://firebasestorage.googleapis.com/v0/b/outro-projeto.appspot.com/o/v.mp4?alt=media',
-    `http://firebasestorage.googleapis.com/v0/b/${B}/o/v.mp4`,
-    `https://firebasestorage.googleapis.com.evil.com/v0/b/${B}/o/v.mp4`,
-    `https://evil.com/v0/b/${B}/o/v.mp4`,
-    `https://user:x@firebasestorage.googleapis.com/v0/b/${B}/o/v.mp4`,
-    `https://firebasestorage.googleapis.com:8443/v0/b/${B}/o/v.mp4`,
+    'https://firebasestorage.googleapis.com/v0/b/outro-projeto.appspot.com/o/product_videos%2Fv.mp4?alt=media',
+    `http://firebasestorage.googleapis.com/v0/b/${B}/o/product_videos%2Fv.mp4`,
+    `https://firebasestorage.googleapis.com.evil.com/v0/b/${B}/o/product_videos%2Fv.mp4`,
+    `https://evil.com/v0/b/${B}/o/product_videos%2Fv.mp4`,
+    `https://user:x@firebasestorage.googleapis.com/v0/b/${B}/o/product_videos%2Fv.mp4`,
+    `https://firebasestorage.googleapis.com:8443/v0/b/${B}/o/product_videos%2Fv.mp4`,
+    // o mesmo bucket guarda fotos, fichas e anexos de indicação: fora das pastas de vídeo não sai
+    `https://firebasestorage.googleapis.com/v0/b/${B}/o/indications%2Fanexo.mp4?alt=media`,
+    `https://firebasestorage.googleapis.com/v0/b/${B}/o/videos%2Fcmf.mp4?alt=media`,
+    `https://storage.googleapis.com/${B}/products/foto.jpg`,
+    `https://firebasestorage.googleapis.com/v0/b/${B}/o/product_videos%2F..%2Findications%2Fx.mp4?alt=media`,
+    `https://storage.googleapis.com/${B}/product_videos//x.mp4`,
+    `https://firebasestorage.googleapis.com/v0/b/${B}/o/xproduct_videos%2Fv.mp4?alt=media`,
     'http://169.254.169.254/latest/meta-data',
     'http://localhost:3000/uploads/x.mp4',
     'db-file://../etc/passwd',
@@ -288,48 +297,139 @@ test('VÍDEO: o proxy só aceita o bucket do projeto e arquivos do banco, nunca 
   ]) assert.equal(alvoDoVideo(ruim), null, ruim);
 });
 
-test('VÍDEO: só baixa quem pode indicar, só vídeo, e até 40 MB', async () => {
-  const B = 'gen-lang-client-0708423613.firebasestorage.app';
+// Resposta HTTP de verdade (o proxy usa pipeline, que precisa de um stream de escrita real), com o
+// status/json do Express: o json só grava o Content-Type se ninguém gravou antes, como no Express.
+async function servidorDe(rota: any) {
+  const srv = http.createServer((req: any, res: any) => {
+    res.status = (c: number) => { res.statusCode = c; return res; };
+    res.json = (b: any) => { if (!res.getHeader('content-type')) res.setHeader('Content-Type', 'application/json; charset=utf-8'); res.end(JSON.stringify(b)); return res; };
+    req.query = Object.fromEntries(new URL(req.url, 'http://x').searchParams);
+    rota(req, res);
+  });
+  await new Promise<void>(ok => srv.listen(0, '127.0.0.1', () => ok()));
+  const base = `http://127.0.0.1:${(srv.address() as any).port}`;
+  const pedir = (q: Record<string, string>) => fetch(`${base}/?${new URLSearchParams(q)}`);
+  return { srv, pedir, fechar: () => new Promise<void>(ok => srv.close(() => ok())) };
+}
+
+const BV = 'gen-lang-client-0708423613.firebasestorage.app';
+const urlSt = (c: string) => `https://firebasestorage.googleapis.com/v0/b/${BV}/o/${encodeURIComponent(c)}?alt=media`;
+
+test('VÍDEO: só baixa quem pode indicar, só o vídeo do equipamento, só vídeo, e até 40 MB', async () => {
   const arquivos: Record<string, any> = {
-    'v/ok.mp4': { contentType: 'video/mp4', tamanho: 1234 },
-    'v/foto.jpg': { contentType: 'image/jpeg', tamanho: 1234 },
-    'v/grande.mp4': { contentType: 'video/mp4', tamanho: MAX_VIDEO_PROXY + 1 },
+    'product_videos/ok.mp4': { contentType: 'video/mp4', tamanho: 5 },
+    'model_videos/m4.mp4': { contentType: 'video/mp4', tamanho: 5 },
+    'product_videos/foto.jpg': { contentType: 'image/jpeg', tamanho: 5 },
+    'product_videos/grande.mp4': { contentType: 'video/mp4', tamanho: MAX_VIDEO_PROXY + 1 },
+    'product_videos/outro.mp4': { contentType: 'video/mp4', tamanho: 5 },
   };
-  const canos: any[] = [];
+  const abertos: string[] = [];
   const { db, r, quemAtual } = montar({ uid: 'gis', email: 'g', role: 'manager' }, {
     abrirArquivoStorage: async (bucket: string, caminho: string) => {
-      assert.equal(bucket, B);
+      assert.equal(bucket, BV);
       const a = arquivos[caminho];
       if (!a) return null;
-      const stream = { on: () => stream, pipe: (res: any) => { canos.push(caminho); res.end('BYTES'); }, destroy: () => {} };
-      return { ...a, stream };
+      abertos.push(caminho);
+      return { ...a, stream: Readable.from([Buffer.from('BYTES')]) };
     },
   });
+  // um produto por caso: o vídeo pedido tem de ser o cadastrado no equipamento
+  db.dados.products.pv = { name: 'Produto', video_url: urlSt('product_videos/ok.mp4'), models: [{ id: 'm4', name: 'Modelo', video_url: urlSt('model_videos/m4.mp4') }, { id: 'm9', name: 'Sem vídeo' }] };
+  db.dados.products.pf = { name: 'Foto', video_url: urlSt('product_videos/foto.jpg') };
+  db.dados.products.pg = { name: 'Grande', video_url: urlSt('product_videos/grande.mp4') };
+  db.dados.products.pn = { name: 'Sumiu', video_url: urlSt('product_videos/nao.mp4') };
+  db.dados.products.pb = { name: 'Banco', video_url: 'db-file://vid' };
+  db.dados.products.pi = { name: 'Banco foto', video_url: 'db-file://img' };
+  db.dados.app_files = { vid: { data: 'data:video/mp4;base64,' + Buffer.from('abc').toString('base64') }, img: { data: 'data:image/png;base64,AAAA' }, anexo: { data: 'data:video/mp4;base64,AAAA' } };
   const tok = (await chamar(r.rotaLink, { params: { uid: 'car' }, body: {} })).corpo.token;
   quemAtual.v = null;
-  const url = (c: string) => `https://firebasestorage.googleapis.com/v0/b/${B}/o/${encodeURIComponent(c)}?alt=media`;
-  // sem link e sem login: não baixa
-  assert.equal((await chamar(r.rotaVideoArquivo, { query: { url: url('v/ok.mp4') } })).statusCode, 401);
-  // endereço de fora: recusa antes de qualquer coisa
-  assert.equal((await chamar(r.rotaVideoArquivo, { query: { url: 'https://evil.com/v.mp4', p: tok } })).statusCode, 400);
-  let res = await chamar(r.rotaVideoArquivo, { query: { url: url('v/ok.mp4'), p: tok } });
-  assert.equal(res.statusCode, 200);
-  assert.equal(res.cabecalhos['content-type'], 'video/mp4');
-  assert.equal(res.corpo, 'BYTES');
-  assert.equal((await chamar(r.rotaVideoArquivo, { query: { url: url('v/foto.jpg'), p: tok } })).statusCode, 415);
-  assert.equal((await chamar(r.rotaVideoArquivo, { query: { url: url('v/grande.mp4'), p: tok } })).statusCode, 413);
-  assert.equal((await chamar(r.rotaVideoArquivo, { query: { url: url('v/nao.mp4'), p: tok } })).statusCode, 404);
-  assert.deepEqual(canos, ['v/ok.mp4']);
-  // arquivo do banco: só data:video/
-  db.dados.app_files = { vid: { data: 'data:video/mp4;base64,' + Buffer.from('abc').toString('base64') }, img: { data: 'data:image/png;base64,AAAA' } };
-  res = await chamar(r.rotaVideoArquivo, { query: { url: 'db-file://vid', p: tok } });
-  assert.equal(res.statusCode, 200);
-  assert.equal(res.cabecalhos['content-type'], 'video/mp4');
-  assert.equal(Buffer.from(res.corpo).toString(), 'abc');
-  assert.equal((await chamar(r.rotaVideoArquivo, { query: { url: 'db-file://img', p: tok } })).statusCode, 415);
-  // login de quem não indica: não baixa
-  quemAtual.v = { uid: 'ina', email: 'ina@gmail.com', role: 'external_seller' };
-  assert.equal((await chamar(r.rotaVideoArquivo, { query: { url: url('v/ok.mp4') } })).statusCode, 403);
+  const { pedir, fechar } = await servidorDe(r.rotaVideoArquivo);
+  try {
+    const st = async (q: Record<string, string>) => (await pedir(q)).status;
+    // sem link e sem login: não baixa
+    assert.equal(await st({ url: urlSt('product_videos/ok.mp4'), pid: 'pv' }), 401);
+    // endereço de fora: recusa antes de qualquer coisa
+    assert.equal(await st({ url: 'https://evil.com/v.mp4', pid: 'pv', p: tok }), 400);
+    // sem equipamento: recusa
+    assert.equal(await st({ url: urlSt('product_videos/ok.mp4'), p: tok }), 400);
+    let res = await pedir({ url: urlSt('product_videos/ok.mp4'), pid: 'pv', p: tok });
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('content-type'), 'video/mp4');
+    assert.equal(await res.text(), 'BYTES');
+    // vídeo do modelo; e o modelo sem vídeo próprio herda o do produto
+    assert.equal(await st({ url: urlSt('model_videos/m4.mp4'), pid: 'pv', mid: 'm4', p: tok }), 200);
+    assert.equal(await st({ url: urlSt('product_videos/ok.mp4'), pid: 'pv', mid: 'm9', p: tok }), 200);
+    // arquivo da pasta de vídeo, mas de outro equipamento (ou de nenhum): não sai
+    assert.equal(await st({ url: urlSt('product_videos/outro.mp4'), pid: 'pv', p: tok }), 403);
+    assert.equal(await st({ url: urlSt('product_videos/ok.mp4'), pid: 'pv', mid: 'm4', p: tok }), 403);
+    assert.equal(await st({ url: urlSt('product_videos/ok.mp4'), pid: 'naoexiste', p: tok }), 404);
+    assert.equal(await st({ url: urlSt('product_videos/ok.mp4'), pid: 'pv', mid: 'mX', p: tok }), 404);
+    assert.equal(await st({ url: urlSt('product_videos/foto.jpg'), pid: 'pf', p: tok }), 415);
+    assert.equal(await st({ url: urlSt('product_videos/grande.mp4'), pid: 'pg', p: tok }), 413);
+    assert.equal(await st({ url: urlSt('product_videos/nao.mp4'), pid: 'pn', p: tok }), 404);
+    assert.ok(!abertos.includes('product_videos/outro.mp4'), 'o vídeo de outro equipamento nem chega a ser aberto');
+    // arquivo do banco: só o referenciado pelo equipamento, e só data:video/
+    res = await pedir({ url: 'db-file://vid', pid: 'pb', p: tok });
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('content-type'), 'video/mp4');
+    assert.equal(await res.text(), 'abc');
+    assert.equal(await st({ url: 'db-file://img', pid: 'pi', p: tok }), 415);
+    // app_files guarda fotos e anexos: um id que nenhum equipamento usa como vídeo não sai, mesmo sendo vídeo
+    assert.equal(await st({ url: 'db-file://anexo', pid: 'pb', p: tok }), 403);
+    // login de quem não indica: não baixa
+    quemAtual.v = { uid: 'ina', email: 'ina@gmail.com', role: 'external_seller' };
+    assert.equal(await st({ url: urlSt('product_videos/ok.mp4'), pid: 'pv' }), 403);
+  } finally { await fechar(); }
+});
+
+test('VÍDEO: erro do Storage antes do primeiro pedaço sai como JSON, e não como "video/mp4"', async () => {
+  const { db, r, quemAtual } = montar({ uid: 'gis', email: 'g', role: 'manager' }, {
+    abrirArquivoStorage: async () => ({
+      contentType: 'video/mp4', tamanho: 5,
+      stream: new Readable({ read() { setTimeout(() => this.destroy(new Error('Storage caiu')), 5); } }),
+    }),
+  });
+  db.dados.products.pv = { name: 'Produto', video_url: urlSt('product_videos/ok.mp4') };
+  const tok = (await chamar(r.rotaLink, { params: { uid: 'car' }, body: {} })).corpo.token;
+  quemAtual.v = null;
+  const { pedir, fechar } = await servidorDe(r.rotaVideoArquivo);
+  try {
+    const res = await pedir({ url: urlSt('product_videos/ok.mp4'), pid: 'pv', p: tok });
+    assert.equal(res.status, 500);
+    assert.match(String(res.headers.get('content-type')), /^application\/json/);
+    assert.equal((await res.json()).error, 'Não consegui baixar o vídeo.');
+  } finally { await fechar(); }
+});
+
+test('VÍDEO: o celular desistiu no meio, a leitura do Storage é destruída junto', async () => {
+  let fonte: any = null;
+  let aoDestruir = () => {};
+  const destruida = new Promise<void>(ok => { aoDestruir = ok; });
+  const { db, r, quemAtual } = montar({ uid: 'gis', email: 'g', role: 'manager' }, {
+    abrirArquivoStorage: async () => {
+      // um pedaço agora e o resto "nunca chega": só para se o cliente fechar
+      let mandou = false;
+      fonte = new Readable({
+        read() { if (!mandou) { mandou = true; this.push(Buffer.alloc(1024, 1)); } },
+        destroy(err, cb) { aoDestruir(); cb(err); },
+      });
+      return { contentType: 'video/mp4', tamanho: 10 * 1024 * 1024, stream: fonte };
+    },
+  });
+  db.dados.products.pv = { name: 'Produto', video_url: urlSt('product_videos/ok.mp4') };
+  const tok = (await chamar(r.rotaLink, { params: { uid: 'car' }, body: {} })).corpo.token;
+  quemAtual.v = null;
+  const { pedir, fechar } = await servidorDe(r.rotaVideoArquivo);
+  try {
+    const res = await pedir({ url: urlSt('product_videos/ok.mp4'), pid: 'pv', p: tok });
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('content-type'), 'video/mp4');
+    const leitor = res.body!.getReader();
+    await leitor.read();
+    await leitor.cancel();
+    await Promise.race([destruida, new Promise((_, n) => setTimeout(() => n(new Error('a leitura do Storage continuou aberta')), 3000))]);
+    assert.equal(fonte.destroyed, true);
+  } finally { await fechar(); }
 });
 
 test('LIMITE POR DONO: um parceiro que passou do limite não trava outro no mesmo IP', async () => {

@@ -65,7 +65,9 @@ export function CartaoFicha({ titulo, imagem, podeEnviar, onVer, onEnviar, onInd
             <button
               type="button"
               onClick={abrirVideo}
-              className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-black uppercase text-[10px] h-8 px-2.5 rounded-lg transition"
+              aria-expanded={video ? tocando : undefined}
+              // 32px de desenho, 44px de toque: a área invisível (before:) sobe e desce 6px, dentro do respiro da fileira
+              className="relative flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-black uppercase text-[10px] h-8 px-2.5 rounded-lg transition before:absolute before:inset-x-0 before:-inset-y-1.5 before:content-['']"
             >
               <Video className="h-3 w-3 text-red-500" /> {tocando ? 'Fechar vídeo' : 'Ver vídeo'}
             </button>
