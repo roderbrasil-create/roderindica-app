@@ -40,6 +40,27 @@ service firebase.storage {
       allow update, delete: if equipe();
     }
 
+    // Biblioteca de vídeos do consultor: só a equipe sobe, troca e apaga; vídeo até 80 MB, só mp4,
+    // webm ou mov; a capa (quadro tirado do vídeo no celular) até 2 MB, só imagem.
+    // A conta com senha conta como equipe pelo e-mail @roderbrasil (o cadastro público fica
+    // desligado: conta com senha só nasce pela tela de Usuários, como no Firestore).
+    function equipeVideos() {
+      return equipe() || (logado() && request.auth.token.firebase.sign_in_provider == 'password' &&
+        string(request.auth.token.get('email', '')).lower().matches('.*@roderbrasil[.]com[.]br$'));
+    }
+    match /consultor_videos/{arquivo} {
+      allow read: if logado();
+      allow create, update: if equipeVideos() && tamanhoOk(80) &&
+        request.resource.contentType.matches('video/(mp4|webm|quicktime)');
+      allow delete: if equipeVideos();
+    }
+    match /consultor_videos/capas/{arquivo} {
+      allow read: if logado();
+      allow create, update: if equipeVideos() && tamanhoOk(2) &&
+        request.resource.contentType.matches('image/(jpeg|png|webp)');
+      allow delete: if equipeVideos();
+    }
+
     // Todo o resto (vídeos, orçamentos, documentos): quem tem login de verdade lê e envia;
     // trocar ou apagar arquivo que já existe, só a equipe.
     match /{allPaths=**} {
@@ -47,8 +68,10 @@ service firebase.storage {
       // enviar por cima de um arquivo que já existe conta como troca: só a equipe
       // perfis e notas fiscais têm regra própria acima; aqui não abrem por tabela
       allow create: if logado() && tamanhoOk(600) && (resource == null || equipe()) &&
-        !request.resource.name.matches('^(profiles|commissions_nf)/.*');
-      allow update, delete: if equipe() && tamanhoOk(600);
+        !request.resource.name.matches('^(profiles|commissions_nf|consultor_videos)/.*');
+      // a biblioteca do consultor tem limite e tipo próprios (acima): aqui não troca por tabela
+      allow update: if equipe() && tamanhoOk(600) && !request.resource.name.matches('^consultor_videos/.*');
+      allow delete: if equipe();
     }
   }
 }

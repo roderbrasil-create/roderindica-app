@@ -24,6 +24,7 @@ const contas = {
   parceiro: { uid: 'u_par', token: { email: 'parceiro@gmail.com', email_verified: true, firebase: { sign_in_provider: 'google.com' } } },
   outroParceiro: { uid: 'u_par2', token: { email: 'outro@gmail.com', email_verified: true, firebase: { sign_in_provider: 'google.com' } } },
   anonimo: { uid: 'u_anon', token: { firebase: { sign_in_provider: 'anonymous' } } },
+  franciele: { uid: 'u_fra', token: { email: 'franciele@gmail.com', email_verified: true, firebase: { sign_in_provider: 'google.com' } } },
 };
 
 const fs_ = (quem) => quem === null
@@ -54,6 +55,8 @@ beforeEach(async () => {
     await u('u_van', { email: 'financeiro2@roderbrasil.com.br', role: 'financial', name: 'Vanessa' });
     await u('u_par', { email: 'parceiro@gmail.com', role: 'external_seller', name: 'Parceiro' });
     await u('u_par2', { email: 'outro@gmail.com', role: 'external_seller', name: 'Outro' });
+    await u('u_fra', { email: 'franciele@gmail.com', role: 'marketing', name: 'Franciele' });
+    await setDoc(doc(db, 'consultor_videos', 'v1'), { produto_id: 'p1', tipo: 'campo', titulo: 'Traçando', contexto: 'GT 600X em PC200', video_url: 'https://www.youtube.com/watch?v=abcdefghijk', ativo: true });
     await setDoc(doc(db, 'settings', 'email'), { user: 'x', pass: 'segredo' });
     await setDoc(doc(db, 'settings', 'notifications'), { manager_emails: [] });
     await setDoc(doc(db, 'settings', 'engate_rapido_ficha_a'), { image_url: 'x' });
@@ -568,4 +571,71 @@ test('ANÔNIMO e SEM LOGIN não listam indicações (as páginas públicas só c
   await assertFails(getDocs(collection(fs_('anonimo'), 'indications')));
   await assertFails(getDocs(collection(fs_(null), 'indications')));
   await assertFails(getDoc(doc(fs_(null), 'indications', 'ind1')));
+});
+
+// ---------------- BIBLIOTECA DE VÍDEOS DO CONSULTOR (19/10/2026) ----------------
+const novoVideo = (extra = {}) => ({ produto_id: 'p1', modelo_id: 'm1', equipamento_nome: 'Garra Traçadora', modelo_nome: 'GT 600X', tipo: 'campo',
+  contexto: 'GT 600X traçando eucalipto de 3 m em PC200', titulo: 'Traçando eucalipto', video_url: 'https://www.youtube.com/watch?v=abcdefghijk',
+  duracao_s: 22, no_carrossel: true, ordem: 1, ativo: true, criado_por: 'x', criado_em: '2026-10-19T00:00:00Z', atualizado_em: '2026-10-19T00:00:00Z', ...extra });
+
+test('VÍDEOS DO CONSULTOR: admin, gerente e marketing (Franciele) cadastram, editam e apagam (VideosConsultor.tsx)', async () => {
+  await assertSucceeds(setDoc(doc(fs_('jeferson'), 'consultor_videos', 'a1'), novoVideo()));
+  await assertSucceeds(setDoc(doc(fs_('gislene'), 'consultor_videos', 'a2'), novoVideo()));
+  await assertSucceeds(setDoc(doc(fs_('franciele'), 'consultor_videos', 'a3'), novoVideo()));
+  await assertSucceeds(updateDoc(doc(fs_('franciele'), 'consultor_videos', 'v1'), { no_carrossel: true, atualizado_em: 'x' }));
+  await assertSucceeds(getDocs(collection(fs_('franciele'), 'consultor_videos')));
+  await assertSucceeds(deleteDoc(doc(fs_('franciele'), 'consultor_videos', 'a3')));
+});
+test('VÍDEOS DO CONSULTOR: a equipe lê; vendedora, triagem e financeiro não cadastram', async () => {
+  await assertSucceeds(getDoc(doc(fs_('heloisa'), 'consultor_videos', 'v1')));
+  await assertFails(setDoc(doc(fs_('heloisa'), 'consultor_videos', 'b1'), novoVideo()));
+  await assertFails(setDoc(doc(fs_('luana'), 'consultor_videos', 'b2'), novoVideo()));
+  await assertFails(updateDoc(doc(fs_('vanessa'), 'consultor_videos', 'v1'), { titulo: 'x' }));
+  await assertFails(deleteDoc(doc(fs_('heloisa'), 'consultor_videos', 'v1')));
+});
+test('VÍDEOS DO CONSULTOR: parceiro e visitante não leem o banco (a lista vai pelo servidor) nem gravam', async () => {
+  await assertFails(getDoc(doc(fs_('parceiro'), 'consultor_videos', 'v1')));
+  await assertFails(getDocs(collection(fs_('anonimo'), 'consultor_videos')));
+  await assertFails(getDocs(collection(fs_(null), 'consultor_videos')));
+  await assertFails(setDoc(doc(fs_('parceiro'), 'consultor_videos', 'c1'), novoVideo()));
+});
+test('VÍDEOS DO CONSULTOR: cadastro sem equipamento, sem vídeo ou com tipo inventado é recusado', async () => {
+  await assertFails(setDoc(doc(fs_('jeferson'), 'consultor_videos', 'd1'), novoVideo({ produto_id: '' })));
+  await assertFails(setDoc(doc(fs_('jeferson'), 'consultor_videos', 'd2'), novoVideo({ video_url: '' })));
+  await assertFails(setDoc(doc(fs_('jeferson'), 'consultor_videos', 'd3'), novoVideo({ tipo: 'outro' })));
+  await assertFails(setDoc(doc(fs_('jeferson'), 'consultor_videos', 'd4'), novoVideo({ titulo: 'x'.repeat(81) })));
+});
+
+const mp4 = (n = 3) => new Uint8Array(n);
+const contaRoder = () => env.authenticatedContext('u_rog', { email: 'rogerio@roderbrasil.com.br', email_verified: true, firebase: { sign_in_provider: 'google.com' } });
+test('STORAGE VÍDEOS DO CONSULTOR: equipe @roderbrasil sobe mp4, webm e mov e a capa em jpg', async () => {
+  const st = contaRoder().storage();
+  await assertSucceeds(uploadBytes(ref(st, 'consultor_videos/a.mp4'), mp4(), { contentType: 'video/mp4' }));
+  await assertSucceeds(uploadBytes(ref(st, 'consultor_videos/b.webm'), mp4(), { contentType: 'video/webm' }));
+  await assertSucceeds(uploadBytes(ref(st, 'consultor_videos/c.mov'), mp4(), { contentType: 'video/quicktime' }));
+  await assertSucceeds(uploadBytes(ref(st, 'consultor_videos/capas/a.jpg'), mp4(), { contentType: 'image/jpeg' }));
+  // conta com senha do e-mail da Roder (criada pela tela de Usuários) também é equipe
+  await assertSucceeds(uploadBytes(ref(st_('vanessa'), 'consultor_videos/d.mp4'), mp4(), { contentType: 'video/mp4' }));
+  await assertSucceeds(deleteObject(ref(st, 'consultor_videos/a.mp4')));
+});
+test('STORAGE VÍDEOS DO CONSULTOR: nada de foto, PDF ou vídeo acima de 80 MB; capa acima de 2 MB não', async () => {
+  const st = contaRoder().storage();
+  await assertFails(uploadBytes(ref(st, 'consultor_videos/x.png'), mp4(), { contentType: 'image/png' }));
+  await assertFails(uploadBytes(ref(st, 'consultor_videos/x.pdf'), mp4(), { contentType: 'application/pdf' }));
+  await assertFails(uploadBytes(ref(st, 'consultor_videos/grande.mp4'), mp4(80 * 1024 * 1024 + 1), { contentType: 'video/mp4' }));
+  await assertFails(uploadBytes(ref(st, 'consultor_videos/capas/x.mp4'), mp4(), { contentType: 'video/mp4' }));
+  await assertFails(uploadBytes(ref(st, 'consultor_videos/capas/g.jpg'), mp4(2 * 1024 * 1024 + 1), { contentType: 'image/jpeg' }));
+});
+test('STORAGE VÍDEOS DO CONSULTOR: parceiro, visitante e e-mail de fora não sobem nem apagam', async () => {
+  await env.withSecurityRulesDisabled((ctx) => uploadBytes(ref(ctx.storage(), 'consultor_videos/existe.mp4'), mp4(), { contentType: 'video/mp4' }));
+  await assertFails(uploadBytes(ref(st_('parceiro'), 'consultor_videos/p.mp4'), mp4(), { contentType: 'video/mp4' }));
+  await assertFails(uploadBytes(ref(st_('anonimo'), 'consultor_videos/p.mp4'), mp4(), { contentType: 'video/mp4' }));
+  await assertFails(uploadBytes(ref(st_('heloisa'), 'consultor_videos/p.mp4'), mp4(), { contentType: 'video/mp4' }));
+  await assertFails(uploadBytes(ref(st_('gislene'), 'consultor_videos/p.mp4'), mp4(), { contentType: 'video/mp4' }));
+  await assertFails(deleteObject(ref(st_('parceiro'), 'consultor_videos/existe.mp4')));
+  await assertFails(uploadBytes(ref(st_('parceiro'), 'consultor_videos/existe.mp4'), mp4(), { contentType: 'video/mp4' }));
+});
+test('STORAGE VÍDEOS DO CONSULTOR: equipe não troca vídeo da biblioteca por uma foto pela regra geral', async () => {
+  await env.withSecurityRulesDisabled((ctx) => uploadBytes(ref(ctx.storage(), 'consultor_videos/troca.mp4'), mp4(), { contentType: 'video/mp4' }));
+  await assertFails(uploadBytes(ref(contaRoder().storage(), 'consultor_videos/troca.mp4'), mp4(), { contentType: 'image/png' }));
 });

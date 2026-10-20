@@ -15,12 +15,16 @@ import { compactarVideo } from '../../lib/compactarVideo';
 const LIMITE_MB = 500;          // depois de compactado
 const LIMITE_ORIGINAL_MB = 3000; // antes de compactar
 
-export function EnvioDeVideo({ valor, aoMudar, pasta, aoEnviando, titulo }: {
+export function EnvioDeVideo({ valor, aoMudar, pasta, aoEnviando, titulo, limiteMb = LIMITE_MB, aoArquivoPronto }: {
   valor: string;
   aoMudar: (url: string) => void;
   pasta: string;
   aoEnviando?: (enviando: boolean) => void;
   titulo?: string;
+  // limite depois de compactar (a biblioteca do consultor aceita até 80 MB pelas regras do Storage)
+  limiteMb?: number;
+  // o arquivo que vai subir (já compactado): a tela tira dele a duração e a capa, no próprio celular
+  aoArquivoPronto?: (arquivo: File) => void;
 }) {
   const [progresso, setProgresso] = useState<{ etapa: 'compactando' | 'enviando'; pct: number; enviado: number; total: number; nome: string; antes?: number } | null>(null);
   const tarefa = useRef<UploadTask | null>(null);
@@ -70,11 +74,12 @@ export function EnvioDeVideo({ valor, aoMudar, pasta, aoEnviando, titulo }: {
       cancelarCompactacao.current = null;
     }
     if (cancelado.current) return;
-    if (arquivo.size > LIMITE_MB * 1024 * 1024) {
+    if (arquivo.size > limiteMb * 1024 * 1024) {
       setProgresso(null);
-      toast.error(`Mesmo compactado o vídeo ficou com ${mb(arquivo.size)} MB. O limite é ${LIMITE_MB} MB. Corte o vídeo no celular ou use um link do YouTube.`);
+      toast.error(`Mesmo compactado o vídeo ficou com ${mb(arquivo.size)} MB. O limite é ${limiteMb} MB. Corte o vídeo no celular ou use um link do YouTube.`);
       return;
     }
+    try { aoArquivoPronto?.(arquivo); } catch { /* a capa é só um extra */ }
     // 2) envia
     const nomeLimpo = arquivo.name.replace(/[^a-zA-Z0-9.]/g, '_').slice(-60);
     const destino = ref(storage, `${pasta}/${Date.now()}_${nomeLimpo}`);

@@ -36,9 +36,10 @@ export interface DepsConsultorParceiro {
 // sem essa lista o servidor viraria um proxy aberto para qualquer endereço da internet.
 export const BUCKETS_VIDEO = ['gen-lang-client-0708423613.firebasestorage.app', 'gen-lang-client-0708423613.appspot.com'];
 // Só as pastas onde o catálogo grava vídeo (EnvioDeVideo em src/pages/Catalog.tsx: pasta="product_videos"
-// e pasta="model_videos"). Fora delas o bucket guarda fotos, fichas e anexos de indicação, que não são
-// do parceiro baixar trocando o endereço.
-export const PASTAS_VIDEO = ['product_videos/', 'model_videos/'];
+// e pasta="model_videos") e a biblioteca de vídeos do consultor (src/pages/VideosConsultor.tsx:
+// pasta="consultor_videos"). Fora delas o bucket guarda fotos, fichas e anexos de indicação, que não
+// são do parceiro baixar trocando o endereço.
+export const PASTAS_VIDEO = ['product_videos/', 'model_videos/', 'consultor_videos/'];
 export const MAX_VIDEO_PROXY = 40 * 1024 * 1024; // o mesmo LIMITE_VIDEO_ARQUIVO_MB do navegador
 export type AlvoVideo = { tipo: 'storage'; bucket: string; caminho: string } | { tipo: 'banco'; id: string };
 
@@ -415,6 +416,7 @@ export function criarRotasConsultorParceiro(deps: DepsConsultorParceiro) {
   }
 
   // GET /api/consultor/video-arquivo?url=...&pid=...&mid=...&p=...  -> o arquivo de vídeo (até 40 MB)
+  // ou ?url=...&vid=...&p=... para um vídeo da biblioteca do consultor
   // Mesmo dono do link-cliente: parceiro pelo link ou login de quem pode indicar.
   // O endereço tem de ser O vídeo daquele equipamento do catálogo (o mesmo videoDoEquipamento que o
   // navegador usa). É isso que fecha o db-file://: app_files guarda também fotos e anexos, e sem a
@@ -427,16 +429,28 @@ export function criarRotasConsultorParceiro(deps: DepsConsultorParceiro) {
       if (!alvo) return res.status(400).json({ error: 'Vídeo não permitido.' });
       const pid = String(req.query?.pid || '');
       const mid = String(req.query?.mid || '');
-      if (!/^[A-Za-z0-9_-]{1,80}$/.test(pid) || (mid && !/^[A-Za-z0-9_.-]{1,80}$/.test(mid))) return res.status(400).json({ error: 'Equipamento inválido.' });
+      // vid: vídeo da biblioteca do consultor (consultor_videos/{vid}); sem ele, vale o vídeo do catálogo
+      const vid = String(req.query?.vid || '');
+      if (vid && !/^[A-Za-z0-9_-]{1,120}$/.test(vid)) return res.status(400).json({ error: 'Vídeo inválido.' });
+      if (!vid && (!/^[A-Za-z0-9_-]{1,80}$/.test(pid) || (mid && !/^[A-Za-z0-9_.-]{1,80}$/.test(mid)))) return res.status(400).json({ error: 'Equipamento inválido.' });
       const dono = await donoDoPedido(req);
       if ('erro' in dono) return res.status(dono.erro).json({ error: dono.msg });
       if (passouLimite(`consvid:${dono.uid}`, LIMITE_VIDEO_HORA, 60 * 60 * 1000)) return res.status(429).json({ error: 'Muitos vídeos seguidos. Espere alguns minutos.' });
-      const p = await db.collection('products').doc(pid).get();
-      if (!p.exists) return res.status(404).json({ error: 'Equipamento não encontrado.' });
-      const pd: any = p.data() || {};
-      const modelo = mid ? (pd.models || []).find((x: any) => String(x?.id) === mid) : null;
-      if (mid && !modelo) return res.status(404).json({ error: 'Equipamento não encontrado.' });
-      if (videoDoEquipamento(pd, modelo) !== url) return res.status(403).json({ error: 'Este vídeo não é do equipamento.' });
+      if (vid) {
+        // O endereço tem de ser o gravado NESTE vídeo da biblioteca, e o vídeo tem de estar ativo.
+        // Uma leitura só (consultor_videos/{vid}): o id não abre outro arquivo do bucket.
+        const v = await db.collection('consultor_videos').doc(vid).get();
+        const vd: any = v.exists ? (v.data() || {}) : null;
+        if (!vd || vd.ativo === false) return res.status(404).json({ error: 'Vídeo não encontrado.' });
+        if (String(vd.video_url || '').trim() !== url) return res.status(403).json({ error: 'Este vídeo não é da biblioteca.' });
+      } else {
+        const p = await db.collection('products').doc(pid).get();
+        if (!p.exists) return res.status(404).json({ error: 'Equipamento não encontrado.' });
+        const pd: any = p.data() || {};
+        const modelo = mid ? (pd.models || []).find((x: any) => String(x?.id) === mid) : null;
+        if (mid && !modelo) return res.status(404).json({ error: 'Equipamento não encontrado.' });
+        if (videoDoEquipamento(pd, modelo) !== url) return res.status(403).json({ error: 'Este vídeo não é do equipamento.' });
+      }
       res.setHeader?.('Cache-Control', 'private, no-store');
       res.setHeader?.('X-Content-Type-Options', 'nosniff');
       if (alvo.tipo === 'banco') {

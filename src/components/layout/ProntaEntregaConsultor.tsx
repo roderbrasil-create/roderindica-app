@@ -3,6 +3,7 @@ import { Package } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import type { ItemProntaEntrega } from '../../lib/prontaEntrega';
 import { AcoesVideo, BotaoVerVideo, PlayerVideo } from '../video/VideoEquipamento';
+import { capaDoVideo, formatarDuracao, nomeDoVideo, type VideoConsultor } from '../../lib/videosConsultor';
 
 // Pronta entrega dentro do Consultor (aprovado pelo Jeferson em 19/10/2026):
 // carrossel que passa sozinho a cada 5 s na tela inicial do celular, cartão fixo que gira
@@ -21,13 +22,24 @@ function Foto({ foto, src, className }: { foto: FotoFn; src?: string; className:
   return <>{src ? foto(src, className) : <Package className="h-10 w-10 text-[#9AA1A9]" />}</>;
 }
 
-export function CarrosselProntaEntrega({ itens, foto, onPerguntar, onIndicar, compacto = false }: {
+// Cartão extra do carrossel: vídeo da biblioteca marcado "no carrossel" (capa + "Ver vídeo", sem tocar sozinho)
+type Cartao = { chave: string; it?: ItemProntaEntrega; v?: VideoConsultor };
+
+export function CarrosselProntaEntrega({ itens, foto, onPerguntar, onIndicar, compacto = false, videos = [], fotoDoVideo, onPerguntarVideo, onIndicarVideo }: {
   itens: ItemProntaEntrega[];
   foto: FotoFn;
   onPerguntar: (it: ItemProntaEntrega) => void;
   onIndicar?: (it: ItemProntaEntrega) => void;
   compacto?: boolean;
+  videos?: VideoConsultor[];
+  fotoDoVideo?: (v: VideoConsultor) => string | undefined;
+  onPerguntarVideo?: (v: VideoConsultor) => void;
+  onIndicarVideo?: (v: VideoConsultor) => void;
 }) {
+  const cartoes: Cartao[] = React.useMemo(() => [
+    ...itens.map(it => ({ chave: it.chave, it })),
+    ...videos.map(v => ({ chave: `video:${v.id}`, v })),
+  ], [itens, videos]);
   const trilho = useRef<HTMLDivElement>(null);
   const [atual, setAtual] = useState(0);
   const atualRef = useRef(0);
@@ -51,7 +63,7 @@ export function CarrosselProntaEntrega({ itens, foto, onPerguntar, onIndicar, co
     if (mq.addEventListener) mq.addEventListener('change', mudou); else mq.addListener?.(mudou);
     return () => { if (mq!.removeEventListener) mq!.removeEventListener('change', mudou); else mq!.removeListener?.(mudou); };
   }, []);
-  const n = itens.length;
+  const n = cartoes.length;
 
   const irPara = (i: number, suave = true) => {
     const el = trilho.current;
@@ -96,7 +108,7 @@ export function CarrosselProntaEntrega({ itens, foto, onPerguntar, onIndicar, co
     <div
       className="pe-carrossel"
       aria-roledescription="carrossel"
-      aria-label="Equipamentos à pronta entrega"
+      aria-label={itens.length ? 'Equipamentos à pronta entrega' : 'Vídeos da Roder em campo'}
       onPointerEnter={(e) => { if (e.pointerType === 'mouse') { mouseDentro.current = true; parar(); } }}
       onPointerLeave={(e) => { if (e.pointerType === 'mouse') { mouseDentro.current = false; seguir(); } }}
       onTouchStart={parar}
@@ -115,7 +127,22 @@ export function CarrosselProntaEntrega({ itens, foto, onPerguntar, onIndicar, co
         onScroll={aoRolar}
         className={cn('flex overflow-x-auto snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden', compacto ? 'rounded-xl' : 'rounded-[18px]')}
       >
-        {itens.map((it, i) => (
+        {cartoes.map((c, i) => c.v ? (
+          <CartaoVideoCarrossel
+            key={c.chave}
+            v={c.v}
+            i={i}
+            n={n}
+            compacto={compacto}
+            foto={foto}
+            fotoReserva={fotoDoVideo?.(c.v)}
+            aberto={videoAberto === c.chave}
+            onAbrir={() => setVideoAberto(c.chave)}
+            onFechar={() => setVideoAberto(null)}
+            onPerguntar={onPerguntarVideo}
+            onIndicar={onIndicarVideo}
+          />
+        ) : (() => { const it = c.it!; return (
           <div
             key={it.chave}
             role="group"
@@ -163,11 +190,11 @@ export function CarrosselProntaEntrega({ itens, foto, onPerguntar, onIndicar, co
               )}
             </div>
           </div>
-        ))}
+        ); })())}
       </div>
       {n > 1 && (
         <div className={cn('flex justify-center', compacto ? 'mt-0.5' : 'mt-1')}>
-          {itens.map((it, i) => (
+          {cartoes.map((it, i) => (
             <button
               key={it.chave}
               type="button"
@@ -179,6 +206,62 @@ export function CarrosselProntaEntrega({ itens, foto, onPerguntar, onIndicar, co
               <i className={cn('block h-1.5 rounded-[3px] transition-all', i === atual ? 'w-[18px] bg-[#1B1E22]' : 'w-1.5 bg-[#BFC4CA]')} />
             </button>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CartaoVideoCarrossel({ v, i, n, compacto, foto, fotoReserva, aberto, onAbrir, onFechar, onPerguntar, onIndicar }: {
+  v: VideoConsultor; i: number; n: number; compacto: boolean; foto: FotoFn; fotoReserva?: string;
+  aberto: boolean; onAbrir: () => void; onFechar: () => void;
+  onPerguntar?: (v: VideoConsultor) => void; onIndicar?: (v: VideoConsultor) => void;
+}) {
+  const nome = nomeDoVideo(v);
+  const capa = capaDoVideo(v);
+  const [capaFalhou, setCapaFalhou] = useState(false);
+  const vid = v.tipo === 'catalogo' ? undefined : v.id;
+  return (
+    <div
+      role="group"
+      aria-roledescription="item"
+      aria-label={`${i + 1} de ${n}: vídeo ${v.titulo}`}
+      className={cn('snap-center shrink-0 w-full bg-white overflow-hidden border border-[#E2E5E8]', compacto ? 'rounded-xl' : 'rounded-[18px]')}
+    >
+      {aberto ? (
+        <PlayerVideo url={v.video_url} titulo={nome} onFechar={onFechar} comAcoes={false} compacto={compacto} vid={vid} pid={v.produto_id} mid={v.modelo_id} />
+      ) : (
+        <div className={cn('relative w-full flex items-center justify-center overflow-hidden', capa && !capaFalhou ? 'bg-[#1B1E22]' : 'bg-gradient-to-b from-[#F4F5F6] to-[#E3E6E9]', compacto ? 'h-[92px]' : 'h-[150px]')}>
+          {capa && !capaFalhou
+            ? <img src={capa} alt="" loading="lazy" onError={() => setCapaFalhou(true)} className="absolute inset-0 h-full w-full object-cover opacity-90" />
+            : <Foto foto={foto} src={fotoReserva} className={cn('max-w-[86%] m-0 p-0 border-0 bg-transparent shadow-none hover:scale-100 object-contain mix-blend-multiply', compacto ? 'max-h-[80px]' : 'max-h-[130px]')} />}
+          <span className={cn('absolute left-2.5 top-2.5 bg-[#F6C400] text-[#111] font-extrabold rounded-full leading-none', compacto ? 'text-[10.5px] px-2 py-[4px]' : 'text-[12px] px-2.5 py-[5px]')}>Roder em campo</span>
+          {n > 1 && (
+            <span className={cn('absolute right-2.5 top-2.5 bg-[rgba(27,30,34,0.85)] text-[#fff] font-bold rounded-full leading-none', compacto ? 'text-[10.5px] px-[7px] py-[4px]' : 'text-[12px] px-[9px] py-[5px]')}>{i + 1} de {n}</span>
+          )}
+          {v.duracao_s ? (
+            <span className={cn('absolute right-2.5 bg-[rgba(0,0,0,0.72)] text-[#fff] font-bold rounded-[5px] leading-none', compacto ? 'bottom-2 text-[10.5px] px-1.5 py-[3px]' : 'bottom-2.5 text-[11.5px] px-1.5 py-[4px]')}>{formatarDuracao(v.duracao_s)}</span>
+          ) : null}
+          <BotaoVerVideo compacto={compacto} onClick={onAbrir} className={cn('absolute', compacto ? 'left-2 bottom-2' : 'left-2.5 bottom-2.5')} />
+        </div>
+      )}
+      <div className={compacto ? 'px-2.5 pt-2' : 'px-3.5 pt-3'}>
+        <p className={cn('fonte-titulo font-extrabold leading-tight text-[#1B1E22] truncate m-0', compacto ? 'text-[14.5px]' : 'text-[18px]')}>{nome}</p>
+        <p className={cn('text-[#5E6672] m-0 mt-0.5', compacto ? 'text-[12px] truncate' : 'text-[13px] line-clamp-2')}>{v.titulo}{v.contexto && v.tipo !== 'catalogo' ? ` · ${v.contexto}` : ''}</p>
+        {aberto && <AcoesVideo pid={v.produto_id} mid={v.modelo_id} vid={vid} titulo={nome} url={v.video_url} compacto={compacto} />}
+      </div>
+      {(onPerguntar || onIndicar) && (
+        <div className={cn('flex gap-2', compacto ? 'px-2.5 pt-2 pb-2.5' : 'px-3.5 pt-3 pb-3.5')}>
+          {onPerguntar && (
+            <button type="button" onClick={() => onPerguntar(v)} className={cn('flex-1 min-w-0 rounded-xl border-2 border-[#1B1E22] bg-white text-[#1B1E22] font-extrabold active:scale-[0.98] transition', compacto ? 'h-9 text-[13px] rounded-[10px] border-[1.5px]' : 'h-12 text-[15px]')}>
+              Perguntar
+            </button>
+          )}
+          {onIndicar && (
+            <button type="button" onClick={() => onIndicar(v)} className={cn('flex-1 min-w-0 rounded-xl bg-[#F6C400] text-[#1B1E22] font-extrabold active:scale-[0.98] transition', compacto ? 'h-9 text-[13px] rounded-[10px]' : 'h-12 text-[15px]')}>
+              Indicar
+            </button>
+          )}
         </div>
       )}
     </div>

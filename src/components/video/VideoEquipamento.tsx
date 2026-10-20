@@ -70,7 +70,8 @@ function viaServidor(url: string) {
 }
 const EXT_VIDEO = /\.(mp4|m4v|webm|mov)(?:$|[?#])/i;
 
-export function AcoesVideo({ pid, mid, titulo, url, compacto }: { pid?: string; mid?: string; titulo: string; url: string; compacto: boolean }) {
+// vid: vídeo da biblioteca do consultor (o servidor confere o endereço no cadastro dele, e não no do equipamento)
+export function AcoesVideo({ pid, mid, vid, titulo, url, compacto }: { pid?: string; mid?: string; vid?: string; titulo: string; url: string; compacto: boolean }) {
   const perm = useContext(ContextoVideo);
   const chave = `${donoDoLink(perm?.token)}:${pid}:${mid || ''}`;
   const [link, setLink] = useState(() => CACHE_LINK.get(chave) || '');
@@ -146,7 +147,7 @@ export function AcoesVideo({ pid, mid, titulo, url, compacto }: { pid?: string; 
 
   const baixar = async () => {
     if (baixando) return;
-    const id = `video-${pid}-${mid}`;
+    const id = `video-${vid || `${pid}-${mid}`}`;
     setBaixando(true);
     // O link com o crédito do parceiro nasce junto com o download, em paralelo: quando o vídeo
     // termina de baixar o texto com o /o/ já está pronto para ir no "Enviar agora". Antes o texto
@@ -159,7 +160,7 @@ export function AcoesVideo({ pid, mid, titulo, url, compacto }: { pid?: string; 
       const proxy = viaServidor(url);
       // o servidor confere que este é o vídeo cadastrado DESTE equipamento
       const endereco = proxy
-        ? `${getApiBaseUrl()}/api/consultor/video-arquivo?url=${encodeURIComponent(url)}&pid=${encodeURIComponent(pid || '')}${mid ? `&mid=${encodeURIComponent(mid)}` : ''}${perm?.token ? `&p=${encodeURIComponent(perm.token)}` : ''}`
+        ? `${getApiBaseUrl()}/api/consultor/video-arquivo?url=${encodeURIComponent(url)}&pid=${encodeURIComponent(pid || '')}${mid ? `&mid=${encodeURIComponent(mid)}` : ''}${vid ? `&vid=${encodeURIComponent(vid)}` : ''}${perm?.token ? `&p=${encodeURIComponent(perm.token)}` : ''}`
         : url;
       toast.loading('Baixando o vídeo 0%', { id });
       const r = await fetch(endereco);
@@ -262,12 +263,13 @@ export function AcoesVideo({ pid, mid, titulo, url, compacto }: { pid?: string; 
 }
 
 // Player no lugar da foto, com fechar (volta para a foto) e tela cheia
-export function PlayerVideo({ url, titulo, onFechar, pid, mid, compacto = false, comAcoes = true, className }: {
+export function PlayerVideo({ url, titulo, onFechar, pid, mid, vid, compacto = false, comAcoes = true, className }: {
   url: string;
   titulo: string;
   onFechar: () => void;
   pid?: string;
   mid?: string;
+  vid?: string;
   compacto?: boolean;
   comAcoes?: boolean;
   className?: string;
@@ -356,7 +358,7 @@ export function PlayerVideo({ url, titulo, onFechar, pid, mid, compacto = false,
           Abrir no YouTube
         </a>
       )}
-      {comAcoes && <AcoesVideo pid={pid} mid={mid} titulo={titulo} url={url} compacto={compacto} />}
+      {comAcoes && <AcoesVideo pid={pid} mid={mid} vid={vid} titulo={titulo} url={url} compacto={compacto} />}
     </div>
   );
 }

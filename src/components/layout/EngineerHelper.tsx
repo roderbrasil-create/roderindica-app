@@ -35,6 +35,10 @@ import { CarrosselProntaEntrega, ListaProntaEntrega, AvisoProntaEntrega } from '
 import { abrirDocumento } from '../../lib/abrirDocumento';
 import { videoDoEquipamento } from '../../lib/videoEquipamento';
 import { ContextoVideo, PlayerVideo } from '../video/VideoEquipamento';
+import { ListaVideos, VideosDaResposta, useVideosConsultor } from '../video/VideosConsultor';
+import { nomeDoVideo, type VideoConsultor } from '../../lib/videosConsultor';
+import { separarPainel, type PainelConversa } from '../../lib/painelConsultor';
+export { separarPainel, type PainelConversa };
 import {
   CHAVE_PARCEIRO_LINK, PAPEIS_QUE_INDICAM, TOKEN_LINK_VALIDO, WHATS_COMERCIAL, WHATS_COMERCIAL_TEXTO,
   lerCidadeUf, primeiroNome, querIndicar, textoLinkCliente, validarCnpj, validarTelefoneBR,
@@ -353,68 +357,7 @@ interface MarkdownImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   isLightReport?: boolean;
 }
 
-// Bloco escondido que o servidor manda no fim da resposta para o painel "Nesta conversa" do computador:
-// <painel>{"maquina":{...},"perguntas":[...],"alternativas":[...],"produto":"..."}</painel>
-// Nunca aparece para ninguém: sai do texto antes de mostrar, copiar, gerar relatório ou guardar.
-export interface PainelConversa {
-  maquina?: { nome?: string; tipo?: string; potencia?: string; transmissao?: string; serve?: 'sim' | 'nao' | 'verificar'; motivo?: string };
-  perguntas?: string[];
-  alternativas?: { nome: string; obs?: string }[];
-  produto?: string;
-}
-
-const RE_PAINEL = /<\s*painel\s*>([\s\S]*?)<\s*\/\s*painel\s*>/gi;
-// pedaço sem fechamento (resposta cortada no meio do bloco)
-const RE_PAINEL_ABERTO = /<\s*painel\b[\s\S]*$/i;
-
-const textoCurto = (v: any, max = 120) => (typeof v === 'string' || typeof v === 'number') ? String(v).trim().slice(0, max) : '';
-
-const lerPainel = (json: string): PainelConversa | null => {
-  try {
-    const bruto = JSON.parse(json.trim());
-    if (!bruto || typeof bruto !== 'object') return null;
-    const painel: PainelConversa = {};
-    const m = bruto.maquina;
-    if (m && typeof m === 'object') {
-      const serve = textoCurto(m.serve, 12).toLowerCase().replace('ã', 'a');
-      const maquina = {
-        nome: textoCurto(m.nome, 80),
-        tipo: textoCurto(m.tipo, 60),
-        potencia: textoCurto(m.potencia, 40),
-        transmissao: textoCurto(m.transmissao, 60),
-        serve: (['sim', 'nao', 'verificar'].includes(serve) ? serve : undefined) as any,
-        motivo: textoCurto(m.motivo, 200),
-      };
-      if (maquina.nome) painel.maquina = maquina;
-    }
-    if (Array.isArray(bruto.perguntas)) {
-      const perguntas = bruto.perguntas.map((p: any) => textoCurto(p, 160)).filter(Boolean).slice(0, 3);
-      if (perguntas.length) painel.perguntas = perguntas;
-    }
-    if (Array.isArray(bruto.alternativas)) {
-      const alternativas = bruto.alternativas
-        .map((a: any) => typeof a === 'string' ? { nome: textoCurto(a, 80) } : { nome: textoCurto(a?.nome, 80), obs: textoCurto(a?.obs, 60) })
-        .filter((a: any) => a.nome).slice(0, 3);
-      if (alternativas.length) painel.alternativas = alternativas;
-    }
-    const produto = textoCurto(bruto.produto, 80);
-    if (produto) painel.produto = produto;
-    return Object.keys(painel).length ? painel : null;
-  } catch {
-    return null;
-  }
-};
-
-// Separa o texto que a pessoa vê do bloco do painel (que é lido com segurança e pode faltar)
-export const separarPainel = (content: string): { texto: string; painel: PainelConversa | null } => {
-  const bruto = content || '';
-  let painel: PainelConversa | null = null;
-  const texto = bruto
-    .replace(RE_PAINEL, (_t, json) => { painel = lerPainel(json) || painel; return ''; })
-    .replace(RE_PAINEL_ABERTO, '')
-    .trim();
-  return { texto, painel };
-};
+// O bloco <painel> e a leitura dele moram em src/lib/painelConsultor.ts (o teste do servidor importa)
 
 // O consultor pode terminar a resposta com [[OPCOES: a | b | c]]: vira botões para o vendedor tocar
 const parseConsultantOptions = (content: string): { text: string; options: string[] } => {
@@ -829,6 +772,22 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   // Pronta entrega: a mesma lista da tela inicial do parceiro (estoque com quantidade, casado com o catálogo)
   const prontaEntrega = React.useMemo(() => montarProntaEntrega(stockItems, catalogProducts), [stockItems, catalogProducts]);
+  // Biblioteca de vídeos do consultor (lista pública do servidor): cartões na resposta, folha "Vídeos"
+  // e os marcados "no carrossel" entram no carrossel da pronta entrega
+  const videosConsultor = useVideosConsultor(isOpen);
+  const videosCarrossel = React.useMemo(() => videosConsultor.filter(v => v.no_carrossel), [videosConsultor]);
+  const temCarrossel = prontaEntrega.length > 0 || videosCarrossel.length > 0;
+  const equipDoVideo = (v: VideoConsultor) => {
+    const prod = catalogProducts.find(p => p.id === v.produto_id);
+    const model = prod && v.modelo_id ? (prod.models || []).find(m => m.id === v.modelo_id) : undefined;
+    return { prod, model };
+  };
+  // vídeo sem capa: a foto do equipamento no lugar
+  const fotoDoVideo = (v: VideoConsultor): string | undefined => {
+    const { prod, model } = equipDoVideo(v);
+    if (!prod) return undefined;
+    return (model ? fotoDoModelo(prod, model) : '') || prod.image_url || undefined;
+  };
   const [loadingExplorer, setLoadingExplorer] = useState(false);
 
   // Explorer states for interactive navigation
@@ -1737,6 +1696,8 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   useVoltarFecha(folhaEquip, () => setFolhaEquip(false));
   const [folhaPronta, setFolhaPronta] = useState(false);
   useVoltarFecha(folhaPronta, () => setFolhaPronta(false));
+  const [folhaVideos, setFolhaVideos] = useState(false);
+  useVoltarFecha(folhaVideos, () => setFolhaVideos(false));
   const campoCelRef = useRef<HTMLTextAreaElement>(null);
   const listaCelRef = useRef<HTMLDivElement>(null);
   // Altura visível de verdade no celular (descontando o teclado): a caixa de texto fica sempre acima dele
@@ -2584,6 +2545,20 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     if (fluxoInd) { falaInd('Já estamos fazendo uma indicação. Responda a pergunta acima ou cancele.', { opcoes: [CANCELAR_IND] }); return; }
     usuarioInd(`Quero indicar ${it.nome}`);
     iniciarIndicacao('', { prod: it.produto, model: it.modelo });
+  };
+  // Vídeo do carrossel: "Perguntar" fala do equipamento do vídeo; "Indicar" já leva o equipamento
+  const perguntarVideo = (v: VideoConsultor) => {
+    if (loading) return;
+    if (fluxoInd) { falaInd('Já estamos fazendo uma indicação. Responda a pergunta acima ou cancele.', { opcoes: [CANCELAR_IND] }); return; }
+    handleSend(`Me fale sobre ${nomeDoVideo(v)}`);
+  };
+  const indicarVideo = (v: VideoConsultor) => {
+    if (loading) return;
+    if (fluxoInd) { falaInd('Já estamos fazendo uma indicação. Responda a pergunta acima ou cancele.', { opcoes: [CANCELAR_IND] }); return; }
+    const { prod, model } = equipDoVideo(v);
+    usuarioInd(`Quero indicar ${nomeDoVideo(v)}`);
+    if (prod && model) iniciarIndicacao('', { prod, model });
+    else iniciarIndicacao(`Quero indicar ${nomeDoVideo(v)}`);
   };
   // Pergunta pronta (atalho, sugestão, opção, calculadora): com a indicação aberta ela viraria a
   // resposta do passo atual (o nome do cliente virava "Me fale sobre..."), então avisa e não manda
@@ -4089,6 +4064,10 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                 </div>
                 {/* Celular: o painel da resposta (máquina, equipamento, perguntas) vem logo abaixo dela */}
                 {!layoutPc && msg.role === 'assistant' && msg.painel && cartoesPainelCel(msg.painel, parseConsultantOptions(msg.content).options.length > 0)}
+                {/* Vídeos que o consultor escolheu para esta resposta (ids conferidos contra a lista) */}
+                {msg.role === 'assistant' && msg.painel?.videos && msg.painel.videos.length > 0 && (
+                  <VideosDaResposta ids={msg.painel.videos} lista={videosConsultor} foto={fotoDoVideo} />
+                )}
                 {/* Equipamento da resposta está no estoque: aviso amarelo (parceiro indica, equipe pergunta) */}
                 {(() => {
                   const it = avisoProntaDe(msg, idx);
@@ -5214,6 +5193,18 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
     <p className="p-6 text-center text-[14px] text-[#5B6168]">A ficha do equipamento da conversa aparece aqui.</p>
   );
 
+  // Biblioteca de vídeos no computador: os do equipamento da conversa primeiro, depois todos com busca
+  const blocoVideosPc = videosConsultor.length > 0 ? (() => {
+    const pid = equipAtual?.prod.id;
+    const ordenados = pid ? [...videosConsultor.filter(v => v.produto_id === pid), ...videosConsultor.filter(v => v.produto_id !== pid)] : videosConsultor;
+    return (
+      <div className="pt-1">
+        <p className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#6B7178]">Vídeos ({videosConsultor.length})</p>
+        <ListaVideos lista={ordenados} foto={fotoDoVideo} />
+      </div>
+    );
+  })() : null;
+
   const painelFotos = equipAtual ? (() => {
     const { prod, model } = equipAtual;
     const fotos = Array.from(new Set([...(model.images || []), ...(model.images?.length ? [] : [fotoDoModelo(prod, model)])].filter(Boolean))).slice(0, 8) as string[];
@@ -5236,10 +5227,14 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
             <Video className="h-4 w-4 text-red-500" /> Ver vídeo
           </button>
         ))}
+        {blocoVideosPc}
       </div>
     );
   })() : (
-    <p className="p-6 text-center text-[14px] text-[#5B6168]">As fotos e o vídeo do equipamento da conversa aparecem aqui.</p>
+    <div>
+      <p className="p-6 pb-2 text-center text-[14px] text-[#5B6168]">As fotos e o vídeo do equipamento da conversa aparecem aqui.</p>
+      <div className="p-4 pt-2">{blocoVideosPc}</div>
+    </div>
   );
 
   // Tema claro do computador: o mesmo conteúdo da conversa, com a paleta escura trocada só aqui dentro
@@ -5401,10 +5396,10 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
           </nav>
           {/* Pronta entrega fixa no pé da coluna: gira sozinha e fica visível durante a conversa,
               sem empurrar o que importa (a conversa no centro e o veredito da máquina na direita) */}
-          {perfilConsultor !== 'visitante' && prontaEntrega.length > 0 && (
+          {perfilConsultor !== 'visitante' && temCarrossel && (
             <div className="shrink-0 border-t border-[#E1E4E8] bg-[#F7F8F9] px-3 pt-2.5 pb-2">
-              <p className="mb-1.5 px-0.5 text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#6B7178]">Pronta entrega</p>
-              <CarrosselProntaEntrega compacto itens={prontaEntrega} foto={fotoPe} onPerguntar={perguntarProntaEntrega} onIndicar={onIndicarPe} />
+              <p className="mb-1.5 px-0.5 text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#6B7178]">{prontaEntrega.length ? 'Pronta entrega' : 'Roder em campo'}</p>
+              <CarrosselProntaEntrega compacto itens={prontaEntrega} foto={fotoPe} onPerguntar={perguntarProntaEntrega} onIndicar={onIndicarPe} videos={videosCarrossel} fotoDoVideo={fotoDoVideo} onPerguntarVideo={perguntarVideo} onIndicarVideo={onIndicarPe ? indicarVideo : undefined} />
             </div>
           )}
         </aside>
@@ -5712,10 +5707,10 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                           </button>
                         )}
 
-                        {prontaEntrega.length > 0 && (
+                        {temCarrossel && (
                           <section>
-                            <p className="ccel-rotulo">Pronta entrega</p>
-                            <CarrosselProntaEntrega itens={prontaEntrega} foto={fotoPe} onPerguntar={perguntarProntaEntrega} onIndicar={onIndicarPe} />
+                            <p className="ccel-rotulo">{prontaEntrega.length ? 'Pronta entrega' : 'Roder em campo'}</p>
+                            <CarrosselProntaEntrega itens={prontaEntrega} foto={fotoPe} onPerguntar={perguntarProntaEntrega} onIndicar={onIndicarPe} videos={videosCarrossel} fotoDoVideo={fotoDoVideo} onPerguntarVideo={perguntarVideo} onIndicarVideo={onIndicarPe ? indicarVideo : undefined} />
                           </section>
                         )}
 
@@ -5830,6 +5825,9 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                         {prontaEntrega.length > 0 && (
                           <button type="button" onClick={() => { setMenuCel(false); setFolhaPronta(true); }} className="ccel-chip">Pronta entrega</button>
                         )}
+                        {videosConsultor.length > 0 && (
+                          <button type="button" onClick={() => { setMenuCel(false); setFolhaVideos(true); }} className="ccel-chip"><Video className="h-4 w-4" /> Vídeos</button>
+                        )}
                         <button type="button" onClick={() => abrirEquipamentoCel()} className="ccel-chip">
                           <Menu className="h-4 w-4" /> Equipamentos
                         </button>
@@ -5842,6 +5840,9 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                         </button>
                         {prontaEntrega.length > 0 && (
                           <button type="button" onClick={() => { setMenuCel(false); setFolhaPronta(true); }} className="ccel-chip">Pronta entrega</button>
+                        )}
+                        {videosConsultor.length > 0 && (
+                          <button type="button" onClick={() => { setMenuCel(false); setFolhaVideos(true); }} className="ccel-chip"><Video className="h-4 w-4" /> Vídeos</button>
                         )}
                         {/* equipe que indica: Indicar fica no fim da fila, sem destaque (o técnico vem primeiro) */}
                         {podeIndicar && !fluxoInd && (
@@ -5865,6 +5866,9 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                       <button type="button" onClick={() => setCalcOpen(!calcOpen)} className={cn('ccel-chip', calcOpen && 'border-[#F6C400] bg-[#FFF6D1]')}>
                         <Calculator className="h-4 w-4" /> Calculadora
                       </button>
+                      {videosConsultor.length > 0 && (
+                        <button type="button" onClick={() => { setMenuCel(false); setFolhaVideos(true); }} className="ccel-chip"><Video className="h-4 w-4" /> Vídeos</button>
+                      )}
                     </div>
                   )}
                   {isRecording ? (
@@ -5929,6 +5933,24 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                   </div>
                   <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3.5 pb-4 pt-1">
                     <ListaProntaEntrega itens={prontaEntrega} foto={fotoPe} onPerguntar={perguntarProntaEntrega} onIndicar={onIndicarPe} />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Folha dos vídeos: todos, por equipamento, com busca */}
+            {folhaVideos && !knowledgeOpen && (
+              <div className="absolute inset-0 z-30 flex flex-col justify-end">
+                <button type="button" aria-label="Fechar vídeos" onClick={() => setFolhaVideos(false)} className="absolute inset-0 h-auto w-auto p-0 bg-black/40 cursor-default" />
+                <div role="dialog" aria-label="Vídeos" className="relative flex max-h-[85%] flex-col rounded-t-[22px] bg-[#ECEEF0] shadow-[0_-8px_30px_rgba(0,0,0,0.2)] pb-[env(safe-area-inset-bottom,0px)]">
+                  <div className="shrink-0 flex items-center justify-between gap-2 pl-4 pr-1.5 pt-2">
+                    <p className="fonte-titulo text-[17px] font-extrabold text-[#1B1E22]">Vídeos</p>
+                    <button type="button" onClick={() => setFolhaVideos(false)} aria-label="Fechar" className="h-11 w-11 p-0 rounded-xl bg-transparent text-[#1B1E22] flex items-center justify-center">
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3.5 pb-4 pt-1">
+                    <ListaVideos lista={videosConsultor} foto={fotoDoVideo} />
                   </div>
                 </div>
               </div>

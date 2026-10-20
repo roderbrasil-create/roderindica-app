@@ -37,6 +37,7 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { ACCESSORIES_DATA, INSTALLATION_KITS } from "./src/constants.js";
 import { registrarConsultorParceiro } from "./server/consultorParceiro";
+import { criarBibliotecaVideos, instrucaoVideos, sanitizarPainel } from "./server/videosConsultor";
 import { instrucaoPerfilConsultor } from "./server/consultorPerfil";
 import { injetarPrevia, previaPadrao, previaDoEquipamento, codigoLimpo } from "./server/previaLink";
 
@@ -133,6 +134,8 @@ if (admin.apps.length === 0) {
 }
 
 const db = getFirestore(adminApp, config.firestoreDatabaseId || process.env.FIRESTORE_DATABASE_ID || '(default)');
+// Biblioteca de vídeos do consultor (server/videosConsultor.ts): lista pública e o pedaço do prompt
+const bibliotecaVideos = criarBibliotecaVideos({ db });
 
 function getTodayLocalDate(): string {
   const d = new Date();
@@ -3413,15 +3416,24 @@ ${kitsContext || "Não há kits de instalação cadastrados."}${improvedKnowledg
           // Só é pedido quando o app que perguntou sabe tirar o bloco do texto (args.painel).
           const querPainel = args.painel === true;
           const instrucaoPainel = querPainel ? `\n\nPAINEL ESCONDIDO (obrigatório quando houver dado): no fim de TODA resposta, depois de todo o texto (e depois do [[OPCOES]] se houver), acrescente um bloco escondido exatamente neste formato, numa linha só, com JSON válido:
-<painel>{"maquina":{"nome":"","tipo":"","potencia":"","transmissao":"","serve":"sim|nao|verificar","motivo":""},"perguntas":["..."],"alternativas":[{"nome":"","obs":""}],"produto":"<nome do modelo Roder principal>"}</painel>
+<painel>{"maquina":{"nome":"","tipo":"","potencia":"","transmissao":"","serve":"sim|nao|verificar","motivo":""},"perguntas":["..."],"alternativas":[{"nome":"","obs":""}],"produto":"<nome do modelo Roder principal>","videos":["<id da lista de vídeos>"]}</painel>
 - Coloque só os campos que se aplicam à conversa; os outros ficam fora do JSON.
 - "maquina": a máquina base ou o trator do cliente citado na conversa (nome com marca e modelo; tipo ou transmissão, ex.: "Powershift, não é CVT"; potência ou porte, ex.: "220 cv" ou "20 t"; "serve" diz se ela atende o equipamento indicado: "sim", "nao" ou "verificar"; "motivo" em até 8 palavras).
 - "perguntas": no máximo 3 perguntas curtas que o vendedor deve fazer ao cliente para confirmar a indicação.
 - "alternativas": no máximo 3 opções que servem (máquinas, tratores ou modelos Roder), com "obs" de até 4 palavras (ex.: "CVT de série").
 - "produto": o nome exato do modelo Roder principal da resposta, como está no catálogo (ex.: "SSH 150", "R400", "CMF 600").
+- "videos": só quando houver vídeo útil, seguindo a lista VÍDEOS DISPONÍVEIS mais abaixo (o bloco pode ter só "videos" e "produto").
 - Se nada disso se aplica (ex.: saudação), não escreva o bloco. Nunca mencione o bloco no texto e nunca escreva <painel> em outro lugar da resposta. O texto da resposta continua curto, em português, seguindo todas as regras acima.` : '';
 
-          const finalSystemInstruction = systemInstruction + userTypeInstruction + contextoTrator + `\n\nLEMBRETE FINAL (PRIORIDADE MÁXIMA): siga as REGRAS PRIORITÁRIAS A, B, C e D do início. Resposta curta e direta; se faltar dado essencial, pergunte antes; no máximo 1 foto e só do equipamento recomendado.` + instrucaoPainel;
+          // Vídeos que o consultor pode mandar: só quando o app sabe ler o <painel>
+          let videosDisponiveis: any[] = [];
+          if (querPainel) {
+            try { videosDisponiveis = await bibliotecaVideos.listar(); } catch { videosDisponiveis = []; }
+          }
+          const idsVideos = new Set(videosDisponiveis.map((v: any) => String(v.id)));
+          const instrucaoDosVideos = querPainel ? instrucaoVideos(videosDisponiveis) : '';
+
+          const finalSystemInstruction = systemInstruction + userTypeInstruction + contextoTrator + `\n\nLEMBRETE FINAL (PRIORIDADE MÁXIMA): siga as REGRAS PRIORITÁRIAS A, B, C e D do início. Resposta curta e direta; se faltar dado essencial, pergunte antes; no máximo 1 foto e só do equipamento recomendado.` + instrucaoPainel + instrucaoDosVideos;
 
           const startTime = Date.now();
           const response = await generateContentWithRetry(ai, {
@@ -3446,7 +3458,8 @@ ${kitsContext || "Não há kits de instalação cadastrados."}${improvedKnowledg
           const textoParaGuardar = result;
           let painelValido = '';
           if (painelJson) {
-            try { const obj = JSON.parse(painelJson); if (obj && typeof obj === 'object') painelValido = JSON.stringify(obj); } catch { /* bloco inválido: ignora */ }
+            // bloco inválido some; "videos" fica só com ids da lista mandada no prompt
+            painelValido = sanitizarPainel(painelJson, idsVideos);
           }
           // Só o app novo recebe o bloco de volta (ele tira do texto antes de mostrar)
           if (querPainel && painelValido) result = `${result}\n\n<painel>${painelValido}</painel>`;
@@ -4749,6 +4762,9 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       res.status(500).json({ error: 'Erro ao conferir o e-mail.' });
     }
   });
+
+  // Biblioteca de vídeos do consultor: lista pública (só campos que podem ir para qualquer um)
+  app.get('/api/consultor/videos', bibliotecaVideos.rotaListar);
 
   // Link pessoal do parceiro no consultor e indicação pela conversa (server/consultorParceiro.ts)
   registrarConsultorParceiro(app, {
