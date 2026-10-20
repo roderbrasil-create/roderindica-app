@@ -8,6 +8,8 @@
 // nome dele (indicar, gerar link para o cliente) passa por estas rotas, que conferem o token.
 // Quem está logado no app usa o próprio login (o token do Firebase vale mais que o link).
 import crypto from 'crypto';
+import { Transform, pipeline } from 'stream';
+import { videoDoEquipamento } from '../src/lib/videoEquipamento';
 import {
   PAPEIS_QUE_INDICAM, TOKEN_LINK_VALIDO, lerCidadeUf, primeiroNome, validarCnpj, validarTelefoneBR,
 } from '../src/lib/consultorIndicar';
@@ -25,6 +27,48 @@ export interface DepsConsultorParceiro {
   agora?: () => Date;
   // FieldValue.delete() do Firestore: apaga o token antigo que versões anteriores gravavam em users/{uid}
   campoApagado?: () => any;
+  // Arquivo do Storage do projeto para "Enviar o vídeo": tipo, tamanho e o fluxo de leitura (nulo se não existe)
+  abrirArquivoStorage?: (bucket: string, caminho: string) => Promise<{ contentType: string; tamanho: number; stream: any } | null>;
+}
+
+// "Enviar o vídeo" baixa o arquivo para mandar pelo celular. O Storage do Firebase não libera CORS para
+// o navegador, então o download passa por aqui. Só o bucket do projeto e arquivos do banco (db-file://):
+// sem essa lista o servidor viraria um proxy aberto para qualquer endereço da internet.
+export const BUCKETS_VIDEO = ['gen-lang-client-0708423613.firebasestorage.app', 'gen-lang-client-0708423613.appspot.com'];
+// Só as pastas onde o catálogo grava vídeo (EnvioDeVideo em src/pages/Catalog.tsx: pasta="product_videos"
+// e pasta="model_videos"). Fora delas o bucket guarda fotos, fichas e anexos de indicação, que não são
+// do parceiro baixar trocando o endereço.
+export const PASTAS_VIDEO = ['product_videos/', 'model_videos/'];
+export const MAX_VIDEO_PROXY = 40 * 1024 * 1024; // o mesmo LIMITE_VIDEO_ARQUIVO_MB do navegador
+export type AlvoVideo = { tipo: 'storage'; bucket: string; caminho: string } | { tipo: 'banco'; id: string };
+
+export function alvoDoVideo(url: string): AlvoVideo | null {
+  const u = String(url || '').trim();
+  if (!u || u.length > 2000) return null;
+  const banco = u.match(/^db-file:\/\/([A-Za-z0-9_-]{1,128})$/);
+  if (banco) return { tipo: 'banco', id: banco[1] };
+  let x: URL;
+  try { x = new URL(u); } catch { return null; }
+  if (x.protocol !== 'https:' || x.username || x.password || x.port) return null;
+  let bucket = '';
+  let caminho = '';
+  try {
+    if (x.hostname === 'firebasestorage.googleapis.com') {
+      const m = x.pathname.match(/^\/v0\/b\/([^/]+)\/o\/([^/]+)$/);
+      if (!m) return null;
+      bucket = decodeURIComponent(m[1]);
+      caminho = decodeURIComponent(m[2]);
+    } else if (x.hostname === 'storage.googleapis.com') {
+      const m = x.pathname.match(/^\/([^/]+)\/(.+)$/);
+      if (!m) return null;
+      bucket = decodeURIComponent(m[1]);
+      caminho = decodeURIComponent(m[2]);
+    } else return null;
+  } catch { return null; }
+  if (!BUCKETS_VIDEO.includes(bucket) || !caminho || caminho.length > 500 || /[\u0000-\u001f]/.test(caminho)) return null;
+  // "product_videos/../indicacoes/x" ou "product_videos//x" não passam: o caminho tem de ser um arquivo direto da pasta
+  if (!PASTAS_VIDEO.some(p => caminho.startsWith(p)) || caminho.split('/').some(t => !t || t === '.' || t === '..')) return null;
+  return { tipo: 'storage', bucket, caminho };
 }
 
 // Admin e gerentes (Jeferson, Gislene e Luana): só eles geram o link do parceiro
@@ -33,6 +77,11 @@ const GESTAO_LINK = ['admin', 'manager'];
 const PAPEL_DO_LINK = 'external_seller';
 const EQUIPE = ['admin', 'manager', 'triagem', 'internal_seller', 'financial', 'finance', 'fiscal', 'marketing', 'assistant'];
 export const LIMITE_DIA = 20;
+// Limites por hora: por dono (uid do login ou do link) e um teto alto por IP, só de segurança
+export const LIMITE_IP_HORA = 200;
+export const LIMITE_LINK_HORA = 30;
+export const LIMITE_INDICACAO_HORA = 30;
+export const LIMITE_VIDEO_HORA = 20;
 
 export const novoToken = () => crypto.randomBytes(24).toString('base64url'); // 32 caracteres
 
@@ -101,7 +150,7 @@ export function criarRotasConsultorParceiro(deps: DepsConsultorParceiro) {
       if (!ud || ud.status !== 'active' || !PAPEIS_QUE_INDICAM.includes(role)) return { erro: 403, msg: 'Seu cadastro não pode fazer indicações por aqui.' };
       return { uid: q.uid, nome: String(ud.name || q.email || ''), email: String(ud.email || q.email || '').toLowerCase(), role, via: 'login' };
     }
-    const dono = await donoDoToken(String(req.body?.p || ''));
+    const dono = await donoDoToken(String(req.body?.p || req.query?.p || ''));
     if (!dono) return { erro: 401, msg: 'Seu link não vale mais. Peça um novo ao comercial da Roder.' };
     return { ...dono, via: 'link' };
   }
@@ -138,9 +187,11 @@ export function criarRotasConsultorParceiro(deps: DepsConsultorParceiro) {
   // POST /api/consultor/link-cliente  { p?, pid, mid }  -> { codigo }
   async function rotaLinkCliente(req: any, res: any) {
     try {
-      if (passouLimite(`conslc-ip:${ipDe(req)}`, 40, 60 * 60 * 1000)) return res.status(429).json({ error: 'Muitos pedidos. Espere alguns minutos.' });
+      // o IP é só um teto alto: numa fazenda ou num escritório vários parceiros saem pelo mesmo IP
+      if (passouLimite(`conslc-ip:${ipDe(req)}`, LIMITE_IP_HORA, 60 * 60 * 1000)) return res.status(429).json({ error: 'Muitos pedidos. Espere alguns minutos.' });
       const dono = await donoDoPedido(req);
       if ('erro' in dono) return res.status(dono.erro).json({ error: dono.msg });
+      if (passouLimite(`conslc:${dono.uid}`, LIMITE_LINK_HORA, 60 * 60 * 1000)) return res.status(429).json({ error: 'Muitos links seguidos. Espere alguns minutos.' });
       const pid = String(req.body?.pid || '').slice(0, 80);
       const mid = String(req.body?.mid || '').slice(0, 80);
       if (!/^[A-Za-z0-9_-]{1,80}$/.test(pid) || (mid && !/^[A-Za-z0-9_.-]{1,80}$/.test(mid))) return res.status(400).json({ error: 'Equipamento inválido.' });
@@ -252,9 +303,10 @@ export function criarRotasConsultorParceiro(deps: DepsConsultorParceiro) {
   // { p?, equipamento: { nome, pid?, mid? }, cliente, telefone, cidade (ex. "Sorriso - MT"), cnpj? }
   async function rotaIndicacao(req: any, res: any) {
     try {
-      if (passouLimite(`consind-ip:${ipDe(req)}`, 30, 60 * 60 * 1000)) return res.status(429).json({ error: 'Muitas indicações seguidas. Espere um pouco.' });
+      if (passouLimite(`consind-ip:${ipDe(req)}`, LIMITE_IP_HORA, 60 * 60 * 1000)) return res.status(429).json({ error: 'Muitas indicações seguidas. Espere um pouco.' });
       const dono = await donoDoPedido(req);
       if ('erro' in dono) return res.status(dono.erro).json({ error: dono.msg });
+      if (passouLimite(`consind-h:${dono.uid}`, LIMITE_INDICACAO_HORA, 60 * 60 * 1000)) return res.status(429).json({ error: 'Muitas indicações seguidas. Espere um pouco.' });
       const b = req.body || {};
       const cliente = limpaTexto(b.cliente, 120);
       if (cliente.length < 2) return res.status(400).json({ error: 'Informe o nome do cliente ou da fazenda.' });
@@ -362,7 +414,83 @@ export function criarRotasConsultorParceiro(deps: DepsConsultorParceiro) {
     }
   }
 
-  return { rotaLink, rotaResolver, rotaLinkCliente, rotaIndicacao, donoDoToken, linkDoUsuario };
+  // GET /api/consultor/video-arquivo?url=...&pid=...&mid=...&p=...  -> o arquivo de vídeo (até 40 MB)
+  // Mesmo dono do link-cliente: parceiro pelo link ou login de quem pode indicar.
+  // O endereço tem de ser O vídeo daquele equipamento do catálogo (o mesmo videoDoEquipamento que o
+  // navegador usa). É isso que fecha o db-file://: app_files guarda também fotos e anexos, e sem a
+  // conferência qualquer id de documento sairia daqui. Uma leitura só (products/{pid}), sem varrer o catálogo.
+  async function rotaVideoArquivo(req: any, res: any) {
+    try {
+      if (passouLimite(`consvid-ip:${ipDe(req)}`, LIMITE_IP_HORA, 60 * 60 * 1000)) return res.status(429).json({ error: 'Muitos pedidos. Espere alguns minutos.' });
+      const url = String(req.query?.url || '').trim();
+      const alvo = alvoDoVideo(url);
+      if (!alvo) return res.status(400).json({ error: 'Vídeo não permitido.' });
+      const pid = String(req.query?.pid || '');
+      const mid = String(req.query?.mid || '');
+      if (!/^[A-Za-z0-9_-]{1,80}$/.test(pid) || (mid && !/^[A-Za-z0-9_.-]{1,80}$/.test(mid))) return res.status(400).json({ error: 'Equipamento inválido.' });
+      const dono = await donoDoPedido(req);
+      if ('erro' in dono) return res.status(dono.erro).json({ error: dono.msg });
+      if (passouLimite(`consvid:${dono.uid}`, LIMITE_VIDEO_HORA, 60 * 60 * 1000)) return res.status(429).json({ error: 'Muitos vídeos seguidos. Espere alguns minutos.' });
+      const p = await db.collection('products').doc(pid).get();
+      if (!p.exists) return res.status(404).json({ error: 'Equipamento não encontrado.' });
+      const pd: any = p.data() || {};
+      const modelo = mid ? (pd.models || []).find((x: any) => String(x?.id) === mid) : null;
+      if (mid && !modelo) return res.status(404).json({ error: 'Equipamento não encontrado.' });
+      if (videoDoEquipamento(pd, modelo) !== url) return res.status(403).json({ error: 'Este vídeo não é do equipamento.' });
+      res.setHeader?.('Cache-Control', 'private, no-store');
+      res.setHeader?.('X-Content-Type-Options', 'nosniff');
+      if (alvo.tipo === 'banco') {
+        const s = await db.collection('app_files').doc(alvo.id).get();
+        const d = String((s.exists && s.data()?.data) || '');
+        const m = d.match(/^data:(video\/[A-Za-z0-9.+-]+)(?:;[^,]*)?;base64,(.*)$/s);
+        if (!m) return res.status(415).json({ error: 'Este arquivo não é um vídeo.' });
+        const buf = Buffer.from(m[2], 'base64');
+        if (buf.length > MAX_VIDEO_PROXY) return res.status(413).json({ error: 'Vídeo grande demais.' });
+        res.setHeader?.('Content-Type', m[1]);
+        res.setHeader?.('Content-Length', String(buf.length));
+        return res.end(buf);
+      }
+      if (!deps.abrirArquivoStorage) return res.status(500).json({ error: 'Não consegui baixar o vídeo.' });
+      const arq = await deps.abrirArquivoStorage(alvo.bucket, alvo.caminho);
+      if (!arq) return res.status(404).json({ error: 'Vídeo não encontrado.' });
+      if (!/^video\/[A-Za-z0-9.+-]+$/.test(arq.contentType || '')) { arq.stream?.destroy?.(); return res.status(415).json({ error: 'Este arquivo não é um vídeo.' }); }
+      if (!(arq.tamanho > 0) || arq.tamanho > MAX_VIDEO_PROXY) { arq.stream?.destroy?.(); return res.status(413).json({ error: 'Vídeo grande demais.' }); }
+      // O tipo de vídeo só vai no primeiro pedaço que chega do Storage. Se a leitura falhar antes,
+      // a resposta ainda está livre e sai como JSON de verdade (o res.json do Express não troca um
+      // Content-Type já gravado, e o navegador receberia "video/mp4" com uma mensagem de erro dentro).
+      // Por isso são dois pipelines: Storage até o portão, e o portão até a resposta só depois do
+      // primeiro pedaço. Um pipeline só até o res destruiria a resposta no erro, sem JSON nenhum.
+      // E pipeline, não pipe: se o celular desiste no meio (fechou a aba, caiu o 4G), o res fechado
+      // derruba o portão, que derruba a leitura do Storage, em vez de baixar 40 MB para ninguém.
+      await new Promise<void>(resolve => {
+        let comecou = false;
+        let fim = false;
+        const acabar = () => { if (!fim) { fim = true; resolve(); } };
+        const comecar = () => {
+          if (comecou) return;
+          comecou = true;
+          res.setHeader?.('Content-Type', arq.contentType);
+          res.setHeader?.('Content-Length', String(arq.tamanho));
+          pipeline(portao, res, () => acabar());
+        };
+        const portao = new Transform({
+          transform(pedaco, _cod, cb) { comecar(); cb(null, pedaco); },
+          flush(cb) { comecar(); cb(); },
+        });
+        pipeline(arq.stream, portao, (err: any) => {
+          if (err && !comecou) {
+            if (!res.headersSent) res.status(500).json({ error: 'Não consegui baixar o vídeo.' });
+            acabar();
+          }
+          // com o envio já começado, quem termina (ou derruba a resposta no erro) é o pipeline até o res
+        });
+      });
+    } catch {
+      if (!res.headersSent) res.status(500).json({ error: 'Não consegui baixar o vídeo.' });
+    }
+  }
+
+  return { rotaLink, rotaResolver, rotaLinkCliente, rotaIndicacao, rotaVideoArquivo, donoDoToken, linkDoUsuario };
 }
 
 export function registrarConsultorParceiro(app: any, deps: DepsConsultorParceiro) {
@@ -371,5 +499,6 @@ export function registrarConsultorParceiro(app: any, deps: DepsConsultorParceiro
   app.get('/api/consultor/parceiro/:token', r.rotaResolver);
   app.post('/api/consultor/link-cliente', r.rotaLinkCliente);
   app.post('/api/consultor/indicacao', r.rotaIndicacao);
+  app.get('/api/consultor/video-arquivo', r.rotaVideoArquivo);
   return r;
 }

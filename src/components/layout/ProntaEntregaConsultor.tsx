@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Package } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import type { ItemProntaEntrega } from '../../lib/prontaEntrega';
+import { AcoesVideo, BotaoVerVideo, PlayerVideo } from '../video/VideoEquipamento';
 
 // Pronta entrega dentro do Consultor (aprovado pelo Jeferson em 19/10/2026):
 // carrossel que passa sozinho a cada 5 s na tela inicial do celular, cartão fixo que gira
@@ -38,6 +39,8 @@ export function CarrosselProntaEntrega({ itens, foto, onPerguntar, onIndicar, co
   const mouseDentro = useRef(false);
   const focoDentro = useRef(false);
   const [menosMovimento, setMenosMovimento] = useState(usaMenosMovimento);
+  // vídeo tocando num cartão: o carrossel para até a pessoa fechar o vídeo ou passar o cartão
+  const [videoAberto, setVideoAberto] = useState<string | null>(null);
   // "reduzir movimento" ligado ou desligado com a tela aberta vale na hora
   useEffect(() => {
     let mq: MediaQueryList | null = null;
@@ -60,20 +63,20 @@ export function CarrosselProntaEntrega({ itens, foto, onPerguntar, onIndicar, co
     const el = trilho.current;
     if (!el || !el.clientWidth) return;
     const i = Math.max(0, Math.min(n - 1, Math.round(el.scrollLeft / el.clientWidth)));
-    if (i !== atualRef.current) setAtual(i);
+    if (i !== atualRef.current) { setAtual(i); setVideoAberto(null); }
   };
 
   useEffect(() => { if (atual >= n) setAtual(0); }, [n]);
 
   // passa sozinho: nunca com "reduzir movimento" ligado, nem parado, nem com 1 item só
   useEffect(() => {
-    if (menosMovimento || parado || n < 2) return;
+    if (menosMovimento || parado || videoAberto || n < 2) return;
     const t = setInterval(() => {
       if (typeof document !== 'undefined' && document.hidden) return;
       irPara((atualRef.current + 1) % n);
     }, TEMPO_MS);
     return () => clearInterval(t);
-  }, [menosMovimento, parado, n]);
+  }, [menosMovimento, parado, videoAberto, n]);
 
   useEffect(() => () => { if (soltar.current) clearTimeout(soltar.current); }, []);
 
@@ -120,16 +123,26 @@ export function CarrosselProntaEntrega({ itens, foto, onPerguntar, onIndicar, co
             aria-label={`${i + 1} de ${n}: ${it.nome}`}
             className={cn('snap-center shrink-0 w-full bg-white overflow-hidden border border-[#E2E5E8]', compacto ? 'rounded-xl' : 'rounded-[18px]')}
           >
-            <div className={cn('relative w-full bg-gradient-to-b from-[#F4F5F6] to-[#E3E6E9] flex items-center justify-center', compacto ? 'h-[92px]' : 'h-[150px]')}>
-              <Foto foto={foto} src={it.foto} className={cn('max-w-[86%] m-0 p-0 border-0 bg-transparent shadow-none hover:scale-100 object-contain mix-blend-multiply', compacto ? 'max-h-[80px]' : 'max-h-[130px]')} />
-              <span className={cn('absolute left-2.5 top-2.5 bg-[#F6C400] text-[#111] font-extrabold rounded-full leading-none', compacto ? 'text-[10.5px] px-2 py-[4px]' : 'text-[12px] px-2.5 py-[5px]')}>Pronta entrega</span>
-              {n > 1 && (
-                <span className={cn('absolute right-2.5 top-2.5 bg-[rgba(27,30,34,0.85)] text-[#fff] font-bold rounded-full leading-none', compacto ? 'text-[10.5px] px-[7px] py-[4px]' : 'text-[12px] px-[9px] py-[5px]')}>{i + 1} de {n}</span>
-              )}
-            </div>
+            {videoAberto === it.chave && it.video ? (
+              <PlayerVideo url={it.video} titulo={it.nome} onFechar={() => setVideoAberto(null)} comAcoes={false} compacto={compacto} />
+            ) : (
+              <div className={cn('relative w-full bg-gradient-to-b from-[#F4F5F6] to-[#E3E6E9] flex items-center justify-center', compacto ? 'h-[92px]' : 'h-[150px]')}>
+                <Foto foto={foto} src={it.foto} className={cn('max-w-[86%] m-0 p-0 border-0 bg-transparent shadow-none hover:scale-100 object-contain mix-blend-multiply', compacto ? 'max-h-[80px]' : 'max-h-[130px]')} />
+                <span className={cn('absolute left-2.5 top-2.5 bg-[#F6C400] text-[#111] font-extrabold rounded-full leading-none', compacto ? 'text-[10.5px] px-2 py-[4px]' : 'text-[12px] px-2.5 py-[5px]')}>Pronta entrega</span>
+                {n > 1 && (
+                  <span className={cn('absolute right-2.5 top-2.5 bg-[rgba(27,30,34,0.85)] text-[#fff] font-bold rounded-full leading-none', compacto ? 'text-[10.5px] px-[7px] py-[4px]' : 'text-[12px] px-[9px] py-[5px]')}>{i + 1} de {n}</span>
+                )}
+                {it.video && (
+                  <BotaoVerVideo compacto={compacto} onClick={() => setVideoAberto(it.chave)} className={cn('absolute', compacto ? 'left-2 bottom-2' : 'left-2.5 bottom-2.5')} />
+                )}
+              </div>
+            )}
             <div className={compacto ? 'px-2.5 pt-2' : 'px-3.5 pt-3'}>
               <p className={cn('fonte-titulo font-extrabold leading-tight text-[#1B1E22] truncate m-0', compacto ? 'text-[14.5px]' : 'text-[18px]')}>{it.nome}</p>
               {it.para && <p className={cn('text-[#5E6672] m-0 mt-0.5', compacto ? 'text-[12px] truncate' : 'text-[13px] line-clamp-2')}>{it.para}</p>}
+              {videoAberto === it.chave && it.video && (
+                <AcoesVideo pid={it.produto?.id} mid={it.modelo?.id} titulo={it.nome} url={it.video} compacto={compacto} />
+              )}
             </div>
             <div className={cn('flex gap-2', compacto ? 'px-2.5 pt-2 pb-2.5' : 'px-3.5 pt-3 pb-3.5')}>
               <button
@@ -179,6 +192,7 @@ export function ListaProntaEntrega({ itens, foto, onPerguntar, onIndicar }: {
   onPerguntar: (it: ItemProntaEntrega) => void;
   onIndicar?: (it: ItemProntaEntrega) => void;
 }) {
+  const [videoAberto, setVideoAberto] = useState<string | null>(null);
   if (!itens.length) {
     return <p className="px-1 py-6 text-center text-[14.5px] text-[#5B6168]">Nenhum equipamento à pronta entrega agora.</p>;
   }
@@ -194,8 +208,12 @@ export function ListaProntaEntrega({ itens, foto, onPerguntar, onIndicar }: {
               <span className="inline-block bg-[#F6C400] text-[#111] text-[11px] font-extrabold px-2 py-[3px] rounded-full leading-none">Pronta entrega</span>
               <p className="fonte-titulo m-0 mt-1 text-[16px] font-extrabold leading-tight text-[#1B1E22] break-words">{it.nome}</p>
               {it.para && <p className="m-0 mt-0.5 text-[13px] text-[#5E6672] line-clamp-2">{it.para}</p>}
+              {it.video && videoAberto !== it.chave && <BotaoVerVideo compacto onClick={() => setVideoAberto(it.chave)} className="mt-1.5" />}
             </div>
           </div>
+          {videoAberto === it.chave && it.video && (
+            <PlayerVideo url={it.video} titulo={it.nome} onFechar={() => setVideoAberto(null)} pid={it.produto?.id} mid={it.modelo?.id} className="mt-2.5 [&>div:first-child]:rounded-xl" />
+          )}
           <div className="mt-2.5 flex gap-2">
             <button type="button" onClick={() => onPerguntar(it)} className="flex-1 h-11 rounded-xl border-2 border-[#1B1E22] bg-white text-[#1B1E22] text-[14.5px] font-extrabold active:scale-[0.98] transition">Perguntar</button>
             {onIndicar && (
@@ -218,17 +236,24 @@ export function AvisoProntaEntrega({ item, foto, rotulo, onAcao, parceiro }: {
 }) {
   // título no singular com o modelo ("Garra Florestal R400"), o mesmo do carrossel e da folha
   const modelo = String(item.nome || item.modelo?.name || '');
+  const [video, setVideo] = useState(false);
   return (
     <div className="flex justify-start">
-      <div className="w-full max-w-[88%] sm:max-w-[420px] rounded-2xl border-2 border-[#F6C400] bg-[#FFFBEA] p-2.5 flex items-center gap-3">
+      <div className="w-full max-w-[88%] sm:max-w-[420px] rounded-2xl border-2 border-[#F6C400] bg-[#FFFBEA] p-2.5">
+      <div className="flex items-center gap-3">
         <div className="h-14 w-16 shrink-0 rounded-xl bg-gradient-to-b from-[#F4F5F6] to-[#E3E6E9] flex items-center justify-center overflow-hidden">
           <Foto foto={foto} src={item.foto} className="max-w-full max-h-[52px] m-0 p-0.5 border-0 bg-transparent shadow-none hover:scale-100 object-contain mix-blend-multiply" />
         </div>
         <div className="min-w-0 flex-1">
           <p className="fonte-titulo m-0 text-[15.5px] font-extrabold leading-tight text-[#1B1E22] break-words">{modelo} à pronta entrega</p>
           <p className="m-0 mt-0.5 text-[13px] leading-snug text-[#7A5F00]">{parceiro ? 'Entrega mais rápida para o seu cliente.' : 'Entrega mais rápida.'}</p>
+          {item.video && !video && <BotaoVerVideo compacto onClick={() => setVideo(true)} className="mt-1.5" />}
         </div>
         <button type="button" onClick={onAcao} className="h-11 shrink-0 px-3.5 rounded-xl bg-[#F6C400] text-[#1B1E22] text-[14.5px] font-extrabold active:scale-[0.97] transition">{rotulo}</button>
+      </div>
+      {video && item.video && (
+        <PlayerVideo url={item.video} titulo={modelo} onFechar={() => setVideo(false)} pid={item.produto?.id} mid={item.modelo?.id} className="mt-2.5 [&>div:first-child]:rounded-xl" />
+      )}
       </div>
     </div>
   );

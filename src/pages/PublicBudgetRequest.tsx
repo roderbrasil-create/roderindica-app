@@ -27,6 +27,9 @@ import { cn, getApiBaseUrl } from '../lib/utils';
 import { abrirDocumento } from '../lib/abrirDocumento';
 import { perfilInstalacao, TEXTOS_INSTALACAO, frasePara } from '../lib/instalacao';
 import { ImageLightbox } from '../components/ui/ImageLightbox';
+import { PlayerVideo } from '../components/video/VideoEquipamento';
+import { tituloFicha } from '../lib/tituloFicha';
+import { videoDoEquipamento } from '../lib/videoEquipamento';
 
 // Faixa preta com a logo horizontal da Roder, abaixo da hora e da bateria do celular
 function Cabecalho() {
@@ -59,6 +62,8 @@ export default function PublicBudgetRequest() {
   const [progresso, setProgresso] = useState(0);
   const [mostrarExtras, setMostrarExtras] = useState(false);
   const [fotoAberta, setFotoAberta] = useState(false);
+  // vídeo do equipamento no alto da página: toca só depois do toque (nada de gastar o 4G do cliente)
+  const [videoAberto, setVideoAberto] = useState(false);
   const [cidades, setCidades] = useState<string[] | null>(null);
   const [cidadeFoco, setCidadeFoco] = useState(false);
   const [cidadeIndice, setCidadeIndice] = useState(0);
@@ -390,10 +395,8 @@ export default function PublicBudgetRequest() {
     }
   };
 
-  const palavrasNome = displayProductName.trim().split(/\s+/);
-  const ultimaPalavra = palavrasNome[palavrasNome.length - 1] || '';
-  const nomeBase = ultimaPalavra.length <= 4 && displayModelName.toUpperCase().startsWith(ultimaPalavra.toUpperCase()) ? palavrasNome.slice(0, -1).join(' ') : displayProductName;
-  const tituloEquip = !displayModelName || nomeBase.toLowerCase().includes(displayModelName.toLowerCase()) ? nomeBase : `${nomeBase} ${displayModelName}`;
+  // título no singular com o modelo, igual à ficha: "Garras Florestais" + "R400" vira "Garra Florestal R400"
+  const tituloEquip = tituloFicha({ name: displayProductName }, { name: displayModelName }) || 'Equipamento Roder';
   const specs: Record<string, any> = (activeModel as any)?.technical_specs || {};
   const nomeCompleto = `${displayProductName} ${displayModelName}`;
   const perfil = perfilInstalacao(nomeCompleto, specs);
@@ -407,7 +410,8 @@ export default function PublicBudgetRequest() {
     if (acc.length < 2 && !acc.some(a => a.startsWith(rot))) acc.push(`${rot} ${specs[k]}`);
     return acc;
   }, []);
-  const videoUrl = (activeModel as any)?.video_url || product?.video_url || '';
+  // o mesmo vídeo que o parceiro viu no Consultor (catálogo, ou o mapa fixo por nome)
+  const videoUrl = videoDoEquipamento(product, activeModel);
   const fichaUrl = (activeModel as any)?.pdf_url || product?.pdf_url || '';
   const primeiroNome = formData.client_name.trim().split(/\s+/)[0] || '';
 
@@ -474,6 +478,26 @@ export default function PublicBudgetRequest() {
       )}
 
       <div className="max-w-md mx-auto px-3.5 pt-2.5 pb-6">
+        {/* Vídeo do equipamento, acima de tudo: o cliente chegou pelo "veja o vídeo" do WhatsApp */}
+        {videoUrl && (
+          <div id="video-equipamento" className="mb-2.5 rounded-2xl overflow-hidden bg-[#000] border border-slate-200">
+            {videoAberto ? (
+              <PlayerVideo url={videoUrl} titulo={tituloEquip} onFechar={() => setVideoAberto(false)} comAcoes={false} />
+            ) : (
+              <div className="relative w-full aspect-video bg-gradient-to-b from-[#F4F5F6] to-[#DCE0E4]">
+                {images.length > 0 && <img src={images[0]} alt="" className="absolute inset-0 m-auto max-h-[88%] max-w-[88%] object-contain" referrerPolicy="no-referrer" />}
+                <span className="absolute inset-0 bg-black/25" />
+                {/* botão cobrindo a área toda (o estilo global de botão fixa a altura) */}
+                <button type="button" onClick={() => setVideoAberto(true)} aria-label={`Ver o vídeo da ${tituloEquip}`} className="absolute inset-0 h-full w-full p-0 bg-transparent border-0">
+                  <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-16 w-16 rounded-full bg-[#FF0000] flex items-center justify-center shadow-lg">
+                    <Play className="h-8 w-8 text-white fill-white ml-1" />
+                  </span>
+                  <span className="absolute left-3 bottom-3 rounded-full bg-black/75 text-white text-[13px] font-extrabold px-3 py-1.5">▶ Veja trabalhando</span>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
         {/* Equipamento */}
         <div className="bg-white rounded-2xl border border-slate-200 p-2.5 flex gap-3 items-center">
           <button type="button" onClick={() => images.length && setFotoAberta(true)} className="w-[154px] h-[154px] shrink-0 flex items-center justify-center bg-white rounded-xl">
@@ -492,7 +516,7 @@ export default function PublicBudgetRequest() {
             {destaques.length > 0 && <p className="text-xs text-slate-600 mt-1.5">{destaques.join(' · ')}</p>}
             {(videoUrl || fichaUrl) && (
               <div className="flex gap-1.5 mt-2">
-                {videoUrl && <button type="button" onClick={() => abrirDocumento(videoUrl, tituloEquip)} className="px-3 py-1.5 rounded-full bg-[#FF0000] text-white text-xs font-bold flex items-center gap-1"><Play className="h-3.5 w-3.5 fill-white" /> Vídeo</button>}
+                {videoUrl && <button type="button" onClick={() => { setVideoAberto(true); document.getElementById('video-equipamento')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} className="px-3 py-1.5 rounded-full bg-[#FF0000] text-white text-xs font-bold flex items-center gap-1"><Play className="h-3.5 w-3.5 fill-white" /> Vídeo</button>}
                 {fichaUrl && <button type="button" onClick={() => abrirDocumento(fichaUrl, `Ficha ${tituloEquip}`)} className="px-2.5 py-1.5 rounded-full bg-slate-100 text-slate-700 text-xs font-bold flex items-center gap-1"><FileText className="h-3.5 w-3.5" /> Ficha</button>}
               </div>
             )}
