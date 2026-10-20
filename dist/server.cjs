@@ -3930,7 +3930,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-20i seguranca-email";
+  const RELEASE_LABEL = "2026-10-20j dentes-fresa";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -5997,7 +5997,7 @@ Regras de Neg\xF3cio e Diretrizes de Engenharia Roder:
               - Di\xE2metro do Rotor: 900 mm
               - Di\xE2metro M\xE1ximo de Tritura\xE7\xE3o de Tocos: 700 mm (70 cm)
               - Profundidade M\xE1xima de Trabalho: 500 mm (50 cm)
-              - Quantidade e Tipo de Dentes: 58 + 4 dentes (Tipo A/3 + MH)
+              - Quantidade e Tipo de Dentes: 58 dentes CENTRAIS + 4 dentes LATERAIS (2 do lado esquerdo e 2 do direito), total 62; tipo de dente: A/3 + MH
               - Link do V\xEDdeo de Opera\xE7\xE3o: https://youtu.be/1nEPwzt8K4k
             * **FAE SSH 200**:
               - Pot\xEAncia do Trator Requerida: 200 a 360 (at\xE9 400) HP (transmiss\xE3o CVT obrigat\xF3ria)
@@ -6008,7 +6008,7 @@ Regras de Neg\xF3cio e Diretrizes de Engenharia Roder:
               - Di\xE2metro do Rotor: 900 mm
               - Di\xE2metro M\xE1ximo de Tritura\xE7\xE3o de Tocos: 700 mm (70 cm)
               - Profundidade M\xE1xima de Trabalho: 500 mm (50 cm)
-              - Quantidade e Tipo de Dentes: 78 + 4 dentes (Tipo A/3 + MH)
+              - Quantidade e Tipo de Dentes: 78 dentes CENTRAIS + 4 dentes LATERAIS (2 do lado esquerdo e 2 do direito), total 82; tipo de dente: A/3 + MH
               - Link do V\xEDdeo de Opera\xE7\xE3o: https://youtu.be/1nEPwzt8K4k
             * **FAE SSH 225**:
               - Pot\xEAncia do Trator Requerida: 200 a 360 (at\xE9 400) HP (transmiss\xE3o CVT obrigat\xF3ria)
@@ -6019,7 +6019,7 @@ Regras de Neg\xF3cio e Diretrizes de Engenharia Roder:
               - Di\xE2metro do Rotor: 900 mm
               - Di\xE2metro M\xE1ximo de Tritura\xE7\xE3o de Tocos: 700 mm (70 cm)
               - Profundidade M\xE1xima de Trabalho: 500 mm (50 cm)
-              - Quantidade e Tipo de Dentes: 88 + 4 dentes (Tipo A/3 + MH)
+              - Quantidade e Tipo de Dentes: 88 dentes CENTRAIS + 4 dentes LATERAIS (2 do lado esquerdo e 2 do direito), total 92; tipo de dente: A/3 + MH
               - Link do V\xEDdeo de Opera\xE7\xE3o: https://youtu.be/1nEPwzt8K4k
             * **FAE SSH 250**:
               - Pot\xEAncia do Trator Requerida: 240 a 360 (at\xE9 400) HP (transmiss\xE3o CVT obrigat\xF3ria)
@@ -6030,9 +6030,11 @@ Regras de Neg\xF3cio e Diretrizes de Engenharia Roder:
               - Di\xE2metro do Rotor: 900 mm
               - Di\xE2metro M\xE1ximo de Tritura\xE7\xE3o de Tocos: 700 mm (70 cm)
               - Profundidade M\xE1xima de Trabalho: 500 mm (50 cm)
-              - Quantidade e Tipo de Dentes: 98 + 4 dentes (Tipo A/3 + MH)
+              - Quantidade e Tipo de Dentes: 98 dentes CENTRAIS + 4 dentes LATERAIS (2 do lado esquerdo e 2 do direito), total 102; tipo de dente: A/3 + MH
               - Link do V\xEDdeo de Opera\xE7\xE3o: https://www.youtube.com/watch?v=na5Z2tLWMgA
               
+          **DENTES DA FRESA SSH (regra do Jeferson, vale sempre)**: na nota\xE7\xE3o "58 + 4", o primeiro n\xFAmero s\xE3o os dentes CENTRAIS e o segundo os dentes LATERAIS (sempre 4: 2 no lado esquerdo e 2 no direito). Quando perguntarem "quantos dentes tem na SSH150?" (ou 200, 225, 250), responda direto e curto neste formato, sem rodeio: "SSH150: 58 dentes centrais e 4 laterais (2 de cada lado)." Nunca responda s\xF3 o total nem s\xF3 "58 + 4" sem dizer o que \xE9 cada n\xFAmero.
+
           Sempre oriente que esses equipamentos trabalham acoplados aos bra\xE7os de tr\xEAs pontos do trator e utilizam a tomada de for\xE7a (TDP/PTO) de 1000 rpm.
 
           **TRANSMISS\xC3O CVT \xC9 OBRIGAT\xD3RIA (regra da Roder, sem exce\xE7\xE3o)**:
