@@ -96,15 +96,43 @@ async function testConnection() {
 // motivo 'email_nao_confirmado': conta de senha sem e-mail confirmado e sem senha definida pela
 // Roder depois de criada. entrar_de_novo: o servidor confirmou o e-mail e derrubou os logins
 // antigos (inclusive este); quem tem a senha na mão entra de novo para pegar o token confirmado.
+// motivo 'token_revogado': o login já tinha sido derrubado (o servidor responde 401).
+//
+// UM PEDIDO SÓ POR LOGIN. A tela de login e o AuthContext chamavam isto ao mesmo tempo: o primeiro
+// pedido confirmava o e-mail e derrubava os logins, o segundo chegava com o token já derrubado e o
+// AuthContext ainda ignorava o entrar_de_novo. Agora os dois recebem a MESMA resposta, e quem tem a
+// senha na mão (a tela de login, marcada por loginComSenhaEmAndamento) entra de novo; sem senha na
+// mão, o AuthContext sai e pede para entrar de novo.
 export type ResultadoReivindicar = { merged: boolean; motivo?: string; entrar_de_novo?: boolean };
+const pedidosReivindicar = new Map<string, { em: number; promessa: Promise<ResultadoReivindicar> }>();
+let loginComSenha = 0;
+export function marcarLoginComSenha(emAndamento: boolean) {
+  loginComSenha = Math.max(0, loginComSenha + (emAndamento ? 1 : -1));
+}
+export function loginComSenhaEmAndamento(): boolean {
+  return loginComSenha > 0;
+}
+async function pedirReivindicar(token: string): Promise<ResultadoReivindicar> {
+  try {
+    const r = await fetch('/api/auth/reivindicar-perfil', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 401 && j.codigo === 'token_revogado') return { merged: false, motivo: 'token_revogado' };
+    return { merged: !!j.merged, motivo: j.motivo, entrar_de_novo: !!j.entrar_de_novo };
+  } catch { return { merged: false }; }
+}
 export async function reivindicarPerfilDetalhado(): Promise<ResultadoReivindicar> {
   try {
     const u = auth.currentUser;
     if (!u || u.isAnonymous || !u.email) return { merged: false };
     const token = await u.getIdToken();
-    const r = await fetch('/api/auth/reivindicar-perfil', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
-    const j = await r.json().catch(() => ({}));
-    return { merged: !!j.merged, motivo: j.motivo, entrar_de_novo: !!j.entrar_de_novo };
+    // mesma conta e mesmo momento de login: reaproveita o pedido (em andamento ou recém-respondido)
+    const tk = await u.getIdTokenResult();
+    const chave = `${u.uid}:${tk.authTime}`;
+    const anterior = pedidosReivindicar.get(chave);
+    if (anterior && Date.now() - anterior.em < 60_000) return anterior.promessa;
+    const promessa = pedirReivindicar(token);
+    pedidosReivindicar.set(chave, { em: Date.now(), promessa });
+    return promessa;
   } catch { return { merged: false }; }
 }
 export async function reivindicarPerfil(): Promise<boolean> {

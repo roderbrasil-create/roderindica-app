@@ -7,7 +7,8 @@ import {
   signInWithPopup
 } from 'firebase/auth';
 import { doc, onSnapshot, collection, query, where, writeBatch, getDocs, getDoc, updateDoc } from 'firebase/firestore';
-import { auth, db, reivindicarPerfil } from '../lib/firebase';
+import { toast } from 'sonner';
+import { auth, db, reivindicarPerfilDetalhado, loginComSenhaEmAndamento } from '../lib/firebase';
 import { UserProfile, UserRole } from '../types';
 import { AuditService, AuditAction } from '../lib/AuditService';
 
@@ -197,8 +198,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
 
         // 0. Primeiro acesso de quem foi pré-cadastrado: o servidor faz a passagem do cadastro
+        // (pedido único, compartilhado com a tela de login: ver reivindicarPerfilDetalhado)
         if (user.email && !userDocExists) {
-          if (await reivindicarPerfil()) userDocExists = true;
+          const reivindicado = await reivindicarPerfilDetalhado();
+          if (reivindicado.merged) userDocExists = true;
+          if ((reivindicado.entrar_de_novo || reivindicado.motivo === 'token_revogado') && !loginComSenhaEmAndamento()) {
+            // O servidor confirmou o e-mail e derrubou os logins, e aqui não há senha na mão para
+            // entrar de novo (sessão que voltou sozinha, outra aba). Sai com aviso claro, em vez de
+            // seguir com um login que cai sozinho daqui a pouco.
+            localStorage.removeItem('roder_profile_cache');
+            await signOut(auth);
+            toast.info('Seu acesso foi confirmado. Entre de novo com seu e-mail e senha.', { duration: 10000 });
+            if (isMounted) setLoading(false);
+            return;
+          }
         }
 
         // 1. One-time check/migration logic for Email (resolving accent differences & duplicates)
@@ -297,6 +310,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 }
               }
               
+              // senha inicial e data dela não vão para o próprio cadastro (as regras recusam)
+              delete mergedProfile.initial_password;
+              delete mergedProfile.initial_password_set_at;
               batch.set(realRef, mergedProfile);
               await batch.commit();
               console.log("Successfully merged duplicate/temp profile in AuthContext for:", user.email);
@@ -447,6 +463,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   for (const d of docs) {
                     mergedData = { ...d.data(), ...mergedData };
                   }
+                  delete mergedData.initial_password;
+                  delete mergedData.initial_password_set_at;
                   const { setDoc, deleteDoc } = await import('firebase/firestore');
                   for (const d of docs) {
                     if (d.id !== user.uid) {

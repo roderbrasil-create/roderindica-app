@@ -67,14 +67,37 @@ export function classificarConta(contaAuth: any, cadastro: any, temPreCadastroPo
 
 // PRIMEIRO ACESSO DE PRÉ-CADASTRADO COM CONTA DE SENHA NÃO CONFIRMADA. Só vale quando dá para
 // provar que quem entrou sabe a senha que a Roder definiu: login por senha, o cadastro provisório
-// tem senha inicial, e o login aconteceu DEPOIS do momento em que o servidor gravou essa senha
-// (initial_password_set_at, gravado só por /api/admin/set-user-password). Quem criou a conta por
-// fora antes disso perdeu a senha dele na troca; cadastro antigo sem a data não passa (a Roder
-// redefine a senha e aí passa).
-export function podeConfirmarPrimeiroAcesso(dec: any, provisorio: any): boolean {
+// tem senha inicial, e o login aconteceu DEPOIS do momento em que o servidor gravou essa senha.
+// Quem criou a conta por fora antes disso perdeu a senha dele na troca; cadastro antigo sem a data
+// não passa (a Roder redefine a senha e aí passa).
+//
+// CADASTRO FORJADO (19/10/2026). O cadastro em users/ não basta como prova: qualquer login grava
+// o próprio users/{uid} pelas regras, e antes podia gravar ali o e-mail de outra pessoa com
+// initial_password e uma data antiga. A conta A, criada por fora com aquele e-mail, achava esse
+// cadastro, passava aqui e o servidor confirmava o e-mail dela (leitura de equipe pelo domínio).
+// Agora valem só, e todos juntos:
+// - o código do cadastro é de pré-cadastro (temp_ ou phone_, como a tela de Usuários cria) e não
+//   é o uid de uma conta de login (o servidor confere com getUser antes de chamar aqui);
+// - existe a marca que SÓ o servidor grava (senhas_iniciais/{código}, coleção que as regras não
+//   deixam ninguém ler nem gravar), feita em /api/admin/set-user-password por quem a gestão
+//   conferida no servidor, com o mesmo código, o mesmo e-mail e a data da senha;
+// - o login é posterior a essa data (a data que vale é a da marca, não a do cadastro).
+export const PREFIXOS_PRE_CADASTRO = ['temp_', 'phone_'];
+export function ehIdDePreCadastro(id: string): boolean {
+  return PREFIXOS_PRE_CADASTRO.some(p => String(id || '').startsWith(p));
+}
+
+export type MarcaSenhaInicial = { cadastro_id?: string; email?: string; definida_em?: string; definida_por_uid?: string };
+
+export function podeConfirmarPrimeiroAcesso(dec: any, provisorio: any, cadastroId: string, marca: MarcaSenhaInicial | null | undefined): boolean {
   if (!dec || dec.firebase?.sign_in_provider !== 'password') return false;
+  if (!ehIdDePreCadastro(cadastroId)) return false;
   if (!provisorio || !String(provisorio.initial_password || '')) return false;
-  const definidaEm = Date.parse(String(provisorio.initial_password_set_at || ''));
+  if (!marca || marca.cadastro_id !== cadastroId || !String(marca.definida_por_uid || '')) return false;
+  const email = String(dec.email || '').toLowerCase().trim();
+  if (!email || String(marca.email || '').toLowerCase().trim() !== email) return false;
+  if (String(provisorio.email || '').toLowerCase().trim() !== email) return false;
+  const definidaEm = Date.parse(String(marca.definida_em || ''));
   if (!Number.isFinite(definidaEm)) return false;
   const entrouEm = Number(dec.auth_time);
   if (!Number.isFinite(entrouEm) || entrouEm <= 0) return false;

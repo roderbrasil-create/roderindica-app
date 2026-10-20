@@ -6,7 +6,7 @@ import {
   sendPasswordResetEmail,
   signOut
 } from 'firebase/auth';
-import { auth, db, reivindicarPerfil, reivindicarPerfilDetalhado } from '../lib/firebase';
+import { auth, db, reivindicarPerfil, reivindicarPerfilDetalhado, marcarLoginComSenha } from '../lib/firebase';
 import { doc, getDoc, setDoc, collection, query, where, getDocs, deleteDoc, writeBatch } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -201,6 +201,9 @@ export default function Login() {
 
     const cleanEmail = email.toLowerCase().trim();
     setLoading(true);
+    // avisa o AuthContext que esta tela tem a senha na mão: se o primeiro acesso pedir para entrar
+    // de novo, quem entra de novo é esta tela (o AuthContext não sai do login no meio)
+    marcarLoginComSenha(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, password);
       let authUser = userCredential.user;
@@ -217,7 +220,7 @@ export default function Login() {
       } catch { /* segue com o token que tem */ }
 
       const reivindicado = await reivindicarPerfilDetalhado();
-      if (reivindicado.entrar_de_novo) {
+      if (reivindicado.entrar_de_novo || reivindicado.motivo === 'token_revogado') {
         // primeiro acesso confirmado pelo servidor, que derrubou os logins antigos (inclusive este):
         // entra de novo com a mesma senha para o token novo já sair confirmado
         authUser = (await signInWithEmailAndPassword(auth, cleanEmail, password)).user;
@@ -284,6 +287,7 @@ export default function Login() {
         toast.error('Erro ao entrar: ' + (error.message || 'Verifique suas credenciais.'));
       }
     } finally {
+      marcarLoginComSenha(false);
       setLoading(false);
     }
   };

@@ -33,6 +33,28 @@ cadastro provisório tem senha inicial, e o login aconteceu depois de `initial_p
 e-mail, derruba os logins antigos e o app entra de novo com a mesma senha. Fora disso a tela de
 login diz "Peça à Roder para redefinir sua senha".
 
+Cadastro forjado: a data no cadastro não basta, porque qualquer login grava o próprio `users/{uid}`.
+Uma conta B gravava ali o e-mail de A, uma senha inicial e uma data antiga, e o primeiro acesso de A
+(criada por fora) confirmava o e-mail dela. Agora:
+
+- Servidor: só vale cadastro de código `temp_` ou `phone_` (como a tela de Usuários cria), que não
+  seja o uid de uma conta de login, e com a marca `senhas_iniciais/{código}` que só o servidor grava
+  em `/api/admin/set-user-password` (mesmo código, mesmo e-mail, data da senha e quem definiu). A data
+  que vale é a da marca. A marca é apagada no primeiro acesso.
+- Regras: o próprio cadastro não leva `initial_password` nem `initial_password_set_at`, e o e-mail
+  só pode ser o do próprio login (ou vazio). Gerente e triagem continuam cadastrando com senha
+  inicial, mas a data dela é só do servidor. Ninguém lê nem grava `senhas_iniciais` pelo navegador.
+- O app faz um pedido só por login (a tela de login e o AuthContext recebem a mesma resposta). Se o
+  servidor pedir para entrar de novo e não houver senha na mão, o app sai e avisa. Login derrubado
+  recebe 401 (`token_revogado`), e não 500.
+
+## Administrador que entra com senha
+
+Depois de publicar, o administrador que entra com e-mail e senha só continua administrador se o
+cadastro dele (`users/{uid}`) tiver `role: 'admin'`. O e-mail da diretoria sozinho só vale
+confirmado: sem o papel no cadastro, confirme o e-mail entrando uma vez com o Google ou pelo
+"Esqueci a senha" antes de publicar.
+
 ## Senha pela tela de Usuários
 
 - Só para quem tem cadastro. E-mail com dois cadastros: o app manda o código do cadastro; sem ele,
@@ -48,9 +70,12 @@ login diz "Peça à Roder para redefinir sua senha".
    depois de o servidor subir, o quadro "Conferência das contas da equipe" mostra quantas contas
    foram confirmadas e quais ficaram como estavam, com o motivo. Antes disso o botão "Publicar
    regras novas" fica bloqueado (e o servidor recusa com 409).
-3. Ver a lista "Ver quem é". Se alguém da equipe ficou de fora, redefinir a senha dele na tela de
-   Usuários (isso confirma o e-mail). A diretoria nunca é confirmada pela rodada: entra pelo Google
-   ou pelo "Esqueci a senha".
+3. Ver a lista "Ver quem é". As confirmadas aparecem com o papel e o código do cadastro: confira se
+   ninguém virou equipe sem dever. Se alguém da equipe ficou de fora, redefinir a senha dele na tela
+   de Usuários (isso confirma o e-mail). A diretoria nunca é confirmada pela rodada: entra pelo
+   Google ou pelo "Esqueci a senha" (ou tem `role: 'admin'` no cadastro). Se a rodada terminou com
+   erros, o botão de publicar continua liberado, mas a tela avisa: quem deu erro e tem senha perde o
+   acesso de equipe até a senha ser redefinida.
 4. Publicar as regras pelo botão "Publicar regras novas".
 5. Recomendado: no console do Firebase, em Authentication > Configurações > Ações do usuário,
    avaliar "Ativar criação (inscrição)". Desligar impede que alguém crie conta por fora, mas

@@ -108,6 +108,23 @@ service cloud.firestore {
         ['role', 'permissions', 'status', 'is_commissionable', 'commission_rate', 'is_lead_receiver', 'uid']);
     }
 
+    // CADASTRO FORJADO (19/10/2026). O próprio cadastro não pode levar senha inicial nem o e-mail de
+    // outra pessoa: a conta B gravava em users/{B} o e-mail de A, uma senha inicial e uma data
+    // antiga, e o primeiro acesso de A (criada por fora) confirmava o e-mail dela no servidor.
+    // A senha inicial é coisa da tela de Usuários (gestão) e a data, só do servidor.
+    function emailDoCadastroEhODoLogin(e) {
+      return e == '' || e == emailDoToken();
+    }
+    function cadastroProprioSemSenhaNemEmailAlheio() {
+      return !request.resource.data.keys().hasAny(['initial_password', 'initial_password_set_at']) &&
+        emailDoCadastroEhODoLogin(string(request.resource.data.get('email', '')).lower());
+    }
+    function edicaoPropriaSemSenhaNemEmailAlheio() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['initial_password', 'initial_password_set_at']) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['email']) ||
+         emailDoCadastroEhODoLogin(string(request.resource.data.get('email', '')).lower()));
+    }
+
     // ===============================================================
     // Regras
     // ===============================================================
@@ -121,18 +138,21 @@ service cloud.firestore {
       // Cadastro próprio nasce sem poder. O primeiro acesso de quem foi pré-cadastrado
       // é feito pelo servidor (/api/auth/reivindicar-perfil).
       allow create: if isAdmin() ||
-        ((isManager() || isTriagem()) && papelQueGestaoDa(request.resource.data.get('role', ''))) ||
+        ((isManager() || isTriagem()) && papelQueGestaoDa(request.resource.data.get('role', '')) &&
+         !('initial_password_set_at' in request.resource.data)) ||
         (isOwner(userId) && naoAnonimo() &&
          request.resource.data.get('role', 'external_seller') in ['external_seller', 'vendedor_padrao', ''] &&
          request.resource.data.get('status', 'pending') in ['pending', ''] &&
-         !('permissions' in request.resource.data));
+         !('permissions' in request.resource.data) &&
+         cadastroProprioSemSenhaNemEmailAlheio());
       allow update: if isAdmin() ||
         // gerente e triagem cuidam da equipe (férias, recebe lead, dados), sem promover a gestão
         // e sem mexer no próprio papel
         ((isManager() || isTriagem()) && !isOwner(userId) &&
          papelQueGestaoDa(resource.data.get('role', '')) &&
-         papelQueGestaoDa(request.resource.data.get('role', ''))) ||
-        (isOwner(userId) && naoMexeEmPoder()) ||
+         papelQueGestaoDa(request.resource.data.get('role', '')) &&
+         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['initial_password_set_at'])) ||
+        (isOwner(userId) && naoMexeEmPoder() && edicaoPropriaSemSenhaNemEmailAlheio()) ||
         // a triagem liga "recebe lead" e marca férias de qualquer um da equipe, inclusive gestão
         ((isManager() || isTriagem()) &&
          request.resource.data.diff(resource.data).affectedKeys().hasOnly(

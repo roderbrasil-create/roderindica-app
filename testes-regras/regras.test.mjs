@@ -688,3 +688,47 @@ test('STORAGE VÍDEOS DO CONSULTOR: ninguém troca nem apaga pelo navegador, nem
   await assertSucceeds(getMetadata(ref(contaRoder().storage(), 'consultor_videos/id9/existe.mp4')));
   await assertFails(getMetadata(ref(st_('anonimo'), 'consultor_videos/id9/existe.mp4')));
 });
+
+// ---------------- CADASTRO FORJADO NO PRIMEIRO ACESSO (19/10/2026) ----------------
+// Ataque: a conta A é criada por fora como x@roderbrasil.com.br com senha. Uma segunda conta, B,
+// grava em users/{B} o e-mail de A, papel de parceiro, "pending", uma senha inicial e uma data
+// antiga. Com isso o primeiro acesso de A no servidor achava "um pré-cadastro com senha da Roder"
+// e confirmava o e-mail de A (leitura de equipe pelo domínio). Do lado das regras, B não grava nada disso.
+test('CADASTRO FORJADO: a conta B não cria users/{B} com o e-mail de outra pessoa e senha inicial', async () => {
+  const b = contaSenha('u_atacante_b', 'b@gmail.com', false);
+  await assertFails(setDoc(doc(b, 'users', 'u_atacante_b'), {
+    email: 'x@roderbrasil.com.br', role: 'external_seller', status: 'pending',
+    initial_password: 'x', initial_password_set_at: '2000-01-01T00:00:00.000Z',
+  }));
+  // nem só o e-mail alheio, nem só a senha inicial, nem só a data
+  await assertFails(setDoc(doc(b, 'users', 'u_atacante_b'), { email: 'x@roderbrasil.com.br', role: 'external_seller', status: 'pending' }));
+  await assertFails(setDoc(doc(b, 'users', 'u_atacante_b'), { email: 'b@gmail.com', role: 'external_seller', status: 'pending', initial_password: 'x' }));
+  await assertFails(setDoc(doc(b, 'users', 'u_atacante_b'), { email: 'b@gmail.com', role: 'external_seller', status: 'pending', initial_password_set_at: '2000-01-01T00:00:00.000Z' }));
+  // o cadastro próprio normal continua: o e-mail do próprio login (qualquer caixa) ou sem e-mail
+  await assertSucceeds(setDoc(doc(b, 'users', 'u_atacante_b'), { email: 'B@gmail.com', role: 'external_seller', status: 'pending', name: 'B' }));
+});
+
+test('CADASTRO FORJADO: a conta B não troca o próprio e-mail para o de outra pessoa nem põe senha inicial depois', async () => {
+  await semRegras((db) => setDoc(doc(db, 'users', 'u_atacante_b'), { uid: 'u_atacante_b', email: 'b@gmail.com', role: 'external_seller', status: 'pending' }));
+  const b = contaSenha('u_atacante_b', 'b@gmail.com', false);
+  await assertFails(updateDoc(doc(b, 'users', 'u_atacante_b'), { email: 'x@roderbrasil.com.br' }));
+  await assertFails(updateDoc(doc(b, 'users', 'u_atacante_b'), { initial_password: 'x' }));
+  await assertFails(updateDoc(doc(b, 'users', 'u_atacante_b'), { initial_password_set_at: '2000-01-01T00:00:00.000Z' }));
+  // edição normal do perfil (Profile.tsx manda o e-mail de volta sem mudar) continua
+  await assertSucceeds(updateDoc(doc(b, 'users', 'u_atacante_b'), { email: 'b@gmail.com', name: 'B', phone: '14999990000', updated_at: 'x' }));
+});
+
+test('CADASTRO FORJADO: gerente e triagem cadastram com senha inicial, mas a data da senha é só do servidor', async () => {
+  await assertSucceeds(setDoc(doc(fs_('gislene'), 'users', 'temp_9'), { role: 'external_seller', email: 'novo@x.com', status: 'pending', initial_password: 'abc123' }));
+  await assertFails(setDoc(doc(fs_('luana'), 'users', 'temp_10'), { role: 'external_seller', email: 'n@x.com', status: 'pending', initial_password: 'abc123', initial_password_set_at: '2000-01-01T00:00:00.000Z' }));
+  await assertFails(updateDoc(doc(fs_('gislene'), 'users', 'temp_9'), { initial_password_set_at: '2000-01-01T00:00:00.000Z' }));
+});
+
+test('CADASTRO FORJADO: a marca da senha inicial (senhas_iniciais) ninguém lê nem grava pelo navegador', async () => {
+  await semRegras((db) => setDoc(doc(db, 'senhas_iniciais', 'temp_1'), { cadastro_id: 'temp_1', email: 'x@roderbrasil.com.br', definida_em: '2026-10-19T00:00:00Z', definida_por_uid: 'u_jef' }));
+  for (const quem of ['jeferson', 'gislene', 'parceiro', 'anonimo']) {
+    await assertFails(getDoc(doc(fs_(quem), 'senhas_iniciais', 'temp_1')));
+    await assertFails(setDoc(doc(fs_(quem), 'senhas_iniciais', 'temp_2'), { cadastro_id: 'temp_2', email: 'y@x.com', definida_em: '2000-01-01T00:00:00Z', definida_por_uid: 'u_jef' }));
+  }
+  await assertFails(setDoc(doc(contaSenha('u_atacante_b', 'b@gmail.com', false), 'senhas_iniciais', 'u_atacante_b'), { cadastro_id: 'u_atacante_b' }));
+});

@@ -44,7 +44,7 @@ import { injetarPrevia, previaPadrao, previaDoEquipamento, codigoLimpo, SITE_PRE
 import { criarImagemPrevia, candidatasDoLink, urlImagemPrevia, MAX_ORIGEM_BYTES, PASTA_CACHE, baixarExterna } from "./server/previaImagem";
 import { hostDeFotoAgendor, urlDeFotoAgendor } from "./server/fotoAgendor";
 import { fotosExternas, RodadaEmAndamento } from "./server/fotosExternas";
-import { emailConfiavelDoToken, ehDiretoriaPeloToken, papelDeQuemChama, classificarConta, podeConfirmarPrimeiroAcesso, podeDefinirSenha } from "./server/emailConfiavel";
+import { emailConfiavelDoToken, ehDiretoriaPeloToken, papelDeQuemChama, classificarConta, podeConfirmarPrimeiroAcesso, podeDefinirSenha, ehIdDePreCadastro, type MarcaSenhaInicial } from "./server/emailConfiavel";
 
 let __currentDir: string;
 try {
@@ -1505,7 +1505,10 @@ Retorne um array JSON no formato exato:
       marcadas: t.marcadas ?? null,
       deixadas: (t.semCadastroAtivo ?? 0) + (t.diretoria ?? 0),
       erros: t.erros ?? 0,
-      marcadas_emails: Array.isArray(t.marcadas_emails) ? t.marcadas_emails : [],
+      // rodada antiga gravava só o e-mail (texto); a nova grava e-mail, papel e código do cadastro
+      marcadas_emails: Array.isArray(t.marcadas_emails)
+        ? t.marcadas_emails.map((m: any) => (typeof m === 'string' ? { email: m, role: '', doc_id: '' } : m))
+        : [],
       pendentes: Array.isArray(t.pendentes) ? t.pendentes : [],
     };
   }
@@ -1627,7 +1630,15 @@ Retorne um array JSON no formato exato:
       const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
       if (!token) return res.status(401).json({ ok: false });
       // checkRevoked: se o admin trocou a senha, um login antigo de outra pessoa deixa de valer aqui
-      const dec: any = await admin.auth().verifyIdToken(token, true);
+      let dec: any;
+      try {
+        dec = await admin.auth().verifyIdToken(token, true);
+      } catch (e: any) {
+        // Login derrubado (primeiro acesso já confirmado em outra aba, ou senha trocada pelo admin)
+        // ou token vencido: é "entre de novo", e não erro do servidor
+        const codigo = e?.code === 'auth/id-token-revoked' ? 'token_revogado' : 'token_invalido';
+        return res.status(401).json({ ok: false, codigo, error: 'Seu acesso precisa ser feito de novo. Entre outra vez com seu e-mail e senha.' });
+      }
       const email = String(dec.email || '').toLowerCase().trim();
       if (!email || dec.firebase?.sign_in_provider === 'anonymous') return res.status(401).json({ ok: false });
       // Só e-mail CONFIRMADO. Antes a conta com senha valia sozinha, e com o cadastro aberto no
@@ -1639,8 +1650,19 @@ Retorne um array JSON no formato exato:
       // Exceção do primeiro acesso: conta de senha ainda não confirmada vale só para o cadastro
       // provisório cuja senha a Roder definiu, e só com login feito DEPOIS disso (a prova de que
       // quem entrou sabe a senha da Roder). Ver podeConfirmarPrimeiroAcesso.
+      // Cadastro forjado: o users/{uid} de outra conta com este e-mail e uma senha inicial inventada
+      // não serve. Só pré-cadastro de verdade (temp_/phone_, sem conta de login com esse código) e
+      // com a marca que só o servidor grava ao definir a senha (senhas_iniciais/{código}).
       if (!confirmado) {
-        temporarios = temporarios.filter(d => podeConfirmarPrimeiroAcesso(dec, d.data()));
+        const aceitos: typeof temporarios = [];
+        for (const d of temporarios) {
+          if (!ehIdDePreCadastro(d.id)) continue;
+          const ehContaDeLogin = await admin.auth().getUser(d.id).then(() => true).catch((e: any) => e?.code !== 'auth/user-not-found');
+          if (ehContaDeLogin) continue;
+          const marca = (await db.collection('senhas_iniciais').doc(d.id).get()).data() as MarcaSenhaInicial | undefined;
+          if (podeConfirmarPrimeiroAcesso(dec, d.data(), d.id, marca)) aceitos.push(d);
+        }
+        temporarios = aceitos;
         if (temporarios.length === 0) return res.json({ ok: true, merged: false, motivo: 'email_nao_confirmado' });
       }
       if (temporarios.length === 0) return res.json({ ok: true, merged: false });
@@ -1673,6 +1695,8 @@ Retorne um array JSON no formato exato:
       lote.set(realRef, perfil);
       for (const t of temporarios) {
         lote.delete(t.ref);
+        // a marca da senha inicial vale uma vez só
+        lote.delete(db.collection('senhas_iniciais').doc(t.id));
         const ligados = await Promise.all([
           db.collection('indications').where('internal_seller_uid', '==', t.id).get(),
           db.collection('indications').where('assigned_to_uid', '==', t.id).get(),
@@ -4539,13 +4563,23 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         console.log(`[AUTH-ADMIN] User created successfully with password: ${emailAlvo}`);
       }
 
-      // 3. Senha inicial e o momento dela no cadastro (só o servidor grava a data)
+      // 3. Senha inicial e o momento dela no cadastro, e a MARCA do servidor em senhas_iniciais
+      // (coleção que as regras fecham para todo mundo). É ela que o primeiro acesso confere: o
+      // initial_password_set_at do cadastro sozinho podia ser forjado pelo próprio users/{uid}.
       try {
-        await cadastroAlvo.ref.update({
+        const lote = db.batch();
+        lote.update(cadastroAlvo.ref, {
           initial_password: password,
           initial_password_set_at: senhaDefinidaEm,
           updated_at: new Date().toISOString()
         });
+        lote.set(db.collection('senhas_iniciais').doc(cadastroAlvo.id), {
+          cadastro_id: cadastroAlvo.id,
+          email: emailAlvo,
+          definida_em: senhaDefinidaEm,
+          definida_por_uid: requesterUid,
+        });
+        await lote.commit();
       } catch (dbUpdateErr: any) {
         console.warn("[AUTH-ADMIN] Non-fatal: could not update Firestore initial_password:", dbUpdateErr.message);
       }
@@ -8895,7 +8929,8 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     }
     try {
       const n = { contas: 0, comSenhaSemConfirmar: 0, marcadas: 0, semCadastroAtivo: 0, diretoria: 0, erros: 0 };
-      const marcadas: string[] = [];
+      // com o papel e o código do cadastro, para o Jeferson conferir na tela de Regras quem virou equipe
+      const marcadas: { email: string; role: string; doc_id: string }[] = [];
       const pendentes: { email: string; motivo: string }[] = [];
       let pagina: string | undefined;
       do {
@@ -8916,7 +8951,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
             if (decisao === 'marcar') {
               await admin.auth().updateUser(conta.uid, { emailVerified: true });
               n.marcadas++;
-              marcadas.push(emailConta);
+              marcadas.push({ email: emailConta, role: String((cadastro as any)?.role || ''), doc_id: conta.uid });
             } else {
               if (decisao === 'diretoria') n.diretoria++; else n.semCadastroAtivo++;
               pendentes.push({ email: emailConta, motivo: decisao });

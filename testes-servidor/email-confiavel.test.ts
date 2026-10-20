@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import fs from 'node:fs';
-import { emailConfiavelDoToken, ehDiretoriaPeloToken, papelDeQuemChama, deveMarcarEmailConfirmado, classificarConta, podeConfirmarPrimeiroAcesso, podeDefinirSenha } from '../server/emailConfiavel.ts';
+import { emailConfiavelDoToken, ehDiretoriaPeloToken, papelDeQuemChama, deveMarcarEmailConfirmado, classificarConta, podeConfirmarPrimeiroAcesso, podeDefinirSenha, ehIdDePreCadastro } from '../server/emailConfiavel.ts';
 import { hostDeFotoAgendor, urlDeFotoAgendor } from '../server/fotoAgendor.ts';
 
 const token = (email: string, confirmado: boolean, provedor = 'password') =>
@@ -69,14 +69,57 @@ test('rodada única: diretoria nunca é marcada, e cada conta de fora sai com o 
 test('primeiro acesso sem e-mail confirmado: só com senha da Roder e login DEPOIS de ela ser definida', () => {
   const definida = '2026-10-19T12:00:00.000Z';
   const seg = Date.parse(definida) / 1000;
-  const dec = (auth_time: number, provedor = 'password') => ({ auth_time, firebase: { sign_in_provider: provedor } });
-  const prov = { initial_password: 'abc123', initial_password_set_at: definida };
-  assert.equal(podeConfirmarPrimeiroAcesso(dec(seg + 60), prov), true);
+  const dec = (auth_time: number, provedor = 'password') => ({ auth_time, email: 'p@x.com', firebase: { sign_in_provider: provedor } });
+  const prov = { email: 'p@x.com', initial_password: 'abc123', initial_password_set_at: definida };
+  const marca = { cadastro_id: 'temp_1', email: 'p@x.com', definida_em: definida, definida_por_uid: 'u_gis' };
+  assert.equal(podeConfirmarPrimeiroAcesso(dec(seg + 60), prov, 'temp_1', marca), true);
+  assert.equal(podeConfirmarPrimeiroAcesso(dec(seg + 60), prov, 'phone_14999990000', { ...marca, cadastro_id: 'phone_14999990000' }), true);
   // conta criada por fora e logada ANTES da senha da Roder: não passa
-  assert.equal(podeConfirmarPrimeiroAcesso(dec(seg - 60), prov), false);
-  assert.equal(podeConfirmarPrimeiroAcesso(dec(seg + 60, 'google.com'), prov), false);
-  assert.equal(podeConfirmarPrimeiroAcesso(dec(seg + 60), { initial_password: 'abc123' }), false);
-  assert.equal(podeConfirmarPrimeiroAcesso(dec(seg + 60), { initial_password_set_at: definida }), false);
+  assert.equal(podeConfirmarPrimeiroAcesso(dec(seg - 60), prov, 'temp_1', marca), false);
+  assert.equal(podeConfirmarPrimeiroAcesso(dec(seg + 60, 'google.com'), prov, 'temp_1', marca), false);
+  assert.equal(podeConfirmarPrimeiroAcesso(dec(seg + 60), { ...prov, initial_password: '' }, 'temp_1', marca), false);
+  // a data que vale é a da marca do servidor, e não a do cadastro
+  assert.equal(podeConfirmarPrimeiroAcesso(dec(seg + 60), { ...prov, initial_password_set_at: '2000-01-01T00:00:00.000Z' }, 'temp_1', { ...marca, definida_em: '2026-10-19T13:00:00.000Z' }), false);
+});
+
+test('CADASTRO FORJADO: users/{B} com o e-mail de A, senha inicial e data antiga não confirma o e-mail de A', () => {
+  // A: conta com senha criada por fora como x@roderbrasil.com.br, logada agora
+  const decA = { uid: 'u_a', email: 'x@roderbrasil.com.br', email_verified: false, auth_time: Math.floor(Date.now() / 1000), firebase: { sign_in_provider: 'password' } };
+  // o que a conta B gravou no próprio cadastro (o código do documento é o uid de B)
+  const forjado = { email: 'x@roderbrasil.com.br', role: 'external_seller', status: 'pending', initial_password: 'x', initial_password_set_at: '2000-01-01T00:00:00.000Z' };
+  // sem a marca do servidor: não passa
+  assert.equal(podeConfirmarPrimeiroAcesso(decA, forjado, 'u_b_uid_do_atacante', undefined), false);
+  assert.equal(podeConfirmarPrimeiroAcesso(decA, forjado, 'u_b_uid_do_atacante', null), false);
+  // código que não é de pré-cadastro: não passa nem com marca
+  const marcaB = { cadastro_id: 'u_b_uid_do_atacante', email: 'x@roderbrasil.com.br', definida_em: '2000-01-01T00:00:00.000Z', definida_por_uid: 'u_jef' };
+  assert.equal(podeConfirmarPrimeiroAcesso(decA, forjado, 'u_b_uid_do_atacante', marcaB), false);
+  // B chamando o próprio cadastro de temp_: ainda falta a marca do servidor
+  assert.equal(podeConfirmarPrimeiroAcesso(decA, forjado, 'temp_123', undefined), false);
+  // marca de outro cadastro, de outro e-mail, ou sem quem definiu: não passa
+  const marca = { cadastro_id: 'temp_123', email: 'x@roderbrasil.com.br', definida_em: '2000-01-01T00:00:00.000Z', definida_por_uid: 'u_jef' };
+  assert.equal(podeConfirmarPrimeiroAcesso(decA, forjado, 'temp_123', { ...marca, cadastro_id: 'temp_999' }), false);
+  assert.equal(podeConfirmarPrimeiroAcesso(decA, forjado, 'temp_123', { ...marca, email: 'outro@roderbrasil.com.br' }), false);
+  assert.equal(podeConfirmarPrimeiroAcesso(decA, forjado, 'temp_123', { ...marca, definida_por_uid: '' }), false);
+  assert.equal(ehIdDePreCadastro('temp_1'), true);
+  assert.equal(ehIdDePreCadastro('phone_1499'), true);
+  assert.equal(ehIdDePreCadastro('u_b_uid_do_atacante'), false);
+  assert.equal(ehIdDePreCadastro('xtemp_1'), false);
+});
+
+test('servidor: o primeiro acesso confere a marca do servidor e se o código não é conta de login, e a troca de senha grava a marca', () => {
+  const fonte = fs.readFileSync(new URL('../server.ts', import.meta.url), 'utf8');
+  const i = fonte.indexOf('app.post("/api/auth/reivindicar-perfil"');
+  const trecho = fonte.slice(i, fonte.indexOf('app.get("/api/settings/:docName"', i));
+  assert.ok(trecho.includes('ehIdDePreCadastro(d.id)'));
+  assert.ok(trecho.includes('admin.auth().getUser(d.id)'));
+  assert.ok(trecho.includes("collection('senhas_iniciais').doc(d.id).get()"));
+  assert.ok(trecho.includes('podeConfirmarPrimeiroAcesso(dec, d.data(), d.id, marca)'));
+  // login derrubado responde 401 com código, e não 500
+  assert.ok(trecho.includes("'auth/id-token-revoked' ? 'token_revogado'"));
+  const j = fonte.indexOf('app.post("/api/admin/set-user-password"');
+  const troca = fonte.slice(j, j + 9000);
+  assert.ok(troca.includes("collection('senhas_iniciais').doc(cadastroAlvo.id)"));
+  assert.ok(troca.includes('definida_por_uid: requesterUid'));
 });
 
 test('senha pela tela de Usuários: gestão não troca senha de gestão, de conta Google nem da diretoria', () => {
