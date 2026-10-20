@@ -9,12 +9,15 @@
 // mais passa para a conta definitiva quando o e-mail (ou o nome exato) aponta para UMA conta só:
 // é o mesmo que o primeiro acesso (reivindicar-perfil) faria se a pessoa entrasse de novo.
 // Venda faturada recente sem comissão nenhuma ganha a comissão pela mesma conta do faturamento
-// (gerarComissao, src/lib/calculoComissao.ts).
+// (gerarComissao, src/lib/calculoComissao.ts), mas SÓ quando o próprio faturamento gravou taxa de
+// comissão e desconto: venda faturada sem parceiro (taxa 0) perderia o desconto real, e indicação
+// estornada nunca é recriada. Esses casos vão para "travadas" com o motivo.
 //
 // Nunca mexe em comissão paga ou aguardando pagamento, nem quando o fechamento de um dos lados já
 // está pago ou aguardando pagamento: aí a nota fiscal saiu em nome de uma conta, e mudar só o
 // código deixaria fechamento e comissão discordando. Esses casos ficam no relatório ("travadas").
 // Roda no início do servidor e todo dia; é idempotente: a segunda rodada não acha nada para fazer.
+import { randomUUID } from 'node:crypto';
 import { transferirIndicacao, gerarComissao, normalizar, UIDS_DE_SISTEMA } from './diagnosticoComissao';
 import { calcularComissao, taxaDoParceiro, mesDaComissao } from '../src/lib/calculoComissao';
 
@@ -25,7 +28,7 @@ export type Criada = { indicacao_id: string; cliente: string; parceiro: string; 
 export type Travada = { indicacao_id: string | null; cliente: string; parceiro: string; motivo: string };
 export type ResultadoConciliacao = {
   rodada_em: string; terminou_em: string; origem: string;
-  movidas: Movida[]; criadas: Criada[]; travadas: Travada[]; erros: string[];
+  movidas: Movida[]; criadas: Criada[]; travadas: Travada[]; travadas_total: number; erros: string[];
 };
 
 // Só o servidor lê e grava aqui (o navegador não tem regra para cron_locks)
@@ -39,6 +42,8 @@ export const DIAS_PARA_GERAR = 90;
 // comissão ANTES de tirar o status de faturada, e gerar ali desfaria o estorno.
 const MINUTOS_SEM_MEXER = 30;
 const MAX_HISTORICO = 100;
+// A lista "travadas" vai dentro de um documento do Firestore (limite de 1 MB): fica só com as mais recentes
+export const MAX_TRAVADAS = 200;
 
 const AUTOR = { uid: 'sistema', nome: 'Correção automática' };
 const ORIGEM = 'correção automática de comissão';
@@ -49,12 +54,19 @@ const statusQueRecebe = (st: any) => !st || st === 'active' || st === 'pending';
 const papelQueRecebe = (role: any) => !role || role === 'external_seller';
 const recebe = (u: any) => !!u && papelQueRecebe(u.role) && statusQueRecebe(u.status);
 const travadoPorStatus = (st: any) => st === 'paid' || st === 'waiting_payment';
+// Indicação que já foi estornada: marca nova (estornado_em) ou, nas antigas, a linha do histórico
+const foiEstornada = (ind: any) => !!ind.estornado_em ||
+  (Array.isArray(ind.negotiation_history) && ind.negotiation_history.some((h: any) => /^ESTORNO DE FATURAMENTO/i.test(String(h?.content || ''))));
 
 export async function conciliarComissoes(deps: Deps, origem = 'diária'): Promise<ResultadoConciliacao> {
   const { db } = deps;
   const log = deps.log || console.log;
   const agora = deps.agora ? deps.agora() : new Date();
-  const res: ResultadoConciliacao = { rodada_em: agora.toISOString(), terminou_em: '', origem, movidas: [], criadas: [], travadas: [], erros: [] };
+  const res: ResultadoConciliacao = { rodada_em: agora.toISOString(), terminou_em: '', origem, movidas: [], criadas: [], travadas: [], travadas_total: 0, erros: [] };
+  // quanto mais recente a venda, mais cedo na lista; no fim fica só o teto
+  const todasTravadas: { t: Travada; ordem: number }[] = [];
+  let quandoAtual: any = '';
+  const travar = (t: Travada, quando?: any) => { const o = Date.parse(String(quando || quandoAtual || '')); todasTravadas.push({ t, ordem: Number.isFinite(o) ? o : 0 }); };
 
   const usersSnap = await db.collection('users').get();
   const porId = new Map<string, any>();
@@ -72,12 +84,14 @@ export async function conciliarComissoes(deps: Deps, origem = 'diária'): Promis
   const porNome = (n: string) => n ? unica(definitivas.filter(u => normalizar(u.name) === n)) : null;
 
   const indSnap = await db.collection('indications')
-    .select('status', 'client_name', 'external_seller_uid', 'external_seller_name', 'external_seller_email', 'sale_date', 'updated_at', 'commissioned_products', 'discount_amount', 'delivery_date')
+    .select('status', 'client_name', 'external_seller_uid', 'external_seller_name', 'external_seller_email', 'sale_date', 'updated_at', 'commissioned_products', 'discount_amount', 'delivery_date', 'commission_rate_applied', 'estornado_em', 'negotiation_history')
     .get();
   const indicacoes = new Map<string, any>();
   indSnap.docs.forEach((d: any) => indicacoes.set(d.id, d.data() || {}));
 
-  const commSnap = await db.collection('commissions').get();
+  const commSnap = await db.collection('commissions')
+    .select('indication_id', 'external_seller_uid', 'external_seller_name', 'value', 'status', 'transferencia_pendente', 'created_at')
+    .get();
   const comissoesPorInd = new Map<string, any[]>();
   for (const c of commSnap.docs) {
     const cd = c.data() || {};
@@ -85,7 +99,7 @@ export async function conciliarComissoes(deps: Deps, origem = 'diária'): Promis
     if (!indId || !indicacoes.has(indId)) {
       // sem indicação não há como saber quem recebe: só avisa se está num código que não existe
       const u = cd.external_seller_uid ? usuario(String(cd.external_seller_uid)) : null;
-      if (!u && !travadoPorStatus(cd.status)) res.travadas.push({ indicacao_id: indId || null, cliente: '', parceiro: cd.external_seller_name || cd.external_seller_uid || '-', motivo: `Comissão ${c.id} de ${brl(Number(cd.value) || 0)} sem indicação e num código que não existe mais no cadastro.` });
+      if (!u && !travadoPorStatus(cd.status)) travar({ indicacao_id: indId || null, cliente: '', parceiro: cd.external_seller_name || cd.external_seller_uid || '-', motivo: `Comissão ${c.id} de ${brl(Number(cd.value) || 0)} sem indicação e num código que não existe mais no cadastro.` }, cd.created_at);
       continue;
     }
     if (!comissoesPorInd.has(indId)) comissoesPorInd.set(indId, []);
@@ -103,6 +117,7 @@ export async function conciliarComissoes(deps: Deps, origem = 'diária'): Promis
     const comms = comissoesPorInd.get(indId) || [];
     const uidInd = String(ind.external_seller_uid || '');
     const cliente = String(ind.client_name || '');
+    quandoAtual = ind.updated_at || ind.sale_date;
     if (!uidInd || UIDS_DE_SISTEMA.includes(uidInd)) continue;
 
     // 1. Parceiro de destino: o da indicação, ou a conta definitiva de um provisório que sobrou
@@ -113,14 +128,19 @@ export async function conciliarComissoes(deps: Deps, origem = 'diária'): Promis
       const email = String((atual && atual.email) || ind.external_seller_email || '').toLowerCase().trim();
       const nome = normalizar((atual && atual.name) || ind.external_seller_name);
       const pelaConta = porEmail(email);
-      const pelaNome = pelaConta ? null : porNome(nome);
+      // O nome só vale quando a indicação não tem e-mail nenhum. Com e-mail conhecido que não bate
+      // com ninguém, o nome igual é um homônimo: a comissão iria para outra pessoa.
+      const pelaNome = pelaConta || email ? null : porNome(nome);
       const achada = pelaConta || pelaNome;
       if (achada) {
         destino = achada;
         motivo = `a venda estava num cadastro ${atual ? 'provisório' : 'apagado'} e foi para a conta definitiva com o mesmo ${pelaConta ? 'e-mail' : 'nome'}`;
       } else if (!atual) {
         // código que não existe e sem conta certa para onde ir: só avisa quando há dinheiro parado
-        if (ind.status === 'sold' || comms.length) res.travadas.push({ indicacao_id: indId, cliente, parceiro: ind.external_seller_name || uidInd, motivo: 'A venda está ligada a um código que não existe mais, e não há uma conta só com o mesmo e-mail ou nome para onde levar. Use "Trocar Indicador" na tela de Indicações.' });
+        const porque = email
+          ? `O e-mail ${email} da indicação não está em nenhuma conta (ou está em mais de uma), e o nome não é usado quando há e-mail, para não levar a venda a um homônimo.`
+          : 'Não há uma conta só com o mesmo nome (zero contas ou mais de uma).';
+        if (ind.status === 'sold' || comms.length) travar({ indicacao_id: indId, cliente, parceiro: ind.external_seller_name || uidInd, motivo: `A venda está ligada a um código que não existe mais. ${porque} Use "Trocar Indicador" na tela de Indicações.` }, ind.updated_at || ind.sale_date);
         continue;
       }
     }
@@ -132,12 +152,12 @@ export async function conciliarComissoes(deps: Deps, origem = 'diária'): Promis
     let mexiAgora = false;
     if (uidInd !== destUid || fora.length) {
       if (!recebe(destino)) {
-        if (fora.length) res.travadas.push({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: `A comissão está em outro código, mas ${nomeDest} ${papelQueRecebe(destino.role) ? `está com o cadastro ${destino.status}` : 'é da equipe Roder'} e não recebe comissão.` });
+        if (fora.length) travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: `A comissão está em outro código, mas ${nomeDest} ${papelQueRecebe(destino.role) ? `está com o cadastro ${destino.status}` : 'é da equipe Roder'} e não recebe comissão.` });
         continue;
       }
       const presa = comms.find(c => travadoPorStatus(c.status));
       if (presa) {
-        res.travadas.push({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: `A comissão de ${brl(Number(presa.value) || 0)} já está ${presa.status === 'paid' ? 'paga' : 'aguardando pagamento'} na conta ${presa.external_seller_name || presa.external_seller_uid}. Não foi mexida: a nota fiscal e o pagamento são dessa conta. Acerte com o financeiro.` });
+        travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: `A comissão de ${brl(Number(presa.value) || 0)} já está ${presa.status === 'paid' ? 'paga' : 'aguardando pagamento'} na conta ${presa.external_seller_name || presa.external_seller_uid}. Não foi mexida: a nota fiscal e o pagamento são dessa conta. Acerte com o financeiro.` });
         continue;
       }
       try {
@@ -150,7 +170,7 @@ export async function conciliarComissoes(deps: Deps, origem = 'diária'): Promis
         comms.forEach(c => { c.external_seller_uid = destUid; c.transferencia_pendente = null; });
         mexiAgora = true;
       } catch (e: any) {
-        if (e?.status === 409) res.travadas.push({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: e.message });
+        if (e?.status === 409) travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: e.message });
         else res.erros.push(`${cliente || indId}: ${e?.message || e}`);
         continue;
       }
@@ -165,34 +185,50 @@ export async function conciliarComissoes(deps: Deps, origem = 'diária'): Promis
 
     // 3. Venda faturada sem comissão nenhuma
     if (ind.status !== 'sold' || comms.length || !recebe(destino)) continue;
-    const calc = calcularComissao(ind.commissioned_products || [], Number(ind.discount_amount) || 0, taxaDoParceiro(destino));
-    if (calc.valor <= 0) {
-      res.travadas.push({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: 'Venda faturada sem comissão, e os produtos da indicação não dão base de comissão (sem produto ou só kit, frete e instalação). Vincule os produtos vendidos.' });
+    // Indicação estornada: o estorno apaga a comissão de propósito. Recriar desfaria o estorno.
+    if (foiEstornada(ind)) {
+      travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: 'Venda faturada sem comissão, mas esta indicação já foi estornada antes e a comissão foi apagada de propósito. Não é lançada sozinha. Se for devida, gere pelo Diagnóstico de comissão.' });
       continue;
     }
-    const mexida = Date.parse(ind.updated_at || '');
-    if (!mexiAgora && Number.isFinite(mexida) && agora.getTime() - mexida < MINUTOS_SEM_MEXER * 60 * 1000) continue; // próxima rodada
+    // O limite de 90 dias vem antes de qualquer outra conta: venda antiga é sempre "antiga demais"
     const dataVenda = Date.parse(String(ind.sale_date || '').slice(0, 10) + 'T12:00:00-03:00');
     const dias = Number.isFinite(dataVenda) ? (agora.getTime() - dataVenda) / 86400000 : Infinity;
     if (dias > DIAS_PARA_GERAR) {
-      res.travadas.push({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: `Venda faturada sem comissão, com pedido de ${ind.sale_date ? String(ind.sale_date).slice(0, 10).split('-').reverse().join('/') : 'data desconhecida'}: antiga demais para lançar sozinha (mais de ${DIAS_PARA_GERAR} dias). Se a comissão é devida, gere pelo Diagnóstico de comissão.` });
+      travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: `Venda faturada sem comissão, com pedido de ${ind.sale_date ? String(ind.sale_date).slice(0, 10).split('-').reverse().join('/') : 'data desconhecida'}: antiga demais para lançar sozinha (mais de ${DIAS_PARA_GERAR} dias). Se a comissão é devida, gere pelo Diagnóstico de comissão.` });
       continue;
     }
+    // Só lança quando o próprio faturamento gravou taxa de comissão (faturou COM parceiro que recebe)
+    // e o desconto. Faturada sem parceiro grava taxa 0 e desconto 0, e o desconto real se perdeu:
+    // a conta sairia errada para cima. Depois de "Trocar Indicador" é o caso típico.
+    if (!(Number(ind.commission_rate_applied) > 0) || typeof ind.discount_amount !== 'number') {
+      travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: 'Venda faturada sem comissão, e o faturamento não gravou taxa de comissão e desconto (foi faturada sem parceiro, ou o desconto é desconhecido). Não é lançada sozinha, para não pagar a mais. Confira o desconto e gere pelo Diagnóstico de comissão.' });
+      continue;
+    }
+    const calc = calcularComissao(ind.commissioned_products || [], ind.discount_amount, taxaDoParceiro(destino));
+    if (calc.valor <= 0) {
+      travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: 'Venda faturada sem comissão, e os produtos da indicação não dão base de comissão (sem produto ou só kit, frete e instalação). Vincule os produtos vendidos.' });
+      continue;
+    }
+    // Indicação mexida há pouco fica para a próxima rodada
+    const mexida = Date.parse(ind.updated_at || '');
+    if (!mexiAgora && Number.isFinite(mexida) && agora.getTime() - mexida < MINUTOS_SEM_MEXER * 60 * 1000) continue;
     const mes = mesDaComissao(ind.delivery_date, agora);
     if (await fechamentoTravado(destUid, mes.month, mes.year)) {
-      res.travadas.push({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: `Venda faturada sem comissão, mas o fechamento de ${String(mes.month).padStart(2, '0')}/${mes.year} de ${nomeDest} já está pago ou aguardando pagamento. Acerte com o financeiro.` });
+      travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: `Venda faturada sem comissão, mas o fechamento de ${String(mes.month).padStart(2, '0')}/${mes.year} de ${nomeDest} já está pago ou aguardando pagamento. Acerte com o financeiro.` });
       continue;
     }
     try {
-      const r = await gerarComissao(deps, indId, AUTOR, undefined, { geradoPor: 'correcao_automatica', textoHistorico: 'COMISSÃO LANÇADA PELA CORREÇÃO AUTOMÁTICA' });
+      const r = await gerarComissao(deps, indId, AUTOR, undefined, { geradoPor: 'correcao_automatica', textoHistorico: 'COMISSÃO LANÇADA PELA CORREÇÃO AUTOMÁTICA', semAvisoFinanceiro: true });
       res.criadas.push({ indicacao_id: indId, cliente, parceiro: r.parceiro, valor: r.valor, month: r.month, year: r.year });
       log(`[CORRECAO-COMISSAO] ${cliente || indId}: comissão de ${brl(r.valor)} lançada para ${r.parceiro} (${destUid}), pagamento em ${String(r.month).padStart(2, '0')}/${r.year}.`);
     } catch (e: any) {
-      if (e?.status === 409) res.travadas.push({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: e.message });
+      if (e?.status === 409) travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: e.message });
       else res.erros.push(`${cliente || indId}: ${e?.message || e}`);
     }
   }
 
+  res.travadas_total = todasTravadas.length;
+  res.travadas = todasTravadas.sort((a, b) => b.ordem - a.ordem).slice(0, MAX_TRAVADAS).map(x => x.t);
   res.terminou_em = (deps.agora ? deps.agora() : new Date()).toISOString();
   return res;
 }
@@ -206,14 +242,24 @@ export async function conciliarComTrava(deps: Deps, origem: string): Promise<Res
   const log = deps.log || console.log;
   const agora = () => (deps.agora ? deps.agora() : new Date());
   const trava = db.collection('cron_locks').doc(DOC_TRAVA);
+  // Dono da trava: só quem a criou (ou a retomou) pode apagá-la. Sem isso, uma rodada lenta apagaria
+  // a trava de quem a retomou depois dos 30 minutos.
+  const dono = randomUUID();
+  const dados = (extra: any = {}) => ({ job: 'conciliacao_comissao', origem, owner_id: dono, started_at: agora().toISOString(), ...extra });
   try {
-    await trava.create({ job: 'conciliacao_comissao', origem, started_at: agora().toISOString() });
+    await trava.create(dados());
   } catch (e: any) {
     if (e?.code !== 6) { console.error('[CORRECAO-COMISSAO] Não consegui criar a trava:', e?.message); return null; }
-    const t: any = (await trava.get()).data() || {};
-    const velha = t.started_at && agora().getTime() - new Date(t.started_at).getTime() > TRAVA_VELHA_MS;
-    if (!velha) { log('[CORRECAO-COMISSAO] Outra rodada em andamento; esta foi pulada.'); return null; }
-    await trava.set({ job: 'conciliacao_comissao', origem, started_at: agora().toISOString(), retomada: true });
+    // retomada numa transação: duas rodadas que veem a trava velha ao mesmo tempo não passam as duas
+    const retomou = await db.runTransaction(async (tx: any) => {
+      const atual = await tx.get(trava);
+      const t: any = atual.exists ? (atual.data() || {}) : {};
+      const velha = !atual.exists || !t.started_at || agora().getTime() - new Date(t.started_at).getTime() > TRAVA_VELHA_MS;
+      if (!velha) return false;
+      tx.set(trava, dados({ retomada: true }));
+      return true;
+    }).catch(() => false);
+    if (!retomou) { log('[CORRECAO-COMISSAO] Outra rodada em andamento; esta foi pulada.'); return null; }
   }
   try {
     const r = await conciliarComissoes(deps, origem);
@@ -231,7 +277,13 @@ export async function conciliarComTrava(deps: Deps, origem: string): Promise<Res
     console.error('[CORRECAO-COMISSAO] Erro:', e?.message);
     return null;
   } finally {
-    try { await trava.delete(); } catch { /* a trava velha é retomada na próxima */ }
+    try {
+      // só apaga se a trava ainda é nossa
+      await db.runTransaction(async (tx: any) => {
+        const atual = await tx.get(trava);
+        if (atual.exists && (atual.data() || {}).owner_id === dono) tx.delete(trava);
+      });
+    } catch { /* a trava velha é retomada na próxima */ }
   }
 }
 

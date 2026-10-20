@@ -718,7 +718,7 @@ function cenarioLuiz(extra: any = {}) {
       gis: { uid: 'gis', name: 'Gislene', email: 'gislene@roderbrasil.com.br', role: 'manager', status: 'active' },
     },
     indications: {
-      i_luiz: { status: 'sold', client_name: 'LUIZ OTAVIO', external_seller_uid: 'raf', external_seller_name: 'Rafael - MAQLOC', commissioned_products: CMF600, sale_value: 230000, sale_date: '2026-10-06', updated_at: '2026-10-06T15:00:00Z' },
+      i_luiz: { status: 'sold', client_name: 'LUIZ OTAVIO', external_seller_uid: 'raf', external_seller_name: 'Rafael - MAQLOC', commissioned_products: CMF600, sale_value: 230000, sale_date: '2026-10-06', updated_at: '2026-10-06T15:00:00Z', commission_rate_applied: 3, discount_amount: 0 },
     },
     commissions: {
       i_luiz: { indication_id: 'i_luiz', external_seller_uid: 'temp_1759', external_seller_name: 'Rafael - MAQLOC', value: 6000, status: 'waiting_nf', month: 11, year: 2026 },
@@ -806,9 +806,9 @@ test('CORREÇÃO: fechamento do destino pago ou aguardando pagamento vira relat�
 
 test('CORREÇÃO: venda faturada recente sem comissão ganha a dela pela conta do faturamento; antiga só é avisada', async () => {
   const db = cenarioLuiz({ indications: {
-    i_antiga: { status: 'sold', client_name: 'Venda de 2025', external_seller_uid: 'raf', commissioned_products: CMF600, sale_date: '2025-03-01', updated_at: '2025-03-01T10:00:00Z' },
+    i_antiga: { status: 'sold', client_name: 'Venda de 2025', external_seller_uid: 'raf', commissioned_products: CMF600, sale_date: '2025-03-01', updated_at: '2025-03-01T10:00:00Z', commission_rate_applied: 3, discount_amount: 0 },
     i_gerente: { status: 'sold', client_name: 'Venda da gerente', external_seller_uid: 'gis', commissioned_products: CMF600, sale_date: '2026-10-10' },
-    i_agora: { status: 'sold', client_name: 'Estorno em andamento', external_seller_uid: 'raf', commissioned_products: CMF600, sale_date: '2026-10-19', updated_at: new Date(AGORA.getTime() - 5 * 60000).toISOString() },
+    i_agora: { status: 'sold', client_name: 'Estorno em andamento', external_seller_uid: 'raf', commissioned_products: CMF600, sale_date: '2026-10-19', updated_at: new Date(AGORA.getTime() - 5 * 60000).toISOString(), commission_rate_applied: 3, discount_amount: 0 },
   } });
   delete db.dados.commissions.i_luiz;
   const r = await conciliarComissoes(depsC(db));
@@ -828,7 +828,7 @@ test('CORREÇÃO: venda faturada recente sem comissão ganha a dela pela conta d
 });
 
 test('CORREÇÃO: a segunda rodada não faz nada, o histórico guarda o que foi feito e a trava impede rodar junto', async () => {
-  const db = cenarioLuiz({ indications: { i_nova: { status: 'sold', client_name: 'Serraria Nova', external_seller_uid: 'raf', commissioned_products: CMF600, sale_date: '2026-10-08', updated_at: '2026-10-08T10:00:00Z' } } });
+  const db = cenarioLuiz({ indications: { i_nova: { status: 'sold', client_name: 'Serraria Nova', external_seller_uid: 'raf', commissioned_products: CMF600, sale_date: '2026-10-08', updated_at: '2026-10-08T10:00:00Z', commission_rate_applied: 3, discount_amount: 0 } } });
   const r1: any = await conciliarComTrava(depsC(db), 'início do servidor');
   assert.equal(r1.movidas.length, 1);
   assert.equal(r1.criadas.length, 1);
@@ -850,4 +850,77 @@ test('CORREÇÃO: a segunda rodada não faz nada, o histórico guarda o que foi 
   // trava velha (processo morto no meio) é retomada
   db.dados.cron_locks[DOC_TRAVA] = { started_at: '2026-10-18T00:00:00Z' };
   assert.ok(await conciliarComTrava(depsC(db), 'diária'));
+});
+
+
+test('CORREÇÃO: homônimo com e-mail diferente não recebe a venda; sem e-mail nenhum o nome único ainda vale', async () => {
+  // indicação com e-mail conhecido que não bate com ninguém, código sumido, nome igual ao do Rafael
+  let db = cenarioLuiz();
+  db.dados.indications.i_luiz.external_seller_uid = 'sumiu';
+  db.dados.indications.i_luiz.external_seller_email = 'rafael.outro@empresa.com.br';
+  db.dados.commissions.i_luiz.external_seller_uid = 'sumiu';
+  let r = await conciliarComissoes(depsC(db));
+  assert.equal(r.movidas.length, 0);
+  assert.equal(db.dados.commissions.i_luiz.external_seller_uid, 'sumiu', 'a comissão não vai para o homônimo');
+  assert.equal(db.dados.indications.i_luiz.external_seller_uid, 'sumiu');
+  assert.equal(r.travadas.length, 1);
+  assert.match(r.travadas[0].motivo, /e-mail rafael\.outro@empresa\.com\.br/);
+  // sem e-mail nenhum na indicação, o nome único leva
+  db = cenarioLuiz();
+  db.dados.indications.i_luiz.external_seller_uid = 'sumiu';
+  db.dados.commissions.i_luiz.external_seller_uid = 'sumiu';
+  r = await conciliarComissoes(depsC(db));
+  assert.equal(r.movidas.length, 1);
+  assert.equal(db.dados.commissions.i_luiz.external_seller_uid, 'raf');
+});
+
+test('CORREÇÃO: venda faturada sem parceiro e depois "Trocar Indicador" não ganha comissão sozinha', async () => {
+  const db = cenarioLuiz({ indications: { i_sem: { status: 'sold', client_name: 'Faturada sem parceiro', external_seller_uid: 'raf', commissioned_products: CMF600, sale_date: '2026-10-08', updated_at: '2026-10-08T10:00:00Z', commission_rate_applied: 0, discount_amount: 0 },
+    i_semcampo: { status: 'sold', client_name: 'Sem taxa gravada', external_seller_uid: 'raf', commissioned_products: CMF600, sale_date: '2026-10-08', updated_at: '2026-10-08T10:00:00Z' } } });
+  delete db.dados.commissions.i_luiz;
+  db.dados.indications.i_luiz.commission_rate_applied = 3;
+  const r = await conciliarComissoes(depsC(db));
+  assert.deepEqual(r.criadas.map(c => c.indicacao_id), ['i_luiz'], 'só a que gravou taxa e desconto');
+  assert.ok(!db.dados.commissions.i_sem && !db.dados.commissions.i_semcampo);
+  const t = r.travadas.filter(x => x.indicacao_id === 'i_sem' || x.indicacao_id === 'i_semcampo');
+  assert.equal(t.length, 2);
+  assert.ok(t.every(x => /não gravou taxa de comissão e desconto/.test(x.motivo)));
+  assert.equal(db.dados.indications.i_luiz.finance_notice_pending, undefined, 'a correção não programa aviso ao financeiro');
+});
+
+test('CORREÇÃO: indicação estornada (marca ou histórico antigo) não tem a comissão recriada', async () => {
+  const db = cenarioLuiz({ indications: {
+    i_marca: { status: 'sold', client_name: 'Com marca', external_seller_uid: 'raf', commissioned_products: CMF600, sale_date: '2026-10-08', updated_at: '2026-10-08T10:00:00Z', commission_rate_applied: 3, discount_amount: 0, estornado_em: '2026-10-08T11:00:00Z' },
+    i_hist: { status: 'sold', client_name: 'Só histórico', external_seller_uid: 'raf', commissioned_products: CMF600, sale_date: '2026-10-08', updated_at: '2026-10-08T10:00:00Z', commission_rate_applied: 3, discount_amount: 0, negotiation_history: [{ content: 'ESTORNO DE FATURAMENTO: desfeito' }] },
+  } });
+  delete db.dados.commissions.i_luiz;
+  const r = await conciliarComissoes(depsC(db));
+  assert.deepEqual(r.criadas.map(c => c.indicacao_id), ['i_luiz']);
+  assert.ok(!db.dados.commissions.i_marca && !db.dados.commissions.i_hist);
+  assert.equal(r.travadas.filter(t => /já foi estornada/.test(t.motivo)).length, 2);
+});
+
+test('CORREÇÃO: a lista de travadas tem teto, com as mais recentes primeiro, e o total fica registrado', async () => {
+  const ind: any = {};
+  for (let i = 0; i < 230; i++) {
+    const dia = String(1 + (i % 28)).padStart(2, '0');
+    ind[`antiga_${i}`] = { status: 'sold', client_name: `Antiga ${i}`, external_seller_uid: 'raf', commissioned_products: CMF600, sale_date: '2025-01-10', updated_at: `2025-0${1 + (i % 9)}-${dia}T10:00:00Z`, commission_rate_applied: 3, discount_amount: 0 };
+  }
+  const db = cenarioLuiz({ indications: ind });
+  const r = await conciliarComissoes(depsC(db));
+  assert.equal(r.travadas.length, 200);
+  assert.equal(r.travadas_total, 230);
+  const datas = r.travadas.map(t => Date.parse(db.dados.indications[t.indicacao_id!].updated_at));
+  assert.ok(datas.every((d, i) => i === 0 || datas[i - 1] >= d), 'mais recentes primeiro');
+  assert.ok(JSON.stringify(r).length < 200000, 'bem abaixo de 1 MB');
+});
+
+test('CORREÇÃO: a trava só é apagada por quem é dono dela', async () => {
+  const db = cenarioLuiz();
+  // outra rodada retoma a trava no meio da nossa: ao terminar, não apagamos a dela
+  const deps = depsC(db);
+  let chamou = false;
+  (deps as any).log = (m: string) => { if (!chamou && /Rodada/.test(m)) { chamou = true; db.dados.cron_locks[DOC_TRAVA] = { owner_id: 'outro', started_at: AGORA.toISOString() }; } };
+  await conciliarComTrava(deps, 'diária');
+  assert.equal(db.dados.cron_locks[DOC_TRAVA]?.owner_id, 'outro', 'trava do outro dono continua');
 });

@@ -1425,7 +1425,28 @@ export default function NegotiationCentral() {
     
     setLoading(true);
     try {
-      // 1. Delete associated commissions
+      // 1. Primeiro o status, a marca do estorno e o updated_at (a correção automática de comissão
+      // nunca recria comissão de indicação com estornado_em). Só depois a comissão é apagada.
+      const leadRef = doc(db, 'indications', activeIndication.id);
+      await updateDoc(leadRef, {
+        status: 'negotiating',
+        estornado_em: new Date().toISOString(),
+        sale_value: 0,
+        commission_value: 0,
+        commissionable_value: 0,
+        standard_seller_commission_value: 0,
+        invoice_url: "",
+        updated_at: new Date().toISOString(),
+        negotiation_history: arrayUnion({
+          id: Math.random().toString(36).substring(2, 11),
+          type: 'status_change',
+          author_name: profile?.name || 'Sistema',
+          created_at: new Date().toISOString(),
+          content: `ESTORNO DE FATURAMENTO: O faturamento foi desfeito por ${profile?.name || 'Sistema'}. O status retornou para Negociação e as comissões e baixas de estoque foram devidamente revertidas.`
+        })
+      });
+
+      // 2. Delete associated commissions
       const commissionsRef = collection(db, 'commissions');
       const commQuery = query(commissionsRef, where('indication_id', '==', activeIndication.id));
       const commSnap = await getDocs(commQuery);
@@ -1433,7 +1454,7 @@ export default function NegotiationCentral() {
         await deleteDoc(doc(db, 'commissions', docSnap.id));
       }
 
-      // 2. Revert associated stock sales
+      // 3. Revert associated stock sales
       const stockSalesRef = collection(db, 'stock_sales');
       // Só pelo id da indicação. A busca de reserva pelo nome do cliente foi tirada: ela pegava
       // baixas de OUTRAS vendas do mesmo cliente e devolvia ao estoque peças que já tinham saído.
@@ -1458,25 +1479,6 @@ export default function NegotiationCentral() {
         }
         await deleteDoc(doc(db, 'stock_sales', docSnap.id));
       }
-
-      // 3. Move status back and clear values
-      const leadRef = doc(db, 'indications', activeIndication.id);
-      await updateDoc(leadRef, {
-        status: 'negotiating',
-        sale_value: 0,
-        commission_value: 0,
-        commissionable_value: 0,
-        standard_seller_commission_value: 0,
-        invoice_url: "",
-        updated_at: new Date().toISOString(),
-        negotiation_history: arrayUnion({
-          id: Math.random().toString(36).substring(2, 11),
-          type: 'status_change',
-          author_name: profile?.name || 'Sistema',
-          created_at: new Date().toISOString(),
-          content: `ESTORNO DE FATURAMENTO: O faturamento foi desfeito por ${profile?.name || 'Sistema'}. O status retornou para Negociação e as comissões e baixas de estoque foram devidamente revertidas.`
-        })
-      });
 
       toast.success('Faturamento estornado e retornado para negociação com sucesso!');
       

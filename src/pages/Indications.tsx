@@ -462,7 +462,29 @@ export default function Indications() {
     try {
       const toastId = toast.loading('Processando estorno/reversão...');
       
-      // 1. Delete associated commissions
+      // 1. Primeiro o status, a marca do estorno e o updated_at. A correção automática de comissão só
+      // recria comissão de venda faturada sem comissão: apagando a comissão antes, ela veria a venda
+      // ainda faturada e desfaria o estorno. Com estornado_em gravado antes, ela nunca recria.
+      const leadRef = doc(db, 'indications', ind.id);
+      await updateDoc(leadRef, {
+        status: 'negotiating',
+        estornado_em: new Date().toISOString(),
+        sale_value: 0,
+        commission_value: 0,
+        commissionable_value: 0,
+        standard_seller_commission_value: 0,
+        invoice_url: "",
+        updated_at: new Date().toISOString(),
+        negotiation_history: arrayUnion({
+          id: Math.random().toString(36).substring(2, 11),
+          type: 'status_change',
+          author_name: profile?.name || 'Sistema',
+          created_at: new Date().toISOString(),
+          content: `ESTORNO DE FATURAMENTO: O faturamento foi desfeito por ${profile?.name}. O status retornou para Negociação e as comissões e baixas de estoque foram devidamente revertidas.`
+        })
+      });
+
+      // 2. Delete associated commissions (só depois de a indicação sair de faturada)
       const commissionsRef = collection(db, 'commissions');
       const commQuery = query(commissionsRef, where('indication_id', '==', ind.id));
       const commSnap = await getDocs(commQuery);
@@ -470,7 +492,7 @@ export default function Indications() {
         await deleteDoc(doc(db, 'commissions', docSnap.id));
       }
 
-      // 2. Revert associated stock sales
+      // 3. Revert associated stock sales
       const stockSalesRef = collection(db, 'stock_sales');
       // Search by indication_id matching the field we are introducing
       // Só pelo id da indicação. A busca de reserva pelo nome do cliente foi tirada: ela pegava
@@ -497,25 +519,6 @@ export default function Indications() {
         // Delete the stock sale record
         await deleteDoc(doc(db, 'stock_sales', docSnap.id));
       }
-
-      // 3. Move status of indication back to 'negotiating' and clear sales value/commission variables
-      const leadRef = doc(db, 'indications', ind.id);
-      await updateDoc(leadRef, {
-        status: 'negotiating',
-        sale_value: 0,
-        commission_value: 0,
-        commissionable_value: 0,
-        standard_seller_commission_value: 0,
-        invoice_url: "",
-        updated_at: new Date().toISOString(),
-        negotiation_history: arrayUnion({
-          id: Math.random().toString(36).substring(2, 11),
-          type: 'status_change',
-          author_name: profile?.name || 'Sistema',
-          created_at: new Date().toISOString(),
-          content: `ESTORNO DE FATURAMENTO: O faturamento foi desfeito por ${profile?.name}. O status retornou para Negociação e as comissões e baixas de estoque foram devidamente revertidas.`
-        })
-      });
 
       toast.dismiss(toastId);
       toast.success('Faturamento estornado e retornado para negociação com sucesso!');

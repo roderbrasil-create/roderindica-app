@@ -120,6 +120,8 @@ export interface Indication {
   sale_value?: number;
   commission_value?: number;
   commission_rate_applied?: number;
+  // Gravado no estorno do faturamento: a correção automática nunca recria a comissão apagada
+  estornado_em?: string;
   protection_expires_at?: string;
   agendor_synced?: boolean;
   agendor_deal_id?: number | null;

@@ -315,7 +315,10 @@ export async function previaGeracao(deps: Deps, indId: string, desconto?: number
 }
 
 // Cria commissions/{id da indicação} exatamente como o faturamento cria. Nunca sobrescreve.
-type OpcoesGerar = { geradoPor?: string; textoHistorico?: string };
+// semAvisoFinanceiro: a correção automática não programa o aviso ao financeiro comissão por comissão
+// (a primeira rodada poderia soltar dezenas de e-mails de uma vez); o financeiro já recebe tudo nos
+// relatórios do dia 1, 5 e 7.
+type OpcoesGerar = { geradoPor?: string; textoHistorico?: string; semAvisoFinanceiro?: boolean };
 
 export async function gerarComissao(deps: DepsEscrita, indId: string, autor: { uid: string; nome: string }, desconto?: number, opcoes: OpcoesGerar = {}) {
   const { db, arrayUnion } = deps;
@@ -365,7 +368,7 @@ export async function gerarComissao(deps: DepsEscrita, indId: string, autor: { u
       discount_percentage: r.calc.descontoPct,
       updated_at: nowIso,
       // mesmo aviso ao financeiro do faturamento: sai 2 dias depois, se ainda não saiu
-      ...(ind.finance_notice_sent_at ? {} : { finance_notice_pending: true, finance_notice_due_at: new Date(agora.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString() }),
+      ...(ind.finance_notice_sent_at || opcoes.semAvisoFinanceiro ? {} : { finance_notice_pending: true, finance_notice_due_at: new Date(agora.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString() }),
       negotiation_history: arrayUnion({
         id: idHist(), type: 'status_change', author_name: autor.nome || 'Administrador', created_at: nowIso,
         content: `${opcoes.textoHistorico || 'COMISSÃO LANÇADA PELO DIAGNÓSTICO'}: a venda estava faturada sem comissão. Comissão de ${brl(r.calc.valor)} sobre a base comissionável de ${brl(r.calc.base)}` + (r.calc.desconto > 0 ? `, já com o desconto de ${brl(r.calc.desconto)} abatido` : '') + `, para pagamento em ${String(r.mes.month).padStart(2, '0')}/${r.mes.year}.`,
