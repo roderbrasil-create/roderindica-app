@@ -76,14 +76,19 @@ export function maquinasDoProduto(p: { name?: string; models?: any[] }): Set<Tip
     const perfil = perfilInstalacao(nome, specs);
     const base = nomeMaquinaBase(perfil, nome);
     const textoBase = String(specs.maquina_base || specs.trator || '').toLowerCase();
+    // A máquina base escrita no cadastro manda: garra de estufagem diz "Pá Carregadeira"
+    // e não pode cair em escavadeira só porque o perfil de instalação não a reconhece.
+    const doTexto = new Set<TipoMaquina>();
+    if (/p[áa]\s*carregadeira|carregadeira|empilhadeira/.test(textoBase)) doTexto.add('pa');
+    if (/escavadeira/.test(textoBase)) doTexto.add('escavadeira');
+    if (/trator/.test(textoBase)) doTexto.add('trator');
+    if (/guindaste|munck|grua|cesto/.test(textoBase)) doTexto.add('guindaste');
+    if (/estufagem/i.test(nome)) doTexto.add('pa');
     if (base === 'tratores') r.add('trator');
     else if (base === 'guindastes') r.add('guindaste');
     else if (base === 'pá carregadeira') r.add('pa');
-    else r.add('escavadeira');
-    if (/p[áa]\s*carregadeira|carregadeira/.test(textoBase)) r.add('pa');
-    if (/escavadeira/.test(textoBase)) r.add('escavadeira');
-    if (/trator/.test(textoBase)) r.add('trator');
-    if (/guindaste|munck|grua|cesto/.test(textoBase)) r.add('guindaste');
+    else if (doTexto.size === 0) r.add('escavadeira');
+    doTexto.forEach(t => r.add(t));
   }
   return r;
 }
