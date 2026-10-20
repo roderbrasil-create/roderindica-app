@@ -675,7 +675,7 @@ export function EstudosComparativosModal({ onClose, initialSearch = '' }: Estudo
           <div className="bg-red-100 border-2 border-red-400 p-4 rounded-xl space-y-1.5 text-red-950 shadow-sm">
             <p className="font-black uppercase text-sm sm:text-base">Cabeçote Multifuncional sem fatia extra:</p>
             <p className="text-sm font-bold leading-relaxed">
-              Em CAT 320 nova (joystick eletrônico), o cabeçote multifuncional pode ir sem fatia extra com o kit de baixa (bomba extra com comando próprio, até 200 bar), mais o kit de linhas e tubulações. Nas demais máquinas sem fatia extra, a Roder recomenda a fatia extra com saída dupla. A decisão final é do técnico Roder após foto e vídeo; não declare "perigoso" ou "inviável" só pelo modelo.</p>
+              Em CAT 320 nova (joystick eletrônico), o cabeçote multifuncional pode ir sem fatia extra com o kit de baixa (bomba extra com comando próprio; o técnico confirma a pressão, cadastro do 9003: 190 bar), mais o kit de linhas e tubulações. Em CAT 320 nova a fatia é instalada pela concessionária; nas outras máquinas, o técnico Roder define após foto e vídeo; não declare "perigoso" ou "inviável" só pelo modelo.</p>
           </div>
         </div>
       )

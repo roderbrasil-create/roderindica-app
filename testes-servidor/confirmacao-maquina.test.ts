@@ -78,7 +78,8 @@ test('regra de prompt: não afirma kit por modelo nem serial, pede confirmação
   assert.match(r, /pedir à concessionária que instale a fatia extra/);
   assert.match(r, /EXCEÇÃO na CAT 320 nova/);
   assert.match(r, /kit de baixa/);
-  assert.match(r, /até 200 bar/);
+  assert.match(r, /o técnico confirma a pressão; cadastro do 9003: 190 bar/);
+  assert.ok(!/200 bar/.test(r));
   assert.match(r, /DOIS kits/);
   assert.match(r, /sem item cadastrado, diga que o técnico informa o código/);
   assert.match(r, /Não dê a entender que a concessionária é obrigatória antes da análise/);
@@ -185,6 +186,14 @@ test('regras antigas não contradizem a regra nova (CMF sem fatia extra, requisi
   const server = readFileSync(new URL('../server.ts', import.meta.url), 'utf8');
   const modal = readFileSync(new URL('../src/components/catalog/EstudosComparativosModal.tsx', import.meta.url), 'utf8');
   const manual = readFileSync(new URL('../src/data/equipmentManualData.ts', import.meta.url), 'utf8');
+  const agents = readFileSync(new URL('../AGENTS.md', import.meta.url), 'utf8');
+  for (const proibido of [/NÃO recomenda\*{0,2} de forma alguma/, /Altamente Perigoso/, /Komatsu PC200, Komatsu PC210, Volvo 200, etc/, /comprar\/instalar uma fatia/, /9000\.9000\.9018/, /200 bar/]) assert.ok(!proibido.test(agents), `AGENTS.md: ${proibido}`);
+  assert.ok(agents.includes('nunca por modelo ou número de série'));
+  assert.ok(agents.includes('O 9016 NÃO é o kit de baixa'));
+  assert.ok(agents.includes('Em CAT 320 nova a fatia é instalada pela concessionária'));
+  assert.ok(!/9000\.9000\.9018/.test(server) && !/200 bar/.test(server), 'server.ts: 9018 e 200 bar');
+  assert.ok(!/comprar\/instalar a fatia|adquirir e mandar instalar/.test(server));
+  assert.ok(!/Nas demais máquinas sem fatia extra, a Roder recomenda/.test(server + modal));
   const iaManual = readFileSync(new URL('../src/pages/IAManual.tsx', import.meta.url), 'utf8');
   assert.ok(!/Komatsu PC200\/210, Volvo 200/.test(iaManual), 'IAManual');
   assert.ok(!/pelo vídeo do braço/.test(server));
