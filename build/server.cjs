@@ -189,6 +189,33 @@ var INSTALLATION_KITS = [
   }
 ];
 
+// src/lib/confirmacaoMaquina.ts
+var RESSALVA_KIT = "Estes kits s\xE3o POSSIBILIDADES, nunca afirme pelo modelo nem pelo serial. S\xF3 indique o kit depois que a configura\xE7\xE3o for confirmada por foto e v\xEDdeo, ou depois de o vendedor informar e confirmar essa configura\xE7\xE3o: fatia extra com sa\xEDda dupla (duas sa\xEDdas com os dois tamp\xF5es) no comando hidr\xE1ulico e, em CAT nova, a liga\xE7\xE3o ao joystick eletr\xF4nico. O t\xE9cnico Roder respons\xE1vel confirma.";
+var REGRA_KIT_CONFIRMACAO = `
+REGRA PRIORIT\xC1RIA DE KIT DE INSTALA\xC7\xC3O (vale acima das regras de kit mais abaixo, que continuam valendo como possibilidades):
+   \u2022 Quando a pergunta for QUAL KIT de instala\xE7\xE3o, kit hidr\xE1ulico ou mangueiras usar numa m\xE1quina (qualquer marca, e principalmente Caterpillar), NUNCA afirme kit nem fatia extra s\xF3 pelo modelo ou pelo n\xFAmero de s\xE9rie. O serial mostra como a m\xE1quina saiu de f\xE1brica, n\xE3o o que foi acrescentado depois. A configura\xE7\xE3o \xE9 confirmada por foto e v\xEDdeo.
+   \u2022 REQUISITO GERAL: a m\xE1quina precisa ter, no comando hidr\xE1ulico (bloco de v\xE1lvulas), pelo menos a FATIA EXTRA COM SA\xCDDA DUPLA (duas sa\xEDdas, com os dois tamp\xF5es) dispon\xEDvel. Com ela, a Roder vende o kit de instala\xE7\xE3o completo (todas as linhas hidr\xE1ulicas, v\xE1lvulas, eletrov\xE1lvulas e acionamento el\xE9trico). Isso vale para a maioria das m\xE1quinas com joystick hidr\xE1ulico pilotado (Komatsu, Hyundai, JCB, John Deere e outras). N\xC3O exija "linhas hidr\xE1ulicas no bra\xE7o": elas s\xE3o s\xF3 um complemento opcional do v\xEDdeo, nunca requisito.
+   \u2022 CAT 320 tem v\xE1rias configura\xE7\xF5es. Antigas (320C, 320D, 320FM): comando pilotado com joystick hidr\xE1ulico, mesmo padr\xE3o das outras marcas. Novas (a partir de cerca de 2020: 320GC, 320NG nova gera\xE7\xE3o, e "320" sem nomenclatura antiga): joystick ELETR\xD4NICO, de acionamento el\xE9trico, n\xE3o pilotado. Nelas, para os equipamentos que exigem fatia extra, a m\xE1quina J\xC1 deve ter a fatia extra no comando, ligada ao joystick eletr\xF4nico por chicote el\xE9trico. Muitas saem sem fatia extra, e a Roder N\xC3O instala fatia extra em CAT nova: o cliente deve pedir \xE0 concession\xE1ria que instale a fatia extra e deixe a liga\xE7\xE3o el\xE9trica/eletr\xF4nica pronta no joystick. S\xF3 diga isso depois de a foto e o v\xEDdeo mostrarem o caso; n\xE3o presuma pelo modelo.
+   \u2022 EXCE\xC7\xC3O na CAT 320 nova: garra de carregamento, garras florestais (de carregamento) e cabe\xE7ote multifuncional podem ser instalados MESMO SEM fatia extra, com o "kit de baixa": bomba extra com comando hidr\xE1ulico pr\xF3prio, que d\xE1 press\xE3o (o t\xE9cnico confirma a press\xE3o; cadastro do 9003: 190 bar) \xE0 linha do rotator (giro hor\xE1rio e anti-hor\xE1rio). A linha do pist\xE3o da ca\xE7amba original abre e fecha a garra; no cabe\xE7ote multifuncional a mesma fun\xE7\xE3o abre/fecha a garra e, com um bloquinho de press\xE3o piloto com bot\xE3o que a Roder adiciona, aciona serra e tilt. Podem ser DOIS kits: o kit de baixa e o kit de linhas e tubula\xE7\xF5es hidr\xE1ulicas. N\xE3o invente c\xF3digo: o kit de baixa s\xF3 pode ter o c\xF3digo citado se estiver na lista de kits cadastrados (ex.: 9000.9000.9003, KIT BAIXA PRESSAO CAT320GC/NG), sempre como possibilidade a confirmar pelo t\xE9cnico; sem item cadastrado, diga que o t\xE9cnico informa o c\xF3digo.
+   \u2022 PROPOSTA OU LISTA DE COMPONENTES (ex.: vendedor de pe\xE7as ou exporta\xE7\xE3o pergunta o que incluir na proposta de um CMF numa CAT 320, com s\xE9rie informada e "configura\xE7\xE3o padr\xE3o"): N\xC3O entregue lista fechada de kit, v\xE1lvulas e linhas como certa, e n\xE3o use a s\xE9rie nem o "padr\xE3o" para decidir. Explique em 2 frases que a CAT 320 tem configura\xE7\xF5es diferentes (antiga com joystick hidr\xE1ulico, nova com joystick eletr\xF4nico; fatia extra com sa\xEDda dupla j\xE1 instalada ou n\xE3o), pe\xE7a foto do comando, da bomba, dos dois joysticks e o v\xEDdeo, e diga que o t\xE9cnico Roder confirma os kits. Sendo cabe\xE7ote multifuncional, informe que na CAT 320 nova sem fatia extra existe a op\xE7\xE3o do kit de baixa mais o kit de linhas. S\xF3 cite c\xF3digos de kit que apare\xE7am na lista de kits cadastrados fornecida no contexto, sempre como possibilidades a confirmar pelo t\xE9cnico; se o c\xF3digo n\xE3o estiver na lista, diga que o t\xE9cnico informa.
+   \u2022 Melhor resposta: pedir foto e v\xEDdeo para passar ao t\xE9cnico Roder respons\xE1vel, que informa corretamente os kits e se o cliente precisa pedir a fatia extra \xE0 concession\xE1ria. Explique em 2 frases curtas por que a configura\xE7\xE3o \xE9 confirmada assim, sem afirmar kit nem fatia por serial ou modelo. Voc\xEA pode citar os kits que costumam existir como POSSIBILIDADES, deixando claro que dependem da confirma\xE7\xE3o, usando s\xF3 c\xF3digos cadastrados.
+   \u2022 O pedido ao cliente \xE9: fotos do comando hidr\xE1ulico (bloco de v\xE1lvulas, mostrando as fatias e as sa\xEDdas), da bomba hidr\xE1ulica e dos DOIS joysticks, mais um V\xCDDEO da cabine e do comando, no mesmo modelo do v\xEDdeo de amostra. N\xE3o d\xEA a entender que a concession\xE1ria \xE9 obrigat\xF3ria antes da an\xE1lise: por ora \xE9 s\xF3 coletar foto e v\xEDdeo. O app mostra abaixo da sua resposta o bot\xE3o "Pedir confirma\xE7\xE3o da m\xE1quina ao cliente" com o texto pronto; diga ao vendedor que ele est\xE1 logo abaixo e n\xE3o escreva o texto do pedido por extenso.
+   \u2022 Se o vendedor j\xE1 informou e confirmou a configura\xE7\xE3o (fatia extra com sa\xEDda dupla, joystick), pode indicar o kit, citando o que foi confirmado.
+   \u2022 No JSON do <painel>, quando aplicar esta regra, acrescente "confirmar_maquina": true.`;
+var AVISO_SEM_AMOSTRA = "Ainda n\xE3o h\xE1 v\xEDdeo de amostra cadastrado.";
+function instrucaoAmostra(temAmostra) {
+  return temAmostra ? "\n\nV\xCDDEO DE AMOSTRA DE FILMAGEM: j\xE1 est\xE1 cadastrado. O bot\xE3o do pedido de confirma\xE7\xE3o leva o link sozinho; n\xE3o escreva link nem id de v\xEDdeo no texto." : `
+
+V\xCDDEO DE AMOSTRA DE FILMAGEM: ainda n\xE3o h\xE1 v\xEDdeo cadastrado. Quando aplicar a regra de confirma\xE7\xE3o da m\xE1quina, diga ao vendedor numa frase curta: "${AVISO_SEM_AMOSTRA}" O bot\xE3o do pedido continua funcionando, s\xF3 sem o link.`;
+}
+function linkPublicoDoVideo(v) {
+  const u = String(v?.video_url || "").trim();
+  return /^https:\/\/[^\s]+$/i.test(u) && u.length <= 2e3 ? u : "";
+}
+function videoAmostraDe(lista) {
+  return (lista || []).find((v) => v.tipo === "amostra" && !!linkPublicoDoVideo(v));
+}
+
 // server/consultorParceiro.ts
 var import_crypto = __toESM(require("crypto"), 1);
 var import_stream = require("stream");
@@ -869,7 +896,7 @@ function lerVideoDoBanco(id, d) {
   const url = videoValido(d.video_url);
   const pid = texto(d.produto_id, 80);
   if (!url || !pid) return null;
-  const tipo = ["campo", "marketing", "instalacao"].includes(d.tipo) ? d.tipo : "campo";
+  const tipo = ["campo", "marketing", "instalacao", "amostra"].includes(d.tipo) ? d.tipo : "campo";
   const thumb = /^https:\/\//i.test(String(d.thumb_url || "")) ? String(d.thumb_url).slice(0, 2e3) : "";
   const dur = Number(d.duracao_s);
   return {
@@ -941,7 +968,7 @@ function pontosNaConversa(v, conversa) {
   return pts;
 }
 function videosParaPrompt(lista, max = MAX_VIDEOS_PROMPT, conversa = "") {
-  const ordenada = (lista || []).map((v, i) => ({ v, i, pts: pontosNaConversa(v, conversa) })).sort((a, b) => b.pts - a.pts || a.i - b.i).map((x) => x.v);
+  const ordenada = (lista || []).filter((v) => v.tipo !== "amostra").map((v, i) => ({ v, i, pts: pontosNaConversa(v, conversa) })).sort((a, b) => b.pts - a.pts || a.i - b.i).map((x) => x.v);
   return ordenada.slice(0, max).map((v) => {
     const ctx = v.contexto && v.tipo !== "catalogo" ? texto(v.contexto, MAX_CONTEXTO_PROMPT) : "";
     return `- ${v.id} | ${nomeDoVideo(v)} | ${v.titulo}${ctx ? ` | ${ctx}` : ""}`;
@@ -1019,7 +1046,8 @@ function criarBibliotecaVideos(deps) {
   };
   return { listar, limpar, rotaListarCom, rotaListar: rotaListarCom() };
 }
-function instrucaoVideos(lista, conversa = "") {
+function instrucaoVideos(listaCompleta, conversa = "") {
+  const lista = listaCompleta.filter((v) => v.tipo !== "amostra");
   if (!lista.length) return "";
   return `
 
@@ -3930,7 +3958,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-20n consultor-whatsapp";
+  const RELEASE_LABEL = "2026-10-20o kit-confirmar-maquina";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -5514,7 +5542,7 @@ Retorne um array JSON no formato exato:
                 improvedKnowledgeContext = `
 
 11. BASE DE CONHECIMENTO ADICIONAL (CORRE\xC7\xD5ES APROVADAS PELA GER\xCANCIA/ADMINISTRA\xC7\xC3O):
-Use as orienta\xE7\xF5es abaixo se a pergunta do usu\xE1rio for similar a estas d\xFAvidas mapeadas de forma priorit\xE1ria para dar a resposta correta:
+Use as orienta\xE7\xF5es abaixo se a pergunta do usu\xE1rio for similar a estas d\xFAvidas mapeadas de forma priorit\xE1ria para dar a resposta correta. Se alguma orienta\xE7\xE3o abaixo indicar kit, fatia extra ou v\xE1lvulas s\xF3 pelo modelo ou pelo n\xFAmero de s\xE9rie, trate como possibilidade e aplique a regra de confirma\xE7\xE3o da m\xE1quina:
 ${items.join("\n")}`;
               }
             } else {
@@ -5649,7 +5677,7 @@ C. FOTO: mostre no m\xE1ximo 1 foto, somente do equipamento que voc\xEA est\xE1 
 D. N\xE3o ofere\xE7a listas de outros equipamentos que o usu\xE1rio n\xE3o pediu.
 E. ROTATOR DE GARRA FLORESTAL (orienta\xE7\xE3o da Roder): garra R600 ou maior em escavadeira acima de 20 t = sempre com Rotator IR10 (garra CA), para trabalho pesado. Garra R400 a R600 em escavadeira de 12 a 16 t = Rotator de 12 t ou 16 t (preferir 16 t). Nunca indique rotator de 16 t para garra R800/R1000 em m\xE1quina acima de 20 t.
 F. INSTALA\xC7\xC3O (o que entra na venda, orienta\xE7\xE3o da Roder). 95% das vendas s\xE3o completas: equipamento, frete, instala\xE7\xE3o pelo t\xE9cnico Roder na cidade do cliente, regulagem e orienta\xE7\xE3o ao operador. Nunca prometa instala\xE7\xE3o onde ela n\xE3o existe:
-   - ESCAVADEIRA (garras florestais e tra\xE7adoras, garra rachadora, Clamshell, cabe\xE7otes CMF, feller tesoura e de disco, destocador, sacador, trituradores FAE de escavadeira): instala\xE7\xE3o hidr\xE1ulica completa, adequa\xE7\xE3o e regulagem de press\xE3o. O vendedor pede marca, modelo e fotos do comando para confirmar se a m\xE1quina tem fatia extra e v\xE1lvula de regulagem de press\xE3o na fatia extra.
+   - ESCAVADEIRA (garras florestais e tra\xE7adoras, garra rachadora, Clamshell, cabe\xE7otes CMF, feller tesoura e de disco, destocador, sacador, trituradores FAE de escavadeira): instala\xE7\xE3o hidr\xE1ulica completa, adequa\xE7\xE3o e regulagem de press\xE3o. O vendedor pede fotos (bloco de comando, bomba, os dois joysticks) e v\xEDdeo (cabine e comando) para confirmar se a m\xE1quina tem fatia extra e v\xE1lvula de regulagem de press\xE3o na fatia extra.
    - P\xC1 CARREGADEIRA: Engate R\xE1pido hidr\xE1ulico precisa da 3\xAA fun\xE7\xE3o (linha extra) para engatar e desengatar; vendemos junto o adaptador para a concha original do cliente. Garra Frontal / Top Clamp, Triturador FAE p/ p\xE1 e Carregador Frontal CFR precisam de 3\xAA e 4\xAA fun\xE7\xE3o (CFR: giro hor\xE1rio/anti-hor\xE1rio do rotator e abre/fecha da garra = 4 mangueiras).
    - Ca\xE7amba High Tip e Prolongador com Concha: precisam de uma linha extra bidirecional (3\xAA fun\xE7\xE3o) para o basculante. Se a p\xE1 N\xC3O tem engate r\xE1pido nem linha extra, a Roder instala engate + 3\xAA fun\xE7\xE3o (com 3\xAA e 4\xAA fun\xE7\xE3o o operador n\xE3o precisa trocar a fun\xE7\xE3o entre engate e basculante). Se a p\xE1 J\xC1 tem engate r\xE1pido original e linha extra bidirecional, n\xE3o precisa de instala\xE7\xE3o: a Roder fabrica o equipamento com o gancho traseiro na medida do engate original.
    - Garfo Paleteiro GPR 4500 / GPR 7000: s\xF3 mec\xE2nico, sem instala\xE7\xE3o (vai no lugar dos pinos). Normalmente \xE9 vendido com o engate r\xE1pido, e o garfo j\xE1 vai com o gancho do engate para o operador trocar entre concha e garfo sem descer da m\xE1quina.
@@ -5737,21 +5765,20 @@ Regras de Neg\xF3cio e Diretrizes de Engenharia Roder:
       \u2022 **Rotatores para Garras Tra\xE7adoras (Porte M\xE9dio e Grande)**: H\xE1 duas op\xE7\xF5es principais: 1) **Rotator IR10**; ou 2) **Rotor de giro livre RR550-7** (Capacidade 55t, swivel 7 passagens, giro livre ilimitado).
       \u2022 **COMPATIBILIDADE RR550-7**: O Rotator RR550-7 \xE9 indicado estritamente para as garras **GT 600X e modelos acima**.
       \u2022 ATEN\xC7\xC3O \xC0 GRAFIA: O termo correto \xE9 estritamente **Rotator** (com "t"). NUNCA use o termo "Rotador" sob nenhuma hip\xF3tese.
+${REGRA_KIT_CONFIRMACAO}
    - DIRETRIZ CR\xCDTICA PARA INSTALA\xC7\xC3O DE GARRA EM ESCAVADEIRAS SEM FATIA EXTRA DE COMANDO (MUITO IMPORTANTE):
-      \u2022 Se o vendedor perguntar sobre a instala\xE7\xE3o de garras em escavadeiras que **N\xC3O** possuem a fatia extra de comando original (como Komatsu PC200, Komatsu PC210, Volvo 200 ou qualquer outro modelo sem fatia extra original):
-        - **Solu\xE7\xE3o T\xE9cnico-Oficial**: Explique que a instala\xE7\xE3o da garra \xE9 totalmente vi\xE1vel utilizando o **Kit de Instala\xE7\xE3o de Garra para M\xE1quinas sem Fatia Extra - C\xF3digo 9000.9000.9016**.
-        - **Como Funciona o Kit 9000.9000.9016**: Este kit deriva a press\xE3o hidr\xE1ulica diretamente da bomba principal da escavadeira para alimentar uma v\xE1lvula com duas solenoides. Como opera com baixo fluxo, ele \xE9 utilizado exclusivamente para fazer a rota\xE7\xE3o do rotator de forma independente, sem necessitar de uma fatia extra no comando principal.
+      \u2022 Se o vendedor perguntar sobre a instala\xE7\xE3o de garras em escavadeiras que, **depois de confirmado**, N\xC3O possuem a fatia extra de comando original (a aus\xEAncia nunca se presume pelo modelo; s\xF3 vale quando confirmado: PC200, PC210, Volvo 200 e outros variam de m\xE1quina para m\xE1quina):
+        - **Solu\xE7\xE3o T\xE9cnico-Oficial**: Explique que o kit poss\xEDvel, a confirmar pelo t\xE9cnico Roder, \xE9 o **Kit de Instala\xE7\xE3o de Garra para M\xE1quinas sem Fatia Extra - C\xF3digo 9000.9000.9016**. ${RESSALVA_KIT}
+        - **Como Funciona o Kit 9000.9000.9016**: Este kit deriva a press\xE3o hidr\xE1ulica diretamente da bomba principal da escavadeira para alimentar uma v\xE1lvula com duas solenoides. Como opera com baixo fluxo, ele \xE9 utilizado exclusivamente para fazer a rota\xE7\xE3o do rotator de forma independente, sem necessitar de uma fatia extra no comando principal. O 9016 deriva da bomba principal e N\xC3O \xE9 o kit de baixa.
         - **Condi\xE7\xE3o Cr\xEDtica/Defici\xEAncia que o Cliente DEVE Saber**: Como a vaz\xE3o \xE9 derivada diretamente da bomba principal, quando a escavadeira est\xE1 est\xE1tica (ou seja, quando o operador n\xE3o est\xE1 executando nenhuma outra fun\xE7\xE3o como levantar o bra\xE7o, fechar a lan\xE7a ou girar a cabine), a bomba trabalha no deslocamento m\xEDnimo. Consequentemente, se o operador acionar apenas os bot\xF5es de rota\xE7\xE3o do rotator sem realizar nenhuma outra opera\xE7\xE3o, o giro da garra ser\xE1 **extremamente lento** ("fluxo muito lento / rota\xE7\xE3o lenta").
         - **Normaliza\xE7\xE3o da Velocidade**: No entanto, quando o operador est\xE1 executando qualquer outra fun\xE7\xE3o simultaneamente (por exemplo, durante a opera\xE7\xE3o florestal em que ele move o bra\xE7o, levanta a lan\xE7a ou gira a cabine ao mesmo tempo em que rotaciona a garra), o fluxo da bomba aumenta e a rota\xE7\xE3o do rotator \xE9 **normalizada**. Essa oscila\xE7\xE3o \xE9 uma caracter\xEDstica normal do projeto para m\xE1quinas sem fatia extra original e n\xE3o um defeito.
         - **Como Evitar essa Defici\xEAncia**: Se o cliente preferir que o funcionamento seja 100% perfeito e constante sem essa oscila\xE7\xE3o de velocidade:
-          1. O cliente deve adquirir e mandar instalar uma fatia/se\xE7\xE3o extra de comando original na escavadeira.
-          2. Ou deve utilizar outra m\xE1quina que j\xE1 possua uma fatia extra dispon\xEDvel no comando principal para que a Roder possa instalar a linha extra padr\xE3o (puxando diretamente do comando).
+          1. Ter a fatia extra com sa\xEDda dupla (duas sa\xEDdas tampadas) instalada e confirmada pelo t\xE9cnico Roder. Em CAT 320 nova a Roder n\xE3o instala fatia: o cliente pede \xE0 concession\xE1ria.
+          2. Ou utilizar outra m\xE1quina que j\xE1 possua essa fatia extra com sa\xEDda dupla no comando, para que a Roder possa instalar a linha extra padr\xE3o (puxando diretamente do comando).
 
     - DIRETRIZ CR\xCDTICA PARA INSTALA\xC7\xC3O DE CABE\xC7OTE MULTIFUNCIONAL EM ESCAVADEIRAS SEM FATIA EXTRA DE COMANDO:
        \u2022 Se algum vendedor ou cliente perguntar sobre a possibilidade de instalar ou operar um cabe\xE7ote multifuncional (como o CMF 500) em uma escavadeira que n\xE3o possui fatia extra de comando original de f\xE1brica:
-         - **Viabilidade de Instala\xE7\xE3o**: Explique que \xE9 perfeitamente vi\xE1vel realizar a instala\xE7\xE3o hidr\xE1ulica das linhas em uma escavadeira sem fatia extra original. Essa instala\xE7\xE3o retira a press\xE3o hidr\xE1ulica diretamente da bomba principal (comportando-se de forma id\xEAntica \xE0 instala\xE7\xE3o de um bra\xE7o de carregamento / garra carregadora) e serve funcionalmente para a opera\xE7\xE3o b\xE1sica do cabe\xE7ote multifuncional.
-         - **Risco de Seguran\xE7a (Altamente Perigoso)**: No entanto, para as opera\xE7\xF5es reais de colheita florestal (harvesting), a falta da fatia extra original de comando torna toda a atividade extremamente perigosa operacionalmente.
-         - **Recomenda\xE7\xE3o Oficial (N\xC3O RECOMENDADO)**: Portanto, para o cabe\xE7ote multifuncional, a Roder **N\xC3O recomenda** de forma alguma realizar a instala\xE7\xE3o em m\xE1quinas sem fatia extra original. O correto e estritamente indicado \xE9 que a m\xE1quina possua a fatia extra de comando original para garantir a seguran\xE7a no corte e derrubada de \xE1rvores, al\xE9m do fluxo de pot\xEAncia adequado para a colheita florestal. \xC9 fisicamente vi\xE1vel de instalar, mas altamente contraindicado devido aos severos riscos de seguran\xE7a operacional.
+         - **Viabilidade de Instala\xE7\xE3o**: CMF sem fatia extra: em CAT 320 nova (joystick eletr\xF4nico), o CMF pode ir sem fatia extra com o kit de baixa (bomba extra com comando pr\xF3prio; o t\xE9cnico confirma a press\xE3o, cadastro do 9003: 190 bar), mais o kit de linhas e tubula\xE7\xF5es; o t\xE9cnico Roder confirma por foto e v\xEDdeo, sem inventar c\xF3digo. Em CAT 320 nova a fatia \xE9 instalada pela concession\xE1ria; nas outras m\xE1quinas, o t\xE9cnico Roder define ap\xF3s foto e v\xEDdeo. N\xE3o declare "perigoso" ou "invi\xE1vel" s\xF3 pelo modelo.
 
     - RECOMENDA\xC7\xC3O CR\xCDTICA DE CABE\xC7OTE MULTIFUNCIONAL CMF 500 EM RETROESCAVADEIRA:
      \u2022 Se algum vendedor perguntar ou sugerir instalar ou trabalhar com o cabe\xE7ote multifuncional CMF 500 em uma retroescavadeira:
@@ -5895,8 +5922,8 @@ Regras de Neg\xF3cio e Diretrizes de Engenharia Roder:
     - **Link para Garra com Biela (Instala\xE7\xE3o Pr\xE1tica de Garra Florestal)**:
       - **REGRA DE FILTRO**: Se o usu\xE1rio N\xC3O perguntou especificamente sobre o "link", **NUNCA** mencione o c\xF3digo do link ou o kit de instala\xE7\xE3o para link. Seja direto e responda apenas o solicitado (Ponteira).
       - **Quando o Link \xE9 Solicitado**: Explique que \xE9 poss\xEDvel e facilite a troca r\xE1pida com a concha original.
-      - **C\xF3digos de Link (Escavadeiras 22t pino 80mm)**: Link **1000.0000.0120** e Kit Hidr\xE1ulico **9000.9000.9015**.
-      - **Instala\xE7\xE3o com Ponteira (Padr\xE3o)**: Se a pergunta for sobre instala\xE7\xE3o com ponteira (ou se "link" n\xE3o for mencionado), indique o item: **"Kit de instala\xE7\xE3o garra em escavadeira, m\xE1quina com fatia extra, sem linha"**.
+      - **C\xF3digos de Link (Escavadeiras 22t pino 80mm)**: Link **1000.0000.0120** e Kit Hidr\xE1ulico **9000.9000.9015**. ${RESSALVA_KIT}
+      - **Instala\xE7\xE3o com Ponteira (Padr\xE3o)**: Se a pergunta for sobre instala\xE7\xE3o com ponteira (ou se "link" n\xE3o for mencionado), indique o item: **"Kit de instala\xE7\xE3o garra em escavadeira, m\xE1quina com fatia extra, sem linha"**. ${RESSALVA_KIT}
       - **Identifica\xE7\xE3o de Kits**: Os kits para garra/CMF/tra\xE7adora que N\xC3O mencionam "link" referem-se automaticamente \xE0 montagem com ponteira.
       - **Acoplamento**: Use engates r\xE1pidos flat-face para facilitar a troca.
     - **Compatibilidade e Diretrizes de Escavadeiras com Harvester ou Linha F (Florestal) de F\xE1brica**:
@@ -5907,7 +5934,7 @@ Regras de Neg\xF3cio e Diretrizes de Engenharia Roder:
         2. Modificar as linhas hidr\xE1ulicas de sa\xEDda do comando da m\xE1quina para operarem de forma bidirecional (fornecendo press\xE3o nos dois sentidos, e n\xE3o apenas press\xE3o em um sentido e retorno livre no outro).
         3. Instalar um novo chicote el\xE9trico e dois novos bot\xF5es no joystick para comandar a linha extra do rotator.
         4. **Nota de Irreversibilidade**: Essas modifica\xE7\xF5es tornam **imposs\xEDvel** retornar ao uso com o Harvester ap\xF3s a altera\xE7\xE3o. Diante disso, explique com clareza que garras, cabe\xE7otes multifuncionais, fellers e outros acess\xF3rios n\xE3o s\xE3o compat\xEDveis diretamente com as linhas de Harvester.
-      - **Escavadeiras com Linhas F (Padr\xE3o Florestal) de Concession\xE1ria**: Estas m\xE1quinas costumam vir de f\xE1brica com prote\xE7\xF5es f\xEDsicas (cabine, vidros Lexsan e prote\xE7\xF5es de estrutura). No entanto, o vendedor deve **sempre confirmar com a concession\xE1ria/fornecedor qual \xE9 a configura\xE7\xE3o exata das linhas hidr\xE1ulicas**, garantindo se existem linhas bidirecionais (tanto da ca\xE7amba quanto outra linha auxiliar bidirecional) para permitir a instala\xE7\xE3o de novos acess\xF3rios.
+      - **Escavadeiras com Linhas F (Padr\xE3o Florestal) de Concession\xE1ria**: Estas m\xE1quinas costumam vir de f\xE1brica com prote\xE7\xF5es f\xEDsicas (cabine, vidros Lexsan e prote\xE7\xF5es de estrutura). No entanto, o vendedor deve **sempre confirmar por foto e v\xEDdeo (a concession\xE1ria s\xF3 entra se faltar fatia extra em CAT nova) qual \xE9 a configura\xE7\xE3o exata das linhas hidr\xE1ulicas**, verificando as linhas bidirecionais dispon\xEDveis (informativo, n\xE3o \xE9 requisito do kit; o requisito \xE9 a fatia extra com sa\xEDda dupla).
       - **Aus\xEAncia Cr\xEDtica de Cilindro e Links da Ca\xE7amba**: Este \xE9 o detalhe mais importante! Escavadeiras que trabalham com Harvester ou que v\xEAm de f\xE1brica com a letra F (florestal) normalmente **N\xC3O v\xEAm equipadas com o cilindro da ca\xE7amba, nem com as bielas/links e pinos originais para montagem da ca\xE7amba**. Sem esse cilindro da ca\xE7amba e os links/pinos originais instalados, \xE9 **estritamente IMPOSS\xCDVEL instalar equipamentos que necessitam do movimento do cilindro da ca\xE7amba**, como: **feller de disco, feller tesoura, desbastador, triturador e a pr\xF3pria ca\xE7amba/concha da escavadeira**.
       - **Compatibilidade de Ponteiras e Bielas**: \xC9 necess\xE1rio verificar se a ponteira e a biela para pendurar o rotator s\xE3o compat\xEDveis. A biela para encaixar nos rotatores padr\xE3o RODER deve obrigatoriamente conter um **furo para pino de 45 mm com largura de biela de 100 mm** (as medidas dos rotatores padr\xE3o). Solicite ao fornecedor/cliente as informa\xE7\xF5es ou um v\xEDdeo mostrando as linhas hidr\xE1ulicas at\xE9 a ponta, onde est\xE3o ligadas no comando da m\xE1quina, se retornam direto para o tanque e se operam por joysticks (as manoplas originais s\xE3o substitu\xEDdas no harvester).
       - **Rotator - Grafia Correta e Giro Infinito**:
@@ -6106,9 +6133,9 @@ Regras de Neg\xF3cio e Diretrizes de Engenharia Roder:
 
       \u2022 **DIRETRIZ DE VERIFICA\xC7\xC3O DE LINHA EXTRA E FATIA EXTRA NA ESCAVADEIRA**:
         - Como muitas escavadeiras v\xEAm com linhas extras de f\xE1brica ou adaptadas, \xE9 fundamental sempre observar se a m\xE1quina do cliente j\xE1 possui essa tubula\xE7\xE3o.
-        - **Disponibilidade da Fatia Extra**: Muitas m\xE1quinas j\xE1 v\xEAm de f\xE1brica com a fatia extra dispon\xEDvel no comando com dupla sa\xEDda (bidirecional), mas algumas marcas/modelos n\xE3o possuem. \xC9 essencial solicitar uma foto ou v\xEDdeo do comando hidr\xE1ulico da m\xE1quina para confirmar a exist\xEAncia da fatia extra com os buj\xF5es onde a linha hidr\xE1ulica ser\xE1 conectada.
+        - **Disponibilidade da Fatia Extra**: Muitas m\xE1quinas j\xE1 v\xEAm de f\xE1brica com a fatia extra dispon\xEDvel no comando com dupla sa\xEDda (bidirecional), mas a configura\xE7\xE3o varia de m\xE1quina para m\xE1quina. \xC9 essencial solicitar fotos e v\xEDdeo do comando hidr\xE1ulico da m\xE1quina para confirmar a exist\xEAncia da fatia extra com os buj\xF5es onde a linha hidr\xE1ulica ser\xE1 conectada.
         - **IMPORTANTE - Modelos Caterpillar (Cat 312, Cat 313, Cat 314, Cat 316, Cat 318, Cat 320)**:
-          - Esses modelos CAT **possuem os tamp\xF5es/buj\xF5es da fatia extra dispon\xEDveis no comando**, por\xE9m **N\xC3O v\xEAm de f\xE1brica originalmente com as duas v\xE1lvulas de al\xEDvio de press\xE3o** instaladas na fatia extra.
+          - Nos modelos CAT 312 a 320 a configura\xE7\xE3o varia: a fatia extra, os tamp\xF5es ou buj\xF5es e as v\xE1lvulas de al\xEDvio NUNCA devem ser dados como certos pelo modelo. Confirme pelas fotos do comando e pelo v\xEDdeo da cabine e do comando antes de falar o que a m\xE1quina tem (CAT 320 nova, com joystick eletr\xF4nico, segue a regra priorit\xE1ria de kit acima). Quando a fatia extra for confirmada, lembre que de f\xE1brica ela costuma N\xC3O vir com as duas v\xE1lvulas de al\xEDvio de press\xE3o.
           - Para esses modelos, as duas v\xE1lvulas de al\xEDvio de press\xE3o devem ser obrigatoriamente adquiridas para permitir a regulagem e funcionamento seguro do implemento.
           - **C\xF3digo de Cadastro Roder da V\xE1lvula de Al\xEDvio de Press\xE3o CAT**: **3000.5003.0194** (C\xF3digo Original CAT: **309-9973**).
           - O vendedor deve sempre informar o cliente sobre a necessidade dessas duas v\xE1lvulas. Caso a Roder n\xE3o as tenha em estoque para fornecer, o cliente dever\xE1 compr\xE1-las diretamente em uma concession\xE1ria Caterpillar para que fiquem dispon\xEDveis para o nosso t\xE9cnico realizar a instala\xE7\xE3o no comando no dia da montagem.
@@ -6117,11 +6144,11 @@ Regras de Neg\xF3cio e Diretrizes de Engenharia Roder:
         - **Tipos de Acionamento Comuns**:
           1. **Pedal Mec\xE2nico**: Algumas m\xE1quinas possuem o acionamento da linha extra em um pedal mec\xE2nico no piso da cabine.
           2. **Bot\xE3o no Joystick**: Outras m\xE1quinas acionam a fun\xE7\xE3o por meio de bot\xF5es proporcionais ou liga/desliga integrados no pr\xF3prio joystick da escavadeira.
-        - **Recomenda\xE7\xE3o de V\xEDdeo Detalhado**: Oriente o vendedor a pedir para o cliente gravar um **v\xEDdeo detalhado** e envi\xE1-lo \xE0 nossa equipe de vendas. Nesse v\xEDdeo, \xE9 fundamental que o cliente mostre:
+        - **Recomenda\xE7\xE3o de V\xEDdeo**: Oriente o vendedor a pedir para o cliente gravar um **v\xEDdeo** da cabine e do comando no modelo do v\xEDdeo de amostra e envi\xE1-lo \xE0 nossa equipe de vendas. O essencial s\xE3o as fotos do comando (bloco de v\xE1lvulas), da bomba e dos dois joysticks. Se o cliente puder, o v\xEDdeo pode mostrar tamb\xE9m, como COMPLEMENTO OPCIONAL (nunca requisito):
           1. O acionamento da linha (se o fluxo sai em ambas as linhas de mangueira ou apenas em uma/unidirecional).
-          2. A **tubula\xE7\xE3o extra** at\xE9 onde ela vai na ponta do bra\xE7o, mostrando claramente se cont\xE9m registros ou buj\xF5es na ponta da tubula\xE7\xE3o.
-          3. As **duas linhas hidr\xE1ulicas**, demonstrando se est\xE3o ligadas no comando hidr\xE1ulico da m\xE1quina ou se uma delas retorna diretamente para o tanque.
-          Com base nessa filmagem completa, poderemos identificar com exatid\xE3o a configura\xE7\xE3o da m\xE1quina, o tipo de linha e definir qual **kit hidr\xE1ulico complementar** a Roder precisa fornecer para a perfeita instala\xE7\xE3o.
+          2. A **tubula\xE7\xE3o extra** (se existir) at\xE9 onde ela vai na ponta do bra\xE7o, mostrando claramente se cont\xE9m registros ou buj\xF5es na ponta da tubula\xE7\xE3o.
+          3. As **duas linhas hidr\xE1ulicas** (se existirem), demonstrando se est\xE3o ligadas no comando hidr\xE1ulico da m\xE1quina ou se uma delas retorna diretamente para o tanque.
+          Com base nas fotos e no v\xEDdeo, o t\xE9cnico Roder respons\xE1vel identifica a configura\xE7\xE3o da m\xE1quina e define qual **kit hidr\xE1ulico complementar** a Roder precisa fornecer para a perfeita instala\xE7\xE3o.
 
       \u2022 **GARRAS TRA\xC7ADORAS (Acima de GT 400: GT 400, GT 600X, GT 800X, GT 1000X)**:
         Exigem rigorosamente **8 linhas de mangueiras** chegando no equipamento para alimenta\xE7\xE3o completa:
@@ -6153,29 +6180,28 @@ Regras de Neg\xF3cio e Diretrizes de Engenharia Roder:
           - Embora seja perfeitamente vi\xE1vel para o operador realizar esse processo de troca sozinho se ele se sentir seguro e capaz de manusear os pinos pesados, a Roder recomenda fortemente que a atividade seja executada em **duas pessoas** por motivos de seguran\xE7a e alta produtividade.
           - Nessa configura\xE7\xE3o recomendada, um **mec\xE2nico de apoio no solo** atua em conjunto enquanto o **operador permanece com total seguran\xE7a dentro da cabine** da m\xE1quina comandando os movimentos finos do joystick. O operador alinha com precis\xE3o o bra\xE7o no link enquanto o mec\xE2nico de apoio no solo retira/coloca os pinos e engata rapidamente as mangueiras. Esse trabalho em dupla reduz o tempo de montagem, evita riscos f\xEDsicos e garante m\xE1xima seguran\xE7a operacional.
 
-      \u2022 **DIRETRIZ DE ESCOLHA DA GARRA E KIT DE INSTALA\xC7\xC3O NA CAT 313 (E ESCAVADEIRAS DE 12 A 18 TONELADAS)**:
+      \u2022 **DIRETRIZ DE ESCOLHA DA GARRA E KIT DE INSTALA\xC7\xC3O NA CAT 313 (E ESCAVADEIRAS DE 12 A 18 TONELADAS)** (a escolha da garra vale pelo porte; os kits abaixo seguem a regra de confirma\xE7\xE3o: ${RESSALVA_KIT}):
         - **Sele\xE7\xE3o da Garra para Alimenta\xE7\xE3o de Picador/Carregador vs. Carregamento**:
           - Se o vendedor ou o cliente perguntar qual garra utilizar na **CAT 313** para **alimenta\xE7\xE3o do picador/carregador** e tamb\xE9m para **carregamento**:
             1. A garra **R400** \xE9 a ideal e mais segura para a **alimenta\xE7\xE3o do picador/carregador**. O vendedor deve explicar com clareza ao cliente que uma garra R600 (que \xE9 maior, tem uma abertura muito larga e \xE9 mais pesada) pode facilmente causar danos f\xEDsicos severos \xE0 calha/funil/ca\xE7amba de entrada do pr\xF3prio picador durante a opera\xE7\xE3o de alimenta\xE7\xE3o.
             2. Para a atividade exclusiva de **carregamento de toras** (fora da boca do picador), a garra **R600** \xE9 perfeitamente recomendada e trar\xE1 uma produtividade/efici\xEAncia de trabalho muito superior.
             3. **Decis\xE3o do Cliente**: O vendedor deve expor esses pr\xF3s e contras de forma transparente para que o pr\xF3prio cliente tome a decis\xE3o consciente, avaliando o ganho de efici\xEAncia no carregamento (com a R600) em rela\xE7\xE3o ao risco de avarias no picador durante a alimenta\xE7\xE3o.
-        - **Kit de Instala\xE7\xE3o de Garra com Rotador (9000.9000.9018)**:
-          - **Kit C\xF3digo 9000.9000.9018**: Kit de instala\xE7\xE3o de **Garra Florestal** (e **N\xC3O para Destocador!**) para quando a m\xE1quina **j\xE1 possui a fatia extra (extra slice)** original dispon\xEDvel no comando hidr\xE1ulico, mas **N\xC3O possui a linha hidr\xE1ulica f\xEDsica** (tubula\xE7\xF5es/mangueiras f\xEDsicas) instalada ao longo do bra\xE7o.
+        - **Kit para m\xE1quina com fatia extra de sa\xEDda dupla j\xE1 dispon\xEDvel**: o c\xF3digo do kit depende da configura\xE7\xE3o confirmada e o t\xE9cnico Roder informa. Cite s\xF3 c\xF3digos que apare\xE7am na lista de kits cadastrados do contexto, sempre como possibilidade. \xC9 kit de Garra Florestal (N\xC3O para Destocador). ${RESSALVA_KIT}
         - **Kit de Instala\xE7\xE3o de Garra para M\xE1quinas sem Fatia Extra de Comando (9000.9000.9016)**:
-          - **Kit C\xF3digo 9000.9000.9016**: Kit de instala\xE7\xE3o de **Garra Florestal** especial para escavadeiras que **N\xC3O possuem a fatia extra original** de f\xE1brica no comando (como PC200 Komatsu, PC210 Komatsu, Volvo 200, etc.).
+          - **Kit C\xF3digo 9000.9000.9016**: Kit de instala\xE7\xE3o de **Garra Florestal** especial para escavadeiras que, **depois de confirmado**, N\xC3O possuem a fatia extra original no comando (n\xE3o presuma por modelo: PC200, PC210, Volvo 200 e outras variam). ${RESSALVA_KIT}
           - **Funcionamento**: Deriva fluxo diretamente da bomba para uma v\xE1lvula de duas solenoides com baixo fluxo para o rotator.
           - **Comportamento Esperado (Oscila\xE7\xE3o de Velocidade)**: Por derivar direto da bomba principal, quando a m\xE1quina est\xE1 est\xE1tica (idle/marcha lenta e sem realizar outras fun\xE7\xF5es), a bomba est\xE1 no m\xEDnimo e o giro do rotator fica extremamente lento. O fluxo e a velocidade de rota\xE7\xE3o do rotator se normalizam apenas quando o operador realiza alguma outra fun\xE7\xE3o simult\xE2nea na m\xE1quina (ex: girar a cabine, elevar/baixar o bra\xE7o ou lan\xE7a). Isso \xE9 normal e esperado para o kit 9000.9000.9016.
-          - **Solu\xE7\xE3o sem Defici\xEAncia**: Se o cliente preferir rota\xE7\xE3o constante sem essa oscila\xE7\xE3o de velocidade, ele deve comprar/instalar a fatia extra original de comando ou dispor de outra m\xE1quina que possua essa fatia original no comando para puxar a linha dali.
+          - **Solu\xE7\xE3o sem Defici\xEAncia**: Se o cliente preferir rota\xE7\xE3o constante sem essa oscila\xE7\xE3o de velocidade, ele precisa de fatia extra com sa\xEDda dupla (duas sa\xEDdas tampadas) instalada e confirmada pelo t\xE9cnico Roder (em CAT 320 nova a Roder n\xE3o instala fatia: o cliente pede \xE0 concession\xE1ria) ou dispor de outra m\xE1quina que j\xE1 possua essa fatia no comando para puxar a linha dali. O 9016 deriva da bomba principal e N\xC3O \xE9 o kit de baixa.
         - **Necessidade Crucial de V\xE1lvulas de Al\xEDvio na CAT (Cat 312, 313, 314, 316, 318, 320)**:
-          - \xC9 requisito obrigat\xF3rio e indispens\xE1vel que a m\xE1quina do cliente possua a **fatia extra original** dispon\xEDvel no comando hidr\xE1ulico.
+          - Requisito geral: fatia extra com sa\xEDda dupla, confirmada por foto e v\xEDdeo, exceto o kit de baixa em CAT 320 nova para garra e CMF.
           - Sempre que for realizada uma proposta ou consulta sobre escavadeiras **CAT 312, 313, 314, 316, 318 ou 320**, o vendedor **DEVE obrigatoriamente verificar se a m\xE1quina j\xE1 possui as duas v\xE1lvulas de al\xEDvio de press\xE3o** na fatia extra do comando hidr\xE1ulico.
-          - Como \xE9 sabido, essas escavadeiras CAT saem de f\xE1brica com o espa\xE7o e os tamp\xF5es/buj\xF5es da fatia extra dispon\xEDveis, mas **originalmente N\xC3O cont\xEAm as duas v\xE1lvulas de al\xEDvio de press\xE3o** instaladas na fatia.
+          - Nos modelos CAT 312 a 320 a configura\xE7\xE3o varia: a fatia extra, os tamp\xF5es ou buj\xF5es e as v\xE1lvulas de al\xEDvio NUNCA devem ser dados como certos pelo modelo. Confirme pelas fotos do comando e pelo v\xEDdeo da cabine e do comando antes de falar o que a m\xE1quina tem. Quando a fatia extra for confirmada, ela costuma N\xC3O vir de f\xE1brica com as duas v\xE1lvulas de al\xEDvio de press\xE3o.
           - **Regra de Fornecimento e Or\xE7amento das V\xE1lvulas**:
             - As duas v\xE1lvulas de al\xEDvio de press\xE3o para o comando da escavadeira **N\xC3O fazem parte dos componentes de nenhum kit hidr\xE1ulico de instala\xE7\xE3o da Roder** (seja para garra ou qualquer outro implemento). Elas s\xE3o componentes exclusivos e necess\xE1rios do pr\xF3prio comando da m\xE1quina base.
             - Portanto, o vendedor da Roder deve verificar imediatamente se a Roder possui essas duas v\xE1lvulas dispon\xEDveis em estoque para fornecer e, se aplic\xE1vel, **fazer um or\xE7amento separado contemplando essas duas v\xE1lvulas**, j\xE1 que elas s\xE3o cobradas \xE0 parte.
             - A Roder possui essas v\xE1lvulas sob o **c\xF3digo Roder: 3000.5003.0194** (C\xF3digo Original CAT: **309-9973**).
             - Caso a Roder n\xE3o as tenha em estoque para fornecer, o cliente **DEVE comprar as duas v\xE1lvulas diretamente na concession\xE1ria Caterpillar** para deixar dispon\xEDvel no dia da montagem, permitindo que nosso t\xE9cnico fa\xE7a a instala\xE7\xE3o correta no comando.
-            - O vendedor deve sempre pedir fotos ou v\xEDdeos do comando hidr\xE1ulico do cliente para confirmar a necessidade real dessas duas v\xE1lvulas.
+            - O vendedor deve sempre pedir fotos e v\xEDdeo do comando hidr\xE1ulico do cliente para confirmar a necessidade real dessas duas v\xE1lvulas.
 
       \u2022 **CABE\xC7OTE MULTIFUNCIONAL (Modelos: CMF500, CMF600, CMF800)**:
         - **Vias e Mangueiras Requeridas**: Necessitam de exatamente **6 linhas de mangueiras hidr\xE1ulicas** chegando no equipamento para alimenta\xE7\xE3o completa das suas fun\xE7\xF5es:
@@ -6183,9 +6209,9 @@ Regras de Neg\xF3cio e Diretrizes de Engenharia Roder:
           2. **Giro Hor\xE1rio e Anti-Hor\xE1rio 360\xB0 (Turret/Rotator)**: 2 mangueiras que **N\xC3O s\xE3o conectadas na linha da ca\xE7amba**! Elas s\xE3o conectadas \xE0 **fatia extra (extra slice)** ou \xE0 **linha extra bidirecional** da m\xE1quina.
              - Se a m\xE1quina j\xE1 possuir uma linha extra bidirecional, o acionamento do giro ser\xE1 derivado diretamente dela, normalmente comandado por bot\xF5es no joystick.
              - Se a m\xE1quina n\xE3o possuir uma linha extra de f\xE1brica, ela deve obrigatoriamente ter a **fatia extra (extra slice) dispon\xEDvel no comando hidr\xE1ulico**, para que a equipe t\xE9cnica da Roder realize a instala\xE7\xE3o da linha extra a partir dessa fatia.
-             - A fatia extra no comando da m\xE1quina \xE9 indispens\xE1vel para qualquer instala\xE7\xE3o de equipamento. Sempre orientamos em nossos or\xE7amentos que a m\xE1quina do cliente deve possuir a fatia extra dispon\xEDvel contendo as **duas v\xE1lvulas de al\xEDvio de press\xE3o**, possibilitando regular a press\xE3o de sa\xEDda de cada um dos sentidos do giro.
+             - A fatia extra com sa\xEDda dupla \xE9 o requisito geral. Exce\xE7\xF5es: garra de carregamento, garras florestais e CMF na CAT 320 nova (kit de baixa). Sempre orientamos em nossos or\xE7amentos que a m\xE1quina do cliente deve possuir a fatia extra dispon\xEDvel contendo as **duas v\xE1lvulas de al\xEDvio de press\xE3o**, possibilitando regular a press\xE3o de sa\xEDda de cada um dos sentidos do giro.
              - Se a m\xE1quina contiver a fatia extra com as duas v\xE1lvulas, a equipe da Roder realizar\xE1 a linha hidr\xE1ulica completa pelo bra\xE7o da m\xE1quina e instalar\xE1 a linha el\xE9trica de pilotagem para comandar a fatia extra, testando e ajustando todo o sistema para o cliente.
-             - **Instala\xE7\xE3o Sem Fatia Extra de Comando (Permitida mas N\xC3O Recomendada por Seguran\xE7a)**: Caso a m\xE1quina do cliente N\xC3O possua a fatia extra de comando, \xE9 fisicamente poss\xEDvel realizar a instala\xE7\xE3o das linhas para o cabe\xE7ote multifuncional retirando a press\xE3o hidr\xE1ulica diretamente da bomba principal (funcionando de forma similar a um bra\xE7o de carregamento / garra carregadora). Essa fun\xE7\xE3o servir\xE1 para a opera\xE7\xE3o do cabe\xE7ote. No entanto, para as opera\xE7\xF5es reais de colheita florestal (harvesting), a aus\xEAncia da fatia extra original de comando torna a atividade altamente perigosa. Diante disso, a Roder N\xC3O recomenda de forma alguma fazer a instala\xE7\xE3o de cabe\xE7otes multifuncionais sem a fatia extra de comando, sendo altamente recomendado que a m\xE1quina base possua a fatia extra original.
+             - **Instala\xE7\xE3o Sem Fatia Extra de Comando**: CMF sem fatia extra: em CAT 320 nova (joystick eletr\xF4nico), o CMF pode ir sem fatia extra com o kit de baixa (bomba extra com comando pr\xF3prio; o t\xE9cnico confirma a press\xE3o, cadastro do 9003: 190 bar), mais o kit de linhas e tubula\xE7\xF5es; o t\xE9cnico Roder confirma por foto e v\xEDdeo, sem inventar c\xF3digo. Em CAT 320 nova a fatia \xE9 instalada pela concession\xE1ria; nas outras m\xE1quinas, o t\xE9cnico Roder define ap\xF3s foto e v\xEDdeo. N\xE3o declare "perigoso" ou "invi\xE1vel" s\xF3 pelo modelo.
           3. **Linha de Dreno da Carca\xE7a**: 1 mangueira conectada diretamente ao tanque de retorno livre da m\xE1quina (n\xE3o pode passar pelo filtro de retorno e **NUNCA pode ultrapassar 5 bar**, devendo trabalhar rigorosamente na faixa de **0 a 5 bar**).
           4. **Linha de Pilotagem (6\xAA Linha)**: 1 mangueira de controle ligada a uma v\xE1lvula de pilotagem que \xE9 instalada na escavadeira e acionada por bot\xE3o el\xE9trico.
         - **Rotador de Alta Capacidade**: Utiliza um rotator super-resistente de **16 toneladas** de capacidade, equipado com canais e passagens internas de \xF3leo adicionais. Isso possibilita que todas as mangueiras passem por dentro do corpo do rotator, permitindo que o cabe\xE7ote fa\xE7a giro 360\xB0 infinito sem mangueiras externas expostas se torcendo ou rotacionando ao redor do cabe\xE7ote.
@@ -6479,7 +6505,7 @@ ${stockContext || "N\xE3o h\xE1 itens em estoque hoje."}
 Aqui est\xE1 a tabela/quadro oficial de compatibilidade de acess\xF3rios e ponteiras de escavadeiras cadastradas (consulte esta lista para responder sobre c\xF3digos de ponteiras, pinos e suportes de cada marca/modelo de m\xE1quina):
 ${accessoriesContext || "N\xE3o h\xE1 tabela de acess\xF3rios cadastrada."}
 
-Aqui est\xE3o os kits de instala\xE7\xE3o cadastrados para refer\xEAncia:
+Aqui est\xE3o os kits de instala\xE7\xE3o cadastrados para refer\xEAncia. ${RESSALVA_KIT}
 ${kitsContext || "N\xE3o h\xE1 kits de instala\xE7\xE3o cadastrados."}${improvedKnowledgeContext}`;
           if (chatHistory && Array.isArray(chatHistory)) {
             chatHistory.forEach((msg) => {
@@ -6511,12 +6537,13 @@ CONSULTA DO TRATOR NA INTERNET: n\xE3o foi poss\xEDvel consultar agora. N\xE3o a
           const instrucaoPainel = querPainel ? `
 
 PAINEL ESCONDIDO (obrigat\xF3rio quando houver dado): no fim de TODA resposta, depois de todo o texto (e depois do [[OPCOES]] se houver), acrescente um bloco escondido exatamente neste formato, numa linha s\xF3, com JSON v\xE1lido:
-<painel>{"maquina":{"nome":"","tipo":"","potencia":"","transmissao":"","serve":"sim|nao|verificar","motivo":""},"perguntas":["..."],"alternativas":[{"nome":"","obs":""}],"produto":"<nome do modelo Roder principal>","videos":["<id da lista de v\xEDdeos>"]}</painel>
+<painel>{"maquina":{"nome":"","tipo":"","potencia":"","transmissao":"","serve":"sim|nao|verificar","motivo":""},"perguntas":["..."],"alternativas":[{"nome":"","obs":""}],"produto":"<nome do modelo Roder principal>","videos":["<id da lista de v\xEDdeos>"],"confirmar_maquina":true}</painel>
 - Coloque s\xF3 os campos que se aplicam \xE0 conversa; os outros ficam fora do JSON.
 - "maquina": a m\xE1quina base ou o trator do cliente citado na conversa (nome com marca e modelo; tipo ou transmiss\xE3o, ex.: "Powershift, n\xE3o \xE9 CVT"; pot\xEAncia ou porte, ex.: "220 cv" ou "20 t"; "serve" diz se ela atende o equipamento indicado: "sim", "nao" ou "verificar"; "motivo" em at\xE9 8 palavras).
 - "perguntas": no m\xE1ximo 3 perguntas curtas que o vendedor deve fazer ao cliente para confirmar a indica\xE7\xE3o.
 - "alternativas": no m\xE1ximo 3 op\xE7\xF5es que servem (m\xE1quinas, tratores ou modelos Roder), com "obs" de at\xE9 4 palavras (ex.: "CVT de s\xE9rie").
 - "produto": o nome exato do modelo Roder principal da resposta, como est\xE1 no cat\xE1logo (ex.: "SSH 150", "R400", "CMF 600").
+- "confirmar_maquina": true s\xF3 quando a pergunta for qual kit de instala\xE7\xE3o usar numa m\xE1quina (regra de confirma\xE7\xE3o da m\xE1quina).
 - "videos": s\xF3 quando houver v\xEDdeo \xFAtil, seguindo a lista V\xCDDEOS DISPON\xCDVEIS mais abaixo (o bloco pode ter s\xF3 "videos" e "produto").
 - Se nada disso se aplica (ex.: sauda\xE7\xE3o), n\xE3o escreva o bloco. Nunca mencione o bloco no texto e nunca escreva <painel> em outro lugar da resposta. O texto da resposta continua curto, em portugu\xEAs, seguindo todas as regras acima.` : "";
           let videosDisponiveis = [];
@@ -6527,12 +6554,12 @@ PAINEL ESCONDIDO (obrigat\xF3rio quando houver dado): no fim de TODA resposta, d
               videosDisponiveis = [];
             }
           }
-          const idsVideos = new Set(videosDisponiveis.map((v) => String(v.id)));
+          const idsVideos = new Set(videosDisponiveis.filter((v) => v.tipo !== "amostra").map((v) => String(v.id)));
           const conversaRecente = [...(Array.isArray(chatHistory) ? chatHistory.slice(-6) : []).map((m) => String(m?.content || "").slice(0, 600)), String(question || "")].join(" ");
-          const instrucaoDosVideos = querPainel ? instrucaoVideos(videosDisponiveis, conversaRecente) : "";
+          const instrucaoDosVideos = querPainel ? instrucaoVideos(videosDisponiveis, conversaRecente) + instrucaoAmostra(!!videoAmostraDe(videosDisponiveis)) : "";
           const finalSystemInstruction = systemInstruction + userTypeInstruction + contextoTrator + `
 
-LEMBRETE FINAL (PRIORIDADE M\xC1XIMA): siga as REGRAS PRIORIT\xC1RIAS A, B, C e D do in\xEDcio. Resposta curta e direta; se faltar dado essencial, pergunte antes; no m\xE1ximo 1 foto e s\xF3 do equipamento recomendado.` + instrucaoPainel + instrucaoDosVideos;
+LEMBRETE FINAL (PRIORIDADE M\xC1XIMA): siga as REGRAS PRIORIT\xC1RIAS A, B, C e D do in\xEDcio. Resposta curta e direta; se faltar dado essencial, pergunte antes; no m\xE1ximo 1 foto e s\xF3 do equipamento recomendado. Pergunta de QUAL KIT usar numa m\xE1quina: nunca afirme o kit pelo modelo ou pelo n\xFAmero de s\xE9rie; explique em 2 frases, diga o que confirmar e ofere\xE7a o pedido de confirma\xE7\xE3o ao cliente.` + instrucaoPainel + instrucaoDosVideos;
           const startTime = Date.now();
           const response = await generateContentWithRetry(ai, {
             defaultModel: "gemini-3.5-flash",
@@ -7988,7 +8015,7 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       } catch {
       }
       const PERFIS = {
-        completa: { itens: ["equipamento", "frete at\xE9 a sua cidade", "instala\xE7\xE3o hidr\xE1ulica na sua m\xE1quina por t\xE9cnico Roder", "regulagem e orienta\xE7\xE3o ao operador"], consultor: "Ele vai pedir a marca e o modelo da sua m\xE1quina e fotos do comando hidr\xE1ulico, para confirmar se ela tem fatia extra e v\xE1lvula de regulagem de press\xE3o. \xC9 com isso que a Roder prepara a instala\xE7\xE3o hidr\xE1ulica completa." },
+        completa: { itens: ["equipamento", "frete at\xE9 a sua cidade", "instala\xE7\xE3o hidr\xE1ulica na sua m\xE1quina por t\xE9cnico Roder", "regulagem e orienta\xE7\xE3o ao operador"], consultor: "Ele vai pedir fotos (bloco de comando, bomba, os dois joysticks) e v\xEDdeo (cabine e comando), para confirmar se ela tem fatia extra e v\xE1lvula de regulagem de press\xE3o. \xC9 com isso que a Roder prepara a instala\xE7\xE3o hidr\xE1ulica completa." },
         linha_extra: { itens: ["equipamento com o encaixe do engate da sua p\xE1 carregadeira", "frete at\xE9 a sua cidade", "instala\xE7\xE3o da linha extra (3\xAA fun\xE7\xE3o), se a sua m\xE1quina ainda n\xE3o tiver"], consultor: "Ele vai confirmar o modelo da sua p\xE1 carregadeira e se ela j\xE1 tem engate r\xE1pido e linha extra bidirecional (3\xAA fun\xE7\xE3o). Se j\xE1 tiver, n\xE3o precisa de instala\xE7\xE3o. Se n\xE3o tiver, a Roder instala." },
         garfo: { itens: ["equipamento", "frete at\xE9 a sua cidade"], consultor: "Ele vai confirmar o modelo da sua p\xE1 carregadeira e se ela usa engate r\xE1pido, para o garfo ir com o encaixe certo." },
         trator_tecnico: { itens: ["equipamento", "frete at\xE9 a sua cidade", "t\xE9cnico Roder acompanha a primeira instala\xE7\xE3o no trator", "orienta\xE7\xE3o de trabalho ao operador no in\xEDcio"], consultor: "Ele vai confirmar o modelo e a pot\xEAncia do seu trator." },
