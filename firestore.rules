@@ -112,9 +112,6 @@ service cloud.firestore {
     // outra pessoa: a conta B gravava em users/{B} o e-mail de A, uma senha inicial e uma data
     // antiga, e o primeiro acesso de A (criada por fora) confirmava o e-mail dela no servidor.
     // A senha inicial é coisa da tela de Usuários (gestão) e a data, só do servidor.
-    function emailDoCadastroEhODoLogin(e) {
-      return e == '' || e == emailDoToken();
-    }
     // E-MAIL NO CADASTRO SÓ COM LOGIN CONFIRMADO (20/10/2026). Conta com senha criada por fora não
     // confirma e-mail nenhum, mas o cadastro de usuário fica aberto no Firebase: a conta Q gravava
     // users/Q com o e-mail de outra pessoa (X), com taxa de comissão e "recebe lead" à sua escolha,
