@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { db } from '../../lib/firebase';
 import { cn, getApiBaseUrl } from '../../lib/utils';
 import { abrirDocumento } from '../../lib/abrirDocumento';
-import { comoTocar, textoVideoWhats, LIMITE_VIDEO_ARQUIVO_MB } from '../../lib/videoEquipamento';
+import { comoTocar, idYoutube, textoVideoWhats, LIMITE_VIDEO_ARQUIVO_MB } from '../../lib/videoEquipamento';
 
 // Vídeo do equipamento tocando DENTRO do cartão (pedido do Jeferson em 19/10/2026).
 // Nada toca sozinho: o carrossel mostra a foto e o botão "Ver vídeo"; o player só é montado
@@ -21,8 +21,9 @@ export function BotaoVerVideo({ onClick, compacto = false, className }: { onClic
     <button
       type="button"
       onClick={(e) => { e.stopPropagation(); onClick(); }}
-      className={cn('inline-flex w-auto items-center gap-1 rounded-full bg-[rgba(27,30,34,0.88)] text-[#fff] font-extrabold leading-none active:scale-95 transition',
-        compacto ? 'h-7 px-2.5 text-[11.5px]' : 'h-9 px-3 text-[13px]', className)}
+      // o desenho fica pequeno sobre a foto; a área de toque invisível (before:) chega aos 44px
+      className={cn('relative inline-flex w-auto items-center gap-1 rounded-full bg-[rgba(27,30,34,0.88)] text-[#fff] font-extrabold leading-none active:scale-95 transition before:absolute before:inset-x-0 before:content-[\'\']',
+        compacto ? 'h-7 px-2.5 text-[11.5px] before:-inset-y-2' : 'h-9 px-3 text-[13px] before:-inset-y-1', className)}
     >
       <Play className={cn('fill-[#F6C400] text-[#F6C400]', compacto ? 'h-3 w-3' : 'h-3.5 w-3.5')} /> Ver vídeo
     </button>
@@ -53,19 +54,32 @@ function useFonte(src: string): { fonte: string; erro: boolean } {
 // o mesmo parceiro abrindo o mesmo vídeo várias vezes não pede outro link ao servidor
 const CACHE_LINK = new Map<string, string>();
 
+// O Storage do Firebase não libera CORS para o navegador: o download do vídeo passa pelo servidor
+// (só o bucket do projeto e arquivos do banco; o servidor confere de novo)
+function viaServidor(url: string) {
+  if (url.startsWith('db-file://')) return true;
+  try { const h = new URL(url).hostname; return h === 'firebasestorage.googleapis.com' || h === 'storage.googleapis.com'; } catch { return false; }
+}
+const EXT_VIDEO = /\.(mp4|m4v|webm|mov)(?:$|[?#])/i;
+
 export function AcoesVideo({ pid, mid, titulo, url, compacto }: { pid?: string; mid?: string; titulo: string; url: string; compacto: boolean }) {
   const perm = useContext(ContextoVideo);
   const chave = `${perm?.token || 'login'}:${pid}:${mid || ''}`;
   const [link, setLink] = useState(() => CACHE_LINK.get(chave) || '');
-  const [estado, setEstado] = useState<'gerando' | 'pronto' | 'erro'>(() => CACHE_LINK.has(chave) ? 'pronto' : 'gerando');
+  // 'parado': o link ainda não existe (nasce só no primeiro toque em "Enviar no WhatsApp")
+  // 'bloqueado': o celular barrou a janela do WhatsApp; o botão "Abrir WhatsApp" é um toque novo
+  const [estado, setEstado] = useState<'parado' | 'gerando' | 'pronto' | 'bloqueado' | 'erro'>(() => CACHE_LINK.has(chave) ? 'pronto' : 'parado');
   const [baixado, setBaixado] = useState<File | null>(null);
   const [baixando, setBaixando] = useState(false);
   const como = comoTocar(url);
   const arquivo = como?.tipo === 'arquivo';
   const ativo = !!perm?.podeCompartilhar && !!pid;
 
-  const gerar = async () => {
-    setEstado('gerando');
+  // O link curto leva o crédito do parceiro: criar um a cada vídeo aberto enchia o banco de links
+  // que ninguém mandou. Agora ele nasce só quando a pessoa decide mandar.
+  const gerar = async (): Promise<string | null> => {
+    const guardado = CACHE_LINK.get(chave);
+    if (guardado) return guardado;
     try {
       const r = await fetch(`${getApiBaseUrl()}/api/consultor/link-cliente`, {
         method: 'POST',
@@ -77,14 +91,33 @@ export function AcoesVideo({ pid, mid, titulo, url, compacto }: { pid?: string; 
       const l = `${window.location.origin}/o/${j.codigo}`;
       CACHE_LINK.set(chave, l);
       setLink(l);
-      setEstado('pronto');
+      return l;
     } catch {
-      setEstado('erro');
+      return null;
     }
   };
-  // o link nasce assim que o vídeo abre: o botão do WhatsApp já fica pronto para o toque
-  // (abrir o WhatsApp depois de esperar o servidor é bloqueado em alguns celulares)
-  useEffect(() => { if (ativo && !CACHE_LINK.has(chave)) gerar(); }, [ativo, chave]);
+  const urlWhats = (l: string) => `https://wa.me/?text=${encodeURIComponent(textoVideoWhats(titulo, l))}`;
+
+  // Celular só deixa abrir janela DENTRO do toque. Por isso a janela abre em branco na hora,
+  // e recebe o endereço do WhatsApp quando o link chega do servidor.
+  const enviarWhats = async () => {
+    if (estado === 'gerando') return;
+    if (link) { window.open(urlWhats(link), '_blank', 'noopener'); return; }
+    let janela: Window | null = null;
+    try { janela = window.open('', '_blank'); } catch { janela = null; }
+    try { if (janela) janela.opener = null; } catch { /* nada */ }
+    setEstado('gerando');
+    const l = await gerar();
+    if (!l) {
+      try { janela?.close(); } catch { /* nada */ }
+      setEstado('erro');
+      return;
+    }
+    if (janela && !janela.closed) {
+      try { janela.location.href = urlWhats(l); setEstado('pronto'); return; } catch { /* cai no botão */ }
+    }
+    setEstado('bloqueado');
+  };
 
   // o celular só mostra a opção "Enviar o vídeo" se ele consegue mandar arquivo de vídeo
   const [mandaArquivo] = useState(() => {
@@ -95,7 +128,7 @@ export function AcoesVideo({ pid, mid, titulo, url, compacto }: { pid?: string; 
   });
 
   if (!ativo) return null;
-  const texto = textoVideoWhats(titulo, link);
+  const texto = link ? textoVideoWhats(titulo, link) : '';
 
   const baixar = async () => {
     if (baixando) return;
@@ -103,35 +136,43 @@ export function AcoesVideo({ pid, mid, titulo, url, compacto }: { pid?: string; 
     setBaixando(true);
     const cap = LIMITE_VIDEO_ARQUIVO_MB * 1024 * 1024;
     const grande = () => toast.info(`Vídeo grande demais para mandar como arquivo (mais de ${LIMITE_VIDEO_ARQUIVO_MB} MB). Use "Enviar no WhatsApp", que manda o link.`, { id });
+    const naoEVideo = () => toast.error('Este arquivo não é um vídeo. Use "Enviar no WhatsApp", que manda o link.', { id, action: { label: 'Enviar no WhatsApp', onClick: () => { enviarWhats(); } } });
     try {
-      let blob: Blob;
-      if (url.startsWith('db-file://')) {
-        toast.loading('Preparando o vídeo...', { id });
-        const s = await getDoc(doc(db, 'app_files', url.slice(10)));
-        const d = String((s.exists() && (s.data() as any)?.data) || '');
-        blob = await (await fetch(d)).blob();
-      } else {
-        toast.loading('Baixando o vídeo 0%', { id });
-        const r = await fetch(url);
-        if (!r.ok || !r.body) throw new Error('falhou');
-        const total = Number(r.headers.get('content-length') || 0);
-        if (total > cap) { await r.body.cancel().catch(() => {}); grande(); return; }
-        const leitor = r.body.getReader();
-        const partes: Uint8Array[] = [];
-        let lido = 0;
-        for (;;) {
-          const { done, value } = await leitor.read();
-          if (done) break;
-          lido += value.length;
-          if (lido > cap) { await leitor.cancel().catch(() => {}); grande(); return; }
-          partes.push(value);
-          if (total) toast.loading(`Baixando o vídeo ${Math.round((lido / total) * 100)}%`, { id });
-          else toast.loading(`Baixando o vídeo ${(lido / 1024 / 1024).toFixed(1)} MB`, { id });
-        }
-        blob = new Blob(partes as BlobPart[], { type: r.headers.get('content-type') || 'video/mp4' });
+      const proxy = viaServidor(url);
+      const endereco = proxy
+        ? `${getApiBaseUrl()}/api/consultor/video-arquivo?url=${encodeURIComponent(url)}${perm?.token ? `&p=${encodeURIComponent(perm.token)}` : ''}`
+        : url;
+      toast.loading('Baixando o vídeo 0%', { id });
+      const r = await fetch(endereco);
+      if (r.status === 413) { grande(); return; }
+      if (r.status === 415) { naoEVideo(); return; }
+      if (!r.ok || !r.body) throw new Error('falhou');
+      const total = Number(r.headers.get('content-length') || 0);
+      if (total > cap) { await r.body.cancel().catch(() => {}); grande(); return; }
+      const leitor = r.body.getReader();
+      const partes: Uint8Array[] = [];
+      let lido = 0;
+      for (;;) {
+        const { done, value } = await leitor.read();
+        if (done) break;
+        lido += value.length;
+        if (lido > cap) { await leitor.cancel().catch(() => {}); grande(); return; }
+        partes.push(value);
+        if (total) toast.loading(`Baixando o vídeo ${Math.round((lido / total) * 100)}%`, { id });
+        else toast.loading(`Baixando o vídeo ${(lido / 1024 / 1024).toFixed(1)} MB`, { id });
       }
+      // Só vídeo vira arquivo: uma página de erro ou uma foto não pode ir ao cliente como "vídeo".
+      // Sem tipo (servidor que manda octet-stream), vale a extensão do endereço.
+      const tipoCru = (r.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+      const tipoOk = /^video\//.test(tipoCru)
+        ? tipoCru
+        : (!proxy && (!tipoCru || tipoCru === 'application/octet-stream') && EXT_VIDEO.test(url))
+          ? (/\.webm/i.test(url) ? 'video/webm' : /\.mov/i.test(url) ? 'video/quicktime' : 'video/mp4')
+          : '';
+      if (!tipoOk) { naoEVideo(); return; }
+      const blob = new Blob(partes as BlobPart[], { type: tipoOk });
       if (blob.size > cap) { grande(); return; }
-      const tipo = /^video\//.test(blob.type) ? blob.type : 'video/mp4';
+      const tipo = blob.type;
       const ext = tipo.includes('webm') ? 'webm' : tipo.includes('quicktime') ? 'mov' : 'mp4';
       const nome = `${titulo.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-') || 'video-roder'}.${ext}`;
       const f = new File([blob], nome, { type: tipo });
@@ -152,32 +193,35 @@ export function AcoesVideo({ pid, mid, titulo, url, compacto }: { pid?: string; 
   const mandar = async () => {
     if (!baixado) return;
     try {
-      await (navigator as any).share({ files: [baixado], text: link ? texto : undefined });
+      await (navigator as any).share({ files: [baixado], text: texto || undefined });
     } catch (e: any) {
       if (e?.name !== 'AbortError') toast.error('Não consegui abrir o envio. Use "Enviar no WhatsApp".');
     }
   };
 
-  const alto = compacto ? 'h-9 text-[12.5px] rounded-[10px]' : 'h-11 text-[14px] rounded-xl';
+  const alto = compacto ? 'h-11 text-[13px] rounded-[10px]' : 'h-11 text-[14px] rounded-xl';
   return (
     <div className={cn('flex flex-col gap-1.5', compacto ? 'pt-1.5' : 'pt-2')}>
-      {estado === 'pronto' ? (
+      {estado === 'bloqueado' && link ? (
         <a
-          href={`https://wa.me/?text=${encodeURIComponent(texto)}`}
+          href={urlWhats(link)}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={() => setEstado('pronto')}
           className={cn('w-full flex items-center justify-center gap-1.5 bg-[#1FA855] text-[#fff] font-extrabold no-underline active:scale-[0.98] transition', alto)}
         >
-          <Send className="h-4 w-4 shrink-0" /> Enviar no WhatsApp
+          <Send className="h-4 w-4 shrink-0" /> Abrir WhatsApp
         </a>
       ) : (
         <button
           type="button"
-          onClick={estado === 'erro' ? gerar : undefined}
+          onClick={enviarWhats}
           disabled={estado === 'gerando'}
-          className={cn('w-full flex items-center justify-center gap-1.5 bg-[#1FA855] text-[#fff] font-extrabold disabled:opacity-70', alto)}
+          className={cn('w-full flex items-center justify-center gap-1.5 bg-[#1FA855] text-[#fff] font-extrabold disabled:opacity-70 active:scale-[0.98] transition', alto)}
         >
-          {estado === 'gerando' ? <><Loader2 className="h-4 w-4 animate-spin" /> Preparando o link...</> : 'Não gerou o link. Tentar de novo'}
+          {estado === 'gerando' ? <><Loader2 className="h-4 w-4 animate-spin" /> Preparando o link...</>
+            : estado === 'erro' ? 'Não gerou o link. Tentar de novo'
+            : <><Send className="h-4 w-4 shrink-0" /> Enviar no WhatsApp</>}
         </button>
       )}
       {arquivo && mandaArquivo && (
@@ -224,20 +268,27 @@ export function PlayerVideo({ url, titulo, onFechar, pid, mid, compacto = false,
     doVideo();
   };
   const fechar = () => {
-    try { if (docAny?.fullscreenElement) docAny.exitFullscreen?.(); } catch { /* nada */ }
+    // Safari antigo usa os nomes webkit; no iPhone a tela cheia é a do próprio <video>
+    try {
+      if (docAny?.fullscreenElement) docAny.exitFullscreen?.();
+      else if (docAny?.webkitFullscreenElement) docAny.webkitExitFullscreen?.();
+    } catch { /* nada */ }
+    try { const v: any = video.current; if (v?.webkitDisplayingFullscreen) v.webkitExitFullscreen?.(); } catch { /* nada */ }
     onFechar();
   };
 
   if (!como) return null;
   const naoToca = falhou || erroBanco;
-  const botao = 'absolute top-1.5 z-10 h-9 w-9 rounded-full bg-[rgba(0,0,0,0.62)] text-[#fff] flex items-center justify-center p-0 active:scale-95';
+  // 36px de desenho, 44px de toque (before: invisível, cabe dentro da caixa que corta o excesso)
+  const botao = 'absolute top-1.5 z-10 h-9 w-9 rounded-full bg-[rgba(0,0,0,0.62)] text-[#fff] flex items-center justify-center p-0 active:scale-95 before:absolute before:-inset-1 before:content-[\'\']';
+  const ytId = como.tipo === 'iframe' && como.youtube ? idYoutube(url) : '';
   return (
     <div className={className}>
       <div ref={caixa} className="relative w-full aspect-video bg-[#000] overflow-hidden [&:fullscreen]:aspect-auto">
         {naoToca ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-3 text-center">
             <p className="m-0 text-[13px] text-[#E5E7EB]">Não consegui tocar o vídeo aqui.</p>
-            <button type="button" onClick={() => abrirDocumento(url, titulo)} className="h-9 w-auto px-3.5 rounded-full bg-[#F6C400] text-[#1B1E22] text-[13px] font-extrabold">Abrir o vídeo</button>
+            <button type="button" onClick={() => abrirDocumento(url, titulo)} className="h-11 w-auto px-4 rounded-full bg-[#F6C400] text-[#1B1E22] text-[13px] font-extrabold">Abrir o vídeo</button>
           </div>
         ) : como.tipo === 'iframe' ? (
           <iframe
@@ -271,6 +322,17 @@ export function PlayerVideo({ url, titulo, onFechar, pid, mid, compacto = false,
           <X className="h-5 w-5" />
         </button>
       </div>
+      {ytId && (
+        // alguns vídeos do YouTube não deixam tocar fora do site deles: o link sempre à mão
+        <a
+          href={`https://www.youtube.com/watch?v=${encodeURIComponent(ytId)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex min-h-11 items-center px-1 text-[12.5px] font-bold text-[#6B7280] underline underline-offset-2"
+        >
+          Abrir no YouTube
+        </a>
+      )}
       {comAcoes && <AcoesVideo pid={pid} mid={mid} titulo={titulo} url={url} compacto={compacto} />}
     </div>
   );

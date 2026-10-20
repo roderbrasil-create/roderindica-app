@@ -5625,7 +5625,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
               <span className="ccel-titulo pointer-events-none absolute inset-x-0 bottom-1.5 h-11 flex items-center justify-center">
                 <span className="fonte-titulo text-[16px] font-extrabold tracking-[0.06em] text-[#F6C400] whitespace-nowrap">CONSULTOR</span>
               </span>
-              <img src="/marca/roder-horizontal.png" alt="Roder" className="relative h-7 w-auto shrink-0 mix-blend-lighten" />
+              <img src="/marca/roder-horizontal.png" alt="Roder" className="relative h-7 max-[359px]:h-6 w-auto shrink-0 mix-blend-lighten" />
               <span className="min-w-0 flex-1" />
               {isFullPage && primeiroNomeCel && (
                 <span className="ccel-nome relative truncate pr-1 text-[13px] font-medium text-[#C9CED4]" title={nomeUsuario}>{primeiroNomeCel}</span>

@@ -1,7 +1,7 @@
 // Rotas do consultor do parceiro com um Firestore em memória. Rodar: node --import tsx --test testes-servidor/consultor-parceiro.test.ts
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { criarRotasConsultorParceiro } from '../server/consultorParceiro.ts';
+import { criarRotasConsultorParceiro, alvoDoVideo, LIMITE_LINK_HORA, LIMITE_IP_HORA, MAX_VIDEO_PROXY } from '../server/consultorParceiro.ts';
 import { querIndicar, validarTelefoneBR, lerCidadeUf, validarCnpj } from '../src/lib/consultorIndicar.ts';
 
 const APAGAR = Symbol('apagar');
@@ -42,11 +42,13 @@ const resFalso = () => {
   const r: any = { statusCode: 200, corpo: null, headersSent: false };
   r.status = (c: number) => { r.statusCode = c; return r; };
   r.json = (b: any) => { r.corpo = b; r.headersSent = true; return r; };
-  r.setHeader = () => {};
+  r.cabecalhos = {} as Record<string, string>;
+  r.setHeader = (k: string, v: string) => { r.cabecalhos[k.toLowerCase()] = v; };
+  r.end = (b: any) => { r.corpo = b; r.headersSent = true; return r; };
   return r;
 };
 
-function montar(quem: any = null) {
+function montar(quem: any = null, op: { passouLimite?: any; ipDe?: any; abrirArquivoStorage?: any } = {}) {
   const db = bancoFalso({
     users: {
       gis: { name: 'Gislene', role: 'manager', status: 'active', email: 'gislene@roderbrasil.com.br' },
@@ -65,7 +67,8 @@ function montar(quem: any = null) {
   const emails: string[] = [];
   const quemAtual = { v: quem };
   const r = criarRotasConsultorParceiro({
-    db, quemChama: async () => quemAtual.v, passouLimite: () => false, ipDe: () => '1.1.1.1',
+    db, quemChama: async () => quemAtual.v, passouLimite: op.passouLimite || (() => false), ipDe: op.ipDe || (() => '1.1.1.1'),
+    abrirArquivoStorage: op.abrirArquivoStorage,
     campoApagado: () => APAGAR,
     criarLinkCurto: async (uid, pid, mid) => `C${uid}${pid}${mid}`.slice(0, 8).toUpperCase(),
     enviarEmail: async (to) => { emails.push(to); },
@@ -251,4 +254,100 @@ test('cadastro antigo com token em users: vale só o consultor_links, e o campo 
   res = await chamar(r.rotaLink, { params: { uid: 'car' }, body: {} });
   assert.notEqual(res.corpo.token, soNoUsuario);
   assert.equal('consultor_link_token' in db.dados.users.car, false);
+});
+
+// O mesmo limitador do server.ts, na memória
+function limitadorReal() {
+  const limites = new Map<string, number[]>();
+  return (chave: string, max: number, janelaMs: number) => {
+    const agora = Date.now();
+    const lista = (limites.get(chave) || []).filter(t => agora - t < janelaMs);
+    lista.push(agora);
+    limites.set(chave, lista);
+    return lista.length > max;
+  };
+}
+
+test('VÍDEO: o proxy só aceita o bucket do projeto e arquivos do banco, nunca um endereço qualquer', () => {
+  const B = 'gen-lang-client-0708423613.firebasestorage.app';
+  assert.deepEqual(alvoDoVideo(`https://firebasestorage.googleapis.com/v0/b/${B}/o/videos%2Fcmf.mp4?alt=media&token=x`), { tipo: 'storage', bucket: B, caminho: 'videos/cmf.mp4' });
+  assert.deepEqual(alvoDoVideo(`https://storage.googleapis.com/${B}/videos/cmf.mp4`), { tipo: 'storage', bucket: B, caminho: 'videos/cmf.mp4' });
+  assert.deepEqual(alvoDoVideo('db-file://abc_123'), { tipo: 'banco', id: 'abc_123' });
+  for (const ruim of [
+    'https://firebasestorage.googleapis.com/v0/b/outro-projeto.appspot.com/o/v.mp4?alt=media',
+    `http://firebasestorage.googleapis.com/v0/b/${B}/o/v.mp4`,
+    `https://firebasestorage.googleapis.com.evil.com/v0/b/${B}/o/v.mp4`,
+    `https://evil.com/v0/b/${B}/o/v.mp4`,
+    `https://user:x@firebasestorage.googleapis.com/v0/b/${B}/o/v.mp4`,
+    `https://firebasestorage.googleapis.com:8443/v0/b/${B}/o/v.mp4`,
+    'http://169.254.169.254/latest/meta-data',
+    'http://localhost:3000/uploads/x.mp4',
+    'db-file://../etc/passwd',
+    'file:///etc/passwd',
+    '',
+  ]) assert.equal(alvoDoVideo(ruim), null, ruim);
+});
+
+test('VÍDEO: só baixa quem pode indicar, só vídeo, e até 40 MB', async () => {
+  const B = 'gen-lang-client-0708423613.firebasestorage.app';
+  const arquivos: Record<string, any> = {
+    'v/ok.mp4': { contentType: 'video/mp4', tamanho: 1234 },
+    'v/foto.jpg': { contentType: 'image/jpeg', tamanho: 1234 },
+    'v/grande.mp4': { contentType: 'video/mp4', tamanho: MAX_VIDEO_PROXY + 1 },
+  };
+  const canos: any[] = [];
+  const { db, r, quemAtual } = montar({ uid: 'gis', email: 'g', role: 'manager' }, {
+    abrirArquivoStorage: async (bucket: string, caminho: string) => {
+      assert.equal(bucket, B);
+      const a = arquivos[caminho];
+      if (!a) return null;
+      const stream = { on: () => stream, pipe: (res: any) => { canos.push(caminho); res.end('BYTES'); }, destroy: () => {} };
+      return { ...a, stream };
+    },
+  });
+  const tok = (await chamar(r.rotaLink, { params: { uid: 'car' }, body: {} })).corpo.token;
+  quemAtual.v = null;
+  const url = (c: string) => `https://firebasestorage.googleapis.com/v0/b/${B}/o/${encodeURIComponent(c)}?alt=media`;
+  // sem link e sem login: não baixa
+  assert.equal((await chamar(r.rotaVideoArquivo, { query: { url: url('v/ok.mp4') } })).statusCode, 401);
+  // endereço de fora: recusa antes de qualquer coisa
+  assert.equal((await chamar(r.rotaVideoArquivo, { query: { url: 'https://evil.com/v.mp4', p: tok } })).statusCode, 400);
+  let res = await chamar(r.rotaVideoArquivo, { query: { url: url('v/ok.mp4'), p: tok } });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.cabecalhos['content-type'], 'video/mp4');
+  assert.equal(res.corpo, 'BYTES');
+  assert.equal((await chamar(r.rotaVideoArquivo, { query: { url: url('v/foto.jpg'), p: tok } })).statusCode, 415);
+  assert.equal((await chamar(r.rotaVideoArquivo, { query: { url: url('v/grande.mp4'), p: tok } })).statusCode, 413);
+  assert.equal((await chamar(r.rotaVideoArquivo, { query: { url: url('v/nao.mp4'), p: tok } })).statusCode, 404);
+  assert.deepEqual(canos, ['v/ok.mp4']);
+  // arquivo do banco: só data:video/
+  db.dados.app_files = { vid: { data: 'data:video/mp4;base64,' + Buffer.from('abc').toString('base64') }, img: { data: 'data:image/png;base64,AAAA' } };
+  res = await chamar(r.rotaVideoArquivo, { query: { url: 'db-file://vid', p: tok } });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.cabecalhos['content-type'], 'video/mp4');
+  assert.equal(Buffer.from(res.corpo).toString(), 'abc');
+  assert.equal((await chamar(r.rotaVideoArquivo, { query: { url: 'db-file://img', p: tok } })).statusCode, 415);
+  // login de quem não indica: não baixa
+  quemAtual.v = { uid: 'ina', email: 'ina@gmail.com', role: 'external_seller' };
+  assert.equal((await chamar(r.rotaVideoArquivo, { query: { url: url('v/ok.mp4') } })).statusCode, 403);
+});
+
+test('LIMITE POR DONO: um parceiro que passou do limite não trava outro no mesmo IP', async () => {
+  const { db, r, quemAtual } = montar({ uid: 'gis', email: 'g', role: 'manager' }, { passouLimite: limitadorReal() });
+  db.dados.users.out = { name: 'Outro Parceiro', role: 'external_seller', status: 'active', email: 'out@gmail.com' };
+  const tA = (await chamar(r.rotaLink, { params: { uid: 'car' }, body: {} })).corpo.token;
+  const tB = (await chamar(r.rotaLink, { params: { uid: 'out' }, body: {} })).corpo.token;
+  quemAtual.v = null;
+  for (let i = 0; i < LIMITE_LINK_HORA; i++) assert.equal((await chamar(r.rotaLinkCliente, { body: { p: tA, pid: 'p3', mid: 'm5' } })).statusCode, 200, `A ${i}`);
+  assert.equal((await chamar(r.rotaLinkCliente, { body: { p: tA, pid: 'p3', mid: 'm5' } })).statusCode, 429);
+  // o mesmo IP, outro dono: passa
+  assert.equal((await chamar(r.rotaLinkCliente, { body: { p: tB, pid: 'p3', mid: 'm5' } })).statusCode, 200);
+  assert.ok(LIMITE_IP_HORA >= 200);
+});
+
+test('LIMITE POR IP: continua como teto alto de segurança', async () => {
+  const { r } = montar(null, { passouLimite: limitadorReal() });
+  // token falso dá 401 até o teto do IP; passando dele, 429
+  for (let i = 0; i < LIMITE_IP_HORA; i++) assert.equal((await chamar(r.rotaLinkCliente, { body: { p: 'X'.repeat(32), pid: 'p3' } })).statusCode, 401);
+  assert.equal((await chamar(r.rotaLinkCliente, { body: { p: 'X'.repeat(32), pid: 'p3' } })).statusCode, 429);
 });

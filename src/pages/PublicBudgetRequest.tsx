@@ -28,6 +28,7 @@ import { abrirDocumento } from '../lib/abrirDocumento';
 import { perfilInstalacao, TEXTOS_INSTALACAO, frasePara } from '../lib/instalacao';
 import { ImageLightbox } from '../components/ui/ImageLightbox';
 import { PlayerVideo } from '../components/video/VideoEquipamento';
+import { tituloFicha } from '../lib/tituloFicha';
 import { videoDoEquipamento } from '../lib/videoEquipamento';
 
 // Faixa preta com a logo horizontal da Roder, abaixo da hora e da bateria do celular
@@ -394,10 +395,8 @@ export default function PublicBudgetRequest() {
     }
   };
 
-  const palavrasNome = displayProductName.trim().split(/\s+/);
-  const ultimaPalavra = palavrasNome[palavrasNome.length - 1] || '';
-  const nomeBase = ultimaPalavra.length <= 4 && displayModelName.toUpperCase().startsWith(ultimaPalavra.toUpperCase()) ? palavrasNome.slice(0, -1).join(' ') : displayProductName;
-  const tituloEquip = !displayModelName || nomeBase.toLowerCase().includes(displayModelName.toLowerCase()) ? nomeBase : `${nomeBase} ${displayModelName}`;
+  // título no singular com o modelo, igual à ficha: "Garras Florestais" + "R400" vira "Garra Florestal R400"
+  const tituloEquip = tituloFicha({ name: displayProductName }, { name: displayModelName }) || 'Equipamento Roder';
   const specs: Record<string, any> = (activeModel as any)?.technical_specs || {};
   const nomeCompleto = `${displayProductName} ${displayModelName}`;
   const perfil = perfilInstalacao(nomeCompleto, specs);

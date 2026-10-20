@@ -4754,6 +4754,13 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
   registrarConsultorParceiro(app, {
     db, quemChama, passouLimite, ipDe, criarLinkCurto,
     campoApagado: () => admin.firestore.FieldValue.delete(),
+    abrirArquivoStorage: async (bucket, caminho) => {
+      const file = getStorage(adminApp).bucket(bucket).file(caminho);
+      const [existe] = await file.exists();
+      if (!existe) return null;
+      const [meta]: any = await file.getMetadata();
+      return { contentType: String(meta?.contentType || ''), tamanho: Number(meta?.size || 0), stream: file.createReadStream() };
+    },
     enviarEmail: (to, subject, html) => sendAutomaticEmail(to, subject, html),
     sincronizarAgendor: async (id, dados) => {
       const ag: any = (await db.collection('settings').doc('agendor').get()).data() || {};
