@@ -43,7 +43,7 @@ import { instrucaoPerfilConsultor } from "./server/consultorPerfil";
 import { injetarPrevia, previaPadrao, previaDoEquipamento, codigoLimpo, SITE_PREVIA } from "./server/previaLink";
 import { criarImagemPrevia, candidatasDoLink, urlImagemPrevia, MAX_ORIGEM_BYTES, PASTA_CACHE } from "./server/previaImagem";
 import { fotosExternas, RodadaEmAndamento } from "./server/fotosExternas";
-import { registrarDiagnosticoComissao, moverComissoesDoProvisorio } from "./server/diagnosticoComissao";
+import { registrarDiagnosticoComissao, moverComissoesDoProvisorio, loteEmPartes } from "./server/diagnosticoComissao";
 import { relatorioDiretoriaDia1, relatorioParceirosDia1, lembreteNfDia5, lembreteFinanceiroDia7, ligarEmailsComissaoUmaVez } from "./server/relatoriosComissao";
 
 let __currentDir: string;
@@ -1650,10 +1650,10 @@ Retorne um array JSON no formato exato:
       perfil.status = 'active';
       perfil.updated_at = new Date().toISOString();
 
-      const lote = db.batch();
+      // em partes de 450: parceiro com muitas vendas passava do limite de 500 escritas do Firestore
+      const lote = loteEmPartes(db);
       lote.set(realRef, perfil);
       for (const t of temporarios) {
-        lote.delete(t.ref);
         const ligados = await Promise.all([
           db.collection('indications').where('internal_seller_uid', '==', t.id).get(),
           db.collection('indications').where('assigned_to_uid', '==', t.id).get(),
@@ -1668,10 +1668,14 @@ Retorne um array JSON no formato exato:
         ligados[0].forEach(d => lote.update(d.ref, { internal_seller_uid: dec.uid, updated_at: perfil.updated_at }));
         ligados[1].forEach(d => lote.update(d.ref, { assigned_to_uid: dec.uid, updated_at: perfil.updated_at }));
         ligados[2].forEach(d => lote.update(d.ref, { assigned_to_uid: dec.uid, updated_at: perfil.updated_at }));
-        // a comissão e o fechamento mensal do provisório vão junto, senão o painel do parceiro
-        // mostra a venda e soma zero (server/diagnosticoComissao.ts)
-        await moverComissoesDoProvisorio(db, lote, t.id, dec.uid, perfil.updated_at);
       }
+      // a comissão e o fechamento mensal do provisório vão junto, senão o painel do parceiro
+      // mostra a venda e soma zero (server/diagnosticoComissao.ts). Todos os provisórios de uma
+      // vez: dois do mesmo mês são somados, e não um por cima do outro.
+      const movidos = await moverComissoesDoProvisorio(db, lote, temporarios.map((t: any) => t.id), dec.uid, perfil.updated_at, perfil.name);
+      if (movidos.presos.length) console.warn(`[AUTH] ${email}: ${movidos.presos.length} fechamento(s) do provisório não puderam ser juntados (pago ou aguardando pagamento).`);
+      // apagar o provisório vai por último: se uma parte do lote falhar, ele continua lá para a próxima tentativa
+      temporarios.forEach((t: any) => lote.delete(t.ref));
       await lote.commit();
       console.log(`[AUTH] Perfil pré-cadastrado passado para ${email} (${temporarios.length} provisório(s)).`);
       return res.json({ ok: true, merged: true });

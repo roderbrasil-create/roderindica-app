@@ -592,6 +592,10 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
   });
   const [savingEmail, setSavingEmail] = useState(false);
   const [savingNotifications, setSavingNotifications] = useState(false);
+  // Último valor lido do banco: o salvar grava só o que mudou desde ele. Uma aba aberta antes de o
+  // servidor ligar os e-mails de comissão (ligarEmailsComissaoUmaVez) desligava os três de novo
+  // ao salvar qualquer outro campo, porque gravava a tela inteira por cima.
+  const notificationBaseRef = React.useRef<any>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [approvalQueue, setApprovalQueue] = useState<any[]>([]);
   const [approvingId, setApprovingId] = useState<string | null>(null);
@@ -1542,6 +1546,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
     
     const unsubNotifications = onSnapshot(doc(db, 'settings', 'notifications'), (snap) => {
       if (snap.exists()) {
+        notificationBaseRef.current = snap.data();
         setNotificationSettings(snap.data() as any);
       }
     });
@@ -1645,7 +1650,14 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
   const handleSaveNotificationSettings = async () => {
     setSavingNotifications(true);
     try {
-      await setDoc(doc(db, 'settings', 'notifications'), notificationSettings);
+      const base = notificationBaseRef.current;
+      const mudou: Record<string, any> = base
+        ? Object.fromEntries(Object.entries(notificationSettings).filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(base[k])))
+        : { ...notificationSettings };
+      if (Object.keys(mudou).length) {
+        await setDoc(doc(db, 'settings', 'notifications'), mudou, { merge: true });
+        notificationBaseRef.current = { ...(base || {}), ...mudou };
+      }
       toast.success('Central de Notificações atualizada!');
     } catch (error: any) {
       toast.error('Erro ao salvar: ' + error.message);

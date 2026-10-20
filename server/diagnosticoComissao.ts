@@ -403,14 +403,29 @@ export async function ligarParceiro(deps: DepsEscrita, indId: string, uid: strin
 
 const ROTULO_STATUS_COMISSAO: Record<string, string> = { waiting_payment: 'aguardando pagamento (nota fiscal já enviada)', paid: 'paga' };
 
+// Fechamento pago ou aguardando pagamento: a nota fiscal já saiu (ou o PIX já caiu). Comissão que
+// entra num fechamento assim é lida como paga pelos e-mails do dia 1, 5 e 7 (comissoesDoCiclo,
+// server/relatoriosComissao.ts) sem ninguém ter pago, e some deles sem aviso.
+const fechamentoTravado = (st: any) => !!st && (st.status === 'paid' || st.status === 'waiting_payment');
+const rotuloFechamento = (st: any) => st?.status === 'paid' ? 'pago' : 'aguardando pagamento';
+const mmaa = (m: any, a: any) => `${String(m).padStart(2, '0')}/${a}`;
+
+type OpcoesTransferir = {
+  // "Trocar Indicador" da tela de Indicações: sem comissão lançada, a venda pode ir para quem não
+  // recebe comissão (regional, gerente). Com comissão, só para quem recebe.
+  semComissaoQualquerDestino?: boolean;
+  nomeInformado?: string;
+};
+
 // Transferir: a indicação E todas as comissões dela passam para a conta escolhida, numa transação.
 // Existe porque "ligar" só mexe na indicação: com a comissão já lançada no código antigo, o painel
 // do parceiro (que soma commissions pelo uid dele) continuava sem a venda. Caso típico: parceiro
 // com dois cadastros, a venda num e ele entrando com o outro.
 // Não mexe em comissão paga nem em comissão que já está num fechamento aguardando pagamento ou
 // pago: ali a nota fiscal saiu (ou o PIX caiu) em nome da conta antiga, e mudar só o código
-// deixaria o fechamento dizendo uma coisa e a comissão outra.
-export async function transferirIndicacao(deps: DepsEscrita, indId: string, uid: string, autor: { uid: string; nome: string }, origem = 'diagnóstico de comissão') {
+// deixaria o fechamento dizendo uma coisa e a comissão outra. Pelo mesmo motivo recusa quando o
+// fechamento do mês na conta NOVA já está pago ou aguardando pagamento.
+export async function transferirIndicacao(deps: DepsEscrita, indId: string, uid: string, autor: { uid: string; nome: string }, origem = 'diagnóstico de comissão', opcoes: OpcoesTransferir = {}) {
   const { db, arrayUnion } = deps;
   const agora = deps.agora ? deps.agora() : new Date();
   exigirId(indId);
@@ -421,14 +436,21 @@ export async function transferirIndicacao(deps: DepsEscrita, indId: string, uid:
     const s = await tx.get(indRef);
     if (!s.exists) throw erro(404, 'Indicação não encontrada.');
     const u = await tx.get(db.collection('users').doc(uid));
-    if (!u.exists) throw erro(404, 'Usuário não encontrado.');
-    const user = u.data() || {};
-    if (!papelComissionavel(user.role)) throw erro(409, `${user.name || 'Este usuário'} é da equipe Roder e não recebe comissão. Escolha o parceiro indicador.`);
-    const novoUid = String(user.uid || u.id || uid);
+    const user = u.exists ? (u.data() || {}) : null;
     const ind = s.data() || {};
     const comms = (await tx.get(db.collection('commissions').where('indication_id', '==', indId))).docs;
+    const livre = !!opcoes.semComissaoQualquerDestino && !comms.length;
+    const nomeInformado = String(opcoes.nomeInformado || '').trim();
+    if (!user && !(livre && nomeInformado)) throw erro(404, 'Usuário não encontrado.');
+    if (!livre && !papelComissionavel(user.role)) {
+      throw erro(409, `${user.name || 'Este usuário'} é da equipe Roder e não recebe comissão.` + (opcoes.semComissaoQualquerDestino
+        ? ' Esta venda já tem comissão lançada: ela só pode ir para um parceiro que recebe comissão. Acerte a comissão no Diagnóstico de comissão (Configurações) antes.'
+        : ' Escolha o parceiro indicador.'));
+    }
+    const novoUid = user ? String(user.uid || u.id || uid) : uid;
 
-    const fechamentos = new Map<string, any>(); // id -> { ref, data }
+    const fechamentos = new Map<string, any>(); // id -> { ref, data, tirar }
+    const destinos = new Map<string, any>(); // fechamento do mês na conta nova
     for (const c of comms) {
       const cd = c.data() || {};
       if (cd.status === 'paid' || cd.status === 'waiting_payment') {
@@ -443,25 +465,38 @@ export async function transferirIndicacao(deps: DepsEscrita, indId: string, uid:
       lidos.push(...q.docs);
       for (const f of lidos) {
         const fd = f.data() || {};
-        const contem = (fd.commission_ids || []).includes(c.id);
+        const lista = fd.commission_ids || [];
+        const contem = lista.includes(c.id);
         // fechamento do mesmo código e mês sem lista de comissões vale para todas daquele mês
         const doMesmoMes = fd.seller_uid === cd.external_seller_uid && fd.month === cd.month && fd.year === cd.year;
-        if ((contem || doMesmoMes) && (fd.status === 'waiting_payment' || fd.status === 'paid')) {
-          throw erro(409, `A comissão desta venda está no fechamento de ${String(fd.month).padStart(2, '0')}/${fd.year} da conta ${fd.seller_name || fd.seller_uid}, que está ${fd.status === 'paid' ? 'pago' : 'aguardando pagamento'}. Não dá para transferir: a nota fiscal e o pagamento são dessa conta. Acerte com o financeiro antes.`);
+        if ((contem || doMesmoMes) && fechamentoTravado(fd)) {
+          throw erro(409, `A comissão desta venda está no fechamento de ${mmaa(fd.month, fd.year)} da conta ${fd.seller_name || fd.seller_uid}, que está ${rotuloFechamento(fd)}. Não dá para transferir: a nota fiscal e o pagamento são dessa conta. Acerte com o financeiro antes.`);
         }
-        if (contem) {
+        // sem lista de comissões, o total do mês inteiro inclui esta: tira do total do mesmo jeito
+        if (contem || (doMesmoMes && !lista.length)) {
           const atual = fechamentos.get(f.id) || { ref: f.ref, data: fd, tirar: [] as { id: string; valor: number }[] };
-          atual.tirar.push({ id: c.id, valor: Number(cd.value) || 0 });
+          if (!atual.tirar.some((t: any) => t.id === c.id)) atual.tirar.push({ id: c.id, valor: Number(cd.value) || 0 });
           fechamentos.set(f.id, atual);
+        }
+      }
+      if (cd.external_seller_uid !== novoUid && cd.month && cd.year) {
+        const idDestino = `${novoUid}_${cd.month}_${cd.year}`;
+        if (!destinos.has(idDestino)) {
+          const d = await tx.get(db.collection('monthly_statements').doc(idDestino));
+          destinos.set(idDestino, d.exists ? (d.data() || {}) : null);
+        }
+        const dd = destinos.get(idDestino);
+        if (fechamentoTravado(dd)) {
+          throw erro(409, `O fechamento de ${mmaa(cd.month, cd.year)} da conta ${dd.seller_name || (user && user.name) || novoUid} já está ${rotuloFechamento(dd)}. A comissão desta venda entraria nele como paga sem ter sido paga. Acerte com o financeiro antes.`);
         }
       }
     }
     const jaNaConta = String(ind.external_seller_uid || '') === novoUid && comms.every((c: any) => (c.data() || {}).external_seller_uid === novoUid);
-    if (jaNaConta) throw erro(409, `A venda e as comissões já estão na conta ${user.name || novoUid}. Nada foi alterado.`);
+    if (jaNaConta) throw erro(409, `A venda e as comissões já estão na conta ${(user && user.name) || nomeInformado || novoUid}. Nada foi alterado.`);
 
     const nowIso = agora.toISOString();
-    const nome = user.name || ind.external_seller_name || 'Parceiro';
-    const email = String(user.email || '').toLowerCase();
+    const nome = (user && user.name) || nomeInformado || ind.external_seller_name || 'Parceiro';
+    const email = user ? String(user.email || '').toLowerCase() : '';
     const antes = ind.external_seller_name || ind.external_seller_uid || 'ninguém';
     const antesUid = ind.external_seller_uid || null;
     let somaComissoes = 0;
@@ -478,15 +513,16 @@ export async function transferirIndicacao(deps: DepsEscrita, indId: string, uid:
         updated_at: nowIso,
       });
     }
-    // fechamento ainda aguardando NF na conta antiga: a comissão sai da lista e do total dele
-    for (const f of fechamentos.values()) {
+    // fechamento ainda aguardando NF na conta antiga: a comissão sai da lista e do total dele.
+    // Se ficou vazio (sem comissão, sem valor e sem nota), é apagado: senão o parceiro antigo
+    // continuaria vendo um fechamento de R$ 0,00 cobrando nota fiscal.
+    for (const [, f] of fechamentos) {
       const ids = new Set(f.tirar.map((t: any) => t.id));
       const menos = f.tirar.reduce((a: number, t: any) => a + t.valor, 0);
-      tx.update(f.ref, {
-        commission_ids: (f.data.commission_ids || []).filter((x: string) => !ids.has(x)),
-        total_value: Math.max(0, (Number(f.data.total_value) || 0) - menos),
-        updated_at: nowIso,
-      });
+      const restantes = (f.data.commission_ids || []).filter((x: string) => !ids.has(x));
+      const total = Math.max(0, Math.round(((Number(f.data.total_value) || 0) - menos) * 100) / 100);
+      if (!restantes.length && total <= 0 && !f.data.nf_url) tx.delete(f.ref);
+      else tx.update(f.ref, { commission_ids: restantes, total_value: total, updated_at: nowIso });
     }
     tx.update(indRef, {
       external_seller_uid: novoUid,
@@ -504,37 +540,119 @@ export async function transferirIndicacao(deps: DepsEscrita, indId: string, uid:
   });
 }
 
+// Lote que passa de 500 escritas: o Firestore recusa um batch com mais de 500. Junta tudo e grava
+// em partes de 450, na ordem em que entrou. Quem usa põe por último o que não pode repetir (apagar
+// o cadastro provisório): se uma parte falhar no meio, o resto fica para a próxima tentativa.
+export function loteEmPartes(db: any, limite = 450) {
+  const ops: ((b: any) => void)[] = [];
+  return {
+    set: (r: any, v: any, o?: any) => { ops.push(b => o ? b.set(r, v, o) : b.set(r, v)); },
+    update: (r: any, v: any) => { ops.push(b => b.update(r, v)); },
+    delete: (r: any) => { ops.push(b => b.delete(r)); },
+    get tamanho() { return ops.length; },
+    commit: async () => {
+      for (let i = 0; i < ops.length; i += limite) {
+        const b = db.batch();
+        ops.slice(i, i + limite).forEach(op => op(b));
+        await b.commit();
+      }
+    },
+  };
+}
+
+const PESO_STATUS: Record<string, number> = { paid: 3, waiting_payment: 2, waiting_nf: 1 };
+
 // Conta provisória (pré-cadastro) virando a conta definitiva no primeiro login: as comissões e os
 // fechamentos do código provisório vão junto com as indicações, no mesmo lote. Antes iam só as
 // indicações: a venda aparecia para o parceiro e a comissão dela ficava presa no código que acabou
 // de ser apagado. O id do fechamento leva o uid ({uid}_{mês}_{ano}): aí o documento é recriado
-// com o id novo e o velho apagado. Se o definitivo já tem fechamento daquele mês, junta os dois.
-// O lote é passado de fora (db.batch() do server.ts) e só recebe escritas aqui.
-export async function moverComissoesDoProvisorio(db: any, lote: any, deUid: string, paraUid: string, agoraIso: string) {
-  if (!deUid || !paraUid || deUid === paraUid) return { comissoes: 0, fechamentos: 0 };
-  const comms = await db.collection('commissions').where('external_seller_uid', '==', deUid).get();
-  comms.docs.forEach((c: any) => lote.update(c.ref, { external_seller_uid: paraUid, updated_at: agoraIso }));
-  const extratos = await db.collection('monthly_statements').where('seller_uid', '==', deUid).get();
-  for (const e of extratos.docs) {
-    const d = e.data() || {};
-    const novoId = e.id.includes(deUid) ? e.id.split(deUid).join(paraUid) : e.id;
-    if (novoId === e.id) { lote.update(e.ref, { seller_uid: paraUid, updated_at: agoraIso }); continue; }
-    const novoRef = db.collection('monthly_statements').doc(novoId);
-    const ja = await novoRef.get();
-    if (ja.exists) {
-      const j = ja.data() || {};
-      lote.set(novoRef, {
-        commission_ids: Array.from(new Set([...(j.commission_ids || []), ...(d.commission_ids || [])])),
-        total_value: (Number(j.total_value) || 0) + (Number(d.total_value) || 0),
-        nf_url: j.nf_url || d.nf_url || null,
-        updated_at: agoraIso,
-      }, { merge: true });
-    } else {
-      lote.set(novoRef, { ...d, ...('id' in d ? { id: novoId } : {}), seller_uid: paraUid, updated_at: agoraIso });
+// com o id novo e o velho apagado. Fechamentos do mesmo mês (do definitivo e de um ou mais
+// provisórios) são somados em memória, antes de gravar: lidos um a um, o segundo provisório
+// sobrescrevia a soma do primeiro.
+// Só junta fechamentos abertos. Se o do definitivo (ou um dos provisórios) já está pago ou
+// aguardando pagamento, juntar faria a comissão aberta ser lida como paga (comissoesDoCiclo). Aí
+// o fechamento provisório e as comissões daquele mês ficam onde estão, com log e com a marca
+// transferencia_pendente na comissão, e o Diagnóstico de comissão mostra para acertar.
+// O lote é passado de fora (loteEmPartes) e só recebe escritas aqui.
+export async function moverComissoesDoProvisorio(db: any, lote: any, deUids: string | string[], paraUid: string, agoraIso: string, paraNome?: string) {
+  const origens = Array.from(new Set((Array.isArray(deUids) ? deUids : [deUids]).filter(d => d && d !== paraUid)));
+  const resultado = { comissoes: 0, fechamentos: 0, presos: [] as string[] };
+  if (!paraUid || !origens.length) return resultado;
+
+  type Grupo = { destino: { ref: any; data: any } | null; fontes: { de: string; ref: any; data: any }[] };
+  const grupos = new Map<string, Grupo>();
+  const comissoes: { de: string; ref: any; data: any }[] = [];
+  for (const de of origens) {
+    const cs = await db.collection('commissions').where('external_seller_uid', '==', de).get();
+    cs.docs.forEach((c: any) => comissoes.push({ de, ref: c.ref, data: c.data() || {} }));
+    const extratos = await db.collection('monthly_statements').where('seller_uid', '==', de).get();
+    for (const e of extratos.docs) {
+      const d = e.data() || {};
+      const novoId = e.id.includes(de) ? e.id.split(de).join(paraUid) : e.id;
+      if (novoId === e.id) { lote.update(e.ref, { seller_uid: paraUid, updated_at: agoraIso }); resultado.fechamentos++; continue; }
+      let g = grupos.get(novoId);
+      if (!g) {
+        const ja = await db.collection('monthly_statements').doc(novoId).get();
+        g = { destino: ja.exists ? { ref: ja.ref, data: ja.data() || {} } : null, fontes: [] };
+        grupos.set(novoId, g);
+      }
+      g.fontes.push({ de, ref: e.ref, data: d });
     }
-    lote.delete(e.ref);
   }
-  return { comissoes: comms.docs.length, fechamentos: extratos.docs.length };
+
+  // mês (do provisório) cujas comissões NÃO podem ir: "{de}|{mês}|{ano}"
+  const presos = new Set<string>();
+  // mês da conta definitiva que acabou travado sem ter vindo do provisório
+  const destinoTravado = new Set<string>();
+  const chave = (de: string, m: any, a: any) => `${de}|${m}|${a}`;
+  for (const [novoId, g] of grupos) {
+    // a fonte travada vai na frente: se não há fechamento no definitivo, é ela que ocupa o id
+    const fontes = [...g.fontes].sort((x, y) => (PESO_STATUS[y.data.status] || 0) - (PESO_STATUS[x.data.status] || 0));
+    let base: any = g.destino ? { ...g.destino.data } : null;
+    const juntadas: typeof fontes = [];
+    for (const f of fontes) {
+      if (!base) { base = { ...f.data, ...('id' in f.data ? { id: novoId } : {}), seller_uid: paraUid }; juntadas.push(f); continue; }
+      if (fechamentoTravado(base) || fechamentoTravado(f.data)) {
+        presos.add(chave(f.de, f.data.month, f.data.year));
+        resultado.presos.push(f.ref.id);
+        console.warn(`[AUTH] Fechamento ${f.ref.id} NÃO foi juntado a ${novoId}: um dos dois já está pago ou aguardando pagamento. Ficou no código provisório ${f.de}, com as comissões do mês. Acerte no Diagnóstico de comissão.`);
+        continue;
+      }
+      // os dois abertos: soma, e fica o status mais adiantado
+      const st = (PESO_STATUS[f.data.status] || 0) > (PESO_STATUS[base.status] || 0) ? f.data.status : base.status;
+      base = {
+        ...base,
+        commission_ids: Array.from(new Set([...(base.commission_ids || []), ...(f.data.commission_ids || [])])),
+        total_value: Math.round(((Number(base.total_value) || 0) + (Number(f.data.total_value) || 0)) * 100) / 100,
+        nf_url: base.nf_url || f.data.nf_url || null,
+        ...(st !== undefined ? { status: st } : {}),
+      };
+      juntadas.push(f);
+    }
+    if (g.destino && !juntadas.length && fechamentoTravado(g.destino.data)) destinoTravado.add(novoId);
+    if (!juntadas.length) continue;
+    const novoRef = g.destino ? g.destino.ref : db.collection('monthly_statements').doc(novoId);
+    lote.set(novoRef, { ...base, updated_at: agoraIso });
+    juntadas.forEach(f => { lote.delete(f.ref); resultado.fechamentos++; });
+  }
+
+  for (const c of comissoes) {
+    const { month, year } = c.data;
+    // sem fechamento no provisório, mas o do definitivo daquele mês já está pago ou aguardando
+    let travadoNoDestino = false;
+    if (month && year && !grupos.has(`${paraUid}_${month}_${year}`)) {
+      const d = await db.collection('monthly_statements').doc(`${paraUid}_${month}_${year}`).get();
+      travadoNoDestino = d.exists && fechamentoTravado(d.data());
+    }
+    if (month && year && (presos.has(chave(c.de, month, year)) || destinoTravado.has(`${paraUid}_${month}_${year}`) || travadoNoDestino)) {
+      lote.update(c.ref, { transferencia_pendente: { para_uid: paraUid, motivo: `fechamento de ${mmaa(month, year)} já pago ou aguardando pagamento`, em: agoraIso } });
+      console.warn(`[AUTH] Comissão ${c.ref.id} ficou no código provisório ${c.de}: o fechamento de ${mmaa(month, year)} não pôde ser juntado. Acerte no Diagnóstico de comissão.`);
+      continue;
+    }
+    lote.update(c.ref, { external_seller_uid: paraUid, ...(paraNome ? { external_seller_name: paraNome } : {}), updated_at: agoraIso });
+    resultado.comissoes++;
+  }
+  return resultado;
 }
 
 // Rotas. exigirAdmin responde 403 sozinho e devolve null quando não é o administrador.
@@ -568,6 +686,7 @@ export function registrarDiagnosticoComissao(app: any, deps: DepsEscrita & { exi
   app.post('/api/indicacoes/trocar-indicador', async (req: any, res: any) => {
     const exigir = deps.exigirGestao || deps.exigirAdmin;
     const q = await exigir(req, res); if (!q) return;
-    try { return res.json(await transferirIndicacao(deps, String(req.body?.indicacaoId || ''), String(req.body?.uid || ''), { uid: q.uid, nome: await nomeDe(q) }, 'Trocar Indicador')); } catch (e) { return responderErro(res, e); }
+    try { return res.json(await transferirIndicacao(deps, String(req.body?.indicacaoId || ''), String(req.body?.uid || ''), { uid: q.uid, nome: await nomeDe(q) }, 'Trocar Indicador',
+      { semComissaoQualquerDestino: true, nomeInformado: String(req.body?.nome || '') })); } catch (e) { return responderErro(res, e); }
   });
 }

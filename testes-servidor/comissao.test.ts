@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import {
   calcularComissao, mesDaComissao, taxaDoParceiro, papelComissionavel, temParceiroSemUid,
 } from '../src/lib/calculoComissao.ts';
-import { diagnosticar, gerarComissao, previaGeracao, ligarParceiro, nomeCasa, normalizar, nomeContido, transferirIndicacao, moverComissoesDoProvisorio } from '../server/diagnosticoComissao.ts';
+import { diagnosticar, gerarComissao, previaGeracao, ligarParceiro, nomeCasa, normalizar, nomeContido, transferirIndicacao, moverComissoesDoProvisorio, loteEmPartes } from '../server/diagnosticoComissao.ts';
 import {
   comissoesDoCiclo, agruparPorParceiro, comTravaMensal, relatorioParceirosDia1, lembreteNfDia5, lembreteFinanceiroDia7, relatorioDiretoriaDia1, mesEmBrasilia,
   ligarEmailsComissaoUmaVez,
@@ -68,6 +68,7 @@ function bancoFalso(inicial: Record<string, Record<string, any>> = {}) {
         get: (r: any) => r.get(),
         set: (r: any, v: any, o?: any) => { escritas.push(() => r.set(v, o)); },
         update: (r: any, v: any) => { escritas.push(() => r.update(v)); },
+        delete: (r: any) => { escritas.push(() => r.delete()); },
       };
       const out = await fn(tx);
       for (const e of escritas) await e();
@@ -565,7 +566,7 @@ test('PROVISÓRIO: comissões e fechamentos vão para o uid definitivo no mesmo 
   const r = await moverComissoesDoProvisorio(db, lote, 'tmp', 'real', '2026-10-19T12:00:00Z');
   assert.ok(db.dados.commissions.c1.external_seller_uid === 'tmp', 'nada grava antes do commit');
   await lote.commit();
-  assert.deepEqual(r, { comissoes: 1, fechamentos: 3 });
+  assert.deepEqual(r, { comissoes: 1, fechamentos: 3, presos: [] });
   assert.equal(db.dados.commissions.c1.external_seller_uid, 'real');
   assert.equal(db.dados.commissions.c2.external_seller_uid, 'outro');
   assert.ok(!db.dados.monthly_statements.tmp_10_2026);
@@ -574,7 +575,119 @@ test('PROVISÓRIO: comissões e fechamentos vão para o uid definitivo no mesmo 
   assert.deepEqual(db.dados.monthly_statements.real_11_2026.commission_ids, ['z', 'c1'], 'junta com o que o definitivo já tinha');
   assert.equal(db.dados.monthly_statements.real_11_2026.total_value, 140);
   assert.equal(db.dados.monthly_statements.sem_uid_no_id.seller_uid, 'real', 'id sem o uid: só troca o campo');
-  assert.deepEqual(await moverComissoesDoProvisorio(db, db.batch(), 'x', 'x', ''), { comissoes: 0, fechamentos: 0 });
+  assert.deepEqual(await moverComissoesDoProvisorio(db, db.batch(), 'x', 'x', ''), { comissoes: 0, fechamentos: 0, presos: [] });
+});
+
+// ---------- Trocar Indicador numa venda faturada ----------
+test('TROCAR INDICADOR: venda faturada sem comissão vai para regional ou gerente; com comissão, só para parceiro', async () => {
+  const deps = (db: any) => ({ db, arrayUnion, agora: () => AGORA });
+  const tela = { semComissaoQualquerDestino: true };
+  let db = cenarioRafael();
+  db.dados.users.reg = { uid: 'reg', name: 'Regional Sul', email: 'REG@roderbrasil.com.br', role: 'standard_seller' };
+  // i_sem_comissao: faturada, sem documento de comissão. Regional para regional e para a gerente.
+  db.dados.indications.i_sem_comissao.external_seller_uid = 'reg';
+  db.dados.indications.i_sem_comissao.external_seller_name = 'Regional Sul';
+  const r: any = await transferirIndicacao(deps(db), 'i_sem_comissao', 'gis', ADMIN, 'Trocar Indicador', tela);
+  assert.deepEqual(r, { ok: true, uid: 'gis', nome: 'Gislene', comissoes: 0 });
+  assert.equal(db.dados.indications.i_sem_comissao.external_seller_uid, 'gis');
+  assert.equal(db.dados.indications.i_sem_comissao.external_seller_email, 'gislene@roderbrasil.com.br');
+  // gerente sem cadastro (uid sintético da tela): vale com o nome informado
+  await transferirIndicacao(deps(db), 'i_sem_comissao', 'gislene_manager_direct', ADMIN, 'Trocar Indicador', { ...tela, nomeInformado: 'Gislene' });
+  assert.equal(db.dados.indications.i_sem_comissao.external_seller_uid, 'gislene_manager_direct');
+  assert.equal(db.dados.indications.i_sem_comissao.external_seller_name, 'Gislene');
+  await assert.rejects(transferirIndicacao(deps(db), 'i_sem_comissao', 'nao_existe', ADMIN, 'Trocar Indicador', tela), (e: any) => e.status === 404);
+  // com comissão lançada: para a equipe é recusado, e nada muda
+  await assert.rejects(transferirIndicacao(deps(db), 'i_ok', 'gis', ADMIN, 'Trocar Indicador', tela), (e: any) => e.status === 409 && /já tem comissão lançada/.test(e.message));
+  assert.equal(db.dados.indications.i_ok.external_seller_uid, 'raf');
+  assert.equal(db.dados.commissions.i_ok.external_seller_uid, 'raf');
+  // o diagnóstico continua exigindo parceiro mesmo sem comissão
+  db = cenarioRafael();
+  await assert.rejects(transferirIndicacao(deps(db), 'i_sem_comissao', 'gis', ADMIN), /não recebe comissão/);
+});
+
+test('TRANSFERIR recusa quando o fechamento do mês na conta NOVA está pago ou aguardando pagamento', async () => {
+  const deps = (db: any) => ({ db, arrayUnion, agora: () => AGORA });
+  for (const status of ['paid', 'waiting_payment']) {
+    const db = cenarioRafael();
+    db.dados.monthly_statements.raf2_11_2026 = { seller_uid: 'raf2', seller_name: 'rafael maqloc', month: 11, year: 2026, status, total_value: 800, commission_ids: ['x'] };
+    await assert.rejects(transferirIndicacao(deps(db), 'i_ok', 'raf2', ADMIN), (e: any) => e.status === 409 && /fechamento de 11\/2026.*rafael maqloc.*como paga sem ter sido paga/.test(e.message));
+    assert.equal(db.dados.commissions.i_ok.external_seller_uid, 'raf', 'nada mudou');
+    assert.equal(db.dados.indications.i_ok.external_seller_uid, 'raf');
+  }
+  // aberto (aguardando NF) na conta nova: passa
+  const db = cenarioRafael();
+  db.dados.monthly_statements.raf2_11_2026 = { seller_uid: 'raf2', month: 11, year: 2026, status: 'waiting_nf', total_value: 800, commission_ids: ['x'] };
+  await transferirIndicacao(deps(db), 'i_ok', 'raf2', ADMIN);
+  assert.equal(db.dados.commissions.i_ok.external_seller_uid, 'raf2');
+});
+
+test('TRANSFERIR: fechamento antigo que fica vazio é apagado; sem lista de comissões, o total diminui', async () => {
+  const deps = (db: any) => ({ db, arrayUnion, agora: () => AGORA });
+  let db = cenarioRafael();
+  db.dados.monthly_statements.raf_11_2026 = { seller_uid: 'raf', month: 11, year: 2026, status: 'waiting_nf', total_value: 6000, commission_ids: ['i_ok'] };
+  await transferirIndicacao(deps(db), 'i_ok', 'raf2', ADMIN);
+  assert.ok(!db.dados.monthly_statements.raf_11_2026, 'vazio sai');
+  db = cenarioRafael();
+  db.dados.monthly_statements.raf_11_2026 = { seller_uid: 'raf', month: 11, year: 2026, status: 'waiting_nf', total_value: 6500 };
+  await transferirIndicacao(deps(db), 'i_ok', 'raf2', ADMIN);
+  assert.equal(db.dados.monthly_statements.raf_11_2026.total_value, 500, 'sem commission_ids: tira do total do mês');
+});
+
+test('PROVISÓRIO: não junta em fechamento pago ou aguardando pagamento, e a comissão fica com a marca', async () => {
+  for (const status of ['paid', 'waiting_payment']) {
+    const db = bancoFalso({
+      commissions: {
+        c1: { indication_id: 'i1', external_seller_uid: 'tmp', value: 100, month: 11, year: 2026, status: 'waiting_nf' },
+        c2: { indication_id: 'i2', external_seller_uid: 'tmp', value: 70, month: 12, year: 2026, status: 'waiting_nf' },
+      },
+      monthly_statements: {
+        tmp_11_2026: { seller_uid: 'tmp', month: 11, year: 2026, status: 'waiting_nf', total_value: 100, commission_ids: ['c1'] },
+        real_11_2026: { seller_uid: 'real', month: 11, year: 2026, status, total_value: 40, commission_ids: ['z'] },
+        real_12_2026: { seller_uid: 'real', month: 12, year: 2026, status, total_value: 10, commission_ids: ['y'] },
+      },
+    });
+    const lote = db.batch();
+    const r = await moverComissoesDoProvisorio(db, lote, 'tmp', 'real', '2026-10-19T12:00:00Z', 'Rafael');
+    await lote.commit();
+    assert.deepEqual(r.presos, ['tmp_11_2026']);
+    assert.equal(r.comissoes, 0);
+    assert.deepEqual(db.dados.monthly_statements.real_11_2026.commission_ids, ['z'], 'o fechamento travado não muda');
+    assert.equal(db.dados.monthly_statements.real_11_2026.total_value, 40);
+    assert.ok(db.dados.monthly_statements.tmp_11_2026, 'o provisório fica, nada se perde');
+    assert.equal(db.dados.commissions.c1.external_seller_uid, 'tmp');
+    assert.equal(db.dados.commissions.c1.transferencia_pendente.para_uid, 'real');
+    // sem fechamento no provisório, mas o do definitivo daquele mês já travado: também fica
+    assert.equal(db.dados.commissions.c2.external_seller_uid, 'tmp');
+    assert.ok(db.dados.commissions.c2.transferencia_pendente);
+  }
+});
+
+test('PROVISÓRIO: dois provisórios do mesmo mês somam, com o nome novo, em lote de mais de 500 escritas', async () => {
+  const comissoes: Record<string, any> = {};
+  for (let i = 0; i < 600; i++) comissoes[`c${i}`] = { indication_id: `i${i}`, external_seller_uid: i % 2 ? 'tmpA' : 'tmpB', value: 1, month: 10, year: 2026, status: 'waiting_nf' };
+  const db = bancoFalso({
+    commissions: comissoes,
+    monthly_statements: {
+      tmpA_11_2026: { seller_uid: 'tmpA', month: 11, year: 2026, status: 'waiting_nf', total_value: 100, commission_ids: ['a'] },
+      tmpB_11_2026: { seller_uid: 'tmpB', month: 11, year: 2026, total_value: 50.1, commission_ids: ['b'] },
+      real_11_2026: { seller_uid: 'real', month: 11, year: 2026, total_value: 40, commission_ids: ['z'] },
+    },
+  });
+  let maior = 0;
+  const batchOriginal = db.batch;
+  db.batch = () => { const b = batchOriginal(); let n = 0; const conta = (f: any) => (...a: any[]) => { n++; maior = Math.max(maior, n); return f(...a); }; return { ...b, set: conta(b.set), update: conta(b.update), delete: conta(b.delete) }; };
+  const lote = loteEmPartes(db);
+  const r = await moverComissoesDoProvisorio(db, lote, ['tmpA', 'tmpB'], 'real', '2026-10-19T12:00:00Z', 'Rafael');
+  await lote.commit();
+  assert.ok(maior <= 450, `cada parte com no máximo 450 escritas (teve ${maior})`);
+  assert.equal(r.comissoes, 600);
+  assert.equal(db.dados.commissions.c7.external_seller_uid, 'real');
+  assert.equal(db.dados.commissions.c7.external_seller_name, 'Rafael');
+  const f = db.dados.monthly_statements.real_11_2026;
+  assert.deepEqual([...f.commission_ids].sort(), ['a', 'b', 'z'], 'os dois provisórios entram, nenhum por cima do outro');
+  assert.equal(f.total_value, 190.1);
+  assert.equal(f.status, 'waiting_nf', 'fica o status mais adiantado entre os abertos');
+  assert.ok(!db.dados.monthly_statements.tmpA_11_2026 && !db.dados.monthly_statements.tmpB_11_2026);
 });
 
 // ---------- Liga os e-mails uma vez só ----------
