@@ -13,7 +13,6 @@ import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import RegrasSeguranca from '../components/admin/RegrasSeguranca';
-import FotosExternas from '../components/admin/FotosExternas';
 import DiagnosticoComissao from '../components/admin/DiagnosticoComissao';
 import { 
   UserPlus, 
@@ -2549,7 +2548,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
             </TabsContent>
 
           <TabsContent value="settings">
-            {isAdmin && <div className="max-w-5xl"><RegrasSeguranca /><FotosExternas /></div>}
+            {isAdmin && <div className="max-w-5xl"><RegrasSeguranca /></div>}
             {isAdmin && <div className="max-w-5xl"><DiagnosticoComissao /></div>}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-5xl">
               <div className="flex flex-col gap-6">
