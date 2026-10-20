@@ -48,6 +48,7 @@ import IAManual from './pages/IAManual';
 import PublicConsultant from './pages/PublicConsultant';
 import ConsultorEquipe from './pages/ConsultorEquipe';
 import PublicEngateRapidoFicha from './pages/PublicEngateRapidoFicha';
+import VideosConsultor from './pages/VideosConsultor';
 
 function PrivateRoute({ children, roles }: { children: React.ReactNode, roles?: string[] }) {
   const { user, profile, loading, isImpersonating, isAdmin, isManager, isMarketing, isTriagem, isFinancial, isInternalSeller, isExternalSeller, isRegionalSeller } = useAuth();
@@ -397,6 +398,12 @@ function AppContent() {
                 <Route path="/endomarketing" element={
                   <PrivateRoute roles={['admin', 'manager', 'marketing']}>
                     <Endomarketing />
+                  </PrivateRoute>
+                } />
+
+                <Route path="/videos-consultor" element={
+                  <PrivateRoute roles={['admin', 'manager', 'marketing']}>
+                    <VideosConsultor />
                   </PrivateRoute>
                 } />
 

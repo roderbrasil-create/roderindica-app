@@ -37,7 +37,8 @@ import {
   Briefcase,
   Star,
   FileText,
-  ExternalLink
+  ExternalLink,
+  Video
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
@@ -440,6 +441,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
         { name: 'Manual Técnico & Base IA', path: '/manual-ia', icon: BookOpen, roles: ['admin', 'manager', 'internal_seller', 'triagem', 'external_seller', 'vendedor_padrao', 'financial', 'marketing'] },
         { name: 'Dossiê Técnico', path: '/dossie', icon: FileText, roles: ['admin', 'manager'] },
         { name: 'Relatórios Roder IA', path: '/relatorios-ia', icon: BarChart3, roles: ['admin', 'manager'] },
+        { name: 'Vídeos do consultor', path: '/videos-consultor', icon: Video, roles: ['admin', 'manager', 'marketing'] },
       ]
     },
     { id: 'users', name: 'Usuários', path: '/usuarios', icon: Users, roles: ['admin', 'manager', 'triagem'] },

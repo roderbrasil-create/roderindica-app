@@ -40,6 +40,16 @@ service firebase.storage {
       allow update, delete: if equipe();
     }
 
+    // Biblioteca de vídeos do consultor: o navegador NÃO grava aqui. O envio e a remoção passam pelo
+    // servidor (server/arquivosVideosConsultor.ts), que confere o papel em users/{uid} (admin,
+    // gerência, marketing) e assina um PUT só, com tipo e tamanho travados. A regra antiga olhava só
+    // o e-mail @roderbrasil: o papel mora no banco nomeado, que estas regras não enxergam.
+    // Ler continua para quem tem login (o cartão toca pelo link com token, que não passa por aqui).
+    match /consultor_videos/{allPaths=**} {
+      allow read: if logado();
+      allow write: if false;
+    }
+
     // Todo o resto (vídeos, orçamentos, documentos): quem tem login de verdade lê e envia;
     // trocar ou apagar arquivo que já existe, só a equipe.
     match /{allPaths=**} {
@@ -47,8 +57,10 @@ service firebase.storage {
       // enviar por cima de um arquivo que já existe conta como troca: só a equipe
       // perfis e notas fiscais têm regra própria acima; aqui não abrem por tabela
       allow create: if logado() && tamanhoOk(600) && (resource == null || equipe()) &&
-        !request.resource.name.matches('^(profiles|commissions_nf)/.*');
-      allow update, delete: if equipe() && tamanhoOk(600);
+        !request.resource.name.matches('^(profiles|commissions_nf|consultor_videos)/.*');
+      // a biblioteca do consultor só se grava e apaga pelo servidor (acima): aqui não abre por tabela
+      allow update: if equipe() && tamanhoOk(600) && !request.resource.name.matches('^consultor_videos/.*');
+      allow delete: if equipe() && !resource.name.matches('^consultor_videos/.*');
     }
   }
 }

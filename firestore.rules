@@ -417,6 +417,23 @@ service cloud.firestore {
       allow write: if isInternalSeller();
     }
 
+    // Biblioteca de vídeos do consultor (19/10/2026). A equipe lê aqui; o parceiro e o visitante
+    // recebem a lista pelo servidor (GET /api/consultor/videos), só com os campos públicos.
+    // Cadastram admin, gerência e marketing (Franciele).
+    match /consultor_videos/{videoId} {
+      allow read: if isEquipe();
+      allow create, update: if (isManager() || isMarketing()) && videoValido(request.resource.data);
+      allow delete: if isManager() || isMarketing();
+
+      function videoValido(d) {
+        return d.get('tipo', '') in ['campo', 'marketing', 'instalacao'] &&
+          d.get('produto_id', '') is string && d.get('produto_id', '').size() > 0 &&
+          d.get('video_url', '') is string && d.get('video_url', '').size() > 0 && d.get('video_url', '').size() <= 2000 &&
+          d.get('titulo', '') is string && d.get('titulo', '').size() <= 80 &&
+          d.get('contexto', '') is string && d.get('contexto', '').size() <= 400;
+      }
+    }
+
     match /api_keys/{keyId} {
       allow read, write: if isAdmin();
     }

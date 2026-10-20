@@ -451,3 +451,50 @@ test('LIMITE POR IP: continua como teto alto de segurança', async () => {
   for (let i = 0; i < LIMITE_IP_HORA; i++) assert.equal((await chamar(r.rotaLinkCliente, { body: { p: 'X'.repeat(32), pid: 'p3' } })).statusCode, 401);
   assert.equal((await chamar(r.rotaLinkCliente, { body: { p: 'X'.repeat(32), pid: 'p3' } })).statusCode, 429);
 });
+
+test('VÍDEO DA BIBLIOTECA: "Enviar o vídeo" baixa o vídeo do cadastro (vid), só ele e só ativo', async () => {
+  const arquivos: Record<string, any> = {
+    'consultor_videos/campo.mp4': { contentType: 'video/mp4', tamanho: 5 },
+    'consultor_videos/outro.mp4': { contentType: 'video/mp4', tamanho: 5 },
+    'consultor_videos/capas/c.jpg': { contentType: 'image/jpeg', tamanho: 5 },
+  };
+  const { db, r, quemAtual } = montar({ uid: 'gis', email: 'g', role: 'manager' }, {
+    abrirArquivoStorage: async (_b: string, caminho: string) => {
+      const a = arquivos[caminho];
+      return a ? { ...a, stream: Readable.from([Buffer.from('BYTES')]) } : null;
+    },
+  });
+  db.dados.consultor_videos = {
+    v1: { produto_id: 'p3', video_url: urlSt('consultor_videos/campo.mp4'), ativo: true },
+    v2: { produto_id: 'p3', video_url: urlSt('consultor_videos/outro.mp4'), ativo: false },
+    v3: { produto_id: 'p3', video_url: urlSt('consultor_videos/capas/c.jpg'), ativo: true },
+    v4: { produto_id: 'pblq', video_url: urlSt('consultor_videos/campo.mp4'), ativo: true },
+  };
+  db.dados.products.pblq = { name: 'Bloqueado', is_blocked: true };
+  const tok = (await chamar(r.rotaLink, { params: { uid: 'car' }, body: {} })).corpo.token;
+  quemAtual.v = null;
+  const { pedir, fechar } = await servidorDe(r.rotaVideoArquivo);
+  try {
+    const st = async (q: Record<string, string>) => (await pedir(q)).status;
+    // a pasta da biblioteca passou a valer no endereço
+    assert.deepEqual(alvoDoVideo(urlSt('consultor_videos/campo.mp4')), { tipo: 'storage', bucket: BV, caminho: 'consultor_videos/campo.mp4' });
+    const res = await pedir({ url: urlSt('consultor_videos/campo.mp4'), vid: 'v1', pid: 'p3', p: tok });
+    assert.equal(res.status, 200);
+    assert.equal(await res.text(), 'BYTES');
+    // sem link e sem login: não baixa
+    assert.equal(await st({ url: urlSt('consultor_videos/campo.mp4'), vid: 'v1' }), 401);
+    // o endereço tem de ser o do cadastro pedido
+    assert.equal(await st({ url: urlSt('consultor_videos/outro.mp4'), vid: 'v1', p: tok }), 403);
+    // vídeo desligado ou inexistente não sai
+    assert.equal(await st({ url: urlSt('consultor_videos/outro.mp4'), vid: 'v2', p: tok }), 404);
+    assert.equal(await st({ url: urlSt('consultor_videos/campo.mp4'), vid: 'naoexiste', p: tok }), 404);
+    // equipamento bloqueado no catálogo: o vídeo dele não sai
+    assert.equal(await st({ url: urlSt('consultor_videos/campo.mp4'), vid: 'v4', p: tok }), 404);
+    // id com caractere estranho: recusa antes de ler o banco
+    assert.equal(await st({ url: urlSt('consultor_videos/campo.mp4'), vid: '../v1', p: tok }), 400);
+    // a capa mora na pasta, mas não é vídeo
+    assert.equal(await st({ url: urlSt('consultor_videos/capas/c.jpg'), vid: 'v3', p: tok }), 415);
+    // sem vid, o arquivo da biblioteca não passa como vídeo de equipamento
+    assert.equal(await st({ url: urlSt('consultor_videos/campo.mp4'), pid: 'p3', p: tok }), 403);
+  } finally { await fechar(); }
+});

@@ -303,8 +303,8 @@ var DDDS = /* @__PURE__ */ new Set([
   98,
   99
 ]);
-function validarTelefoneBR(texto) {
-  let d = String(texto || "").replace(/\D/g, "");
+function validarTelefoneBR(texto2) {
+  let d = String(texto2 || "").replace(/\D/g, "");
   d = d.replace(/^0+/, "");
   if ((d.length === 12 || d.length === 13) && d.startsWith("55")) d = d.slice(2);
   if (d.length !== 10 && d.length !== 11) return { ok: false };
@@ -346,8 +346,8 @@ var NOMES_UF = {
   "tocantins": "TO"
 };
 var semAcento = (t) => t.normalize("NFD").replace(/[̀-ͯ]/g, "");
-function lerCidadeUf(texto) {
-  const t = String(texto || "").trim().replace(/\s+/g, " ").replace(/[.]+$/, "");
+function lerCidadeUf(texto2) {
+  const t = String(texto2 || "").trim().replace(/\s+/g, " ").replace(/[.]+$/, "");
   if (!t) return null;
   const limpaCidade = (c) => c.replace(/[\s,/-]+$/, "").trim();
   const base = semAcento(t).toLowerCase();
@@ -365,8 +365,8 @@ function lerCidadeUf(texto) {
   if (!UFS.includes(uf) || cidade.length < 2) return null;
   return { cidade, uf };
 }
-function validarCnpj(texto) {
-  const d = String(texto || "").replace(/\D/g, "");
+function validarCnpj(texto2) {
+  const d = String(texto2 || "").replace(/\D/g, "");
   if (d.length !== 14 || /^(\d)\1+$/.test(d)) return { ok: false };
   const calc = (base, pesos) => {
     const s = base.split("").reduce((acc, n, i) => acc + Number(n) * pesos[i], 0);
@@ -381,7 +381,7 @@ function validarCnpj(texto) {
 
 // server/consultorParceiro.ts
 var BUCKETS_VIDEO = ["gen-lang-client-0708423613.firebasestorage.app", "gen-lang-client-0708423613.appspot.com"];
-var PASTAS_VIDEO = ["product_videos/", "model_videos/"];
+var PASTAS_VIDEO = ["product_videos/", "model_videos/", "consultor_videos/"];
 var MAX_VIDEO_PROXY = 40 * 1024 * 1024;
 function alvoDoVideo(url) {
   const u = String(url || "").trim();
@@ -743,16 +743,30 @@ CLIENTE: ${cliente} | ${tel.formatado} | ${localizacao}${cnpj ? ` | CNPJ ${cnpj}
       if (!alvo) return res.status(400).json({ error: "V\xEDdeo n\xE3o permitido." });
       const pid = String(req.query?.pid || "");
       const mid = String(req.query?.mid || "");
-      if (!/^[A-Za-z0-9_-]{1,80}$/.test(pid) || mid && !/^[A-Za-z0-9_.-]{1,80}$/.test(mid)) return res.status(400).json({ error: "Equipamento inv\xE1lido." });
+      const vid = String(req.query?.vid || "");
+      if (vid && !/^[A-Za-z0-9_-]{1,120}$/.test(vid)) return res.status(400).json({ error: "V\xEDdeo inv\xE1lido." });
+      if (!vid && (!/^[A-Za-z0-9_-]{1,80}$/.test(pid) || mid && !/^[A-Za-z0-9_.-]{1,80}$/.test(mid))) return res.status(400).json({ error: "Equipamento inv\xE1lido." });
       const dono = await donoDoPedido(req);
       if ("erro" in dono) return res.status(dono.erro).json({ error: dono.msg });
       if (passouLimite(`consvid:${dono.uid}`, LIMITE_VIDEO_HORA, 60 * 60 * 1e3)) return res.status(429).json({ error: "Muitos v\xEDdeos seguidos. Espere alguns minutos." });
-      const p = await db2.collection("products").doc(pid).get();
-      if (!p.exists) return res.status(404).json({ error: "Equipamento n\xE3o encontrado." });
-      const pd = p.data() || {};
-      const modelo = mid ? (pd.models || []).find((x) => String(x?.id) === mid) : null;
-      if (mid && !modelo) return res.status(404).json({ error: "Equipamento n\xE3o encontrado." });
-      if (videoDoEquipamento(pd, modelo) !== url) return res.status(403).json({ error: "Este v\xEDdeo n\xE3o \xE9 do equipamento." });
+      if (vid) {
+        const v = await db2.collection("consultor_videos").doc(vid).get();
+        const vd = v.exists ? v.data() || {} : null;
+        if (!vd || vd.ativo === false) return res.status(404).json({ error: "V\xEDdeo n\xE3o encontrado." });
+        if (String(vd.video_url || "").trim() !== url) return res.status(403).json({ error: "Este v\xEDdeo n\xE3o \xE9 da biblioteca." });
+        const pidVideo = String(vd.produto_id || "");
+        if (/^[A-Za-z0-9_-]{1,80}$/.test(pidVideo)) {
+          const pv = await db2.collection("products").doc(pidVideo).get();
+          if (pv.exists && (pv.data() || {}).is_blocked) return res.status(404).json({ error: "V\xEDdeo n\xE3o encontrado." });
+        }
+      } else {
+        const p = await db2.collection("products").doc(pid).get();
+        if (!p.exists) return res.status(404).json({ error: "Equipamento n\xE3o encontrado." });
+        const pd = p.data() || {};
+        const modelo = mid ? (pd.models || []).find((x) => String(x?.id) === mid) : null;
+        if (mid && !modelo) return res.status(404).json({ error: "Equipamento n\xE3o encontrado." });
+        if (videoDoEquipamento(pd, modelo) !== url) return res.status(403).json({ error: "Este v\xEDdeo n\xE3o \xE9 do equipamento." });
+      }
       res.setHeader?.("Cache-Control", "private, no-store");
       res.setHeader?.("X-Content-Type-Options", "nosniff");
       if (alvo.tipo === "banco") {
@@ -824,6 +838,364 @@ function registrarConsultorParceiro(app, deps) {
   app.post("/api/consultor/indicacao", r.rotaIndicacao);
   app.get("/api/consultor/video-arquivo", r.rotaVideoArquivo);
   return r;
+}
+
+// src/lib/tituloFicha.ts
+function singular(palavra) {
+  if (palavra.length < 4 || palavra === palavra.toUpperCase()) return palavra;
+  if (/ais$/i.test(palavra)) return palavra.replace(/ais$/i, "al");
+  if (/ões$/i.test(palavra)) return palavra.replace(/ões$/i, "\xE3o");
+  if (/[aeo]s$/i.test(palavra)) return palavra.slice(0, -1);
+  return palavra;
+}
+function tituloFicha(p, m) {
+  const pn = (p.name || "").replace(/\s*\([^)]*\)\s*/g, " ").replace(/\s+/g, " ").trim();
+  const mn = (m.name || "").trim();
+  if (!mn) return pn;
+  if (!pn || mn.toLowerCase().includes(pn.toLowerCase()) || pn.toLowerCase().includes(mn.toLowerCase())) return mn.length >= pn.length ? mn : pn;
+  let palavras = pn.split(" ");
+  const primeira = mn.split(/\s+/)[0].toLowerCase();
+  const corte = palavras.findIndex((w) => w.toLowerCase() === primeira);
+  if (corte > 0) palavras = palavras.slice(0, corte);
+  palavras = palavras.map((w, i) => i < 2 ? singular(w) : w);
+  return `${palavras.join(" ")} ${mn}`;
+}
+
+// src/lib/videosConsultor.ts
+var MAX_TITULO = 80;
+var MAX_CONTEXTO = 400;
+var MAX_VIDEOS_RESPOSTA = 3;
+var MAX_VIDEOS_PROMPT = 60;
+var MAX_CONTEXTO_PROMPT = 160;
+var texto = (v, max) => String(v ?? "").replace(/[\u0000-\u001f<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
+var idDoCatalogo = (pid, mid) => `cat_${pid}_${mid || "p"}`.replace(/[^A-Za-z0-9_-]/g, "-").slice(0, 120);
+function lerVideoDoBanco(id, d) {
+  if (!d || d.ativo === false) return null;
+  const url = videoValido(d.video_url);
+  const pid = texto(d.produto_id, 80);
+  if (!url || !pid) return null;
+  const tipo = ["campo", "marketing", "instalacao"].includes(d.tipo) ? d.tipo : "campo";
+  const thumb = /^https:\/\//i.test(String(d.thumb_url || "")) ? String(d.thumb_url).slice(0, 2e3) : "";
+  const dur = Number(d.duracao_s);
+  return {
+    id: String(id),
+    produto_id: pid,
+    ...d.modelo_id ? { modelo_id: texto(d.modelo_id, 80) } : {},
+    equipamento_nome: texto(d.equipamento_nome, 120),
+    ...d.modelo_nome ? { modelo_nome: texto(d.modelo_nome, 80) } : {},
+    tipo,
+    contexto: texto(d.contexto, MAX_CONTEXTO),
+    titulo: texto(d.titulo, MAX_TITULO) || texto(d.equipamento_nome, MAX_TITULO),
+    video_url: url,
+    ...thumb ? { thumb_url: thumb } : {},
+    ...dur > 0 && dur < 36e3 ? { duracao_s: Math.round(dur) } : {},
+    no_carrossel: d.no_carrossel === true,
+    ordem: Number.isFinite(Number(d.ordem)) ? Number(d.ordem) : 0
+  };
+}
+function videosDoCatalogo(produtos, jaNaBiblioteca = /* @__PURE__ */ new Set()) {
+  const saida = [];
+  const vistos = /* @__PURE__ */ new Set();
+  const ids = /* @__PURE__ */ new Set();
+  for (const p of produtos || []) {
+    if (!p || p.is_blocked || !p.id) continue;
+    const add = (m) => {
+      const v = videoDoEquipamento(p, m);
+      if (!v || jaNaBiblioteca.has(v) || vistos.has(`${p.id}|${v}`)) return;
+      let id = idDoCatalogo(String(p.id), m?.id ? String(m.id) : void 0);
+      for (let n = 2; ids.has(id); n++) id = `${idDoCatalogo(String(p.id), m?.id ? String(m.id) : void 0).slice(0, 114)}_${n}`;
+      vistos.add(`${p.id}|${v}`);
+      ids.add(id);
+      const nome = m ? tituloFicha(p, m) : String(p.name || "");
+      saida.push({
+        id,
+        produto_id: String(p.id),
+        ...m?.id ? { modelo_id: String(m.id), modelo_nome: texto(m.name, 80) } : {},
+        equipamento_nome: texto(p.name, 120),
+        tipo: "catalogo",
+        contexto: "V\xEDdeo do cat\xE1logo",
+        titulo: texto(nome, MAX_TITULO),
+        video_url: v,
+        no_carrossel: false,
+        ordem: 9999
+      });
+    };
+    add(null);
+    for (const m of p.models || []) if (m) add(m);
+  }
+  return saida;
+}
+function montarListaVideos(docs, produtos) {
+  const bloqueados = new Set((produtos || []).filter((p) => p?.is_blocked).map((p) => String(p.id)));
+  const biblioteca = (docs || []).map((d) => lerVideoDoBanco(d.id, d.data)).filter((v) => !!v && !bloqueados.has(v.produto_id)).sort((a, b) => (a.ordem || 0) - (b.ordem || 0) || a.titulo.localeCompare(b.titulo));
+  const urls = new Set(biblioteca.map((v) => v.video_url));
+  return [...biblioteca, ...videosDoCatalogo(produtos, urls)];
+}
+function nomeDoVideo(v) {
+  return tituloFicha({ name: v.equipamento_nome || "" }, { name: v.modelo_nome || "" });
+}
+var colado = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+function pontosNaConversa(v, conversa) {
+  const c = colado(conversa);
+  if (!c) return 0;
+  let pts = 0;
+  const modelo = colado(v.modelo_nome || "");
+  if (modelo.length >= 3 && c.includes(modelo)) pts += 3;
+  const radicais = String(v.equipamento_nome || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 5).map((w) => w.slice(0, 5));
+  if (radicais.some((r) => c.includes(r))) pts += 1;
+  return pts;
+}
+function videosParaPrompt(lista, max = MAX_VIDEOS_PROMPT, conversa = "") {
+  const ordenada = (lista || []).map((v, i) => ({ v, i, pts: pontosNaConversa(v, conversa) })).sort((a, b) => b.pts - a.pts || a.i - b.i).map((x) => x.v);
+  return ordenada.slice(0, max).map((v) => {
+    const ctx = v.contexto && v.tipo !== "catalogo" ? texto(v.contexto, MAX_CONTEXTO_PROMPT) : "";
+    return `- ${v.id} | ${nomeDoVideo(v)} | ${v.titulo}${ctx ? ` | ${ctx}` : ""}`;
+  }).join("\n");
+}
+function lerIdsVideos(bruto, validos) {
+  if (!Array.isArray(bruto)) return [];
+  const saida = [];
+  for (const x of bruto) {
+    const id = typeof x === "string" ? x.trim() : "";
+    if (!id || id.length > 120 || !/^[A-Za-z0-9_-]+$/.test(id)) continue;
+    if (validos && !validos.has(id)) continue;
+    if (!saida.includes(id)) saida.push(id);
+    if (saida.length >= MAX_VIDEOS_RESPOSTA) break;
+  }
+  return saida;
+}
+
+// server/videosConsultor.ts
+var VALIDADE_CACHE_MS = 60 * 1e3;
+var LIMITE_LISTA_IP_MIN = 60;
+function criarBibliotecaVideos(deps) {
+  const agora = () => deps.agora ? deps.agora() : Date.now();
+  let cache = null;
+  let emCurso = null;
+  async function carregar() {
+    const [vids, prods] = await Promise.all([
+      deps.db.collection("consultor_videos").get(),
+      deps.db.collection("products").get()
+    ]);
+    const docs = (vids.docs || []).map((d) => ({ id: d.id, data: d.data() }));
+    const produtos = (prods.docs || []).map((d) => ({ id: d.id, ...d.data() || {} }));
+    return montarListaVideos(docs, produtos);
+  }
+  async function listar() {
+    if (cache && cache.ate > agora()) return cache.lista;
+    if (!emCurso) {
+      emCurso = carregar().then((lista) => {
+        cache = { ate: agora() + VALIDADE_CACHE_MS, lista };
+        return lista;
+      }).finally(() => {
+        emCurso = null;
+      });
+    }
+    try {
+      return await emCurso;
+    } catch {
+      return cache?.lista || [];
+    }
+  }
+  const limpar = () => {
+    cache = null;
+  };
+  const rotaListarCom = (op = {}) => async function rotaListar(req, res) {
+    const deps2 = op;
+    try {
+      if (deps2.passouLimite && deps2.ipDe && deps2.passouLimite(`videos-ip:${deps2.ipDe(req)}`, LIMITE_LISTA_IP_MIN, 60 * 1e3)) {
+        return res.status(429).json({ error: "Muitos pedidos seguidos. Espere um minuto." });
+      }
+      let fresco = false;
+      if (String(req.query?.fresco || "") === "1" && deps2.ehEquipeDoPedido) {
+        try {
+          fresco = await deps2.ehEquipeDoPedido(req);
+        } catch {
+          fresco = false;
+        }
+        if (fresco) limpar();
+      }
+      const videos = await listar();
+      res.setHeader?.("Cache-Control", fresco ? "private, no-store" : "public, max-age=60");
+      res.json({ videos });
+    } catch {
+      res.status(500).json({ error: "N\xE3o consegui carregar os v\xEDdeos." });
+    }
+  };
+  return { listar, limpar, rotaListarCom, rotaListar: rotaListarCom() };
+}
+function instrucaoVideos(lista, conversa = "") {
+  if (!lista.length) return "";
+  return `
+
+V\xCDDEOS DISPON\xCDVEIS (id | equipamento | t\xEDtulo | contexto):
+${videosParaPrompt(lista, MAX_VIDEOS_PROMPT, conversa)}
+- Quando a pessoa pedir v\xEDdeo, ou quando um v\xEDdeo claramente ajudar (ex.: pergunta como o equipamento trabalha numa opera\xE7\xE3o, material ou m\xE1quina espec\xEDfica), acrescente no JSON do <painel> o campo "videos": ["<id>", ...] com no m\xE1ximo ${MAX_VIDEOS_RESPOSTA} ids DESTA lista, os mais pr\xF3ximos da pergunta (mesmo equipamento e modelo; o contexto diz a opera\xE7\xE3o). Prefira os que t\xEAm contexto parecido com o da pergunta.
+- Ao mandar v\xEDdeo, cite os v\xEDdeos uma vez s\xF3 no texto, numa frase curta (sem repetir a mesma frase em toda resposta). Os cart\xF5es com o v\xEDdeo aparecem sozinhos embaixo da resposta; n\xE3o escreva link nem id do v\xEDdeo no texto.
+- Nunca invente id. Sem v\xEDdeo do equipamento na lista, n\xE3o ponha o campo e n\xE3o prometa v\xEDdeo.`;
+}
+function sanitizarPainel(json, idsValidos) {
+  try {
+    const obj = JSON.parse(String(json || "").trim());
+    if (!obj || typeof obj !== "object" || Array.isArray(obj)) return "";
+    if ("videos" in obj) {
+      const ids = lerIdsVideos(obj.videos, idsValidos || /* @__PURE__ */ new Set());
+      if (ids.length) obj.videos = ids;
+      else delete obj.videos;
+    }
+    return Object.keys(obj).length ? JSON.stringify(obj) : "";
+  } catch {
+    return "";
+  }
+}
+
+// server/arquivosVideosConsultor.ts
+var import_node_crypto = __toESM(require("node:crypto"), 1);
+var PAPEIS_VIDEOS = ["admin", "manager", "marketing"];
+var PASTA_VIDEOS = "consultor_videos";
+var MAX_VIDEO_MB = 80;
+var MAX_CAPA_MB = 2;
+var VALIDADE_UPLOAD_MS = 15 * 60 * 1e3;
+var LIMITE_UPLOADS_HORA = 60;
+var TIPOS = {
+  "video/mp4": { ext: "mp4", maxMb: MAX_VIDEO_MB },
+  "video/webm": { ext: "webm", maxMb: MAX_VIDEO_MB },
+  "video/quicktime": { ext: "mov", maxMb: MAX_VIDEO_MB },
+  "image/jpeg": { ext: "jpg", maxMb: MAX_CAPA_MB },
+  "image/png": { ext: "png", maxMb: MAX_CAPA_MB },
+  "image/webp": { ext: "webp", maxMb: MAX_CAPA_MB }
+};
+var tipoPermitido = (ct) => TIPOS[String(ct || "").toLowerCase().split(";")[0].trim()] || null;
+var maxBytesDo = (ct) => (tipoPermitido(ct)?.maxMb || 0) * 1024 * 1024;
+function nomeSeguro(nome, contentType) {
+  const t = tipoPermitido(contentType);
+  const base = String(nome || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\.[A-Za-z0-9]{1,5}$/, "").replace(/[^A-Za-z0-9_-]/g, "_").replace(/_+/g, "_").replace(/^_+/, "").slice(0, 60) || "arquivo";
+  return `${base}.${t ? t.ext : "bin"}`;
+}
+function caminhoDaBiblioteca(c) {
+  const s = String(c || "");
+  if (!s || s.length > 300 || !s.startsWith(`${PASTA_VIDEOS}/`)) return "";
+  const partes = s.split("/");
+  if (partes.length < 2 || partes.length > 3) return "";
+  if (partes.some((p) => !p || p === "." || p === ".." || !/^[A-Za-z0-9._-]{1,120}$/.test(p))) return "";
+  return s;
+}
+var urlDeDownload = (bucket, caminho, token) => `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(bucket)}/o/${encodeURIComponent(caminho)}?alt=media&token=${encodeURIComponent(token)}`;
+function caminhoDoLink(url) {
+  const a = alvoDoVideo(String(url || ""));
+  return a && a.tipo === "storage" ? caminhoDaBiblioteca(a.caminho) : "";
+}
+function criarRotasArquivosVideos(deps) {
+  const agora = () => deps.agora ? deps.agora() : Date.now();
+  const novoId = deps.novoId || (() => import_node_crypto.default.randomBytes(10).toString("hex"));
+  const novoToken2 = deps.novoToken || (() => import_node_crypto.default.randomUUID());
+  async function podeGravar(req, res) {
+    const q = await deps.quemChama(req);
+    if (!q) {
+      res.status(401).json({ error: "Entre com a sua conta da Roder." });
+      return null;
+    }
+    if (!PAPEIS_VIDEOS.includes(String(q.role))) {
+      res.status(403).json({ error: "S\xF3 admin, ger\xEAncia e marketing cadastram v\xEDdeo." });
+      return null;
+    }
+    return q;
+  }
+  async function rotaUploadUrl(req, res) {
+    try {
+      const q = await podeGravar(req, res);
+      if (!q) return;
+      if (deps.passouLimite(`vidup:${q.uid}`, LIMITE_UPLOADS_HORA, 60 * 60 * 1e3)) return res.status(429).json({ error: "Muitos envios seguidos. Espere alguns minutos." });
+      const ct = String(req.body?.contentType || "").toLowerCase().trim();
+      const t = tipoPermitido(ct);
+      if (!t) return res.status(415).json({ error: "S\xF3 v\xEDdeo MP4, WEBM ou MOV, e capa JPG, PNG ou WEBP." });
+      const max = t.maxMb * 1024 * 1024;
+      const tamanho = Number(req.body?.tamanho || 0);
+      if (!(tamanho > 0)) return res.status(400).json({ error: "Arquivo vazio." });
+      if (tamanho > max) return res.status(413).json({ error: `Arquivo grande demais. O limite \xE9 ${t.maxMb} MB.` });
+      const caminho = `${PASTA_VIDEOS}/${novoId()}/${nomeSeguro(req.body?.nome, ct)}`;
+      const origem = String(req.headers?.origin || "");
+      if (origem && deps.garantirCors) {
+        try {
+          await deps.garantirCors(origem);
+        } catch (e) {
+          console.warn("[videos] CORS do bucket:", e?.message || e);
+        }
+      }
+      const cabecalhos = { "Content-Type": ct, "x-goog-content-length-range": `0,${max}` };
+      const [uploadUrl] = await deps.arquivo(caminho).getSignedUrl({
+        version: "v4",
+        action: "write",
+        expires: agora() + VALIDADE_UPLOAD_MS,
+        contentType: ct,
+        // assinado junto: o PUT sem este cabeçalho, ou com arquivo maior, é recusado pelo próprio Storage
+        extensionHeaders: { "x-goog-content-length-range": `0,${max}` }
+      });
+      res.setHeader?.("Cache-Control", "no-store");
+      res.json({ caminho, uploadUrl, cabecalhos, expiraEm: agora() + VALIDADE_UPLOAD_MS });
+    } catch (e) {
+      console.error("[videos] upload-url:", e?.message || e);
+      res.status(500).json({ error: "N\xE3o consegui preparar o envio. Tente de novo." });
+    }
+  }
+  async function rotaConfirmar(req, res) {
+    try {
+      const q = await podeGravar(req, res);
+      if (!q) return;
+      const caminho = caminhoDaBiblioteca(req.body?.caminho);
+      if (!caminho) return res.status(400).json({ error: "Arquivo inv\xE1lido." });
+      const arq = deps.arquivo(caminho);
+      let meta;
+      try {
+        [meta] = await arq.getMetadata();
+      } catch {
+        return res.status(404).json({ error: "O arquivo n\xE3o chegou. Envie de novo." });
+      }
+      const ct = String(meta?.contentType || "");
+      const tamanho = Number(meta?.size || 0);
+      if (!tipoPermitido(ct)) {
+        await arq.delete({ ignoreNotFound: true }).catch(() => {
+        });
+        return res.status(415).json({ error: "Tipo de arquivo n\xE3o aceito." });
+      }
+      if (!(tamanho > 0) || tamanho > maxBytesDo(ct)) {
+        await arq.delete({ ignoreNotFound: true }).catch(() => {
+        });
+        return res.status(413).json({ error: `Arquivo grande demais. O limite \xE9 ${tipoPermitido(ct).maxMb} MB.` });
+      }
+      const existente = String(meta?.metadata?.firebaseStorageDownloadTokens || "").split(",")[0].trim();
+      const token = existente || novoToken2();
+      if (!existente) {
+        await arq.setMetadata({ cacheControl: "public, max-age=31536000", metadata: { firebaseStorageDownloadTokens: token, enviado_por: q.uid } });
+      }
+      res.setHeader?.("Cache-Control", "no-store");
+      res.json({ url: urlDeDownload(deps.nomeBucket, caminho, token), caminho, tamanho, contentType: ct });
+    } catch (e) {
+      console.error("[videos] confirmar:", e?.message || e);
+      res.status(500).json({ error: "N\xE3o consegui conferir o arquivo. Tente de novo." });
+    }
+  }
+  async function rotaApagar(req, res) {
+    try {
+      const q = await podeGravar(req, res);
+      if (!q) return;
+      const corpo = req.body || {};
+      const caminho = corpo.caminho ? caminhoDaBiblioteca(corpo.caminho) : caminhoDoLink(corpo.url);
+      if (!caminho) return res.status(400).json({ error: "S\xF3 arquivos da biblioteca de v\xEDdeos." });
+      const snap = await deps.db.collection("consultor_videos").get();
+      const emUso = (snap.docs || []).some((d) => {
+        const x = d.data() || {};
+        return caminhoDoLink(x.video_url) === caminho || caminhoDoLink(x.thumb_url) === caminho;
+      });
+      if (emUso) return res.status(409).json({ error: "Este arquivo ainda est\xE1 num v\xEDdeo cadastrado." });
+      await deps.arquivo(caminho).delete({ ignoreNotFound: true });
+      res.json({ ok: true });
+    } catch (e) {
+      console.error("[videos] apagar:", e?.message || e);
+      res.status(500).json({ error: "N\xE3o consegui apagar o arquivo." });
+    }
+  }
+  return { rotaUploadUrl, rotaConfirmar, rotaApagar };
 }
 
 // server/consultorPerfil.ts
@@ -1654,6 +2026,7 @@ if (import_firebase_admin.default.apps.length === 0) {
   adminApp = import_firebase_admin.default.app();
 }
 var db = (0, import_firestore.getFirestore)(adminApp, config.firestoreDatabaseId || process.env.FIRESTORE_DATABASE_ID || "(default)");
+var bibliotecaVideos = criarBibliotecaVideos({ db });
 function getTodayLocalDate() {
   const d = /* @__PURE__ */ new Date();
   const year = d.getFullYear();
@@ -1763,8 +2136,8 @@ Super redutor (creeper) e powershift n\xE3o contam como CVT. Se o modelo n\xE3o 
       contents: prompt,
       config: { tools: [{ googleSearch: {} }], temperature: 0, abortSignal: controle.signal }
     });
-    const texto = String(resposta?.text || "").trim();
-    if (texto) return texto.slice(0, 800);
+    const texto2 = String(resposta?.text || "").trim();
+    if (texto2) return texto2.slice(0, 800);
   } catch (err) {
     console.warn("[engineerHelper] Consulta do trator falhou:", err?.message || err);
   } finally {
@@ -1810,7 +2183,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-20d consultor-enxuto";
+  const RELEASE_LABEL = "2026-10-20e videos-consultor";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -4565,16 +4938,28 @@ CONSULTA DO TRATOR NA INTERNET: n\xE3o foi poss\xEDvel consultar agora. N\xE3o a
           const instrucaoPainel = querPainel ? `
 
 PAINEL ESCONDIDO (obrigat\xF3rio quando houver dado): no fim de TODA resposta, depois de todo o texto (e depois do [[OPCOES]] se houver), acrescente um bloco escondido exatamente neste formato, numa linha s\xF3, com JSON v\xE1lido:
-<painel>{"maquina":{"nome":"","tipo":"","potencia":"","transmissao":"","serve":"sim|nao|verificar","motivo":""},"perguntas":["..."],"alternativas":[{"nome":"","obs":""}],"produto":"<nome do modelo Roder principal>"}</painel>
+<painel>{"maquina":{"nome":"","tipo":"","potencia":"","transmissao":"","serve":"sim|nao|verificar","motivo":""},"perguntas":["..."],"alternativas":[{"nome":"","obs":""}],"produto":"<nome do modelo Roder principal>","videos":["<id da lista de v\xEDdeos>"]}</painel>
 - Coloque s\xF3 os campos que se aplicam \xE0 conversa; os outros ficam fora do JSON.
 - "maquina": a m\xE1quina base ou o trator do cliente citado na conversa (nome com marca e modelo; tipo ou transmiss\xE3o, ex.: "Powershift, n\xE3o \xE9 CVT"; pot\xEAncia ou porte, ex.: "220 cv" ou "20 t"; "serve" diz se ela atende o equipamento indicado: "sim", "nao" ou "verificar"; "motivo" em at\xE9 8 palavras).
 - "perguntas": no m\xE1ximo 3 perguntas curtas que o vendedor deve fazer ao cliente para confirmar a indica\xE7\xE3o.
 - "alternativas": no m\xE1ximo 3 op\xE7\xF5es que servem (m\xE1quinas, tratores ou modelos Roder), com "obs" de at\xE9 4 palavras (ex.: "CVT de s\xE9rie").
 - "produto": o nome exato do modelo Roder principal da resposta, como est\xE1 no cat\xE1logo (ex.: "SSH 150", "R400", "CMF 600").
+- "videos": s\xF3 quando houver v\xEDdeo \xFAtil, seguindo a lista V\xCDDEOS DISPON\xCDVEIS mais abaixo (o bloco pode ter s\xF3 "videos" e "produto").
 - Se nada disso se aplica (ex.: sauda\xE7\xE3o), n\xE3o escreva o bloco. Nunca mencione o bloco no texto e nunca escreva <painel> em outro lugar da resposta. O texto da resposta continua curto, em portugu\xEAs, seguindo todas as regras acima.` : "";
+          let videosDisponiveis = [];
+          if (querPainel) {
+            try {
+              videosDisponiveis = await bibliotecaVideos.listar();
+            } catch {
+              videosDisponiveis = [];
+            }
+          }
+          const idsVideos = new Set(videosDisponiveis.map((v) => String(v.id)));
+          const conversaRecente = [...(Array.isArray(chatHistory) ? chatHistory.slice(-6) : []).map((m) => String(m?.content || "").slice(0, 600)), String(question || "")].join(" ");
+          const instrucaoDosVideos = querPainel ? instrucaoVideos(videosDisponiveis, conversaRecente) : "";
           const finalSystemInstruction = systemInstruction + userTypeInstruction + contextoTrator + `
 
-LEMBRETE FINAL (PRIORIDADE M\xC1XIMA): siga as REGRAS PRIORIT\xC1RIAS A, B, C e D do in\xEDcio. Resposta curta e direta; se faltar dado essencial, pergunte antes; no m\xE1ximo 1 foto e s\xF3 do equipamento recomendado.` + instrucaoPainel;
+LEMBRETE FINAL (PRIORIDADE M\xC1XIMA): siga as REGRAS PRIORIT\xC1RIAS A, B, C e D do in\xEDcio. Resposta curta e direta; se faltar dado essencial, pergunte antes; no m\xE1ximo 1 foto e s\xF3 do equipamento recomendado.` + instrucaoPainel + instrucaoDosVideos;
           const startTime = Date.now();
           const response = await generateContentWithRetry(ai, {
             defaultModel: "gemini-3.5-flash",
@@ -4600,11 +4985,7 @@ LEMBRETE FINAL (PRIORIDADE M\xC1XIMA): siga as REGRAS PRIORIT\xC1RIAS A, B, C e 
           const textoParaGuardar = result;
           let painelValido = "";
           if (painelJson) {
-            try {
-              const obj = JSON.parse(painelJson);
-              if (obj && typeof obj === "object") painelValido = JSON.stringify(obj);
-            } catch {
-            }
+            painelValido = sanitizarPainel(painelJson, idsVideos);
           }
           if (querPainel && painelValido) result = `${result}
 
@@ -5845,6 +6226,35 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       res.status(500).json({ error: "Erro ao conferir o e-mail." });
     }
   });
+  app.get("/api/consultor/videos", bibliotecaVideos.rotaListarCom({
+    ehEquipeDoPedido: async (req) => ehEquipe(await quemChama(req)),
+    passouLimite,
+    ipDe
+  }));
+  const BUCKET_VIDEOS = config.storageBucket || `${config.projectId}.appspot.com`;
+  const origemDoApp = (o) => /^https:\/\/(www\.)?roderindica\.com$/i.test(o) || /^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)*\.run\.app$/i.test(o) || /^http:\/\/localhost(:\d+)?$/i.test(o);
+  const corsConferido = /* @__PURE__ */ new Set();
+  const arquivosVideos = criarRotasArquivosVideos({
+    db,
+    quemChama,
+    passouLimite,
+    nomeBucket: BUCKET_VIDEOS,
+    arquivo: (caminho) => (0, import_storage.getStorage)(adminApp).bucket(BUCKET_VIDEOS).file(caminho),
+    garantirCors: async (origem) => {
+      if (!origemDoApp(origem) || corsConferido.has(origem)) return;
+      const bucket = (0, import_storage.getStorage)(adminApp).bucket(BUCKET_VIDEOS);
+      const [meta] = await bucket.getMetadata();
+      const cors2 = Array.isArray(meta?.cors) ? meta.cors : [];
+      const aceita = cors2.some((c) => (c.origin || []).some((x) => x === "*" || x === origem) && (c.method || []).some((m) => m === "*" || String(m).toUpperCase() === "PUT"));
+      if (!aceita) {
+        await bucket.setCorsConfiguration([...cors2, { origin: [origem], method: ["PUT"], responseHeader: ["Content-Type", "x-goog-content-length-range"], maxAgeSeconds: 3600 }]);
+      }
+      corsConferido.add(origem);
+    }
+  });
+  app.post("/api/consultor/videos/upload-url", arquivosVideos.rotaUploadUrl);
+  app.post("/api/consultor/videos/confirmar", arquivosVideos.rotaConfirmar);
+  app.delete("/api/consultor/videos/arquivo", arquivosVideos.rotaApagar);
   registrarConsultorParceiro(app, {
     db,
     quemChama,
