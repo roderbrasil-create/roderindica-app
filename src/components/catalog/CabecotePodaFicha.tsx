@@ -27,6 +27,7 @@ import { toast } from 'sonner';
 import { EditableImage } from './EditableImage';
 import { useAuth } from '../../contexts/AuthContext';
 import { useVoltarFecha } from '../../lib/useVoltarFecha';
+import { ZoomRolagem } from '../documento/ZoomRolagem';
 
 interface CabecotePodaFichaProps {
   onClose: () => void;
@@ -255,7 +256,7 @@ export function CabecotePodaFicha({ onClose, enviar = false }: CabecotePodaFicha
         </div>
 
         {/* Printable Viewport Wrapper */}
-        <div ref={wrapperRef} className="flex-1 overflow-y-auto p-2 sm:p-6 bg-slate-950 flex justify-center">
+        <ZoomRolagem className="flex-1 bg-slate-950" interiorRef={wrapperRef} interiorClassName="p-2 sm:p-6 flex justify-center">
           <div 
             style={{ 
               height: cardHeight ? `${cardHeight}px` : 'auto',
@@ -1082,7 +1083,7 @@ export function CabecotePodaFicha({ onClose, enviar = false }: CabecotePodaFicha
 
             </div>
           </div>
-        </div>
+        </ZoomRolagem>
 
       </div>
     </div>

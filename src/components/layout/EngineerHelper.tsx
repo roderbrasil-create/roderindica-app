@@ -8,7 +8,7 @@ import { collection, getDocs, query, orderBy, addDoc, doc, getDoc, updateDoc, wh
 import { db } from '../../lib/firebase';
 import { askEngineerHelper, transcribeAudio, analyzeAndEnrichProductDossier } from '../../services/geminiService';
 import { useAuth } from '../../contexts/AuthContext';
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
@@ -30,6 +30,7 @@ import { usePodeEnviarFicha, enviarArquivoPdf, nomeArquivoFicha } from '../catal
 import { ehFichaPropria } from '../../lib/fichaPropria';
 import { CartaoFicha } from '../catalog/CartaoFicha';
 import { useVoltarFecha } from '../../lib/useVoltarFecha';
+import { useRolagemConversa } from '../../lib/useRolagemConversa';
 import { montarProntaEntrega, itemProntoDe, type ItemProntaEntrega } from '../../lib/prontaEntrega';
 import { faixaDoModelo } from '../../lib/faixaCmf';
 import { CarrosselProntaEntrega, ListaProntaEntrega, AvisoProntaEntrega, FaixaProntaEntrega } from './ProntaEntregaConsultor';
@@ -525,7 +526,7 @@ const MarkdownImage: React.FC<MarkdownImageProps> = ({ src, isLightReport, ...pr
         src={resolvedSrc}
         onError={handleError}
         referrerPolicy="no-referrer"
-        loading="lazy"
+        decoding="async"
         className={cn(
           "float-left mr-4 mb-2 mt-1 max-w-[210px] sm:max-w-[230px] max-h-[185px] w-auto h-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-xs object-contain",
           props.className
@@ -540,7 +541,7 @@ const MarkdownImage: React.FC<MarkdownImageProps> = ({ src, isLightReport, ...pr
       src={resolvedSrc}
       onError={handleError}
       referrerPolicy="no-referrer"
-      loading="lazy"
+      decoding="async"
       className={cn(
         "max-w-[100%] rounded-xl shadow-xl my-3 block object-contain p-1.5 sm:max-w-[320px] max-h-48 border border-slate-800 bg-slate-900/40 transition-transform hover:scale-105 duration-200",
         props.className
@@ -548,6 +549,80 @@ const MarkdownImage: React.FC<MarkdownImageProps> = ({ src, isLightReport, ...pr
     />
   );
 };
+
+// Componentes do markdown da resposta do consultor. Ficam FORA do componente e criados uma vez só:
+// definidos inline (como era), cada render do consultor (teclado, barra do Safari, digitação) criava
+// funções novas, o React via "tipos" diferentes e desmontava e remontava a resposta inteira, com as
+// imagens voltando a zero de altura (piscava e a conversa pulava enquanto o dono lia).
+const criarComponentesMarkdown = (abrirFicha: (href: string) => void): Components => ({
+  // Tudo no mesmo tamanho: título vira só uma linha em negrito
+  h1: ({ children }) => <p className="font-bold text-amber-400 mt-2">{children}</p>,
+  h2: ({ children }) => <p className="font-bold text-amber-400 mt-2">{children}</p>,
+  h3: ({ children }) => <p className="font-bold text-amber-400 mt-2">{children}</p>,
+  h4: ({ children }) => <p className="font-bold mt-2">{children}</p>,
+  p: ({ children }) => <p className="my-1.5">{children}</p>,
+  ul: ({ children }) => <ul className="list-disc pl-5 space-y-1 my-1.5">{children}</ul>,
+  ol: ({ children }) => <ol className="list-decimal pl-5 space-y-1 my-1.5">{children}</ol>,
+  li: ({ children }) => <li className="pl-0.5">{children}</li>,
+  strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+  em: ({ children }) => <em className="not-italic text-slate-300">{children}</em>,
+  hr: () => null,
+  table: ({ children }) => (
+    <div className="overflow-x-auto my-3 rounded-xl border border-slate-700 bg-slate-900/90 shadow-lg">
+      <table className="w-full text-xs text-left text-slate-200 border-collapse">{children}</table>
+    </div>
+  ),
+  thead: ({ children }) => (
+    <thead className="bg-slate-800 text-amber-400 font-extrabold uppercase text-[10px] tracking-wider border-b border-slate-700">{children}</thead>
+  ),
+  th: ({ children }) => (
+    <th className="px-3 py-2.5 border-r last:border-r-0 border-slate-700 font-extrabold">{children}</th>
+  ),
+  td: ({ children }) => (
+    <td className="px-3 py-2 border-r last:border-r-0 border-b border-slate-800 text-slate-300 font-medium">{children}</td>
+  ),
+  tr: ({ children }) => (
+    <tr className="even:bg-slate-850/60 hover:bg-slate-800/50 transition-colors">{children}</tr>
+  ),
+  img: ({ node, ...props }) => {
+    return <MarkdownImage {...props} />;
+  },
+  a: ({ node, children, href, ...props }) => {
+    if (!href) return <span className="text-slate-200 underline">{children}</span>;
+    if (href.startsWith('http') || href.includes('run.app') || href.includes('roderindica') || href.includes('localhost')) {
+      return (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-emerald-400 hover:text-emerald-300 underline font-extrabold inline-flex items-center gap-1 bg-emerald-500/10 hover:bg-emerald-500/20 px-1.5 py-0.5 rounded transition my-0.5"
+        >
+          <ExternalLink className="h-3 w-3 inline text-emerald-400" />
+          {children}
+        </a>
+      );
+    }
+    return (
+      <button
+        type="button"
+        onClick={() => abrirFicha(href)}
+        className="text-amber-400 hover:text-amber-300 underline font-extrabold cursor-pointer inline-flex items-center gap-1 bg-amber-500/10 hover:bg-amber-500/20 px-1.5 py-0.5 rounded transition my-0.5"
+      >
+        <FileText className="h-3 w-3 inline text-amber-400" />
+        {children}
+      </button>
+    );
+  }
+});
+
+// Texto da resposta memorizado: só refaz quando o texto muda
+const TextoMarkdown = React.memo(function TextoMarkdown({ texto, componentes }: { texto: string; componentes: Components }) {
+  return (
+    <ReactMarkdown urlTransform={(url) => url} remarkPlugins={[remarkGfm]} components={componentes}>
+      {texto}
+    </ReactMarkdown>
+  );
+});
 
 // Computador (mouse e tela larga): o consultor abre numa janela própria, reaproveitada pelo nome.
 // O login do Roder Indica vale na janela nova (mesmo endereço), então a pessoa entra com o papel dela.
@@ -693,6 +768,8 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   };
 
   // Links de ficha dentro das respostas do consultor
+  const abrirFichaDoLinkRef = useRef<(href: string) => void>(() => {});
+  const componentesMd = React.useMemo(() => criarComponentesMarkdown((href) => abrirFichaDoLinkRef.current(href)), []);
   const openTechnicalSheet = (url: string, modelName?: string) => {
     if (!url) return;
     const tipo = fichaEspecialDe(url, modelName);
@@ -704,6 +781,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     // Abre dentro do app, com botão de voltar (fichas em /catalogo/... antes nem abriam aqui)
     abrirDocumento(url, 'Ficha técnica');
   };
+  abrirFichaDoLinkRef.current = (href) => openTechnicalSheet(href);
 
   const linkFichaDe = (prod: Product, model: ProductModel) =>
     model.pdf_url || prod.pdf_url || PRODUCT_PDFS[model.name || ''] || PRODUCT_PDFS[prod.name || ''] || '';
@@ -1701,13 +1779,19 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   useVoltarFecha(folhaVideos, () => setFolhaVideos(false));
   const campoCelRef = useRef<HTMLTextAreaElement>(null);
   const listaCelRef = useRef<HTMLDivElement>(null);
-  // Altura visível de verdade no celular (descontando o teclado): a caixa de texto fica sempre acima dele
+  // Altura visível de verdade no celular, SÓ com o teclado aberto: a caixa de texto fica sempre acima dele.
+  // Antes o painel seguia o visualViewport o tempo todo. No iPhone a barra do Safari encolhe e volta
+  // enquanto a pessoa rola a conversa (varia 50 a 80 px), cada variação reposicionava o painel e o
+  // efeito de teclado puxava a conversa para o fim: era a "tela que mexe sozinha". Barra do navegador
+  // não é teclado: só vale diferença grande (teclado tem mais de 200 px).
   const [vvCel, setVvCel] = useState<{ h: number; top: number } | null>(null);
   useEffect(() => {
     const vv = typeof window !== 'undefined' ? window.visualViewport : null;
     if (!isOpen || layoutPc || !vv) { setVvCel(null); return; }
     const ajustar = () => {
       if (window.innerWidth >= 640) { setVvCel(null); return; }
+      const tecladoAberto = window.innerHeight - vv.height > 150;
+      if (!tecladoAberto) { setVvCel(prev => (prev === null ? prev : null)); return; }
       const h = Math.round(vv.height), top = Math.round(vv.offsetTop);
       setVvCel(prev => (prev && prev.h === h && prev.top === top) ? prev : { h, top });
     };
@@ -1716,13 +1800,32 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     vv.addEventListener('scroll', ajustar);
     return () => { vv.removeEventListener('resize', ajustar); vv.removeEventListener('scroll', ajustar); };
   }, [isOpen, layoutPc]);
-  const rolarListaCelAoFim = () => {
-    const el = listaCelRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  };
-  // teclado abriu ou fechou: a conversa desce até a última mensagem
+  // Celular com o consultor aberto: a página de trás não rola (nem pelo encadeamento da rolagem do iOS)
+  useEffect(() => {
+    if (!isOpen || layoutPc || typeof window === 'undefined' || window.innerWidth >= 640) return;
+    const html = document.documentElement, body = document.body;
+    const antes = { h: html.style.overflow, b: body.style.overflow, hb: html.style.overscrollBehavior };
+    html.style.overflow = 'hidden';
+    body.style.overflow = 'hidden';
+    html.style.overscrollBehavior = 'none';
+    return () => { html.style.overflow = antes.h; body.style.overflow = antes.b; html.style.overscrollBehavior = antes.hb; };
+  }, [isOpen, layoutPc]);
+  // Rolagem da conversa: só gruda no fim quem já está perto dele, e a posição de leitura é preservada
+  // quando algo cresce acima (ver useRolagemConversa)
+  const { pertoDoFim, rolarAoFim, rolarAoElemento } = useRolagemConversa(
+    messagesEndRef,
+    `${isOpen}|${layoutPc}|${knowledgeOpen}|${messages.some(m => m.role === 'user')}`,
+  );
+  const rolarListaCelAoFim = () => rolarAoFim(false);
+  // Teclado abriu ou fechou: se a pessoa estava no fim, a conversa continua no fim; senão fica onde está
   // (na tela de início não: a saudação fica no topo)
-  useEffect(() => { if (vvCel && messages.some(m => m.role === 'user')) rolarListaCelAoFim(); }, [vvCel?.h]);
+  const tecladoCel = !!vvCel;
+  const tecladoAntes = useRef(false);
+  useEffect(() => {
+    if (tecladoAntes.current === tecladoCel) return;
+    tecladoAntes.current = tecladoCel;
+    if (messages.some(m => m.role === 'user') && pertoDoFim.current) rolarAoFim(false);
+  }, [tecladoCel]);
   // Caixa de texto que cresce com o texto (digitado ou ditado): de 1 até 6 linhas, depois rola por dentro
   React.useLayoutEffect(() => {
     const el = campoCelRef.current;
@@ -1802,31 +1905,35 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     } catch (e) {}
   }, [recommendedCacambaCap]);
 
-  useEffect(() => {
+  // Rolagem quando chega mensagem ou o consultor começa/termina de pensar. Só reage à CHEGADA de
+  // mensagem (muda a quantidade) ou ao "carregando"; antes rodava a cada troca da lista `messages`
+  // e rolava com `scrollIntoView` até com a pessoa lendo lá em cima.
+  const rolagemVista = useRef({ n: 0, loading: false });
+  React.useLayoutEffect(() => {
     if (messages.length === 0) return;
+    const ant = rolagemVista.current;
+    rolagemVista.current = { n: messages.length, loading };
+    const chegouMensagem = messages.length !== ant.n;
+    if (!chegouMensagem && loading === ant.loading) return;
     const lastMsg = messages[messages.length - 1];
+    const primeira = ant.n === 0; // conversa restaurada ao abrir
+    const estavaNoFim = pertoDoFim.current;
 
-    if (loading) {
-      // While loading, scroll to bottom to show the loading indicator
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      return;
-    }
-
-    if (lastMsg.role === 'user') {
-      // User sent a message, scroll to bottom so they see their query and loading status
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    } else if (lastMsg.role === 'assistant') {
-      // Assistant replied. Let's scroll to the user's question (second-to-last message)
-      // so the user's question and the beginning of the assistant's response are visible.
-      const questionIndex = messages.length - 2;
-      const questionElement = document.getElementById(`chat-message-${questionIndex}`);
-      if (questionElement) {
-        questionElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      } else {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (lastMsg.role === 'user' && chegouMensagem) {
+      // a pessoa acabou de enviar: volta a regra de grudar no fim e mostra a pergunta
+      rolarAoFim(false);
+    } else if (loading) {
+      // consultor pensando: mostra o indicador, mas só para quem já está no fim
+      if (estavaNoFim) rolarAoFim(false);
+    } else if (lastMsg.role === 'assistant' && chegouMensagem) {
+      // Resposta chegou: mostra a pergunta e o começo dela. Quem subiu para ler outra coisa não é movido.
+      if (primeira || estavaNoFim) {
+        const pergunta = document.getElementById(`chat-message-${messages.length - 2}`);
+        if (pergunta) rolarAoElemento(pergunta, !primeira);
+        else rolarAoFim(false);
       }
     }
-  }, [messages, loading]);
+  }, [messages.length, loading]);
 
   // Fetch catalog and stock data on mount or open
   useEffect(() => {
@@ -3549,72 +3656,7 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                       <div className="space-y-3">
                         {msg.indicar?.ok && <p className="fonte-titulo m-0 text-[16px] font-extrabold text-[#15803D]">Indicação enviada!</p>}
                         <div className="max-w-none text-[15.5px] sm:text-[14px] leading-relaxed text-slate-200 space-y-2 markdown-body">
-                          <ReactMarkdown
-                            urlTransform={(url) => url}
-                            remarkPlugins={[remarkGfm]}
-                            components={{
-                              // Tudo no mesmo tamanho: título vira só uma linha em negrito
-                              h1: ({ children }) => <p className="font-bold text-amber-400 mt-2">{children}</p>,
-                              h2: ({ children }) => <p className="font-bold text-amber-400 mt-2">{children}</p>,
-                              h3: ({ children }) => <p className="font-bold text-amber-400 mt-2">{children}</p>,
-                              h4: ({ children }) => <p className="font-bold mt-2">{children}</p>,
-                              p: ({ children }) => <p className="my-1.5">{children}</p>,
-                              ul: ({ children }) => <ul className="list-disc pl-5 space-y-1 my-1.5">{children}</ul>,
-                              ol: ({ children }) => <ol className="list-decimal pl-5 space-y-1 my-1.5">{children}</ol>,
-                              li: ({ children }) => <li className="pl-0.5">{children}</li>,
-                              strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
-                              em: ({ children }) => <em className="not-italic text-slate-300">{children}</em>,
-                              hr: () => null,
-                              table: ({ children }) => (
-                                <div className="overflow-x-auto my-3 rounded-xl border border-slate-700 bg-slate-900/90 shadow-lg">
-                                  <table className="w-full text-xs text-left text-slate-200 border-collapse">{children}</table>
-                                </div>
-                              ),
-                              thead: ({ children }) => (
-                                <thead className="bg-slate-800 text-amber-400 font-extrabold uppercase text-[10px] tracking-wider border-b border-slate-700">{children}</thead>
-                              ),
-                              th: ({ children }) => (
-                                <th className="px-3 py-2.5 border-r last:border-r-0 border-slate-700 font-extrabold">{children}</th>
-                              ),
-                              td: ({ children }) => (
-                                <td className="px-3 py-2 border-r last:border-r-0 border-b border-slate-800 text-slate-300 font-medium">{children}</td>
-                              ),
-                              tr: ({ children }) => (
-                                <tr className="even:bg-slate-850/60 hover:bg-slate-800/50 transition-colors">{children}</tr>
-                              ),
-                              img: ({ node, ...props }) => {
-                                return <MarkdownImage {...props} />;
-                              },
-                              a: ({ node, children, href, ...props }) => {
-                                if (!href) return <span className="text-slate-200 underline">{children}</span>;
-                                if (href.startsWith('http') || href.includes('run.app') || href.includes('roderindica') || href.includes('localhost')) {
-                                  return (
-                                    <a
-                                      href={href}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-emerald-400 hover:text-emerald-300 underline font-extrabold inline-flex items-center gap-1 bg-emerald-500/10 hover:bg-emerald-500/20 px-1.5 py-0.5 rounded transition my-0.5"
-                                    >
-                                      <ExternalLink className="h-3 w-3 inline text-emerald-400" />
-                                      {children}
-                                    </a>
-                                  );
-                                }
-                                return (
-                                  <button
-                                    type="button"
-                                    onClick={() => openTechnicalSheet(href)}
-                                    className="text-amber-400 hover:text-amber-300 underline font-extrabold cursor-pointer inline-flex items-center gap-1 bg-amber-500/10 hover:bg-amber-500/20 px-1.5 py-0.5 rounded transition my-0.5"
-                                  >
-                                    <FileText className="h-3 w-3 inline text-amber-400" />
-                                    {children}
-                                  </button>
-                                );
-                              }
-                            }}
-                          >
-                            {parseConsultantOptions(msg.content).text}
-                          </ReactMarkdown>
+                          <TextoMarkdown texto={parseConsultantOptions(msg.content).text} componentes={componentesMd} />
                         </div>
 
                         {/* Indicação pela conversa: opções, conferência e mensagem para o cliente */}
@@ -5935,7 +5977,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                         rows={1}
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
-                        onFocus={() => { setIsInputFocused(true); setTimeout(rolarListaCelAoFim, 300); }}
+                        onFocus={() => { setIsInputFocused(true); const noFim = pertoDoFim.current; setTimeout(() => { if (noFim) rolarListaCelAoFim(); }, 300); }}
                         onBlur={() => setTimeout(() => setIsInputFocused(false), 200)}
                         onKeyDown={(e) => {
                           // teclado de computador: Enter envia (Shift+Enter quebra linha); no celular o Enter quebra linha e envia pelo botão

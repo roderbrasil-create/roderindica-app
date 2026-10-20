@@ -13,6 +13,8 @@ import { AcoesVideo, PlayerVideo } from './VideoEquipamento';
 
 let cacheLista: { ate: number; lista: VideoConsultor[] } | null = null;
 let pedido: Promise<VideoConsultor[]> | null = null;
+// a lista já foi pedida ao servidor pelo menos uma vez (deu certo ou não)
+let jaPediu = false;
 
 export function carregarVideosConsultor(fresco = false): Promise<VideoConsultor[]> {
   if (!fresco && cacheLista && cacheLista.ate > Date.now()) return Promise.resolve(cacheLista.lista);
@@ -25,7 +27,7 @@ export function carregarVideosConsultor(fresco = false): Promise<VideoConsultor[
         return lista;
       })
       .catch(() => cacheLista?.lista || [])
-      .finally(() => { pedido = null; });
+      .finally(() => { pedido = null; jaPediu = true; });
   }
   return pedido;
 }
@@ -121,6 +123,17 @@ function AcoesDoCartao({ v, nome, compacto }: { v: VideoConsultor; nome: string;
 // Cartões embaixo da resposta do consultor: só os ids que existem na lista
 export function VideosDaResposta({ ids, lista, foto }: { ids: string[]; lista: VideoConsultor[]; foto?: (v: VideoConsultor) => string | undefined }) {
   const videos = useMemo(() => ids.map(id => lista.find(v => v.id === id)).filter(Boolean) as VideoConsultor[], [ids, lista]);
+  // A lista vem do servidor depois do texto da resposta. Enquanto não chegou, um quadro do tamanho de um
+  // cartão guarda o lugar: sem ele os cartões "apareciam do nada" e empurravam a conversa que a pessoa lia.
+  if (!lista.length && !jaPediu && ids.length) {
+    return (
+      <div className="flex justify-start" aria-hidden="true">
+        <div className="w-full max-w-[88%] sm:max-w-[420px] space-y-2">
+          {ids.map(id => <div key={id} className="h-[330px] w-full rounded-[14px] border border-[#E2E5E8] bg-white/60" />)}
+        </div>
+      </div>
+    );
+  }
   if (!videos.length) return null;
   return (
     <div className="flex justify-start">

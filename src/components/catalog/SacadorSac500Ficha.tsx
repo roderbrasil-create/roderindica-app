@@ -28,6 +28,7 @@ import { toast } from 'sonner';
 import { EditableImage } from './EditableImage';
 import { useAuth } from '../../contexts/AuthContext';
 import { useVoltarFecha } from '../../lib/useVoltarFecha';
+import { ZoomRolagem } from '../documento/ZoomRolagem';
 
 interface SacadorSac500FichaProps {
   onClose: () => void;
@@ -206,7 +207,8 @@ _Dúvidas ou orçamentos? Fale com a equipe técnica Roder!_`;
   };
 
   return (
-    <div style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 0.5rem)' }} className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 overflow-y-auto p-2 sm:p-4 md:p-6 flex justify-center items-start">
+    <div style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 0.5rem)' }} className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50">
+      <ZoomRolagem className="h-full w-full" interiorClassName="p-2 sm:p-4 md:p-6 flex justify-center items-start">
       <div className="bg-slate-900 rounded-xl max-w-5xl w-full p-4 md:p-6 text-slate-100 shadow-2xl my-4 relative border border-slate-700">
         
         {/* Modal Controls Header */}
@@ -636,6 +638,7 @@ _Dúvidas ou orçamentos? Fale com a equipe técnica Roder!_`;
         </div>
 
       </div>
+      </ZoomRolagem>
     </div>
   );
 }

@@ -34,6 +34,7 @@ import { toast } from 'sonner';
 import { EditableImage } from './EditableImage';
 import { useAuth } from '../../contexts/AuthContext';
 import { useVoltarFecha } from '../../lib/useVoltarFecha';
+import { ZoomRolagem } from '../documento/ZoomRolagem';
 
 interface CabecoteGmt035FichaProps {
   onClose: () => void;
@@ -286,7 +287,7 @@ export function CabecoteGmt035Ficha({ onClose, enviar = false }: CabecoteGmt035F
         </div>
 
         {/* Modal Scrollable Container */}
-        <div className="flex-1 overflow-y-auto p-2 sm:p-4 bg-slate-950/90 flex justify-center">
+        <ZoomRolagem className="flex-1 bg-slate-950/90" interiorClassName="p-2 sm:p-4 flex justify-center">
           <div ref={wrapperRef} className="w-full flex justify-center">
             <div 
               style={{ 
@@ -836,7 +837,7 @@ export function CabecoteGmt035Ficha({ onClose, enviar = false }: CabecoteGmt035F
               </div>
             </div>
           </div>
-        </div>
+        </ZoomRolagem>
 
       </div>
     </div>

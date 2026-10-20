@@ -32,6 +32,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { db } from '../../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { useVoltarFecha } from '../../lib/useVoltarFecha';
+import { ZoomRolagem } from '../documento/ZoomRolagem';
 
 interface TrituradorLoaderFaeFichaProps {
   onClose: () => void;
@@ -460,7 +461,7 @@ export function TrituradorLoaderFaeFicha({ onClose, defaultModelId = 'fae-uml-ss
         </div>
 
         {/* Scrollable Document Area */}
-        <div className="flex-1 overflow-auto bg-slate-950 p-4 sm:p-6" ref={wrapperRef}>
+        <ZoomRolagem className="flex-1 bg-slate-950" interiorRef={wrapperRef} interiorClassName="p-4 sm:p-6">
           <div 
             className="mx-auto text-slate-900 rounded-none shadow-xl origin-top transition-all duration-300"
             style={{
@@ -877,7 +878,7 @@ export function TrituradorLoaderFaeFicha({ onClose, defaultModelId = 'fae-uml-ss
 
             </div>
           </div>
-        </div>
+        </ZoomRolagem>
       </div>
     </div>
   );
