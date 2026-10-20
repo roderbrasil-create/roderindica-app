@@ -99,6 +99,7 @@ import { useVoltarFecha } from '../lib/useVoltarFecha';
 import { perfilInstalacao, frasePara, maquinasDoProduto, NOME_MAQUINA, type TipoMaquina } from '../lib/instalacao';
 import { abrirDocumento } from '../lib/abrirDocumento';
 import { ehFichaPropria } from '../lib/fichaPropria';
+import { modelosComFichaDoSite } from '../lib/fichasDoSite';
 import { EnvioDeVideo } from '../components/catalog/EnvioDeVideo';
 
 function SmartImage({ src, alt, className, zoom = 1, objectFit = 'cover', ...props }: any) {
@@ -740,6 +741,7 @@ function SortableProductCard({
 
 
 let rachadoraEmAndamento = false;
+const fichasDoSiteEmAndamento = new Set<string>();
 
 export default function Catalog() {
   const { user, profile, realProfile, isManager, isAdmin, isExternalSeller, isMarketing, auth } = useAuth();
@@ -1140,6 +1142,18 @@ export default function Catalog() {
           const nomes = (alvo?.models || []).map((m: any) => String(m.name || '').toUpperCase().replace(/\s/g, ''));
           if (!alvo || !nomes.includes('GR600') || !nomes.includes('GR800')) {
             addGarraRachadora(alvo);
+          }
+        }
+
+        // Ficha do site: preenche só modelo sem ficha (nunca troca link salvo nem a ficha própria do app)
+        if (isAdmin || isManager) {
+          for (const p of data) {
+            const novos = modelosComFichaDoSite(p as any);
+            if (!novos || fichasDoSiteEmAndamento.has(p.id)) continue;
+            fichasDoSiteEmAndamento.add(p.id);
+            updateDoc(doc(db, 'products', p.id), { models: novos })
+              .catch(err => console.error('Erro ao preencher ficha do site:', err))
+              .finally(() => fichasDoSiteEmAndamento.delete(p.id));
           }
         }
 
@@ -4010,6 +4024,29 @@ export default function Catalog() {
     return url;
   };
 
+  // Troca a ficha do modelo por um PDF novo: o arquivo vai para o Storage com nome novo
+  // (nunca por cima do antigo) e o link do modelo passa a apontar para ele ao salvar.
+  const enviarFichaPdfDoModelo = async (file: File | undefined | null) => {
+    if (!file || !editingModelData) return;
+    const ehPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+    if (!ehPdf) { toast.error('Envie um arquivo PDF.'); return; }
+    if (file.size > 50 * 1024 * 1024) { toast.error('O PDF é muito grande. O limite é 50MB.'); return; }
+    try {
+      setModelUploading(true);
+      toast.loading('Enviando a ficha...', { id: 'ficha-pdf-modelo' });
+      const storageRef = ref(storage, `technical_sheets/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`);
+      await uploadBytes(storageRef, file, { contentType: 'application/pdf' });
+      const url = await getDownloadURL(storageRef);
+      setEditingModelData((atual: any) => ({ ...atual, pdf_url: url }));
+      toast.success('Ficha nova enviada. Toque em Salvar para trocar o link.', { id: 'ficha-pdf-modelo' });
+    } catch (err: any) {
+      console.error('Erro ao enviar ficha PDF do modelo:', err);
+      toast.error('Não consegui enviar o PDF. Tente de novo ou cole um link.', { id: 'ficha-pdf-modelo' });
+    } finally {
+      setModelUploading(false);
+    }
+  };
+
   const handleModelFileUpload = async (idx: number, file: File, field: 'pdf_url' | 'parts_manual_url') => {
     if (file.size > 50 * 1024 * 1024) {
       toast.error('O arquivo é muito grande. O limite é 50MB.');
@@ -6318,13 +6355,38 @@ export default function Catalog() {
                   <Label className="text-xs uppercase font-bold text-muted-foreground">Documentos e Mídia</Label>
                   
                   <div className="space-y-2">
-                    <Label className="text-[10px] uppercase">Ficha Técnica (Link Drive)</Label>
+                    <Label className="text-[10px] uppercase">Ficha Técnica (PDF ou link)</Label>
                     <Input 
                       className="h-9 text-xs"
                       value={editingModelData.pdf_url} 
                       onChange={(e) => setEditingModelData({ ...editingModelData, pdf_url: fixGoogleDriveLink(e.target.value) })}
-                      placeholder="Link do Google Drive"
+                      placeholder="Link do site, do Drive ou envie um PDF"
                     />
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <label className={cn(
+                        'inline-flex items-center justify-center gap-2 min-h-11 h-auto px-3 py-2 rounded-md border border-border bg-background text-xs font-bold cursor-pointer hover:bg-muted',
+                        modelUploading && 'opacity-60 pointer-events-none'
+                      )}>
+                        <Upload className="h-4 w-4" /> {editingModelData.pdf_url ? 'Trocar por PDF novo' : 'Enviar PDF'}
+                        <input
+                          type="file"
+                          accept="application/pdf,.pdf"
+                          className="sr-only"
+                          disabled={modelUploading}
+                          onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; enviarFichaPdfDoModelo(f); }}
+                        />
+                      </label>
+                      {editingModelData.pdf_url && (
+                        <a
+                          href={editingModelData.pdf_url.startsWith('db-file://') ? undefined : editingModelData.pdf_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center gap-2 min-h-11 h-auto px-3 py-2 rounded-md border border-border bg-background text-xs font-bold hover:bg-muted"
+                        >
+                          <FileText className="h-4 w-4 text-red-500" /> Ver ficha
+                        </a>
+                      )}
+                    </div>
                   </div>
 
                   <div className="space-y-2">
