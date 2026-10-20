@@ -119,6 +119,8 @@ export default function PainelParceiro() {
   const [estoque, setEstoque] = useState<any[]>([]);
   const [indicacoes, setIndicacoes] = useState<any[]>([]);
   const [comissoes, setComissoes] = useState<any[]>([]);
+  // leitura das comissões falhou: mostrar "R$ 0,00" ali faria o parceiro achar que não tem nada a receber
+  const [erroComissoes, setErroComissoes] = useState(false);
   const [preparados, setPreparados] = useState<Record<string, { codigo: string | null; foto: File | null }>>({});
   const [usuarioPronto, setUsuarioPronto] = useState(!!auth.currentUser);
   useEffect(() => auth.onAuthStateChanged(u => setUsuarioPronto(!!u)), []);
@@ -136,7 +138,8 @@ export default function PainelParceiro() {
     const u1 = onSnapshot(query(collection(db, 'indications'), where('external_seller_uid', '==', profile.uid), limit(200)),
       s => setIndicacoes(s.docs.map(d => ({ id: d.id, ...d.data() }))), () => {});
     const u2 = isRegionalSeller ? () => {} : onSnapshot(query(collection(db, 'commissions'), where('external_seller_uid', '==', profile.uid)),
-      s => setComissoes(s.docs.map(d => ({ id: d.id, ...d.data() }))), () => {});
+      s => { setErroComissoes(false); setComissoes(s.docs.map(d => ({ id: d.id, ...d.data() }))); },
+      (e) => { console.error('Erro ao ler comissões do parceiro:', e); setErroComissoes(true); });
     return () => { u1(); u2(); };
   }, [profile?.uid, isRegionalSeller]);
 
@@ -221,7 +224,9 @@ export default function PainelParceiro() {
           {mostraGanhos && (
             <button onClick={() => navigate('/comissoes')} className="h-auto p-0 shrink-0 text-right bg-transparent active:opacity-80">
               <span className="block text-[12px] text-[#AEB4BC]">A receber</span>
-              <span className="block fonte-titulo font-extrabold text-[20px] leading-tight text-[#F6C400] whitespace-nowrap">{brl(aReceber)}</span>
+              {erroComissoes
+                ? <span className="block text-[13px] font-bold leading-tight text-[#FFB4A8] max-w-[150px]">Não foi possível carregar agora</span>
+                : <span className="block fonte-titulo font-extrabold text-[20px] leading-tight text-[#F6C400] whitespace-nowrap">{brl(aReceber)}</span>}
             </button>
           )}
         </div>

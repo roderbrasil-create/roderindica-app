@@ -119,6 +119,7 @@ import { ptBR } from 'date-fns/locale';
 import { cn } from '../lib/utils';
 import { compressImage } from '../lib/imageUtils';
 import { maskCurrency, unmaskCurrency } from '../lib/masks';
+import { calcularComissao, mesDaComissao, papelComissionavel, taxaDoParceiro, temParceiroSemUid, UIDS_DE_SISTEMA } from '../lib/calculoComissao';
 
 const months = [
   { value: 1, label: 'Janeiro' },
@@ -509,35 +510,39 @@ export default function Indications() {
     try {
       setSubmitting(true);
 
-      // 1. Calculate commission based on Business Rules and Indicator Profile
-      let commissionRate = 2; // Default rate
+      // 1. Comissão pela conta compartilhada com o servidor (src/lib/calculoComissao.ts)
       let partnerName = selectedIndication.external_seller_name || 'Indicador';
       let partnerEmail = '';
       let isPartnerCommissionable = true;
+      let partnerData: any = null;
+      const partnerUid = String(selectedIndication.external_seller_uid || '');
 
-      if (selectedIndication.external_seller_uid) {
+      // Venda de parceiro sem o uid dele: a comissão não nasceria e o painel dele mostraria R$ 0,00
+      // sem ninguém perceber. Melhor parar aqui e ligar o parceiro antes.
+      if (temParceiroSemUid(selectedIndication)) {
+        throw new Error(`Esta indicação veio de ${selectedIndication.external_seller_name || (selectedIndication as any).indicator_name || 'um parceiro'}, mas não está ligada ao cadastro dele. Use "Trocar Indicador" (lápis ao lado do nome do indicador) e escolha o parceiro antes de faturar.`);
+      }
+
+      if (partnerUid && !UIDS_DE_SISTEMA.includes(partnerUid)) {
+        let partnerDoc: any;
         try {
-          const partnerDoc = await getDoc(doc(db, 'users', selectedIndication.external_seller_uid));
-          if (partnerDoc.exists()) {
-            const partnerData = partnerDoc.data();
-            partnerName = partnerData.name || partnerName;
-            partnerEmail = partnerData.email || '';
-            const pRole = partnerData.role || 'external_seller';
-            if (['admin', 'manager', 'internal_seller', 'triagem', 'financial', 'marketing', 'fiscal', 'vendedor_padrao'].includes(pRole)) {
-              isPartnerCommissionable = false;
-            }
-            if (partnerData.commission_rate !== undefined && partnerData.commission_rate !== null) {
-              commissionRate = partnerData.commission_rate;
-            }
-          }
+          partnerDoc = await getDoc(doc(db, 'users', partnerUid));
         } catch (err) {
           console.error("Error fetching partner profile for commission calculations:", err);
+          throw new Error('Não consegui ler o cadastro do parceiro para calcular a comissão. Confira a internet e tente de novo.');
         }
+        if (!partnerDoc.exists()) {
+          throw new Error(`O parceiro ligado a esta indicação (${partnerName}) não existe mais no cadastro. Use "Trocar Indicador" e escolha o parceiro certo antes de faturar.`);
+        }
+        partnerData = partnerDoc.data();
+        partnerName = partnerData.name || partnerName;
+        partnerEmail = partnerData.email || '';
+        isPartnerCommissionable = papelComissionavel(partnerData.role);
       }
+      let commissionRate = taxaDoParceiro(partnerData);
 
       // saleValue guarda o número puro (ex.: "230000"); unmaskCurrency dividiria por 100 (bug do R$ 2.300)
       const totalSalesValue = Number(saleValue) || 0;
-      const baseValue = totalSalesValue; 
       let discPct = 0;
       let discountAmount = 0;
 
@@ -549,32 +554,26 @@ export default function Indications() {
       let finalStandardSellerCommissionValue = 0;
 
       if (hasExternalSeller) {
-        // A comissão do parceiro indicador deve ser calculada sempre somente sobre os produtos comissionaveis, desconsiderando também kits de instalação (código iniciando em 9000).
-        commissionableValue = (selectedIndication.commissioned_products || []).reduce(
-          (acc, p) => {
-            const is9000 = p.code && p.code.trim().startsWith('9000');
-            const isService = /m[ãa]o\s*de\s*obra|frete|transporte|instala[çc][ãa]o|montagem|entrega\s*t[ée]cnica|deslocamento|kit\s+de\s+instala/i.test(p.name || '');
-            const isCommissionable = p.is_commissionable !== false && !is9000 && !isService;
-            return acc + (isCommissionable ? (p.base_value || 0) * (p.quantity || 0) : 0);
-          }, 
-          0
-        );
-        // Regra de negócio: desconto concedido sai da base ANTES da taxa. Antes o desconto era
-        // fixo em zero e o parceiro recebia comissão sobre um valor que o cliente não pagou.
-        // O desconto nunca passa da própria base (comissão negativa não existe).
-        grossCommissionableValue = commissionableValue;
-        discountAmount = Math.min(Math.max(Number(discountReais) || 0, 0), grossCommissionableValue);
-        discPct = grossCommissionableValue > 0 ? (discountAmount / grossCommissionableValue) * 100 : 0;
-        commissionableValue = grossCommissionableValue - discountAmount;
-        finalCommissionValue = commissionableValue * (commissionRate / 100);
+        // Só produtos comissionáveis, sem kit 9000 nem serviço; desconto sai da base antes da taxa
+        const calc = calcularComissao(selectedIndication.commissioned_products || [], Number(discountReais) || 0, commissionRate);
+        grossCommissionableValue = calc.baseBruta;
+        discountAmount = calc.desconto;
+        discPct = calc.descontoPct;
+        commissionableValue = calc.base;
+        finalCommissionValue = calc.valor;
+
+        // Parceiro que recebe comissão com base zerada: antes faturava e criava comissão de R$ 0,00 calada
+        if (partnerData && grossCommissionableValue <= 0) {
+          throw new Error('Sem produtos comissionáveis nesta indicação: a comissão do parceiro daria R$ 0,00. Vincule os produtos vendidos (Vincular Produto) antes de faturar.');
+        }
+        if (partnerData && finalCommissionValue <= 0) {
+          throw new Error('O desconto informado zera a base da comissão do parceiro. Confira o desconto antes de faturar.');
+        }
 
         // When a sale is registered for a standard seller, the commission calculated is on the total sale value.
         if (selectedIndication.standard_seller_uid && selectedIndication.standard_seller_commission_enabled !== false) {
-          const standardSellerRate = selectedIndication.standard_seller_commission_rate !== undefined 
-            ? selectedIndication.standard_seller_commission_rate 
-            : 2;
           // Comissão do vendedor padrão não é controlada no Roder Indica
-          finalStandardSellerCommissionValue = 0 * standardSellerRate;
+          finalStandardSellerCommissionValue = 0;
         }
       } else {
         // When there is no external seller registered, or only an internal seller is registered, there will be no commission processing for any seller.
@@ -584,41 +583,8 @@ export default function Indications() {
         finalStandardSellerCommissionValue = 0;
       }
 
-      // 2. Resolve retroactive date components
-      const [sYear, sMonthStr, sDayStr] = saleDate.split('-').map(Number);
-      const saleMonth = sMonthStr;
-      const saleYear = sYear;
-
-      const currentDateObj = new Date();
-      const currentMonth = currentDateObj.getMonth() + 1;
-      const currentYear = currentDateObj.getFullYear();
-
-      // Projeção: próximo mês para faturamento novo, ou mês corrente caso a entrega seja retroativa (já realizada)
-      let isRetroactiveDelivery = false;
-      const dDateStr = selectedIndication.delivery_date || '';
-      if (dDateStr) {
-        const dDateObj = new Date(dDateStr + 'T23:59:59');
-        if (dDateObj <= currentDateObj) {
-          isRetroactiveDelivery = true;
-        }
-      }
-
-      let commissionMonth: number;
-      let commissionYear: number;
-
-      if (isRetroactiveDelivery) {
-        commissionMonth = currentMonth;
-        commissionYear = currentYear;
-      } else {
-        let forecastMonth = currentMonth + 1;
-        let forecastYear = currentYear;
-        if (forecastMonth > 12) {
-          forecastMonth = 1;
-          forecastYear += 1;
-        }
-        commissionMonth = forecastMonth;
-        commissionYear = forecastYear;
-      }
+      // 2. Mês/ano da comissão: próximo mês para faturamento novo, mês corrente se a entrega já aconteceu
+      const { month: commissionMonth, year: commissionYear } = mesDaComissao(selectedIndication.delivery_date);
 
       // 3. Upload Invoice Document to Storage if present
       let fileUrl = '';
@@ -2930,7 +2896,7 @@ export default function Indications() {
                         <div className="flex flex-col items-center justify-center py-10 text-muted-foreground opacity-75">
                           <Package className="h-8 w-8 stroke-1 mb-2 text-muted-foreground" />
                           <p className="text-[11px] uppercase font-black text-center tracking-wider">Sem produtos cadastrados na central</p>
-                          <p className="text-[10px] text-center italic mt-0.5">A comissão será baseada no valor final da venda</p>
+                          <p className="text-[10px] text-center italic mt-0.5">Venda de parceiro indicador precisa dos produtos vinculados para gerar a comissão</p>
                         </div>
                       )}
                     </div>

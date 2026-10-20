@@ -43,6 +43,8 @@ import { instrucaoPerfilConsultor } from "./server/consultorPerfil";
 import { injetarPrevia, previaPadrao, previaDoEquipamento, codigoLimpo, SITE_PREVIA } from "./server/previaLink";
 import { criarImagemPrevia, candidatasDoLink, urlImagemPrevia, MAX_ORIGEM_BYTES, PASTA_CACHE } from "./server/previaImagem";
 import { fotosExternas, RodadaEmAndamento } from "./server/fotosExternas";
+import { registrarDiagnosticoComissao } from "./server/diagnosticoComissao";
+import { relatorioDiretoriaDia1, relatorioParceirosDia1, lembreteNfDia5, lembreteFinanceiroDia7 } from "./server/relatoriosComissao";
 
 let __currentDir: string;
 try {
@@ -1492,6 +1494,9 @@ Retorne um array JSON no formato exato:
     if (!q || q.role !== 'admin') { res.status(403).json({ ok: false, error: 'Só o administrador.' }); return null; }
     return q;
   }
+
+  // Diagnóstico de comissão do parceiro (server/diagnosticoComissao.ts)
+  registrarDiagnosticoComissao(app, { db, exigirAdmin, arrayUnion: (...v: any[]) => admin.firestore.FieldValue.arrayUnion(...v) });
 
   app.get('/api/admin/regras/estado', async (req, res) => {
     if (!(await exigirAdmin(req, res))) return;
@@ -5301,457 +5306,26 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     timezone: BR_TIMEZONE
   });
 
+  // E-mails mensais de comissão (server/relatoriosComissao.ts): leem o documento da comissão pelo
+  // mês e ano dela, com trava por tarefa e mês em cron_locks
+  const depsRelatorio = { db, enviar: sendAutomaticEmail, formatCurrency, getFinanceReplyTo, appUrl: process.env.APP_URL };
   // Day 1: Monthly Sales Report (Managers/Directors/Finance)
   cron.schedule('0 8 1 * *', async () => {
     console.log("[Schedule] Generating Day 1 Monthly Reports...");
-    const notifSnap = await db.collection('settings').doc('notifications').get();
-    const notif = notifSnap.data();
-    if (!notif?.monthly_report_directors) return;
-
-    // Previous Month Range
-    const now = new Date();
-    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-
-    const indicationsSnap = await db.collection('indications')
-      .where('status', '==', 'sold')
-      .get();
-
-    const negotiatingSnap = await db.collection('indications')
-      .where('status', '==', 'negotiating')
-      .get();
-    
-    const monthlySales = indicationsSnap.docs
-      .map(d => ({ id: d.id, ...d.data() } as any))
-      .filter(d => {
-        if (!d.updated_at) return false;
-        const date = new Date(d.updated_at);
-        return date >= lastMonth && date <= endOfLastMonth;
-      });
-
-    const activeNegotiations = negotiatingSnap.docs
-      .map(d => ({ id: d.id, ...d.data() } as any))
-      .filter(d => {
-        if (!d.budget_date) return false;
-        const budgetDate = new Date(d.budget_date);
-        const daysOld = (now.getTime() - budgetDate.getTime()) / (1000 * 60 * 60 * 24);
-        return daysOld <= 60; // Proteção de 60 dias
-      });
-
-    if (monthlySales.length === 0 && activeNegotiations.length === 0) return;
-
-    // Calculations
-    const totalSalesValue = monthlySales.reduce((acc, curr) => acc + (curr.sale_value || 0), 0);
-    const totalCommissions = monthlySales.reduce((acc, curr) => acc + (curr.commission_value || 0), 0);
-    const totalNegotiatingValue = activeNegotiations.reduce((acc, curr) => acc + (curr.sale_value || 0), 0);
-    
-    // Group by Seller for Efficiency and Ranking
-    const sellersMap: any = {};
-    monthlySales.forEach(sale => {
-      const sid = sale.external_seller_uid;
-      if (!sellersMap[sid]) {
-        sellersMap[sid] = { name: sale.external_seller_name, count: 0, total: 0, commissions: 0, saleTimes: [] };
-      }
-      sellersMap[sid].count++;
-      sellersMap[sid].total += (sale.sale_value || 0);
-      sellersMap[sid].commissions += (sale.commission_value || 0);
-      
-      if (sale.created_at && sale.updated_at) {
-        const t = (new Date(sale.updated_at).getTime() - new Date(sale.created_at).getTime()) / (1000 * 60 * 60 * 24);
-        sellersMap[sid].saleTimes.push(t);
-      }
-    });
-
-    const sellersRanking = Object.entries(sellersMap).map(([uid, data]: [string, any]) => ({
-      uid,
-      ...data
-    })).sort((a: any, b: any) => b.total - a.total);
-
-    // Build Email HTML
-    const monthName = lastMonth.toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
-    let html = `
-      <div style="font-family: sans-serif; color: #333; max-width: 900px;">
-        <h1 style="color: #eab308; border-bottom: 2px solid #eab308; padding-bottom: 10px;">Relatório de Vendas - ${monthName}</h1>
-        
-        <div style="display: flex; gap: 20px; margin: 20px 0;">
-          <div style="background: #f8fafc; padding: 15px; border-radius: 8px; flex: 1; border: 1px solid #e2e8f0;">
-            <p style="margin: 0; font-size: 12px; font-weight: bold; color: #64748b;">VENDAS TOTAIS (NF)</p>
-            <p style="margin: 5px 0 0 0; font-size: 20px; font-weight: 800; color: #eab308;">${formatCurrency(totalSalesValue)}</p>
-          </div>
-          <div style="background: #f8fafc; padding: 15px; border-radius: 8px; flex: 1; border: 1px solid #e2e8f0;">
-            <p style="margin: 0; font-size: 12px; font-weight: bold; color: #64748b;">EM NEGOCIAÇÃO (ABERTO)</p>
-            <p style="margin: 5px 0 0 0; font-size: 20px; font-weight: 800; color: #3b82f6;">${formatCurrency(totalNegotiatingValue)}</p>
-          </div>
-          <div style="background: #f8fafc; padding: 15px; border-radius: 8px; flex: 1; border: 1px solid #e2e8f0;">
-            <p style="margin: 0; font-size: 12px; font-weight: bold; color: #64748b;">COMISSÕES À PAGAR</p>
-            <p style="margin: 5px 0 0 0; font-size: 20px; font-weight: 800; color: #0f172a;">${formatCurrency(totalCommissions)}</p>
-          </div>
-        </div>
-
-        <h2 style="font-size: 18px; margin-top: 30px;">Destaques por Vendedor</h2>
-        <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
-          <thead>
-            <tr style="background: #f1f5f9; text-align: left;">
-              <th style="padding: 10px; border: 1px solid #e2e8f0;">Vendedor</th>
-              <th style="padding: 10px; border: 1px solid #e2e8f0;">Vendas</th>
-              <th style="padding: 10px; border: 1px solid #e2e8f0;">T. Médio (Dias)</th>
-              <th style="padding: 10px; border: 1px solid #e2e8f0;">Valor Total (NF)</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${sellersRanking.map((s: any) => `
-              <tr>
-                <td style="padding: 10px; border: 1px solid #e2e8f0;">${s.name}</td>
-                <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center;">${s.count}</td>
-                <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center;">${s.saleTimes.length > 0 ? (s.saleTimes.reduce((a:any, b:any) => a+b, 0) / s.saleTimes.length).toFixed(1) : 'N/A'}</td>
-                <td style="padding: 10px; border: 1px solid #e2e8f0; font-weight: bold;">${formatCurrency(s.total)}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-
-        <h2 style="font-size: 18px; margin-top: 40px;">Listagem Detalhada de Vendas</h2>
-        <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px;">
-          <thead>
-            <tr style="background: #f1f5f9; text-align: left;">
-              <th style="padding: 8px; border: 1px solid #e2e8f0;">Cliente</th>
-              <th style="padding: 8px; border: 1px solid #e2e8f0;">Equipamento</th>
-              <th style="padding: 8px; border: 1px solid #e2e8f0;">Indicador</th>
-              <th style="padding: 8px; border: 1px solid #e2e8f0;">Vendedor Interno</th>
-              <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">Valor Venda</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${monthlySales.map((sale: any) => `
-              <tr>
-                <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.client_name}</td>
-                <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.product_name}</td>
-                <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.external_seller_name || '-'}</td>
-                <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.internal_seller_name || '-'}</td>
-                <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; font-weight: bold;">${formatCurrency(sale.sale_value || 0)}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-
-        <h2 style="font-size: 18px; margin-top: 40px; color: #3b82f6;">Orçamentos em Aberto (Válidos)</h2>
-        <p style="font-size: 13px; color: #64748b; margin-bottom: 10px;">Estas negociações ainda estão dentro do prazo de 60 dias e são prioridade para reuniões de acompanhamento.</p>
-        <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px;">
-          <thead>
-            <tr style="background: #eff6ff; text-align: left;">
-              <th style="padding: 8px; border: 1px solid #e2e8f0;">Cliente</th>
-              <th style="padding: 8px; border: 1px solid #e2e8f0;">Equipamento</th>
-              <th style="padding: 8px; border: 1px solid #e2e8f0;">Interno</th>
-              <th style="padding: 8px; border: 1px solid #e2e8f0;">Enviado em</th>
-              <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: center;">Validade</th>
-              <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">Previsão</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${activeNegotiations.map((neg: any) => {
-              const bDate = new Date(neg.budget_date);
-              const daysLeft = 60 - Math.floor((now.getTime() - bDate.getTime()) / (1000 * 60 * 60 * 24));
-              return `
-                <tr>
-                  <td style="padding: 8px; border: 1px solid #e2e8f0;">${neg.client_name}</td>
-                  <td style="padding: 8px; border: 1px solid #e2e8f0;">${neg.product_name}</td>
-                  <td style="padding: 8px; border: 1px solid #e2e8f0;">${neg.internal_seller_name || '-'}</td>
-                  <td style="padding: 8px; border: 1px solid #e2e8f0;">${bDate.toLocaleDateString('pt-BR')}</td>
-                  <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center; color: ${daysLeft <= 5 ? '#ef4444' : '#64748b'}; font-weight: bold;">
-                    ${daysLeft} dias
-                  </td>
-                  <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; font-weight: bold;">${formatCurrency(neg.sale_value || 0)}</td>
-                </tr>
-              `;
-            }).join('')}
-            ${activeNegotiations.length === 0 ? '<tr><td colspan="6" style="padding: 20px; text-align: center; color: #94a3b8;">Nenhuma negociação ativa no momento.</td></tr>' : ''}
-          </tbody>
-        </table>
-
-        <p style="margin-top: 30px; font-size: 12px; color: #666;">
-          Este relatório contém valores reais de nota fiscal para fins gerenciais.
-        </p>
-      </div>
-    `;
-
-    // Send to Managers, Directors and Admin
-    const recipients = [
-      ...(notif.manager_emails ? notif.manager_emails.split(',').map((e:string) => e.trim()) : []),
-      ...(notif.director_emails ? notif.director_emails.split(',').map((e:string) => e.trim()) : []),
-    ].filter(e => e !== '');
-
-    for (const email of recipients) {
-      await sendAutomaticEmail(email, `Relatório de Vendas Roder - ${monthName}`, html);
-    }
-
-    // Prepare Finance summary emails (Financeiro, Novo Financeiro Vanessa, and Admin Jeferson)
-    const financeEmails = [
-      'financeiro@roderbrasil.com.br',
-      'financeiro2@roderbrasil.com.br',
-      'jeferson@roderbrasil.com.br'
-    ];
-    if (notif.finance_email) {
-      const customEmails = String(notif.finance_email).split(',').map((e: string) => e.trim()).filter((e: string) => e !== '');
-      customEmails.forEach((email: string) => {
-        if (!financeEmails.map(x => x.toLowerCase()).includes(email.toLowerCase())) {
-          financeEmails.push(email);
-        }
-      });
-    }
-
-    // Fetch bank details for each seller in the ranking
-    const detailedSellers = await Promise.all(sellersRanking.map(async (s: any) => {
-      if (!s.uid) return { ...s, pix_key: '-', bank_info: { bank: '-', agency: '-', account: '-' } };
-      
-      const userDoc = await db.collection('users').doc(s.uid).get();
-      if (userDoc.exists) {
-        const userData = userDoc.data() || {};
-        return {
-          ...s,
-          pix_key: userData.pix_key || 'Não informado',
-          bank_info: userData.bank_info || { bank: '-', agency: '-', account: '-' }
-        };
-      }
-      return { ...s, pix_key: '-', bank_info: { bank: '-', agency: '-', account: '-' } };
-    }));
-
-    const financeHtml = `
-      <div style="font-family: sans-serif; color: #333; max-width: 900px;">
-        <h1 style="color: #0f172a; border-bottom: 2px solid #0f172a; padding-bottom: 10px;">Previsão de Pagamentos - ${monthName}</h1>
-        <p>O valor total de comissões para as vendas de <strong>${monthName}</strong> é de: <strong style="font-size: 18px; color: #eab308;">${formatCurrency(totalCommissions)}</strong>.</p>
-        <p>Abaixo seguem os detalhes de cada vendedor e suas respectivas informações bancárias para processamento do pagamento.</p>
-        
-        <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px;">
-          <thead>
-            <tr style="background: #f1f5f9;">
-              <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Vendedor</th>
-              <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Comissão</th>
-              <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Chave PIX</th>
-              <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Dados Bancários</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${detailedSellers.map((s: any) => `
-              <tr>
-                <td style="padding: 10px; border: 1px solid #ddd;">${s.name}</td>
-                <td style="padding: 10px; border: 1px solid #ddd; font-weight: bold;">${formatCurrency(s.commissions)}</td>
-                <td style="padding: 10px; border: 1px solid #ddd; color: #666;">${s.pix_key}</td>
-                <td style="padding: 10px; border: 1px solid #ddd; font-size: 11px; color: #666;">
-                  ${s.bank_info?.bank ? `Bco: ${s.bank_info.bank}<br>Ag: ${s.bank_info.agency}<br>Cc: ${s.bank_info.account}` : 'N/A'}
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-
-        <h2 style="font-size: 16px; margin-top: 35px; border-bottom: 2px solid #0f172a; padding-bottom: 5px; color: #0f172a; font-weight: bold;">Detalhamento das Indicações Faturadas no Mês (Roder Indica)</h2>
-        <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px;">
-          <thead>
-            <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0; text-align: left;">
-              <th style="padding: 8px; border: 1px solid #e2e8f0;">Cliente</th>
-              <th style="padding: 8px; border: 1px solid #e2e8f0;">Parceiro Indicador</th>
-              <th style="padding: 8px; border: 1px solid #e2e8f0;">Equipamento(s)</th>
-              <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">Valor Venda (R$)</th>
-              <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">Base Comissionável (R$)</th>
-              <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: center;">Alíquota (%)</th>
-              <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">Comissão (R$)</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${monthlySales.map((sale: any) => `
-              <tr style="border-bottom: 1px solid #e2e8f0;">
-                <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.client_name || "Não informado"}</td>
-                <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.external_seller_name || "-"}</td>
-                <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.product_name || "-"}</td>
-                <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">${formatCurrency(sale.sale_value || 0)}</td>
-                <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; font-weight: bold;">${formatCurrency(sale.base_commission_value || 0)}</td>
-                <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center;">${sale.commission_rate_applied || 5}%</td>
-                <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; font-weight: bold; color: #16a34a;">${formatCurrency(sale.commission_value || 0)}</td>
-              </tr>
-            `).join('')}
-            ${monthlySales.length === 0 ? '<tr><td colspan="7" style="padding: 20px; text-align: center; color: #64748b;">Nenhum faturamento registrado no mês anterior.</td></tr>' : ''}
-          </tbody>
-        </table>
-
-        <p style="margin-top: 25px; font-size: 12px; color: #666; font-style: italic;">
-          * Por favor, verifique se os vendedores enviaram as Notas Fiscais no sistema antes de efetivar o pagamento.
-        </p>
-      </div>
-    `;
-
-    for (const email of financeEmails) {
-      await sendAutomaticEmail(email, `Financeiro: Relatório de Pagamentos - ${monthName}`, financeHtml);
-    }
-  }, {
-    timezone: BR_TIMEZONE
-  });
+    try { await relatorioDiretoriaDia1(depsRelatorio); } catch (e: any) { console.error('[Schedule] Relatório da diretoria:', e?.message); }
+  }, { timezone: BR_TIMEZONE });
 
   // Day 1: Reports to Partners (Value Base Only) - SENT ON THE 1ST
   cron.schedule('0 8 1 * *', async () => {
     console.log("[Schedule] Generating Day 1 Partner Reports...");
-    const notifSnap = await db.collection('settings').doc('notifications').get();
-    const notif = notifSnap.data();
-    if (!notif?.monthly_report_partners) return;
-
-    const now = new Date();
-    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-
-    const indicationsSnap = await db.collection('indications')
-      .where('status', '==', 'sold')
-      .get();
-    
-    const monthlySales = indicationsSnap.docs
-      .map(d => ({ id: d.id, ...d.data() } as any))
-      .filter(d => {
-        if (!d.updated_at) return false;
-        const date = new Date(d.updated_at);
-        return date >= lastMonth && date <= endOfLastMonth;
-      });
-
-    // Group by Seller
-    const sellersMap: any = {};
-    monthlySales.forEach(sale => {
-      const sid = sale.external_seller_uid;
-      if (!sellersMap[sid]) sellersMap[sid] = [];
-      sellersMap[sid].push(sale);
-    });
-
-    for (const [sid, sales] of Object.entries(sellersMap)) {
-      const partnerData = await db.collection('users').doc(sid).get();
-      if (!partnerData.exists) continue;
-      const partner = partnerData.data() as any;
-      if (!partner.email || partner.email.endsWith('@mobile.roder.com.br')) continue;
-
-      const salesWithCommission = (sales as any[]).filter(x => (x.commission_value || 0) > 0);
-      const totalCommissions = salesWithCommission.reduce((acc, curr) => acc + (curr.commission_value || 0), 0);
-      if (totalCommissions <= 0) continue;
-      const monthName = lastMonth.toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
-      const financeReplyTo = getFinanceReplyTo(notif);
-      const firstName = String(partner.name || '').split(' ')[0] || 'parceiro';
-
-      const html = `
-        <div style="font-family: Arial, sans-serif; color: #1f2937; max-width: 620px;">
-          <p style="font-size: 16px;">Olá, ${firstName}!</p>
-          <p style="font-size: 15px; line-height: 1.6;">É um prazer informar que as suas indicações geraram vendas em <strong>${monthName}</strong>. Muito obrigado pela parceria e pela confiança na Roder.</p>
-
-          <div style="background: #fff7ed; border: 1px solid #fed7aa; padding: 18px; border-radius: 10px; margin: 20px 0; text-align: center;">
-            <p style="margin: 0; font-size: 13px; color: #9a3412; text-transform: uppercase; letter-spacing: .05em;">Sua comissão a receber</p>
-            <p style="margin: 6px 0 0 0; font-size: 30px; font-weight: 800; color: #c2410c;">${formatCurrency(totalCommissions)}</p>
-          </div>
-
-          <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
-            <thead>
-              <tr style="color: #6b7280; text-align: left;">
-                <th style="padding: 8px; border-bottom: 1px solid #e5e7eb;">Cliente</th>
-                <th style="padding: 8px; border-bottom: 1px solid #e5e7eb;">Equipamento</th>
-                <th style="padding: 8px; border-bottom: 1px solid #e5e7eb; text-align: right;">Comissão</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${salesWithCommission.map(x => `
-                <tr>
-                  <td style="padding: 8px; border-bottom: 1px solid #f3f4f6;">${x.client_name || x.client_person_name || ''}</td>
-                  <td style="padding: 8px; border-bottom: 1px solid #f3f4f6;">${x.base_machine || x.product_name || ''}</td>
-                  <td style="padding: 8px; border-bottom: 1px solid #f3f4f6; text-align: right; font-weight: bold;">${formatCurrency(x.commission_value || 0)}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-
-          <div style="margin-top: 24px; padding: 16px; background: #f0fdf4; border-left: 4px solid #16a34a; border-radius: 8px; font-size: 14px; line-height: 1.6;">
-            <p style="margin: 0;"><strong>Próximo passo: nota fiscal de serviço</strong></p>
-            <p style="margin: 6px 0 0 0;">Nosso setor financeiro está aguardando a sua <strong>nota fiscal de serviço no valor de ${formatCurrency(totalCommissions)}</strong>.</p>
-            <p style="margin: 6px 0 0 0;">Basta <strong>responder este e-mail com a nota fiscal anexada</strong> até o dia <strong>05</strong>. A resposta vai direto para o nosso financeiro, e o pagamento é feito até o dia <strong>07</strong> (se cair em fim de semana ou feriado, no próximo dia útil).</p>
-            <p style="margin: 6px 0 0 0; font-size: 12px; color: #6b7280;">Se preferir, você também pode carregar a nota no Roder Indica, na tela Comissões.</p>
-          </div>
-
-          <p style="font-size: 14px; margin-top: 24px;">Um abraço,<br><strong>Equipe Roder Máquinas e Equipamentos</strong></p>
-        </div>
-      `;
-
-      await sendAutomaticEmail(partner.email, `Sua comissão Roder de ${monthName}: ${formatCurrency(totalCommissions)}`, html, { replyTo: financeReplyTo, fromName: 'Roder Máquinas' });
-    }
-  }, {
-    timezone: BR_TIMEZONE
-  });
+    try { await relatorioParceirosDia1(depsRelatorio); } catch (e: any) { console.error('[Schedule] Relatório dos parceiros:', e?.message); }
+  }, { timezone: BR_TIMEZONE });
 
   // Day 5: Invoice Deadline Reminder
   cron.schedule('0 8 5 * *', async () => {
     console.log("[Schedule] Running Day 5 Invoice Reminders...");
-    const notifSnap = await db.collection('settings').doc('notifications').get();
-    const notif = notifSnap.data();
-    if (!notif?.monthly_report_partners) return;
-
-    const now = new Date();
-    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-
-    const indicationsSnap = await db.collection('indications')
-      .where('status', '==', 'sold')
-      .get();
-    
-    const monthlySales = indicationsSnap.docs
-      .map(d => ({ id: d.id, ...d.data() } as any))
-      .filter(d => {
-        if (!d.updated_at) return false;
-        const date = new Date(d.updated_at);
-        return date >= lastMonth && date <= endOfLastMonth;
-      });
-
-    // Group by Seller
-    const sellersMap: any = {};
-    monthlySales.forEach(sale => {
-      const sid = sale.external_seller_uid;
-      if (!sellersMap[sid]) sellersMap[sid] = [];
-      sellersMap[sid].push(sale);
-    });
-
-    for (const [sid, _] of Object.entries(sellersMap)) {
-      // Já enviou a NF? (a NF fica em monthly_statements/{uid}_{mês}_{ano}; mês e ano são números)
-      const salesOfSeller = (sellersMap[sid] as any[]) || [];
-      const totalDue = salesOfSeller.reduce((acc, x) => acc + (x.commission_value || 0), 0);
-      if (totalDue <= 0) continue;
-      const candidates = [
-        `${sid}_${lastMonth.getMonth() + 1}_${lastMonth.getFullYear()}`,
-        `${sid}_${now.getMonth() + 1}_${now.getFullYear()}`,
-      ];
-      let alreadySent = false;
-      for (const stId of candidates) {
-        const st = await db.collection('monthly_statements').doc(stId).get();
-        const stData = st.exists ? (st.data() as any) : null;
-        if (stData && (stData.nf_url || stData.status === 'waiting_payment' || stData.status === 'paid')) { alreadySent = true; break; }
-      }
-      const needsReminder = !alreadySent;
-
-      if (needsReminder) {
-        const partnerData = await db.collection('users').doc(sid).get();
-        if (!partnerData.exists) continue;
-        const partner = partnerData.data() as any;
-        if (!partner.email || partner.email.endsWith('@mobile.roder.com.br')) continue;
-
-        const html = `
-          <div style="font-family: sans-serif; color: #333;">
-            <h2 style="color: #ef4444;">⚠️ AVISO: Último dia para envio da Nota Fiscal</h2>
-            <p>Olá ${partner.name},</p>
-            <p>Identificamos que a sua Nota Fiscal referente às comissões do mês passado ainda não foi carregada no sistema.</p>
-            
-            <div style="background: #fef2f2; border: 1px solid #fee2e2; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ef4444;">
-              <p style="margin: 0; font-weight: bold; color: #991b1b;">PRAZO FINAL: HOJE</p>
-              <p style="margin: 5px 0 0 0; font-size: 14px;">Conforme contrato, o não envio da NF até o dia 05 (hoje) impossibilita o pagamento neste ciclo. O valor será acumulado para o pagamento do próximo mês.</p>
-            </div>
-
-            <p>Para garantir seu recebimento, <strong>responda este e-mail com a nota fiscal anexada</strong> (vai direto para o nosso financeiro) ou carregue a nota no sistema.</p>
-            <a href="${process.env.APP_URL || 'https://roder-indica.web.app'}/comissoes" style="display: inline-block; background: #eab308; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Acessar Minhas Comissões</a>
-          </div>
-        `;
-
-        await sendAutomaticEmail(partner.email, `Último dia para enviar a nota fiscal da sua comissão Roder`, html, { replyTo: getFinanceReplyTo(notif), fromName: 'Roder Máquinas' });
-      }
-    }
-  }, {
-    timezone: BR_TIMEZONE
-  });
+    try { await lembreteNfDia5(depsRelatorio); } catch (e: any) { console.error('[Schedule] Lembrete do dia 5:', e?.message); }
+  }, { timezone: BR_TIMEZONE });
 
   // Aviso ao financeiro 2 dias depois do faturamento (dá tempo da vendedora corrigir/estornar)
   cron.schedule('20 * * * *', async () => {
@@ -5904,60 +5478,8 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
   // Day 7: Payment Reminder to Finance
   cron.schedule('0 8 7 * *', async () => {
     console.log("[Schedule] Generating Day 7 Finance Reminders...");
-    const notifSnap = await db.collection('settings').doc('notifications').get();
-    const notif = notifSnap.data();
-    if (!notif?.payment_reminder_finance) return;
-
-    // Prepare Finance summary emails (Financeiro, Novo Financeiro Vanessa, and Admin Jeferson)
-    const financeEmails = [
-      'financeiro@roderbrasil.com.br',
-      'financeiro2@roderbrasil.com.br',
-      'jeferson@roderbrasil.com.br'
-    ];
-    if (notif.finance_email) {
-      const customEmails = String(notif.finance_email).split(',').map((e: string) => e.trim()).filter((e: string) => e !== '');
-      customEmails.forEach((email: string) => {
-        if (!financeEmails.map(x => x.toLowerCase()).includes(email.toLowerCase())) {
-          financeEmails.push(email);
-        }
-      });
-    }
-
-    const now = new Date();
-    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-
-    const indicationsSnap = await db.collection('indications')
-      .where('status', '==', 'sold')
-      .get();
-    
-    const monthlyCommissions = indicationsSnap.docs
-      .map(d => d.data() as any)
-      .filter(d => {
-        if (!d.updated_at) return false;
-        const date = new Date(d.updated_at);
-        return date >= lastMonth && date <= endOfLastMonth;
-      })
-      .reduce((acc, curr) => acc + (curr.commission_value || 0), 0);
-
-    if (monthlyCommissions === 0) return;
-
-    const html = `
-      <div style="font-family: sans-serif; color: #333;">
-        <h2 style="color: #0f172a;">Lembrete de Pagamento de Comissões</h2>
-        <p>Olá Setor Financeiro / Jeferson,</p>
-        <p>Hoje é dia 7. Lembramos que o valor total de comissões calculadas para o fechamento do mês anterior é de:</p>
-        <div style="font-size: 36px; font-weight: 900; color: #eab308; margin: 20px 0;">${formatCurrency(monthlyCommissions)}</div>
-        <p>Após realizar os pagamentos, por favor, certifique que as notas fiscais foram enviadas no sistema e carregue os respectivos comprovantes para notificar os parceiros.</p>
-      </div>
-    `;
-
-    for (const email of financeEmails) {
-      await sendAutomaticEmail(email, `URGENTE: Pagamento de Comissões do Mês`, html);
-    }
-  }, {
-    timezone: BR_TIMEZONE
-  });
+    try { await lembreteFinanceiroDia7(depsRelatorio); } catch (e: any) { console.error('[Schedule] Lembrete do dia 7:', e?.message); }
+  }, { timezone: BR_TIMEZONE });
 
   // --- COMMERCIAL HOURS SLA UTILITY (BRT: Seg-Sex 07:00 às 17:00) ---
   function getBrtDateParts(dateInput: Date | string | number) {

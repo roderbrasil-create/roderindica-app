@@ -14,6 +14,7 @@ import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import RegrasSeguranca from '../components/admin/RegrasSeguranca';
 import FotosExternas from '../components/admin/FotosExternas';
+import DiagnosticoComissao from '../components/admin/DiagnosticoComissao';
 import { 
   UserPlus, 
   Edit, 
@@ -2963,6 +2964,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
 
           <TabsContent value="settings">
             {isAdmin && <div className="max-w-5xl"><RegrasSeguranca /><FotosExternas /></div>}
+            {isAdmin && <div className="max-w-5xl"><DiagnosticoComissao /></div>}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-5xl">
               <div className="flex flex-col gap-6">
                 {/* Central de Notificações */}
@@ -3106,6 +3108,17 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                         <Switch 
                           checked={notificationSettings.monthly_report_partners} 
                           onCheckedChange={(v) => setNotificationSettings({...notificationSettings, monthly_report_partners: v})}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between p-3 rounded-lg bg-background border border-border">
+                        <div className="space-y-0.5">
+                          <Label className="text-sm">Lembrete de Pagamento (Financeiro)</Label>
+                          <p className="text-[10px] text-muted-foreground">Total de comissões a pagar, enviado no dia 7.</p>
+                        </div>
+                        <Switch 
+                          checked={!!notificationSettings.payment_reminder_finance} 
+                          onCheckedChange={(v) => setNotificationSettings({...notificationSettings, payment_reminder_finance: v})}
                         />
                       </div>
 
