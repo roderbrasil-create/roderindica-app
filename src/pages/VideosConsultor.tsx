@@ -16,7 +16,7 @@ import { cn } from '../lib/utils';
 import { lerVideoLocal } from '../lib/quadroDoVideo';
 import { tituloFicha } from '../lib/tituloFicha';
 import {
-  capaDoVideo, formatarDuracao, lerVideoDoBanco, MAX_CONTEXTO, MAX_TITULO, ROTULO_TIPO, TIPOS_VIDEO,
+  capaDoVideo, formatarDuracao, lerVideoDoBanco, MAX_CONTEXTO, MAX_TITULO, PRODUTO_AMOSTRA, ROTULO_TIPO, TIPOS_VIDEO,
   videosDoCatalogo, type TipoVideo, type VideoConsultor,
 } from '../lib/videosConsultor';
 import type { Product } from '../types';
@@ -206,7 +206,8 @@ export default function VideosConsultor() {
     if (!form) return;
     const p = prodDe(form.produto_id);
     const m = p && form.modelo_id ? (p.models || []).find(x => x.id === form.modelo_id) : undefined;
-    if (!p) { toast.error('Escolha o equipamento.'); return; }
+    const amostra = form.tipo === 'amostra';
+    if (!p && !amostra) { toast.error('Escolha o equipamento.'); return; }
     if (!form.titulo.trim()) { toast.error('Escreva um título curto.'); return; }
     if (!form.video_url.trim()) { toast.error('Envie o vídeo ou cole o link do YouTube.'); return; }
     if (!/^https:\/\//i.test(form.video_url.trim())) { toast.error('O link do vídeo tem de começar com https://'); return; }
@@ -222,10 +223,11 @@ export default function VideosConsultor() {
       const agora = new Date().toISOString();
       const id = form.id || doc(collection(db, 'consultor_videos')).id;
       const dados: any = {
-        produto_id: p.id,
-        modelo_id: m?.id || '',
-        equipamento_nome: p.name || '',
-        modelo_nome: m?.name || '',
+        // a amostra de filmagem não é de um equipamento: vale para qualquer pedido de confirmação
+        produto_id: p && !amostra ? p.id : PRODUTO_AMOSTRA,
+        modelo_id: amostra ? '' : (m?.id || ''),
+        equipamento_nome: amostra ? 'Todos os equipamentos' : (p?.name || ''),
+        modelo_nome: amostra ? '' : (m?.name || ''),
         tipo: form.tipo,
         contexto: form.contexto.trim().slice(0, MAX_CONTEXTO),
         titulo: form.titulo.trim().slice(0, MAX_TITULO),
@@ -365,6 +367,11 @@ export default function VideosConsultor() {
               <button type="button" onClick={fechar} aria-label="Fechar" className="h-11 w-11 p-0 rounded-xl bg-transparent text-[#1B1E22] flex items-center justify-center"><X className="h-5 w-5" /></button>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 py-4 space-y-4">
+              {form.tipo === 'amostra' ? (
+                <p className="m-0 rounded-xl bg-[#FFF8DB] px-3 py-2.5 text-[13.5px] leading-snug text-[#5E4A00]">
+                  Amostra de filmagem: o vídeo que o cliente recebe para filmar a própria máquina. Não é de um equipamento. Vale um por vez: o consultor usa o primeiro ativo da lista.
+                </p>
+              ) : (
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="block">
                   <span className="text-[13px] font-bold text-[#3E444B]">Equipamento</span>
@@ -390,6 +397,7 @@ export default function VideosConsultor() {
                   </select>
                 </label>
               </div>
+              )}
 
               <label className="block">
                 <span className="text-[13px] font-bold text-[#3E444B]">Título</span>
@@ -419,14 +427,14 @@ export default function VideosConsultor() {
 
               <div>
                 <span className="text-[13px] font-bold text-[#3E444B]">Tipo</span>
-                <div className="mt-1 grid grid-cols-3 gap-2">
+                <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {TIPOS_VIDEO.map(t => (
                     <button
                       key={t.id}
                       type="button"
                       onClick={() => setForm({ ...form, tipo: t.id })}
                       aria-pressed={form.tipo === t.id}
-                      className={cn('h-11 rounded-xl border-[1.5px] text-[14px] font-extrabold transition',
+                      className={cn('h-auto min-h-[44px] rounded-xl border-[1.5px] px-1.5 text-[14px] font-extrabold leading-tight transition',
                         form.tipo === t.id ? 'border-[#1B1E22] bg-[#1B1E22] text-white' : 'border-[#C9CED4] bg-white text-[#1B1E22]')}
                     >
                       {t.rotulo}

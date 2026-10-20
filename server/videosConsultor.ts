@@ -72,7 +72,9 @@ export function criarBibliotecaVideos(deps: { db: any; agora?: () => number }) {
 
 // Instrução do prompt: a lista compacta e quando citar um vídeo no <painel>
 // conversa: a pergunta e as últimas mensagens, para pôr primeiro os vídeos do equipamento citado
-export function instrucaoVideos(lista: VideoConsultor[], conversa = ''): string {
+export function instrucaoVideos(listaCompleta: VideoConsultor[], conversa = ''): string {
+  // o vídeo de amostra de filmagem não é de equipamento: o consultor nunca o cita pelo id
+  const lista = listaCompleta.filter(v => v.tipo !== 'amostra');
   if (!lista.length) return '';
   return `\n\nVÍDEOS DISPONÍVEIS (id | equipamento | título | contexto):\n${videosParaPrompt(lista, MAX_VIDEOS_PROMPT, conversa)}
 - Quando a pessoa pedir vídeo, ou quando um vídeo claramente ajudar (ex.: pergunta como o equipamento trabalha numa operação, material ou máquina específica), acrescente no JSON do <painel> o campo "videos": ["<id>", ...] com no máximo ${MAX_VIDEOS_RESPOSTA} ids DESTA lista, os mais próximos da pergunta (mesmo equipamento e modelo; o contexto diz a operação). Prefira os que têm contexto parecido com o da pergunta.

@@ -454,7 +454,7 @@ service cloud.firestore {
       allow delete: if isManager() || isMarketing();
 
       function videoValido(d) {
-        return d.get('tipo', '') in ['campo', 'marketing', 'instalacao'] &&
+        return d.get('tipo', '') in ['campo', 'marketing', 'instalacao', 'amostra'] &&
           d.get('produto_id', '') is string && d.get('produto_id', '').size() > 0 &&
           d.get('video_url', '') is string && d.get('video_url', '').size() > 0 && d.get('video_url', '').size() <= 2000 &&
           d.get('titulo', '') is string && d.get('titulo', '').size() <= 80 &&

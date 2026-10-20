@@ -47,6 +47,7 @@ import {
   lerCidadeUf, primeiroNome, querIndicar, textoLinkCliente, validarCnpj, validarTelefoneBR,
 } from '../../lib/consultorIndicar';
 import { linkWhatsSemNumero, textoEquipamentoCliente } from '../../lib/mensagemWhatsCliente';
+import { AVISO_SEM_AMOSTRA, linkPublicoDoVideo, precisaConfirmarMaquina, textoPedirConfirmacaoMaquina, videoAmostraDe } from '../../lib/confirmacaoMaquina';
 
 // Equipe Roder: exemplos de pergunta técnica na tela de início do Consultor
 const PERGUNTAS_TECNICAS_EQUIPE = [
@@ -859,7 +860,18 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   const prontaEntrega = React.useMemo(() => montarProntaEntrega(stockItems, catalogProducts), [stockItems, catalogProducts]);
   // Biblioteca de vídeos do consultor (lista pública do servidor): cartões na resposta, folha "Vídeos"
   // e os marcados "no carrossel" entram no carrossel da pronta entrega
-  const videosConsultor = useVideosConsultor(isOpen);
+  const videosTodos = useVideosConsultor(isOpen);
+  // o vídeo de amostra de filmagem não é de equipamento: fica fora de cartões, folha e carrossel
+  const videosConsultor = React.useMemo(() => videosTodos.filter(v => v.tipo !== 'amostra'), [videosTodos]);
+  const videoAmostra = React.useMemo(() => videoAmostraDe(videosTodos), [videosTodos]);
+  // Kit de instalação depende de como a máquina está configurada: abre o WhatsApp (sem número, o vendedor
+  // escolhe o contato) com o pedido de vídeo e fotos. Sem vídeo de amostra cadastrado, o texto sai sem link.
+  const pedirConfirmacaoMaquina = () => {
+    const url = linkWhatsSemNumero(textoPedirConfirmacaoMaquina(linkPublicoDoVideo(videoAmostra)));
+    let janela: Window | null = null;
+    try { janela = window.open(url, '_blank'); if (janela) janela.opener = null; } catch { janela = null; }
+    if (!janela) toast('Toque para abrir o WhatsApp', { duration: 15000, action: { label: 'Abrir WhatsApp', onClick: () => { window.open(url, '_blank', 'noopener'); } } });
+  };
   const videosCarrossel = React.useMemo(() => videosConsultor.filter(v => v.no_carrossel), [videosConsultor]);
   const temCarrossel = prontaEntrega.length > 0 || videosCarrossel.length > 0;
   const equipDoVideo = (v: VideoConsultor) => {
@@ -4156,6 +4168,23 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                 {/* Vídeos que o consultor escolheu para esta resposta (ids conferidos contra a lista) */}
                 {msg.role === 'assistant' && msg.painel?.videos && msg.painel.videos.length > 0 && (
                   <VideosDaResposta ids={msg.painel.videos} lista={videosConsultor} foto={fotoDoVideo} />
+                )}
+                {/* Pergunta de kit: o kit depende da configuração da máquina, então o pedido de vídeo e fotos ao cliente */}
+                {msg.role === 'assistant' && perfilConsultor !== 'visitante' && idx > 0 && !(loading && idx === messages.length - 1) && precisaConfirmarMaquina(msg.painel, messages[idx - 1]?.role === 'user' ? messages[idx - 1].content : '') && (
+                  <div className="flex justify-start">
+                    <div className="w-full max-w-[88%] rounded-2xl border border-[#F1DFA6] bg-[#FFF8DB] px-4 py-3">
+                      <p className="m-0 text-[11.5px] font-extrabold uppercase tracking-[0.12em] text-[#8A6500]">Confirmar a máquina</p>
+                      <p className="m-0 mt-1 text-[14.5px] leading-snug text-[#1B1E22]">O kit depende de como a máquina está configurada. Peça ao cliente o vídeo e as fotos.</p>
+                      <button
+                        type="button"
+                        onClick={pedirConfirmacaoMaquina}
+                        className="mt-2.5 h-auto min-h-[44px] w-full rounded-xl bg-[#1FA855] px-3 py-2 text-[14.5px] font-extrabold leading-tight text-[#fff] flex items-center justify-center gap-1.5 active:scale-[0.98] transition"
+                      >
+                        <Phone className="h-4 w-4 shrink-0" /> Pedir confirmação da máquina ao cliente
+                      </button>
+                      {!videoAmostra && <p className="m-0 mt-2 text-[13px] leading-snug text-[#8A6500]">{AVISO_SEM_AMOSTRA} O texto vai sem o link do vídeo.</p>}
+                    </div>
+                  </div>
                 )}
                 {/* Equipamento da resposta está no estoque: aviso amarelo (parceiro indica, equipe pergunta) */}
                 {(() => {

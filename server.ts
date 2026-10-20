@@ -36,6 +36,7 @@ import admin from "firebase-admin";
 import { getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { ACCESSORIES_DATA, INSTALLATION_KITS } from "./src/constants.js";
+import { REGRA_KIT_CONFIRMACAO, instrucaoAmostra, videoAmostraDe } from "./src/lib/confirmacaoMaquina";
 import { registrarConsultorParceiro, BUCKETS_VIDEO } from "./server/consultorParceiro";
 import { criarBibliotecaVideos, instrucaoVideos, sanitizarPainel } from "./server/videosConsultor";
 import { criarRotasArquivosVideos } from "./server/arquivosVideosConsultor";
@@ -2475,6 +2476,7 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
       • **Rotatores para Garras Traçadoras (Porte Médio e Grande)**: Há duas opções principais: 1) **Rotator IR10**; ou 2) **Rotor de giro livre RR550-7** (Capacidade 55t, swivel 7 passagens, giro livre ilimitado).
       • **COMPATIBILIDADE RR550-7**: O Rotator RR550-7 é indicado estritamente para as garras **GT 600X e modelos acima**.
       • ATENÇÃO À GRAFIA: O termo correto é estritamente **Rotator** (com "t"). NUNCA use o termo "Rotador" sob nenhuma hipótese.
+${REGRA_KIT_CONFIRMACAO}
    - DIRETRIZ CRÍTICA PARA INSTALAÇÃO DE GARRA EM ESCAVADEIRAS SEM FATIA EXTRA DE COMANDO (MUITO IMPORTANTE):
       • Se o vendedor perguntar sobre a instalação de garras em escavadeiras que **NÃO** possuem a fatia extra de comando original (como Komatsu PC200, Komatsu PC210, Volvo 200 ou qualquer outro modelo sem fatia extra original):
         - **Solução Técnico-Oficial**: Explique que a instalação da garra é totalmente viável utilizando o **Kit de Instalação de Garra para Máquinas sem Fatia Extra - Código 9000.9000.9016**.
@@ -3255,12 +3257,13 @@ ${kitsContext || "Não há kits de instalação cadastrados."}${improvedKnowledg
           // Só é pedido quando o app que perguntou sabe tirar o bloco do texto (args.painel).
           const querPainel = args.painel === true;
           const instrucaoPainel = querPainel ? `\n\nPAINEL ESCONDIDO (obrigatório quando houver dado): no fim de TODA resposta, depois de todo o texto (e depois do [[OPCOES]] se houver), acrescente um bloco escondido exatamente neste formato, numa linha só, com JSON válido:
-<painel>{"maquina":{"nome":"","tipo":"","potencia":"","transmissao":"","serve":"sim|nao|verificar","motivo":""},"perguntas":["..."],"alternativas":[{"nome":"","obs":""}],"produto":"<nome do modelo Roder principal>","videos":["<id da lista de vídeos>"]}</painel>
+<painel>{"maquina":{"nome":"","tipo":"","potencia":"","transmissao":"","serve":"sim|nao|verificar","motivo":""},"perguntas":["..."],"alternativas":[{"nome":"","obs":""}],"produto":"<nome do modelo Roder principal>","videos":["<id da lista de vídeos>"],"confirmar_maquina":true}</painel>
 - Coloque só os campos que se aplicam à conversa; os outros ficam fora do JSON.
 - "maquina": a máquina base ou o trator do cliente citado na conversa (nome com marca e modelo; tipo ou transmissão, ex.: "Powershift, não é CVT"; potência ou porte, ex.: "220 cv" ou "20 t"; "serve" diz se ela atende o equipamento indicado: "sim", "nao" ou "verificar"; "motivo" em até 8 palavras).
 - "perguntas": no máximo 3 perguntas curtas que o vendedor deve fazer ao cliente para confirmar a indicação.
 - "alternativas": no máximo 3 opções que servem (máquinas, tratores ou modelos Roder), com "obs" de até 4 palavras (ex.: "CVT de série").
 - "produto": o nome exato do modelo Roder principal da resposta, como está no catálogo (ex.: "SSH 150", "R400", "CMF 600").
+- "confirmar_maquina": true só quando a pergunta for qual kit de instalação usar numa máquina (regra de confirmação da máquina).
 - "videos": só quando houver vídeo útil, seguindo a lista VÍDEOS DISPONÍVEIS mais abaixo (o bloco pode ter só "videos" e "produto").
 - Se nada disso se aplica (ex.: saudação), não escreva o bloco. Nunca mencione o bloco no texto e nunca escreva <painel> em outro lugar da resposta. O texto da resposta continua curto, em português, seguindo todas as regras acima.` : '';
 
@@ -3269,12 +3272,12 @@ ${kitsContext || "Não há kits de instalação cadastrados."}${improvedKnowledg
           if (querPainel) {
             try { videosDisponiveis = await bibliotecaVideos.listar(); } catch { videosDisponiveis = []; }
           }
-          const idsVideos = new Set(videosDisponiveis.map((v: any) => String(v.id)));
+          const idsVideos = new Set(videosDisponiveis.filter((v: any) => v.tipo !== 'amostra').map((v: any) => String(v.id)));
           // a pergunta e as últimas mensagens: os vídeos do equipamento citado vão primeiro na lista
           const conversaRecente = [...(Array.isArray(chatHistory) ? chatHistory.slice(-6) : []).map((m: any) => String(m?.content || '').slice(0, 600)), String(question || '')].join(' ');
-          const instrucaoDosVideos = querPainel ? instrucaoVideos(videosDisponiveis, conversaRecente) : '';
+          const instrucaoDosVideos = querPainel ? instrucaoVideos(videosDisponiveis, conversaRecente) + instrucaoAmostra(!!videoAmostraDe(videosDisponiveis)) : '';
 
-          const finalSystemInstruction = systemInstruction + userTypeInstruction + contextoTrator + `\n\nLEMBRETE FINAL (PRIORIDADE MÁXIMA): siga as REGRAS PRIORITÁRIAS A, B, C e D do início. Resposta curta e direta; se faltar dado essencial, pergunte antes; no máximo 1 foto e só do equipamento recomendado.` + instrucaoPainel + instrucaoDosVideos;
+          const finalSystemInstruction = systemInstruction + userTypeInstruction + contextoTrator + `\n\nLEMBRETE FINAL (PRIORIDADE MÁXIMA): siga as REGRAS PRIORITÁRIAS A, B, C e D do início. Resposta curta e direta; se faltar dado essencial, pergunte antes; no máximo 1 foto e só do equipamento recomendado. Pergunta de QUAL KIT usar numa máquina: nunca afirme o kit pelo modelo ou pelo número de série; explique em 2 frases, diga o que confirmar e ofereça o pedido de confirmação ao cliente.` + instrucaoPainel + instrucaoDosVideos;
 
           const startTime = Date.now();
           const response = await generateContentWithRetry(ai, {
