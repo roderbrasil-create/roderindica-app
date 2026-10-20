@@ -668,6 +668,48 @@ function registrarConsultorParceiro(app, deps) {
   return r;
 }
 
+// server/consultorPerfil.ts
+var PAPEIS_EQUIPE = ["admin", "manager", "internal_seller", "triagem", "financial", "marketing", "fiscal", "vendedor_padrao"];
+function ehEquipeNoConsultor(userInfo) {
+  if (!userInfo || typeof userInfo !== "object") return false;
+  if (userInfo.equipe === true) return true;
+  return PAPEIS_EQUIPE.includes(String(userInfo.role || ""));
+}
+function instrucaoPerfilConsultor(userInfo, equipe) {
+  const u = userInfo && typeof userInfo === "object" ? userInfo : {};
+  if (u.role === "client" || u.role === "cliente") {
+    return `
+
+18. DIRETRIZ DE ATENDIMENTO AO CLIENTE FINAL (MUITO IMPORTANTE):
+- Voc\xEA est\xE1 conversando com um CLIENTE final (comprador de equipamentos) chamado "${u.name || "Cliente"}" que possui a m\xE1quina base "${u.baseMachine || "n\xE3o informada"}".
+- Seja extremamente acolhedor, focado em ajud\xE1-lo a entender qual o equipamento Roder ideal para o seu trabalho e para a m\xE1quina base dele.
+- Quando ele perguntar sobre qualquer equipamento ou demonstrar interesse em especifica\xE7\xF5es, tire todas as d\xFAvidas dele e, de forma ativa e muito gentil, reforce a import\xE2ncia da nossa equipe de vendas internas da f\xE1brica elaborar a proposta e o or\xE7amento oficial do projeto.
+- Exemplo de condu\xE7\xE3o: "Seria excelente podermos fazer uma simula\xE7\xE3o personalizada e te enviar um or\xE7amento oficial sem compromisso direto da f\xE1brica com todas as condi\xE7\xF5es! Se voc\xEA quiser, posso pedir para a nossa equipe de vendas internas da f\xE1brica entrar em contato com voc\xEA no seu WhatsApp. Voc\xEA gostaria que eu fizesse essa solicita\xE7\xE3o agora mesmo?"
+- Caso ele confirme, instrua-o a ficar tranquilo pois nossa equipe de vendas internas da f\xE1brica entrar\xE1 em contato em breve com a proposta oficial, ou recomende que ele solicite o or\xE7amento diretamente na f\xE1brica pelo bot\xE3o de or\xE7amento.`;
+  }
+  if (equipe ?? ehEquipeNoConsultor(u)) {
+    return `
+
+18. DIRETRIZ DE ATENDIMENTO \xC0 EQUIPE RODER (MUITO IMPORTANTE):
+- Voc\xEA est\xE1 conversando com "${u.name || "Equipe Roder"}", da EQUIPE INTERNA da Roder (vendedor interno, triagem, ger\xEAncia ou t\xE9cnico). A pessoa quer a resposta t\xE9cnica para atender ou or\xE7ar.
+- Responda T\xC9CNICO e direto, nesta ordem:
+  1. VEREDITO na primeira frase, em negrito: **Serve**, **N\xE3o serve** ou **Verificar**, com o motivo em poucas palavras (porte, fatia extra, transmiss\xE3o, vaz\xE3o).
+  2. Kit de instala\xE7\xE3o indicado.
+  3. Ponteira/biela e rotator, quando se aplica (link s\xF3 se perguntarem, como nas regras acima).
+  4. Suporte ou adapta\xE7\xE3o necess\xE1ria na m\xE1quina (fatia extra, linha bidirecional, engate, etc.).
+  5. C\xF3digos Roder dos itens quando constarem no cat\xE1logo ou nos kits. Nunca invente c\xF3digo: sem c\xF3digo cadastrado, n\xE3o escreva c\xF3digo.
+- Pule o que n\xE3o se aplica \xE0 pergunta. Sem linguagem de venda: nada de frases de convencimento, de oferecer or\xE7amento, de falar em indica\xE7\xE3o ou comiss\xE3o.
+- Se faltar dado essencial (modelo da m\xE1quina, porte, se tem fatia extra), pergunte antes, numa frase.
+- Todas as outras regras t\xE9cnicas continuam valendo.`;
+  }
+  return `
+
+18. DIRETRIZ DE ATENDIMENTO AO PARCEIRO/VENDEDOR (MUITO IMPORTANTE):
+- Voc\xEA est\xE1 conversando com um PARCEIRO/VENDEDOR cadastrado da Roder chamado "${u.name || "Vendedor"}".
+- Ofere\xE7a suporte de engenharia avan\xE7ado, com foco em ajud\xE1-lo a sanar d\xFAvidas t\xE9cnicas de clientes, dimensionar corretamente os equipamentos para fechar neg\xF3cios, identificar c\xF3digos de produtos, consultar o estoque atual da f\xE1brica de garras/cabe\xE7otes e auxiliar na elabora\xE7\xE3o de propostas que ser\xE3o encaminhadas e finalizadas pela nossa equipe de vendas internas da f\xE1brica no painel administrativo.
+- Sinta-se \xE0 vontade para ser mais t\xE9cnico e usar termos de revenda, comiss\xE3o, estoque e especifica\xE7\xF5es de montagem e instala\xE7\xE3o.`;
+}
+
 // server.ts
 var import_meta = {};
 var customRequire;
@@ -921,7 +963,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-19m consultor-indicar";
+  const RELEASE_LABEL = "2026-10-19n consultor-perfis";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -3659,24 +3701,9 @@ ${kitsContext || "N\xE3o h\xE1 kits de instala\xE7\xE3o cadastrados."}${improved
             parts: [{ text: question }]
           });
           const userInfo = args.userInfo || {};
-          let userTypeInstruction = "";
-          if (userInfo.role === "client" || userInfo.role === "cliente") {
-            userTypeInstruction = `
-
-18. DIRETRIZ DE ATENDIMENTO AO CLIENTE FINAL (MUITO IMPORTANTE):
-- Voc\xEA est\xE1 conversando com um CLIENTE final (comprador de equipamentos) chamado "${userInfo.name || "Cliente"}" que possui a m\xE1quina base "${userInfo.baseMachine || "n\xE3o informada"}".
-- Seja extremamente acolhedor, focado em ajud\xE1-lo a entender qual o equipamento Roder ideal para o seu trabalho e para a m\xE1quina base dele.
-- Quando ele perguntar sobre qualquer equipamento ou demonstrar interesse em especifica\xE7\xF5es, tire todas as d\xFAvidas dele e, de forma ativa e muito gentil, reforce a import\xE2ncia da nossa equipe de vendas internas da f\xE1brica elaborar a proposta e o or\xE7amento oficial do projeto.
-- Exemplo de condu\xE7\xE3o: "Seria excelente podermos fazer uma simula\xE7\xE3o personalizada e te enviar um or\xE7amento oficial sem compromisso direto da f\xE1brica com todas as condi\xE7\xF5es! Se voc\xEA quiser, posso pedir para a nossa equipe de vendas internas da f\xE1brica entrar em contato com voc\xEA no seu WhatsApp. Voc\xEA gostaria que eu fizesse essa solicita\xE7\xE3o agora mesmo?"
-- Caso ele confirme, instrua-o a ficar tranquilo pois nossa equipe de vendas internas da f\xE1brica entrar\xE1 em contato em breve com a proposta oficial, ou recomende que ele solicite o or\xE7amento diretamente na f\xE1brica pelo bot\xE3o de or\xE7amento.`;
-          } else {
-            userTypeInstruction = `
-
-18. DIRETRIZ DE ATENDIMENTO AO PARCEIRO/VENDEDOR (MUITO IMPORTANTE):
-- Voc\xEA est\xE1 conversando com um PARCEIRO/VENDEDOR cadastrado da Roder chamado "${userInfo.name || "Vendedor"}".
-- Ofere\xE7a suporte de engenharia avan\xE7ado, com foco em ajud\xE1-lo a sanar d\xFAvidas t\xE9cnicas de clientes, dimensionar corretamente os equipamentos para fechar neg\xF3cios, identificar c\xF3digos de produtos, consultar o estoque atual da f\xE1brica de garras/cabe\xE7otes e auxiliar na elabora\xE7\xE3o de propostas que ser\xE3o encaminhadas e finalizadas pela nossa equipe de vendas internas da f\xE1brica no painel administrativo.
-- Sinta-se \xE0 vontade para ser mais t\xE9cnico e usar termos de revenda, comiss\xE3o, estoque e especifica\xE7\xF5es de montagem e instala\xE7\xE3o.`;
-          }
+          const q = await quemChama(req);
+          const equipe = q ? ehEquipe(q) : void 0;
+          const userTypeInstruction = instrucaoPerfilConsultor(userInfo, equipe);
           let contextoTrator = "";
           if (pedeConsultaDeTrator(question, chatHistory)) {
             const consulta = await consultarTratorNaInternet(ai, question, chatHistory);
