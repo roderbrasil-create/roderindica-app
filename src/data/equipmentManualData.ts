@@ -71,7 +71,7 @@ export const EQUIPMENT_SPEC_TABLES: EquipmentSpecTable[] = [
     headers: ['Modelo', 'Diâm. Corte', 'Sabre / Corrente', 'Vazão Hidráulica', 'Pressão Trab.', 'Motor Hidráulico', 'Peso Op. / Máquina Base'],
     columnWidthsPdf: [24, 22, 28, 28, 24, 25, 31],
     rows: [
-      ['CMF 500', '500 mm', '88 cm | Passo .404"', '100 a 200 L/min', '200 a 220 bar', '24 cc', '8 a 14 Ton. (Suporta até 22t)'],
+      ['CMF 500', '500 mm', '88 cm | Passo .404"', '100 a 200 L/min', '200 a 220 bar', '24 cc', '8 a 13 Ton. (acima de 13t: CMF 600)'],
       ['CMF 600', '600 mm', '45" | Passo 3/4"', '150 a 200 L/min', '200 a 240 bar', '60 cc', '13 a 22 Ton. (Ideal p/ Rebrota)'],
       ['CMF 800', '800 mm', '48" | Passo 3/4"', '200 a 250 L/min', '200 a 240 bar', '60 cc', '20 a 30 Ton. (Madeiras Grossas)'],
       ['GMT 035 TTC', '40 a 60 cm', '52 cm (20") Lâmina', '35 a 65 L/min', '185 a 250 bar', 'Grapple Saw TTC', '275 kg | Munck / Grua / Escavadeira ≤ 8t'],
