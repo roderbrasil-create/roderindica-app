@@ -152,3 +152,22 @@ test('BUSCA E FORMATO: busca sem acento por operação e máquina; duração e c
   assert.equal(capaDoVideo({ video_url: 'https://youtu.be/AAAAAAAAAAA' }), 'https://i.ytimg.com/vi/AAAAAAAAAAA/hqdefault.jpg');
   assert.equal(capaDoVideo({ video_url: ST, thumb_url: 'https://x/c.jpg' }), 'https://x/c.jpg');
 });
+
+test('FORMULÁRIO: tipo no topo, vídeo modelo sem equipamento, com título obrigatório, máquina opcional e selo de uso', async () => {
+  const { readFileSync } = await import('node:fs');
+  const t = readFileSync(new URL('../src/pages/VideosConsultor.tsx', import.meta.url), 'utf8');
+  const form = t.slice(t.indexOf('role="dialog"'));
+  assert.ok(form.indexOf('>Tipo</span>') > 0 && form.indexOf('>Tipo</span>') < form.indexOf('>Equipamento</span>'), 'Tipo vem antes de Equipamento');
+  assert.match(form, /Vídeo modelo: mostra como o cliente deve filmar a escavadeira para o técnico avaliar\. Vale para qualquer equipamento\./);
+  assert.match(t, /Ex\.: Como filmar a escavadeira \(modelo geral\)/);
+  assert.match(t, /Máquina <span[^>]*>\(opcional\)/);
+  assert.match(t, /placeholder="Ex\.: CAT 320 nova"/);
+  assert.match(t, /modelo_nome: amostra \? form\.maquina/);
+  assert.match(t, /produto_id: p && !amostra \? p\.id : PRODUTO_AMOSTRA/);
+  assert.match(t, /Escreva o título do vídeo modelo/);
+  assert.match(t, /Em uso no texto do WhatsApp/);
+  assert.match(t, /videoAmostraDe\(linhas\.filter\(l => l\.ativo\)\)/);
+  assert.match(t, /'Vídeo modelo' : nomeDe\(l\)/);
+  assert.match(t, /mais o vídeo modelo de filmagem, que vale para qualquer equipamento/);
+  assert.ok(!/[—–]/.test(t.slice(t.indexOf('Vídeo modelo:'), t.indexOf('Vídeo modelo:') + 200)));
+});
