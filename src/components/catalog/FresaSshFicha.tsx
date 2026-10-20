@@ -540,7 +540,7 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150', enviar = fa
     ['Diâmetro do rotor', `${milhar(sp.diametro_rotor_mm)} mm`],
     ['Trituração máxima', `${milhar(sp.diametro_max_trituracao_mm)} mm`],
     ['Profundidade máxima', `${milhar(sp.profundidade_max_trabalho_mm)} mm`],
-    ['Dentes', dentesLongo(sp.dentes_tipo)],
+    ['Dentes (A/3 + MH)', dentesLongo(sp.dentes_tipo)],
   ];
 
   const tratores: { marca: string; serie: string; texto: string; serieDe: boolean }[] = [
@@ -908,7 +908,7 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150', enviar = fa
               <div style={{ background: COR_G, color: '#E6E8EB', borderRadius: '14px', padding: '15px 17px', display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '18px', fontSize: '11.3px', lineHeight: 1.5 }}>
                 <div>
                   <h3 style={{ fontFamily: FONTE_TIT, fontSize: '12.5px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#FFB27A', marginBottom: '5px' }}>Peças e suporte</h3>
-                  Dentes FAE originais: tipo A/3 nos dentes centrais e MH nos 4 dentes laterais (2 de cada lado), com pastilha de carboneto de tungstênio (vídea). Estoque na Matriz e em Sinop-MT: eixos, correias, rolamentos e dentes para reposição imediata.
+                  Dentes FAE originais tipo A/3 e MH, com pastilha de carboneto de tungstênio (vídea). Estoque na Matriz e em Sinop-MT: eixos, correias, rolamentos e dentes para reposição imediata.
                 </div>
                 <div>
                   <h3 style={{ fontFamily: FONTE_TIT, fontSize: '12.5px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#FFB27A', marginBottom: '5px' }}>Na entrega técnica</h3>
