@@ -581,7 +581,8 @@ const contaSenha = (uid, email, confirmado) => env.authenticatedContext(uid,
 
 test('CONTA COM SENHA criada por fora (@roderbrasil, e-mail NÃO confirmado) não é equipe', async () => {
   const db = contaSenha('u_falso', 'qualquer@roderbrasil.com.br', false);
-  await assertFails(getDoc(doc(db, 'settings', 'notifications')));
+  // ler settings/notifications qualquer login lê; gravar é só da equipe
+  await assertFails(setDoc(doc(db, 'settings', 'notifications'), { manager_emails: ['ataque@x.com'] }));
   await assertFails(updateDoc(doc(db, 'stock_items', 's1'), { quantity: 99 }));
   await assertFails(getDoc(doc(db, 'users', 'u_gis')));
   await assertFails(getDocs(collection(db, 'users')));
@@ -590,7 +591,7 @@ test('CONTA COM SENHA criada por fora (@roderbrasil, e-mail NÃO confirmado) nã
 
 test('CONTA COM SENHA da equipe com e-mail CONFIRMADO pelo servidor continua equipe', async () => {
   const db = contaSenha('u_rog2', 'rogerio2@roderbrasil.com.br', true);
-  await assertSucceeds(getDoc(doc(db, 'settings', 'notifications')));
+  await assertSucceeds(setDoc(doc(db, 'settings', 'notifications'), { manager_emails: [] }));
   await assertSucceeds(updateDoc(doc(db, 'stock_items', 's1'), { quantity: 3 }));
 });
 
