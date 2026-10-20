@@ -66,7 +66,7 @@ test('decisão do link: modelo válido abre, desconhecido e ssh-150 avisam, outr
 test('openTechnicalSheet usa a decisão e retorna antes de fichaEspecialDe', async () => {
   const { readFileSync } = await import('node:fs');
   const f = readFileSync(new URL('../src/components/layout/EngineerHelper.tsx', import.meta.url), 'utf8');
-  const i = f.indexOf('decidirLinkFichaFae(url, catalogProducts)');
+  const i = f.indexOf('decidirLinkFichaFae<ProductModel, Product>(url, catalogProducts)');
   assert.ok(i > 0 && i < f.indexOf('const tipo = fichaEspecialDe(url, modelName)'));
   assert.ok(f.slice(i, i + 400).includes("acao === 'avisar'"));
 });

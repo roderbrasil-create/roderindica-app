@@ -774,7 +774,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   const openTechnicalSheet = (url: string, modelName?: string) => {
     if (!url) return;
     // Trituradores FAE de escavadeira: abre a ficha montada do modelo (link "ficha-fae:<modelo>")
-    const decisaoFae = decidirLinkFichaFae(url, catalogProducts);
+    const decisaoFae = decidirLinkFichaFae<ProductModel, Product>(url, catalogProducts);
     if (decisaoFae.acao === 'abrir') { setFichaPadrao({ product: decisaoFae.product, model: decisaoFae.model }); return; }
     if (decisaoFae.acao === 'avisar') { toast.error(decisaoFae.aviso); return; }
     const tipo = fichaEspecialDe(url, modelName);
