@@ -79,3 +79,9 @@ test('kit 9035 tem itens (antes estava vazio)', () => {
   const k = INSTALLATION_KITS.find(x => x.code === '9000.9000.9035')!;
   assert.equal(k.items.length, 20);
 });
+
+test('plano B da tela usa o mesmo parser do servidor, sem parser local duplicado', () => {
+  const tela = readFileSync(new URL('../src/pages/Accessories.tsx', import.meta.url), 'utf8');
+  assert.match(tela, /from '\.\.\/\.\.\/server\/kitsPdf'/);
+  assert.ok(!tela.includes('itemRegex'), 'parser local antigo voltou');
+});
