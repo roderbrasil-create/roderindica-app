@@ -104,6 +104,35 @@ export function podeConfirmarPrimeiroAcesso(dec: any, provisorio: any, cadastroI
   return entrouEm * 1000 > definidaEm;
 }
 
+// QUAIS CADASTROS O PRIMEIRO ACESSO PODE JUNTAR (20/10/2026). Vale para o e-mail confirmado e
+// para o não confirmado. Antes o caminho do e-mail confirmado juntava QUALQUER users/ com o mesmo
+// e-mail: o atacante dono do e-mail X criava uma segunda conta com senha (Q, sem confirmar), gravava
+// em users/Q is_commissionable, commission_rate 50 e is_lead_receiver, entrava como X (confirmado,
+// sem users/X) e o servidor juntava users/Q forçando "active". Agora só entra o pré-cadastro de
+// verdade: código de pré-cadastro (temp_/phone_) que NÃO é uid de conta de login. Cadastro de outra
+// conta de login (como o Q) nunca é juntado nem apagado: fica como está.
+// No e-mail não confirmado vale também a prova da senha da Roder (marca do servidor).
+export type CadastroParaJuntar = { id: string; dados: any };
+
+export async function escolherPreCadastros(p: {
+  cadastros: CadastroParaJuntar[];
+  uidDoLogin: string;
+  confirmado: boolean;
+  dec: any;
+  ehContaDeLogin: (id: string) => Promise<boolean>;
+  marcaDe: (id: string) => Promise<MarcaSenhaInicial | null | undefined>;
+}): Promise<CadastroParaJuntar[]> {
+  const aceitos: CadastroParaJuntar[] = [];
+  for (const c of p.cadastros) {
+    if (c.id === p.uidDoLogin) continue;
+    if (!ehIdDePreCadastro(c.id)) continue;
+    if (await p.ehContaDeLogin(c.id)) continue;
+    if (!p.confirmado && !podeConfirmarPrimeiroAcesso(p.dec, c.dados, c.id, await p.marcaDe(c.id))) continue;
+    aceitos.push(c);
+  }
+  return aceitos;
+}
+
 // QUEM PODE DEFINIR A SENHA DE QUEM (tela de Usuários). O admin (ou a diretoria confirmada) define
 // de qualquer um. Gerente e triagem só dos papéis que eles também podem cadastrar pelas regras
 // (papelQueGestaoDa em firestore.rules), tirando a própria triagem: trocar a senha de quem cuida da

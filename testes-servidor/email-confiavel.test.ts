@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import fs from 'node:fs';
-import { emailConfiavelDoToken, ehDiretoriaPeloToken, papelDeQuemChama, deveMarcarEmailConfirmado, classificarConta, podeConfirmarPrimeiroAcesso, podeDefinirSenha, ehIdDePreCadastro, papeisDaContaAlvo } from '../server/emailConfiavel.ts';
+import { emailConfiavelDoToken, ehDiretoriaPeloToken, papelDeQuemChama, deveMarcarEmailConfirmado, classificarConta, podeConfirmarPrimeiroAcesso, podeDefinirSenha, ehIdDePreCadastro, papeisDaContaAlvo, escolherPreCadastros } from '../server/emailConfiavel.ts';
 import { hostDeFotoAgendor, urlDeFotoAgendor } from '../server/fotoAgendor.ts';
 
 const token = (email: string, confirmado: boolean, provedor = 'password') =>
@@ -110,10 +110,11 @@ test('servidor: o primeiro acesso confere a marca do servidor e se o código nã
   const fonte = fs.readFileSync(new URL('../server.ts', import.meta.url), 'utf8');
   const i = fonte.indexOf('app.post("/api/auth/reivindicar-perfil"');
   const trecho = fonte.slice(i, fonte.indexOf('app.get("/api/settings/:docName"', i));
-  assert.ok(trecho.includes('ehIdDePreCadastro(d.id)'));
-  assert.ok(trecho.includes('admin.auth().getUser(d.id)'));
-  assert.ok(trecho.includes("collection('senhas_iniciais').doc(d.id).get()"));
-  assert.ok(trecho.includes('podeConfirmarPrimeiroAcesso(dec, d.data(), d.id, marca)'));
+  // a escolha (prefixo de pré-cadastro, não ser conta de login, marca e login posterior) mora em
+  // escolherPreCadastros e vale para o e-mail confirmado e o não confirmado
+  assert.ok(trecho.includes('escolherPreCadastros({'));
+  assert.ok(trecho.includes('admin.auth().getUser(id)'));
+  assert.ok(trecho.includes("collection('senhas_iniciais').doc(id).get()"));
   // login derrubado responde 401 com código, e não 500
   assert.ok(trecho.includes("'auth/id-token-revoked' ? 'token_revogado'"));
   const j = fonte.indexOf('app.post("/api/admin/set-user-password"');
@@ -236,4 +237,60 @@ test('servidor: a rota da foto do Agendor exige o dono e usa o download protegid
   assert.ok(trecho.includes('urlDeFotoAgendor(url)'));
   assert.ok(trecho.includes('baixarExterna(url, 8000, 10 * 1024 * 1024, { hostPermitido: hostDeFotoAgendor })'));
   assert.ok(!/await fetch\(url/.test(trecho));
+});
+
+// PODER AUTO-CRIADO (20/10/2026). O dono do e-mail X cria uma segunda conta com senha (Q), grava
+// users/Q com o e-mail X, comissão de 50% e "recebe lead", e entra como X (confirmado, sem users/X).
+// O servidor juntava users/Q e forçava "active". Agora só entra pré-cadastro que não é conta de login.
+test('PODER AUTO-CRIADO: no e-mail confirmado, o cadastro de outra conta de login (Q) nunca é juntado', async () => {
+  const contasDeLogin = new Set(['uid_q']);
+  const ehContaDeLogin = async (id: string) => contasDeLogin.has(id);
+  const decX = { uid: 'uid_x', email: 'x@gmail.com', email_verified: true, firebase: { sign_in_provider: 'google.com' } };
+  const forjado = { id: 'uid_q', dados: { email: 'x@gmail.com', role: 'external_seller', status: 'pending', is_commissionable: true, commission_rate: 50, is_lead_receiver: true } };
+  const r = await escolherPreCadastros({ cadastros: [forjado], uidDoLogin: 'uid_x', confirmado: true, dec: decX, ehContaDeLogin, marcaDe: async () => null });
+  assert.deepEqual(r, []);
+  // nem com um id que não parece uid e que o atacante tenha colocado: sem prefixo de pré-cadastro, fora
+  const outro = { id: 'qualquer_id', dados: forjado.dados };
+  assert.deepEqual(await escolherPreCadastros({ cadastros: [outro], uidDoLogin: 'uid_x', confirmado: true, dec: decX, ehContaDeLogin, marcaDe: async () => null }), []);
+});
+
+test('PODER AUTO-CRIADO: o pré-cadastro da gestão (temp_/phone_, sem conta de login) continua sendo juntado no e-mail confirmado', async () => {
+  const decX = { uid: 'uid_x', email: 'x@gmail.com', email_verified: true, firebase: { sign_in_provider: 'google.com' } };
+  const prov = { id: 'temp_123', dados: { email: 'x@gmail.com', role: 'external_seller', is_commissionable: true, commission_rate: 3 } };
+  const fone = { id: 'phone_14999990000', dados: { email: 'x@gmail.com', role: 'external_seller' } };
+  const forjado = { id: 'uid_q', dados: { email: 'x@gmail.com', commission_rate: 50 } };
+  const proprio = { id: 'uid_x', dados: { email: 'x@gmail.com' } };
+  const r = await escolherPreCadastros({
+    cadastros: [forjado, prov, fone, proprio], uidDoLogin: 'uid_x', confirmado: true, dec: decX,
+    ehContaDeLogin: async (id) => id === 'uid_q', marcaDe: async () => null,
+  });
+  assert.deepEqual(r.map(c => c.id), ['temp_123', 'phone_14999990000']);
+});
+
+test('PODER AUTO-CRIADO: pré-cadastro cujo código já virou conta de login não é juntado', async () => {
+  const decX = { uid: 'uid_x', email: 'x@gmail.com', email_verified: true, firebase: { sign_in_provider: 'google.com' } };
+  const r = await escolherPreCadastros({
+    cadastros: [{ id: 'temp_999', dados: { email: 'x@gmail.com' } }], uidDoLogin: 'uid_x', confirmado: true, dec: decX,
+    ehContaDeLogin: async () => true, marcaDe: async () => null,
+  });
+  assert.deepEqual(r, []);
+});
+
+test('PRIMEIRO ACESSO não confirmado: continua exigindo a marca da senha da Roder e o login posterior a ela', async () => {
+  const seg = 1_800_000_000;
+  const dec = (auth: number) => ({ uid: 'uid_x', email: 'x@gmail.com', email_verified: false, auth_time: auth, firebase: { sign_in_provider: 'password' } });
+  const prov = { id: 'temp_1', dados: { email: 'x@gmail.com', initial_password: 'abc123' } };
+  const marca = { cadastro_id: 'temp_1', email: 'x@gmail.com', definida_em: new Date(seg * 1000).toISOString(), definida_por_uid: 'u_jef' };
+  const base = { cadastros: [prov], uidDoLogin: 'uid_x', confirmado: false, ehContaDeLogin: async () => false };
+  assert.equal((await escolherPreCadastros({ ...base, dec: dec(seg + 60), marcaDe: async () => marca })).length, 1);
+  assert.equal((await escolherPreCadastros({ ...base, dec: dec(seg + 60), marcaDe: async () => null })).length, 0);
+  assert.equal((await escolherPreCadastros({ ...base, dec: dec(seg - 60), marcaDe: async () => marca })).length, 0);
+});
+
+test('PODER AUTO-CRIADO: o servidor usa escolherPreCadastros também no e-mail confirmado (sem filtro solto)', () => {
+  const src = fs.readFileSync(new URL('../server.ts', import.meta.url), 'utf8');
+  const i = src.indexOf('app.post("/api/auth/reivindicar-perfil"');
+  const trecho = src.slice(i, i + 6000);
+  assert.match(trecho, /escolherPreCadastros\(/);
+  assert.doesNotMatch(trecho, /achados\.docs\.filter\(d => d\.id !== dec\.uid\)/);
 });

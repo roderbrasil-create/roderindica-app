@@ -704,8 +704,47 @@ test('CADASTRO FORJADO: a conta B não cria users/{B} com o e-mail de outra pess
   await assertFails(setDoc(doc(b, 'users', 'u_atacante_b'), { email: 'x@roderbrasil.com.br', role: 'external_seller', status: 'pending' }));
   await assertFails(setDoc(doc(b, 'users', 'u_atacante_b'), { email: 'b@gmail.com', role: 'external_seller', status: 'pending', initial_password: 'x' }));
   await assertFails(setDoc(doc(b, 'users', 'u_atacante_b'), { email: 'b@gmail.com', role: 'external_seller', status: 'pending', initial_password_set_at: '2000-01-01T00:00:00.000Z' }));
-  // o cadastro próprio normal continua: o e-mail do próprio login (qualquer caixa) ou sem e-mail
-  await assertSucceeds(setDoc(doc(b, 'users', 'u_atacante_b'), { email: 'B@gmail.com', role: 'external_seller', status: 'pending', name: 'B' }));
+  // o cadastro próprio normal continua: o e-mail do próprio login CONFIRMADO (qualquer caixa), ou sem e-mail
+  const bConfirmado = contaSenha('u_atacante_b', 'b@gmail.com', true);
+  await assertSucceeds(setDoc(doc(bConfirmado, 'users', 'u_atacante_b'), { email: 'B@gmail.com', role: 'external_seller', status: 'pending', name: 'B' }));
+});
+
+// ---------------- CADASTRO DE PODER AUTO-CRIADO (20/10/2026) ----------------
+// Ataque: o dono do e-mail X cria uma segunda conta com senha (Q), que o Firebase aceita sem
+// confirmar, e grava users/Q com o e-mail X, comissão de 50%, comissionável e "recebe lead". Depois
+// entra como X (confirmado, sem users/X) e o primeiro acesso juntava users/Q. Aqui o cadastro nem nasce.
+test('PODER AUTO-CRIADO: a conta Q não cria users/Q com taxa, comissionável ou recebe lead', async () => {
+  const q = contaSenha('u_q', 'x@gmail.com', false);
+  const base = { role: 'external_seller', status: 'pending', name: 'Q' };
+  // o cenário exato do ataque, com e-mail de outra pessoa não confirmado
+  await assertFails(setDoc(doc(q, 'users', 'u_q'), { ...base, email: 'x@gmail.com', is_commissionable: true, commission_rate: 50, is_lead_receiver: true }));
+  // cada campo de poder sozinho, mesmo sem e-mail, e também numa conta confirmada (Google)
+  const google = env.authenticatedContext('u_g', { email: 'g@gmail.com', email_verified: true, firebase: { sign_in_provider: 'google.com' } }).firestore();
+  for (const campo of [{ commission_rate: 50 }, { is_commissionable: true }, { is_lead_receiver: true }, { commission_rate: 0 }, { is_commissionable: false }]) {
+    await assertFails(setDoc(doc(q, 'users', 'u_q'), { ...base, ...campo }));
+    await assertFails(setDoc(doc(google, 'users', 'u_g'), { ...base, email: 'g@gmail.com', ...campo }));
+  }
+  // nem status ativo, nem papel de equipe, nem permissões
+  await assertFails(setDoc(doc(google, 'users', 'u_g'), { ...base, email: 'g@gmail.com', status: 'active' }));
+  await assertFails(setDoc(doc(google, 'users', 'u_g'), { ...base, email: 'g@gmail.com', role: 'manager' }));
+  await assertFails(setDoc(doc(google, 'users', 'u_g'), { ...base, email: 'g@gmail.com', permissions: { sidebar: { users: true } } }));
+});
+
+test('E-MAIL SÓ CONFIRMADO: conta com senha sem confirmação não grava e-mail no cadastro (criar nem editar)', async () => {
+  const q = contaSenha('u_q', 'x@gmail.com', false);
+  await assertFails(setDoc(doc(q, 'users', 'u_q'), { role: 'external_seller', status: 'pending', email: 'x@gmail.com' }));
+  // sem e-mail nasce; depois não consegue pôr o e-mail
+  await assertSucceeds(setDoc(doc(q, 'users', 'u_q'), { role: 'external_seller', status: 'pending', name: 'Q' }));
+  await assertFails(updateDoc(doc(q, 'users', 'u_q'), { email: 'x@gmail.com' }));
+  await assertSucceeds(updateDoc(doc(q, 'users', 'u_q'), { name: 'Q2', phone: '14999990000' }));
+});
+
+test('CADASTRO PRÓPRIO NORMAL: quem entra com Google (confirmado) cria o próprio users/{uid} com o e-mail', async () => {
+  const g = env.authenticatedContext('u_g', { email: 'Novo@Gmail.com', email_verified: true, firebase: { sign_in_provider: 'google.com' } }).firestore();
+  await assertSucceeds(setDoc(doc(g, 'users', 'u_g'), { uid: 'u_g', email: 'novo@gmail.com', role: 'external_seller', status: 'pending', name: 'Novo', created_at: 'x' }));
+  await assertSucceeds(updateDoc(doc(g, 'users', 'u_g'), { name: 'Novo 2', updated_at: 'y' }));
+  // e a gestão continua pré-cadastrando com taxa e comissionável (tela de Usuários)
+  await assertSucceeds(setDoc(doc(fs_('gislene'), 'users', 'temp_77'), { role: 'external_seller', email: 'pre@x.com', status: 'pending', is_commissionable: true, commission_rate: 3, is_lead_receiver: false }));
 });
 
 test('CADASTRO FORJADO: a conta B não troca o próprio e-mail para o de outra pessoa nem põe senha inicial depois', async () => {

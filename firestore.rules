@@ -115,8 +115,19 @@ service cloud.firestore {
     function emailDoCadastroEhODoLogin(e) {
       return e == '' || e == emailDoToken();
     }
+    // E-MAIL NO CADASTRO SÓ COM LOGIN CONFIRMADO (20/10/2026). Conta com senha criada por fora não
+    // confirma e-mail nenhum, mas o cadastro de usuário fica aberto no Firebase: a conta Q gravava
+    // users/Q com o e-mail de outra pessoa (X), com taxa de comissão e "recebe lead" à sua escolha,
+    // e o primeiro acesso de X juntava esse cadastro como se fosse pré-cadastro da gestão. Agora o
+    // cadastro próprio só carrega e-mail se o login o confirmou (Google, por exemplo); sem
+    // confirmação nasce sem e-mail, e o primeiro acesso pelo servidor cuida do resto.
+    function emailDoCadastroEhODoLogin(e) {
+      return e == '' || (e == emailDoToken() && emailVerificado());
+    }
+    // Poder não se cria sozinho: taxa, comissionável e "recebe lead" são da gestão.
     function cadastroProprioSemSenhaNemEmailAlheio() {
-      return !request.resource.data.keys().hasAny(['initial_password', 'initial_password_set_at']) &&
+      return !request.resource.data.keys().hasAny(['initial_password', 'initial_password_set_at',
+          'commission_rate', 'is_commissionable', 'is_lead_receiver']) &&
         emailDoCadastroEhODoLogin(string(request.resource.data.get('email', '')).lower());
     }
     function edicaoPropriaSemSenhaNemEmailAlheio() {

@@ -44,7 +44,7 @@ import { injetarPrevia, previaPadrao, previaDoEquipamento, codigoLimpo, SITE_PRE
 import { criarImagemPrevia, candidatasDoLink, urlImagemPrevia, MAX_ORIGEM_BYTES, PASTA_CACHE, baixarExterna } from "./server/previaImagem";
 import { hostDeFotoAgendor, urlDeFotoAgendor } from "./server/fotoAgendor";
 import { fotosExternas, RodadaEmAndamento } from "./server/fotosExternas";
-import { emailConfiavelDoToken, ehDiretoriaPeloToken, papelDeQuemChama, classificarConta, podeConfirmarPrimeiroAcesso, podeDefinirSenha, ehIdDePreCadastro, papeisDaContaAlvo, type MarcaSenhaInicial } from "./server/emailConfiavel";
+import { emailConfiavelDoToken, ehDiretoriaPeloToken, papelDeQuemChama, classificarConta, podeConfirmarPrimeiroAcesso, podeDefinirSenha, ehIdDePreCadastro, escolherPreCadastros, papeisDaContaAlvo, type MarcaSenhaInicial } from "./server/emailConfiavel";
 import { registrarDiagnosticoComissao, moverComissoesDoProvisorio, loteEmPartes } from "./server/diagnosticoComissao";
 import { relatorioDiretoriaDia1, relatorioParceirosDia1, lembreteNfDia5, lembreteFinanceiroDia7, ligarEmailsComissaoUmaVez } from "./server/relatoriosComissao";
 
@@ -1254,6 +1254,7 @@ Retorne um array JSON no formato exato:
       // Só a equipe, e só imagem ou PDF. Antes, sem login, alguém subia um .html que o próprio
       // roderindica.com servia, e com ele roubava a sessão de quem abrisse.
       if (!ehEquipe(await quemChama(req))) {
+        if (negarSessaoRevogada(req, res)) return;
         return res.status(401).json({ error: "Entre no app para enviar arquivos." });
       }
       if (!/\.(jpe?g|jfif|png|webp|gif|heic|heif|pdf|webm|m4a|mp3|ogg|wav|docx?|xlsx?)$/i.test(String(fileName))) {
@@ -1684,25 +1685,22 @@ Retorne um array JSON no formato exato:
       // dele. A conta com senha que a tela de Usuários cria já nasce confirmada pelo servidor.
       const confirmado = !!emailConfiavelDoToken(dec);
       const achados = await db.collection('users').where('email', '==', email).get();
-      let temporarios = achados.docs.filter(d => d.id !== dec.uid);
-      // Exceção do primeiro acesso: conta de senha ainda não confirmada vale só para o cadastro
-      // provisório cuja senha a Roder definiu, e só com login feito DEPOIS disso (a prova de que
-      // quem entrou sabe a senha da Roder). Ver podeConfirmarPrimeiroAcesso.
-      // Cadastro forjado: o users/{uid} de outra conta com este e-mail e uma senha inicial inventada
-      // não serve. Só pré-cadastro de verdade (temp_/phone_, sem conta de login com esse código) e
-      // com a marca que só o servidor grava ao definir a senha (senhas_iniciais/{código}).
-      if (!confirmado) {
-        const aceitos: typeof temporarios = [];
-        for (const d of temporarios) {
-          if (!ehIdDePreCadastro(d.id)) continue;
-          const ehContaDeLogin = await admin.auth().getUser(d.id).then(() => true).catch((e: any) => e?.code !== 'auth/user-not-found');
-          if (ehContaDeLogin) continue;
-          const marca = (await db.collection('senhas_iniciais').doc(d.id).get()).data() as MarcaSenhaInicial | undefined;
-          if (podeConfirmarPrimeiroAcesso(dec, d.data(), d.id, marca)) aceitos.push(d);
-        }
-        temporarios = aceitos;
-        if (temporarios.length === 0) return res.json({ ok: true, merged: false, motivo: 'email_nao_confirmado' });
-      }
+      // Só pré-cadastro de verdade (temp_/phone_, que não é conta de login), no e-mail confirmado
+      // e no não confirmado. Cadastro de outra conta de login com este e-mail (users/{uid} gravado
+      // pelo próprio atacante, com taxa de comissão e "recebe lead" de sua escolha) nunca é juntado.
+      // No não confirmado vale ainda a marca que só o servidor grava ao definir a senha
+      // (senhas_iniciais/{código}) e o login feito depois dela (podeConfirmarPrimeiroAcesso).
+      const porId = new Map(achados.docs.map(d => [d.id, d]));
+      const escolhidos = await escolherPreCadastros({
+        cadastros: achados.docs.map(d => ({ id: d.id, dados: d.data() })),
+        uidDoLogin: dec.uid,
+        confirmado,
+        dec,
+        ehContaDeLogin: (id) => admin.auth().getUser(id).then(() => true).catch((e: any) => e?.code !== 'auth/user-not-found'),
+        marcaDe: async (id) => (await db.collection('senhas_iniciais').doc(id).get()).data() as MarcaSenhaInicial | undefined,
+      });
+      const temporarios = escolhidos.map(c => porId.get(c.id)!);
+      if (!confirmado && temporarios.length === 0) return res.json({ ok: true, merged: false, motivo: 'email_nao_confirmado' });
       if (temporarios.length === 0) return res.json({ ok: true, merged: false });
 
       const realRef = db.collection('users').doc(dec.uid);
@@ -1787,6 +1785,7 @@ Retorne um array JSON no formato exato:
       // Sem login só sai o que as fichas públicas usam. Antes, /api/settings/email devolvia a
       // senha do Gmail e /api/settings/agendor o token para qualquer pessoa na internet.
       if (!/^engate_rapido/.test(docName) && !ehGestao(await quemChama(req))) {
+        if (negarSessaoRevogada(req, res)) return;
         return res.status(403).json({ error: "Acesso restrito." });
       }
 
@@ -1812,6 +1811,7 @@ Retorne um array JSON no formato exato:
         return res.status(400).json({ error: "Nome do documento não fornecido." });
       }
       if (!ehGestao(await quemChama(req))) {
+        if (negarSessaoRevogada(req, res)) return;
         return res.status(403).json({ error: "Só a gestão altera configurações." });
       }
 
