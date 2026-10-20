@@ -27,11 +27,13 @@ service cloud.firestore {
       return string(request.auth.token.get('email', '')).lower();
     }
 
-    // E-mail confiável: confirmado (Google) ou conta com senha, que só nasce pela tela
-    // de Usuários (o cadastro público fica desligado no Firebase).
+    // E-mail confiável: só o CONFIRMADO (19/10/2026). Antes a conta com senha valia sozinha,
+    // mas o cadastro de usuário fica ligado no Firebase (o app usa login anônimo), e qualquer um
+    // criava qualquer@roderbrasil.com.br com senha pela API e passava por equipe. As contas com
+    // senha da tela de Usuários nascem confirmadas pelo servidor.
     function emailVerificado() {
       return naoAnonimo() && emailDoToken() != '' &&
-        (request.auth.token.get('email_verified', false) == true || request.auth.token.firebase.sign_in_provider == 'password');
+        request.auth.token.get('email_verified', false) == true;
     }
 
     // Diretoria reconhecida pelo e-mail confirmado (mesma lista do app).
@@ -103,7 +105,32 @@ service cloud.firestore {
     // Campos de poder no cadastro do usuário: só admin muda.
     function naoMexeEmPoder() {
       return !request.resource.data.diff(resource.data).affectedKeys().hasAny(
-        ['role', 'permissions', 'status', 'is_commissionable', 'commission_rate', 'is_lead_receiver', 'uid']);
+        ['role', 'permissions', 'status', 'is_commissionable', 'commission_rate', 'is_lead_receiver', 'assigned_regions', 'uid']);
+    }
+
+    // CADASTRO FORJADO (19/10/2026). O próprio cadastro não pode levar senha inicial nem o e-mail de
+    // outra pessoa: a conta B gravava em users/{B} o e-mail de A, uma senha inicial e uma data
+    // antiga, e o primeiro acesso de A (criada por fora) confirmava o e-mail dela no servidor.
+    // A senha inicial é coisa da tela de Usuários (gestão) e a data, só do servidor.
+    // E-MAIL NO CADASTRO SÓ COM LOGIN CONFIRMADO (20/10/2026). Conta com senha criada por fora não
+    // confirma e-mail nenhum, mas o cadastro de usuário fica aberto no Firebase: a conta Q gravava
+    // users/Q com o e-mail de outra pessoa (X), com taxa de comissão e "recebe lead" à sua escolha,
+    // e o primeiro acesso de X juntava esse cadastro como se fosse pré-cadastro da gestão. Agora o
+    // cadastro próprio só carrega e-mail se o login o confirmou (Google, por exemplo); sem
+    // confirmação nasce sem e-mail, e o primeiro acesso pelo servidor cuida do resto.
+    function emailDoCadastroEhODoLogin(e) {
+      return e == '' || (e == emailDoToken() && emailVerificado());
+    }
+    // Poder não se cria sozinho: taxa, comissionável e "recebe lead" são da gestão.
+    function cadastroProprioSemSenhaNemEmailAlheio() {
+      return !request.resource.data.keys().hasAny(['initial_password', 'initial_password_set_at',
+          'commission_rate', 'is_commissionable', 'is_lead_receiver', 'assigned_regions']) &&
+        emailDoCadastroEhODoLogin(string(request.resource.data.get('email', '')).lower());
+    }
+    function edicaoPropriaSemSenhaNemEmailAlheio() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['initial_password', 'initial_password_set_at']) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['email']) ||
+         emailDoCadastroEhODoLogin(string(request.resource.data.get('email', '')).lower()));
     }
 
     // ===============================================================
@@ -112,23 +139,28 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow get: if isOwner(userId) || isEquipe();
+      // pelo e-mail, só confirmado: senão quem criasse a conta do e-mail de um pré-cadastrado lia
+      // o cadastro dele (telefone, PIX, senha inicial)
       allow list: if isEquipe() ||
-        (naoAnonimo() && resource.data.email == request.auth.token.email);
+        (emailVerificado() && resource.data.email == request.auth.token.email);
       // Cadastro próprio nasce sem poder. O primeiro acesso de quem foi pré-cadastrado
       // é feito pelo servidor (/api/auth/reivindicar-perfil).
       allow create: if isAdmin() ||
-        ((isManager() || isTriagem()) && papelQueGestaoDa(request.resource.data.get('role', ''))) ||
+        ((isManager() || isTriagem()) && papelQueGestaoDa(request.resource.data.get('role', '')) &&
+         !('initial_password_set_at' in request.resource.data)) ||
         (isOwner(userId) && naoAnonimo() &&
          request.resource.data.get('role', 'external_seller') in ['external_seller', 'vendedor_padrao', ''] &&
          request.resource.data.get('status', 'pending') in ['pending', ''] &&
-         !('permissions' in request.resource.data));
+         !('permissions' in request.resource.data) &&
+         cadastroProprioSemSenhaNemEmailAlheio());
       allow update: if isAdmin() ||
         // gerente e triagem cuidam da equipe (férias, recebe lead, dados), sem promover a gestão
         // e sem mexer no próprio papel
         ((isManager() || isTriagem()) && !isOwner(userId) &&
          papelQueGestaoDa(resource.data.get('role', '')) &&
-         papelQueGestaoDa(request.resource.data.get('role', ''))) ||
-        (isOwner(userId) && naoMexeEmPoder()) ||
+         papelQueGestaoDa(request.resource.data.get('role', '')) &&
+         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['initial_password_set_at'])) ||
+        (isOwner(userId) && naoMexeEmPoder() && edicaoPropriaSemSenhaNemEmailAlheio()) ||
         // a triagem liga "recebe lead" e marca férias de qualquer um da equipe, inclusive gestão
         ((isManager() || isTriagem()) &&
          request.resource.data.diff(resource.data).affectedKeys().hasOnly(
@@ -144,8 +176,7 @@ service cloud.firestore {
 
     match /indications/{indicationId} {
       // A equipe lê tudo. O parceiro (e qualquer outro login) lê só a indicação que é DELE:
-      // pelo uid em um dos campos de dono, ou pelo e-mail do login (confirmado ou conta com
-      // senha). Antes qualquer login lia todas, e um parceiro via as indicações dos outros
+      // pelo uid em um dos campos de dono, ou pelo e-mail do login (só confirmado). Antes qualquer login lia todas, e um parceiro via as indicações dos outros
       // abrindo o Firestore direto. A tela do parceiro busca exatamente por estes campos
       // (src/lib/filtrosParceiro.ts), senão o Firebase recusa a consulta inteira.
       allow read: if isEquipe() || donoDaIndicacao();

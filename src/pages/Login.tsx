@@ -6,7 +6,7 @@ import {
   sendPasswordResetEmail,
   signOut
 } from 'firebase/auth';
-import { auth, db, reivindicarPerfil } from '../lib/firebase';
+import { auth, db, reivindicarPerfil, reivindicarPerfilDetalhado, marcarLoginComSenha } from '../lib/firebase';
 import { doc, getDoc, setDoc, collection, query, where, getDocs, deleteDoc, writeBatch } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -62,57 +62,8 @@ export default function Login() {
       let userDoc = await getDoc(userDocRef);
       let profileData: any = userDoc.exists() ? userDoc.data() : null;
 
-      // 2. If not found by UID, search for pre-registered user in users collection by email
-      if (!profileData && targetEmail) {
-        const q = query(collection(db, 'users'), where('email', '==', targetEmail));
-        const querySnapshot = await getDocs(q);
-        
-        if (!querySnapshot.empty) {
-          // Found pre-created profile(s) created in Admin screen!
-          // Merge duplicates if any and link to authUser.uid
-          const docs = querySnapshot.docs;
-          let mergedData: any = {};
-          
-          for (const d of docs) {
-            const currentData = d.data();
-            const rolesPriority = ['admin', 'manager', 'triagem', 'internal_seller', 'financial', 'marketing', 'vendedor_padrao', 'external_seller', ''];
-            const currentRoleIdx = rolesPriority.indexOf(mergedData.role || '');
-            const tempRoleIdx = rolesPriority.indexOf(currentData.role || '');
-            const bestRole = (currentRoleIdx !== -1 && tempRoleIdx !== -1 && tempRoleIdx < currentRoleIdx)
-              ? currentData.role
-              : (mergedData.role || currentData.role || 'external_seller');
-            
-            mergedData = {
-              ...currentData,
-              ...mergedData,
-              role: bestRole,
-              is_lead_receiver: mergedData.is_lead_receiver || currentData.is_lead_receiver || false,
-              permissions: {
-                sidebar: { ...(currentData.permissions?.sidebar || {}), ...(mergedData.permissions?.sidebar || {}) },
-                dashboard_cards: { ...(currentData.permissions?.dashboard_cards || {}), ...(mergedData.permissions?.dashboard_cards || {}) }
-              }
-            };
-          }
-          
-          const batch = writeBatch(db);
-          for (const d of docs) {
-            if (d.id !== authUser.uid) {
-              batch.delete(doc(db, 'users', d.id));
-            }
-          }
-          
-          const finalProfile = {
-            ...mergedData,
-            uid: authUser.uid,
-            status: mergedData.status || 'active',
-            updated_at: new Date().toISOString()
-          };
-
-          batch.set(doc(db, 'users', authUser.uid), finalProfile);
-          await batch.commit();
-          profileData = finalProfile;
-        }
-      }
+      // (a junção do pré-cadastro por e-mail é só do servidor: reivindicar-perfil. A cópia que havia
+      // aqui juntava qualquer users/ com o mesmo e-mail e forçava "active" no navegador.)
 
       // 3. Fallback only for master admins if their document was deleted
       if (!profileData && isMasterAdmin) {
@@ -201,40 +152,43 @@ export default function Login() {
 
     const cleanEmail = email.toLowerCase().trim();
     setLoading(true);
+    // avisa o AuthContext que esta tela tem a senha na mão: se o primeiro acesso pedir para entrar
+    // de novo, quem entra de novo é esta tela (o AuthContext não sai do login no meio)
+    marcarLoginComSenha(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, password);
-      const authUser = userCredential.user;
+      let authUser = userCredential.user;
       const targetEmail = (authUser.email || cleanEmail).toLowerCase().trim();
       const isMasterAdmin = MASTER_ADMIN_EMAILS.includes(targetEmail);
 
-      await reivindicarPerfil();
+      // E-mail confirmado pelo servidor depois do último token: pega um token novo antes de tudo
+      try {
+        const tk = await authUser.getIdTokenResult();
+        if (tk.claims.email_verified !== true) {
+          await authUser.reload();
+          if (auth.currentUser?.emailVerified) await auth.currentUser.getIdToken(true);
+        }
+      } catch { /* segue com o token que tem */ }
+
+      const reivindicado = await reivindicarPerfilDetalhado();
+      if (reivindicado.entrar_de_novo || reivindicado.motivo === 'token_revogado') {
+        // primeiro acesso confirmado pelo servidor, que derrubou os logins antigos (inclusive este):
+        // entra de novo com a mesma senha para o token novo já sair confirmado
+        authUser = (await signInWithEmailAndPassword(auth, cleanEmail, password)).user;
+      } else if (reivindicado.motivo === 'email_nao_confirmado' && !(await getDoc(doc(db, 'users', authUser.uid)).catch(() => null))?.exists()) {
+        // Sem cadastro próprio e sem e-mail confirmado, a busca do cadastro pelo e-mail logo abaixo
+        // é recusada pelas regras, e a pessoa via só "erro de permissão"
+        await signOut(auth);
+        toast.error('Seu e-mail ainda não foi confirmado neste acesso. Peça à Roder para redefinir sua senha e entre de novo com a senha nova.', { duration: 10000 });
+        return;
+      }
 
       // Check if user has a document in 'users' collection
       let userDoc = await getDoc(doc(db, 'users', authUser.uid));
       let profileData: any = userDoc.exists() ? userDoc.data() : null;
 
-      // If not found by UID, search by email
-      if (!profileData && targetEmail) {
-        const q = query(collection(db, 'users'), where('email', '==', targetEmail));
-        const snap = await getDocs(q);
-        if (!snap.empty) {
-          const docs = snap.docs;
-          let mergedData: any = {};
-          for (const d of docs) {
-            mergedData = { ...d.data(), ...mergedData };
-            if (d.id !== authUser.uid) {
-              await deleteDoc(doc(db, 'users', d.id));
-            }
-          }
-          profileData = {
-            ...mergedData,
-            uid: authUser.uid,
-            status: mergedData.status || 'active',
-            updated_at: new Date().toISOString()
-          };
-          await setDoc(doc(db, 'users', authUser.uid), profileData);
-        }
-      }
+      // (a junção do pré-cadastro por e-mail é só do servidor: reivindicar-perfil. A cópia que havia
+      // aqui juntava qualquer users/ com o mesmo e-mail e forçava "active" no navegador.)
 
       // STRICT CHECK: user must exist in users collection
       if (!profileData && !isMasterAdmin) {
@@ -264,6 +218,7 @@ export default function Login() {
         toast.error('Erro ao entrar: ' + (error.message || 'Verifique suas credenciais.'));
       }
     } finally {
+      marcarLoginComSenha(false);
       setLoading(false);
     }
   };

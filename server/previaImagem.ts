@@ -153,6 +153,8 @@ export interface OpcoesBaixar {
   // só para teste (servidor local em porta alta): em produção são 80 e 443 e a lista de bloqueio
   portas?: number[];
   ipPermitido?: (ip: string) => boolean;
+  // lista de nomes aceitos, conferida em CADA salto (um redirecionamento não sai da lista)
+  hostPermitido?: (host: string) => boolean;
 }
 
 // Confere um endereço antes de cada salto: http/https, sem usuário e senha, porta 80 ou 443,
@@ -166,6 +168,7 @@ export async function conferirDestino(url: string, op: OpcoesBaixar = {}): Promi
   const porta = u.port ? Number(u.port) : (u.protocol === 'https:' ? 443 : 80);
   if (!(op.portas || PORTAS_PERMITIDAS).includes(porta)) return null;
   const host = u.hostname.replace(/^\[|\]$/g, '');
+  if (op.hostPermitido && !op.hostPermitido(host.toLowerCase())) return null;
   const permitido = op.ipPermitido || ((ip: string) => !ipBloqueado(ip));
   if (net.isIP(host)) return permitido(host) ? { u, ip: host, familia: net.isIP(host) } : null;
   if (hostPrivado(host)) return null;

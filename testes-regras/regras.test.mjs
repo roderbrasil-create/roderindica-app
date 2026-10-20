@@ -14,7 +14,8 @@ import { ref, uploadBytes, getBytes, getMetadata } from 'firebase/storage';
 let env;
 const PROJ = 'demo-roder';
 
-// Contas de teste. "password" simula conta criada pela tela de Usuários.
+// Contas de teste. "password" simula conta com senha. As da equipe valem pelo PAPEL gravado em
+// users/{uid}, e não pelo e-mail: desde 19/10/2026 o e-mail de conta com senha só vale confirmado.
 const contas = {
   jeferson: { uid: 'u_jef', token: { email: 'roderbrasil@gmail.com', email_verified: true, firebase: { sign_in_provider: 'google.com' } } },
   gislene: { uid: 'u_gis', token: { email: 'gislene@roder.com.br', email_verified: false, firebase: { sign_in_provider: 'password' } } },
@@ -573,6 +574,65 @@ test('ANÔNIMO e SEM LOGIN não listam indicações (as páginas públicas só c
   await assertFails(getDoc(doc(fs_(null), 'indications', 'ind1')));
 });
 
+// =====================================================================
+// E-MAIL SÓ VALE CONFIRMADO (19/10/2026). O cadastro de usuário fica ligado no Firebase (o app
+// usa login anônimo), então qualquer um cria qualquer@roderbrasil.com.br com senha pela API, sem
+// acesso à caixa daquele e-mail. Essa conta não pode passar por equipe nem por diretoria.
+// =====================================================================
+const contaSenha = (uid, email, confirmado) => env.authenticatedContext(uid,
+  { email, email_verified: confirmado, firebase: { sign_in_provider: 'password' } }).firestore();
+
+test('CONTA COM SENHA criada por fora (@roderbrasil, e-mail NÃO confirmado) não é equipe', async () => {
+  const db = contaSenha('u_falso', 'qualquer@roderbrasil.com.br', false);
+  // ler settings/notifications qualquer login lê; gravar é só da equipe
+  await assertFails(setDoc(doc(db, 'settings', 'notifications'), { manager_emails: ['ataque@x.com'] }));
+  await assertFails(updateDoc(doc(db, 'stock_items', 's1'), { quantity: 99 }));
+  await assertFails(getDoc(doc(db, 'users', 'u_gis')));
+  await assertFails(getDocs(collection(db, 'users')));
+  await assertFails(getDocs(collection(db, 'indications')));
+});
+
+test('CONTA COM SENHA da equipe com e-mail CONFIRMADO pelo servidor continua equipe', async () => {
+  const db = contaSenha('u_rog2', 'rogerio2@roderbrasil.com.br', true);
+  await assertSucceeds(setDoc(doc(db, 'settings', 'notifications'), { manager_emails: [] }));
+  await assertSucceeds(updateDoc(doc(db, 'stock_items', 's1'), { quantity: 3 }));
+});
+
+test('DIRETORIA: conta com senha do e-mail do Jeferson SEM confirmação não é admin', async () => {
+  const db = contaSenha('u_falso_dir', 'jeferson@roderbrasil.com.br', false);
+  await assertFails(getDoc(doc(db, 'settings', 'email')));
+  await assertFails(getDoc(doc(db, 'api_keys', 'k1')));
+  await assertFails(setDoc(doc(db, 'users', 'u_falso_dir'), { role: 'admin', status: 'active', email: 'jeferson@roderbrasil.com.br' }));
+});
+
+test('DIRETORIA: o mesmo e-mail CONFIRMADO é admin', async () => {
+  const db = contaSenha('u_dir', 'jeferson@roderbrasil.com.br', true);
+  await assertSucceeds(getDoc(doc(db, 'settings', 'email')));
+});
+
+test('PRÉ-CADASTRO: conta com senha sem confirmação não lê o cadastro pelo e-mail (telefone, PIX, senha inicial)', async () => {
+  await semRegras((db) => setDoc(doc(db, 'users', 'temp_pre'), { email: 'precadastro@gmail.com', role: 'external_seller', status: 'pending', pix: '123', initial_password: 'x' }));
+  const falso = contaSenha('u_pre_falso', 'precadastro@gmail.com', false);
+  await assertFails(getDocs(query(collection(falso, 'users'), where('email', '==', 'precadastro@gmail.com'))));
+  const real = contaSenha('u_pre', 'precadastro@gmail.com', true);
+  await assertSucceeds(getDocs(query(collection(real, 'users'), where('email', '==', 'precadastro@gmail.com'))));
+});
+
+test('PARCEIRO com senha e e-mail NÃO confirmado não lê indicação pelo e-mail gravado nela', async () => {
+  await semRegras((db) => setDoc(doc(db, 'indications', 'ind_mail'), { status: 'pending', external_seller_email: 'parceiro@gmail.com' }));
+  const falso = contaSenha('u_par_falso', 'parceiro@gmail.com', false);
+  await assertFails(getDoc(doc(falso, 'indications', 'ind_mail')));
+  await assertSucceeds(getDoc(doc(fs_('parceiro'), 'indications', 'ind_mail')));
+});
+
+test('CONTA COM SENHA NÃO confirmada mas com users/{uid}.role internal_seller continua equipe (o papel vem do cadastro)', async () => {
+  await semRegras((db) => setDoc(doc(db, 'users', 'u_vend_nc'), { email: 'vendedora@gmail.com', role: 'internal_seller', status: 'active' }));
+  const db = contaSenha('u_vend_nc', 'vendedora@gmail.com', false);
+  await assertSucceeds(setDoc(doc(db, 'settings', 'notifications'), { manager_emails: [] }));
+  await assertSucceeds(getDocs(collection(db, 'indications')));
+  await assertSucceeds(getDoc(doc(db, 'users', 'u_gis')));
+});
+
 // ---------------- BIBLIOTECA DE VÍDEOS DO CONSULTOR (19/10/2026) ----------------
 const novoVideo = (extra = {}) => ({ produto_id: 'p1', modelo_id: 'm1', equipamento_nome: 'Garra Traçadora', modelo_nome: 'GT 600X', tipo: 'campo',
   contexto: 'GT 600X traçando eucalipto de 3 m em PC200', titulo: 'Traçando eucalipto', video_url: 'https://www.youtube.com/watch?v=abcdefghijk',
@@ -627,4 +687,120 @@ test('STORAGE VÍDEOS DO CONSULTOR: ninguém troca nem apaga pelo navegador, nem
   await assertFails(uploadBytes(ref(contaRoder().storage(), 'consultor_videos/id9/existe.mp4'), mp4(), { contentType: 'image/png' }));
   await assertSucceeds(getMetadata(ref(contaRoder().storage(), 'consultor_videos/id9/existe.mp4')));
   await assertFails(getMetadata(ref(st_('anonimo'), 'consultor_videos/id9/existe.mp4')));
+});
+
+// ---------------- CADASTRO FORJADO NO PRIMEIRO ACESSO (19/10/2026) ----------------
+// Ataque: a conta A é criada por fora como x@roderbrasil.com.br com senha. Uma segunda conta, B,
+// grava em users/{B} o e-mail de A, papel de parceiro, "pending", uma senha inicial e uma data
+// antiga. Com isso o primeiro acesso de A no servidor achava "um pré-cadastro com senha da Roder"
+// e confirmava o e-mail de A (leitura de equipe pelo domínio). Do lado das regras, B não grava nada disso.
+test('CADASTRO FORJADO: a conta B não cria users/{B} com o e-mail de outra pessoa e senha inicial', async () => {
+  const b = contaSenha('u_atacante_b', 'b@gmail.com', false);
+  await assertFails(setDoc(doc(b, 'users', 'u_atacante_b'), {
+    email: 'x@roderbrasil.com.br', role: 'external_seller', status: 'pending',
+    initial_password: 'x', initial_password_set_at: '2000-01-01T00:00:00.000Z',
+  }));
+  // nem só o e-mail alheio, nem só a senha inicial, nem só a data
+  await assertFails(setDoc(doc(b, 'users', 'u_atacante_b'), { email: 'x@roderbrasil.com.br', role: 'external_seller', status: 'pending' }));
+  await assertFails(setDoc(doc(b, 'users', 'u_atacante_b'), { email: 'b@gmail.com', role: 'external_seller', status: 'pending', initial_password: 'x' }));
+  await assertFails(setDoc(doc(b, 'users', 'u_atacante_b'), { email: 'b@gmail.com', role: 'external_seller', status: 'pending', initial_password_set_at: '2000-01-01T00:00:00.000Z' }));
+  // o cadastro próprio normal continua: o e-mail do próprio login CONFIRMADO (qualquer caixa), ou sem e-mail
+  const bConfirmado = contaSenha('u_atacante_b', 'b@gmail.com', true);
+  await assertSucceeds(setDoc(doc(bConfirmado, 'users', 'u_atacante_b'), { email: 'B@gmail.com', role: 'external_seller', status: 'pending', name: 'B' }));
+});
+
+// ---------------- CADASTRO DE PODER AUTO-CRIADO (20/10/2026) ----------------
+// Ataque: o dono do e-mail X cria uma segunda conta com senha (Q), que o Firebase aceita sem
+// confirmar, e grava users/Q com o e-mail X, comissão de 50%, comissionável e "recebe lead". Depois
+// entra como X (confirmado, sem users/X) e o primeiro acesso juntava users/Q. Aqui o cadastro nem nasce.
+test('PODER AUTO-CRIADO: a conta Q não cria users/Q com taxa, comissionável ou recebe lead', async () => {
+  const q = contaSenha('u_q', 'x@gmail.com', false);
+  const base = { role: 'external_seller', status: 'pending', name: 'Q' };
+  // o cenário exato do ataque, com e-mail de outra pessoa não confirmado
+  await assertFails(setDoc(doc(q, 'users', 'u_q'), { ...base, email: 'x@gmail.com', is_commissionable: true, commission_rate: 50, is_lead_receiver: true }));
+  // cada campo de poder sozinho, mesmo sem e-mail, e também numa conta confirmada (Google)
+  const google = env.authenticatedContext('u_g', { email: 'g@gmail.com', email_verified: true, firebase: { sign_in_provider: 'google.com' } }).firestore();
+  for (const campo of [{ commission_rate: 50 }, { is_commissionable: true }, { is_lead_receiver: true }, { commission_rate: 0 }, { is_commissionable: false }]) {
+    await assertFails(setDoc(doc(q, 'users', 'u_q'), { ...base, ...campo }));
+    await assertFails(setDoc(doc(google, 'users', 'u_g'), { ...base, email: 'g@gmail.com', ...campo }));
+  }
+  // nem status ativo, nem papel de equipe, nem permissões
+  await assertFails(setDoc(doc(google, 'users', 'u_g'), { ...base, email: 'g@gmail.com', status: 'active' }));
+  await assertFails(setDoc(doc(google, 'users', 'u_g'), { ...base, email: 'g@gmail.com', role: 'manager' }));
+  await assertFails(setDoc(doc(google, 'users', 'u_g'), { ...base, email: 'g@gmail.com', permissions: { sidebar: { users: true } } }));
+});
+
+test('E-MAIL SÓ CONFIRMADO: conta com senha sem confirmação não grava e-mail no cadastro (criar nem editar)', async () => {
+  const q = contaSenha('u_q', 'x@gmail.com', false);
+  await assertFails(setDoc(doc(q, 'users', 'u_q'), { role: 'external_seller', status: 'pending', email: 'x@gmail.com' }));
+  // sem e-mail nasce; depois não consegue pôr o e-mail
+  await assertSucceeds(setDoc(doc(q, 'users', 'u_q'), { role: 'external_seller', status: 'pending', name: 'Q' }));
+  await assertFails(updateDoc(doc(q, 'users', 'u_q'), { email: 'x@gmail.com' }));
+  await assertSucceeds(updateDoc(doc(q, 'users', 'u_q'), { name: 'Q2', phone: '14999990000' }));
+});
+
+test('CADASTRO PRÓPRIO NORMAL: quem entra com Google (confirmado) cria o próprio users/{uid} com o e-mail', async () => {
+  const g = env.authenticatedContext('u_g', { email: 'Novo@Gmail.com', email_verified: true, firebase: { sign_in_provider: 'google.com' } }).firestore();
+  await assertSucceeds(setDoc(doc(g, 'users', 'u_g'), { uid: 'u_g', email: 'novo@gmail.com', role: 'external_seller', status: 'pending', name: 'Novo', created_at: 'x' }));
+  await assertSucceeds(updateDoc(doc(g, 'users', 'u_g'), { name: 'Novo 2', updated_at: 'y' }));
+  // e a gestão continua pré-cadastrando com taxa e comissionável (tela de Usuários)
+  await assertSucceeds(setDoc(doc(fs_('gislene'), 'users', 'temp_77'), { role: 'external_seller', email: 'pre@x.com', status: 'pending', is_commissionable: true, commission_rate: 3, is_lead_receiver: false }));
+});
+
+test('CADASTRO FORJADO: a conta B não troca o próprio e-mail para o de outra pessoa nem põe senha inicial depois', async () => {
+  await semRegras((db) => setDoc(doc(db, 'users', 'u_atacante_b'), { uid: 'u_atacante_b', email: 'b@gmail.com', role: 'external_seller', status: 'pending' }));
+  const b = contaSenha('u_atacante_b', 'b@gmail.com', false);
+  await assertFails(updateDoc(doc(b, 'users', 'u_atacante_b'), { email: 'x@roderbrasil.com.br' }));
+  await assertFails(updateDoc(doc(b, 'users', 'u_atacante_b'), { initial_password: 'x' }));
+  await assertFails(updateDoc(doc(b, 'users', 'u_atacante_b'), { initial_password_set_at: '2000-01-01T00:00:00.000Z' }));
+  // edição normal do perfil (Profile.tsx manda o e-mail de volta sem mudar) continua
+  await assertSucceeds(updateDoc(doc(b, 'users', 'u_atacante_b'), { email: 'b@gmail.com', name: 'B', phone: '14999990000', updated_at: 'x' }));
+});
+
+test('CADASTRO FORJADO: gerente e triagem cadastram com senha inicial, mas a data da senha é só do servidor', async () => {
+  await assertSucceeds(setDoc(doc(fs_('gislene'), 'users', 'temp_9'), { role: 'external_seller', email: 'novo@x.com', status: 'pending', initial_password: 'abc123' }));
+  await assertFails(setDoc(doc(fs_('luana'), 'users', 'temp_10'), { role: 'external_seller', email: 'n@x.com', status: 'pending', initial_password: 'abc123', initial_password_set_at: '2000-01-01T00:00:00.000Z' }));
+  await assertFails(updateDoc(doc(fs_('gislene'), 'users', 'temp_9'), { initial_password_set_at: '2000-01-01T00:00:00.000Z' }));
+});
+
+test('CADASTRO FORJADO: a marca da senha inicial (senhas_iniciais) ninguém lê nem grava pelo navegador', async () => {
+  await semRegras((db) => setDoc(doc(db, 'senhas_iniciais', 'temp_1'), { cadastro_id: 'temp_1', email: 'x@roderbrasil.com.br', definida_em: '2026-10-19T00:00:00Z', definida_por_uid: 'u_jef' }));
+  for (const quem of ['jeferson', 'gislene', 'parceiro', 'anonimo']) {
+    await assertFails(getDoc(doc(fs_(quem), 'senhas_iniciais', 'temp_1')));
+    await assertFails(setDoc(doc(fs_(quem), 'senhas_iniciais', 'temp_2'), { cadastro_id: 'temp_2', email: 'y@x.com', definida_em: '2000-01-01T00:00:00Z', definida_por_uid: 'u_jef' }));
+  }
+  await assertFails(setDoc(doc(contaSenha('u_atacante_b', 'b@gmail.com', false), 'senhas_iniciais', 'u_atacante_b'), { cadastro_id: 'u_atacante_b' }));
+});
+
+test('o registro das senhas definidas pela gestão (senhas_definidas_pela_gestao) é só do servidor', async () => {
+  await semRegras((db) => setDoc(doc(db, 'senhas_definidas_pela_gestao', 'r1'), { quando: '2026-10-20T00:00:00Z', quem_uid: 'u_gis', email_alvo: 'p@x.com' }));
+  for (const quem of ['jeferson', 'gislene', 'luana', 'parceiro', 'anonimo']) {
+    await assertFails(getDoc(doc(fs_(quem), 'senhas_definidas_pela_gestao', 'r1')));
+    await assertFails(setDoc(doc(fs_(quem), 'senhas_definidas_pela_gestao', 'r2'), { quando: '2000-01-01T00:00:00Z' }));
+  }
+});
+
+// O primeiro acesso decide pelo Auth: users/{código} que não é uid de conta de login é pré-cadastro.
+// Isso só é seguro porque o atacante não cria users/{código alheio} (20/10/2026).
+test('PRÉ-CADASTRO: só a gestão cria users/{código} que não é o uid de quem escreve (heloisa_1, temp_x)', async () => {
+  const q = contaSenha('u_q', 'x@gmail.com', false);
+  const g = env.authenticatedContext('u_g', { email: 'g@gmail.com', email_verified: true, firebase: { sign_in_provider: 'google.com' } }).firestore();
+  const dado = { role: 'external_seller', status: 'pending', email: 'x@gmail.com' };
+  for (const id of ['heloisa_1', 'temp_x', 'phone_14999990000', 'luana_1', 'qualquer']) {
+    await assertFails(setDoc(doc(q, 'users', id), dado));
+    await assertFails(setDoc(doc(g, 'users', id), { ...dado, email: 'g@gmail.com' }));
+    await assertFails(setDoc(doc(fs_('parceiro'), 'users', id), { ...dado, email: 'parceiro@gmail.com' }));
+  }
+  // a gestão cria o convite rápido com papel de equipe, como o botão fazia
+  await assertSucceeds(setDoc(doc(fs_('gislene'), 'users', 'heloisa_1'), { role: 'internal_seller', status: 'active', email: 'heloisa2@gmail.com', is_lead_receiver: true }));
+  await assertSucceeds(setDoc(doc(fs_('jeferson'), 'users', 'luana_1'), { role: 'triagem', status: 'active', email: 'luana2@gmail.com' }));
+});
+
+// assigned_regions é poder (define de quem é a indicação por estado): só a gestão grava (20/10/2026).
+test('REGIÕES: o próprio cadastro não cria nem muda assigned_regions', async () => {
+  const g = env.authenticatedContext('u_g', { email: 'g@gmail.com', email_verified: true, firebase: { sign_in_provider: 'google.com' } }).firestore();
+  await assertFails(setDoc(doc(g, 'users', 'u_g'), { role: 'vendedor_padrao', status: 'pending', email: 'g@gmail.com', assigned_regions: ['PR', 'SC'] }));
+  await assertSucceeds(setDoc(doc(g, 'users', 'u_g'), { role: 'vendedor_padrao', status: 'pending', email: 'g@gmail.com', name: 'G' }));
+  await assertFails(updateDoc(doc(g, 'users', 'u_g'), { assigned_regions: ['PR'] }));
+  await assertSucceeds(updateDoc(doc(fs_('gislene'), 'users', 'u_par'), { assigned_regions: ['PR'] }));
 });

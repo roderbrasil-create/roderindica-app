@@ -6,8 +6,9 @@ import {
   GoogleAuthProvider, 
   signInWithPopup
 } from 'firebase/auth';
-import { doc, onSnapshot, collection, query, where, writeBatch, getDocs, getDoc } from 'firebase/firestore';
-import { auth, db, reivindicarPerfil } from '../lib/firebase';
+import { doc, onSnapshot, getDoc } from 'firebase/firestore';
+import { toast } from 'sonner';
+import { auth, db, reivindicarPerfilDetalhado, loginComSenhaEmAndamento } from '../lib/firebase';
 import { UserProfile, UserRole } from '../types';
 import { AuditService, AuditAction } from '../lib/AuditService';
 
@@ -153,6 +154,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
+        // E-mail confirmado pelo servidor depois do login (19/10/2026): o token antigo continua
+        // dizendo "não confirmado" por até 1 hora, e as regras só confiam no confirmado. Recarrega
+        // a conta e, se ela já estiver confirmada, pede um token novo antes de ler qualquer coisa.
+        if (!user.isAnonymous && user.email) {
+          try {
+            const tk = await user.getIdTokenResult();
+            if (tk.claims.email_verified !== true) {
+              await user.reload();
+              if (auth.currentUser?.emailVerified) await auth.currentUser.getIdToken(true);
+            }
+          } catch (e) {
+            console.warn('Não consegui renovar o token do login:', e);
+          }
+        }
+
         const userDocRef = doc(db, 'users', user.uid);
         
         // Check if the user document already exists directly to skip email searches and list queries
@@ -174,115 +190,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
 
         // 0. Primeiro acesso de quem foi pré-cadastrado: o servidor faz a passagem do cadastro
+        // (pedido único, compartilhado com a tela de login: ver reivindicarPerfilDetalhado)
         if (user.email && !userDocExists) {
-          if (await reivindicarPerfil()) userDocExists = true;
-        }
-
-        // 1. One-time check/migration logic for Email (resolving accent differences & duplicates)
-        if (user.email) {
-          try {
-            const targetEmail = user.email.toLowerCase().trim();
-            // Use a secure filtered query that regular users have permission to execute
-            const q = query(collection(db, 'users'), where('email', '==', targetEmail));
-            const querySnapshot = await getDocs(q);
-            
-            let tempProfileDocs: any[] = [];
-            let realProfileDoc: any = null;
-            
-            for (const docSnap of querySnapshot.docs) {
-              if (docSnap.id === user.uid) {
-                realProfileDoc = docSnap;
-              } else {
-                tempProfileDocs.push(docSnap);
-              }
-            }
-            
-            if (tempProfileDocs.length > 0) {
-              const batch = writeBatch(db);
-              const realRef = doc(db, 'users', user.uid);
-              
-              let mergedProfile: any = {};
-              if (realProfileDoc) {
-                mergedProfile = { ...realProfileDoc.data() };
-              }
-              
-              for (const tempDoc of tempProfileDocs) {
-                const tempData = tempDoc.data();
-                
-                // Keep the strongest role (admin, manager, triagem, etc.)
-                const rolesPriority = ['admin', 'manager', 'financial', 'triagem', 'internal_seller', 'marketing', 'vendedor_padrao', 'external_seller', ''];
-                const currentRoleIdx = rolesPriority.indexOf(mergedProfile.role || '');
-                const tempRoleIdx = rolesPriority.indexOf(tempData.role || '');
-                const bestRole = (currentRoleIdx !== -1 && tempRoleIdx !== -1 && tempRoleIdx < currentRoleIdx)
-                  ? tempData.role
-                  : (mergedProfile.role || tempData.role || 'internal_seller');
-                
-                // Preserve lead receiver status
-                const isLeadReceiver = mergedProfile.is_lead_receiver || tempData.is_lead_receiver || false;
-
-                // Merge permissions specifically to ensure they aren't lost
-                const currentPermissions = mergedProfile.permissions || {};
-                const tempPermissions = tempData.permissions || {};
-                const mergedPermissions = {
-                  sidebar: { ...(tempPermissions.sidebar || {}), ...(currentPermissions.sidebar || {}) },
-                  dashboard_cards: { ...(tempPermissions.dashboard_cards || {}), ...(currentPermissions.dashboard_cards || {}) }
-                };
-                
-                mergedProfile = {
-                  ...tempData,
-                  ...mergedProfile, // keep realProfile info if any over temp
-                  role: bestRole,
-                  is_lead_receiver: isLeadReceiver,
-                  permissions: mergedPermissions,
-                  uid: user.uid,
-                  status: 'active',
-                  updated_at: new Date().toISOString()
-                };
-                
-                batch.delete(doc(db, 'users', tempDoc.id));
-                
-                // Keep historical references updated (indications & fair_leads matching temp ID)
-                try {
-                  const indQ = query(collection(db, 'indications'), where('internal_seller_uid', '==', tempDoc.id));
-                  const indSnap = await getDocs(indQ);
-                  indSnap.forEach(indDoc => {
-                    batch.update(doc(db, 'indications', indDoc.id), {
-                      internal_seller_uid: user.uid,
-                      updated_at: new Date().toISOString()
-                    });
-                  });
-
-                  const indQ2 = query(collection(db, 'indications'), where('assigned_to_uid', '==', tempDoc.id));
-                  const indSnap2 = await getDocs(indQ2);
-                  indSnap2.forEach(indDoc => {
-                    batch.update(doc(db, 'indications', indDoc.id), {
-                      assigned_to_uid: user.uid,
-                      updated_at: new Date().toISOString()
-                    });
-                  });
-
-                  const fairQ = query(collection(db, 'fair_leads'), where('assigned_to_uid', '==', tempDoc.id));
-                  const fairSnap = await getDocs(fairQ);
-                  fairSnap.forEach(fairDoc => {
-                    batch.update(doc(db, 'fair_leads', fairDoc.id), {
-                      assigned_to_uid: user.uid,
-                      updated_at: new Date().toISOString()
-                    });
-                  });
-                } catch (updateRefErr) {
-                  console.error("Non-blocking reference update error during login merge:", updateRefErr);
-                }
-              }
-              
-              batch.set(realRef, mergedProfile);
-              await batch.commit();
-              console.log("Successfully merged duplicate/temp profile in AuthContext for:", user.email);
-              userDocExists = true;
-            }
-          } catch (mergeErr) {
-            console.error("Non-blocking profile merge error:", mergeErr);
+          const reivindicado = await reivindicarPerfilDetalhado();
+          if (reivindicado.merged) userDocExists = true;
+          if ((reivindicado.entrar_de_novo || reivindicado.motivo === 'token_revogado') && !loginComSenhaEmAndamento()) {
+            // O servidor confirmou o e-mail e derrubou os logins, e aqui não há senha na mão para
+            // entrar de novo (sessão que voltou sozinha, outra aba). Sai com aviso claro, em vez de
+            // seguir com um login que cai sozinho daqui a pouco.
+            localStorage.removeItem('roder_profile_cache');
+            await signOut(auth);
+            toast.info('Seu acesso foi confirmado. Entre de novo com seu e-mail e senha.', { duration: 10000 });
+            if (isMounted) setLoading(false);
+            return;
           }
         }
+
+        // A junção do pré-cadastro (por e-mail) acontece só no servidor, no passo 0 acima. A cópia que
+        // havia aqui juntava QUALQUER users/ com o mesmo e-mail e forçava "active" no navegador; com
+        // o cadastro de usuário aberto no Firebase isso deixava um cadastro forjado virar ativo.
 
         if (!isMounted) return;
 
@@ -347,39 +273,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               'luana@roderbrasil.com.br'
             ].includes(userEmail);
 
-            // Step A: Check if this user was pre-registered in users collection by email
-            let foundByEmail = false;
-            if (userEmail) {
-              try {
-                const q = query(collection(db, 'users'), where('email', '==', userEmail));
-                const querySnapshot = await getDocs(q);
-                if (!querySnapshot.empty) {
-                  const docs = querySnapshot.docs;
-                  let mergedData: any = {};
-                  for (const d of docs) {
-                    mergedData = { ...d.data(), ...mergedData };
-                  }
-                  const { setDoc, deleteDoc } = await import('firebase/firestore');
-                  for (const d of docs) {
-                    if (d.id !== user.uid) {
-                      await deleteDoc(doc(db, 'users', d.id));
-                    }
-                  }
-                  await setDoc(doc(db, 'users', user.uid), {
-                    ...mergedData,
-                    uid: user.uid,
-                    status: mergedData.status || 'active',
-                    updated_at: new Date().toISOString()
-                  });
-                  foundByEmail = true;
-                  return; // snapshot will trigger again with exists() = true
-                }
-              } catch (lookupErr) {
-                console.warn("[AUTH] Error checking pre-registered email:", lookupErr);
-              }
-            }
+            // (a busca de pré-cadastro por e-mail é do servidor: reivindicar-perfil, no passo 0)
 
-            // Step B: If not pre-registered, only Master Admins are allowed to auto-initialize
+            // Sem pré-cadastro (o servidor já tentou), só os Master Admins are allowed to auto-initialize
             if (isExplicitMasterAdmin) {
               console.log("Auto-initializing master admin profile for:", userEmail);
               try {

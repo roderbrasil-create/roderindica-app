@@ -41,8 +41,9 @@ import { criarBibliotecaVideos, instrucaoVideos, sanitizarPainel } from "./serve
 import { criarRotasArquivosVideos } from "./server/arquivosVideosConsultor";
 import { instrucaoPerfilConsultor } from "./server/consultorPerfil";
 import { injetarPrevia, previaPadrao, previaDoEquipamento, codigoLimpo, SITE_PREVIA } from "./server/previaLink";
-import { criarImagemPrevia, candidatasDoLink, urlImagemPrevia, MAX_ORIGEM_BYTES, PASTA_CACHE } from "./server/previaImagem";
+import { criarImagemPrevia, candidatasDoLink, urlImagemPrevia, MAX_ORIGEM_BYTES, PASTA_CACHE, baixarExterna } from "./server/previaImagem";
 import { fotosExternas, RodadaEmAndamento } from "./server/fotosExternas";
+import { emailConfiavelDoToken, ehDiretoriaPeloToken, papelDeQuemChama, classificarConta, podeConfirmarPrimeiroAcesso, podeDefinirSenha, ehIdDePreCadastro, escolherPreCadastros, camposDoPreCadastro, papeisDaContaAlvo, type MarcaSenhaInicial } from "./server/emailConfiavel";
 import { registrarDiagnosticoComissao, moverComissoesDoProvisorio, loteEmPartes } from "./server/diagnosticoComissao";
 import { conciliarComTrava, registrarCorrecoesAutomaticas } from "./server/conciliacaoComissao";
 import { garantirEmailsLigados } from "./server/emailsSempreLigados";
@@ -566,6 +567,7 @@ async function startServer() {
     async (req: any, res: any, next: any) => {
       if (req.method === 'OPTIONS') return next();
       if (ehGestao(await quemChama(req))) return next();
+      if (negarSessaoRevogada(req, res)) return;
       return res.status(403).json({ success: false, error: 'Acesso restrito à gestão.' });
     });
 
@@ -960,6 +962,7 @@ Retorne um array JSON no formato exato:
       // Só a equipe, e só imagem ou PDF. Antes, sem login, alguém subia um .html que o próprio
       // roderindica.com servia, e com ele roubava a sessão de quem abrisse.
       if (!ehEquipe(await quemChama(req))) {
+        if (negarSessaoRevogada(req, res)) return;
         return res.status(401).json({ error: "Entre no app para enviar arquivos." });
       }
       if (!/\.(jpe?g|jfif|png|webp|gif|heic|heif|pdf|webm|m4a|mp3|ogg|wav|docx?|xlsx?)$/i.test(String(fileName))) {
@@ -1092,15 +1095,37 @@ Retorne um array JSON no formato exato:
     try {
       const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
       if (!token || token.length < 100) return null;
-      const dec: any = await admin.auth().verifyIdToken(token);
+      // checkRevoked: sessão derrubada (senha trocada pelo admin, por exemplo) deixa de valer aqui
+      // também. Quem chama as rotas de gestão com login revogado recebe 401 "token_revogado".
+      let dec: any;
+      try {
+        dec = await admin.auth().verifyIdToken(token, true);
+      } catch (e: any) {
+        if (e?.code === 'auth/id-token-revoked') req.sessaoRevogada = true;
+        return null;
+      }
       if (dec.firebase?.sign_in_provider === 'anonymous') return null;
       const email = (dec.email || '').toLowerCase();
       let role = '';
-      try { role = String((await db.collection('users').doc(dec.uid).get()).data()?.role || ''); } catch { /* sem banco: fica só o e-mail */ }
-      // diretoria reconhecida pelo e-mail verificado, mesmo se o cadastro estiver com outro papel
-      if (dec.email_verified && ['roderbrasil@gmail.com', 'roderindica@gmail.com', 'jeferson@roderbrasil.com.br'].includes(email)) role = 'admin';
+      // O papel do cadastro só vale com status "active". O cadastro próprio nasce "pending" (ou sem
+      // status) pelas regras e pode levar o papel vendedor_padrao, que está em EQUIPE_RODER: sem esta
+      // conferência, quem criou a conta sozinho contava como equipe no servidor (envio de arquivos,
+      // configurações públicas). O primeiro acesso e a gestão gravam "active".
+      try {
+        const cad: any = (await db.collection('users').doc(dec.uid).get()).data();
+        role = cad?.status === 'active' ? String(cad?.role || '') : '';
+      } catch { /* sem banco: fica só o e-mail */ }
+      // Papel pelo cadastro. A diretoria vale pelo e-mail só CONFIRMADO: conta com senha criada
+      // por fora (cadastro aberto no Firebase) não confirma e-mail nenhum. Ver server/emailConfiavel.ts
+      role = papelDeQuemChama(dec, role);
       return { uid: dec.uid, email, role };
     } catch { return null; }
+  }
+  // Resposta para login revogado: 401 com código claro (o app manda a pessoa entrar de novo).
+  function negarSessaoRevogada(req: any, res: any): boolean {
+    if (!req.sessaoRevogada) return false;
+    res.status(401).json({ ok: false, success: false, codigo: 'token_revogado', error: 'Seu acesso precisa ser feito de novo. Entre outra vez com seu e-mail e senha.' });
+    return true;
   }
   const envioPublicoPorIp = new Map<string, number[]>();
   const EQUIPE_RODER = ['admin', 'manager', 'triagem', 'internal_seller', 'financial', 'finance', 'fiscal', 'marketing', 'assistant', 'vendedor_padrao'];
@@ -1198,14 +1223,47 @@ Retorne um array JSON no formato exato:
     if (!r.ok) { const e: any = new Error(j?.error?.message || `Erro ${r.status} na API de regras`); e.status = r.status; throw e; }
     return j;
   }
+  // Rodada única que confirma o e-mail das contas antigas da equipe (marcarContasDaEquipe).
+  // As regras novas só podem ir ao ar depois dela, senão a equipe com senha perde o acesso.
+  const TRAVA_EMAIL_CONFIRMADO = 'marcar_email_confirmado_equipe_v1';
+  // Senhas definidas por gerente ou triagem em /api/admin/set-user-password (só o servidor grava e lê)
+  const COLECAO_SENHAS_PELA_GESTAO = 'senhas_definidas_pela_gestao';
+  async function ultimasSenhasPelaGestao(limite = 20) {
+    const q = await db.collection(COLECAO_SENHAS_PELA_GESTAO).orderBy('quando', 'desc').limit(limite).get();
+    return q.docs.map(d => {
+      const x: any = d.data();
+      return { quando: x.quando || '', quem_email: x.quem_email || '', quem_papel: x.quem_papel || '', email_alvo: x.email_alvo || '', cadastro_id: x.cadastro_id || '', tipo: x.tipo || '' };
+    });
+  }
+  async function resultadoEmailConfirmado() {
+    const t: any = (await db.collection('cron_locks').doc(TRAVA_EMAIL_CONFIRMADO).get()).data();
+    if (!t) return { terminou: false, iniciada_em: null };
+    return {
+      terminou: !!t.finished_at,
+      iniciada_em: t.started_at || null,
+      finished_at: t.finished_at || null,
+      contas: t.contas ?? null,
+      com_senha_sem_confirmar: t.comSenhaSemConfirmar ?? null,
+      marcadas: t.marcadas ?? null,
+      deixadas: (t.semCadastroAtivo ?? 0) + (t.diretoria ?? 0),
+      erros: t.erros ?? 0,
+      // rodada antiga gravava só o e-mail (texto); a nova grava e-mail, papel e código do cadastro
+      marcadas_emails: Array.isArray(t.marcadas_emails)
+        ? t.marcadas_emails.map((m: any) => (typeof m === 'string' ? { email: m, role: '', doc_id: '' } : m))
+        : [],
+      pendentes: Array.isArray(t.pendentes) ? t.pendentes : [],
+    };
+  }
   async function exigirAdmin(req: any, res: any) {
     const q = await quemChama(req);
+    if (negarSessaoRevogada(req, res)) return null;
     if (!q || q.role !== 'admin') { res.status(403).json({ ok: false, error: 'Só o administrador.' }); return null; }
     return q;
   }
 
   async function exigirGestaoComissao(req: any, res: any) {
     const q = await quemChama(req);
+    if (negarSessaoRevogada(req, res)) return null;
     if (!ehGestao(q)) { res.status(403).json({ ok: false, error: 'Só o administrador ou a gerência podem trocar o indicador de uma venda faturada.' }); return null; }
     return q;
   }
@@ -1237,6 +1295,8 @@ Retorne um array JSON no formato exato:
           pode_voltar: !!hist.data()?.anterior,
         };
       }
+      out.email_confirmado = await resultadoEmailConfirmado().catch((e: any) => ({ terminou: false, erro: e.message }));
+      out.senhas_pela_gestao = await ultimasSenhasPelaGestao().catch((e: any) => ({ erro: e.message }));
       return res.json(out);
     } catch (e: any) {
       return res.status(500).json({ ok: false, error: e.message });
@@ -1245,6 +1305,11 @@ Retorne um array JSON no formato exato:
 
   app.post('/api/admin/regras/publicar', async (req, res) => {
     const q = await exigirAdmin(req, res); if (!q) return;
+    // Sem a rodada do e-mail confirmado terminada, publicar tiraria o acesso da equipe com senha
+    const rodada = await resultadoEmailConfirmado().catch(() => null);
+    if (!rodada?.terminou) {
+      return res.status(409).json({ ok: false, error: 'A conferência das contas da equipe ainda não terminou. Espere alguns segundos depois de o servidor subir e recarregue esta tela.', feito: {} });
+    }
     const alvos = req.body?.alvo === 'storage' ? ['storage'] : req.body?.alvo === 'firestore' ? ['firestore'] : ['firestore', 'storage'];
     const n = nomesRelease();
     const feito: any = {};
@@ -1321,25 +1386,49 @@ Retorne um array JSON no formato exato:
       const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
       if (!token) return res.status(401).json({ ok: false });
       // checkRevoked: se o admin trocou a senha, um login antigo de outra pessoa deixa de valer aqui
-      const dec: any = await admin.auth().verifyIdToken(token, true);
+      let dec: any;
+      try {
+        dec = await admin.auth().verifyIdToken(token, true);
+      } catch (e: any) {
+        // Login derrubado (primeiro acesso já confirmado em outra aba, ou senha trocada pelo admin)
+        // ou token vencido: é "entre de novo", e não erro do servidor
+        const codigo = e?.code === 'auth/id-token-revoked' ? 'token_revogado' : 'token_invalido';
+        return res.status(401).json({ ok: false, codigo, error: 'Seu acesso precisa ser feito de novo. Entre outra vez com seu e-mail e senha.' });
+      }
       const email = String(dec.email || '').toLowerCase().trim();
       if (!email || dec.firebase?.sign_in_provider === 'anonymous') return res.status(401).json({ ok: false });
-      // Conta com senha só nasce pela tela de Usuários (o app não tem cadastro aberto), então vale.
-      // Para garantir, o cadastro público fica DESLIGADO no Firebase (Authentication > Configurações).
-      if (!dec.email_verified && dec.firebase?.sign_in_provider !== 'password') {
-        return res.json({ ok: true, merged: false, motivo: 'email_nao_confirmado' });
-      }
-
+      // Só e-mail CONFIRMADO. Antes a conta com senha valia sozinha, e com o cadastro aberto no
+      // Firebase qualquer pessoa criava a conta do e-mail de um pré-cadastrado e herdava o papel
+      // dele. A conta com senha que a tela de Usuários cria já nasce confirmada pelo servidor.
+      const confirmado = !!emailConfiavelDoToken(dec);
       const achados = await db.collection('users').where('email', '==', email).get();
-      let temporarios = achados.docs.filter(d => d.id !== dec.uid);
-      // Conta com senha e e-mail não confirmado: só vale o pré-cadastro em que o admin definiu a
-      // senha (aí a conta de login foi criada pelo próprio servidor, e não por quem chegou primeiro).
-      if (!dec.email_verified) temporarios = temporarios.filter(d => !!(d.data() as any).initial_password);
+      // Só pré-cadastro de verdade (temp_/phone_, que não é conta de login), no e-mail confirmado
+      // e no não confirmado. Cadastro de outra conta de login com este e-mail (users/{uid} gravado
+      // pelo próprio atacante, com taxa de comissão e "recebe lead" de sua escolha) nunca é juntado.
+      // No não confirmado vale ainda a marca que só o servidor grava ao definir a senha
+      // (senhas_iniciais/{código}) e o login feito depois dela (podeConfirmarPrimeiroAcesso).
+      const porId = new Map(achados.docs.map(d => [d.id, d]));
+      const escolhidos = await escolherPreCadastros({
+        cadastros: achados.docs.map(d => ({ id: d.id, dados: d.data() })),
+        uidDoLogin: dec.uid,
+        confirmado,
+        dec,
+        ehContaDeLogin: (id) => admin.auth().getUser(id).then(() => true).catch((e: any) => e?.code !== 'auth/user-not-found'),
+        marcaDe: async (id) => (await db.collection('senhas_iniciais').doc(id).get()).data() as MarcaSenhaInicial | undefined,
+      });
+      const temporarios = escolhidos.map(c => porId.get(c.id)!);
+      if (!confirmado && temporarios.length === 0) return res.json({ ok: true, merged: false, motivo: 'email_nao_confirmado' });
       if (temporarios.length === 0) return res.json({ ok: true, merged: false });
 
       const realRef = db.collection('users').doc(dec.uid);
       const realSnap = await realRef.get();
       let perfil: any = realSnap.exists ? { ...realSnap.data() } : {};
+      // O cadastro próprio que ainda não foi ativado pela gestão não leva poder para o perfil final:
+      // quem vale é o pré-cadastro (ativo). Sem isso, campo de poder gravado ali antes das regras
+      // novas passaria por cima do que a gestão definiu.
+      if (perfil.status !== 'active') {
+        for (const k of ['commission_rate', 'is_commissionable', 'is_lead_receiver', 'assigned_regions']) delete perfil[k];
+      }
       const prioridade = ['admin', 'manager', 'financial', 'triagem', 'internal_seller', 'marketing', 'vendedor_padrao', 'external_seller', ''];
       for (const t of temporarios) {
         const td: any = t.data();
@@ -1347,7 +1436,7 @@ Retorne um array JSON no formato exato:
         const iTemp = prioridade.indexOf(td.role || '');
         const papel = (iAtual !== -1 && iTemp !== -1 && iTemp < iAtual) ? td.role : (perfil.role || td.role || 'external_seller');
         perfil = {
-          ...td, ...perfil,
+          ...camposDoPreCadastro(td), ...perfil,
           role: papel,
           is_lead_receiver: perfil.is_lead_receiver || td.is_lead_receiver || false,
           permissions: {
@@ -1386,9 +1475,22 @@ Retorne um array JSON no formato exato:
       const movidos = await moverComissoesDoProvisorio(db, lote, temporarios.map((t: any) => t.id), dec.uid, perfil.updated_at, perfil.name);
       if (movidos.presos.length) console.warn(`[AUTH] ${email}: ${movidos.presos.length} fechamento(s) do provisório não puderam ser juntados (pago ou aguardando pagamento).`);
       // apagar o provisório vai por último: se uma parte do lote falhar, ele continua lá para a próxima tentativa
-      temporarios.forEach((t: any) => lote.delete(t.ref));
+      // a marca da senha inicial (senhas_iniciais/{código}) vale uma vez só e sai junto com o provisório
+      temporarios.forEach((t: any) => {
+        lote.delete(t.ref);
+        lote.delete(db.collection('senhas_iniciais').doc(t.id));
+      });
       await lote.commit();
       console.log(`[AUTH] Perfil pré-cadastrado passado para ${email} (${temporarios.length} provisório(s)).`);
+      if (!confirmado) {
+        // A senha da Roder provou o dono do e-mail: a conta passa a confirmada. Os logins antigos
+        // (de antes da senha da Roder, que podem ser de quem criou a conta por fora) caem, inclusive
+        // este; o app entra de novo com a mesma senha para pegar o token já confirmado.
+        await admin.auth().updateUser(dec.uid, { emailVerified: true });
+        await admin.auth().revokeRefreshTokens(dec.uid);
+        console.log(`[AUTH] E-mail de ${email} confirmado no primeiro acesso (senha definida pela Roder).`);
+        return res.json({ ok: true, merged: true, entrar_de_novo: true });
+      }
       return res.json({ ok: true, merged: true });
     } catch (err: any) {
       console.error('[AUTH] reivindicar-perfil:', err?.message);
@@ -1406,6 +1508,7 @@ Retorne um array JSON no formato exato:
       // Sem login só sai o que as fichas públicas usam. Antes, /api/settings/email devolvia a
       // senha do Gmail e /api/settings/agendor o token para qualquer pessoa na internet.
       if (!/^engate_rapido/.test(docName) && !ehGestao(await quemChama(req))) {
+        if (negarSessaoRevogada(req, res)) return;
         return res.status(403).json({ error: "Acesso restrito." });
       }
 
@@ -1431,6 +1534,7 @@ Retorne um array JSON no formato exato:
         return res.status(400).json({ error: "Nome do documento não fornecido." });
       }
       if (!ehGestao(await quemChama(req))) {
+        if (negarSessaoRevogada(req, res)) return;
         return res.status(403).json({ error: "Só a gestão altera configurações." });
       }
 
@@ -4148,10 +4252,14 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       console.log("[AUTH-ADMIN] Verifying admin token...");
       let decodedToken;
       try {
-        decodedToken = await admin.auth().verifyIdToken(token);
+        // checkRevoked: login derrubado (senha trocada, conta desligada) não define senha de ninguém
+        decodedToken = await admin.auth().verifyIdToken(token, true);
       } catch (tokenErr: any) {
         console.error("[AUTH-ADMIN] Token verification failed:", tokenErr.message);
-        return res.status(401).json({ error: "Token de autenticação inválido ou expirado." });
+        if (tokenErr?.code === 'auth/id-token-revoked') {
+          return res.status(401).json({ codigo: 'token_revogado', error: "Seu acesso foi encerrado. Entre de novo com seu e-mail e senha." });
+        }
+        return res.status(401).json({ codigo: 'token_invalido', error: "Token de autenticação inválido ou expirado." });
       }
       
       const requesterUid = decodedToken.uid;
@@ -4166,81 +4274,149 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         // Fallback check for super admins if DB fails
       }
       
-      const isAdmin = requesterData?.role === 'admin' || 
-                      requesterData?.role === 'manager' ||
-                      requesterData?.role === 'triagem' ||
-                      requesterData?.email === 'roderbrasil@gmail.com' || 
-                      requesterData?.email === 'roderindica@gmail.com' ||
-                      decodedToken.email === 'roderbrasil@gmail.com' ||
-                      decodedToken.email === 'roderindica@gmail.com';
-      
-      if (!isAdmin) {
+      // Papel pelo cadastro; diretoria só pelo e-mail CONFIRMADO do login. Antes valia também o
+      // e-mail gravado no cadastro (que a própria pessoa edita) e o e-mail do token sem confirmação:
+      // qualquer um gravava "roderbrasil@gmail.com" no próprio cadastro e trocava senha da equipe.
+      if ((decodedToken as any).firebase?.sign_in_provider === 'anonymous') {
+        return res.status(403).json({ error: "Acesso negado." });
+      }
+      const papelQuemPede = String(requesterData?.role || '');
+      const diretoria = ehDiretoriaPeloToken(decodedToken);
+      if (!diretoria && !['admin', 'manager', 'triagem'].includes(papelQuemPede)) {
         console.warn(`[AUTH-ADMIN] Access denied for ${requesterData?.email || decodedToken.email || requesterUid}`);
         return res.status(403).json({ error: "Acesso negado. Administradores e Gestores podem definir senhas." });
       }
 
-      // Login anônimo nunca troca senha, e conta de admin ou gerente só o admin troca.
-      // Antes, quem se colocasse como gestor conseguia trocar a senha do diretor e entrar como ele.
-      if ((decodedToken as any).firebase?.sign_in_provider === 'anonymous') {
-        return res.status(403).json({ error: "Acesso negado." });
+      // O ALVO PRECISA TER CADASTRO na tela de Usuários. Antes, qualquer e-mail recebia conta com
+      // senha (e confirmada), sem cadastro nenhum por trás. A senha vale para a conta de login do
+      // e-mail, então o papel conferido é o de TODOS os cadastros com esse e-mail: se um deles é de
+      // gestão, a troca é do admin, mesmo que o pedido venha pelo cadastro de parceiro.
+      const emailAlvo = String(email).toLowerCase().trim();
+      const uidAlvo = String(req.body?.uid || '').trim();
+      // Cadastro antigo pode ter o e-mail gravado com maiúsculas: consulta também o valor original,
+      // senão ele escaparia da conferência de papel.
+      const consultasEmail = [emailAlvo, ...(String(email).trim() !== emailAlvo ? [String(email).trim()] : [])];
+      const docsPorEmail = new Map<string, any>();
+      for (const e of consultasEmail) {
+        (await db.collection('users').where('email', '==', e).get()).docs.forEach((d: any) => docsPorEmail.set(d.id, d));
       }
-      {
-        const alvo = await db.collection('users').where('email', '==', String(email).toLowerCase().trim()).limit(1).get();
-        const papelAlvo = alvo.empty ? '' : String(alvo.docs[0].data().role || '');
-        const alvoProtegido = papelAlvo === 'admin' || papelAlvo === 'manager' ||
-          ['roderbrasil@gmail.com', 'roderindica@gmail.com', 'jeferson@roderbrasil.com.br'].includes(String(email).toLowerCase().trim());
-        if (alvoProtegido && requesterData?.role !== 'admin') {
-          return res.status(403).json({ error: "Só o administrador troca a senha de contas de gestão." });
+      const porEmail = { docs: Array.from(docsPorEmail.values()), empty: docsPorEmail.size === 0, size: docsPorEmail.size };
+      let cadastroAlvo: any = null;
+      if (uidAlvo) {
+        const snap = await db.collection('users').doc(uidAlvo).get();
+        if (!snap.exists) return res.status(404).json({ error: "Cadastro não encontrado na tela de Usuários." });
+        if (String((snap.data() as any)?.email || '').toLowerCase().trim() !== emailAlvo) {
+          return res.status(400).json({ error: "O e-mail não confere com o cadastro. Salve o cadastro antes de definir a senha." });
+        }
+        cadastroAlvo = snap;
+      } else if (porEmail.empty) {
+        return res.status(404).json({ error: "Este e-mail não tem cadastro na tela de Usuários. Cadastre a pessoa antes de definir a senha." });
+      } else if (porEmail.size > 1) {
+        return res.status(409).json({ error: "Há mais de um cadastro com este e-mail. Defina a senha pelo botão do cadastro certo (o app manda o código do cadastro)." });
+      } else {
+        cadastroAlvo = porEmail.docs[0];
+      }
+      let contaExistente: any = null;
+      try { contaExistente = await admin.auth().getUserByEmail(emailAlvo); } catch (e: any) {
+        if (e?.code !== 'auth/user-not-found') throw e;
+      }
+      // A senha vai para a conta de login: o papel do users/{uid} dela conta também, mesmo com
+      // outro e-mail (ou nenhum) gravado ali. Ver papeisDaContaAlvo em server/emailConfiavel.ts.
+      let cadastroDaConta: { existe: boolean; role?: string } | null = null;
+      if (contaExistente && contaExistente.uid !== cadastroAlvo.id) {
+        const sc = await db.collection('users').doc(contaExistente.uid).get();
+        cadastroDaConta = { existe: sc.exists, role: String((sc.data() as any)?.role || '') };
+      }
+      // Pré-cadastro = o id do cadastro NÃO é uma conta de login (decidido pelo Auth, e não pelo
+      // prefixo: os botões de convite rápido criam rogerio_, heloisa_ etc.). Se o id é um uid real,
+      // nunca é pré-cadastro, para ninguém forjar um "temp_" no lugar de uma conta existente.
+      let cadastroAlvoEhPreCadastro = false;
+      if (contaExistente && contaExistente.uid !== cadastroAlvo.id) {
+        try { await admin.auth().getUser(cadastroAlvo.id); } catch (e: any) {
+          if (e?.code !== 'auth/user-not-found') throw e;
+          cadastroAlvoEhPreCadastro = true;
         }
       }
+      const alvo = papeisDaContaAlvo({
+        cadastroAlvoId: cadastroAlvo.id,
+        cadastroAlvoEhPreCadastro,
+        cadastroAlvoRole: String((cadastroAlvo.data() as any)?.role || ''),
+        papeisPorEmail: porEmail.docs.map(d => String((d.data() as any)?.role || '')),
+        contaUid: contaExistente?.uid || null,
+        cadastroDaConta,
+      });
+      if (!alvo.ok) return res.status(alvo.status || 409).json({ error: alvo.erro });
+      const papeisAlvo = alvo.papeisAlvo;
+      const temGoogle = !!contaExistente?.providerData?.some((pp: any) => pp?.providerId === 'google.com');
+      const permissao = podeDefinirSenha({ papelQuemPede, diretoria, papeisAlvo, emailAlvo, temGoogle });
+      if (!permissao.ok) return res.status(permissao.status || 403).json({ error: permissao.erro });
 
       // 2. Find or create the user in Firebase Auth
-      console.log(`[AUTH-ADMIN] Target Email: ${email}`);
-      let userRecord;
-      try {
-        userRecord = await admin.auth().getUserByEmail(email);
-        console.log(`[AUTH-ADMIN] User found (UID: ${userRecord.uid}). Updating password...`);
-        // Update existing user
-        await admin.auth().updateUser(userRecord.uid, {
-          password: password
-        });
-        console.log(`[AUTH-ADMIN] Password updated successfully for ${email}`);
-      } catch (err: any) {
-        if (err.code === 'auth/user-not-found') {
-          console.log(`[AUTH-ADMIN] User not found in Auth. Creating new record for ${email}`);
-          // Create new user if they don't exist in Auth (but might exist in Firestore)
-          userRecord = await admin.auth().createUser({
-            email: email,
-            password: password,
-            emailVerified: true
-          });
-          console.log(`[AUTH-ADMIN] User created successfully with password: ${email}`);
-        } else {
-          console.error("[AUTH-ADMIN] Firebase Admin error during user fetch/update:", err);
-          throw err;
-        }
+      // O momento da senha é gravado ANTES de trocar: o primeiro acesso só aceita conta de senha não
+      // confirmada com login DEPOIS dele (ver podeConfirmarPrimeiroAcesso em server/emailConfiavel.ts).
+      const senhaDefinidaEm = new Date().toISOString();
+      let precisaEntrarDeNovo = false;
+      if (contaExistente) {
+        // A senha agora é a que o admin definiu, então o e-mail passa a valer como confirmado
+        // (as regras só confiam em e-mail confirmado). Os logins abertos da conta caem: quem tinha
+        // criado a conta por fora perde o acesso, e o dono entra com a senha nova.
+        await admin.auth().updateUser(contaExistente.uid, { password, emailVerified: true });
+        await admin.auth().revokeRefreshTokens(contaExistente.uid);
+        precisaEntrarDeNovo = true;
+        console.log(`[AUTH-ADMIN] Password updated successfully for ${emailAlvo}`);
+      } else {
+        await admin.auth().createUser({ email: emailAlvo, password, emailVerified: true });
+        console.log(`[AUTH-ADMIN] User created successfully with password: ${emailAlvo}`);
       }
 
-      // 3. Update Firestore users collection with initial_password
+      // 3. Senha inicial e o momento dela no cadastro, e a MARCA do servidor em senhas_iniciais
+      // (coleção que as regras fecham para todo mundo). É ela que o primeiro acesso confere: o
+      // initial_password_set_at do cadastro sozinho podia ser forjado pelo próprio users/{uid}.
       try {
-        const usersRef = db.collection('users');
-        const userQuery = await usersRef.where('email', '==', email.toLowerCase().trim()).get();
-        if (!userQuery.empty) {
-          const batch = db.batch();
-          userQuery.docs.forEach(docSnap => {
-            batch.update(docSnap.ref, {
-              initial_password: password,
-              updated_at: new Date().toISOString()
-            });
-          });
-          await batch.commit();
-          console.log(`[AUTH-ADMIN] Updated Firestore users doc for ${email} with initial_password`);
-        }
+        const lote = db.batch();
+        lote.update(cadastroAlvo.ref, {
+          initial_password: password,
+          initial_password_set_at: senhaDefinidaEm,
+          updated_at: new Date().toISOString()
+        });
+        lote.set(db.collection('senhas_iniciais').doc(cadastroAlvo.id), {
+          cadastro_id: cadastroAlvo.id,
+          email: emailAlvo,
+          definida_em: senhaDefinidaEm,
+          definida_por_uid: requesterUid,
+        });
+        await lote.commit();
       } catch (dbUpdateErr: any) {
         console.warn("[AUTH-ADMIN] Non-fatal: could not update Firestore initial_password:", dbUpdateErr.message);
       }
 
-      return res.json({ success: true, message: `Senha definida com sucesso para ${email}.` });
+      // Registro para o admin revisar (tela de Regras): toda senha definida por gerente ou triagem,
+      // com quem, qual e-mail e quando. Coleção só do servidor (as regras fecham para o navegador).
+      if (!(diretoria || papelQuemPede === 'admin')) {
+        try {
+          await db.collection(COLECAO_SENHAS_PELA_GESTAO).add({
+            quando: new Date().toISOString(),
+            quem_uid: requesterUid,
+            quem_email: String(decodedToken.email || requesterData?.email || ''),
+            quem_papel: papelQuemPede,
+            email_alvo: emailAlvo,
+            cadastro_id: cadastroAlvo.id,
+            conta_uid: contaExistente?.uid || '',
+            tipo: contaExistente ? 'senha_trocada' : 'conta_criada',
+          });
+        } catch (regErr: any) {
+          // Não bloqueia a troca (a senha já mudou), mas o admin precisa saber que o registro falhou.
+          console.error("[AUTH-ADMIN] FALHA ao gravar o registro da senha definida pela gestão (senhas_definidas_pela_gestao):", regErr?.message, { quem: requesterUid, alvo: emailAlvo });
+        }
+      }
+
+      return res.json({
+        success: true,
+        precisa_entrar_de_novo: precisaEntrarDeNovo,
+        message: precisaEntrarDeNovo
+          ? `Senha definida para ${emailAlvo}. A pessoa vai precisar entrar de novo com a senha nova em todos os aparelhos.`
+          : `Senha definida com sucesso para ${emailAlvo}.`,
+      });
     } catch (err: any) {
       console.error("[AUTH-ADMIN] FATAL ERROR:", err);
       // Return a more descriptive error if it's a known Auth error
@@ -5796,11 +5972,86 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     }
   };
 
+  // ===============================================================
+  // E-MAIL CONFIRMADO DA EQUIPE (uma vez só, 19/10/2026). As regras deixaram de aceitar conta
+  // com senha como e-mail confirmado (ver server/emailConfiavel.ts). As contas que a tela de
+  // Usuários criou antes de 19/10 já nasciam confirmadas; esta rodada pega as que sobraram
+  // (senha definida numa conta que já existia, ou conta feita no console do Firebase).
+  // Marca SÓ quem tem cadastro ATIVO no app com o mesmo uid e o mesmo e-mail. Conta desconhecida
+  // fica como está: é exatamente o caso da conta criada por fora, que não pode virar equipe.
+  // A tela de Regras mostra o resultado e só libera "Publicar" depois que esta rodada termina.
+  // ===============================================================
+  const marcarContasDaEquipe = async () => {
+    const nomeTrava = TRAVA_EMAIL_CONFIRMADO;
+    const trava = db.collection('cron_locks').doc(nomeTrava);
+    try {
+      await trava.create({ job: nomeTrava, started_at: new Date().toISOString() });
+    } catch (e: any) {
+      if (e?.code === 6) {
+        const t: any = (await trava.get()).data() || {};
+        const velha = !t.finished_at && t.started_at && Date.now() - new Date(t.started_at).getTime() > 30 * 60 * 1000;
+        if (!velha) return;
+        await trava.set({ started_at: new Date().toISOString(), retomada: true }, { merge: true });
+      } else {
+        console.error('[EMAIL-CONFIRMADO] Não consegui criar a trava:', e?.message);
+        return;
+      }
+    }
+    try {
+      const n = { contas: 0, comSenhaSemConfirmar: 0, marcadas: 0, semCadastroAtivo: 0, diretoria: 0, erros: 0 };
+      // com o papel e o código do cadastro, para o Jeferson conferir na tela de Regras quem virou equipe
+      const marcadas: { email: string; role: string; doc_id: string }[] = [];
+      const pendentes: { email: string; motivo: string }[] = [];
+      let pagina: string | undefined;
+      do {
+        const lista = await admin.auth().listUsers(1000, pagina);
+        for (const conta of lista.users) {
+          n.contas++;
+          // uma conta com problema não pode parar a rodada inteira (e deixar o botão de publicar
+          // travado para sempre): conta o erro, guarda na lista e segue
+          try {
+            const cadastro = (await db.collection('users').doc(conta.uid).get()).data();
+            const preCadastro = !cadastro && conta.email
+              ? !(await db.collection('users').where('email', '==', String(conta.email).toLowerCase().trim()).limit(1).get()).empty
+              : false;
+            const decisao = classificarConta(conta, cadastro, preCadastro);
+            if (decisao === 'pular') continue;
+            n.comSenhaSemConfirmar++;
+            const emailConta = String(conta.email).toLowerCase();
+            if (decisao === 'marcar') {
+              await admin.auth().updateUser(conta.uid, { emailVerified: true });
+              n.marcadas++;
+              marcadas.push({ email: emailConta, role: String((cadastro as any)?.role || ''), doc_id: conta.uid });
+            } else {
+              if (decisao === 'diretoria') n.diretoria++; else n.semCadastroAtivo++;
+              pendentes.push({ email: emailConta, motivo: decisao });
+            }
+          } catch (e: any) {
+            n.erros++;
+            pendentes.push({ email: String(conta.email || conta.uid).toLowerCase(), motivo: 'erro' });
+            console.error(`[EMAIL-CONFIRMADO] Erro na conta ${conta.uid}:`, e?.message);
+          }
+        }
+        pagina = lista.pageToken;
+      } while (pagina);
+      // fica na própria trava (cron_locks, que as regras não deixam ninguém ler): a tela de Regras
+      // lê pelo servidor e só libera "Publicar" depois disto
+      await trava.set({ finished_at: new Date().toISOString(), ...n, marcadas_emails: marcadas.slice(0, 300), pendentes: pendentes.slice(0, 300) }, { merge: true });
+      console.log(`[EMAIL-CONFIRMADO] Contas lidas: ${n.contas}. Com senha e e-mail não confirmado: ${n.comSenhaSemConfirmar}. Marcadas como confirmadas (cadastro ativo): ${n.marcadas}. Deixadas como estão: ${n.semCadastroAtivo + n.diretoria} (diretoria: ${n.diretoria}). Erros: ${n.erros}.`);
+    } catch (e: any) {
+      // falhou no meio: apaga a trava para tentar de novo no próximo início (marcar de novo não faz mal)
+      console.error('[EMAIL-CONFIRMADO] Erro:', e?.message);
+      try { await trava.delete(); } catch { /* sem trava para apagar */ }
+    }
+  };
+
   const onServerListen = () => {
     console.log(`Server running on port/socket: ${PORT}`);
     
     // dono das indicações antigas (uma vez só, com trava): ver backfillDonoIndicacoes
     setTimeout(() => { if (db) backfillDonoIndicacoes(); }, 8000);
+    // e-mail confirmado das contas com senha da equipe (uma vez só, com trava): ver marcarContasDaEquipe
+    setTimeout(() => { if (db) marcarContasDaEquipe(); }, 12000);
     // liga os três e-mails de comissão uma vez só (trava em cron_locks; depois vale o que estiver na tela)
     setTimeout(() => { if (db) ligarEmailsComissaoUmaVez(db).catch(() => {}); }, 9000);
     // correção automática de comissão logo depois do início (trava em cron_locks contra dois processos)

@@ -162,7 +162,9 @@ export default function Profile() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="email" className="flex items-center gap-2"><Mail className="h-3 w-3" /> E-mail</Label>
-                    <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="bg-background border-border" />
+                    {/* o e-mail do cadastro é o do login: as regras só aceitam esse (ou vazio) no próprio cadastro */}
+                    <Input id="email" type="email" value={formData.email} readOnly={profile?.role !== 'admin'} onChange={(e) => setFormData({...formData, email: e.target.value})} className="bg-background border-border" />
+                    {profile?.role !== 'admin' && <p className="text-[11px] text-muted-foreground">É o e-mail do seu login. Para trocar, peça ao administrador.</p>}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="phone" className="flex items-center gap-2"><Phone className="h-3 w-3" /> WhatsApp / Telefone</Label>
