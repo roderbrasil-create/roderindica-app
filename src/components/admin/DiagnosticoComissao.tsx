@@ -1,0 +1,327 @@
+import { useState } from 'react';
+import { Search, Loader2, Link2, BadgePlus, AlertTriangle, CheckCircle2, Info, Stethoscope, ArrowRightLeft } from 'lucide-react';
+import { toast } from 'sonner';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
+import { maskCurrency, unmaskCurrency } from '../../lib/masks';
+
+// Diagnóstico de comissão do parceiro (só o administrador). Procura o parceiro e mostra, venda por
+// venda, por que a comissão não aparece no painel dele, com o botão que conserta cada problema.
+// O servidor faz a conta (server/diagnosticoComissao.ts) com a mesma regra do faturamento.
+
+type Falta = { codigo: string; texto: string; acao?: 'ligar' | 'gerar' | 'transferir'; tipo?: 'info' | 'problema' };
+type Usuario = { uid: string; name: string; email: string; role: string; status: string; commission_rate: number | null; comissionavel: boolean; repetido?: boolean };
+type Comissao = { id: string; indication_id: string | null; external_seller_uid: string | null; external_seller_name: string | null; value: number; status: string | null; month: number | null; year: number | null; conta_nome?: string | null };
+type Indicacao = {
+  id: string; client_name: string; status: string | null; ligado_por: string[];
+  conta: string | null; conta_nome: string | null; fora_da_conta: boolean;
+  external_seller_uid: string | null; external_seller_name: string | null; external_seller_email: string | null; indicator_name: string | null;
+  sale_value: number; base_commission_value: number; commission_value: number; discount_amount: number;
+  produtos: { total: number; comissionaveis: number; base_bruta: number; itens: { code: string; name: string; quantity: number; base_value: number; conta: boolean }[] };
+  sale_date: string | null; sale_order_number: string | null; updated_at: string | null;
+  finance_notice_pending: boolean; finance_notice_sent_at: string | null;
+  calculo_previsto: { base: number; valor: number; desconto: number } | null;
+  comissoes: Comissao[]; falta: Falta[];
+};
+type Resultado = {
+  termo: string; usuarios: Usuario[]; duplicados: { motivo: string; uids: string[] }[]; indicacoes: Indicacao[];
+  varias_contas: boolean; conta_escolhida: string | null;
+  comissoes: Comissao[]; extratos: { id: string; month: number; year: number; status: string | null; total_value: number; nf_enviada: boolean }[];
+  avisos: { existe: boolean; monthly_report_partners: boolean; monthly_report_directors: boolean; payment_reminder_finance: boolean };
+  avisos_gerais: string[];
+};
+
+const STATUS_COMISSAO: Record<string, string> = { waiting_nf: 'aguardando NF', waiting_payment: 'aguardando pagamento', paid: 'paga' };
+const STATUS_IND: Record<string, string> = { pending: 'Pendente', negotiating: 'Em negociação', sold: 'Faturada', cancelled: 'Cancelada', lost: 'Perdida' };
+const PAPEL: Record<string, string> = { external_seller: 'Parceiro indicador', vendedor_padrao: 'Vendedor regional', admin: 'Administrador', manager: 'Gerente', internal_seller: 'Vendedor interno', triagem: 'Triagem', financial: 'Financeiro' };
+const data = (v: string | null) => v ? String(v).slice(0, 10).split('-').reverse().join('/') : '-';
+const mes = (m: number | null, a: number | null) => m && a ? `${String(m).padStart(2, '0')}/${a}` : '-';
+
+async function chamar(url: string, corpo?: any) {
+  const r = await fetch(url, corpo ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) } : undefined);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.ok) throw new Error(j.error || 'Não deu certo.');
+  return j;
+}
+
+export default function DiagnosticoComissao() {
+  const [termo, setTermo] = useState('');
+  const [buscando, setBuscando] = useState(false);
+  const [erro, setErro] = useState('');
+  const [res, setRes] = useState<Resultado | null>(null);
+  // Ligar (só a indicação) ou Transferir (indicação e comissões). Começa sem conta marcada de propósito:
+  // com cadastro repetido, a primeira da lista é tão provável quanto a errada.
+  const [ligar, setLigar] = useState<{ ind: Indicacao; uid: string; modo: 'ligar' | 'transferir' } | null>(null);
+  const [conta, setConta] = useState('');
+  const [gerar, setGerar] = useState<{ ind: Indicacao; desconto: string; previa: any; erro: string; carregando: boolean } | null>(null);
+  const [gravando, setGravando] = useState(false);
+
+  const buscar = async (t = termo, c = conta) => {
+    if (t.trim().length < 2) { setErro('Digite o nome, o e-mail ou o código do parceiro.'); return; }
+    setBuscando(true); setErro('');
+    try { setRes(await chamar(`/api/admin/diagnostico-comissao?parceiro=${encodeURIComponent(t.trim())}${c ? `&conta=${encodeURIComponent(c)}` : ''}`)); }
+    catch (e: any) { setErro(e.message); setRes(null); }
+    finally { setBuscando(false); }
+  };
+
+  const abrirGerar = async (ind: Indicacao, desconto?: string) => {
+    const d = desconto ?? String(ind.discount_amount || 0);
+    setGerar({ ind, desconto: d, previa: null, erro: '', carregando: true });
+    try {
+      const p = await chamar('/api/admin/diagnostico-comissao/previa', { indicacaoId: ind.id, desconto: Number(d) || 0 });
+      setGerar({ ind, desconto: d, previa: p, erro: p.ja_existe ? 'Já existe comissão lançada para esta venda.' : '', carregando: false });
+    } catch (e: any) { setGerar({ ind, desconto: d, previa: null, erro: e.message, carregando: false }); }
+  };
+
+  const confirmarGerar = async () => {
+    if (!gerar?.previa) return;
+    setGravando(true);
+    try {
+      const r = await chamar('/api/admin/diagnostico-comissao/gerar', { indicacaoId: gerar.ind.id, desconto: Number(gerar.desconto) || 0 });
+      toast.success(`Comissão de ${maskCurrency(r.valor)} lançada para ${r.parceiro}, pagamento em ${mes(r.month, r.year)}.`);
+      setGerar(null); buscar(res?.termo || termo);
+    } catch (e: any) { toast.error(e.message); }
+    finally { setGravando(false); }
+  };
+
+  const confirmarLigar = async () => {
+    if (!ligar?.uid) return;
+    setGravando(true);
+    try {
+      const r = await chamar(`/api/admin/diagnostico-comissao/${ligar.modo}`, { indicacaoId: ligar.ind.id, uid: ligar.uid });
+      toast.success(ligar.modo === 'transferir'
+        ? `Venda transferida para ${r.nome}${r.comissoes ? ', com a comissão' : ''}.`
+        : `Indicação ligada a ${r.nome}.`);
+      setLigar(null); buscar(res?.termo || termo);
+    } catch (e: any) { toast.error(e.message); }
+    finally { setGravando(false); }
+  };
+
+  const parceiros = (res?.usuarios || []).filter(u => u.comissionavel);
+  const nomeUsuario = (uid: string) => res?.usuarios.find(u => u.uid === uid)?.name || uid;
+
+  return (
+    <Card className="bg-card border-border shadow-sm mb-6">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-lg font-bold flex items-center gap-2">
+          <Stethoscope className="h-5 w-5 text-primary" /> Diagnóstico de comissão
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">Procure o parceiro para ver por que a comissão não aparece no painel dele e consertar venda por venda.</p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <form className="flex gap-2" onSubmit={e => { e.preventDefault(); setConta(''); buscar(termo, ''); }}>
+          <Input value={termo} onChange={e => setTermo(e.target.value)} placeholder="Nome, e-mail ou código do parceiro" className="h-11 bg-background" aria-label="Parceiro" />
+          <Button type="submit" disabled={buscando} className="h-11 px-4 bg-[#facc15] text-black hover:bg-[#eab308] font-bold shrink-0">
+            {buscando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            <span className="ml-1.5 hidden sm:inline">Procurar</span>
+          </Button>
+        </form>
+        {erro && <p className="text-sm font-bold text-red-600">{erro}</p>}
+
+        {res && (
+          <div className="space-y-4">
+            {res.avisos_gerais.length > 0 && (
+              <ul className="space-y-1.5 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 p-3">
+                {res.avisos_gerais.map((a, i) => (
+                  <li key={i} className="flex gap-2 text-[13px] text-amber-900 dark:text-amber-200"><AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />{a}</li>
+                ))}
+              </ul>
+            )}
+
+            {res.usuarios.length > 0 && (
+              <section className="space-y-2">
+                <h3 className="text-xs font-black uppercase tracking-wider text-muted-foreground">Cadastro ({res.usuarios.length})</h3>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {res.usuarios.map(u => (
+                    <div key={u.uid} className="rounded-lg border border-border bg-background p-3 text-sm min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold truncate">{u.name || '(sem nome)'}</span>
+                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${u.comissionavel ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'}`}>{PAPEL[u.role] || u.role || 'sem perfil'}</span>
+                      </div>
+                      <p className="text-muted-foreground text-[13px] truncate">{u.email || 'sem e-mail'}</p>
+                      <p className="text-[11px] font-mono text-muted-foreground break-all">{u.uid}</p>
+                      {u.repetido && <p className="text-[11px] font-bold text-amber-700 dark:text-amber-300">Cadastro repetido do mesmo parceiro</p>}
+                      <p className="text-[12px] mt-1">Taxa do cadastro: <strong>{u.commission_rate !== null && u.commission_rate !== undefined ? `${u.commission_rate}%` : 'não definida (vale a do sistema)'}</strong>{u.status && u.status !== 'active' ? <span className="text-red-600 font-bold"> · {u.status}</span> : null}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {res.varias_contas && (
+              <fieldset className="space-y-2 rounded-lg border border-amber-300 dark:border-amber-800 p-3">
+                <legend className="px-1 text-xs font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">Conta em que o parceiro entra</legend>
+                <p className="text-[12px] text-muted-foreground">Escolha a conta que o parceiro usa para entrar no Roder Indica. O que estiver nas outras aparece com o botão Transferir.</p>
+                {parceiros.map(u => (
+                  <label key={u.uid} className={`flex items-center gap-3 rounded-lg border p-3 min-h-[44px] cursor-pointer ${res.conta_escolhida === u.uid ? 'border-primary bg-primary/5' : 'border-border'}`}>
+                    <input type="radio" name="conta-parceiro" className="h-4 w-4" checked={res.conta_escolhida === u.uid} disabled={buscando}
+                      onChange={() => { setConta(u.uid); buscar(res.termo, u.uid); }} />
+                    <span className="min-w-0"><span className="block font-bold text-sm truncate">{u.name || '(sem nome)'}</span><span className="block text-[12px] text-muted-foreground truncate">{u.email || 'sem e-mail'} · <span className="font-mono">{u.uid}</span></span></span>
+                  </label>
+                ))}
+              </fieldset>
+            )}
+
+            <section className="space-y-2">
+              <h3 className="text-xs font-black uppercase tracking-wider text-muted-foreground">Indicações ({res.indicacoes.length})</h3>
+              {res.indicacoes.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma indicação ligada a este parceiro pelo código, pelo e-mail ou pelo nome.</p>}
+              {res.indicacoes.map(ind => {
+                const problemas = ind.falta.filter(f => f.tipo !== 'info');
+                return (
+                  <div key={ind.id} className={`rounded-lg border p-3 space-y-2 min-w-0 ${problemas.length ? 'border-red-300 dark:border-red-900' : 'border-border'} bg-background`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-bold text-[15px] leading-tight truncate">{ind.client_name || '(sem cliente)'}</p>
+                        <p className="text-[12px] text-muted-foreground">{STATUS_IND[ind.status || ''] || ind.status}{ind.sale_order_number ? ` · pedido ${ind.sale_order_number}` : ''}{ind.sale_date ? ` de ${data(ind.sale_date)}` : ''} · achada por {ind.ligado_por.join(', ')}</p>
+                      </div>
+                      {problemas.length === 0
+                        ? <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" aria-label="Sem problema" />
+                        : <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 shrink-0">{problemas.length} {problemas.length === 1 ? 'problema' : 'problemas'}</span>}
+                    </div>
+                    <p className="text-[12px]">Parceiro na indicação: <strong>{ind.external_seller_name || ind.indicator_name || '-'}</strong> <span className="font-mono text-muted-foreground break-all">({ind.external_seller_uid || 'sem código'})</span></p>
+                    {res.varias_contas && (
+                      <p className={`text-[12px] font-bold ${ind.fora_da_conta ? 'text-red-700 dark:text-red-300' : 'text-muted-foreground'}`}>Conta: {ind.conta_nome || 'nenhuma'}{ind.conta ? <span className="font-mono font-normal"> ({ind.conta})</span> : null}</p>
+                    )}
+                    <dl className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[12px]">
+                      <div className="rounded-md bg-muted/50 p-2"><dt className="text-muted-foreground">Venda</dt><dd className="font-bold">{maskCurrency(ind.sale_value)}</dd></div>
+                      <div className="rounded-md bg-muted/50 p-2"><dt className="text-muted-foreground">Base dos produtos</dt><dd className="font-bold">{maskCurrency(ind.produtos.base_bruta)}</dd></div>
+                      <div className="rounded-md bg-muted/50 p-2"><dt className="text-muted-foreground">Comissão gravada</dt><dd className="font-bold">{maskCurrency(ind.commission_value)}</dd></div>
+                      <div className="rounded-md bg-muted/50 p-2"><dt className="text-muted-foreground">Comissão pela regra</dt><dd className="font-bold">{ind.calculo_previsto ? maskCurrency(ind.calculo_previsto.valor) : '-'}</dd></div>
+                    </dl>
+                    <p className="text-[12px] text-muted-foreground">Produtos: {ind.produtos.total} cadastrados, {ind.produtos.comissionaveis} contam para comissão{ind.base_commission_value ? ` · base do orçamento ${maskCurrency(ind.base_commission_value)}` : ''}</p>
+                    {ind.comissoes.map(c => (
+                      <p key={c.id} className="text-[12px] rounded-md border border-border px-2 py-1">
+                        Comissão {maskCurrency(c.value)} · {STATUS_COMISSAO[c.status || ''] || c.status || '-'} · pagamento {mes(c.month, c.year)} · em nome de {c.external_seller_name || c.external_seller_uid || '-'}
+                        {res.varias_contas && <> · conta <strong>{c.conta_nome || c.external_seller_uid || '-'}</strong></>}
+                      </p>
+                    ))}
+                    <ul className="space-y-1.5">
+                      {ind.falta.map((f, i) => (
+                        <li key={i} className={`flex flex-col sm:flex-row sm:items-center gap-2 text-[13px] ${f.tipo === 'info' ? 'text-muted-foreground' : 'text-red-700 dark:text-red-300'}`}>
+                          <span className="flex gap-2 flex-1 min-w-0">
+                            {f.tipo === 'info' ? <Info className="h-4 w-4 shrink-0 mt-0.5" /> : <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />}
+                            <span>{f.texto}</span>
+                          </span>
+                          {f.acao === 'ligar' && (
+                            <Button size="sm" variant="outline" className="h-10 sm:h-8 shrink-0" disabled={!parceiros.length}
+                              onClick={() => setLigar({ ind, uid: '', modo: 'ligar' })}>
+                              <Link2 className="h-4 w-4 mr-1.5" /> Ligar ao parceiro
+                            </Button>
+                          )}
+                          {f.acao === 'transferir' && (
+                            <Button size="sm" variant="outline" className="h-10 sm:h-8 shrink-0 border-amber-400" disabled={!parceiros.length}
+                              onClick={() => setLigar({ ind, uid: '', modo: 'transferir' })}>
+                              <ArrowRightLeft className="h-4 w-4 mr-1.5" /> Transferir
+                            </Button>
+                          )}
+                          {f.acao === 'gerar' && (
+                            <Button size="sm" className="h-10 sm:h-8 shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => abrirGerar(ind)}>
+                              <BadgePlus className="h-4 w-4 mr-1.5" /> Gerar comissão desta venda
+                            </Button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
+            </section>
+
+            {res.extratos.length > 0 && (
+              <section className="space-y-2">
+                <h3 className="text-xs font-black uppercase tracking-wider text-muted-foreground">Fechamentos mensais</h3>
+                <ul className="text-[13px] space-y-1">
+                  {res.extratos.map(e => (
+                    <li key={e.id} className="flex justify-between gap-2 border-b border-border py-1">
+                      <span>{mes(e.month, e.year)} · {STATUS_COMISSAO[e.status || ''] || e.status || '-'}{e.nf_enviada ? ' · NF enviada' : ''}</span>
+                      <strong>{maskCurrency(e.total_value)}</strong>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            <section className="space-y-1">
+              <h3 className="text-xs font-black uppercase tracking-wider text-muted-foreground">E-mails automáticos</h3>
+              {[
+                ['Parceiro: comissão no dia 1 e lembrete da nota no dia 5', res.avisos.monthly_report_partners],
+                ['Diretoria e financeiro: relatório do dia 1', res.avisos.monthly_report_directors],
+                ['Financeiro: lembrete de pagamento no dia 7', res.avisos.payment_reminder_finance],
+              ].map(([t, on]) => (
+                <p key={String(t)} className="flex justify-between gap-2 text-[13px]"><span>{t}</span><strong className={on ? 'text-emerald-600' : 'text-red-600'}>{on ? 'ligado' : 'desligado'}</strong></p>
+              ))}
+            </section>
+          </div>
+        )}
+      </CardContent>
+
+      <Dialog open={!!ligar} onOpenChange={o => { if (!o) setLigar(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{ligar?.modo === 'transferir' ? 'Transferir a venda' : 'Ligar ao parceiro'}</DialogTitle>
+            <DialogDescription>
+              {ligar?.modo === 'transferir'
+                ? `A indicação de ${ligar?.ind.client_name} e as comissões dela passam para a conta escolhida, juntas. Comissão paga ou com a nota fiscal já enviada não é transferida.`
+                : `A indicação de ${ligar?.ind.client_name} passa a ser do parceiro escolhido. Ela aparece no painel dele e a comissão sai em nome dele.`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            {parceiros.map(u => (
+              <label key={u.uid} className={`flex items-center gap-3 rounded-lg border p-3 cursor-pointer ${ligar?.uid === u.uid ? 'border-primary bg-primary/5' : 'border-border'}`}>
+                <input type="radio" name="parceiro" checked={ligar?.uid === u.uid} onChange={() => ligar && setLigar({ ...ligar, uid: u.uid })} className="h-4 w-4" />
+                <span className="min-w-0"><span className="block font-bold text-sm truncate">{u.name}{res?.conta_escolhida === u.uid ? ' (conta em que ele entra)' : ''}</span><span className="block text-[12px] text-muted-foreground truncate">{u.email} · <span className="font-mono">{u.uid}</span></span></span>
+              </label>
+            ))}
+            {ligar?.ind.external_seller_uid && <p className="text-[12px] text-muted-foreground">Hoje está ligada a {ligar.ind.external_seller_name || ligar.ind.external_seller_uid}.</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLigar(null)}>Cancelar</Button>
+            <Button onClick={confirmarLigar} disabled={gravando || !ligar?.uid} className="bg-[#facc15] text-black hover:bg-[#eab308] font-bold">
+              {gravando && <Loader2 className="h-4 w-4 animate-spin mr-2" />} {!ligar?.uid ? 'Escolha a conta' : `${ligar.modo === 'transferir' ? 'Transferir para' : 'Ligar a'} ${nomeUsuario(ligar.uid)}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!gerar} onOpenChange={o => { if (!o) setGerar(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Gerar comissão desta venda</DialogTitle>
+            <DialogDescription>Mesma conta do faturamento: produtos comissionáveis, menos o desconto, na taxa do cadastro do parceiro.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <div className="space-y-1">
+              <label className="text-[12px] font-bold text-muted-foreground" htmlFor="desc-diag">Desconto concedido na venda (R$)</label>
+              <div className="flex gap-2">
+                <Input id="desc-diag" inputMode="numeric" className="h-11 bg-background" value={maskCurrency(Number(gerar?.desconto) || 0)}
+                  onChange={e => gerar && setGerar({ ...gerar, desconto: String(unmaskCurrency(e.target.value)), previa: null })} />
+                <Button variant="outline" className="h-11 shrink-0" disabled={gerar?.carregando} onClick={() => gerar && abrirGerar(gerar.ind, gerar.desconto)}>Recalcular</Button>
+              </div>
+            </div>
+            {gerar?.carregando && <p className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Calculando...</p>}
+            {gerar?.erro && <p className="font-bold text-red-600">{gerar.erro}</p>}
+            {gerar?.previa && (
+              <dl className="rounded-lg border border-border divide-y divide-border">
+                <div className="flex justify-between p-2"><dt>Parceiro</dt><dd className="font-bold text-right">{gerar.previa.parceiro}</dd></div>
+                <div className="flex justify-between p-2"><dt>Base dos produtos</dt><dd>{maskCurrency(gerar.previa.base_bruta)}</dd></div>
+                <div className="flex justify-between p-2"><dt>Desconto abatido</dt><dd>{maskCurrency(gerar.previa.desconto)}</dd></div>
+                <div className="flex justify-between p-2"><dt>Base da comissão</dt><dd>{maskCurrency(gerar.previa.base)}</dd></div>
+                <div className="flex justify-between p-2 bg-emerald-50 dark:bg-emerald-950/30"><dt className="font-bold">Comissão</dt><dd className="font-black text-emerald-700 dark:text-emerald-300">{maskCurrency(gerar.previa.valor)}</dd></div>
+                <div className="flex justify-between p-2"><dt>Pagamento</dt><dd>{mes(gerar.previa.month, gerar.previa.year)}</dd></div>
+              </dl>
+            )}
+            <p className="text-[12px] text-muted-foreground">A comissão entra como aguardando NF, aparece no painel do parceiro e o financeiro recebe o aviso em 2 dias.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setGerar(null)}>Cancelar</Button>
+            <Button onClick={confirmarGerar} disabled={gravando || !gerar?.previa || gerar.previa.ja_existe} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
+              {gravando && <Loader2 className="h-4 w-4 animate-spin mr-2" />} Lançar {gerar?.previa ? maskCurrency(gerar.previa.valor) : ''}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+}

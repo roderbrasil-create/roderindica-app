@@ -732,3 +732,11 @@ test('CADASTRO FORJADO: a marca da senha inicial (senhas_iniciais) ninguém lê 
   }
   await assertFails(setDoc(doc(contaSenha('u_atacante_b', 'b@gmail.com', false), 'senhas_iniciais', 'u_atacante_b'), { cadastro_id: 'u_atacante_b' }));
 });
+
+test('o registro das senhas definidas pela gestão (senhas_definidas_pela_gestao) é só do servidor', async () => {
+  await semRegras((db) => setDoc(doc(db, 'senhas_definidas_pela_gestao', 'r1'), { quando: '2026-10-20T00:00:00Z', quem_uid: 'u_gis', email_alvo: 'p@x.com' }));
+  for (const quem of ['jeferson', 'gislene', 'luana', 'parceiro', 'anonimo']) {
+    await assertFails(getDoc(doc(fs_(quem), 'senhas_definidas_pela_gestao', 'r1')));
+    await assertFails(setDoc(doc(fs_(quem), 'senhas_definidas_pela_gestao', 'r2'), { quando: '2000-01-01T00:00:00Z' }));
+  }
+});

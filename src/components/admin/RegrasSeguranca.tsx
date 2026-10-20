@@ -15,6 +15,9 @@ type EmailConfirmado = {
   marcadas_emails?: { email: string; role?: string; doc_id?: string }[]; pendentes?: { email: string; motivo: string }[];
 };
 
+// Senhas definidas por gerente ou triagem na tela de Usuários (registro só do servidor), para o admin revisar.
+type SenhaPelaGestao = { quando: string; quem_email: string; quem_papel: string; email_alvo: string; cadastro_id: string; tipo: string };
+
 const MOTIVO: Record<string, string> = {
   sem_cadastro: 'não tem cadastro na tela de Usuários',
   cadastro_inativo: 'o cadastro está inativo',
@@ -31,7 +34,7 @@ const PAPEL: Record<string, string> = {
 const dataHora = (iso?: string | null) => (iso ? new Date(iso).toLocaleString('pt-BR') : '');
 
 export default function RegrasSeguranca() {
-  const [estado, setEstado] = useState<{ firestore?: EstadoAlvo; storage?: EstadoAlvo; email_confirmado?: EmailConfirmado } | null>(null);
+  const [estado, setEstado] = useState<{ firestore?: EstadoAlvo; storage?: EstadoAlvo; email_confirmado?: EmailConfirmado; senhas_pela_gestao?: SenhaPelaGestao[] | { erro: string } } | null>(null);
   const [verLista, setVerLista] = useState(false);
   const [erro, setErro] = useState('');
   const [ocupado, setOcupado] = useState<'' | 'publicar' | 'voltar'>('');
@@ -87,6 +90,9 @@ export default function RegrasSeguranca() {
   // rodada antiga gravava só o e-mail; o servidor já devolve como objeto, mas a tela aceita os dois
   const marcadas = (ec?.marcadas_emails || []).map((m: any) => (typeof m === 'string' ? { email: m } : m)) as { email: string; role?: string; doc_id?: string }[];
   const comErros = conferido && (ec?.erros || 0) > 0;
+  const sg = estado?.senhas_pela_gestao;
+  const senhasGestao = Array.isArray(sg) ? sg : [];
+  const erroSenhasGestao = sg && !Array.isArray(sg) ? sg.erro : '';
 
   return (
     <Card className="bg-card border-border shadow-sm mb-6">
@@ -144,6 +150,24 @@ export default function RegrasSeguranca() {
                 </div>
               )}
             </>
+          )}
+        </div>
+        <div className="rounded-md border border-border p-3 text-sm space-y-1">
+          <p className="font-semibold">Senhas definidas por gerente ou triagem</p>
+          {!estado ? <p className="text-muted-foreground">...</p> : erroSenhasGestao ? (
+            <p className="text-amber-600 font-bold">Não consegui ler o registro: {erroSenhasGestao}</p>
+          ) : senhasGestao.length === 0 ? (
+            <p className="text-muted-foreground">Nenhuma até agora.</p>
+          ) : (
+            <ul className="text-xs space-y-1 break-words">
+              {senhasGestao.map((x) => (
+                <li key={x.quando + x.email_alvo}>
+                  <span className="font-semibold">{dataHora(x.quando)}</span>: {x.quem_email || 'sem e-mail'} ({PAPEL[x.quem_papel] || x.quem_papel})
+                  {x.tipo === 'conta_criada' ? ' criou a conta de ' : ' trocou a senha de '}{x.email_alvo}
+                  {x.cadastro_id && <span className="text-muted-foreground"> (cadastro {x.cadastro_id})</span>}
+                </li>
+              ))}
+            </ul>
           )}
         </div>
         {comErros && (

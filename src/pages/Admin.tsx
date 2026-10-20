@@ -14,6 +14,7 @@ import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import RegrasSeguranca from '../components/admin/RegrasSeguranca';
 import FotosExternas from '../components/admin/FotosExternas';
+import DiagnosticoComissao from '../components/admin/DiagnosticoComissao';
 import { 
   UserPlus, 
   Edit, 
@@ -591,6 +592,10 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
   });
   const [savingEmail, setSavingEmail] = useState(false);
   const [savingNotifications, setSavingNotifications] = useState(false);
+  // Último valor lido do banco: o salvar grava só o que mudou desde ele. Uma aba aberta antes de o
+  // servidor ligar os e-mails de comissão (ligarEmailsComissaoUmaVez) desligava os três de novo
+  // ao salvar qualquer outro campo, porque gravava a tela inteira por cima.
+  const notificationBaseRef = React.useRef<any>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [approvalQueue, setApprovalQueue] = useState<any[]>([]);
   const [approvingId, setApprovingId] = useState<string | null>(null);
@@ -1541,6 +1546,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
     
     const unsubNotifications = onSnapshot(doc(db, 'settings', 'notifications'), (snap) => {
       if (snap.exists()) {
+        notificationBaseRef.current = snap.data();
         setNotificationSettings(snap.data() as any);
       }
     });
@@ -1644,7 +1650,14 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
   const handleSaveNotificationSettings = async () => {
     setSavingNotifications(true);
     try {
-      await setDoc(doc(db, 'settings', 'notifications'), notificationSettings);
+      const base = notificationBaseRef.current;
+      const mudou: Record<string, any> = base
+        ? Object.fromEntries(Object.entries(notificationSettings).filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(base[k])))
+        : { ...notificationSettings };
+      if (Object.keys(mudou).length) {
+        await setDoc(doc(db, 'settings', 'notifications'), mudou, { merge: true });
+        notificationBaseRef.current = { ...(base || {}), ...mudou };
+      }
       toast.success('Central de Notificações atualizada!');
     } catch (error: any) {
       toast.error('Erro ao salvar: ' + error.message);
@@ -2941,6 +2954,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
 
           <TabsContent value="settings">
             {isAdmin && <div className="max-w-5xl"><RegrasSeguranca /><FotosExternas /></div>}
+            {isAdmin && <div className="max-w-5xl"><DiagnosticoComissao /></div>}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-5xl">
               <div className="flex flex-col gap-6">
                 {/* Central de Notificações */}
@@ -3084,6 +3098,17 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                         <Switch 
                           checked={notificationSettings.monthly_report_partners} 
                           onCheckedChange={(v) => setNotificationSettings({...notificationSettings, monthly_report_partners: v})}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between p-3 rounded-lg bg-background border border-border">
+                        <div className="space-y-0.5">
+                          <Label className="text-sm">Lembrete de Pagamento (Financeiro)</Label>
+                          <p className="text-[10px] text-muted-foreground">Total de comissões a pagar, enviado no dia 7.</p>
+                        </div>
+                        <Switch 
+                          checked={!!notificationSettings.payment_reminder_finance} 
+                          onCheckedChange={(v) => setNotificationSettings({...notificationSettings, payment_reminder_finance: v})}
                         />
                       </div>
 

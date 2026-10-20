@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import fs from 'node:fs';
-import { emailConfiavelDoToken, ehDiretoriaPeloToken, papelDeQuemChama, deveMarcarEmailConfirmado, classificarConta, podeConfirmarPrimeiroAcesso, podeDefinirSenha, ehIdDePreCadastro } from '../server/emailConfiavel.ts';
+import { emailConfiavelDoToken, ehDiretoriaPeloToken, papelDeQuemChama, deveMarcarEmailConfirmado, classificarConta, podeConfirmarPrimeiroAcesso, podeDefinirSenha, ehIdDePreCadastro, papeisDaContaAlvo } from '../server/emailConfiavel.ts';
 import { hostDeFotoAgendor, urlDeFotoAgendor } from '../server/fotoAgendor.ts';
 
 const token = (email: string, confirmado: boolean, provedor = 'password') =>
@@ -133,6 +133,61 @@ test('senha pela tela de Usuários: gestão não troca senha de gestão, de cont
   assert.equal(podeDefinirSenha({ ...base, papelQuemPede: 'internal_seller' }).ok, false);
   assert.equal(podeDefinirSenha({ ...base, papelQuemPede: 'admin', papeisAlvo: ['manager'], temGoogle: true }).ok, true);
   assert.equal(podeDefinirSenha({ ...base, papelQuemPede: '', diretoria: true, papeisAlvo: ['admin'] }).ok, true);
+});
+
+test('TRIAGEM E GERENTE DE OUTRO E-MAIL: users/temp_x sem papel com o e-mail da conta de um gerente não troca a senha dele', () => {
+  // conta de login do gerente: uid u_ger, e o users/u_ger dele tem outro e-mail (ou vazio)
+  for (const cadastroDaConta of [{ existe: true, role: 'manager' }, { existe: true, role: 'admin' }]) {
+    const alvo = papeisDaContaAlvo({ cadastroAlvoId: 'temp_x', cadastroAlvoRole: '', papeisPorEmail: [''], contaUid: 'u_ger', cadastroDaConta });
+    assert.equal(alvo.ok, true);
+    assert.ok(alvo.papeisAlvo.includes(cadastroDaConta.role));
+    const r = podeDefinirSenha({ papelQuemPede: 'triagem', diretoria: false, papeisAlvo: alvo.papeisAlvo, emailAlvo: 'ger@x.com', temGoogle: false });
+    assert.equal(r.ok, false);
+    assert.equal(r.status, 403);
+  }
+  // o admin continua podendo
+  const adm = papeisDaContaAlvo({ cadastroAlvoId: 'temp_x', cadastroAlvoRole: '', papeisPorEmail: [''], contaUid: 'u_ger', cadastroDaConta: { existe: true, role: 'manager' } });
+  assert.equal(podeDefinirSenha({ papelQuemPede: 'admin', diretoria: false, papeisAlvo: adm.papeisAlvo, emailAlvo: 'ger@x.com', temGoogle: false }).ok, true);
+});
+
+test('conta de login sem cadastro próprio: só pré-cadastro recebe senha; o mesmo uid não é conferido duas vezes', () => {
+  assert.equal(papeisDaContaAlvo({ cadastroAlvoId: 'temp_x', cadastroAlvoRole: '', papeisPorEmail: [''], contaUid: 'u_fora', cadastroDaConta: { existe: false } }).ok, true);
+  assert.equal(papeisDaContaAlvo({ cadastroAlvoId: 'phone_1499', cadastroAlvoRole: 'external_seller', papeisPorEmail: [], contaUid: 'u_fora', cadastroDaConta: { existe: false } }).ok, true);
+  const recusa = papeisDaContaAlvo({ cadastroAlvoId: 'u_outro', cadastroAlvoRole: 'external_seller', papeisPorEmail: ['external_seller'], contaUid: 'u_fora', cadastroDaConta: { existe: false } });
+  assert.equal(recusa.ok, false);
+  assert.equal(recusa.status, 409);
+  // conta nova (sem login ainda) ou conta do próprio cadastro: só os papéis dos cadastros
+  assert.deepEqual(papeisDaContaAlvo({ cadastroAlvoId: 'temp_x', cadastroAlvoRole: 'external_seller', papeisPorEmail: ['external_seller'], contaUid: null, cadastroDaConta: null }), { ok: true, papeisAlvo: ['external_seller', 'external_seller'] });
+  assert.equal(papeisDaContaAlvo({ cadastroAlvoId: 'u_1', cadastroAlvoRole: 'internal_seller', papeisPorEmail: ['internal_seller'], contaUid: 'u_1', cadastroDaConta: null }).ok, true);
+});
+
+test('servidor: a troca de senha confere o cadastro da conta de login, checkRevoked e registra o que a gestão fez', () => {
+  const fonte = fs.readFileSync(new URL('../server.ts', import.meta.url), 'utf8');
+  const j = fonte.indexOf('app.post("/api/admin/set-user-password"');
+  const troca = fonte.slice(j, fonte.indexOf('const __entryDir', j));
+  assert.ok(troca.includes('verifyIdToken(token, true)'));
+  assert.ok(troca.includes("'auth/id-token-revoked'"));
+  assert.ok(troca.includes("collection('users').doc(contaExistente.uid).get()"));
+  assert.ok(troca.includes('papeisDaContaAlvo({'));
+  // a conferência vem ANTES de mexer na conta
+  assert.ok(troca.indexOf('papeisDaContaAlvo({') < troca.indexOf('podeDefinirSenha({'));
+  assert.ok(troca.indexOf('podeDefinirSenha({') < troca.indexOf('updateUser(contaExistente.uid'));
+  assert.ok(troca.includes('collection(COLECAO_SENHAS_PELA_GESTAO).add({'));
+  assert.ok(/quem_uid: requesterUid[\s\S]*email_alvo: emailAlvo[\s\S]*quando|quando:[\s\S]*quem_uid: requesterUid[\s\S]*email_alvo: emailAlvo/.test(troca));
+  assert.ok(fonte.includes('out.senhas_pela_gestao = await ultimasSenhasPelaGestao()'));
+});
+
+test('servidor: no primeiro acesso a marca da senha inicial é apagada junto com o provisório, no fim do lote', () => {
+  const fonte = fs.readFileSync(new URL('../server.ts', import.meta.url), 'utf8');
+  const i = fonte.indexOf('app.post("/api/auth/reivindicar-perfil"');
+  const trecho = fonte.slice(i, fonte.indexOf('app.get("/api/settings/:docName"', i));
+  const apaga = trecho.indexOf("lote.delete(db.collection('senhas_iniciais').doc(t.id))");
+  assert.ok(apaga > 0, 'a marca senhas_iniciais/{código} não é mais apagada');
+  // depois de mover a comissão e antes do commit, junto com o delete do provisório
+  assert.ok(apaga > trecho.indexOf('moverComissoesDoProvisorio('));
+  assert.ok(apaga < trecho.indexOf('await lote.commit()'));
+  const bloco = trecho.slice(trecho.indexOf('temporarios.forEach((t: any) => {'), apaga);
+  assert.ok(bloco.includes('lote.delete(t.ref)'));
 });
 
 test('foto do Agendor: só https de agendor.com.br, S3 ou CloudFront', () => {

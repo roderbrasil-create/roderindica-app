@@ -33,6 +33,13 @@ cadastro provisório tem senha inicial, e o login aconteceu depois de `initial_p
 e-mail, derruba os logins antigos e o app entra de novo com a mesma senha. Fora disso a tela de
 login diz "Peça à Roder para redefinir sua senha".
 
+Este caminho pela marca é só uma reserva. O caminho normal é `/api/admin/set-user-password`, que
+já deixa o e-mail confirmado ao criar a conta ou trocar a senha: a pessoa entra com o e-mail
+confirmado e o primeiro acesso nem passa pela marca. A marca só decide quando a conta de senha
+ainda chega sem confirmar (por exemplo, o token do login é de antes de o servidor confirmar o
+e-mail, ou a confirmação falhou no meio). Se um dia esse caminho sair, nada muda para quem recebe
+a senha pela tela de Usuários.
+
 Cadastro forjado: a data no cadastro não basta, porque qualquer login grava o próprio `users/{uid}`.
 Uma conta B gravava ali o e-mail de A, uma senha inicial e uma data antiga, e o primeiro acesso de A
 (criada por fora) confirmava o e-mail dela. Agora:
@@ -62,6 +69,13 @@ confirmado: sem o papel no cadastro, confirme o e-mail entrando uma vez com o Go
 - Gerente e triagem só definem senha dos papéis que podem cadastrar, nunca de administrador,
   gerente, triagem, diretoria ou conta que entra com Google.
 - Conta que já existia: os logins abertos caem e a tela avisa que a pessoa vai entrar de novo.
+- A senha vai para a conta de login do e-mail, então o papel do `users/{uid}` dessa conta também
+  conta, mesmo que o e-mail gravado nele seja outro ou esteja vazio. Sem esse cadastro, só o
+  pré-cadastro (`temp_`/`phone_`) recebe senha; o resto o servidor recusa com 409.
+- O login de quem pede é conferido com `checkRevoked`: login derrubado recebe 401 (`token_revogado`).
+- Toda senha definida por gerente ou triagem (conta criada ou senha trocada) fica registrada em
+  `senhas_definidas_pela_gestao` (só o servidor lê e grava), com quem, qual e-mail e quando. As
+  últimas aparecem na tela de Regras, abaixo da conferência das contas da equipe.
 
 ## Ordem para publicar
 

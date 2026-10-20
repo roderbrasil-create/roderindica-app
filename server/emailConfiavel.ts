@@ -129,3 +129,26 @@ export function podeDefinirSenha(p: {
   }
   return { ok: true };
 }
+
+// PAPÉIS DO ALVO DA SENHA (20/10/2026). A senha nova vai para a CONTA DE LOGIN do e-mail
+// (getUserByEmail), e não para o cadastro escolhido na tela. Conferir só os cadastros com aquele
+// e-mail deixava um buraco: a triagem criava users/temp_x sem papel com o e-mail de um gerente
+// cujo próprio users/{uid} tem outro e-mail (ou nenhum), e trocava a senha do gerente. Agora entra
+// também o papel de users/{uid da conta}. Sem esse cadastro, a conta só aceita senha nova quando o
+// alvo é um pré-cadastro (temp_/phone_), que é o caso de quem criou a conta antes do primeiro acesso.
+export function papeisDaContaAlvo(p: {
+  cadastroAlvoId: string; cadastroAlvoRole: string; papeisPorEmail: string[];
+  contaUid: string | null; cadastroDaConta: { existe: boolean; role?: string } | null;
+}): { ok: boolean; papeisAlvo: string[]; status?: number; erro?: string } {
+  const papeisAlvo = [String(p.cadastroAlvoRole || ''), ...p.papeisPorEmail.map(r => String(r || ''))];
+  if (!p.contaUid || p.contaUid === p.cadastroAlvoId) return { ok: true, papeisAlvo };
+  if (p.cadastroDaConta?.existe) {
+    papeisAlvo.push(String(p.cadastroDaConta.role || ''));
+    return { ok: true, papeisAlvo };
+  }
+  if (ehIdDePreCadastro(p.cadastroAlvoId)) return { ok: true, papeisAlvo };
+  return {
+    ok: false, papeisAlvo, status: 409,
+    erro: 'A conta de login deste e-mail não tem cadastro próprio na tela de Usuários. Só o pré-cadastro (primeiro acesso) recebe senha assim; fale com o administrador.',
+  };
+}
