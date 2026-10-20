@@ -60,7 +60,8 @@ import {
   setDoc,
   deleteDoc,
   onSnapshot,
-  increment
+  increment,
+  writeBatch
 } from 'firebase/firestore';
 import { transcribeAudio, generateAISummary, analyzeDetailedBudget, analyzePDFDocument } from '../../services/geminiService';
 import { notifyManagers, notifyExternalSeller, createNotification } from '../../services/notificationService';
@@ -1425,26 +1426,13 @@ export default function NegotiationCentral() {
     
     setLoading(true);
     try {
-      // 1. Primeiro o status, a marca do estorno e o updated_at (a correção automática de comissão
-      // nunca recria comissão de indicação com estornado_em). Só depois a comissão é apagada.
+      // 1. Primeiro só a marca do estorno e o updated_at, com a venda ainda faturada. A correção
+      // automática de comissão nunca recria comissão de indicação com estornado_em, então apagar a
+      // comissão depois é seguro. O status só muda no FIM: se a devolução do estoque falhar no meio,
+      // a venda continua faturada e o botão de estorno continua disponível para tentar de novo
+      // (cada baixa devolvida é apagada junto, então a nova tentativa só faz o que faltou).
       const leadRef = doc(db, 'indications', activeIndication.id);
-      await updateDoc(leadRef, {
-        status: 'negotiating',
-        estornado_em: new Date().toISOString(),
-        sale_value: 0,
-        commission_value: 0,
-        commissionable_value: 0,
-        standard_seller_commission_value: 0,
-        invoice_url: "",
-        updated_at: new Date().toISOString(),
-        negotiation_history: arrayUnion({
-          id: Math.random().toString(36).substring(2, 11),
-          type: 'status_change',
-          author_name: profile?.name || 'Sistema',
-          created_at: new Date().toISOString(),
-          content: `ESTORNO DE FATURAMENTO: O faturamento foi desfeito por ${profile?.name || 'Sistema'}. O status retornou para Negociação e as comissões e baixas de estoque foram devidamente revertidas.`
-        })
-      });
+      await updateDoc(leadRef, { estornado_em: new Date().toISOString(), updated_at: new Date().toISOString() });
 
       // 2. Delete associated commissions
       const commissionsRef = collection(db, 'commissions');
@@ -1465,20 +1453,37 @@ export default function NegotiationCentral() {
         const saleData = docSnap.data();
         const stockItemId = saleData.stock_item_id;
         const qtySold = saleData.quantity_sold || 0;
-
+        // Devolução e apagamento da baixa no MESMO lote: nunca devolve duas vezes numa nova tentativa
+        const lote = writeBatch(db);
         if (stockItemId && qtySold > 0) {
           // increment no servidor: somar ao número lido antes perdia baixas feitas no meio tempo
           const stockItemRef = doc(db, 'stock_items', stockItemId);
           const stockItemSnap = await getDoc(stockItemRef);
           if (stockItemSnap.exists()) {
-            await updateDoc(stockItemRef, {
-              quantity: increment(qtySold),
-              updated_at: new Date().toISOString()
-            });
+            lote.update(stockItemRef, { quantity: increment(qtySold), updated_at: new Date().toISOString() });
           }
         }
-        await deleteDoc(doc(db, 'stock_sales', docSnap.id));
+        lote.delete(doc(db, 'stock_sales', docSnap.id));
+        await lote.commit();
       }
+
+      // 4. Só agora a venda sai de faturada
+      await updateDoc(leadRef, {
+        status: 'negotiating',
+        sale_value: 0,
+        commission_value: 0,
+        commissionable_value: 0,
+        standard_seller_commission_value: 0,
+        invoice_url: "",
+        updated_at: new Date().toISOString(),
+        negotiation_history: arrayUnion({
+          id: Math.random().toString(36).substring(2, 11),
+          type: 'status_change',
+          author_name: profile?.name || 'Sistema',
+          created_at: new Date().toISOString(),
+          content: `ESTORNO DE FATURAMENTO: O faturamento foi desfeito por ${profile?.name || 'Sistema'}. O status retornou para Negociação e as comissões e baixas de estoque foram devidamente revertidas.`
+        })
+      });
 
       toast.success('Faturamento estornado e retornado para negociação com sucesso!');
       

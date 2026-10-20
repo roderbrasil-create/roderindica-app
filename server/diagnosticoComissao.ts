@@ -281,7 +281,7 @@ function exigirId(indId: string) {
   if (!String(indId || '').trim()) throw erro(400, 'Indicação não informada.');
 }
 
-function conferirGeracao(indId: string, ind: any, parceiro: any, descontoInformado: number | undefined, agora: Date) {
+function conferirGeracao(indId: string, ind: any, parceiro: any, descontoInformado: number | undefined, agora: Date, usarTaxaGravada = false) {
   if (!ind) throw erro(404, 'Indicação não encontrada.');
   if (ind.status !== 'sold') throw erro(409, 'A venda ainda não foi faturada. A comissão nasce no faturamento.');
   const uid = String(ind.external_seller_uid || '');
@@ -290,7 +290,9 @@ function conferirGeracao(indId: string, ind: any, parceiro: any, descontoInforma
   if (!papelComissionavel(parceiro.role)) throw erro(409, `O perfil de ${parceiro.name || 'quem está ligado'} não recebe comissão.`);
   const desconto = descontoInformado !== undefined && descontoInformado !== null && Number.isFinite(Number(descontoInformado))
     ? Number(descontoInformado) : (Number(ind.discount_amount) || 0);
-  const calc = calcularComissao(ind.commissioned_products || [], desconto, taxaDoParceiro(parceiro));
+  // Correção automática: vale a taxa que o próprio faturamento gravou, não a de hoje do cadastro
+  const taxa = usarTaxaGravada && Number(ind.commission_rate_applied) > 0 ? Number(ind.commission_rate_applied) : taxaDoParceiro(parceiro);
+  const calc = calcularComissao(ind.commissioned_products || [], desconto, taxa);
   if (calc.baseBruta <= 0) throw erro(409, 'Sem produtos comissionáveis na indicação: a comissão daria zero. Vincule os produtos vendidos antes.');
   if (calc.valor <= 0) throw erro(409, 'O desconto zera a base da comissão. Confira o desconto informado.');
   const mes = mesDaComissao(ind.delivery_date, agora);
@@ -318,7 +320,7 @@ export async function previaGeracao(deps: Deps, indId: string, desconto?: number
 // semAvisoFinanceiro: a correção automática não programa o aviso ao financeiro comissão por comissão
 // (a primeira rodada poderia soltar dezenas de e-mails de uma vez); o financeiro já recebe tudo nos
 // relatórios do dia 1, 5 e 7.
-type OpcoesGerar = { geradoPor?: string; textoHistorico?: string; semAvisoFinanceiro?: boolean };
+type OpcoesGerar = { geradoPor?: string; textoHistorico?: string; semAvisoFinanceiro?: boolean; usarTaxaGravada?: boolean };
 
 export async function gerarComissao(deps: DepsEscrita, indId: string, autor: { uid: string; nome: string }, desconto?: number, opcoes: OpcoesGerar = {}) {
   const { db, arrayUnion } = deps;
@@ -333,7 +335,7 @@ export async function gerarComissao(deps: DepsEscrita, indId: string, autor: { u
     const p = uid && !UIDS_DE_SISTEMA.includes(uid) ? await tx.get(db.collection('users').doc(uid)) : null;
     const ja = await tx.get(commRef);
     const legado = await tx.get(db.collection('commissions').where('indication_id', '==', indId));
-    const r = conferirGeracao(indId, ind, p?.exists ? p.data() : null, desconto, agora);
+    const r = conferirGeracao(indId, ind, p?.exists ? p.data() : null, desconto, agora, !!opcoes.usarTaxaGravada);
     if (ja.exists || !legado.empty) throw erro(409, 'Já existe comissão lançada para esta venda. Nada foi alterado.');
     // Fechamento do mês já pago ou aguardando pagamento: a comissão nova seria lida como paga pelos
     // e-mails do dia 1, 5 e 7 (comissoesDoCiclo) sem ninguém ter pago.
@@ -428,6 +430,9 @@ type OpcoesTransferir = {
   // recebe comissão (regional, gerente). Com comissão, só para quem recebe.
   semComissaoQualquerDestino?: boolean;
   nomeInformado?: string;
+  // Quem era o parceiro da indicação quando quem chamou decidiu. Se mudou no meio (alguém usou
+  // "Trocar Indicador"), aborta: a decisão ficou velha.
+  uidEsperado?: string;
 };
 
 // Transferir: a indicação E todas as comissões dela passam para a conta escolhida, numa transação.
@@ -451,6 +456,9 @@ export async function transferirIndicacao(deps: DepsEscrita, indId: string, uid:
     const u = await tx.get(db.collection('users').doc(uid));
     const user = u.exists ? (u.data() || {}) : null;
     const ind = s.data() || {};
+    if (opcoes.uidEsperado !== undefined && String(ind.external_seller_uid || '') !== opcoes.uidEsperado) {
+      throw erro(409, 'O parceiro desta indicação mudou enquanto a correção rodava. Nada foi alterado; a próxima rodada confere de novo.');
+    }
     const comms = (await tx.get(db.collection('commissions').where('indication_id', '==', indId))).docs;
     const livre = !!opcoes.semComissaoQualquerDestino && !comms.length;
     const nomeInformado = String(opcoes.nomeInformado || '').trim();

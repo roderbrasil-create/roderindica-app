@@ -924,3 +924,81 @@ test('CORREÇÃO: a trava só é apagada por quem é dono dela', async () => {
   await conciliarComTrava(deps, 'diária');
   assert.equal(db.dados.cron_locks[DOC_TRAVA]?.owner_id, 'outro', 'trava do outro dono continua');
 });
+
+
+test('CORREÇÃO: Trocar Indicador numa venda faturada NÃO é desfeito pelo e-mail velho (provisório sem e-mail e destino da gerência)', async () => {
+  // a) trocada para um cadastro provisório sem e-mail; o e-mail velho do Rafael ficou na indicação
+  let db = cenarioLuiz({ users: { phone_55: { uid: 'phone_55', name: 'Paulo Novo', role: 'external_seller', status: 'pending' } } });
+  Object.assign(db.dados.indications.i_luiz, { external_seller_uid: 'phone_55', external_seller_name: 'Paulo Novo', external_seller_email: 'rafael@maqloc.com.br' });
+  db.dados.commissions.i_luiz.external_seller_uid = 'phone_55';
+  let r = await conciliarComissoes(depsC(db));
+  assert.equal(r.movidas.length, 0, 'não volta para o Rafael pelo e-mail velho');
+  assert.equal(db.dados.indications.i_luiz.external_seller_uid, 'phone_55');
+  assert.equal(db.dados.commissions.i_luiz.external_seller_uid, 'phone_55');
+  // b) trocada para o destino sintético da gerência (sem cadastro), com o e-mail velho ainda lá
+  db = cenarioLuiz();
+  Object.assign(db.dados.indications.i_luiz, { external_seller_uid: 'gislene_manager_direct', external_seller_name: 'Gislene', external_seller_email: 'rafael@maqloc.com.br' });
+  delete db.dados.commissions.i_luiz;
+  r = await conciliarComissoes(depsC(db));
+  assert.equal(r.movidas.length, 0);
+  assert.equal(r.criadas.length, 0);
+  assert.equal(db.dados.indications.i_luiz.external_seller_uid, 'gislene_manager_direct');
+  // c) código apagado com e-mail de outra pessoa (nome diferente): não move, avisa
+  db = cenarioLuiz();
+  Object.assign(db.dados.indications.i_luiz, { external_seller_uid: 'sumiu', external_seller_name: 'Carlos Outro', external_seller_email: 'rafael@maqloc.com.br' });
+  r = await conciliarComissoes(depsC(db));
+  assert.equal(r.movidas.length, 0);
+  assert.equal(db.dados.indications.i_luiz.external_seller_uid, 'sumiu');
+  assert.ok(r.travadas.some(t => /nome diferente/.test(t.motivo)));
+  // d) indicação que não foi faturada nunca é mexida
+  db = cenarioLuiz();
+  Object.assign(db.dados.indications.i_luiz, { status: 'negotiating', external_seller_uid: 'sumiu', external_seller_name: 'Rafael - MAQLOC' });
+  const antes = structuredClone(db.dados);
+  r = await conciliarComissoes(depsC(db));
+  assert.deepEqual(db.dados, antes);
+});
+
+test('CORREÇÃO: conta repetida (mesmo e-mail) com venda e comissão em X vai para travadas, e o parceiro trocado no meio aborta', async () => {
+  const db = cenarioLuiz({ users: { raf_dup: { uid: 'raf_dup', name: 'Rafael', email: 'rafael@maqloc.com.br', role: 'external_seller', status: 'active' } } });
+  db.dados.commissions.i_luiz.external_seller_uid = 'raf'; // já no lugar certo
+  const r = await conciliarComissoes(depsC(db));
+  assert.equal(r.movidas.length, 0);
+  assert.equal(r.travadas.length, 1);
+  assert.match(r.travadas[0].motivo, /duas contas \(raf e raf_dup/);
+  // corrida: o parceiro da indicação muda entre a leitura e a transferência
+  await assert.rejects(() => transferirIndicacao({ db, arrayUnion, agora: () => AGORA } as any, 'i_luiz', 'raf_dup', { uid: 's', nome: 's' }, 'teste', { uidEsperado: 'outro_uid' }), /mudou enquanto/);
+  assert.equal(db.dados.indications.i_luiz.external_seller_uid, 'raf');
+});
+
+test('CORREÇÃO: comissão antiga sem indication_id do mesmo parceiro impede criar uma segunda; taxa gravada manda', async () => {
+  const db = cenarioLuiz();
+  delete db.dados.commissions.i_luiz;
+  db.dados.commissions.velha = { external_seller_uid: 'raf', external_seller_name: 'Rafael - MAQLOC', value: 6000, status: 'waiting_nf', month: 11, year: 2026, sale_date: '2026-10-06' };
+  let r = await conciliarComissoes(depsC(db));
+  assert.equal(r.criadas.length, 0);
+  assert.ok(!db.dados.commissions.i_luiz);
+  assert.ok(r.travadas.some(t => /sem vínculo com indicação/.test(t.motivo)));
+  // sem a antiga, a comissão sai com a taxa gravada na venda (4), não a do cadastro (3)
+  delete db.dados.commissions.velha;
+  db.dados.indications.i_luiz.commission_rate_applied = 4;
+  r = await conciliarComissoes(depsC(db));
+  assert.equal(r.criadas.length, 1);
+  assert.equal(db.dados.commissions.i_luiz.rate_applied, 4);
+  assert.equal(db.dados.commissions.i_luiz.value, calcularComissao(CMF600, 0, 4).valor);
+});
+
+test('CORREÇÃO: movidas, criadas e erros também têm teto no documento gravado, com o total ao lado', async () => {
+  const ind: any = {}; const com: any = {};
+  for (let i = 0; i < 230; i++) {
+    ind[`m_${i}`] = { status: 'sold', client_name: `Mov ${i}`, external_seller_uid: 'raf', commissioned_products: CMF600, sale_date: '2026-10-06', updated_at: '2026-10-06T10:00:00Z', commission_rate_applied: 3, discount_amount: 0 };
+    com[`m_${i}`] = { indication_id: `m_${i}`, external_seller_uid: 'temp_x', external_seller_name: 'Rafael - MAQLOC', value: 100, status: 'waiting_nf', month: 11, year: 2026 };
+  }
+  const db = cenarioLuiz({ indications: ind, commissions: com });
+  const r: any = await conciliarComTrava(depsC(db), 'diária');
+  assert.equal(r.movidas.length, 231, 'o resultado em memória é inteiro');
+  const doc = db.dados.cron_locks[DOC_RESULTADO];
+  assert.equal(doc.ultima.movidas.length, 200);
+  assert.equal(doc.ultima.movidas_total, 231);
+  assert.ok(doc.historico.length <= 100);
+  assert.ok(JSON.stringify(doc).length < 600000, 'abaixo de 1 MB com folga');
+});
