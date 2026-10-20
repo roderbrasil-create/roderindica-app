@@ -21,6 +21,12 @@ test('equipe que entrou pelo link da equipe (sem login) também é equipe', () =
   assert.match(instrucaoPerfilConsultor({ role: 'vendedor', equipe: true }), /EQUIPE RODER/);
 });
 
+test('o servidor decide a equipe quando sabe: navegador dizendo equipe não basta', () => {
+  // quem se diz admin pelo navegador, mas o token não confirma, recebe a diretriz de parceiro
+  assert.match(instrucaoPerfilConsultor({ role: 'admin', equipe: true }, false), /PARCEIRO\/VENDEDOR/);
+  assert.match(instrucaoPerfilConsultor({ role: 'external_seller' }, true), /EQUIPE RODER/);
+});
+
 test('parceiro e visitante continuam com a diretriz de parceiro; cliente com a de cliente', () => {
   assert.match(instrucaoPerfilConsultor({ role: 'external_seller', name: 'Carlos' }), /PARCEIRO\/VENDEDOR/);
   assert.match(instrucaoPerfilConsultor({ role: 'visitor' }), /PARCEIRO\/VENDEDOR/);
@@ -50,6 +56,9 @@ test('pronta entrega: casa pelo código e pelo nome inteiro, só com quantidade,
   const lista = montarProntaEntrega(estoque, produtos);
   assert.deepEqual(lista.map(i => i.chave), ['garras:r400', 'cab:cmf500']);
   assert.equal(lista[0].foto, 'https://x/r400.png');
+  // título da ficha, no singular e com o modelo
+  assert.equal(lista[0].nome, 'Garra Florestal R400');
+  assert.equal(lista[1].nome, 'Cabeçote CMF 500');
   assert.equal(itemProntoDe(lista, 'garras', 'r400')?.chave, 'garras:r400');
   assert.equal(itemProntoDe(lista, 'garras', 'r250'), null);
   // só campos do catálogo e do estoque público: nada de preço

@@ -13,7 +13,8 @@ export function ehEquipeNoConsultor(userInfo: any): boolean {
   return PAPEIS_EQUIPE.includes(String(userInfo.role || ''));
 }
 
-export function instrucaoPerfilConsultor(userInfo: any): string {
+// `equipe` vem do servidor (quem chama, pelo token) quando ele sabe; sem isso, vale o que o navegador mandou
+export function instrucaoPerfilConsultor(userInfo: any, equipe?: boolean): string {
   const u = userInfo && typeof userInfo === 'object' ? userInfo : {};
   if (u.role === 'client' || u.role === 'cliente') {
     return `\n\n18. DIRETRIZ DE ATENDIMENTO AO CLIENTE FINAL (MUITO IMPORTANTE):
@@ -23,7 +24,7 @@ export function instrucaoPerfilConsultor(userInfo: any): string {
 - Exemplo de condução: "Seria excelente podermos fazer uma simulação personalizada e te enviar um orçamento oficial sem compromisso direto da fábrica com todas as condições! Se você quiser, posso pedir para a nossa equipe de vendas internas da fábrica entrar em contato com você no seu WhatsApp. Você gostaria que eu fizesse essa solicitação agora mesmo?"
 - Caso ele confirme, instrua-o a ficar tranquilo pois nossa equipe de vendas internas da fábrica entrará em contato em breve com a proposta oficial, ou recomende que ele solicite o orçamento diretamente na fábrica pelo botão de orçamento.`;
   }
-  if (ehEquipeNoConsultor(u)) {
+  if (equipe ?? ehEquipeNoConsultor(u)) {
     return `\n\n18. DIRETRIZ DE ATENDIMENTO À EQUIPE RODER (MUITO IMPORTANTE):
 - Você está conversando com "${u.name || 'Equipe Roder'}", da EQUIPE INTERNA da Roder (vendedor interno, triagem, gerência ou técnico). A pessoa quer a resposta técnica para atender ou orçar.
 - Responda TÉCNICO e direto, nesta ordem:

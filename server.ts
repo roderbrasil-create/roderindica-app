@@ -3392,8 +3392,12 @@ ${kitsContext || "Não há kits de instalação cadastrados."}${improvedKnowledg
           });
 
           const userInfo = args.userInfo || {};
-          // Diretriz 18: cliente final, parceiro ou equipe Roder (server/consultorPerfil.ts)
-          const userTypeInstruction = instrucaoPerfilConsultor(userInfo);
+          // Diretriz 18: cliente final, parceiro ou equipe Roder (server/consultorPerfil.ts).
+          // Equipe: com login, o papel conferido pelo token; sem login, só o link /consultor-equipe
+          // (e-mail conferido em /api/consultor/equipe), que chega como vendedor com equipe = true
+          const q = await quemChama(req);
+          const equipe = q ? ehEquipe(q) : (userInfo.equipe === true && userInfo.role === 'vendedor');
+          const userTypeInstruction = instrucaoPerfilConsultor(userInfo, equipe);
 
           let contextoTrator = "";
           if (pedeConsultaDeTrator(question, chatHistory)) {

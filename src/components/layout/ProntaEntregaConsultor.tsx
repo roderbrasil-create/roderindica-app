@@ -34,7 +34,20 @@ export function CarrosselProntaEntrega({ itens, foto, onPerguntar, onIndicar, co
   // parado enquanto a pessoa encosta o dedo, passa o mouse ou está com o foco num botão
   const [parado, setParado] = useState(false);
   const soltar = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [menosMovimento] = useState(usaMenosMovimento);
+  // mouse em cima ou foco dentro: enquanto um dos dois valer, nada volta a girar
+  const mouseDentro = useRef(false);
+  const focoDentro = useRef(false);
+  const [menosMovimento, setMenosMovimento] = useState(usaMenosMovimento);
+  // "reduzir movimento" ligado ou desligado com a tela aberta vale na hora
+  useEffect(() => {
+    let mq: MediaQueryList | null = null;
+    try { mq = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null; } catch { mq = null; }
+    if (!mq) return;
+    const mudou = () => setMenosMovimento(mq!.matches);
+    mudou();
+    if (mq.addEventListener) mq.addEventListener('change', mudou); else mq.addListener?.(mudou);
+    return () => { if (mq!.removeEventListener) mq!.removeEventListener('change', mudou); else mq!.removeListener?.(mudou); };
+  }, []);
   const n = itens.length;
 
   const irPara = (i: number, suave = true) => {
@@ -68,7 +81,10 @@ export function CarrosselProntaEntrega({ itens, foto, onPerguntar, onIndicar, co
   // depois de soltar o dedo espera um pouco antes de voltar a girar
   const seguir = (depois = 0) => {
     if (soltar.current) clearTimeout(soltar.current);
-    soltar.current = setTimeout(() => setParado(false), depois);
+    soltar.current = setTimeout(() => {
+      if (mouseDentro.current || focoDentro.current) return;
+      setParado(false);
+    }, depois);
   };
 
   if (!n) return null;
@@ -78,13 +94,18 @@ export function CarrosselProntaEntrega({ itens, foto, onPerguntar, onIndicar, co
       className="pe-carrossel"
       aria-roledescription="carrossel"
       aria-label="Equipamentos à pronta entrega"
-      onPointerEnter={(e) => { if (e.pointerType === 'mouse') parar(); }}
-      onPointerLeave={(e) => { if (e.pointerType === 'mouse') seguir(); }}
+      onPointerEnter={(e) => { if (e.pointerType === 'mouse') { mouseDentro.current = true; parar(); } }}
+      onPointerLeave={(e) => { if (e.pointerType === 'mouse') { mouseDentro.current = false; seguir(); } }}
       onTouchStart={parar}
       onTouchEnd={() => seguir(4000)}
       onTouchCancel={() => seguir(4000)}
-      onFocusCapture={parar}
-      onBlurCapture={() => seguir(1500)}
+      onFocusCapture={() => { focoDentro.current = true; parar(); }}
+      onBlurCapture={(e) => {
+        // o foco só passou de um botão do carrossel para outro: continua parado
+        if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return;
+        focoDentro.current = false;
+        seguir(1500);
+      }}
     >
       <div
         ref={trilho}
@@ -195,7 +216,8 @@ export function AvisoProntaEntrega({ item, foto, rotulo, onAcao, parceiro }: {
   onAcao: () => void;
   parceiro: boolean;
 }) {
-  const modelo = String(item.modelo?.name || item.nome);
+  // título no singular com o modelo ("Garra Florestal R400"), o mesmo do carrossel e da folha
+  const modelo = String(item.nome || item.modelo?.name || '');
   return (
     <div className="flex justify-start">
       <div className="w-full max-w-[88%] sm:max-w-[420px] rounded-2xl border-2 border-[#F6C400] bg-[#FFFBEA] p-2.5 flex items-center gap-3">

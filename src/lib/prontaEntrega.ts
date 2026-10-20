@@ -4,6 +4,7 @@
 // (código, descrição e quantidade do estoque; nome, foto e máquina base do catálogo):
 // nada de preço.
 import { frasePara, perfilInstalacao } from './instalacao';
+import { tituloFicha } from './tituloFicha';
 
 export type ItemProntaEntrega = {
   chave: string; // `${produto.id}:${modelo.id}`
@@ -37,7 +38,8 @@ export function montarProntaEntrega(estoque: any[], produtos: any[], limite = 10
         const chave = `${p.id}:${m.id}`;
         if (vistos.has(chave)) continue;
         vistos.add(chave);
-        const nome = `${p.name || ''}`.toLowerCase().includes(String(m.name || '').toLowerCase()) ? p.name : `${p.name} ${m.name}`;
+        // mesmo título da ficha: "Garras Florestais" + "R400" vira "Garra Florestal R400"
+        const nome = tituloFicha(p, m);
         const foto = (m.images || []).find((i: string) => i && !/\.run\.app\//.test(i)) || m.image_url || p.image_url;
         const specs = m.technical_specs || {};
         achados.push({ chave, produto: p, modelo: m, nome, foto, para: frasePara(perfilInstalacao(`${p.name} ${m.name}`, specs), `${p.name} ${m.name}`, specs.maquina_base) });

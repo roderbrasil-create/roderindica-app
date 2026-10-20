@@ -2599,10 +2599,25 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     usuarioInd(`Quero indicar ${it.nome}`);
     iniciarIndicacao('', { prod: it.produto, model: it.modelo });
   };
+  // Pergunta pronta (atalho, sugestão, opção, calculadora): com a indicação aberta ela viraria a
+  // resposta do passo atual (o nome do cliente virava "Me fale sobre..."), então avisa e não manda
+  const avisarIndAberta = () => falaInd('Já estamos fazendo uma indicação. Responda a pergunta acima ou cancele.', { opcoes: [CANCELAR_IND] });
+  const enviarPronto = (texto: string) => {
+    if (fluxoInd) { avisarIndAberta(); return; }
+    handleSend(texto);
+  };
   const perguntarProntaEntrega = (it: ItemProntaEntrega) => {
     if (loading) return;
     setFolhaPronta(false);
+    if (fluxoInd) { avisarIndAberta(); return; }
     handleSend(`Me fale sobre ${it.nome} à pronta entrega`);
+  };
+  // Indicar um equipamento pela conversa (equipe que indica, no cartão compacto)
+  const indicarEquipamento = (prod: Product, model: ProductModel) => {
+    if (loading) return;
+    if (fluxoInd) { avisarIndAberta(); return; }
+    usuarioInd(`Quero indicar ${model.name || prod.name}`);
+    iniciarIndicacao('', { prod, model });
   };
 
   const handleSend = async (textToSend?: string) => {
@@ -3019,7 +3034,7 @@ O cálculo simplificado indica:
 Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se adequa a esse ciclo?`;
     
     setCalcOpen(false);
-    handleSend(calcText);
+    enviarPronto(calcText);
   };
 
   // Helper to extract distinct weight bands from product models
@@ -3242,8 +3257,8 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
 
   // pergunta pronta vinda de outra tela: manda assim que o consultor abre
   // handleSend pela referência da última renderização (sem conversa velha por cima da nova)
-  const handleSendRef = useRef(handleSend);
-  handleSendRef.current = handleSend;
+  const handleSendRef = useRef(enviarPronto);
+  handleSendRef.current = enviarPronto;
   useEffect(() => {
     if (!isOpen || !perguntaPendente || loading) return;
     const p = perguntaPendente.texto;
@@ -3397,15 +3412,26 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
     if (perfilConsultor === 'visitante' || !prontaEntrega.length) return null;
     if (msg.role !== 'assistant' || idx === 0 || msg.indicar || msg.content.includes('Ops, ocorreu um erro')) return null;
     if (parseConsultantOptions(msg.content).options.length > 0) return null;
-    const achado = (msg.painel?.produto ? detectEquipmentInMessage(msg.painel.produto)[0] : undefined)
-      || detectEquipmentInMessage(parseConsultantOptions(msg.content).text)[0];
+    // a máquina do cliente não serve: oferecer o equipamento do estoque contradiz a resposta
+    if (msg.painel?.maquina?.serve === 'nao') return null;
+    // com painel, o equipamento é o do painel; o texto só vale quando não há painel
+    const achado = msg.painel
+      ? (msg.painel.produto ? detectEquipmentInMessage(msg.painel.produto)[0] : undefined)
+      : detectEquipmentInMessage(parseConsultantOptions(msg.content).text)[0];
     const it = achado ? itemProntoDe(prontaEntrega, achado.prod.id, achado.model.id) : null;
     if (!it) return null;
+    // equipe que acabou de perguntar deste item ("Me fale sobre ...") não precisa do aviso repetindo
+    if (ehEquipeConsultor) {
+      const anterior = messages[idx - 1];
+      if (anterior?.role === 'user' && anterior.content.trim().toLowerCase().startsWith(`me fale sobre ${it.nome}`.toLowerCase())) return null;
+    }
     // já avisou deste equipamento numa resposta anterior
     for (let i = 1; i < idx; i++) {
       const m = messages[i];
       if (m.role !== 'assistant' || m.indicar || parseConsultantOptions(m.content).options.length > 0) continue;
-      const a = (m.painel?.produto ? detectEquipmentInMessage(m.painel.produto)[0] : undefined) || detectEquipmentInMessage(parseConsultantOptions(m.content).text)[0];
+      const a = m.painel
+        ? (m.painel.produto ? detectEquipmentInMessage(m.painel.produto)[0] : undefined)
+        : detectEquipmentInMessage(parseConsultantOptions(m.content).text)[0];
       if (a && a.prod.id === achado!.prod.id && a.model.id === achado!.model.id) return null;
     }
     return it;
@@ -3437,7 +3463,12 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
         <div className="w-full max-w-[88%] space-y-2.5">
           {mq && (() => {
             const cor = corServe(mq.serve);
-            const detalhe = [mq.transmissao || mq.tipo, mq.potencia].filter(Boolean).join(', ');
+            // não repete o que o título já diz ("Escavadeira 14 t" com "14 t" embaixo)
+            const normaliza = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+            const tituloMq = normaliza(String(mq.nome));
+            const detalhe = [mq.transmissao || mq.tipo, mq.potencia]
+              .filter((d): d is string => !!d && !!String(d).trim() && !tituloMq.includes(normaliza(String(d))))
+              .join(', ');
             const serveTxt = mq.serve === 'nao' ? 'não serve' : mq.serve === 'sim' ? 'serve' : mq.serve === 'verificar' ? 'verificar' : '';
             return (
               <div className={cn('rounded-2xl border px-4 py-3', cor.caixa)}>
@@ -3458,7 +3489,8 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
             const foto = fotoDoModelo(prod, model);
             // Equipe: o equipamento numa linha só (foto, nome, Ver ficha e Enviar)
             if (ehEquipeConsultor) return (
-              <div className="rounded-2xl border border-[#E2E5E8] bg-white py-2 pl-2 pr-2.5 flex items-center gap-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+              <div className="rounded-2xl border border-[#E2E5E8] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+              <div className="py-2 pl-2 pr-2.5 flex items-center gap-2.5">
                 <div className="h-11 w-12 shrink-0 rounded-[10px] bg-gradient-to-b from-[#F4F5F6] to-[#DCE0E4] flex items-center justify-center overflow-hidden">
                   {foto
                     ? <MarkdownImage src={foto} className="max-w-full max-h-full m-0 p-0.5 border-0 bg-transparent shadow-none hover:scale-100 object-contain" />
@@ -3472,6 +3504,15 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                 {podeEnviarFicha && (
                   <button type="button" onClick={() => enviarFicha(prod, model)} title="Enviar ficha" aria-label="Enviar ficha" className="h-10 w-10 shrink-0 p-0 rounded-[10px] bg-[#1FA855] text-[#fff] flex items-center justify-center active:scale-95 transition"><Send className="h-4 w-4" /></button>
                 )}
+              </div>
+              {/* equipe que indica: Indicar discreto, em texto, embaixo da linha */}
+              {podeIndicar && (
+                <div className="border-t border-[#EEF0F2] px-2.5 flex justify-end">
+                  <button type="button" onClick={() => indicarEquipamento(prod, model)} disabled={loading || !!fluxoInd} className="min-h-[36px] px-1 inline-flex items-center gap-1.5 text-[13px] font-bold text-[#3E444B] underline-offset-2 hover:underline disabled:opacity-45">
+                    <UserPlus className="h-3.5 w-3.5" /> Indicar este equipamento
+                  </button>
+                </div>
+              )}
               </div>
             );
             const linhaSpecs = specsChave(model).map(([, v]) => v).join(' · ');
@@ -3695,7 +3736,7 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                                   key={opt}
                                   type="button"
                                   disabled={!isLast || loading}
-                                  onClick={() => handleSend(opt)}
+                                  onClick={() => enviarPronto(opt)}
                                   className="px-3.5 py-2 rounded-full border border-amber-500/60 bg-amber-500/10 text-amber-300 text-[14px] font-semibold active:scale-95 transition disabled:opacity-40"
                                 >
                                   {opt}
@@ -3881,7 +3922,7 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
 
 Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamento operacional dessa solução?`;
                                   setIsArrasteCalcOpen(false);
-                                  handleSend(calcText);
+                                  enviarPronto(calcText);
                                 };
 
                                 return (
@@ -3894,13 +3935,13 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                                         <p className="text-[9.5px] text-slate-400 leading-normal">Escolha o tipo de equipamento de arraste para direcionar a conversa técnica de forma rápida e prática:</p>
                                         <div className="flex flex-wrap gap-2">
                                           <button
-                                            onClick={() => handleSend("Me fale sobre as Garras de Arraste (Mini Skids) Roder de acoplamento nos 3 pontos, modelos MSR 600 e MSR 1000")}
+                                            onClick={() => enviarPronto("Me fale sobre as Garras de Arraste (Mini Skids) Roder de acoplamento nos 3 pontos, modelos MSR 600 e MSR 1000")}
                                             className="flex-1 min-w-[130px] flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-750 border border-slate-700 hover:border-slate-600 text-slate-200 text-[10px] font-black uppercase py-2 px-3 rounded-xl transition cursor-pointer shadow-sm"
                                           >
                                             🚜 Mini Skids (MSR 600/1000)
                                           </button>
                                           <button
-                                            onClick={() => handleSend("Me fale sobre as Carretas de Arraste Clambunk Roder de engate traseiro, modelos Clambunk 1.0 e Clambunk 1.5")}
+                                            onClick={() => enviarPronto("Me fale sobre as Carretas de Arraste Clambunk Roder de engate traseiro, modelos Clambunk 1.0 e Clambunk 1.5")}
                                             className="flex-1 min-w-[130px] flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-750 border border-slate-700 hover:border-slate-600 text-slate-200 text-[10px] font-black uppercase py-2 px-3 rounded-xl transition cursor-pointer shadow-sm"
                                           >
                                             🚛 Carretas Clambunk
@@ -5413,7 +5454,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                           <p className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#6B7178]">Perguntas técnicas</p>
                           <div className="grid grid-cols-2 gap-2.5">
                             {PERGUNTAS_TECNICAS_EQUIPE.map(q => (
-                              <button key={q} type="button" onClick={() => handleSend(q)} className="h-auto min-h-12 px-4 py-2.5 rounded-2xl border border-[#DADDE1] bg-white text-left text-[14px] font-semibold text-[#2A2F35] hover:border-[#1B1E22] transition leading-snug">
+                              <button key={q} type="button" onClick={() => enviarPronto(q)} className="h-auto min-h-12 px-4 py-2.5 rounded-2xl border border-[#DADDE1] bg-white text-left text-[14px] font-semibold text-[#2A2F35] hover:border-[#1B1E22] transition leading-snug">
                                 {q}
                               </button>
                             ))}
@@ -5432,7 +5473,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                   {conversaVazia && onboardingStep === 'COMPLETED' && !loading && perfilConsultor === 'visitante' && (
                     <div className="grid grid-cols-3 gap-2.5">
                       {sugestoesPc.map(s => (
-                        <button key={s} type="button" onClick={() => handleSend(s)} className="h-auto min-h-12 px-4 py-2.5 rounded-2xl border border-[#DADDE1] bg-white text-left text-[14px] font-semibold text-[#2A2F35] hover:border-[#1B1E22] transition leading-snug">
+                        <button key={s} type="button" onClick={() => enviarPronto(s)} className="h-auto min-h-12 px-4 py-2.5 rounded-2xl border border-[#DADDE1] bg-white text-left text-[14px] font-semibold text-[#2A2F35] hover:border-[#1B1E22] transition leading-snug">
                           {s}
                         </button>
                       ))}
@@ -5682,7 +5723,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                             <p className="ccel-rotulo">Perguntas técnicas</p>
                             <div className="space-y-2">
                               {PERGUNTAS_TECNICAS_EQUIPE.map(q => (
-                                <button key={q} type="button" onClick={() => handleSend(q)} className="w-full h-auto min-h-12 px-4 py-2.5 rounded-2xl border border-[#E2E5E8] bg-white text-left text-[15px] font-medium text-[#1B1E22] leading-snug active:scale-[0.99] transition">
+                                <button key={q} type="button" onClick={() => enviarPronto(q)} className="w-full h-auto min-h-12 px-4 py-2.5 rounded-2xl border border-[#E2E5E8] bg-white text-left text-[15px] font-medium text-[#1B1E22] leading-snug active:scale-[0.99] transition">
                                   {q}
                                 </button>
                               ))}
@@ -5762,7 +5803,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                         <p className="ccel-rotulo">Perguntas comuns</p>
                         <div className="space-y-2">
                           {sugestoesPc.map(q => (
-                            <button key={q} type="button" onClick={() => handleSend(q)} className="w-full h-auto min-h-12 px-4 py-2.5 rounded-2xl border border-[#E2E5E8] bg-white text-left text-[15px] font-medium text-[#1B1E22] leading-snug active:scale-[0.99] transition">
+                            <button key={q} type="button" onClick={() => enviarPronto(q)} className="w-full h-auto min-h-12 px-4 py-2.5 rounded-2xl border border-[#E2E5E8] bg-white text-left text-[15px] font-medium text-[#1B1E22] leading-snug active:scale-[0.99] transition">
                               {q}
                             </button>
                           ))}
@@ -5800,6 +5841,12 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                         </button>
                         {prontaEntrega.length > 0 && (
                           <button type="button" onClick={() => { setMenuCel(false); setFolhaPronta(true); }} className="ccel-chip">Pronta entrega</button>
+                        )}
+                        {/* equipe que indica: Indicar fica no fim da fila, sem destaque (o técnico vem primeiro) */}
+                        {podeIndicar && !fluxoInd && (
+                          <button type="button" onClick={tocarIndicar} disabled={loading} className="ccel-chip">
+                            <UserPlus className="h-4 w-4" /> Indicar
+                          </button>
                         )}
                       </>)}
                     </div>
