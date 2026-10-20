@@ -60,6 +60,10 @@ const recebe = (u: any) => !!u && papelQueRecebe(u.role) && statusQueRecebe(u.st
 const UID_SINTETICO_DA_EQUIPE = /_manager_direct$/;
 const travadoPorStatus = (st: any) => st === 'paid' || st === 'waiting_payment';
 
+export const CAMPOS_COMISSAO = ['indication_id', 'external_seller_uid', 'external_seller_name', 'value', 'status', 'transferencia_pendente', 'created_at', 'sale_date', 'month', 'year'];
+const nomeDe = (u: any) => u?.name || 'Parceiro';
+const ultimos9 = (t: any) => String(t || '').replace(/\D/g, '').slice(-9);
+
 export async function conciliarComissoes(deps: Deps, origem = 'diária'): Promise<ResultadoConciliacao> {
   const { db } = deps;
   const log = deps.log || console.log;
@@ -92,14 +96,16 @@ export async function conciliarComissoes(deps: Deps, origem = 'diária'): Promis
   indSnap.docs.forEach((d: any) => indicacoes.set(d.id, d.data() || {}));
 
   const commSnap = await db.collection('commissions')
-    .select('indication_id', 'external_seller_uid', 'external_seller_name', 'value', 'status', 'transferencia_pendente', 'created_at')
+    // CAMPOS_COMISSAO: tudo o que o código abaixo lê de uma comissão (o teste confere esta lista contra o fonte)
+    .select(...CAMPOS_COMISSAO)
     .get();
   const comissoesPorInd = new Map<string, any[]>();
   const semIndicacaoId: any[] = []; // comissões antigas, de antes do vínculo com a indicação
   for (const c of commSnap.docs) {
     const cd = c.data() || {};
     const indId = String(cd.indication_id || '');
-    if (!indId) semIndicacaoId.push(cd);
+    // sem vínculo, ou ligada a uma indicação que foi apagada: ambas podem ser a comissão de uma venda sem comissão
+    if (!indId || !indicacoes.has(indId)) semIndicacaoId.push({ ...cd, _indicacao_apagada: !!indId });
     if (!indId || !indicacoes.has(indId)) {
       // sem indicação não há como saber quem recebe: só avisa se está num código que não existe
       const u = cd.external_seller_uid ? usuario(String(cd.external_seller_uid)) : null;
@@ -147,7 +153,14 @@ export async function conciliarComissoes(deps: Deps, origem = 'diária'): Promis
         // pode ser do dono anterior, que ficou lá quando alguém trocou o indicador.
         const email = String(atual.email || '').toLowerCase().trim();
         achada = porEmail(email);
-        if (!achada && !email) { achada = porNome(normalizar(atual.name)); porEmailOuNome = 'nome'; }
+        if (!achada && !email) {
+          // só o nome em comum (nenhum e-mail): só move se o telefone também bate
+          const pelaNomeUnica = porNome(normalizar(atual.name));
+          if (pelaNomeUnica) {
+            if (ultimos9(atual.phone) && ultimos9(atual.phone) === ultimos9(pelaNomeUnica.phone)) { achada = pelaNomeUnica; porEmailOuNome = 'nome'; }
+            else { travar({ indicacao_id: indId, cliente, parceiro: nomeDe(atual), motivo: `A venda está num cadastro provisório (${atual.doc_id}) e só o nome bate com a conta ${pelaNomeUnica.doc_id} (sem e-mail e sem telefone em comum). Nome igual pode ser outra pessoa. Use "Trocar Indicador" para confirmar.` }); continue; }
+          }
+        }
       } else {
         // código apagado: o e-mail da indicação só vale se o nome gravado nela bate com o da conta
         const email = String(ind.external_seller_email || '').toLowerCase().trim();
@@ -159,7 +172,9 @@ export async function conciliarComissoes(deps: Deps, origem = 'diária'): Promis
           else travar({ indicacao_id: indId, cliente, parceiro: ind.external_seller_name || uidInd, motivo: `A venda está ligada a um código que não existe mais, e o e-mail ${email} da indicação é de ${candidata.name || 'outra conta'}, com nome diferente de ${ind.external_seller_name || 'o da indicação'}. Pode ser o e-mail de um parceiro anterior. Use "Trocar Indicador" na tela de Indicações.` });
           if (!achada) continue;
         } else if (!email) {
-          achada = porNome(nomeInd); porEmailOuNome = 'nome';
+          // só o nome, sem e-mail nem telefone na indicação para confirmar: não adivinha
+          const pelaNomeUnica = porNome(nomeInd);
+          if (pelaNomeUnica) { travar({ indicacao_id: indId, cliente, parceiro: ind.external_seller_name || uidInd, motivo: `A venda está ligada a um código que não existe mais, e só o nome bate com a conta ${pelaNomeUnica.doc_id} (a indicação não tem e-mail nem telefone para confirmar). Nome igual pode ser outra pessoa. Use "Trocar Indicador" para confirmar.` }); continue; }
         }
       }
       if (achada) {
@@ -272,7 +287,8 @@ export async function conciliarComissoes(deps: Deps, origem = 'diária'): Promis
       const doParceiro = [destUid, uidInd].includes(String(c.external_seller_uid || '')) || nomesDoParceiro.includes(normalizar(c.external_seller_name));
       const mesmoDia = !!diaVenda && String(c.sale_date || '').slice(0, 10) === diaVenda;
       const mesmoValor = Math.abs((Number(c.value) || 0) - calc.valor) < 0.01 && c.month === mesDela.month && c.year === mesDela.year;
-      return doParceiro && (mesmoDia || mesmoValor);
+      // ligada a indicação apagada: só parceiro + valor + mês (o dia da venda não é confiável)
+      return doParceiro && (c._indicacao_apagada ? mesmoValor : (mesmoDia || mesmoValor));
     });
     if (parecida) {
       travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: `Venda faturada sem comissão ligada a ela, mas existe uma comissão antiga sem vínculo com indicação (${brl(Number(parecida.value) || 0)}, ${parecida.external_seller_name || parecida.external_seller_uid}) que pode ser desta venda. Não foi lançada outra, para não pagar duas vezes. Confira no Diagnóstico de comissão.` });

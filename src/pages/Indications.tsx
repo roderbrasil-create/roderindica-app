@@ -20,6 +20,7 @@ import {
   deleteDoc,
   writeBatch,
   runTransaction,
+  deleteField,
   increment,
   serverTimestamp,
   arrayUnion
@@ -638,6 +639,8 @@ export default function Indications() {
       const leadRef = doc(db, 'indications', selectedIndication.id);
       const updateData: any = {
         status: 'sold',
+        // refaturada depois de um estorno: a marca do estorno sai, a venda pode ganhar a comissão que faltar
+        estornado_em: deleteField(),
         sale_value: totalSalesValue,
         discount_percentage: discPct,
         discount_amount: discountAmount,

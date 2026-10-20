@@ -6,7 +6,8 @@ import {
   calcularComissao, mesDaComissao, taxaDoParceiro, papelComissionavel, temParceiroSemUid,
 } from '../src/lib/calculoComissao.ts';
 import { diagnosticar, gerarComissao, previaGeracao, ligarParceiro, nomeCasa, normalizar, nomeContido, transferirIndicacao, moverComissoesDoProvisorio, loteEmPartes } from '../server/diagnosticoComissao.ts';
-import { conciliarComissoes, conciliarComTrava, lerCorrecoes, DOC_TRAVA, DOC_RESULTADO } from '../server/conciliacaoComissao.ts';
+import { readFileSync } from 'node:fs';
+import { conciliarComissoes, conciliarComTrava, CAMPOS_COMISSAO, lerCorrecoes, DOC_TRAVA, DOC_RESULTADO } from '../server/conciliacaoComissao.ts';
 import {
   comissoesDoCiclo, agruparPorParceiro, comTravaMensal, relatorioParceirosDia1, lembreteNfDia5, lembreteFinanceiroDia7, relatorioDiretoriaDia1, mesEmBrasilia,
   ligarEmailsComissaoUmaVez,
@@ -27,7 +28,10 @@ function bancoFalso(inicial: Record<string, Record<string, any>> = {}) {
   const dados: Record<string, Record<string, any>> = structuredClone(inicial);
   const col = (n: string) => (dados[n] ||= {});
   let seq = 0;
-  const snapDoc = (n: string, id: string) => ({ exists: id in col(n), id, data: () => col(n)[id] ? structuredClone(col(n)[id]) : undefined, ref: docRef(n, id) });
+  // proj: campos do select(). O Firestore de verdade devolve SÓ esses campos; o falso também, para um
+  // campo lido e esquecido no select() falhar aqui e não só em produção.
+  const projetar = (d: any, proj?: string[]) => !proj || !proj.length ? d : Object.fromEntries(Object.entries(d).filter(([k]) => proj.includes(k)));
+  const snapDoc = (n: string, id: string, proj?: string[]) => ({ exists: id in col(n), id, data: () => col(n)[id] ? structuredClone(projetar(col(n)[id], proj)) : undefined, ref: docRef(n, id) });
   function docRef(n: string, id?: string): any {
     const did = id || `auto${++seq}`;
     return {
@@ -39,15 +43,15 @@ function bancoFalso(inicial: Record<string, Record<string, any>> = {}) {
       delete: async () => { delete col(n)[did]; },
     };
   }
-  const consulta = (n: string, f: [string, string, any][]): any => ({
+  const consulta = (n: string, f: [string, string, any][], proj?: string[]): any => ({
     _consulta: true,
-    where: (c: string, op: string, v: any) => consulta(n, [...f, [c, op, v]]),
-    select: () => consulta(n, f),
+    where: (c: string, op: string, v: any) => consulta(n, [...f, [c, op, v]], proj),
+    select: (...campos: string[]) => consulta(n, f, campos),
     get: async () => {
       const docs = Object.keys(col(n)).filter(id => f.every(([c, op, v]) => {
         const d = col(n)[id];
         return op === '==' ? d[c] === v : op === 'in' ? v.includes(d[c]) : op === 'array-contains' ? Array.isArray(d[c]) && d[c].includes(v) : false;
-      })).map(id => snapDoc(n, id));
+      })).map(id => snapDoc(n, id, proj));
       return { docs, empty: !docs.length, size: docs.length };
     },
   });
@@ -62,7 +66,7 @@ function bancoFalso(inicial: Record<string, Record<string, any>> = {}) {
         commit: async () => { for (const op of ops) await op(); },
       };
     },
-    collection: (n: string) => ({ doc: (id?: string) => docRef(n, id), where: (c: string, op: string, v: any) => consulta(n, [[c, op, v]]), select: () => consulta(n, []), get: () => consulta(n, []).get() }),
+    collection: (n: string) => ({ doc: (id?: string) => docRef(n, id), where: (c: string, op: string, v: any) => consulta(n, [[c, op, v]]), select: (...campos: string[]) => consulta(n, [], campos), get: () => consulta(n, []).get() }),
     runTransaction: async (fn: any) => {
       const escritas: (() => Promise<any>)[] = [];
       const tx = {
@@ -853,7 +857,7 @@ test('CORREÇÃO: a segunda rodada não faz nada, o histórico guarda o que foi 
 });
 
 
-test('CORREÇÃO: homônimo com e-mail diferente não recebe a venda; sem e-mail nenhum o nome único ainda vale', async () => {
+test('CORREÇÃO: homônimo com e-mail diferente não recebe a venda; só o nome (sem e-mail nem telefone) também não move', async () => {
   // indicação com e-mail conhecido que não bate com ninguém, código sumido, nome igual ao do Rafael
   let db = cenarioLuiz();
   db.dados.indications.i_luiz.external_seller_uid = 'sumiu';
@@ -865,13 +869,27 @@ test('CORREÇÃO: homônimo com e-mail diferente não recebe a venda; sem e-mail
   assert.equal(db.dados.indications.i_luiz.external_seller_uid, 'sumiu');
   assert.equal(r.travadas.length, 1);
   assert.match(r.travadas[0].motivo, /e-mail rafael\.outro@empresa\.com\.br/);
-  // sem e-mail nenhum na indicação, o nome único leva
+  // sem e-mail nenhum na indicação, o nome único sozinho não basta: vai para travadas
   db = cenarioLuiz();
   db.dados.indications.i_luiz.external_seller_uid = 'sumiu';
   db.dados.commissions.i_luiz.external_seller_uid = 'sumiu';
   r = await conciliarComissoes(depsC(db));
+  assert.equal(r.movidas.length, 0);
+  assert.ok(r.travadas.some(x => /só o nome bate/.test(x.motivo)));
+  // provisório sem e-mail: nome único MAIS telefone igual move; sem telefone igual, não
+  db = cenarioLuiz({ users: { phone_7: { uid: 'phone_7', name: 'Rafael - MAQLOC', phone: '(14) 99999-1234', role: 'external_seller', status: 'pending' } } });
+  db.dados.users.raf.phone = '14999991234';
+  db.dados.indications.i_luiz.external_seller_uid = 'phone_7';
+  db.dados.commissions.i_luiz.external_seller_uid = 'phone_7';
+  r = await conciliarComissoes(depsC(db));
   assert.equal(r.movidas.length, 1);
   assert.equal(db.dados.commissions.i_luiz.external_seller_uid, 'raf');
+  db = cenarioLuiz({ users: { phone_7: { uid: 'phone_7', name: 'Rafael - MAQLOC', phone: '11888880000', role: 'external_seller', status: 'pending' } } });
+  db.dados.users.raf.phone = '14999991234';
+  db.dados.indications.i_luiz.external_seller_uid = 'phone_7';
+  db.dados.commissions.i_luiz.external_seller_uid = 'phone_7';
+  r = await conciliarComissoes(depsC(db));
+  assert.equal(r.movidas.length, 0);
 });
 
 test('CORREÇÃO: venda faturada sem parceiro e depois "Trocar Indicador" não ganha comissão sozinha', async () => {
@@ -1046,4 +1064,47 @@ test('CORREÇÃO: erro ao limpar a marca ou ler o fechamento vai para erros e a 
   assert.ok(r, 'a rodada terminou');
   assert.ok(r.erros.some((e: string) => /fechamento/.test(e)));
   assert.ok(db.dados.cron_locks[DOC_RESULTADO], 'o resultado foi salvo');
+});
+
+
+test('SELECT: todo campo lido de uma comissão na correção automática está na lista do select()', () => {
+  const fonte = readFileSync(new URL('../server/conciliacaoComissao.ts', import.meta.url), 'utf8');
+  // variáveis que guardam documentos de comissão no arquivo
+  const lidos = new Set<string>();
+  for (const m of fonte.matchAll(/\b(?:cd|presa|parecida|fora\[0\])\.(\w+)/g)) lidos.add(m[1]);
+  for (const m of fonte.matchAll(/comms\.(?:filter|find|every|forEach)\(\(?c\)? => [^\n]*/g)) for (const x of m[0].matchAll(/\bc\.(\w+)/g)) lidos.add(x[1]);
+  for (const m of fonte.matchAll(/semIndicacaoId\.find\(c => \{[\s\S]*?\n    \}\);/g)) for (const x of m[0].matchAll(/\bc\.(\w+)/g)) lidos.add(x[1]);
+  const livres = new Set(['ref', 'id', 'update', 'filter', 'find', 'push', '_indicacao_apagada', 'transferencia_pendente_x']);
+  const faltando = [...lidos].filter(f => !livres.has(f) && !CAMPOS_COMISSAO.includes(f));
+  assert.deepEqual(faltando, [], 'campo lido da comissão e ausente do select()');
+  for (const f of ['sale_date', 'month', 'year']) assert.ok(CAMPOS_COMISSAO.includes(f));
+});
+
+test('CORREÇÃO: comissão ligada a indicação apagada (mesmo parceiro, valor e mês) impede criar outra', async () => {
+  const db = cenarioLuiz();
+  delete db.dados.commissions.i_luiz;
+  db.dados.commissions.fantasma = { indication_id: 'apagada_1', external_seller_uid: 'raf', external_seller_name: 'Rafael - MAQLOC', value: calcularComissao(CMF600, 0, 3).valor, status: 'waiting_nf', month: 11, year: 2026 };
+  const r = await conciliarComissoes(depsC(db));
+  assert.equal(r.criadas.length, 0);
+  assert.ok(!db.dados.commissions.i_luiz);
+  assert.ok(r.travadas.some(t => t.indicacao_id === 'i_luiz' && /sem vínculo/.test(t.motivo)));
+});
+
+test('CORREÇÃO: venda refaturada depois do estorno pode ganhar a comissão; estorno mais novo que o faturamento ainda bloqueia', async () => {
+  const hist = (estorno: string, venda: string) => [
+    { content: 'VENDA FINALIZADA! x', created_at: '2026-10-01T10:00:00Z' },
+    { content: 'ESTORNO DE FATURAMENTO: x', created_at: estorno },
+    { content: 'VENDA FINALIZADA! de novo', created_at: venda },
+  ];
+  const db = cenarioLuiz();
+  delete db.dados.commissions.i_luiz;
+  db.dados.indications.i_luiz.negotiation_history = hist('2026-10-02T10:00:00Z', '2026-10-06T10:00:00Z');
+  let r = await conciliarComissoes(depsC(db));
+  assert.equal(r.criadas.length, 1, 'refaturada: pode criar');
+  const db2 = cenarioLuiz();
+  delete db2.dados.commissions.i_luiz;
+  db2.dados.indications.i_luiz.negotiation_history = hist('2026-10-07T10:00:00Z', '2026-10-06T10:00:00Z');
+  r = await conciliarComissoes(depsC(db2));
+  assert.equal(r.criadas.length, 0);
+  assert.ok(r.travadas.some(t => /já foi estornada/.test(t.motivo)));
 });
