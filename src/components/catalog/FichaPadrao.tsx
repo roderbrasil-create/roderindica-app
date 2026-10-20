@@ -9,6 +9,7 @@ import { ehGarraTracadora } from '../../lib/produtividadeGt';
 import { ehFichaPropria } from '../../lib/fichaPropria';
 import { abrirDocumento } from '../../lib/abrirDocumento';
 import { tituloFicha } from '../../lib/tituloFicha';
+import { corrigirFaixaCmf500 } from '../../lib/faixaCmf';
 import {
   LARGURA_FOLHA, ALTURA_FOLHA, carregarLogoFae, esperarImagens, pdfDasFolhas, entregarPdf,
   enviarArquivoPdf, nomeArquivoFicha, resolverImagem, usePodeEnviarFicha,
@@ -234,7 +235,12 @@ function dadosGt(modelo: string): DadosFicha['gt'] {
   return { linhas, corrente, maquina: '' };
 }
 
-export function montarDadosFicha(p: Partial<Product>, m: Partial<ProductModel>): DadosFicha {
+export function montarDadosFicha(p0: Partial<Product>, m0: Partial<ProductModel>): DadosFicha {
+  // CMF 500 com o cadastro antigo ("8 a 22 Ton."): a ficha e a tabela de modelos já saem
+  // com 8 a 13 t, a mesma normalização de faixaDoModelo no explorador, antes da correção do banco
+  const modelosCorrigidos = corrigirFaixaCmf500((p0.models || []) as ProductModel[]);
+  const p: Partial<Product> = modelosCorrigidos ? { ...p0, models: modelosCorrigidos } : p0;
+  const m: Partial<ProductModel> = (corrigirFaixaCmf500([m0 as ProductModel]) || [m0])[0];
   const s = specsDe(m as ProductModel);
   const chaves = ordenar(Object.keys(s).filter(k => !vazio(s[k])));
 

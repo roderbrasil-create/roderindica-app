@@ -5329,6 +5329,11 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
     setFolhaEquip(false);
     enviarPronto(`Me fale sobre o ${tituloFicha(prod, model)}`);
   };
+  // mesma regra da aba Produtividade do explorador antigo: garra traçadora (GT)
+  const ehGtCel = (prod: Product, model: ProductModel) =>
+    model.name.toUpperCase().includes('GT') ||
+    String(prod.category || '').toUpperCase().includes('TRAÇADORA') ||
+    prod.name.toUpperCase().includes('TRAÇADORA');
   const blocoExploradorCel = selectedProduct ? (() => {
     const prod = selectedProduct;
     const faixas = getWeightBands(prod);
@@ -5393,12 +5398,28 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                     </div>
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-2">
-                    <button type="button" onClick={() => verFicha(prod, model)} className="h-11 w-full rounded-xl border-2 border-[#1B1E22] bg-white text-[#1B1E22] font-extrabold text-[14.5px] flex items-center justify-center gap-1.5 active:scale-[0.98] transition">
+                    <button type="button" onClick={() => verFicha(prod, model)} className="h-11 min-h-[44px] w-full rounded-xl border-2 border-[#1B1E22] bg-white text-[#1B1E22] font-extrabold text-[14.5px] flex items-center justify-center gap-1.5 active:scale-[0.98] transition">
                       <FileText className="h-4 w-4" /> Ver ficha
                     </button>
-                    <button type="button" onClick={() => perguntarModeloCel(prod, model)} disabled={loading} className="h-11 w-full rounded-xl bg-[#F6C400] text-[#1B1E22] font-extrabold text-[14.5px] flex items-center justify-center gap-1.5 active:scale-[0.98] transition disabled:opacity-50">
+                    <button type="button" onClick={() => perguntarModeloCel(prod, model)} disabled={loading} className="h-11 min-h-[44px] w-full rounded-xl bg-[#F6C400] text-[#1B1E22] font-extrabold text-[14.5px] flex items-center justify-center gap-1.5 active:scale-[0.98] transition disabled:opacity-50">
                       <MessageSquare className="h-4 w-4" /> Perguntar
                     </button>
+                    {/* o explorador antigo sempre oferecia indicar: parceiro indica, visitante pede orçamento */}
+                    {(podeIndicar || perfilConsultor === 'visitante') && (
+                      <button type="button" onClick={() => handleMakeIndication(prod, model)} className="h-11 min-h-[44px] w-full rounded-xl bg-[#1B1E22] text-white font-extrabold text-[14.5px] flex items-center justify-center gap-1.5 active:scale-[0.98] transition">
+                        <UserPlus className="h-4 w-4" /> Indicar
+                      </button>
+                    )}
+                    {podeEnviarFicha && (
+                      <button type="button" onClick={() => enviarFicha(prod, model)} className="h-11 min-h-[44px] w-full rounded-xl bg-[#1FA855] text-white font-extrabold text-[14.5px] flex items-center justify-center gap-1.5 active:scale-[0.98] transition">
+                        <Send className="h-4 w-4" /> Enviar ficha
+                      </button>
+                    )}
+                    {ehGtCel(prod, model) && (
+                      <button type="button" onClick={() => { setFolhaEquip(false); enviarPronto(`Produção da ${model.name}`); }} disabled={loading} className="h-11 min-h-[44px] w-full rounded-xl border-2 border-[#E2E5E8] bg-white text-[#1B1E22] font-extrabold text-[14.5px] flex items-center justify-center gap-1.5 active:scale-[0.98] transition disabled:opacity-50">
+                        <Sparkles className="h-4 w-4" /> Produtividade
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -5713,12 +5734,12 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
             {/* "Ver como" no celular: o consultor cobre a tela toda (inclusive a barra laranja do app),
                 então a barra da simulação vem aqui dentro, para o admin saber de quem é a tela e poder sair */}
             {simulandoCel && (
-              <div className="ccel-simulacao relative z-20 shrink-0 bg-[#EA580C] text-[#fff] flex items-center justify-between gap-2 pl-3 pr-2 pb-1 pt-[calc(env(safe-area-inset-top,0px)+4px)] sm:pt-1">
+              <div className="ccel-simulacao sm:hidden relative z-20 shrink-0 bg-[#EA580C] text-[#fff] flex items-center justify-between gap-2 pl-3 pr-2 pb-1 pt-[calc(env(safe-area-inset-top,0px)+4px)]">
                 <span className="min-w-0 flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider">
                   <Eye className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate">{profile?.name}</span>
                 </span>
-                <button type="button" onClick={stopImpersonation} className="h-8 shrink-0 px-2.5 rounded-lg bg-white text-[#C2410C] text-[10.5px] font-black uppercase tracking-wider flex items-center gap-1">
+                <button type="button" onClick={stopImpersonation} className="h-11 min-h-[44px] shrink-0 px-3 rounded-lg bg-white text-[#C2410C] text-[10.5px] font-black uppercase tracking-wider flex items-center gap-1">
                   <EyeOff className="h-3.5 w-3.5" /> Sair da simulação
                 </button>
               </div>
@@ -5728,7 +5749,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                 botões da direita (pedido do Jeferson em 19/10/2026). Para não encostar nele em tela
                 estreita: o nome some abaixo de 460px e, no painel flutuante, o "Minimizar" (que
                 também está no menu) some abaixo de 420px. */}
-            <header className={cn("relative z-20 shrink-0 bg-[#1B1E22] flex items-center gap-1 pl-3 pr-1.5 pb-1.5", simulandoCel ? "pt-1.5" : "pt-[calc(env(safe-area-inset-top,0px)+6px)] sm:pt-1.5")}>
+            <header className={cn("relative z-20 shrink-0 bg-[#1B1E22] flex items-center gap-1 pl-3 pr-1.5 pb-1.5", simulandoCel ? "pt-1.5 sm:pt-1.5" : "pt-[calc(env(safe-area-inset-top,0px)+6px)] sm:pt-1.5")}>
               <span className="ccel-titulo pointer-events-none absolute inset-x-0 bottom-1.5 h-11 flex items-center justify-center">
                 <span className="fonte-titulo text-[16px] font-extrabold tracking-[0.06em] text-[#F6C400] whitespace-nowrap">CONSULTOR</span>
               </span>
@@ -5760,7 +5781,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
             {menuCel && (
               <>
                 <button type="button" aria-label="Fechar menu" onClick={() => setMenuCel(false)} className="absolute inset-0 z-30 h-auto w-auto p-0 bg-black/20 cursor-default" />
-                <div role="menu" className={cn("absolute right-2 z-40 w-[250px] max-w-[calc(100%-16px)] rounded-2xl bg-white border border-[#E2E5E8] shadow-[0_12px_32px_rgba(0,0,0,0.18)] py-1.5 overflow-hidden", simulandoCel ? "top-[calc(env(safe-area-inset-top,0px)+94px)] sm:top-[94px]" : "top-[calc(env(safe-area-inset-top,0px)+54px)] sm:top-[54px]")}>
+                <div role="menu" className={cn("absolute right-2 z-40 w-[250px] max-w-[calc(100%-16px)] rounded-2xl bg-white border border-[#E2E5E8] shadow-[0_12px_32px_rgba(0,0,0,0.18)] py-1.5 overflow-hidden", simulandoCel ? "top-[calc(env(safe-area-inset-top,0px)+106px)] sm:top-[54px]" : "top-[calc(env(safe-area-inset-top,0px)+54px)] sm:top-[54px]")}>
                   {nomeUsuario && (
                     <p className="m-0 px-4 pt-1.5 pb-2 mb-1 border-b border-[#ECEEF0] text-[13px] text-[#5B6168] truncate">
                       <User className="inline h-4 w-4 -mt-0.5 mr-1.5 text-[#8A6500]" />{nomeUsuario}{papelUsuario ? ` · ${papelUsuario}` : ''}

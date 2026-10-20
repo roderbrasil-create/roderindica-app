@@ -186,7 +186,9 @@ export async function runSelfHealing(data: any[], db: any) {
           if (m.id === 'cmf-800') return { ...m, images: ['db-file://DSexLnNxqOlOV4oEUGEG', ...(m.images || [])] };
           return m;
         });
-        await updateDoc(doc(db, 'products', cabecoteDoc.id), { models: updatedModels });
+        // `data` foi lido antes da correção da faixa (passo do topo): sem reaplicar aqui,
+        // gravar as fotos devolveria ao banco o "8 a 22 Ton." antigo do CMF 500
+        await updateDoc(doc(db, 'products', cabecoteDoc.id), { models: corrigirFaixaCmf500(updatedModels) || updatedModels });
       }
     }
 

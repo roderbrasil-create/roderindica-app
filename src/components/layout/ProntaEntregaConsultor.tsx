@@ -254,7 +254,7 @@ export function FaixaProntaEntrega({ itens, foto, onPerguntar, onIndicar }: {
             role="group"
             aria-roledescription="item"
             aria-label={`${i + 1} de ${n}: ${it.nome}`}
-            className="snap-center shrink-0 w-full h-[96px] flex items-stretch gap-2 rounded-2xl border border-[#E2E5E8] bg-white p-1.5 pr-2"
+            className="snap-center shrink-0 w-full h-[104px] flex items-stretch gap-2 rounded-2xl border border-[#E2E5E8] bg-white p-1.5 pr-2"
           >
             <button
               type="button"
@@ -281,7 +281,7 @@ export function FaixaProntaEntrega({ itens, foto, onPerguntar, onIndicar }: {
                   onClick={() => { parar(); setVideoAberto(videoAberto === it.chave ? null : it.chave); }}
                   aria-label={`Ver vídeo de ${it.nome}`}
                   title="Ver vídeo"
-                  className="h-10 w-10 p-0 rounded-full bg-[#1B1E22] text-[#fff] flex items-center justify-center active:scale-95 transition"
+                  className="h-11 w-11 min-h-[44px] min-w-[44px] p-0 rounded-full bg-[#1B1E22] text-[#fff] flex items-center justify-center active:scale-95 transition"
                 >
                   <Play className="h-4 w-4 fill-[#F6C400] text-[#F6C400]" />
                 </button>
@@ -292,7 +292,7 @@ export function FaixaProntaEntrega({ itens, foto, onPerguntar, onIndicar }: {
                   onClick={() => onIndicar(it)}
                   aria-label={`Indicar ${it.nome}`}
                   title="Indicar"
-                  className="h-10 w-10 p-0 rounded-full bg-[#F6C400] text-[#1B1E22] flex items-center justify-center active:scale-95 transition"
+                  className="h-11 w-11 min-h-[44px] min-w-[44px] p-0 rounded-full bg-[#F6C400] text-[#1B1E22] flex items-center justify-center active:scale-95 transition"
                 >
                   <UserPlus className="h-[18px] w-[18px]" />
                 </button>
@@ -302,7 +302,7 @@ export function FaixaProntaEntrega({ itens, foto, onPerguntar, onIndicar }: {
                   onClick={() => onPerguntar(it)}
                   aria-label={`Perguntar sobre ${it.nome}`}
                   title="Perguntar"
-                  className="h-10 w-10 p-0 rounded-full border border-[#DADDE1] bg-white text-[#1B1E22] flex items-center justify-center active:scale-95 transition"
+                  className="h-11 w-11 min-h-[44px] min-w-[44px] p-0 rounded-full border border-[#DADDE1] bg-white text-[#1B1E22] flex items-center justify-center active:scale-95 transition"
                 >
                   <MessageCircle className="h-[18px] w-[18px]" />
                 </button>
