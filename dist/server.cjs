@@ -152,52 +152,1301 @@ var INSTALLATION_KITS = [
     ]
   },
   {
-    code: "9000.9000.9015",
-    description: "KIT INSTALACAO GARRA + LINK EM ESCAVADEIRA - (MAQUINA COM FATIA EXTRA SEM LINHA)",
+    code: "9000.9000.9004",
+    description: "KIT INSTALACAO CMF500/600 + LINCK EM ESCAVADEIRA - ( MAQUINA COM LINHA ROMPEDOR)",
     items: [
-      { code: "1000.0000.0120", description: "Link Garra Biela 4 para maquinas pino 80mm", quantity: 1 }
+      { code: "5000.1001.0061", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO ESCAVADEIRA PARA CMF500/600", quantity: 1 },
+      { code: "1000.1040.2305", description: "KIT ACIONAMENTO FATIA AUXILIAR 24V", quantity: 1 },
+      { code: "3000.5001.1188", description: "3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 4 },
+      { code: "3000.5001.1083", description: "3/8 R2 - 12000 MM X FG 9/16 JIC X FG 9/16 JIC", quantity: 1 },
+      { code: "3000.5001.1142", description: "5/8 R2 - 11000 MM X FG 7/8 JIC X FG 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1110", description: "1/2 R2 - 2000 MM X FG 7/8 JIC X FG 1/2 BSP BOL", quantity: 3 },
+      { code: "3000.5001.1042", description: "3/8 R2 - 2000 MM X FG 9/16 JIC X FG 9/16 JIC", quantity: 1 },
+      { code: "3000.5001.1134", description: "3/4R12 - 2000 MM X FG 1.1/16 JIC X FG 3/4 BSP BOL", quantity: 2 },
+      { code: "1000.1040.2703", description: "TUBO HIDRAULICO 3/4 X 1000 X 1.1/16JIC X 1.1/16JIC", quantity: 2 },
+      { code: "1000.1040.2705", description: "TUBO HIDRAULICO 3/4 X 1000 X 1.1/16JIC X 1/2NPT", quantity: 2 },
+      { code: "1000.1040.4200", description: "ABRACADEIRA QUADRUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 2 },
+      { code: "2000.1000.3147", description: "CHAPA PAINEL 9/16 -7/8 INSTALACAO", quantity: 1 },
+      { code: "3000.5000.0318", description: "Adaptador Painel 9/16 JIC", quantity: 2 },
+      { code: "3000.5000.0317", description: "Adaptador Painel 7/8 JIC", quantity: 1 },
+      { code: "3000.5003.0146", description: "VALVULA CONTROLE FLUXO UNIDIRECIONAL 3/8 BSP", quantity: 1 },
+      { code: "3000.5000.0491", description: "ADAPTADOR MACHO/FEMEA 3/8 BSP X 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0311", description: "ADAPTADOR MACHO/MACHO 3/8 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC", quantity: 1 },
+      { code: "3000.5003.0003", description: "VALVULA CARTUCHO SV08-23-01-00-0-B-0 (PARA CRU-0129)", quantity: 1 },
+      { code: "3000.5003.0004", description: "BLOCO PADRAO SDC08-3-S6S (CRU-0129) - 9/16 UNF", quantity: 1 },
+      { code: "3000.5003.0084", description: "BOBINA M13-24D-20W-DN/FL - SOLENOIDE", quantity: 1 },
+      { code: "3000.5000.0398", description: "Adaptador macho/macho 9/16 UNF X 9/16 JIC", quantity: 4 },
+      { code: "2000.1000.3181", description: "CHAPA SUPORTE VALVULA PILOTO SIMPLES", quantity: 1 },
+      { code: "3000.1000.0076", description: "Parafuso Sextavado 8.8-M6 x 45", quantity: 2 },
+      { code: "3000.1003.0073", description: "Porca M6 parlock", quantity: 2 },
+      { code: "3000.1004.0018", description: "Arruela de press\xE3o M6", quantity: 2 },
+      { code: "3000.5000.0274", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 9/16 JIC X 9/16 JIC", quantity: 2 },
+      { code: "3000.5000.0396", description: "BUJAO FEMEA SEXTAVADO EXTERNO 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0336", description: "BUJAO MACHO SEXTAVADO EXTERNO 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0366", description: "BUJAO FEMEA SEXTAVADO EXTERNO 7/8 JIC", quantity: 3 },
+      { code: "1000.1040.1102", description: "ADAPTADOR PARA SOLDA 7/8 JIC", quantity: 2 },
+      { code: "3000.5000.0379", description: "Adaptador Painel 1.1/16 JIC", quantity: 2 },
+      { code: "5000.1001.0059", description: "MANOPLA JOYSTICK 3 BOTOES- PADRAO FLORESTAL", quantity: 1 },
+      { code: "3000.5000.0359", description: "ENGATE RAPIDO FEMEA FACE PLANA 1/2 NPT-14 CORPO 1/2", quantity: 3 },
+      { code: "3000.5000.0360", description: "ENGATE RAPIDO MACHO FACE PLANA 1/2 NPT-14 - CORPO 1/2", quantity: 3 },
+      { code: "3000.5000.0395", description: "ADAPTADOR MACHO/FEMEA 1/2 NPT X 7/8 JIC", quantity: 3 },
+      { code: "3000.5003.0188", description: "VALVULA CONTROLE FLUXO BI-DIRECIONAL 3/4 BSP", quantity: 2 },
+      { code: "3000.5000.0294", description: "Adaptador macho/macho 3/4 BSP x 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0324", description: "ADAPTADOR MACHO/FEMEA 3/4 BSP X 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0361", description: "ENGATE RAPIDO FEMEA FACE PLANA 9/16 UNF-14 - CORPO 1/4", quantity: 1 },
+      { code: "3000.5000.0362", description: "ENGATE RAPIDO MACHO FACE PLANA 9/16 UNF-14 - CORPO 1/4", quantity: 1 },
+      { code: "3000.5000.0399", description: "Adaptador macho/femea 9/16 UNF X 9/16 JIC", quantity: 1 }
     ]
   },
   {
-    code: "9000.9000.9004",
-    description: "KIT INSTALACAO CMF500/600 + LINCK EM ESCAVADEIRA - (MAQUINA COM LINHA ROMPEDOR)",
+    code: "9000.9000.9005",
+    description: 'KIT INSTALACAO LINHA EXTRA PADRAO ESCAVADEIRA - ( MAQUINA CAT320 GC COM FATIA EXTRA "ACIONADA" SEM LINHA)',
     items: [
-      { code: "3000.5001.1188", description: "MANGUEIRAS DE ALTA VAZAO 3/4 R12 X 1.1/16 JIC", quantity: 2 },
-      { code: "5000.1001.0016", description: "CHICOTE DE COMANDO ELETRO-HIDRAULICO 24V", quantity: 1 },
+      { code: "3000.5001.1188", description: "3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 4 },
+      { code: "1000.1040.2703", description: "TUBO HIDRAULICO 3/4 X 1000 X 1.1/16JIC X 1.1/16JIC", quantity: 2 },
+      { code: "1000.1040.2702", description: "TUBO HIDRAULICO 3/4 X 2000 X 1.1/16JIC X 1.1/16JIC", quantity: 4 },
+      { code: "1000.1040.4100", description: "ABRACADEIRA DUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 10 },
+      { code: "1000.1040.5600", description: "ABRACADEIRA CONJUNTO SIMPLES \xD827", quantity: 4 },
+      { code: "3000.5003.0075", description: "Valvula esfera 2 vias 3/4BSP", quantity: 2 },
+      { code: "3000.5000.0294", description: "Adaptador macho/macho 3/4 BSP x 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0324", description: "ADAPTADOR MACHO/FEMEA 3/4 BSP X 1.1/16 JIC", quantity: 2 },
+      { code: "1000.1040.1107", description: "ADAPTADOR PARA SOLDA 1.1/16 JIC", quantity: 2 }
+    ]
+  },
+  {
+    code: "9000.9000.9006",
+    description: "KIT INSTALACAO GT COM BLOCO 3 VIAS - ( MAQUINA COM LINHA)",
+    items: [
+      { code: "3000.5003.0085", description: "BLOCO COMANDO VALVULA DIRECIONAL PILOTADA", quantity: 1 },
+      { code: "3000.5000.0307", description: "Adaptador macho/macho 1.5/16 UNF x 1.1/16 JIC", quantity: 6 },
+      { code: "3000.5000.0398", description: "Adaptador macho/macho 9/16 UNF X 9/16 JIC", quantity: 5 },
+      { code: "5000.1001.0042", description: "MANOPLA JOYSTICK 2 BOTOES- PADRAO FLORESTAL", quantity: 1 },
+      { code: "5000.1001.0051", description: "CAIXA ELETRICA 01 FUNCAO 12/24V", quantity: 1 },
+      { code: "3000.5003.0003", description: "VALVULA CARTUCHO SV08-23-01-00-0-B-0 (PARA CRU-0129)", quantity: 1 },
+      { code: "3000.5003.0004", description: "BLOCO PADRAO SDC08-3-S6S (CRU-0129) - 9/16 UNF", quantity: 1 },
+      { code: "3000.5003.0084", description: "BOBINA M13-24D-20W-DN/FL - SOLENOIDE", quantity: 1 },
+      { code: "2000.1000.3181", description: "CHAPA SUPORTE VALVULA PILOTO SIMPLES", quantity: 1 },
+      { code: "3000.1003.0073", description: "Porca M6 parlock", quantity: 2 },
+      { code: "3000.1000.0076", description: "Parafuso Sextavado 8.8-M6 x 45", quantity: 2 },
+      { code: "3000.1004.0018", description: "Arruela de press\xE3o M6", quantity: 2 }
+    ]
+  },
+  {
+    code: "9000.9000.9007",
+    description: "KIT INSTALACAO TRITURADOR EM ESCAVADEIRA - ( MAQUINA COM LINHA)",
+    items: [
+      { code: "3000.5000.0366", description: "BUJAO FEMEA SEXTAVADO EXTERNO 7/8 JIC", quantity: 1 },
+      { code: "3000.5000.0396", description: "BUJAO FEMEA SEXTAVADO EXTERNO 1.1/16 JIC", quantity: 2 },
+      { code: "1000.1040.4700", description: "FIXACAO MANGUEIRAS DESTOCADOR", quantity: 1 },
+      { code: "3000.5001.1142", description: "5/8 R2 - 11000 MM X FG 7/8 JIC X FG 7/8 JIC", quantity: 1 },
+      { code: "1000.1040.1102", description: "ADAPTADOR PARA SOLDA 7/8 JIC", quantity: 1 },
+      { code: "2000.1000.2847", description: "CHAPA PERFIL L ADAPTADOR PAINEL 7/8", quantity: 1 },
+      { code: "3000.5000.0317", description: "Adaptador Painel 7/8 JIC", quantity: 1 },
+      { code: "4000.5000.0019", description: "ABRACADEIRA NYLON 4,8 X 400MM", quantity: 10 },
+      { code: "2000.1000.3510", description: "CHAPA DO CHICOTE ELETRICO FAE", quantity: 1 }
+    ]
+  },
+  {
+    code: "9000.9000.9008",
+    description: "KIT INSTALACAO LINHA EXTRA PADRAO ESCAVADEIRA - ( MAQUINA COM FATIA EXTRA SEM LINHA)",
+    items: [
+      { code: "5000.1001.0016", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO ESCAVADEIRA PARA GARRA/DESTOCADOR/ FELLER SEM ACUMALADOR", quantity: 1 },
+      { code: "3000.5001.1188", description: "3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 4 },
+      { code: "1000.1040.2703", description: "TUBO HIDRAULICO 3/4 X 1000 X 1.1/16JIC X 1.1/16JIC", quantity: 2 },
+      { code: "1000.1040.2702", description: "TUBO HIDRAULICO 3/4 X 2000 X 1.1/16JIC X 1.1/16JIC", quantity: 4 },
       { code: "1000.1040.2305", description: "KIT ACIONAMENTO FATIA AUXILIAR 24V", quantity: 1 },
-      { code: "3000.5001.1142", description: "MANGUEIRA DE DRENO 5/8 R2 X 7/8 JIC", quantity: 1 }
+      { code: "1000.1040.4100", description: "ABRACADEIRA DUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 10 },
+      { code: "1000.1040.5600", description: "ABRACADEIRA CONJUNTO SIMPLES \xD827", quantity: 4 },
+      { code: "5000.1001.0039", description: "PEDAL ACIONAMENTO 10A 250V 1REV MINI TFS-100 - COM CABO 1METRO", quantity: 2 },
+      { code: "3000.5003.0075", description: "Valvula esfera 2 vias 3/4BSP", quantity: 2 },
+      { code: "3000.5000.0294", description: "Adaptador macho/macho 3/4 BSP x 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0324", description: "ADAPTADOR MACHO/FEMEA 3/4 BSP X 1.1/16 JIC", quantity: 2 },
+      { code: "1000.1040.1107", description: "ADAPTADOR PARA SOLDA 1.1/16 JIC", quantity: 2 }
+    ]
+  },
+  {
+    code: "9000.9000.9009",
+    description: "KIT INSTALACAO GT600/800 ROTATOR SEM PASSAGEM EXTRA EM ESCAVADEIRA 20TON - (MAQUINA COM LINHA DE GARRA)",
+    items: [
+      { code: "1000.1040.4200", description: "ABRACADEIRA QUADRUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 2 },
+      { code: "1000.1040.4100", description: "ABRACADEIRA DUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 14 },
+      { code: "1000.1040.2305", description: "KIT ACIONAMENTO FATIA AUXILIAR 24V", quantity: 1 },
+      { code: "5000.1001.0017", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO ESCAVADEIRA PARA GT600-GT800 SEM PASSAGEM EXTRA", quantity: 1 },
+      { code: "3000.5001.1188", description: "3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 4 },
+      { code: "1000.1040.2702", description: "TUBO HIDRAULICO 3/4 X 2000 X 1.1/16JIC X 1.1/16JIC", quantity: 6 },
+      { code: "3000.5003.0008", description: "BLOCO PADRAO SDC10-3-S8S (ZNC PRETO)", quantity: 1 },
+      { code: "3000.5003.0009", description: "VALVULA REDUTORA DE PRESSAO PRRS-10-N-S-0-30 BUCHER", quantity: 1 },
+      { code: "3000.5000.0301", description: "Adaptador macho/macho 3/4 UNF x 9/16 JIC", quantity: 3 },
+      { code: "1000.1040.4101", description: "ABRACADEIRA SUPERIOR FERRO DUPLA PARA TUBO 27MM", quantity: 4 },
+      { code: "1000.1040.2711", description: "TUBO HIDRAULICO 3/4 X 2000 X 7/8JIC X 7/8JIC", quantity: 2 },
+      { code: "1000.1040.2333", description: "KIT VALVULA DIRECIONAL TN6 DUPLA FUNCAO 24V - PARA LINHA ROTATOR", quantity: 1 },
+      { code: "3000.5001.1147", description: "3/8 R2 - 3000MM X FG 7/8 JIC X FG 3/4 JIC", quantity: 1 },
+      { code: "3000.5001.1084", description: "1/2 R2 - 3000 MM X FG 7/8 JIC X FG 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1035", description: "3/4 R12 - 3000 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 2 },
+      { code: "1000.1040.1102", description: "ADAPTADOR PARA SOLDA 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1142", description: "5/8 R2 - 11000 MM X FG 7/8 JIC X FG 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1038", description: "3/8 R2 - 10000 MM X FG 7/8 JIC X FG 9/16 JIC", quantity: 1 },
+      { code: "2000.1000.3181", description: "CHAPA SUPORTE VALVULA PILOTO SIMPLES", quantity: 1 },
+      { code: "3000.1000.0076", description: "Parafuso Sextavado 8.8-M6 x 45", quantity: 2 },
+      { code: "3000.1003.0073", description: "Porca M6 parlock", quantity: 2 },
+      { code: "3000.1004.0018", description: "Arruela de press\xE3o M6", quantity: 2 }
+    ]
+  },
+  {
+    code: "9000.9000.9010",
+    description: "KIT INSTALACAO FELLER TESOURA EM ESCAVADEIRA - ( MAQUINA COM FATIA EXTRA SEM LINHA )",
+    items: [
+      { code: "3000.5003.0100", description: "COMANDO HIDRAULICO ELETRICO SDS180/2 - AC(XG-180) /18EI3L/18EI3L/RV-KE2R3-24CDV", quantity: 1 },
+      { code: "1000.1040.4100", description: "ABRACADEIRA DUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 24 },
+      { code: "3000.5001.1188", description: "3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 4 },
+      { code: "3000.5001.1175", description: "3/4 R12 - 2300 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5003.0003", description: "VALVULA CARTUCHO SV08-23-01-00-0-B-0 (PARA CRU-0129)", quantity: 1 },
+      { code: "3000.5003.0004", description: "BLOCO PADRAO SDC08-3-S6S (CRU-0129) - 9/16 UNF", quantity: 1 },
+      { code: "3000.5003.0084", description: "BOBINA M13-24D-20W-DN/FL - SOLENOIDE", quantity: 1 },
+      { code: "3000.5000.0398", description: "Adaptador macho/macho 9/16 UNF X 9/16 JIC", quantity: 3 },
+      { code: "3000.5000.0311", description: "ADAPTADOR MACHO/MACHO 3/8 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC", quantity: 4 },
+      { code: "3000.5000.0381", description: "Adaptador macho/macho 1/2 BSP x 9/16 JIC", quantity: 2 },
+      { code: "3000.5000.0284", description: "Adaptador macho/macho 1.1/16 UNF x 1.1/16 JIC", quantity: 4 },
+      { code: "3000.5000.0307", description: "Adaptador macho/macho 1.5/16 UNF x 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0276", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 1.1/16 JIC X 1.1/16 JIC", quantity: 6 },
+      { code: "3000.5000.0274", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 9/16 JIC X 9/16 JIC", quantity: 2 },
+      { code: "5000.1001.0053", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO 24V PARA FELLER COM ACUMULADOR", quantity: 1 },
+      { code: "5000.1001.0018", description: "MANOPLA JOYSTICK 5 BOTOES - PADRAO FLORESTAL", quantity: 1 },
+      { code: "1000.1040.2702", description: "TUBO HIDRAULICO 3/4 X 2000 X 1.1/16JIC X 1.1/16JIC", quantity: 8 },
+      { code: "3000.5001.1180", description: "3/4R12 - 1000 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 4 },
+      { code: "1000.1040.2703", description: "TUBO HIDRAULICO 3/4 X 1000 X 1.1/16JIC X 1.1/16JIC", quantity: 4 },
+      { code: "3000.5000.0333", description: "ADAPTADOR TEE MACHO/FEMEA LATERAL 9/16 JIC", quantity: 2 },
+      { code: "3000.5001.1081", description: "1/4 R17 - 1000 MM X FG 9/16 JIC X FG 90\xB0 9/16 JIC", quantity: 2 },
+      { code: "3000.5001.1006", description: "1/4 R17 - 1800 MM X FG 9/16 JIC X FG 9/16 JIC", quantity: 4 },
+      { code: "3000.5001.1008", description: "1/2 R2 - 2300 MM X FG 7/8 JIC X FG 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5001.1138", description: "3/4R12 - 1000 MM X FG 1.1/16 JIC X FG 90\xB0 1.1/16 JIC", quantity: 4 },
+      { code: "3000.5001.1009", description: "3/4 R2 - 1300 MM X FG 1.1/16 JIC X FG 90\xB0 1.1/16 JIC", quantity: 1 }
+    ]
+  },
+  {
+    code: "9000.9000.9011",
+    description: "KIT INSTALACAO CMF500/600 + LANCA EXTENSORA EM ESCAVADEIRA - ( MAQUINA SEM FATIA EXTRA )",
+    items: [
+      { code: "5000.1001.0016", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO ESCAVADEIRA PARA GARRA/DESTOCADOR/ FELLER SEM ACUMALADOR", quantity: 1 },
+      { code: "3000.5001.1188", description: "3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 6 },
+      { code: "1000.1040.2707", description: "TUBO HIDRAULICO 3/4 X 1200 X 1.1/16JIC X 7/8JIC", quantity: 2 },
+      { code: "1000.1040.2702", description: "TUBO HIDRAULICO 3/4 X 2000 X 1.1/16JIC X 1.1/16JIC", quantity: 4 },
+      { code: "1000.1040.2333", description: "KIT VALVULA DIRECIONAL TN6 DUPLA FUNCAO 24V - PARA LINHA ROTATOR", quantity: 1 },
+      { code: "1000.1040.4100", description: "ABRACADEIRA DUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 14 },
+      { code: "1000.1040.2709", description: "TUBO HIDRAULICO 3/4 X 1200 X 1.1/16JIC X 1.1/16JIC", quantity: 2 },
+      { code: "3000.5001.1007", description: "1/2 R2 - 1600 MM X FG 7/8 JIC X FG 45\xB0 7/8 JIC", quantity: 3 },
+      { code: "3000.5001.1043", description: "3/8 R2 - 1600 MM X FG 9/16 JIC X FG 45\xB0 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0318", description: "Adaptador Painel 9/16 JIC", quantity: 2 },
+      { code: "3000.5000.0317", description: "Adaptador Painel 7/8 JIC", quantity: 1 },
+      { code: "3000.5003.0146", description: "VALVULA CONTROLE FLUXO UNIDIRECIONAL 3/8 BSP", quantity: 1 },
+      { code: "3000.5000.0291", description: "ADAPTADOR MACHO/MACHO 1/4 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0491", description: "ADAPTADOR MACHO/FEMEA 3/8 BSP X 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0274", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 9/16 JIC X 9/16 JIC", quantity: 2 },
+      { code: "2000.1000.3147", description: "CHAPA PAINEL 9/16 -7/8 INSTALACAO", quantity: 1 },
+      { code: "3000.5003.0086", description: "REGULADORA DE PRESSAO 1/4 - 40-250 BAR 25 LITROS S/MIN", quantity: 1 },
+      { code: "3000.5003.0008", description: "BLOCO PADRAO SDC10-3-S8S (ZNC PRETO)", quantity: 1 },
+      { code: "3000.5003.0009", description: "VALVULA REDUTORA DE PRESSAO PRRS-10-N-S-0-30 BUCHER", quantity: 1 },
+      { code: "3000.5000.0301", description: "Adaptador macho/macho 3/4 UNF x 9/16 JIC", quantity: 3 },
+      { code: "1000.1040.1102", description: "ADAPTADOR PARA SOLDA 7/8 JIC", quantity: 2 },
+      { code: "3000.5000.0396", description: "BUJAO FEMEA SEXTAVADO EXTERNO 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0336", description: "BUJAO MACHO SEXTAVADO EXTERNO 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0366", description: "BUJAO FEMEA SEXTAVADO EXTERNO 7/8 JIC", quantity: 3 },
+      { code: "3000.5001.1002", description: "1/2 R2 - 1200mm x FG 7/8 JIC x FG 45\xB0 7/8JIC", quantity: 3 },
+      { code: "3000.5001.1177", description: "3/8 R2 - 1170 MM X FG 9/16 JIC X FG 45\xB0 9/16 JIC", quantity: 1 },
+      { code: "3000.5001.1172", description: "3/4 R12 - 1160 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0379", description: "Adaptador Painel 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5001.1142", description: "5/8 R2 - 11000 MM X FG 7/8 JIC X FG 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1083", description: "3/8 R2 - 12000 MM X FG 9/16 JIC X FG 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0311", description: "ADAPTADOR MACHO/MACHO 3/8 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC", quantity: 1 }
+    ]
+  },
+  {
+    code: "9000.9000.9012",
+    description: "KIT INSTALACAO CMF500/600 + LANCA EXTENSORA EM ESCAVADEIRA - ( MAQUINA COM LINHA DE GARRA)",
+    items: [
+      { code: "1000.1040.2707", description: "TUBO HIDRAULICO 3/4 X 1200 X 1.1/16JIC X 7/8JIC", quantity: 2 },
+      { code: "1000.1040.2709", description: "TUBO HIDRAULICO 3/4 X 1200 X 1.1/16JIC X 1.1/16JIC", quantity: 2 },
+      { code: "3000.5000.0318", description: "Adaptador Painel 9/16 JIC", quantity: 2 },
+      { code: "3000.5000.0317", description: "Adaptador Painel 7/8 JIC", quantity: 1 },
+      { code: "3000.5003.0146", description: "VALVULA CONTROLE FLUXO UNIDIRECIONAL 3/8 BSP", quantity: 1 },
+      { code: "3000.5000.0291", description: "ADAPTADOR MACHO/MACHO 1/4 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC", quantity: 3 },
+      { code: "3000.5000.0491", description: "ADAPTADOR MACHO/FEMEA 3/8 BSP X 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0274", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 9/16 JIC X 9/16 JIC", quantity: 2 },
+      { code: "3000.5001.1043", description: "3/8 R2 - 1600 MM X FG 9/16 JIC X FG 45\xB0 9/16 JIC", quantity: 1 },
+      { code: "3000.5001.1007", description: "1/2 R2 - 1600 MM X FG 7/8 JIC X FG 45\xB0 7/8 JIC", quantity: 3 },
+      { code: "3000.5001.1188", description: "3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 2 },
+      { code: "2000.1000.3147", description: "CHAPA PAINEL 9/16 -7/8 INSTALACAO", quantity: 1 },
+      { code: "3000.5003.0086", description: "REGULADORA DE PRESSAO 1/4 - 40-250 BAR 25 LITROS S/MIN", quantity: 1 },
+      { code: "1000.1040.4100", description: "ABRACADEIRA DUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 4 },
+      { code: "3000.5000.0396", description: "BUJAO FEMEA SEXTAVADO EXTERNO 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0366", description: "BUJAO FEMEA SEXTAVADO EXTERNO 7/8 JIC", quantity: 3 },
+      { code: "3000.5000.0336", description: "BUJAO MACHO SEXTAVADO EXTERNO 1.1/16 JIC", quantity: 2 },
+      { code: "1000.1040.1102", description: "ADAPTADOR PARA SOLDA 7/8 JIC", quantity: 2 },
+      { code: "3000.5001.1002", description: "1/2 R2 - 1200mm x FG 7/8 JIC x FG 45\xB0 7/8JIC", quantity: 3 },
+      { code: "3000.5001.1177", description: "3/8 R2 - 1170 MM X FG 9/16 JIC X FG 45\xB0 9/16 JIC", quantity: 1 },
+      { code: "3000.5001.1172", description: "3/4 R12 - 1160 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0379", description: "Adaptador Painel 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5001.1142", description: "5/8 R2 - 11000 MM X FG 7/8 JIC X FG 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1083", description: "3/8 R2 - 12000 MM X FG 9/16 JIC X FG 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0311", description: "ADAPTADOR MACHO/MACHO 3/8 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC", quantity: 1 }
+    ]
+  },
+  {
+    code: "9000.9000.9013",
+    description: "KIT INSTALACAO CMF500/600 + LANCA EXTENSORA EM ESCAVADEIRA - ( MAQUINA COM FATIA EXTRA SEM LINHA)",
+    items: [
+      { code: "5000.1001.0016", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO ESCAVADEIRA PARA GARRA/DESTOCADOR/ FELLER SEM ACUMALADOR", quantity: 1 },
+      { code: "3000.5001.1188", description: "3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 6 },
+      { code: "1000.1040.2707", description: "TUBO HIDRAULICO 3/4 X 1200 X 1.1/16JIC X 7/8JIC", quantity: 2 },
+      { code: "1000.1040.2702", description: "TUBO HIDRAULICO 3/4 X 2000 X 1.1/16JIC X 1.1/16JIC", quantity: 4 },
+      { code: "1000.1040.2305", description: "KIT ACIONAMENTO FATIA AUXILIAR 24V", quantity: 1 },
+      { code: "1000.1040.4100", description: "ABRACADEIRA DUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 14 },
+      { code: "1000.1040.2709", description: "TUBO HIDRAULICO 3/4 X 1200 X 1.1/16JIC X 1.1/16JIC", quantity: 2 },
+      { code: "3000.5001.1007", description: "1/2 R2 - 1600 MM X FG 7/8 JIC X FG 45\xB0 7/8 JIC", quantity: 3 },
+      { code: "3000.5001.1043", description: "3/8 R2 - 1600 MM X FG 9/16 JIC X FG 45\xB0 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0318", description: "Adaptador Painel 9/16 JIC", quantity: 2 },
+      { code: "3000.5000.0317", description: "Adaptador Painel 7/8 JIC", quantity: 1 },
+      { code: "3000.5003.0146", description: "VALVULA CONTROLE FLUXO UNIDIRECIONAL 3/8 BSP", quantity: 1 },
+      { code: "3000.5000.0291", description: "ADAPTADOR MACHO/MACHO 1/4 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC", quantity: 4 },
+      { code: "3000.5000.0491", description: "ADAPTADOR MACHO/FEMEA 3/8 BSP X 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0274", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 9/16 JIC X 9/16 JIC", quantity: 2 },
+      { code: "2000.1000.3147", description: "CHAPA PAINEL 9/16 -7/8 INSTALACAO", quantity: 1 },
+      { code: "3000.5003.0086", description: "REGULADORA DE PRESSAO 1/4 - 40-250 BAR 25 LITROS S/MIN", quantity: 1 },
+      { code: "3000.5000.0396", description: "BUJAO FEMEA SEXTAVADO EXTERNO 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0336", description: "BUJAO MACHO SEXTAVADO EXTERNO 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0366", description: "BUJAO FEMEA SEXTAVADO EXTERNO 7/8 JIC", quantity: 3 },
+      { code: "1000.1040.1102", description: "ADAPTADOR PARA SOLDA 7/8 JIC", quantity: 2 },
+      { code: "3000.5001.1002", description: "1/2 R2 - 1200mm x FG 7/8 JIC x FG 45\xB0 7/8JIC", quantity: 3 },
+      { code: "3000.5001.1177", description: "3/8 R2 - 1170 MM X FG 9/16 JIC X FG 45\xB0 9/16 JIC", quantity: 1 },
+      { code: "3000.5001.1172", description: "3/4 R12 - 1160 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0379", description: "Adaptador Painel 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5001.1142", description: "5/8 R2 - 11000 MM X FG 7/8 JIC X FG 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1083", description: "3/8 R2 - 12000 MM X FG 9/16 JIC X FG 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0311", description: "ADAPTADOR MACHO/MACHO 3/8 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC", quantity: 1 },
+      { code: "3000.5001.1040", description: "3/4R12 - 700 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0321", description: "ADAPTADOR MACHO/FEMEA 1/4 BSP X 9/16 JIC", quantity: 1 },
+      { code: "5000.1001.0059", description: "MANOPLA JOYSTICK 3 BOTOES- PADRAO FLORESTAL", quantity: 1 }
+    ]
+  },
+  {
+    code: "9000.9000.9014",
+    description: "KIT INSTALACAO GARRA + LANCA EXTENSORA EM ESCAVADEIRA - ( MAQUINA COM LINHA ROMPEDOR )",
+    items: [
+      { code: "1000.1040.4100", description: "ABRACADEIRA DUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 4 },
+      { code: "1000.1040.2305", description: "KIT ACIONAMENTO FATIA AUXILIAR 24V", quantity: 1 },
+      { code: "5000.1001.0016", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO ESCAVADEIRA PARA GARRA/DESTOCADOR/ FELLER SEM ACUMALADOR", quantity: 1 },
+      { code: "1000.1040.2705", description: "TUBO HIDRAULICO 3/4 X 1000 X 1.1/16JIC X 1/2NPT", quantity: 2 },
+      { code: "5000.1001.0042", description: "MANOPLA JOYSTICK 2 BOTOES- PADRAO FLORESTAL", quantity: 1 },
+      { code: "3000.5000.0359", description: "ENGATE RAPIDO FEMEA FACE PLANA 1/2 NPT-14 CORPO 1/2", quantity: 2 },
+      { code: "3000.5000.0360", description: "ENGATE RAPIDO MACHO FACE PLANA 1/2 NPT-14 - CORPO 1/2", quantity: 2 },
+      { code: "3000.5000.0336", description: "BUJAO MACHO SEXTAVADO EXTERNO 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0396", description: "BUJAO FEMEA SEXTAVADO EXTERNO 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5001.1046", description: "1/2 R2 - 1800 MM X FG 7/8 JIC X MF 1/2 NPT", quantity: 2 },
+      { code: "3000.5001.1045", description: "1/2 R2 - 1800 MM X FG 7/8 JIC X FG 1.1/16 JIC", quantity: 2 }
+    ]
+  },
+  {
+    code: "9000.9000.9015",
+    description: "KIT INSTALACAO GARRA + LANCA EXTENSORA EM ESCAVADEIRA - ( MAQUINA COM FATIA EXTRA SEM LINHA )",
+    items: [
+      { code: "1000.1040.4100", description: "ABRACADEIRA DUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 14 },
+      { code: "1000.1040.2305", description: "KIT ACIONAMENTO FATIA AUXILIAR 24V", quantity: 1 },
+      { code: "5000.1001.0016", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO ESCAVADEIRA PARA GARRA/DESTOCADOR/ FELLER SEM ACUMALADOR", quantity: 1 },
+      { code: "3000.5001.1188", description: "3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 4 },
+      { code: "1000.1040.2702", description: "TUBO HIDRAULICO 3/4 X 2000 X 1.1/16JIC X 1.1/16JIC", quantity: 4 },
+      { code: "1000.1040.2703", description: "TUBO HIDRAULICO 3/4 X 1000 X 1.1/16JIC X 1.1/16JIC", quantity: 2 },
+      { code: "1000.1040.2705", description: "TUBO HIDRAULICO 3/4 X 1000 X 1.1/16JIC X 1/2NPT", quantity: 2 },
+      { code: "5000.1001.0042", description: "MANOPLA JOYSTICK 2 BOTOES- PADRAO FLORESTAL", quantity: 1 },
+      { code: "3000.5000.0359", description: "ENGATE RAPIDO FEMEA FACE PLANA 1/2 NPT-14 CORPO 1/2", quantity: 2 },
+      { code: "3000.5000.0360", description: "ENGATE RAPIDO MACHO FACE PLANA 1/2 NPT-14 - CORPO 1/2", quantity: 2 },
+      { code: "3000.5000.0396", description: "BUJAO FEMEA SEXTAVADO EXTERNO 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0336", description: "BUJAO MACHO SEXTAVADO EXTERNO 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5001.1046", description: "1/2 R2 - 1800 MM X FG 7/8 JIC X MF 1/2 NPT", quantity: 2 },
+      { code: "3000.5001.1045", description: "1/2 R2 - 1800 MM X FG 7/8 JIC X FG 1.1/16 JIC", quantity: 2 }
     ]
   },
   {
     code: "9000.9000.9016",
-    description: "KIT INSTALACAO DE GARRA EM ESCAVADEIRA SEM FATIA EXTRA (DERIVACAO DA BOMBA)",
+    description: "KIT INSTALACAO GARRA EM ESCAVADEIRA - ( MAQUINA SEM FATIA EXTRA)",
     items: [
-      { code: "3000.5003.0152", description: "BLOCO MANIFOLD 2 SOLENOIDES BAIXO FLUXO 24V PARA ROTATOR", quantity: 1 },
-      { code: "3000.5001.1142", description: "MANGUEIRAS DERIVACAO DA BOMBA PRINCIPAL", quantity: 2 },
-      { code: "5000.1001.0059", description: "MANOPLA JOYSTICK COM 2 BOTOES PULSANTES", quantity: 1 },
-      { code: "5000.1001.0016", description: "CHICOTE ELETRICO DE COMANDO 24V", quantity: 1 }
+      { code: "1000.1040.4200", description: "ABRACADEIRA QUADRUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 2 },
+      { code: "1000.1040.4100", description: "ABRACADEIRA DUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 10 },
+      { code: "1000.1040.2333", description: "KIT VALVULA DIRECIONAL TN6 DUPLA FUNCAO 24V - PARA LINHA ROTATOR", quantity: 1 },
+      { code: "5000.1001.0016", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO ESCAVADEIRA PARA GARRA/DESTOCADOR/ FELLER SEM ACUMALADOR", quantity: 1 },
+      { code: "3000.5001.1188", description: "3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 4 },
+      { code: "1000.1040.2702", description: "TUBO HIDRAULICO 3/4 X 2000 X 1.1/16JIC X 1.1/16JIC", quantity: 4 },
+      { code: "1000.1040.2701", description: "TUBO HIDRAULICO 3/4 X 2000 X 7/8JIC X 1.1/16JIC", quantity: 4 },
+      { code: "5000.1001.0042", description: "MANOPLA JOYSTICK 2 BOTOES- PADRAO FLORESTAL", quantity: 1 },
+      { code: "3000.5003.0008", description: "BLOCO PADRAO SDC10-3-S8S (ZNC PRETO)", quantity: 1 },
+      { code: "3000.5003.0009", description: "VALVULA REDUTORA DE PRESSAO PRRS-10-N-S-0-30 BUCHER", quantity: 1 },
+      { code: "3000.5000.0301", description: "Adaptador macho/macho 3/4 UNF x 9/16 JIC", quantity: 3 }
+    ]
+  },
+  {
+    code: "9000.9000.9017",
+    description: "KIT INSTALACAO GARRA EM ESCAVADEIRA - ( MAQUINA COM LINHA ROMPEDOR)",
+    items: [
+      { code: "1000.1040.4200", description: "ABRACADEIRA QUADRUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 2 },
+      { code: "1000.1040.2305", description: "KIT ACIONAMENTO FATIA AUXILIAR 24V", quantity: 1 },
+      { code: "5000.1001.0016", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO ESCAVADEIRA PARA GARRA/DESTOCADOR/ FELLER SEM ACUMALADOR", quantity: 1 },
+      { code: "1000.1040.2701", description: "TUBO HIDRAULICO 3/4 X 2000 X 7/8JIC X 1.1/16JIC", quantity: 4 },
+      { code: "5000.1001.0059", description: "MANOPLA JOYSTICK 3 BOTOES- PADRAO FLORESTAL", quantity: 1 }
+    ]
+  },
+  {
+    code: "9000.9000.9018",
+    description: "KIT INSTALACAO GARRA EM ESCAVADEIRA - ( MAQUINA COM FATIA EXTRA SEM LINHA)",
+    items: [
+      { code: "1000.1040.4200", description: "ABRACADEIRA QUADRUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 2 },
+      { code: "1000.1040.4100", description: "ABRACADEIRA DUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 10 },
+      { code: "1000.1040.2305", description: "KIT ACIONAMENTO FATIA AUXILIAR 24V", quantity: 1 },
+      { code: "5000.1001.0016", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO ESCAVADEIRA PARA GARRA/DESTOCADOR/ FELLER SEM ACUMALADOR", quantity: 1 },
+      { code: "3000.5001.1188", description: "3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 4 },
+      { code: "1000.1040.2702", description: "TUBO HIDRAULICO 3/4 X 2000 X 1.1/16JIC X 1.1/16JIC", quantity: 4 },
+      { code: "1000.1040.2701", description: "TUBO HIDRAULICO 3/4 X 2000 X 7/8JIC X 1.1/16JIC", quantity: 4 },
+      { code: "5000.1001.0059", description: "MANOPLA JOYSTICK 3 BOTOES- PADRAO FLORESTAL", quantity: 1 },
+      { code: "3000.5000.0276", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 1.1/16 JIC X 1.1/16 JIC", quantity: 4 }
+    ]
+  },
+  {
+    code: "9000.9000.9019",
+    description: "KIT INSTALACAO GT600/800 ROTATOR COM PASSAGEM EXTRA EM ESCAVADEIRA 20TON - ( MAQUINA COM FATIA EXTRA SEM LINHA)",
+    items: [
+      { code: "5000.1001.0016", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO ESCAVADEIRA PARA GARRA/DESTOCADOR/ FELLER SEM ACUMALADOR", quantity: 1 },
+      { code: "3000.5001.1188", description: "3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 4 },
+      { code: "1000.1040.2701", description: "TUBO HIDRAULICO 3/4 X 2000 X 7/8JIC X 1.1/16JIC", quantity: 2 },
+      { code: "1000.1040.2702", description: "TUBO HIDRAULICO 3/4 X 2000 X 1.1/16JIC X 1.1/16JIC", quantity: 6 },
+      { code: "1000.1040.2305", description: "KIT ACIONAMENTO FATIA AUXILIAR 24V", quantity: 1 },
+      { code: "1000.1040.4100", description: "ABRACADEIRA DUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 10 },
+      { code: "1000.1040.4200", description: "ABRACADEIRA QUADRUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 2 },
+      { code: "3000.5001.1134", description: "3/4R12 - 2000 MM X FG 1.1/16 JIC X FG 3/4 BSP BOL", quantity: 2 },
+      { code: "3000.5001.1136", description: "1/2 R2 - 2000 MM X FG 7/8 JIC X FG 90\xB0 1/2 BOL", quantity: 3 },
+      { code: "3000.5001.1223", description: "3/8 R2 - 2000 MM X FG 9/16 JIC X FG 90\xB0 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0318", description: "Adaptador Painel 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0317", description: "Adaptador Painel 7/8 JIC", quantity: 1 },
+      { code: "2000.1000.3147", description: "CHAPA PAINEL 9/16 -7/8 INSTALACAO", quantity: 1 },
+      { code: "3000.5003.0006", description: "VALVULA CONTROLE FLUXO UNIDIRECIONAL 1/4 BSP", quantity: 1 },
+      { code: "3000.5000.0291", description: "ADAPTADOR MACHO/MACHO 1/4 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0321", description: "ADAPTADOR MACHO/FEMEA 1/4 BSP X 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0274", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 9/16 JIC X 9/16 JIC", quantity: 2 },
+      { code: "3000.5003.0003", description: "VALVULA CARTUCHO SV08-23-01-00-0-B-0 (PARA CRU-0129)", quantity: 1 },
+      { code: "3000.5003.0004", description: "BLOCO PADRAO SDC08-3-S6S (CRU-0129) - 9/16 UNF", quantity: 1 },
+      { code: "3000.5003.0084", description: "BOBINA M13-24D-20W-DN/FL - SOLENOIDE", quantity: 1 },
+      { code: "3000.5000.0398", description: "Adaptador macho/macho 9/16 UNF X 9/16 JIC", quantity: 3 },
+      { code: "1000.1040.1102", description: "ADAPTADOR PARA SOLDA 7/8 JIC", quantity: 2 },
+      { code: "3000.5001.1142", description: "5/8 R2 - 11000 MM X FG 7/8 JIC X FG 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1038", description: "3/8 R2 - 10000 MM X FG 7/8 JIC X FG 9/16 JIC", quantity: 1 },
+      { code: "2000.1000.3181", description: "CHAPA SUPORTE VALVULA PILOTO SIMPLES", quantity: 1 },
+      { code: "3000.1000.0076", description: "Parafuso Sextavado 8.8-M6 x 45", quantity: 2 },
+      { code: "3000.1003.0073", description: "Porca M6 parlock", quantity: 2 },
+      { code: "3000.1004.0018", description: "Arruela de press\xE3o M6", quantity: 2 }
+    ]
+  },
+  {
+    code: "9000.9000.9020",
+    description: "KIT INSTALACAO GT600/800 ROTATOR SEM PASSAGEM EXTRA EM ESCAVADEIRA 20TON - ( MAQUINA COM FATIA EXTRA SEM LINHA)",
+    items: [
+      { code: "1000.1040.4200", description: "ABRACADEIRA QUADRUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 2 },
+      { code: "1000.1040.4100", description: "ABRACADEIRA DUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 20 },
+      { code: "1000.1040.2305", description: "KIT ACIONAMENTO FATIA AUXILIAR 24V", quantity: 1 },
+      { code: "5000.1001.0017", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO ESCAVADEIRA PARA GT600-GT800 SEM PASSAGEM EXTRA", quantity: 1 },
+      { code: "3000.5001.1188", description: "3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 8 },
+      { code: "1000.1040.2702", description: "TUBO HIDRAULICO 3/4 X 2000 X 1.1/16JIC X 1.1/16JIC", quantity: 10 },
+      { code: "3000.5003.0008", description: "BLOCO PADRAO SDC10-3-S8S (ZNC PRETO)", quantity: 1 },
+      { code: "3000.5003.0009", description: "VALVULA REDUTORA DE PRESSAO PRRS-10-N-S-0-30 BUCHER", quantity: 1 },
+      { code: "3000.5000.0330", description: "ADAPTADOR TEE MACHO/FEMEA LATERAL 3/4 JIC", quantity: 2 },
+      { code: "3000.5000.0301", description: "Adaptador macho/macho 3/4 UNF x 9/16 JIC", quantity: 3 },
+      { code: "1000.1040.4101", description: "ABRACADEIRA SUPERIOR FERRO DUPLA PARA TUBO 27MM", quantity: 4 },
+      { code: "1000.1040.2701", description: "TUBO HIDRAULICO 3/4 X 2000 X 7/8JIC X 1.1/16JIC", quantity: 4 },
+      { code: "3000.5001.1146", description: "5/8 R12 - 1900 MM X FG 7/8 JIC X FG 90\xB0 7/8 JIC", quantity: 4 },
+      { code: "1000.1040.2711", description: "TUBO HIDRAULICO 3/4 X 2000 X 7/8JIC X 7/8JIC", quantity: 2 },
+      { code: "1000.1040.2333", description: "KIT VALVULA DIRECIONAL TN6 DUPLA FUNCAO 24V - PARA LINHA ROTATOR", quantity: 1 },
+      { code: "3000.5001.1147", description: "3/8 R2 - 3000MM X FG 7/8 JIC X FG 3/4 JIC", quantity: 1 },
+      { code: "3000.5001.1084", description: "1/2 R2 - 3000 MM X FG 7/8 JIC X FG 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1035", description: "3/4 R12 - 3000 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 2 },
+      { code: "1000.1040.1102", description: "ADAPTADOR PARA SOLDA 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1142", description: "5/8 R2 - 11000 MM X FG 7/8 JIC X FG 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1038", description: "3/8 R2 - 10000 MM X FG 7/8 JIC X FG 9/16 JIC", quantity: 1 },
+      { code: "2000.1000.3181", description: "CHAPA SUPORTE VALVULA PILOTO SIMPLES", quantity: 1 },
+      { code: "3000.1000.0076", description: "Parafuso Sextavado 8.8-M6 x 45", quantity: 2 },
+      { code: "3000.1003.0073", description: "Porca M6 parlock", quantity: 2 },
+      { code: "3000.1004.0018", description: "Arruela de press\xE3o M6", quantity: 2 },
+      { code: "5000.1001.0018", description: "MANOPLA JOYSTICK 5 BOTOES - PADRAO FLORESTAL", quantity: 1 },
+      { code: "3000.5001.1018", description: "3/8 R2 - 900MM X FG 3/4 JIC X FG 9/16 JIC", quantity: 2 },
+      { code: "3000.5000.0276", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 1.1/16 JIC X 1.1/16 JIC", quantity: 6 },
+      { code: "3000.5000.0277", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 7/8 JIC X 7/8 JIC", quantity: 2 }
+    ]
+  },
+  {
+    code: "9000.9000.9021",
+    description: "KIT INSTALACAO GARRA + LINCK EM ESCAVADEIRA - ( MAQUINA SEM FATIA )",
+    items: [
+      { code: "5000.1001.0016", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO ESCAVADEIRA PARA GARRA/DESTOCADOR/ FELLER SEM ACUMALADOR", quantity: 1 },
+      { code: "1000.1040.2333", description: "KIT VALVULA DIRECIONAL TN6 DUPLA FUNCAO 24V - PARA LINHA ROTATOR", quantity: 1 },
+      { code: "3000.5001.1188", description: "3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 6 },
+      { code: "3000.5001.1110", description: "1/2 R2 - 2000 MM X FG 7/8 JIC X FG 1/2 BSP BOL", quantity: 4 },
+      { code: "1000.1040.2705", description: "TUBO HIDRAULICO 3/4 X 1000 X 1.1/16JIC X 1/2NPT", quantity: 4 },
+      { code: "1000.1040.2702", description: "TUBO HIDRAULICO 3/4 X 2000 X 1.1/16JIC X 1.1/16JIC", quantity: 8 },
+      { code: "1000.1040.4100", description: "ABRACADEIRA DUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 24 },
+      { code: "5000.1001.0059", description: "MANOPLA JOYSTICK 3 BOTOES- PADRAO FLORESTAL", quantity: 1 },
+      { code: "3000.5000.0359", description: "ENGATE RAPIDO FEMEA FACE PLANA 1/2 NPT-14 CORPO 1/2", quantity: 4 },
+      { code: "3000.5000.0360", description: "ENGATE RAPIDO MACHO FACE PLANA 1/2 NPT-14 - CORPO 1/2", quantity: 4 },
+      { code: "3000.5000.0308", description: "Adaptador macho/macho 1/2 NPT x 7/8 JIC", quantity: 4 },
+      { code: "3000.5003.0008", description: "BLOCO PADRAO SDC10-3-S8S (ZNC PRETO)", quantity: 1 },
+      { code: "3000.5003.0009", description: "VALVULA REDUTORA DE PRESSAO PRRS-10-N-S-0-30 BUCHER", quantity: 1 },
+      { code: "3000.5000.0282", description: "Adaptador macho/macho 3/4 UNF x 3/4 JIC", quantity: 3 },
+      { code: "3000.5001.1067", description: "1/2 R2 - 1100 MM X FG 1.1/16 JIC X FG 3/4 JIC", quantity: 2 },
+      { code: "2000.1000.3181", description: "CHAPA SUPORTE VALVULA PILOTO SIMPLES", quantity: 1 },
+      { code: "3000.1000.0076", description: "Parafuso Sextavado 8.8-M6 x 45", quantity: 2 },
+      { code: "3000.1003.0073", description: "Porca M6 parlock", quantity: 2 },
+      { code: "3000.1004.0018", description: "Arruela de press\xE3o M6", quantity: 2 }
+    ]
+  },
+  {
+    code: "9000.9000.9022",
+    description: "KIT INSTALACAO CMF500/600 EM ESCAVADEIRA - ( MAQUINA COM LINHA ROMPEDOR )",
+    items: [
+      { code: "1000.1040.2707", description: "TUBO HIDRAULICO 3/4 X 1200 X 1.1/16JIC X 7/8JIC", quantity: 2 },
+      { code: "1000.1040.2709", description: "TUBO HIDRAULICO 3/4 X 1200 X 1.1/16JIC X 1.1/16JIC", quantity: 2 },
+      { code: "1000.1040.4200", description: "ABRACADEIRA QUADRUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 2 },
+      { code: "3000.5000.0318", description: "Adaptador Painel 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0317", description: "Adaptador Painel 7/8 JIC", quantity: 1 },
+      { code: "3000.5003.0146", description: "VALVULA CONTROLE FLUXO UNIDIRECIONAL 3/8 BSP", quantity: 1 },
+      { code: "3000.5000.0291", description: "ADAPTADOR MACHO/MACHO 1/4 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC", quantity: 3 },
+      { code: "3000.5000.0491", description: "ADAPTADOR MACHO/FEMEA 3/8 BSP X 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0274", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 9/16 JIC X 9/16 JIC", quantity: 2 },
+      { code: "3000.5001.1042", description: "3/8 R2 - 2000 MM X FG 9/16 JIC X FG 9/16 JIC", quantity: 1 },
+      { code: "3000.5001.1110", description: "1/2 R2 - 2000 MM X FG 7/8 JIC X FG 1/2 BSP BOL", quantity: 3 },
+      { code: "3000.5001.1134", description: "3/4R12 - 2000 MM X FG 1.1/16 JIC X FG 3/4 BSP BOL", quantity: 2 },
+      { code: "2000.1000.3147", description: "CHAPA PAINEL 9/16 -7/8 INSTALACAO", quantity: 1 },
+      { code: "3000.5003.0086", description: "REGULADORA DE PRESSAO 1/4 - 40-250 BAR 25 LITROS S/MIN", quantity: 1 },
+      { code: "1000.1040.1102", description: "ADAPTADOR PARA SOLDA 7/8 JIC", quantity: 2 },
+      { code: "1000.1040.2305", description: "KIT ACIONAMENTO FATIA AUXILIAR 24V", quantity: 1 },
+      { code: "5000.1001.0059", description: "MANOPLA JOYSTICK 3 BOTOES- PADRAO FLORESTAL", quantity: 1 },
+      { code: "3000.5001.1142", description: "5/8 R2 - 11000 MM X FG 7/8 JIC X FG 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1083", description: "3/8 R2 - 12000 MM X FG 9/16 JIC X FG 9/16 JIC", quantity: 1 },
+      { code: "5000.1001.0061", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO ESCAVADEIRA PARA CMF500/600", quantity: 1 },
+      { code: "3000.5000.0321", description: "ADAPTADOR MACHO/FEMEA 1/4 BSP X 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0311", description: "ADAPTADOR MACHO/MACHO 3/8 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC", quantity: 1 },
+      { code: "3000.5003.0003", description: "VALVULA CARTUCHO SV08-23-01-00-0-B-0 (PARA CRU-0129)", quantity: 1 },
+      { code: "3000.5003.0004", description: "BLOCO PADRAO SDC08-3-S6S (CRU-0129) - 9/16 UNF", quantity: 1 },
+      { code: "3000.5003.0084", description: "BOBINA M13-24D-20W-DN/FL - SOLENOIDE", quantity: 1 },
+      { code: "3000.5000.0398", description: "Adaptador macho/macho 9/16 UNF X 9/16 JIC", quantity: 3 },
+      { code: "2000.1000.3181", description: "CHAPA SUPORTE VALVULA PILOTO SIMPLES", quantity: 1 },
+      { code: "3000.1000.0076", description: "Parafuso Sextavado 8.8-M6 x 45", quantity: 2 },
+      { code: "3000.1003.0073", description: "Porca M6 parlock", quantity: 2 }
+    ]
+  },
+  {
+    code: "9000.9000.9023",
+    description: "KIT INSTALACAO CMF500/600 EM ESCAVADEIRA - ( MAQUINA COM FATIA EXTRA SEM LINHA)",
+    items: [
+      { code: "5000.1001.0061", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO ESCAVADEIRA PARA CMF500/600", quantity: 1 },
+      { code: "1000.1040.2305", description: "KIT ACIONAMENTO FATIA AUXILIAR 24V", quantity: 1 },
+      { code: "3000.5001.1188", description: "3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 4 },
+      { code: "3000.5001.1142", description: "5/8 R2 - 11000 MM X FG 7/8 JIC X FG 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1083", description: "3/8 R2 - 12000 MM X FG 9/16 JIC X FG 9/16 JIC", quantity: 1 },
+      { code: "3000.5001.1134", description: "3/4R12 - 2000 MM X FG 1.1/16 JIC X FG 3/4 BSP BOL", quantity: 2 },
+      { code: "3000.5001.1110", description: "1/2 R2 - 2000 MM X FG 7/8 JIC X FG 1/2 BSP BOL", quantity: 3 },
+      { code: "3000.5001.1042", description: "3/8 R2 - 2000 MM X FG 9/16 JIC X FG 9/16 JIC", quantity: 1 },
+      { code: "1000.1040.2707", description: "TUBO HIDRAULICO 3/4 X 1200 X 1.1/16JIC X 7/8JIC", quantity: 2 },
+      { code: "1000.1040.2702", description: "TUBO HIDRAULICO 3/4 X 2000 X 1.1/16JIC X 1.1/16JIC", quantity: 4 },
+      { code: "1000.1040.2709", description: "TUBO HIDRAULICO 3/4 X 1200 X 1.1/16JIC X 1.1/16JIC", quantity: 2 },
+      { code: "1000.1040.4100", description: "ABRACADEIRA DUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 10 },
+      { code: "1000.1040.4200", description: "ABRACADEIRA QUADRUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 2 },
+      { code: "3000.5000.0318", description: "Adaptador Painel 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0317", description: "Adaptador Painel 7/8 JIC", quantity: 1 },
+      { code: "3000.5003.0146", description: "VALVULA CONTROLE FLUXO UNIDIRECIONAL 3/8 BSP", quantity: 1 },
+      { code: "3000.5000.0274", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 9/16 JIC X 9/16 JIC", quantity: 2 },
+      { code: "2000.1000.3147", description: "CHAPA PAINEL 9/16 -7/8 INSTALACAO", quantity: 1 },
+      { code: "1000.1040.1102", description: "ADAPTADOR PARA SOLDA 7/8 JIC", quantity: 2 },
+      { code: "3000.5000.0311", description: "ADAPTADOR MACHO/MACHO 3/8 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0491", description: "ADAPTADOR MACHO/FEMEA 3/8 BSP X 9/16 JIC", quantity: 1 },
+      { code: "5000.1001.0059", description: "MANOPLA JOYSTICK 3 BOTOES- PADRAO FLORESTAL", quantity: 1 },
+      { code: "3000.5003.0003", description: "VALVULA CARTUCHO SV08-23-01-00-0-B-0 (PARA CRU-0129)", quantity: 1 },
+      { code: "3000.5003.0004", description: "BLOCO PADRAO SDC08-3-S6S (CRU-0129) - 9/16 UNF", quantity: 1 },
+      { code: "3000.5003.0084", description: "BOBINA M13-24D-20W-DN/FL - SOLENOIDE", quantity: 1 },
+      { code: "3000.5000.0398", description: "Adaptador macho/macho 9/16 UNF X 9/16 JIC", quantity: 3 },
+      { code: "2000.1000.3181", description: "CHAPA SUPORTE VALVULA PILOTO SIMPLES", quantity: 1 },
+      { code: "3000.1000.0076", description: "Parafuso Sextavado 8.8-M6 x 45", quantity: 2 },
+      { code: "3000.1003.0073", description: "Porca M6 parlock", quantity: 2 }
+    ]
+  },
+  {
+    code: "9000.9000.9024",
+    description: "KIT HIDRAULICO PARA INSTALACAO SEGUNDA VELOCIDADE DESTOCADOR",
+    items: [
+      { code: "3000.5001.1165", description: "1/4 R17 - 600 MM X FG 9/16 JIC X FG 90\xB0 9/16 JIC", quantity: 1 },
+      { code: "3000.5003.0008", description: "BLOCO PADRAO SDC10-3-S8S (ZNC PRETO)", quantity: 1 },
+      { code: "3000.5003.0009", description: "VALVULA REDUTORA DE PRESSAO PRRS-10-N-S-0-30 BUCHER", quantity: 1 },
+      { code: "3000.5000.0301", description: "Adaptador macho/macho 3/4 UNF x 9/16 JIC", quantity: 3 },
+      { code: "3000.5000.0274", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 9/16 JIC X 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0321", description: "ADAPTADOR MACHO/FEMEA 1/4 BSP X 9/16 JIC", quantity: 1 }
+    ]
+  },
+  {
+    code: "9000.9000.9025",
+    description: "KIT INSTALACAO CMF500/600 EM ESCAVADEIRA - ( MAQUINA COM LINHA DE GARRA)",
+    items: [
+      { code: "1000.1040.4200", description: "ABRACADEIRA QUADRUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 2 },
+      { code: "1000.1040.2707", description: "TUBO HIDRAULICO 3/4 X 1200 X 1.1/16JIC X 7/8JIC", quantity: 2 },
+      { code: "1000.1040.2709", description: "TUBO HIDRAULICO 3/4 X 1200 X 1.1/16JIC X 1.1/16JIC", quantity: 2 },
+      { code: "3000.5000.0318", description: "Adaptador Painel 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0317", description: "Adaptador Painel 7/8 JIC", quantity: 1 },
+      { code: "3000.5003.0146", description: "VALVULA CONTROLE FLUXO UNIDIRECIONAL 3/8 BSP", quantity: 1 },
+      { code: "3000.5000.0491", description: "ADAPTADOR MACHO/FEMEA 3/8 BSP X 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0274", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 9/16 JIC X 9/16 JIC", quantity: 2 },
+      { code: "3000.5001.1042", description: "3/8 R2 - 2000 MM X FG 9/16 JIC X FG 9/16 JIC", quantity: 1 },
+      { code: "3000.5001.1110", description: "1/2 R2 - 2000 MM X FG 7/8 JIC X FG 1/2 BSP BOL", quantity: 3 },
+      { code: "3000.5001.1134", description: "3/4R12 - 2000 MM X FG 1.1/16 JIC X FG 3/4 BSP BOL", quantity: 2 },
+      { code: "2000.1000.3147", description: "CHAPA PAINEL 9/16 -7/8 INSTALACAO", quantity: 1 },
+      { code: "1000.1040.1102", description: "ADAPTADOR PARA SOLDA 7/8 JIC", quantity: 2 },
+      { code: "3000.5001.1142", description: "5/8 R2 - 11000 MM X FG 7/8 JIC X FG 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1083", description: "3/8 R2 - 12000 MM X FG 9/16 JIC X FG 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0311", description: "ADAPTADOR MACHO/MACHO 3/8 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC", quantity: 1 },
+      { code: "5000.1001.0061", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO ESCAVADEIRA PARA CMF500/600", quantity: 1 },
+      { code: "3000.5003.0004", description: "BLOCO PADRAO SDC08-3-S6S (CRU-0129) - 9/16 UNF", quantity: 1 },
+      { code: "3000.5003.0003", description: "VALVULA CARTUCHO SV08-23-01-00-0-B-0 (PARA CRU-0129)", quantity: 1 },
+      { code: "3000.5003.0084", description: "BOBINA M13-24D-20W-DN/FL - SOLENOIDE", quantity: 1 },
+      { code: "3000.5000.0398", description: "Adaptador macho/macho 9/16 UNF X 9/16 JIC", quantity: 3 },
+      { code: "5000.1001.0059", description: "MANOPLA JOYSTICK 3 BOTOES- PADRAO FLORESTAL", quantity: 1 }
+    ]
+  },
+  {
+    code: "9000.9000.9026",
+    description: "KIT INSTALACAO CMF500/600 EM ESCAVADEIRA - ( MAQUINA SEM FATIA EXTRA )",
+    items: [
+      { code: "5000.1001.0016", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO ESCAVADEIRA PARA GARRA/DESTOCADOR/ FELLER SEM ACUMALADOR", quantity: 1 },
+      { code: "3000.5001.1188", description: "3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 4 },
+      { code: "1000.1040.2707", description: "TUBO HIDRAULICO 3/4 X 1200 X 1.1/16JIC X 7/8JIC", quantity: 2 },
+      { code: "1000.1040.2702", description: "TUBO HIDRAULICO 3/4 X 2000 X 1.1/16JIC X 1.1/16JIC", quantity: 4 },
+      { code: "1000.1040.2333", description: "KIT VALVULA DIRECIONAL TN6 DUPLA FUNCAO 24V - PARA LINHA ROTATOR", quantity: 1 },
+      { code: "1000.1040.4100", description: "ABRACADEIRA DUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 10 },
+      { code: "1000.1040.4200", description: "ABRACADEIRA QUADRUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 2 },
+      { code: "1000.1040.2709", description: "TUBO HIDRAULICO 3/4 X 1200 X 1.1/16JIC X 1.1/16JIC", quantity: 2 },
+      { code: "3000.5001.1134", description: "3/4R12 - 2000 MM X FG 1.1/16 JIC X FG 3/4 BSP BOL", quantity: 2 },
+      { code: "3000.5001.1110", description: "1/2 R2 - 2000 MM X FG 7/8 JIC X FG 1/2 BSP BOL", quantity: 3 },
+      { code: "3000.5001.1042", description: "3/8 R2 - 2000 MM X FG 9/16 JIC X FG 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0318", description: "Adaptador Painel 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0317", description: "Adaptador Painel 7/8 JIC", quantity: 1 },
+      { code: "3000.5003.0006", description: "VALVULA CONTROLE FLUXO UNIDIRECIONAL 1/4 BSP", quantity: 1 },
+      { code: "3000.5000.0291", description: "ADAPTADOR MACHO/MACHO 1/4 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC", quantity: 4 },
+      { code: "3000.5000.0321", description: "ADAPTADOR MACHO/FEMEA 1/4 BSP X 9/16 JIC", quantity: 2 },
+      { code: "3000.5000.0274", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 9/16 JIC X 9/16 JIC", quantity: 2 },
+      { code: "2000.1000.3147", description: "CHAPA PAINEL 9/16 -7/8 INSTALACAO", quantity: 1 },
+      { code: "3000.5003.0086", description: "REGULADORA DE PRESSAO 1/4 - 40-250 BAR 25 LITROS S/MIN", quantity: 1 },
+      { code: "3000.5003.0008", description: "BLOCO PADRAO SDC10-3-S8S (ZNC PRETO)", quantity: 1 },
+      { code: "3000.5003.0009", description: "VALVULA REDUTORA DE PRESSAO PRRS-10-N-S-0-30 BUCHER", quantity: 1 },
+      { code: "3000.5000.0301", description: "Adaptador macho/macho 3/4 UNF x 9/16 JIC", quantity: 3 },
+      { code: "1000.1040.1102", description: "ADAPTADOR PARA SOLDA 7/8 JIC", quantity: 2 },
+      { code: "3000.5001.1142", description: "5/8 R2 - 11000 MM X FG 7/8 JIC X FG 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1083", description: "3/8 R2 - 12000 MM X FG 9/16 JIC X FG 9/16 JIC", quantity: 1 },
+      { code: "2000.1000.3181", description: "CHAPA SUPORTE VALVULA PILOTO SIMPLES", quantity: 1 },
+      { code: "3000.1000.0076", description: "Parafuso Sextavado 8.8-M6 x 45", quantity: 2 },
+      { code: "3000.1003.0073", description: "Porca M6 parlock", quantity: 2 }
     ]
   },
   {
     code: "9000.9000.9027",
-    description: "KIT 3\xAA E 4\xAA FUNCAO 24V PARA PA CARREGADEIRA",
+    description: "KIT ELETRO HIDRAULICO PA CARREGADEIRA PARA INSTALACAO DE 3\xAA E 4\xAA FUNCAO 24V",
     items: [
-      { code: "3000.5003.0152", description: "VALVULA DIRECIONAL 3\xAA E 4\xAA FUNCAO 24V", quantity: 1 },
-      { code: "5000.1001.0059", description: "JOYSTICK ELETRONICO 24V", quantity: 1 },
-      { code: "3000.5001.1188", description: "MANGUEIRAS E CONEXOES DE ALTA PRESSAO", quantity: 4 }
+      { code: "5000.1001.0058", description: "CAIXA ELETRICA 02 FUNCOES 24V", quantity: 1 },
+      { code: "3000.5000.0288", description: "Adaptador macho/macho 1/2 BSP x 1.1/16 JIC", quantity: 4 },
+      { code: "3000.5000.0283", description: "ADAPTADOR MACHO/MACHO 1/2 BSPP PARALELO COM ANEL VEDACAO ED X 7/8 JIC", quantity: 4 },
+      { code: "2000.1000.0743", description: "SUPORTE VALVULA 6 VIAS", quantity: 1 },
+      { code: "3000.1001.0068", description: "Parafuso Allen 12.9-M8 x 90", quantity: 2 },
+      { code: "3000.1001.0069", description: "PARAFUSO ALLEN 12.9-M8 X 160", quantity: 4 },
+      { code: "3000.1003.0005", description: "Porca M8 parlock", quantity: 6 },
+      { code: "3000.2001.0338", description: "Oring D.I. 26,70 x 1,78 - NBR-90sh - ref. Parker 2023", quantity: 2 },
+      { code: "3000.5003.0092", description: "VALVULA SOLENOIDE DVS90-6-G1/2- 6 VIAS PADRAO G1/2, VAZAO HIDRAULICA MAX. DE 90 LPM COM BOBINA DE ACIONAMENTO 12 OU 24 VDC, UTILIZADA PARA ACIONAMENTO DE MOVIMENTOS HIDRAULICOS EM EQUIPAMENTOS_NCM:8481.80.92", quantity: 2 },
+      { code: "3000.5000.0364", description: "ABRACADEIRA DUPLA TUBO 25MM P/ SOLDAR", quantity: 4 },
+      { code: "3000.5000.0276", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 1.1/16 JIC X 1.1/16 JIC", quantity: 2 },
+      { code: "5000.1001.0059", description: "MANOPLA JOYSTICK 3 BOTOES- PADRAO FLORESTAL", quantity: 1 },
+      { code: "3000.5000.0277", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 7/8 JIC X 7/8 JIC", quantity: 2 }
+    ]
+  },
+  {
+    code: "9000.9000.9028",
+    description: "KIT ELETRO HIDRAULICO PA CARREGADEIRA PARA INSTALACAO DE 3\xAA FUNCAO 24V",
+    items: [
+      { code: "5000.1001.0051", description: "CAIXA ELETRICA 01 FUNCAO 12/24V", quantity: 1 },
+      { code: "3000.5003.0092", description: "VALVULA SOLENOIDE DVS90-6-G1/2- 6 VIAS PADRAO G1/2, VAZAO HIDRAULICA MAX. DE 90 LPM COM BOBINA DE ACIONAMENTO 12 OU 24 VDC, UTILIZADA PARA ACIONAMENTO DE MOVIMENTOS HIDRAULICOS EM EQUIPAMENTOS_NCM:8481.80.92", quantity: 1 },
+      { code: "3000.5000.0288", description: "Adaptador macho/macho 1/2 BSP x 1.1/16 JIC", quantity: 4 },
+      { code: "3000.5000.0283", description: "ADAPTADOR MACHO/MACHO 1/2 BSPP PARALELO COM ANEL VEDACAO ED X 7/8 JIC", quantity: 2 },
+      { code: "2000.1000.0743", description: "SUPORTE VALVULA 6 VIAS", quantity: 1 },
+      { code: "3000.1001.0068", description: "Parafuso Allen 12.9-M8 x 90", quantity: 2 },
+      { code: "3000.1003.0005", description: "Porca M8 parlock", quantity: 2 },
+      { code: "3000.5000.0364", description: "ABRACADEIRA DUPLA TUBO 25MM P/ SOLDAR", quantity: 2 },
+      { code: "5000.1001.0043", description: "BOTAO PULSANTE 12MM P9 900016054489 + CAPA P9 C401245-25-1", quantity: 2 },
+      { code: "3000.5000.0276", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 1.1/16 JIC X 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0277", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 7/8 JIC X 7/8 JIC", quantity: 2 }
+    ]
+  },
+  {
+    code: "9000.9000.9029",
+    description: "KIT ELETRO HIDRAULICO COMANDO 2 SECCAO 24V PA CARREGADEIRA BOMBA ENGRENAGEM ( 120L/ 250BAR )",
+    items: [
+      { code: "5000.1001.0053", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO 24V PARA FELLER COM ACUMULADOR", quantity: 1 },
+      { code: "3000.5003.0147", description: "COMANDO ELETRICO 80LTS - 02 SECC24V", quantity: 1 },
+      { code: "3000.5000.0287", description: "Adaptador macho/macho 7/8 UNF x 7/8 JIC", quantity: 4 },
+      { code: "3000.5000.0292", description: "Adaptador macho/macho 1/8 NPT x 7/16 JIC", quantity: 1 },
+      { code: "5000.1001.0018", description: "MANOPLA JOYSTICK 5 BOTOES - PADRAO FLORESTAL", quantity: 1 },
+      { code: "3000.5000.0428", description: "Adaptador macho/macho 7/8 UNF X 1.1/16 JIC", quantity: 3 },
+      { code: "5000.1001.0057", description: "CONECTOR PLUG DEUTCH COM CABO 500MM PARA BOBINA SOLENOIDE 171147619", quantity: 4 },
+      { code: "3000.5003.0084", description: "BOBINA M13-24D-20W-DN/FL - SOLENOIDE", quantity: 1 },
+      { code: "3000.5003.0157", description: "BLOCO REGULADOR DE FLUXO 3 VIAS 12V 3/4 BSP ( 200L/MIM)", quantity: 1 },
+      { code: "3000.5000.0294", description: "Adaptador macho/macho 3/4 BSP x 1.1/16 JIC", quantity: 3 }
+    ]
+  },
+  {
+    code: "9000.9000.9030",
+    description: "KIT COMANDO ELETRO HIDRAULICO PA CARREGADEIRA 2 FUNCOES LS 24V ( MAQUINA BOMBA PISTAO )",
+    items: [
+      { code: "3000.5003.0100", description: "COMANDO HIDRAULICO ELETRICO SDS180/2 - AC(XG-180) /18EI3L/18EI3L/RV-KE2R3-24CDV", quantity: 1 },
+      { code: "3000.5003.0003", description: "VALVULA CARTUCHO SV08-23-01-00-0-B-0 (PARA CRU-0129)", quantity: 1 },
+      { code: "3000.5003.0004", description: "BLOCO PADRAO SDC08-3-S6S (CRU-0129) - 9/16 UNF", quantity: 1 },
+      { code: "3000.5003.0084", description: "BOBINA M13-24D-20W-DN/FL - SOLENOIDE", quantity: 1 },
+      { code: "2000.1000.3181", description: "CHAPA SUPORTE VALVULA PILOTO SIMPLES", quantity: 1 },
+      { code: "3000.1000.0076", description: "Parafuso Sextavado 8.8-M6 x 45", quantity: 2 },
+      { code: "3000.1003.0073", description: "Porca M6 parlock", quantity: 2 },
+      { code: "3000.5000.0398", description: "Adaptador macho/macho 9/16 UNF X 9/16 JIC", quantity: 3 },
+      { code: "5000.1001.0053", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO 24V PARA FELLER COM ACUMULADOR", quantity: 1 },
+      { code: "3000.5000.0284", description: "Adaptador macho/macho 1.1/16 UNF x 1.1/16 JIC", quantity: 4 },
+      { code: "3000.5000.0307", description: "Adaptador macho/macho 1.5/16 UNF x 1.1/16 JIC", quantity: 3 },
+      { code: "1000.1040.5200", description: "TEE 1.1/16 USINADO", quantity: 1 },
+      { code: "3000.5000.0311", description: "ADAPTADOR MACHO/MACHO 3/8 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0491", description: "ADAPTADOR MACHO/FEMEA 3/8 BSP X 9/16 JIC", quantity: 1 },
+      { code: "3000.5001.1167", description: "1/4 R17 - 1000 MM X FG 9/16 JIC X FG 9/16 JIC", quantity: 2 }
+    ]
+  },
+  {
+    code: "9000.9000.9031",
+    description: "KIT ELETRO HIDRAULICO COMANDO 1 SECCAO 12V ( 120L/ 250BAR )",
+    items: [
+      { code: "5000.1001.0050", description: "CAIXA ELETRICA 02 FUNCOES 12V", quantity: 1 },
+      { code: "3000.5003.0091", description: "COMANDO 1 FUNCAO - CH100 - 1CE - ELETRICO - 12VOLTS", quantity: 1 },
+      { code: "3000.5000.0287", description: "Adaptador macho/macho 7/8 UNF x 7/8 JIC", quantity: 2 },
+      { code: "3000.5000.0428", description: "Adaptador macho/macho 7/8 UNF X 1.1/16 JIC", quantity: 3 },
+      { code: "5000.1001.0059", description: "MANOPLA JOYSTICK 3 BOTOES- PADRAO FLORESTAL", quantity: 1 },
+      { code: "5000.1001.0057", description: "CONECTOR PLUG DEUTCH COM CABO 500MM PARA BOBINA SOLENOIDE 171147619", quantity: 2 },
+      { code: "3000.5000.0428", description: "Adaptador macho/macho 7/8 UNF X 1.1/16 JIC", quantity: 1 },
+      { code: "3000.5003.0174", description: "VALVULA ALIVIO VSD8 - (COMANDO 90LTS VH)", quantity: 1 }
+    ]
+  },
+  {
+    code: "9000.9000.9032",
+    description: "KIT INSTALACAO VIA HIDRAULICA EXTRA MANUAL PARA IMPLEMENTO",
+    items: [
+      { code: "3000.5003.0039", description: "REGISTRO VALVULA ESFERA 3 VIAS 1/2 BSP", quantity: 2 },
+      { code: "3000.5000.0395", description: "ADAPTADOR MACHO/FEMEA 1/2 NPT X 7/8 JIC", quantity: 4 },
+      { code: "3000.5000.0283", description: "ADAPTADOR MACHO/MACHO 1/2 BSPP PARALELO COM ANEL VEDACAO ED X 7/8 JIC", quantity: 2 },
+      { code: "3000.5000.0358", description: "PINO ENGATE HID. RAPIDO ROSCA FEMEA 1/2 NPT- (AGRICOLA)", quantity: 2 },
+      { code: "3000.5000.0357", description: "Engate r\xE1pido 1/2 NPT f\xEAmea (agr\xEDcola)", quantity: 2 }
+    ]
+  },
+  {
+    code: "9000.9000.9033",
+    description: "KIT ELETRO HIDRAULICO COMANDO 1 SECCAO 24V ( 120L/ 250BAR )",
+    items: [
+      { code: "5000.1001.0058", description: "CAIXA ELETRICA 02 FUNCOES 24V", quantity: 1 },
+      { code: "3000.5003.0152", description: "COMANDO ELETRICO 80LTS - 01 SECC24V", quantity: 1 },
+      { code: "3000.5000.0287", description: "Adaptador macho/macho 7/8 UNF x 7/8 JIC", quantity: 2 },
+      { code: "3000.5000.0284", description: "Adaptador macho/macho 1.1/16 UNF x 1.1/16 JIC", quantity: 2 },
+      { code: "5000.1001.0042", description: "MANOPLA JOYSTICK 2 BOTOES- PADRAO FLORESTAL", quantity: 1 },
+      { code: "5000.1001.0057", description: "CONECTOR PLUG DEUTCH COM CABO 500MM PARA BOBINA SOLENOIDE 171147619", quantity: 2 },
+      { code: "3000.5003.0149", description: "CONECTOR PASSAGEM PRESSAO P80", quantity: 1 },
+      { code: "3000.5000.0428", description: "Adaptador macho/macho 7/8 UNF X 1.1/16 JIC", quantity: 1 }
+    ]
+  },
+  {
+    code: "9000.9000.9034",
+    description: "KIT ELETRO HIDRAULICO COMANDO 2 SECCAO 12V ( 120L/ 250BAR )",
+    items: [
+      { code: "5000.1001.0052", description: "CAIXA ELETRICA 04 FUNCOES 12V ( 4 RELES )", quantity: 1 },
+      { code: "3000.5003.0161", description: "COMANDO ELETRICO 100LTS - 02 SECC12V - (V027C100-0001-12VDC)", quantity: 1 },
+      { code: "3000.5000.0287", description: "Adaptador macho/macho 7/8 UNF x 7/8 JIC", quantity: 4 },
+      { code: "5000.1001.0018", description: "MANOPLA JOYSTICK 5 BOTOES - PADRAO FLORESTAL", quantity: 1 },
+      { code: "3000.5000.0428", description: "Adaptador macho/macho 7/8 UNF X 1.1/16 JIC", quantity: 3 },
+      { code: "3000.5000.0337", description: "BUJAO MACHO SEXTAVADO INTERNO 3/8 BSP", quantity: 1 },
+      { code: "5000.1001.0057", description: "CONECTOR PLUG DEUTCH COM CABO 500MM PARA BOBINA SOLENOIDE 171147619", quantity: 4 }
+    ]
+  },
+  {
+    code: "9000.9000.9035",
+    description: 'KIT INSTALACAO CMF500/600 EM ESCAVADEIRA - ( MAQUINA COM FATIA EXTRA "ACIONADA" SEM LINHA)',
+    items: [
+      { code: "3000.5001.1188", description: "3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 4 },
+      { code: "1000.1040.2707", description: "TUBO HIDRAULICO 3/4 X 1200 X 1.1/16JIC X 7/8JIC", quantity: 2 },
+      { code: "1000.1040.2702", description: "TUBO HIDRAULICO 3/4 X 2000 X 1.1/16JIC X 1.1/16JIC", quantity: 4 },
+      { code: "1000.1040.4100", description: "ABRACADEIRA DUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 10 },
+      { code: "1000.1040.4200", description: "ABRACADEIRA QUADRUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 2 },
+      { code: "1000.1040.2709", description: "TUBO HIDRAULICO 3/4 X 1200 X 1.1/16JIC X 1.1/16JIC", quantity: 2 },
+      { code: "3000.5001.1134", description: "3/4R12 - 2000 MM X FG 1.1/16 JIC X FG 3/4 BSP BOL", quantity: 2 },
+      { code: "3000.5001.1110", description: "1/2 R2 - 2000 MM X FG 7/8 JIC X FG 1/2 BSP BOL", quantity: 3 },
+      { code: "3000.5001.1042", description: "3/8 R2 - 2000 MM X FG 9/16 JIC X FG 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0318", description: "Adaptador Painel 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0317", description: "Adaptador Painel 7/8 JIC", quantity: 1 },
+      { code: "3000.5003.0006", description: "VALVULA CONTROLE FLUXO UNIDIRECIONAL 1/4 BSP", quantity: 1 },
+      { code: "3000.5000.0291", description: "ADAPTADOR MACHO/MACHO 1/4 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC", quantity: 4 },
+      { code: "3000.5000.0321", description: "ADAPTADOR MACHO/FEMEA 1/4 BSP X 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0274", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 9/16 JIC X 9/16 JIC", quantity: 2 },
+      { code: "2000.1000.3147", description: "CHAPA PAINEL 9/16 -7/8 INSTALACAO", quantity: 1 },
+      { code: "3000.5003.0086", description: "REGULADORA DE PRESSAO 1/4 - 40-250 BAR 25 LITROS S/MIN", quantity: 1 },
+      { code: "1000.1040.1102", description: "ADAPTADOR PARA SOLDA 7/8 JIC", quantity: 2 },
+      { code: "3000.5001.1142", description: "5/8 R2 - 11000 MM X FG 7/8 JIC X FG 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1083", description: "3/8 R2 - 12000 MM X FG 9/16 JIC X FG 9/16 JIC", quantity: 1 }
+    ]
+  },
+  {
+    code: "9000.9000.9037",
+    description: "KIT INSTALACAO CMF500/600 EM ESCAVADEIRA - ( MAQUINA COM LINHA DE HARVESTER)",
+    items: [
+      { code: "5000.1001.0016", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO ESCAVADEIRA PARA GARRA/DESTOCADOR/ FELLER SEM ACUMALADOR", quantity: 1 },
+      { code: "1000.1040.2305", description: "KIT ACIONAMENTO FATIA AUXILIAR 24V", quantity: 1 },
+      { code: "3000.5001.1134", description: "3/4R12 - 2000 MM X FG 1.1/16 JIC X FG 3/4 BSP BOL", quantity: 2 },
+      { code: "3000.5001.1110", description: "1/2 R2 - 2000 MM X FG 7/8 JIC X FG 1/2 BSP BOL", quantity: 3 },
+      { code: "3000.5001.1042", description: "3/8 R2 - 2000 MM X FG 9/16 JIC X FG 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0318", description: "Adaptador Painel 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0317", description: "Adaptador Painel 7/8 JIC", quantity: 1 },
+      { code: "3000.5003.0146", description: "VALVULA CONTROLE FLUXO UNIDIRECIONAL 3/8 BSP", quantity: 1 },
+      { code: "3000.5000.0291", description: "ADAPTADOR MACHO/MACHO 1/4 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC", quantity: 3 },
+      { code: "3000.5000.0274", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 9/16 JIC X 9/16 JIC", quantity: 2 },
+      { code: "2000.1000.3147", description: "CHAPA PAINEL 9/16 -7/8 INSTALACAO", quantity: 1 },
+      { code: "3000.5003.0086", description: "REGULADORA DE PRESSAO 1/4 - 40-250 BAR 25 LITROS S/MIN", quantity: 1 },
+      { code: "3000.5001.1083", description: "3/8 R2 - 12000 MM X FG 9/16 JIC X FG 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0311", description: "ADAPTADOR MACHO/MACHO 3/8 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0491", description: "ADAPTADOR MACHO/FEMEA 3/8 BSP X 9/16 JIC", quantity: 1 },
+      { code: "5000.1001.0042", description: "MANOPLA JOYSTICK 2 BOTOES- PADRAO FLORESTAL", quantity: 2 }
+    ]
+  },
+  {
+    code: "9000.9000.9038",
+    description: "KIT INSTALACAO GT600/800 ROTATOR SEM PASSAGEM EXTRA EM ESCAVADEIRA ( MAQUINA COM LINHA DE HARVESTER)",
+    items: [
+      { code: "1000.1040.4200", description: "ABRACADEIRA QUADRUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 2 },
+      { code: "1000.1040.4100", description: "ABRACADEIRA DUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 10 },
+      { code: "1000.1040.2333", description: "KIT VALVULA DIRECIONAL TN6 DUPLA FUNCAO 24V - PARA LINHA ROTATOR", quantity: 1 },
+      { code: "1000.1040.4101", description: "ABRACADEIRA SUPERIOR FERRO DUPLA PARA TUBO 27MM", quantity: 4 },
+      { code: "1000.1040.2305", description: "KIT ACIONAMENTO FATIA AUXILIAR 24V", quantity: 1 },
+      { code: "5000.1001.0017", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO ESCAVADEIRA PARA GT600-GT800 SEM PASSAGEM EXTRA", quantity: 1 },
+      { code: "1000.1040.2702", description: "TUBO HIDRAULICO 3/4 X 2000 X 1.1/16JIC X 1.1/16JIC", quantity: 2 },
+      { code: "1000.1040.2703", description: "TUBO HIDRAULICO 3/4 X 1000 X 1.1/16JIC X 1.1/16JIC", quantity: 4 },
+      { code: "3000.5001.1188", description: "3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5001.1146", description: "5/8 R12 - 1900 MM X FG 7/8 JIC X FG 90\xB0 7/8 JIC", quantity: 4 },
+      { code: "3000.5001.1147", description: "3/8 R2 - 3000MM X FG 7/8 JIC X FG 3/4 JIC", quantity: 1 },
+      { code: "3000.5001.1084", description: "1/2 R2 - 3000 MM X FG 7/8 JIC X FG 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1035", description: "3/4 R12 - 3000 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5001.1038", description: "3/8 R2 - 10000 MM X FG 7/8 JIC X FG 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0301", description: "Adaptador macho/macho 3/4 UNF x 9/16 JIC", quantity: 3 },
+      { code: "3000.5003.0008", description: "BLOCO PADRAO SDC10-3-S8S (ZNC PRETO)", quantity: 1 },
+      { code: "3000.5003.0009", description: "VALVULA REDUTORA DE PRESSAO PRRS-10-N-S-0-30 BUCHER", quantity: 1 },
+      { code: "3000.5000.0330", description: "ADAPTADOR TEE MACHO/FEMEA LATERAL 3/4 JIC", quantity: 2 },
+      { code: "5000.1001.0042", description: "MANOPLA JOYSTICK 2 BOTOES- PADRAO FLORESTAL", quantity: 1 },
+      { code: "5000.1001.0018", description: "MANOPLA JOYSTICK 5 BOTOES - PADRAO FLORESTAL", quantity: 1 },
+      { code: "2000.1000.3181", description: "CHAPA SUPORTE VALVULA PILOTO SIMPLES", quantity: 1 },
+      { code: "3000.1000.0076", description: "Parafuso Sextavado 8.8-M6 x 45", quantity: 2 },
+      { code: "3000.1003.0073", description: "Porca M6 parlock", quantity: 2 },
+      { code: "3000.1004.0018", description: "Arruela de press\xE3o M6", quantity: 2 }
+    ]
+  },
+  {
+    code: "9000.9000.9039",
+    description: "KIT INSTALACAO GT600/800/360 ROTATOR SEM PASSAGEM EXTRA EM ESCAVADEIRA ( MAQUINA COM LINHA DE ROMPEDOR)",
+    items: [
+      { code: "1000.1040.4200", description: "ABRACADEIRA QUADRUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 2 },
+      { code: "1000.1040.4100", description: "ABRACADEIRA DUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 12 },
+      { code: "1000.1040.2305", description: "KIT ACIONAMENTO FATIA AUXILIAR 24V", quantity: 1 },
+      { code: "5000.1001.0017", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO ESCAVADEIRA PARA GT600-GT800 SEM PASSAGEM EXTRA", quantity: 1 },
+      { code: "3000.5001.1188", description: "3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 8 },
+      { code: "1000.1040.2702", description: "TUBO HIDRAULICO 3/4 X 2000 X 1.1/16JIC X 1.1/16JIC", quantity: 6 },
+      { code: "3000.5003.0008", description: "BLOCO PADRAO SDC10-3-S8S (ZNC PRETO)", quantity: 1 },
+      { code: "3000.5003.0009", description: "VALVULA REDUTORA DE PRESSAO PRRS-10-N-S-0-30 BUCHER", quantity: 1 },
+      { code: "3000.5000.0330", description: "ADAPTADOR TEE MACHO/FEMEA LATERAL 3/4 JIC", quantity: 2 },
+      { code: "3000.5000.0301", description: "Adaptador macho/macho 3/4 UNF x 9/16 JIC", quantity: 3 },
+      { code: "1000.1040.4101", description: "ABRACADEIRA SUPERIOR FERRO DUPLA PARA TUBO 27MM", quantity: 4 },
+      { code: "1000.1040.2701", description: "TUBO HIDRAULICO 3/4 X 2000 X 7/8JIC X 1.1/16JIC", quantity: 4 },
+      { code: "3000.5001.1146", description: "5/8 R12 - 1900 MM X FG 7/8 JIC X FG 90\xB0 7/8 JIC", quantity: 4 },
+      { code: "1000.1040.2711", description: "TUBO HIDRAULICO 3/4 X 2000 X 7/8JIC X 7/8JIC", quantity: 2 },
+      { code: "1000.1040.2333", description: "KIT VALVULA DIRECIONAL TN6 DUPLA FUNCAO 24V - PARA LINHA ROTATOR", quantity: 1 },
+      { code: "3000.5001.1147", description: "3/8 R2 - 3000MM X FG 7/8 JIC X FG 3/4 JIC", quantity: 1 },
+      { code: "3000.5001.1084", description: "1/2 R2 - 3000 MM X FG 7/8 JIC X FG 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1035", description: "3/4 R12 - 3000 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 2 },
+      { code: "1000.1040.1102", description: "ADAPTADOR PARA SOLDA 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1142", description: "5/8 R2 - 11000 MM X FG 7/8 JIC X FG 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1038", description: "3/8 R2 - 10000 MM X FG 7/8 JIC X FG 9/16 JIC", quantity: 1 },
+      { code: "2000.1000.3181", description: "CHAPA SUPORTE VALVULA PILOTO SIMPLES", quantity: 1 },
+      { code: "3000.1000.0076", description: "Parafuso Sextavado 8.8-M6 x 45", quantity: 2 },
+      { code: "3000.1003.0073", description: "Porca M6 parlock", quantity: 2 },
+      { code: "3000.1004.0018", description: "Arruela de press\xE3o M6", quantity: 2 },
+      { code: "5000.1001.0018", description: "MANOPLA JOYSTICK 5 BOTOES - PADRAO FLORESTAL", quantity: 1 },
+      { code: "3000.5001.1018", description: "3/8 R2 - 900MM X FG 3/4 JIC X FG 9/16 JIC", quantity: 2 }
+    ]
+  },
+  {
+    code: "9000.9000.9040",
+    description: "KIT ELETRO HIDRAULICO COMANDO COM CONTROLE DE ACIONAMENTO GARRA KL2500T EM EMPILHADEIRA",
+    items: [
+      { code: "3000.5003.0170", description: "VALVULA SELETORA 6 VIAS HSV06-/-A-1-P6-S1 -12V-50L/250BAR", quantity: 2 },
+      { code: "3000.5000.0282", description: "Adaptador macho/macho 3/4 UNF x 3/4 JIC", quantity: 2 },
+      { code: "3000.5000.0320", description: "Adaptador macho/f\xEAmea 3/4 UNF x 3/4 JIC", quantity: 2 },
+      { code: "3000.5000.0502", description: "ADAPTADOR MACHO/MACHO 3/4UNF X M16 X 1,5 DKO T10", quantity: 6 },
+      { code: "3000.5000.0503", description: "ADAPTADOR MACHO/FEMEA 90GRAUS M16X1,5 TB10 X M16X1,5 DKO TB10", quantity: 6 },
+      { code: "3000.1001.0056", description: "Parafuso Allen 12.9-M8 x 25", quantity: 6 },
+      { code: "3000.1004.0003", description: "Arruela lisa M6", quantity: 2 },
+      { code: "3000.5000.0301", description: "Adaptador macho/macho 3/4 UNF x 9/16 JIC", quantity: 2 },
+      { code: "3000.5000.0362", description: "ENGATE RAPIDO MACHO FACE PLANA 9/16 UNF-14 - CORPO 1/4", quantity: 2 },
+      { code: "3000.5000.0361", description: "ENGATE RAPIDO FEMEA FACE PLANA 9/16 UNF-14 - CORPO 1/4", quantity: 2 },
+      { code: "3000.5000.0398", description: "Adaptador macho/macho 9/16 UNF X 9/16 JIC", quantity: 4 },
+      { code: "3000.5000.0119", description: "FEMEA GIRATORIA M16 X 1,5 T10 X 3/8", quantity: 2 },
+      { code: "3000.5001.1194", description: "3/8 R2 - 900 MM X FG 9/16 JIC X FG 9/16 JIC", quantity: 2 },
+      { code: "5000.1001.0007", description: "Porta Fus\xEDvel Baioneta Fio 1,5mm ETE 719", quantity: 1 },
+      { code: "5000.1001.0027", description: "Conector para Reles com 5 Vias", quantity: 2 },
+      { code: "3000.1002.0046", description: "PARAFUSO 4,2 X 13MM FLANGEADO CROMADO PONTA AGULHA", quantity: 2 },
+      { code: "5000.1001.0038", description: "Caixa PVC 154 x 110 x 70mm S.SX.161 LIGHT IP55 - STECK", quantity: 1 },
+      { code: "5000.1001.0030", description: "Cabo PP 3 x 1,00mm PT", quantity: 2.5 },
+      { code: "5000.1001.0005", description: "Rele Auxiliar 4 pinos 12 Volts c/ Suporte 40A", quantity: 2 }
+    ]
+  },
+  {
+    code: "9000.9000.9041",
+    description: "KIT INSTALACAO DESTOCADOR EM ESCAVADEIRA - ( MAQUINA COM LINHA DE GARRA)",
+    items: [
+      { code: "3000.5001.1188", description: "3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 4 },
+      { code: "1000.1040.2703", description: "TUBO HIDRAULICO 3/4 X 1000 X 1.1/16JIC X 1.1/16JIC", quantity: 2 },
+      { code: "1000.1040.5600", description: "ABRACADEIRA CONJUNTO SIMPLES \xD827", quantity: 4 },
+      { code: "1000.1040.1102", description: "ADAPTADOR PARA SOLDA 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1142", description: "5/8 R2 - 11000 MM X FG 7/8 JIC X FG 7/8 JIC", quantity: 1 },
+      { code: "5000.1001.0039", description: "PEDAL ACIONAMENTO 10A 250V 1REV MINI TFS-100 - COM CABO 1METRO", quantity: 2 },
+      { code: "3000.5003.0075", description: "Valvula esfera 2 vias 3/4BSP", quantity: 2 },
+      { code: "3000.5000.0294", description: "Adaptador macho/macho 3/4 BSP x 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0324", description: "ADAPTADOR MACHO/FEMEA 3/4 BSP X 1.1/16 JIC", quantity: 2 },
+      { code: "2000.1000.2847", description: "CHAPA PERFIL L ADAPTADOR PAINEL 7/8", quantity: 1 },
+      { code: "3000.5000.0317", description: "Adaptador Painel 7/8 JIC", quantity: 1 },
+      { code: "4000.5000.0019", description: "ABRACADEIRA NYLON 4,8 X 400MM", quantity: 10 }
+    ]
+  },
+  {
+    code: "9000.9000.9042",
+    description: "KIT INSTALACAO DESTOCADOR EM ESCAVADEIRA - ( MAQUINA COM LINHA HARVESTER)",
+    items: [
+      { code: "5000.1001.0016", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO ESCAVADEIRA PARA GARRA/DESTOCADOR/ FELLER SEM ACUMALADOR", quantity: 1 },
+      { code: "1000.1040.2305", description: "KIT ACIONAMENTO FATIA AUXILIAR 24V", quantity: 1 },
+      { code: "5000.1001.0039", description: "PEDAL ACIONAMENTO 10A 250V 1REV MINI TFS-100 - COM CABO 1METRO", quantity: 2 }
+    ]
+  },
+  {
+    code: "9000.9000.9043",
+    description: "KIT INSTALACAO GT600/800 + LANCA EXTENSORA ROTATOR SEM PASSAGEM EXTRA EM ESCAVADEIRA 20TON - ( MAQUINA COM FATIA EXTRA SEM LINHA)",
+    items: [
+      { code: "1000.1040.4100", description: "ABRACADEIRA DUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 28 },
+      { code: "1000.1040.2305", description: "KIT ACIONAMENTO FATIA AUXILIAR 24V", quantity: 1 },
+      { code: "5000.1001.0016", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO ESCAVADEIRA PARA GARRA/DESTOCADOR/ FELLER SEM ACUMALADOR", quantity: 1 },
+      { code: "3000.5001.1188", description: "3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 8 },
+      { code: "1000.1040.2702", description: "TUBO HIDRAULICO 3/4 X 2000 X 1.1/16JIC X 1.1/16JIC", quantity: 8 },
+      { code: "3000.5003.0008", description: "BLOCO PADRAO SDC10-3-S8S (ZNC PRETO)", quantity: 1 },
+      { code: "3000.5003.0009", description: "VALVULA REDUTORA DE PRESSAO PRRS-10-N-S-0-30 BUCHER", quantity: 1 },
+      { code: "3000.5000.0301", description: "Adaptador macho/macho 3/4 UNF x 9/16 JIC", quantity: 3 },
+      { code: "1000.1040.4200", description: "ABRACADEIRA QUADRUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 2 },
+      { code: "1000.1040.4101", description: "ABRACADEIRA SUPERIOR FERRO DUPLA PARA TUBO 27MM", quantity: 4 },
+      { code: "1000.1040.2705", description: "TUBO HIDRAULICO 3/4 X 1000 X 1.1/16JIC X 1/2NPT", quantity: 4 },
+      { code: "1000.1040.2703", description: "TUBO HIDRAULICO 3/4 X 1000 X 1.1/16JIC X 1.1/16JIC", quantity: 2 },
+      { code: "3000.5000.0330", description: "ADAPTADOR TEE MACHO/FEMEA LATERAL 3/4 JIC", quantity: 2 },
+      { code: "1000.1040.2333", description: "KIT VALVULA DIRECIONAL TN6 DUPLA FUNCAO 24V - PARA LINHA ROTATOR", quantity: 1 },
+      { code: "1000.1040.1102", description: "ADAPTADOR PARA SOLDA 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1142", description: "5/8 R2 - 11000 MM X FG 7/8 JIC X FG 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1038", description: "3/8 R2 - 10000 MM X FG 7/8 JIC X FG 9/16 JIC", quantity: 1 },
+      { code: "2000.1000.3181", description: "CHAPA SUPORTE VALVULA PILOTO SIMPLES", quantity: 1 },
+      { code: "3000.1000.0076", description: "Parafuso Sextavado 8.8-M6 x 45", quantity: 2 },
+      { code: "3000.1003.0073", description: "Porca M6 parlock", quantity: 2 },
+      { code: "3000.1004.0018", description: "Arruela de press\xE3o M6", quantity: 2 },
+      { code: "5000.1001.0018", description: "MANOPLA JOYSTICK 5 BOTOES - PADRAO FLORESTAL", quantity: 1 },
+      { code: "3000.5001.1018", description: "3/8 R2 - 900MM X FG 3/4 JIC X FG 9/16 JIC", quantity: 2 },
+      { code: "1000.1040.2712", description: "TUBO HIDRAULICO 3/4 X 1000 X 1.1/16JIC X 7/8JIC", quantity: 2 },
+      { code: "3000.5000.0317", description: "Adaptador Painel 7/8 JIC", quantity: 1 },
+      { code: "3000.5000.0318", description: "Adaptador Painel 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0379", description: "Adaptador Painel 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5001.1002", description: "1/2 R2 - 1200mm x FG 7/8 JIC x FG 45\xB0 7/8JIC", quantity: 4 },
+      { code: "3000.5001.1046", description: "1/2 R2 - 1800 MM X FG 7/8 JIC X MF 1/2 NPT", quantity: 4 },
+      { code: "3000.5001.1134", description: "3/4R12 - 2000 MM X FG 1.1/16 JIC X FG 3/4 BSP BOL", quantity: 4 },
+      { code: "3000.5000.0359", description: "ENGATE RAPIDO FEMEA FACE PLANA 1/2 NPT-14 CORPO 1/2", quantity: 4 },
+      { code: "3000.5000.0360", description: "ENGATE RAPIDO MACHO FACE PLANA 1/2 NPT-14 - CORPO 1/2", quantity: 4 },
+      { code: "3000.5000.0480", description: "ENGATE RAPIDO FEMEA PLT4 FACE PLANA 3/4 BSP-14 - CORPO 3/4", quantity: 2 },
+      { code: "3000.5000.0479", description: "ENGATE RAPIDO MACHO PLT4 FACE PLANA 3/4 BSP-14 - CORPO 3/4", quantity: 2 },
+      { code: "3000.5000.0324", description: "ADAPTADOR MACHO/FEMEA 3/4 BSP X 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0294", description: "Adaptador macho/macho 3/4 BSP x 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5001.1212", description: "1/2 R2 - 1800 MM X FG 7/8 JIC X FG 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1213", description: "3/8 R2 - 1800 MM X FG 9/16 JIC X FG 9/16 JIC", quantity: 1 },
+      { code: "3000.5001.1214", description: "3/8 R2 - 1800 MM X FG 7/8 JIC X FG 9/16 JIC", quantity: 1 }
+    ]
+  },
+  {
+    code: "9000.9000.9044",
+    description: "KIT INSTALACAO CMF500/600 + LINCK ESCAVADEIRA CAT 320GC - ( MAQUINA COM FATIA EXTRA SEM LINHA)",
+    items: [
+      { code: "3000.5003.0100", description: "COMANDO HIDRAULICO ELETRICO SDS180/2 - AC(XG-180) /18EI3L/18EI3L/RV-KE2R3-24CDV", quantity: 1 },
+      { code: "1000.1040.4100", description: "ABRACADEIRA DUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 38 },
+      { code: "3000.5001.1188", description: "3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 10 },
+      { code: "3000.5003.0003", description: "VALVULA CARTUCHO SV08-23-01-00-0-B-0 (PARA CRU-0129)", quantity: 1 },
+      { code: "3000.5003.0004", description: "BLOCO PADRAO SDC08-3-S6S (CRU-0129) - 9/16 UNF", quantity: 1 },
+      { code: "3000.5003.0084", description: "BOBINA M13-24D-20W-DN/FL - SOLENOIDE", quantity: 1 },
+      { code: "3000.5000.0398", description: "Adaptador macho/macho 9/16 UNF X 9/16 JIC", quantity: 3 },
+      { code: "3000.5000.0311", description: "ADAPTADOR MACHO/MACHO 3/8 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC", quantity: 4 },
+      { code: "3000.5000.0284", description: "Adaptador macho/macho 1.1/16 UNF x 1.1/16 JIC", quantity: 4 },
+      { code: "3000.5000.0307", description: "Adaptador macho/macho 1.5/16 UNF x 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0276", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 1.1/16 JIC X 1.1/16 JIC", quantity: 8 },
+      { code: "3000.5000.0274", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 9/16 JIC X 9/16 JIC", quantity: 4 },
+      { code: "5000.1001.0053", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO 24V PARA FELLER COM ACUMULADOR", quantity: 1 },
+      { code: "5000.1001.0018", description: "MANOPLA JOYSTICK 5 BOTOES - PADRAO FLORESTAL", quantity: 1 },
+      { code: "1000.1040.2702", description: "TUBO HIDRAULICO 3/4 X 2000 X 1.1/16JIC X 1.1/16JIC", quantity: 12 },
+      { code: "3000.5001.1180", description: "3/4R12 - 1000 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 4 },
+      { code: "1000.1040.2703", description: "TUBO HIDRAULICO 3/4 X 1000 X 1.1/16JIC X 1.1/16JIC", quantity: 2 },
+      { code: "3000.5000.0333", description: "ADAPTADOR TEE MACHO/FEMEA LATERAL 9/16 JIC", quantity: 1 },
+      { code: "1000.1040.2705", description: "TUBO HIDRAULICO 3/4 X 1000 X 1.1/16JIC X 1/2NPT", quantity: 2 },
+      { code: "1000.1040.2712", description: "TUBO HIDRAULICO 3/4 X 1000 X 1.1/16JIC X 7/8JIC", quantity: 2 },
+      { code: "3000.5000.0359", description: "ENGATE RAPIDO FEMEA FACE PLANA 1/2 NPT-14 CORPO 1/2", quantity: 2 },
+      { code: "3000.5000.0360", description: "ENGATE RAPIDO MACHO FACE PLANA 1/2 NPT-14 - CORPO 1/2", quantity: 2 },
+      { code: "3000.5000.0480", description: "ENGATE RAPIDO FEMEA PLT4 FACE PLANA 3/4 BSP-14 - CORPO 3/4", quantity: 2 },
+      { code: "3000.5000.0479", description: "ENGATE RAPIDO MACHO PLT4 FACE PLANA 3/4 BSP-14 - CORPO 3/4", quantity: 2 },
+      { code: "3000.5000.0324", description: "ADAPTADOR MACHO/FEMEA 3/4 BSP X 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0294", description: "Adaptador macho/macho 3/4 BSP x 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5001.1134", description: "3/4R12 - 2000 MM X FG 1.1/16 JIC X FG 3/4 BSP BOL", quantity: 2 },
+      { code: "3000.5001.1110", description: "1/2 R2 - 2000 MM X FG 7/8 JIC X FG 1/2 BSP BOL", quantity: 3 },
+      { code: "3000.5001.1042", description: "3/8 R2 - 2000 MM X FG 9/16 JIC X FG 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0395", description: "ADAPTADOR MACHO/FEMEA 1/2 NPT X 7/8 JIC", quantity: 2 },
+      { code: "3000.5001.1214", description: "3/8 R2 - 1800 MM X FG 7/8 JIC X FG 9/16 JIC", quantity: 1 },
+      { code: "3000.5003.0146", description: "VALVULA CONTROLE FLUXO UNIDIRECIONAL 3/8 BSP", quantity: 1 },
+      { code: "3000.5000.0311", description: "ADAPTADOR MACHO/MACHO 3/8 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0491", description: "ADAPTADOR MACHO/FEMEA 3/8 BSP X 9/16 JIC", quantity: 1 }
+    ]
+  },
+  {
+    code: "9000.9000.9045",
+    description: "KIT INSTALACAO CMF500 + PONTEIRA PARA RETRO (MAQUINA COM LINHA EXTRA BI-DIRECIONAL)",
+    items: [
+      { code: "3000.5003.0008", description: "BLOCO PADRAO SDC10-3-S8S (ZNC PRETO)", quantity: 1 },
+      { code: "3000.5003.0009", description: "VALVULA REDUTORA DE PRESSAO PRRS-10-N-S-0-30 BUCHER", quantity: 1 },
+      { code: "3000.5000.0301", description: "Adaptador macho/macho 3/4 UNF x 9/16 JIC", quantity: 3 }
+    ]
+  },
+  {
+    code: "9000.9000.9046",
+    description: "KIT INSTALACAO GARRA EM ESCAVADEIRA - (MAQUINA COM LINHA EXTRA BI-DIRECIONAL)",
+    items: [
+      { code: "1000.1040.4200", description: "ABRACADEIRA QUADRUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 2 },
+      { code: "1000.1040.2701", description: "TUBO HIDRAULICO 3/4 X 2000 X 7/8JIC X 1.1/16JIC", quantity: 4 },
+      { code: "3000.5001.1161", description: "1/2 R2 - 1650 mm x FG 7/8 JIC x FG 90\xB0 7/8 JIC", quantity: 4 }
+    ]
+  },
+  {
+    code: "9000.9000.9047",
+    description: "KIT INSTALACAO GT280/360 EM GRUA - ( MAQUINA COM FATIA EXTRA )",
+    items: [
+      { code: "3000.5000.0317", description: "Adaptador Painel 7/8 JIC", quantity: 2 },
+      { code: "3000.5000.0318", description: "Adaptador Painel 9/16 JIC", quantity: 2 }
+    ]
+  },
+  {
+    code: "9000.9000.9048",
+    description: "KIT INSTALACAO CMF500/600 + LINCK EM ESCAVADEIRA - ( MAQUINA COM FATIA EXTRA SEM LINHA)",
+    items: [
+      { code: "5000.1001.0061", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO ESCAVADEIRA PARA CMF500/600", quantity: 1 },
+      { code: "1000.1040.2305", description: "KIT ACIONAMENTO FATIA AUXILIAR 24V", quantity: 1 },
+      { code: "3000.5001.1142", description: "5/8 R2 - 11000 MM X FG 7/8 JIC X FG 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1083", description: "3/8 R2 - 12000 MM X FG 9/16 JIC X FG 9/16 JIC", quantity: 1 },
+      { code: "3000.5001.1188", description: "3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 8 },
+      { code: "3000.5001.1134", description: "3/4R12 - 2000 MM X FG 1.1/16 JIC X FG 3/4 BSP BOL", quantity: 2 },
+      { code: "3000.5001.1042", description: "3/8 R2 - 2000 MM X FG 9/16 JIC X FG 9/16 JIC", quantity: 1 },
+      { code: "3000.5001.1110", description: "1/2 R2 - 2000 MM X FG 7/8 JIC X FG 1/2 BSP BOL", quantity: 3 },
+      { code: "1000.1040.2703", description: "TUBO HIDRAULICO 3/4 X 1000 X 1.1/16JIC X 1.1/16JIC", quantity: 2 },
+      { code: "1000.1040.2705", description: "TUBO HIDRAULICO 3/4 X 1000 X 1.1/16JIC X 1/2NPT", quantity: 2 },
+      { code: "1000.1040.2702", description: "TUBO HIDRAULICO 3/4 X 2000 X 1.1/16JIC X 1.1/16JIC", quantity: 4 },
+      { code: "1000.1040.4200", description: "ABRACADEIRA QUADRUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 2 },
+      { code: "3000.5000.0318", description: "Adaptador Painel 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0317", description: "Adaptador Painel 7/8 JIC", quantity: 1 },
+      { code: "3000.5003.0146", description: "VALVULA CONTROLE FLUXO UNIDIRECIONAL 3/8 BSP", quantity: 1 },
+      { code: "3000.5000.0291", description: "ADAPTADOR MACHO/MACHO 1/4 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC", quantity: 2 },
+      { code: "3000.5000.0491", description: "ADAPTADOR MACHO/FEMEA 3/8 BSP X 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0274", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 9/16 JIC X 9/16 JIC", quantity: 2 },
+      { code: "2000.1000.3147", description: "CHAPA PAINEL 9/16 -7/8 INSTALACAO", quantity: 1 },
+      { code: "3000.5000.0396", description: "BUJAO FEMEA SEXTAVADO EXTERNO 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0336", description: "BUJAO MACHO SEXTAVADO EXTERNO 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0366", description: "BUJAO FEMEA SEXTAVADO EXTERNO 7/8 JIC", quantity: 3 },
+      { code: "1000.1040.1102", description: "ADAPTADOR PARA SOLDA 7/8 JIC", quantity: 2 },
+      { code: "3000.5000.0311", description: "ADAPTADOR MACHO/MACHO 3/8 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0321", description: "ADAPTADOR MACHO/FEMEA 1/4 BSP X 9/16 JIC", quantity: 1 },
+      { code: "5000.1001.0059", description: "MANOPLA JOYSTICK 3 BOTOES- PADRAO FLORESTAL", quantity: 1 },
+      { code: "3000.5003.0075", description: "Valvula esfera 2 vias 3/4BSP", quantity: 2 },
+      { code: "3000.5000.0359", description: "ENGATE RAPIDO FEMEA FACE PLANA 1/2 NPT-14 CORPO 1/2", quantity: 3 },
+      { code: "3000.5000.0360", description: "ENGATE RAPIDO MACHO FACE PLANA 1/2 NPT-14 - CORPO 1/2", quantity: 3 },
+      { code: "3000.5000.0308", description: "Adaptador macho/macho 1/2 NPT x 7/8 JIC", quantity: 2 },
+      { code: "3000.5000.0294", description: "Adaptador macho/macho 3/4 BSP x 1.1/16 JIC", quantity: 6 },
+      { code: "3000.5000.0324", description: "ADAPTADOR MACHO/FEMEA 3/4 BSP X 1.1/16 JIC", quantity: 4 },
+      { code: "3000.5000.0361", description: "ENGATE RAPIDO FEMEA FACE PLANA 9/16 UNF-14 - CORPO 1/4", quantity: 1 },
+      { code: "3000.5000.0362", description: "ENGATE RAPIDO MACHO FACE PLANA 9/16 UNF-14 - CORPO 1/4", quantity: 1 },
+      { code: "3000.5000.0398", description: "Adaptador macho/macho 9/16 UNF X 9/16 JIC", quantity: 4 },
+      { code: "3000.5003.0188", description: "VALVULA CONTROLE FLUXO BI-DIRECIONAL 3/4 BSP", quantity: 2 },
+      { code: "3000.5003.0003", description: "VALVULA CARTUCHO SV08-23-01-00-0-B-0 (PARA CRU-0129)", quantity: 1 },
+      { code: "3000.5003.0004", description: "BLOCO PADRAO SDC08-3-S6S (CRU-0129) - 9/16 UNF", quantity: 1 },
+      { code: "3000.5003.0084", description: "BOBINA M13-24D-20W-DN/FL - SOLENOIDE", quantity: 1 },
+      { code: "3000.5000.0399", description: "Adaptador macho/femea 9/16 UNF X 9/16 JIC", quantity: 1 },
+      { code: "1000.1040.4100", description: "ABRACADEIRA DUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 14 }
+    ]
+  },
+  {
+    code: "9000.9000.9049",
+    description: "KIT INSTALACAO CMF500/600 + LINCK EM ESCAVADEIRA - ( MAQUINA COM LINHA DE GARRA)",
+    items: [
+      { code: "5000.1001.0016", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO ESCAVADEIRA PARA GARRA/DESTOCADOR/ FELLER SEM ACUMALADOR", quantity: 1 },
+      { code: "3000.5001.1142", description: "5/8 R2 - 11000 MM X FG 7/8 JIC X FG 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1083", description: "3/8 R2 - 12000 MM X FG 9/16 JIC X FG 9/16 JIC", quantity: 1 },
+      { code: "3000.5001.1188", description: "3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 4 },
+      { code: "3000.5001.1134", description: "3/4R12 - 2000 MM X FG 1.1/16 JIC X FG 3/4 BSP BOL", quantity: 2 },
+      { code: "3000.5001.1042", description: "3/8 R2 - 2000 MM X FG 9/16 JIC X FG 9/16 JIC", quantity: 1 },
+      { code: "3000.5001.1110", description: "1/2 R2 - 2000 MM X FG 7/8 JIC X FG 1/2 BSP BOL", quantity: 3 },
+      { code: "1000.1040.2703", description: "TUBO HIDRAULICO 3/4 X 1000 X 1.1/16JIC X 1.1/16JIC", quantity: 2 },
+      { code: "1000.1040.2705", description: "TUBO HIDRAULICO 3/4 X 1000 X 1.1/16JIC X 1/2NPT", quantity: 2 },
+      { code: "1000.1040.2702", description: "TUBO HIDRAULICO 3/4 X 2000 X 1.1/16JIC X 1.1/16JIC", quantity: 4 },
+      { code: "1000.1040.4100", description: "ABRACADEIRA DUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 14 },
+      { code: "3000.5000.0318", description: "Adaptador Painel 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0317", description: "Adaptador Painel 7/8 JIC", quantity: 1 },
+      { code: "3000.5003.0146", description: "VALVULA CONTROLE FLUXO UNIDIRECIONAL 3/8 BSP", quantity: 1 },
+      { code: "3000.5000.0291", description: "ADAPTADOR MACHO/MACHO 1/4 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC", quantity: 2 },
+      { code: "3000.5000.0491", description: "ADAPTADOR MACHO/FEMEA 3/8 BSP X 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0274", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 9/16 JIC X 9/16 JIC", quantity: 2 },
+      { code: "2000.1000.3147", description: "CHAPA PAINEL 9/16 -7/8 INSTALACAO", quantity: 1 },
+      { code: "3000.5003.0003", description: "VALVULA CARTUCHO SV08-23-01-00-0-B-0 (PARA CRU-0129)", quantity: 1 },
+      { code: "3000.5000.0396", description: "BUJAO FEMEA SEXTAVADO EXTERNO 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0336", description: "BUJAO MACHO SEXTAVADO EXTERNO 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0366", description: "BUJAO FEMEA SEXTAVADO EXTERNO 7/8 JIC", quantity: 3 },
+      { code: "1000.1040.1102", description: "ADAPTADOR PARA SOLDA 7/8 JIC", quantity: 2 },
+      { code: "3000.5000.0311", description: "ADAPTADOR MACHO/MACHO 3/8 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC", quantity: 1 },
+      { code: "3000.5000.0321", description: "ADAPTADOR MACHO/FEMEA 1/4 BSP X 9/16 JIC", quantity: 1 },
+      { code: "5000.1001.0059", description: "MANOPLA JOYSTICK 3 BOTOES- PADRAO FLORESTAL", quantity: 1 },
+      { code: "3000.5003.0075", description: "Valvula esfera 2 vias 3/4BSP", quantity: 2 },
+      { code: "3000.5000.0359", description: "ENGATE RAPIDO FEMEA FACE PLANA 1/2 NPT-14 CORPO 1/2", quantity: 2 },
+      { code: "3000.5000.0360", description: "ENGATE RAPIDO MACHO FACE PLANA 1/2 NPT-14 - CORPO 1/2", quantity: 2 },
+      { code: "3000.5000.0308", description: "Adaptador macho/macho 1/2 NPT x 7/8 JIC", quantity: 2 },
+      { code: "3000.5000.0294", description: "Adaptador macho/macho 3/4 BSP x 1.1/16 JIC", quantity: 6 },
+      { code: "3000.5000.0324", description: "ADAPTADOR MACHO/FEMEA 3/4 BSP X 1.1/16 JIC", quantity: 4 },
+      { code: "3000.5000.0361", description: "ENGATE RAPIDO FEMEA FACE PLANA 9/16 UNF-14 - CORPO 1/4", quantity: 1 },
+      { code: "3000.5000.0362", description: "ENGATE RAPIDO MACHO FACE PLANA 9/16 UNF-14 - CORPO 1/4", quantity: 1 },
+      { code: "3000.5000.0398", description: "Adaptador macho/macho 9/16 UNF X 9/16 JIC", quantity: 4 },
+      { code: "3000.5003.0182", description: "REGISTRO VALVULA ESFERA 3 VIAS 3/4BSP", quantity: 2 },
+      { code: "3000.5003.0004", description: "BLOCO PADRAO SDC08-3-S6S (CRU-0129) - 9/16 UNF", quantity: 1 },
+      { code: "3000.5003.0084", description: "BOBINA M13-24D-20W-DN/FL - SOLENOIDE", quantity: 1 },
+      { code: "3000.5000.0399", description: "Adaptador macho/femea 9/16 UNF X 9/16 JIC", quantity: 1 }
+    ]
+  },
+  {
+    code: "9000.9000.9050",
+    description: "KIT COMANDO ELETRO HIDRAULICO PA CARREGADEIRA 1 FUNCAO LS 24V (MAQUINA BOMBA PISTAO)",
+    items: [
+      { code: "3000.5003.0003", description: "VALVULA CARTUCHO SV08-23-01-00-0-B-0 (PARA CRU-0129)", quantity: 1 },
+      { code: "3000.5003.0004", description: "BLOCO PADRAO SDC08-3-S6S (CRU-0129) - 9/16 UNF", quantity: 1 },
+      { code: "3000.5003.0084", description: "BOBINA M13-24D-20W-DN/FL - SOLENOIDE", quantity: 1 },
+      { code: "2000.1000.3181", description: "CHAPA SUPORTE VALVULA PILOTO SIMPLES", quantity: 1 },
+      { code: "3000.1000.0076", description: "Parafuso Sextavado 8.8-M6 x 45", quantity: 2 },
+      { code: "3000.1003.0073", description: "Porca M6 parlock", quantity: 2 },
+      { code: "3000.5000.0398", description: "Adaptador macho/macho 9/16 UNF X 9/16 JIC", quantity: 3 },
+      { code: "1000.1040.2333", description: "KIT VALVULA DIRECIONAL TN6 DUPLA FUNCAO 24V - PARA LINHA ROTATOR", quantity: 1 },
+      { code: "5000.1001.0053", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO 24V PARA FELLER COM ACUMULADOR", quantity: 1 },
+      { code: "5000.1001.0059", description: "MANOPLA JOYSTICK 3 BOTOES- PADRAO FLORESTAL", quantity: 1 },
+      { code: "5000.1001.0043", description: "BOTAO PULSANTE 12MM P9 900016054489 + CAPA P9 C401245-25-1", quantity: 1 }
+    ]
+  },
+  {
+    code: "9000.9000.9051",
+    description: "KIT INSTALACAO FELLER TESOURA EM ESCAVADEIRA - ( MAQUINA COM LINHA DE GARRA )",
+    items: [
+      { code: "3000.5003.0100", description: "COMANDO HIDRAULICO ELETRICO SDS180/2 - AC(XG-180) /18EI3L/18EI3L/RV-KE2R3-24CDV", quantity: 1 },
+      { code: "1000.1040.4100", description: "ABRACADEIRA DUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 24 },
+      { code: "3000.5001.1188", description: "3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5001.1175", description: "3/4 R12 - 2300 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0311", description: "ADAPTADOR MACHO/MACHO 3/8 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC", quantity: 4 },
+      { code: "3000.5000.0381", description: "Adaptador macho/macho 1/2 BSP x 9/16 JIC", quantity: 2 },
+      { code: "3000.5000.0284", description: "Adaptador macho/macho 1.1/16 UNF x 1.1/16 JIC", quantity: 4 },
+      { code: "3000.5000.0307", description: "Adaptador macho/macho 1.5/16 UNF x 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0276", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 1.1/16 JIC X 1.1/16 JIC", quantity: 6 },
+      { code: "3000.5000.0274", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 9/16 JIC X 9/16 JIC", quantity: 2 },
+      { code: "5000.1001.0053", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO 24V PARA FELLER COM ACUMULADOR", quantity: 1 },
+      { code: "5000.1001.0018", description: "MANOPLA JOYSTICK 5 BOTOES - PADRAO FLORESTAL", quantity: 1 },
+      { code: "1000.1040.2702", description: "TUBO HIDRAULICO 3/4 X 2000 X 1.1/16JIC X 1.1/16JIC", quantity: 4 },
+      { code: "3000.5001.1180", description: "3/4R12 - 1000 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 4 },
+      { code: "1000.1040.2703", description: "TUBO HIDRAULICO 3/4 X 1000 X 1.1/16JIC X 1.1/16JIC", quantity: 4 },
+      { code: "3000.5000.0333", description: "ADAPTADOR TEE MACHO/FEMEA LATERAL 9/16 JIC", quantity: 2 },
+      { code: "3000.5001.1008", description: "1/2 R2 - 2300 MM X FG 7/8 JIC X FG 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5001.1138", description: "3/4R12 - 1000 MM X FG 1.1/16 JIC X FG 90\xB0 1.1/16 JIC", quantity: 4 },
+      { code: "3000.5001.1009", description: "3/4 R2 - 1300 MM X FG 1.1/16 JIC X FG 90\xB0 1.1/16 JIC", quantity: 1 }
+    ]
+  },
+  {
+    code: "9000.9000.9052",
+    description: "ACIONAMENTO ELETRO HIDRAULICO PARA GARRA FLORESTAL NA ESCAVADEIRA - EXPORTACAO",
+    items: [
+      { code: "1000.1040.2305", description: "KIT ACIONAMENTO FATIA AUXILIAR 24V", quantity: 1 },
+      { code: "5000.1001.0016", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO ESCAVADEIRA PARA GARRA/DESTOCADOR/ FELLER SEM ACUMALADOR", quantity: 1 },
+      { code: "5000.1001.0059", description: "MANOPLA JOYSTICK 3 BOTOES- PADRAO FLORESTAL", quantity: 1 }
+    ]
+  },
+  {
+    code: "9000.9000.9053",
+    description: "ACIONAMENTO ELETRO HIDRAULICO PARA CABECOTE MULTIFUNCIONAL NA ESCAVADEIRA - EXPORTACAO",
+    items: [
+      { code: "1000.1040.2305", description: "KIT ACIONAMENTO FATIA AUXILIAR 24V", quantity: 1 },
+      { code: "5000.1001.0061", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO ESCAVADEIRA PARA CMF500/600", quantity: 1 },
+      { code: "5000.1001.0059", description: "MANOPLA JOYSTICK 3 BOTOES- PADRAO FLORESTAL", quantity: 1 },
+      { code: "3000.5003.0003", description: "VALVULA CARTUCHO SV08-23-01-00-0-B-0 (PARA CRU-0129)", quantity: 1 },
+      { code: "3000.5003.0004", description: "BLOCO PADRAO SDC08-3-S6S (CRU-0129) - 9/16 UNF", quantity: 1 },
+      { code: "3000.5003.0084", description: "BOBINA M13-24D-20W-DN/FL - SOLENOIDE", quantity: 1 },
+      { code: "3000.5000.0398", description: "Adaptador macho/macho 9/16 UNF X 9/16 JIC", quantity: 3 },
+      { code: "2000.1000.3181", description: "CHAPA SUPORTE VALVULA PILOTO SIMPLES", quantity: 1 },
+      { code: "3000.1000.0076", description: "Parafuso Sextavado 8.8-M6 x 45", quantity: 2 },
+      { code: "3000.1003.0073", description: "Porca M6 parlock", quantity: 2 },
+      { code: "3000.1004.0018", description: "Arruela de press\xE3o M6", quantity: 2 }
+    ]
+  },
+  {
+    code: "9000.9000.9054",
+    description: "ACIONAMENTO ELETRO HIDRAULICO PARA GARRA TRACADORA NA ESCAVADEIRA - EXPORTACAO",
+    items: [
+      { code: "1000.1040.2305", description: "KIT ACIONAMENTO FATIA AUXILIAR 24V", quantity: 1 },
+      { code: "5000.1001.0017", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO ESCAVADEIRA PARA GT600-GT800 SEM PASSAGEM EXTRA", quantity: 1 },
+      { code: "5000.1001.0018", description: "MANOPLA JOYSTICK 5 BOTOES - PADRAO FLORESTAL", quantity: 1 },
+      { code: "3000.5003.0008", description: "BLOCO PADRAO SDC10-3-S8S (ZNC PRETO)", quantity: 1 },
+      { code: "3000.5003.0009", description: "VALVULA REDUTORA DE PRESSAO PRRS-10-N-S-0-30 BUCHER", quantity: 1 },
+      { code: "3000.5000.0330", description: "ADAPTADOR TEE MACHO/FEMEA LATERAL 3/4 JIC", quantity: 2 },
+      { code: "3000.5000.0301", description: "Adaptador macho/macho 3/4 UNF x 9/16 JIC", quantity: 3 },
+      { code: "2000.1000.3181", description: "CHAPA SUPORTE VALVULA PILOTO SIMPLES", quantity: 1 },
+      { code: "3000.1000.0076", description: "Parafuso Sextavado 8.8-M6 x 45", quantity: 2 },
+      { code: "3000.1003.0073", description: "Porca M6 parlock", quantity: 2 },
+      { code: "3000.1004.0018", description: "Arruela de press\xE3o M6", quantity: 2 },
+      { code: "1000.1040.2333", description: "KIT VALVULA DIRECIONAL TN6 DUPLA FUNCAO 24V - PARA LINHA ROTATOR", quantity: 1 }
+    ]
+  },
+  {
+    code: "9000.9000.9056",
+    description: 'KIT INSTALACAO FELLER DISCO EM ESCAVADEIRA CAT 320 GC- ( MAQUINA COM FATIA EXTRA "ACIONADA" COM LINHA EXTRA)',
+    items: [
+      { code: "1000.1040.5700", description: "FLANGE 1.3/4 (44,5) X COM ROSCA 3/4 BSP", quantity: 1 },
+      { code: "3000.2001.0349", description: "Oring W 3,53 x D.I. 32,92 - ref. Parker 2219", quantity: 1 },
+      { code: "3000.5000.0307", description: "Adaptador macho/macho 1.5/16 UNF x 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0276", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 1.1/16 JIC X 1.1/16 JIC", quantity: 1 },
+      { code: "3000.5000.0324", description: "ADAPTADOR MACHO/FEMEA 3/4 BSP X 1.1/16 JIC", quantity: 1 },
+      { code: "3000.5000.0287", description: "Adaptador macho/macho 7/8 UNF x 7/8 JIC", quantity: 1 },
+      { code: "3000.1001.0016", description: "Parafuso Allen 12.9-M10 x 40", quantity: 4 },
+      { code: "5000.1001.0012", description: "Plug Conector 24V", quantity: 1 },
+      { code: "3000.5000.0376", description: "Adaptador macho/macho 7/16 UNF x 9/16 JIC", quantity: 1 },
+      { code: "3000.5003.0190", description: "BOBINA 24V 20W -( VALVULA 2/2 OD1533175A000000 VEI 016 NC 1)", quantity: 1 },
+      { code: "3000.5002.0090", description: 'BOMBA PISTAO A10VO72 DRS/3R VSC12K52 - (EIXO 1" X 15DENTES) 105 L/MIN', quantity: 1 },
+      { code: "3000.5003.0191", description: "BLOCO SDC16-2-S16S- 1.5/16 UNF", quantity: 1 },
+      { code: "3000.5003.0192", description: "VALVULA 2/2 OD1533175A000000 VEI 016 NC 1 - (2VIAS PARA BLOCO SDC16)", quantity: 1 },
+      { code: "1000.2039.0101", description: "Adaptador usinado 9/16 JIC", quantity: 1 },
+      { code: "5000.1001.0053", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO 24V PARA FELLER COM ACUMULADOR", quantity: 1 },
+      { code: "3000.5003.0158", description: "COMANDO ELETRICO 100L 02 SECC24V COM VALVULAS DE ALIVIO NAS FATIAS + BUJAO PASSAGEM PRESSAO", quantity: 1 },
+      { code: "5000.1001.0057", description: "CONECTOR PLUG DEUTCH COM CABO 500MM PARA BOBINA SOLENOIDE 171147619", quantity: 4 },
+      { code: "3000.5000.0287", description: "Adaptador macho/macho 7/8 UNF x 7/8 JIC", quantity: 7 },
+      { code: "3000.5000.0366", description: "BUJAO FEMEA SEXTAVADO EXTERNO 7/8 JIC", quantity: 1 },
+      { code: "3000.5000.0426", description: "ABRACADEIRA MANGOTE PESADO 32MM MSA 54-62 (PARA MANGUEIRA SUCCAO 2)", quantity: 2 },
+      { code: "3000.5001.0029", description: "MANGUEIRA HIDRAULICA R4 2 (SUCCAO)", quantity: 0.8 },
+      { code: "3000.5000.0436", description: 'MACHO FIXO 2 NPT X 2 (MANGUEIRA DE 2")', quantity: 1 },
+      { code: "3000.5000.0516", description: "FLANGE BIPARTIDA 2 (PARA FLANGE \xD871,4)", quantity: 1 },
+      { code: "3000.5000.0517", description: 'FLANGE RETA 71,4MM X 2"', quantity: 1 },
+      { code: "3000.5001.1179", description: "1/4 R17 - 550 MM X FG 9/16 JIC X FG 90\xB0 9/16 JIC", quantity: 1 },
+      { code: "3000.5001.1188", description: "3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 12 },
+      { code: "1000.1040.2703", description: "TUBO HIDRAULICO 3/4 X 1000 X 1.1/16JIC X 1.1/16JIC", quantity: 6 },
+      { code: "1000.1040.2702", description: "TUBO HIDRAULICO 3/4 X 2000 X 1.1/16JIC X 1.1/16JIC", quantity: 12 },
+      { code: "1000.1040.4100", description: "ABRACADEIRA DUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 36 },
+      { code: "3000.5003.0075", description: "Valvula esfera 2 vias 3/4BSP", quantity: 6 },
+      { code: "3000.5000.0294", description: "Adaptador macho/macho 3/4 BSP x 1.1/16 JIC", quantity: 6 },
+      { code: "3000.5000.0324", description: "ADAPTADOR MACHO/FEMEA 3/4 BSP X 1.1/16 JIC", quantity: 6 },
+      { code: "1000.1040.1107", description: "ADAPTADOR PARA SOLDA 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0317", description: "Adaptador Painel 7/8 JIC", quantity: 1 },
+      { code: "2000.1000.2847", description: "CHAPA PERFIL L ADAPTADOR PAINEL 7/8", quantity: 1 },
+      { code: "3000.5001.1142", description: "5/8 R2 - 11000 MM X FG 7/8 JIC X FG 7/8 JIC", quantity: 1 },
+      { code: "4000.5000.0019", description: "ABRACADEIRA NYLON 4,8 X 400MM", quantity: 30 }
+    ]
+  },
+  {
+    code: "9000.9000.9057",
+    description: "KIT INSTALACAO GARRA EM ESCAVADEIRA CAT 320GC COM FATIA DUPLA ACIONADA",
+    items: [
+      { code: "1000.1040.4200", description: "ABRACADEIRA QUADRUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 2 },
+      { code: "1000.1040.4100", description: "ABRACADEIRA DUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 10 },
+      { code: "3000.5001.1188", description: "3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 4 },
+      { code: "1000.1040.2702", description: "TUBO HIDRAULICO 3/4 X 2000 X 1.1/16JIC X 1.1/16JIC", quantity: 4 },
+      { code: "1000.1040.2701", description: "TUBO HIDRAULICO 3/4 X 2000 X 7/8JIC X 1.1/16JIC", quantity: 4 },
+      { code: "3000.5000.0276", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 1.1/16 JIC X 1.1/16 JIC", quantity: 4 }
+    ]
+  },
+  {
+    code: "9000.9000.9059",
+    description: 'KIT INSTALACAO GT600/800 ROTATOR SEM PASSAGEM EXTRA EM ESCAVADEIRA CAT 320 GC/NG- ( MAQUINA COM FATIA EXTRA "ACIONADA" SEM LINHA EXTRA)',
+    items: [
+      { code: "1000.1040.4200", description: "ABRACADEIRA QUADRUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 2 },
+      { code: "1000.1040.4100", description: "ABRACADEIRA DUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 20 },
+      { code: "3000.5001.1188", description: "3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 8 },
+      { code: "1000.1040.2702", description: "TUBO HIDRAULICO 3/4 X 2000 X 1.1/16JIC X 1.1/16JIC", quantity: 10 },
+      { code: "1000.1040.4101", description: "ABRACADEIRA SUPERIOR FERRO DUPLA PARA TUBO 27MM", quantity: 4 },
+      { code: "1000.1040.2701", description: "TUBO HIDRAULICO 3/4 X 2000 X 7/8JIC X 1.1/16JIC", quantity: 4 },
+      { code: "3000.5001.1146", description: "5/8 R12 - 1900 MM X FG 7/8 JIC X FG 90\xB0 7/8 JIC", quantity: 4 },
+      { code: "1000.1040.2711", description: "TUBO HIDRAULICO 3/4 X 2000 X 7/8JIC X 7/8JIC", quantity: 2 },
+      { code: "3000.5001.1147", description: "3/8 R2 - 3000MM X FG 7/8 JIC X FG 3/4 JIC", quantity: 1 },
+      { code: "3000.5001.1084", description: "1/2 R2 - 3000 MM X FG 7/8 JIC X FG 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1035", description: "3/4 R12 - 3000 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 2 },
+      { code: "1000.1040.1102", description: "ADAPTADOR PARA SOLDA 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1142", description: "5/8 R2 - 11000 MM X FG 7/8 JIC X FG 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1038", description: "3/8 R2 - 10000 MM X FG 7/8 JIC X FG 9/16 JIC", quantity: 1 },
+      { code: "5000.1001.0018", description: "MANOPLA JOYSTICK 5 BOTOES - PADRAO FLORESTAL", quantity: 1 },
+      { code: "3000.5000.0276", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 1.1/16 JIC X 1.1/16 JIC", quantity: 6 },
+      { code: "3000.5000.0277", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 7/8 JIC X 7/8 JIC", quantity: 2 }
+    ]
+  },
+  {
+    code: "9000.9000.9060",
+    description: "KIT INSTALACAO FELLER DISCO EM ESCAVADEIRA- ( MAQUINA COM FATIA EXTRA SEM LINHA EXTRA)",
+    items: [
+      { code: "3000.5003.0198", description: "BLOCO DE COMANDO FELLER DISCO (HYDRAFORCE 187761-26)", quantity: 1 },
+      { code: "1000.1040.5700", description: "FLANGE 1.3/4 (44,5) X COM ROSCA 3/4 BSP", quantity: 1 },
+      { code: "3000.2001.0349", description: "Oring W 3,53 x D.I. 32,92 - ref. Parker 2219", quantity: 2 },
+      { code: "3000.5000.0276", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 1.1/16 JIC X 1.1/16 JIC", quantity: 8 },
+      { code: "3000.5000.0324", description: "ADAPTADOR MACHO/FEMEA 3/4 BSP X 1.1/16 JIC", quantity: 1 },
+      { code: "3000.5000.0287", description: "Adaptador macho/macho 7/8 UNF x 7/8 JIC", quantity: 4 },
+      { code: "3000.1001.0016", description: "Parafuso Allen 12.9-M10 x 40", quantity: 4 },
+      { code: "5000.1001.0053", description: "CAIXA ELETRICA PARA KIT DE ACIONAMENTO 24V PARA FELLER COM ACUMULADOR", quantity: 1 },
+      { code: "5000.1001.0057", description: "CONECTOR PLUG DEUTCH COM CABO 500MM PARA BOBINA SOLENOIDE 171147619", quantity: 5 },
+      { code: "3000.5000.0366", description: "BUJAO FEMEA SEXTAVADO EXTERNO 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1188", description: "3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 12 },
+      { code: "1000.1040.2703", description: "TUBO HIDRAULICO 3/4 X 1000 X 1.1/16JIC X 1.1/16JIC", quantity: 6 },
+      { code: "1000.1040.2702", description: "TUBO HIDRAULICO 3/4 X 2000 X 1.1/16JIC X 1.1/16JIC", quantity: 12 },
+      { code: "1000.1040.4100", description: "ABRACADEIRA DUPLA PARA INSTALACAO ESCAVADEIRA", quantity: 36 },
+      { code: "3000.5000.0294", description: "Adaptador macho/macho 3/4 BSP x 1.1/16 JIC", quantity: 2 },
+      { code: "1000.1040.1107", description: "ADAPTADOR PARA SOLDA 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5000.0317", description: "Adaptador Painel 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1142", description: "5/8 R2 - 11000 MM X FG 7/8 JIC X FG 7/8 JIC", quantity: 1 },
+      { code: "4000.5000.0019", description: "ABRACADEIRA NYLON 4,8 X 400MM", quantity: 30 },
+      { code: "3000.5003.0003", description: "VALVULA CARTUCHO SV08-23-01-00-0-B-0 (PARA CRU-0129)", quantity: 1 },
+      { code: "3000.5003.0004", description: "BLOCO PADRAO SDC08-3-S6S (CRU-0129) - 9/16 UNF", quantity: 1 },
+      { code: "3000.5003.0084", description: "BOBINA M13-24D-20W-DN/FL - SOLENOIDE", quantity: 1 },
+      { code: "3000.5000.0398", description: "Adaptador macho/macho 9/16 UNF X 9/16 JIC", quantity: 3 },
+      { code: "3000.5001.1180", description: "3/4R12 - 1000 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 1 },
+      { code: "3000.5001.1175", description: "3/4 R12 - 2300 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 2 },
+      { code: "3000.5001.1045", description: "1/2 R2 - 1800 MM X FG 7/8 JIC X FG 1.1/16 JIC", quantity: 4 },
+      { code: "3000.5001.1010", description: "1/2 R2 - 2500 MM X FG 7/8 JIC X FG 7/8 JIC", quantity: 1 },
+      { code: "3000.5001.1228", description: "5/8 R12 - 1000 MM x FG 7/8 JIC x FG 1.1/16 JIC", quantity: 4 }
     ]
   }
 ];
 
 // src/lib/confirmacaoMaquina.ts
 var RESSALVA_KIT = "Estes kits s\xE3o POSSIBILIDADES, nunca afirme pelo modelo nem pelo serial. S\xF3 indique o kit depois que a configura\xE7\xE3o for confirmada por foto e v\xEDdeo, ou depois de o vendedor informar e confirmar essa configura\xE7\xE3o: fatia extra com sa\xEDda dupla (duas sa\xEDdas com os dois tamp\xF5es) no comando hidr\xE1ulico e, em CAT nova, a liga\xE7\xE3o ao joystick eletr\xF4nico. O t\xE9cnico Roder respons\xE1vel confirma.";
+var TEXTO_CMF_CAT320 = 'CMF em CAT 320 nova (GC, NG ou eletr\xF4nica, a partir de cerca de 2020, joystick eletr\xF4nico). (a) COM fatia extra dupla j\xE1 acionada no joystick eletr\xF4nico, faltando s\xF3 a tubula\xE7\xE3o: possibilidade do kit 9000.9000.9035 (KIT INSTALACAO CMF500/600 EM ESCAVADEIRA, MAQUINA COM FATIA EXTRA ACIONADA SEM LINHA), que traz toda a linha hidr\xE1ulica do CMF e vale para CMF 500, 600 e 800. (b) SEM fatia extra: possibilidade do 9000.9000.9035 mais o 9000.9000.9003 (KIT BAIXA PRESSAO 1 SECCAO DUPLA CAT320GC/NG 24V, 80L/190BAR: bomba extra na tampa da bomba original, que alimenta um comando hidr\xE1ulico duplo para a linha de giro do rotator). CAT mais antiga de comando pilotado sem fatia extra: precisa de fatia ou bomba extra, e o t\xE9cnico Roder define. Garra de carregamento usa o 9003 para o rotator, mas outro kit para a garra: o t\xE9cnico informa. Em CAT 320 nova a fatia \xE9 instalada pela concession\xE1ria; nas outras m\xE1quinas, o t\xE9cnico Roder define ap\xF3s foto e v\xEDdeo. Sempre confirmar por foto e v\xEDdeo, no modelo do v\xEDdeo de amostra, mesmo que o cliente diga que a m\xE1quina n\xE3o tem prepara\xE7\xE3o nenhuma. M\xE1quina nova e cliente sem a informa\xE7\xE3o: pe\xE7a o contato do vendedor ou da concession\xE1ria da m\xE1quina; a Roder fala com ele para saber como a m\xE1quina ser\xE1 fornecida e s\xF3 ent\xE3o passa o valor do kit. Se for preciso instalar a fatia extra original pela concession\xE1ria, a Roder orienta o vendedor a repassar esse valor ao cliente. N\xE3o declare "perigoso" ou "invi\xE1vel" s\xF3 pelo modelo; bloco de press\xE3o piloto para serra e tilt s\xF3 se o t\xE9cnico confirmar.';
 var REGRA_KIT_CONFIRMACAO = `
 REGRA PRIORIT\xC1RIA DE KIT DE INSTALA\xC7\xC3O (vale acima das regras de kit mais abaixo, que continuam valendo como possibilidades):
    \u2022 Quando a pergunta for QUAL KIT de instala\xE7\xE3o, kit hidr\xE1ulico ou mangueiras usar numa m\xE1quina (qualquer marca, e principalmente Caterpillar), NUNCA afirme kit nem fatia extra s\xF3 pelo modelo ou pelo n\xFAmero de s\xE9rie. O serial mostra como a m\xE1quina saiu de f\xE1brica, n\xE3o o que foi acrescentado depois. A configura\xE7\xE3o \xE9 confirmada por foto e v\xEDdeo.
    \u2022 REQUISITO GERAL: a m\xE1quina precisa ter, no comando hidr\xE1ulico (bloco de v\xE1lvulas), pelo menos a FATIA EXTRA COM SA\xCDDA DUPLA (duas sa\xEDdas, com os dois tamp\xF5es) dispon\xEDvel. Com ela, a Roder vende o kit de instala\xE7\xE3o completo (todas as linhas hidr\xE1ulicas, v\xE1lvulas, eletrov\xE1lvulas e acionamento el\xE9trico). Isso vale para a maioria das m\xE1quinas com joystick hidr\xE1ulico pilotado (Komatsu, Hyundai, JCB, John Deere e outras). N\xC3O exija "linhas hidr\xE1ulicas no bra\xE7o": elas s\xE3o s\xF3 um complemento opcional do v\xEDdeo, nunca requisito.
    \u2022 CAT 320 tem v\xE1rias configura\xE7\xF5es. Antigas (320C, 320D, 320FM): comando pilotado com joystick hidr\xE1ulico, mesmo padr\xE3o das outras marcas. Novas (a partir de cerca de 2020: 320GC, 320NG nova gera\xE7\xE3o, e "320" sem nomenclatura antiga): joystick ELETR\xD4NICO, de acionamento el\xE9trico, n\xE3o pilotado. Nelas, para os equipamentos que exigem fatia extra, a m\xE1quina J\xC1 deve ter a fatia extra no comando, ligada ao joystick eletr\xF4nico por chicote el\xE9trico. Muitas saem sem fatia extra, e a Roder N\xC3O instala fatia extra em CAT nova: o cliente deve pedir \xE0 concession\xE1ria que instale a fatia extra e deixe a liga\xE7\xE3o el\xE9trica/eletr\xF4nica pronta no joystick. S\xF3 diga isso depois de a foto e o v\xEDdeo mostrarem o caso; n\xE3o presuma pelo modelo.
-   \u2022 EXCE\xC7\xC3O na CAT 320 nova: garra de carregamento, garras florestais (de carregamento) e cabe\xE7ote multifuncional podem ser instalados MESMO SEM fatia extra, com o "kit de baixa": bomba extra com comando hidr\xE1ulico pr\xF3prio, que d\xE1 press\xE3o (o t\xE9cnico confirma a press\xE3o; cadastro do 9003: 190 bar) \xE0 linha do rotator (giro hor\xE1rio e anti-hor\xE1rio). A linha do pist\xE3o da ca\xE7amba original abre e fecha a garra; no cabe\xE7ote multifuncional a mesma fun\xE7\xE3o abre/fecha a garra e, com um bloquinho de press\xE3o piloto com bot\xE3o que a Roder adiciona, aciona serra e tilt. Podem ser DOIS kits: o kit de baixa e o kit de linhas e tubula\xE7\xF5es hidr\xE1ulicas. N\xE3o invente c\xF3digo: o kit de baixa s\xF3 pode ter o c\xF3digo citado se estiver na lista de kits cadastrados (ex.: 9000.9000.9003, KIT BAIXA PRESSAO CAT320GC/NG), sempre como possibilidade a confirmar pelo t\xE9cnico; sem item cadastrado, diga que o t\xE9cnico informa o c\xF3digo.
-   \u2022 PROPOSTA OU LISTA DE COMPONENTES (ex.: vendedor de pe\xE7as ou exporta\xE7\xE3o pergunta o que incluir na proposta de um CMF numa CAT 320, com s\xE9rie informada e "configura\xE7\xE3o padr\xE3o"): N\xC3O entregue lista fechada de kit, v\xE1lvulas e linhas como certa, e n\xE3o use a s\xE9rie nem o "padr\xE3o" para decidir. Explique em 2 frases que a CAT 320 tem configura\xE7\xF5es diferentes (antiga com joystick hidr\xE1ulico, nova com joystick eletr\xF4nico; fatia extra com sa\xEDda dupla j\xE1 instalada ou n\xE3o), pe\xE7a foto do comando, da bomba, dos dois joysticks e o v\xEDdeo, e diga que o t\xE9cnico Roder confirma os kits. Sendo cabe\xE7ote multifuncional, informe que na CAT 320 nova sem fatia extra existe a op\xE7\xE3o do kit de baixa mais o kit de linhas. S\xF3 cite c\xF3digos de kit que apare\xE7am na lista de kits cadastrados fornecida no contexto, sempre como possibilidades a confirmar pelo t\xE9cnico; se o c\xF3digo n\xE3o estiver na lista, diga que o t\xE9cnico informa.
+   \u2022 EXCE\xC7\xC3O na CAT 320 nova: garra de carregamento, garras florestais (de carregamento) e cabe\xE7ote multifuncional podem ser instalados MESMO SEM fatia extra, com o "kit de baixa" (9003, cadastrado; o t\xE9cnico confirma a press\xE3o; cadastro do 9003: 190 bar). ${TEXTO_CMF_CAT320} N\xE3o invente c\xF3digo: s\xF3 cite c\xF3digo que esteja na lista de kits cadastrados (ex.: 9000.9000.9035 e 9000.9000.9003), sempre como possibilidade a confirmar pelo t\xE9cnico; sem item cadastrado, diga que o t\xE9cnico informa o c\xF3digo.
+   \u2022 PROPOSTA OU LISTA DE COMPONENTES (ex.: vendedor de pe\xE7as ou exporta\xE7\xE3o pergunta o que incluir na proposta de um CMF numa CAT 320, com s\xE9rie informada e "configura\xE7\xE3o padr\xE3o"): N\xC3O entregue lista fechada de kit, v\xE1lvulas e linhas como certa, e n\xE3o use a s\xE9rie nem o "padr\xE3o" para decidir. Explique em 2 frases que a CAT 320 tem configura\xE7\xF5es diferentes (antiga com joystick hidr\xE1ulico, nova com joystick eletr\xF4nico; fatia extra com sa\xEDda dupla j\xE1 instalada ou n\xE3o), pe\xE7a foto do comando, da bomba, dos dois joysticks e o v\xEDdeo, e diga que o t\xE9cnico Roder confirma os kits. Sendo cabe\xE7ote multifuncional, informe que na CAT 320 nova sem fatia extra existe a op\xE7\xE3o do kit 9035 mais o kit de baixa 9003, a confirmar pelo t\xE9cnico. S\xF3 cite c\xF3digos de kit que apare\xE7am na lista de kits cadastrados fornecida no contexto, sempre como possibilidades a confirmar pelo t\xE9cnico; se o c\xF3digo n\xE3o estiver na lista, diga que o t\xE9cnico informa.
    \u2022 Melhor resposta: pedir foto e v\xEDdeo para passar ao t\xE9cnico Roder respons\xE1vel, que informa corretamente os kits e se o cliente precisa pedir a fatia extra \xE0 concession\xE1ria. Explique em 2 frases curtas por que a configura\xE7\xE3o \xE9 confirmada assim, sem afirmar kit nem fatia por serial ou modelo. Voc\xEA pode citar os kits que costumam existir como POSSIBILIDADES, deixando claro que dependem da confirma\xE7\xE3o, usando s\xF3 c\xF3digos cadastrados.
    \u2022 O pedido ao cliente \xE9: fotos do comando hidr\xE1ulico (bloco de v\xE1lvulas, mostrando as fatias e as sa\xEDdas), da bomba hidr\xE1ulica e dos DOIS joysticks, mais um V\xCDDEO da cabine e do comando, no mesmo modelo do v\xEDdeo de amostra. N\xE3o d\xEA a entender que a concession\xE1ria \xE9 obrigat\xF3ria antes da an\xE1lise: por ora \xE9 s\xF3 coletar foto e v\xEDdeo. O app mostra abaixo da sua resposta o bot\xE3o "Pedir confirma\xE7\xE3o da m\xE1quina ao cliente" com o texto pronto; diga ao vendedor que ele est\xE1 logo abaixo e n\xE3o escreva o texto do pedido por extenso.
    \u2022 Se o vendedor j\xE1 informou e confirmou a configura\xE7\xE3o (fatia extra com sa\xEDda dupla, joystick), pode indicar o kit, citando o que foi confirmado.
@@ -1219,6 +2468,69 @@ function criarRotasArquivosVideos(deps) {
     }
   }
   return { rotaUploadUrl, rotaConfirmar, rotaApagar };
+}
+
+// server/kitsPdf.ts
+var RE_COD = "\\d{4}\\.\\d{4}\\.\\d{4}";
+var RE_CABECALHO_KIT = new RegExp(`^(${RE_COD})\\s+(.*)$`);
+var RE_ITEM = new RegExp(`^\\d+\\s+\\d+\\s+(${RE_COD})\\s*(.*)$`);
+var RE_FIM_ITEM = /^(.*?)\s*(?:^|\s)(?:UN|PC|MT|PAR|KG|CJ|LT|JG|PCT|CX|M2|M3|M|L|GR|RL)\s+([\d.]*\d,\d{1,6})\s+\d{2}\/\d{2}\/\d{4}(?:\s+\d{2}\/\d{2}\/\d{4})?$/;
+var RE_LIXO = /^(Roder M[aá]quinas|Quant\. Item Pai|N[ií]vel\b|Item(\s+UN(\s+Vers[aã]o)?)?$|UN$|Vers[aã]o$|\d{2}\/\d{2}\/\d{4}(\s+\d{2}:\d{2})?$)|--\s*\d+\s+of\s+\d+\s*--|Filtros:|DBCorp PCR|Relat[oó]rio de Estruturas/i;
+var limpa = (t) => t.replace(/\s+/g, " ").trim();
+var numero = (t) => parseFloat(t.replace(/\./g, "").replace(",", "."));
+function parseKitsText(texto2) {
+  const kits = [];
+  let kit = null;
+  let item = null;
+  let noTitulo = false;
+  const fecha = (qtd) => {
+    if (kit && item) kit.items.push({ code: item.code, description: limpa(item.partes.join(" ")), quantity: Number.isFinite(qtd) && qtd > 0 ? qtd : 1 });
+    item = null;
+  };
+  const semUnidadeDoKit = (t) => t.replace(/\s*\bUN\s+\d+$/i, "");
+  for (const bruta of String(texto2 || "").split(/\r?\n/)) {
+    const linha = limpa(bruta);
+    if (!linha) continue;
+    if (/^N[ií]vel\b/i.test(linha)) {
+      noTitulo = false;
+      continue;
+    }
+    if (RE_LIXO.test(linha)) continue;
+    const ehItem = RE_ITEM.exec(linha);
+    if (ehItem) {
+      if (!kit) continue;
+      noTitulo = false;
+      item = { code: ehItem[1], partes: [] };
+      const resto = ehItem[2];
+      const fim = RE_FIM_ITEM.exec(resto);
+      if (fim) {
+        if (limpa(fim[1])) item.partes.push(fim[1]);
+        fecha(numero(fim[2]));
+      } else if (resto) item.partes.push(resto);
+      continue;
+    }
+    const ehKit = RE_CABECALHO_KIT.exec(linha);
+    if (ehKit && !item) {
+      kit = { code: ehKit[1], description: limpa(semUnidadeDoKit(ehKit[2])), items: [] };
+      kits.push(kit);
+      noTitulo = true;
+      continue;
+    }
+    if (item) {
+      const fim = RE_FIM_ITEM.exec(linha);
+      if (fim) {
+        if (limpa(fim[1])) item.partes.push(fim[1]);
+        fecha(numero(fim[2]));
+      } else item.partes.push(linha);
+    } else if (kit && noTitulo) {
+      const t = limpa(semUnidadeDoKit(linha));
+      if (t) kit.description = limpa(`${kit.description} ${t}`);
+    } else if (kit && kit.items.length) {
+      const ultimo = kit.items[kit.items.length - 1];
+      ultimo.description = limpa(`${ultimo.description} ${linha}`);
+    }
+  }
+  return kits;
 }
 
 // server/consultorPerfil.ts
@@ -3958,7 +5270,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-20o kit-confirmar-maquina";
+  const RELEASE_LABEL = "2026-10-20p kit-cmf-9035-kits-pdf";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -4272,98 +5584,7 @@ Retorne estritamente um array JSON com os kits encontrados:
       if (!text || text.trim().length === 0) {
         return res.status(400).json({ error: "Nenhum texto ou arquivo PDF leg\xEDvel recebido. Voc\xEA tamb\xE9m pode colar o texto do relat\xF3rio diretamente." });
       }
-      const kitsMap = /* @__PURE__ */ new Map();
-      const lines = text.split(/\r?\n/);
-      let currentKitCode = null;
-      let pendingItem = null;
-      const flushPendingItem = () => {
-        if (pendingItem && currentKitCode && kitsMap.has(currentKitCode)) {
-          const itemCode = pendingItem.code;
-          const cleanDesc = pendingItem.descParts.join(" ").replace(/\s+/g, " ").trim();
-          const qty = pendingItem.qty !== void 0 && !isNaN(pendingItem.qty) ? pendingItem.qty : 1;
-          const currentKit = kitsMap.get(currentKitCode);
-          const existingIdx = currentKit.items.findIndex((it) => it.code === itemCode);
-          if (existingIdx >= 0) {
-            currentKit.items[existingIdx] = { code: itemCode, description: cleanDesc || currentKit.items[existingIdx].description, quantity: qty };
-          } else {
-            currentKit.items.push({ code: itemCode, description: cleanDesc, quantity: qty });
-          }
-        }
-        pendingItem = null;
-      };
-      for (let i = 0; i < lines.length; i++) {
-        let line = lines[i].trim();
-        if (!line) continue;
-        if (line.startsWith("Roder M\xE1quinas") || line.startsWith("Quant. Item Pai") || line.includes("DBCorp PCR") || line.startsWith("N\xEDvel N\xBA Item") || line.startsWith("Filtros:") || line.includes("Relat\xF3rio de Estruturas") || line === "Item" || line === "Item UN Vers\xE3o" || line === "UN" || line === "Vers\xE3o") {
-          continue;
-        }
-        const kitMatch = line.match(/(9000\.\d{4}\.\d{4}|\d{4}\.\d{4}\.\d{4})\s*(.*)/i);
-        const isChildItem = line.match(/\d{4}\.\d{4}\.\d{4}\s+.+?\s+(UN|PC|MT|PAR)\s+[\d,]+/i) || line.match(/^\d+\s+\d+\s+\d{4}\.\d{4}\.\d{4}/);
-        if (kitMatch && !isChildItem) {
-          flushPendingItem();
-          const code = kitMatch[1].trim();
-          let desc = (kitMatch[2] || "").trim();
-          desc = desc.replace(/^Item\s+UN\s+Versão\s+/i, "").replace(/\s+UN\s*\d*$/i, "").trim();
-          let nextLineIdx = i + 1;
-          while (nextLineIdx < lines.length) {
-            const nextL = lines[nextLineIdx].trim();
-            if (!nextL) {
-              nextLineIdx++;
-              continue;
-            }
-            if (nextL.match(/^Nível/i) || nextL.match(/^\d+\s+\d+\s+\d{4}\.\d{4}\.\d{4}/) || nextL.match(/^(?:9000|\d{4})\.\d{4}\.\d{4}/)) {
-              break;
-            }
-            if (!nextL.match(/DBCorp|Roder|Quant\.|Filtros/i)) {
-              const cleanNext = nextL.replace(/\s+UN\s*\d*$/i, "").replace(/^UN\s*\d*$/i, "").trim();
-              if (cleanNext && cleanNext !== "1" && cleanNext !== "UN") {
-                desc = (desc + " " + cleanNext).trim();
-              }
-            }
-            i = nextLineIdx;
-            nextLineIdx++;
-            break;
-          }
-          currentKitCode = code;
-          if (!kitsMap.has(code)) {
-            kitsMap.set(code, { code, description: desc, items: [] });
-          } else if (desc) {
-            kitsMap.get(code).description = desc;
-          }
-          continue;
-        }
-        const itemStartMatch = line.match(/(?:^|\s)(\d{4}\.\d{4}\.\d{4})\s*(.*)/);
-        if (itemStartMatch && currentKitCode) {
-          const itemCode = itemStartMatch[1].trim();
-          if (itemCode === currentKitCode) continue;
-          flushPendingItem();
-          let rest = itemStartMatch[2].trim();
-          let qty;
-          const unitQtyMatch = rest.match(/(.*?)\s+(UN|PC|MT|PAR)\s+([\d]+(?:[,\.]\d+)?)/i);
-          if (unitQtyMatch) {
-            const descPart = unitQtyMatch[1].trim();
-            qty = parseFloat(unitQtyMatch[3].replace(",", "."));
-            pendingItem = { code: itemCode, descParts: descPart ? [descPart] : [], qty };
-            flushPendingItem();
-          } else {
-            pendingItem = { code: itemCode, descParts: rest ? [rest] : [] };
-          }
-          continue;
-        }
-        if (pendingItem) {
-          const unitQtyMatch = line.match(/(.*?)\s*(?:UN|PC|MT|PAR)\s+([\d]+(?:[,\.]\d+)?)/i);
-          if (unitQtyMatch) {
-            const descPart = unitQtyMatch[1].trim();
-            if (descPart) pendingItem.descParts.push(descPart);
-            pendingItem.qty = parseFloat(unitQtyMatch[2].replace(",", "."));
-            flushPendingItem();
-          } else if (!line.match(/^\d+\/\d+\/\d{4}$/) && !line.match(/^[\d\s]+$/)) {
-            pendingItem.descParts.push(line);
-          }
-        }
-      }
-      flushPendingItem();
-      let parsedKits = Array.from(kitsMap.values());
+      let parsedKits = parseKitsText(text);
       console.log(`[PARSE-PDF] Local regex extracted ${parsedKits.length} kits from text.`);
       if (parsedKits.length === 0 && text.trim().length > 30) {
         try {
@@ -5778,7 +6999,7 @@ ${REGRA_KIT_CONFIRMACAO}
 
     - DIRETRIZ CR\xCDTICA PARA INSTALA\xC7\xC3O DE CABE\xC7OTE MULTIFUNCIONAL EM ESCAVADEIRAS SEM FATIA EXTRA DE COMANDO:
        \u2022 Se algum vendedor ou cliente perguntar sobre a possibilidade de instalar ou operar um cabe\xE7ote multifuncional (como o CMF 500) em uma escavadeira que n\xE3o possui fatia extra de comando original de f\xE1brica:
-         - **Viabilidade de Instala\xE7\xE3o**: CMF sem fatia extra: em CAT 320 nova (joystick eletr\xF4nico), o CMF pode ir sem fatia extra com o kit de baixa (bomba extra com comando pr\xF3prio; o t\xE9cnico confirma a press\xE3o, cadastro do 9003: 190 bar), mais o kit de linhas e tubula\xE7\xF5es; o t\xE9cnico Roder confirma por foto e v\xEDdeo, sem inventar c\xF3digo. Em CAT 320 nova a fatia \xE9 instalada pela concession\xE1ria; nas outras m\xE1quinas, o t\xE9cnico Roder define ap\xF3s foto e v\xEDdeo. N\xE3o declare "perigoso" ou "invi\xE1vel" s\xF3 pelo modelo.
+         - **Viabilidade de Instala\xE7\xE3o**: ${TEXTO_CMF_CAT320}
 
     - RECOMENDA\xC7\xC3O CR\xCDTICA DE CABE\xC7OTE MULTIFUNCIONAL CMF 500 EM RETROESCAVADEIRA:
      \u2022 Se algum vendedor perguntar ou sugerir instalar ou trabalhar com o cabe\xE7ote multifuncional CMF 500 em uma retroescavadeira:
@@ -6211,7 +7432,7 @@ ${REGRA_KIT_CONFIRMACAO}
              - Se a m\xE1quina n\xE3o possuir uma linha extra de f\xE1brica, ela deve obrigatoriamente ter a **fatia extra (extra slice) dispon\xEDvel no comando hidr\xE1ulico**, para que a equipe t\xE9cnica da Roder realize a instala\xE7\xE3o da linha extra a partir dessa fatia.
              - A fatia extra com sa\xEDda dupla \xE9 o requisito geral. Exce\xE7\xF5es: garra de carregamento, garras florestais e CMF na CAT 320 nova (kit de baixa). Sempre orientamos em nossos or\xE7amentos que a m\xE1quina do cliente deve possuir a fatia extra dispon\xEDvel contendo as **duas v\xE1lvulas de al\xEDvio de press\xE3o**, possibilitando regular a press\xE3o de sa\xEDda de cada um dos sentidos do giro.
              - Se a m\xE1quina contiver a fatia extra com as duas v\xE1lvulas, a equipe da Roder realizar\xE1 a linha hidr\xE1ulica completa pelo bra\xE7o da m\xE1quina e instalar\xE1 a linha el\xE9trica de pilotagem para comandar a fatia extra, testando e ajustando todo o sistema para o cliente.
-             - **Instala\xE7\xE3o Sem Fatia Extra de Comando**: CMF sem fatia extra: em CAT 320 nova (joystick eletr\xF4nico), o CMF pode ir sem fatia extra com o kit de baixa (bomba extra com comando pr\xF3prio; o t\xE9cnico confirma a press\xE3o, cadastro do 9003: 190 bar), mais o kit de linhas e tubula\xE7\xF5es; o t\xE9cnico Roder confirma por foto e v\xEDdeo, sem inventar c\xF3digo. Em CAT 320 nova a fatia \xE9 instalada pela concession\xE1ria; nas outras m\xE1quinas, o t\xE9cnico Roder define ap\xF3s foto e v\xEDdeo. N\xE3o declare "perigoso" ou "invi\xE1vel" s\xF3 pelo modelo.
+             - **Instala\xE7\xE3o Sem Fatia Extra de Comando**: ${TEXTO_CMF_CAT320}
           3. **Linha de Dreno da Carca\xE7a**: 1 mangueira conectada diretamente ao tanque de retorno livre da m\xE1quina (n\xE3o pode passar pelo filtro de retorno e **NUNCA pode ultrapassar 5 bar**, devendo trabalhar rigorosamente na faixa de **0 a 5 bar**).
           4. **Linha de Pilotagem (6\xAA Linha)**: 1 mangueira de controle ligada a uma v\xE1lvula de pilotagem que \xE9 instalada na escavadeira e acionada por bot\xE3o el\xE9trico.
         - **Rotador de Alta Capacidade**: Utiliza um rotator super-resistente de **16 toneladas** de capacidade, equipado com canais e passagens internas de \xF3leo adicionais. Isso possibilita que todas as mangueiras passem por dentro do corpo do rotator, permitindo que o cabe\xE7ote fa\xE7a giro 360\xB0 infinito sem mangueiras externas expostas se torcendo ou rotacionando ao redor do cabe\xE7ote.
