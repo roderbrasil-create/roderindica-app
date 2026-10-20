@@ -1364,6 +1364,7 @@ async function conferirDestino(url, op = {}) {
   const porta = u.port ? Number(u.port) : u.protocol === "https:" ? 443 : 80;
   if (!(op.portas || PORTAS_PERMITIDAS).includes(porta)) return null;
   const host = u.hostname.replace(/^\[|\]$/g, "");
+  if (op.hostPermitido && !op.hostPermitido(host.toLowerCase())) return null;
   const permitido = op.ipPermitido || ((ip) => !ipBloqueado(ip));
   if (import_net.default.isIP(host)) return permitido(host) ? { u, ip: host, familia: import_net.default.isIP(host) } : null;
   if (hostPrivado(host)) return null;
@@ -1922,6 +1923,131 @@ async function fotosExternas(deps, aplicar, quem) {
     await soltarTrava(deps.db, dono, falhasDepois).catch(() => {
     });
   }
+}
+
+// server/emailConfiavel.ts
+var EMAILS_DIRETORIA = ["roderbrasil@gmail.com", "roderindica@gmail.com", "jeferson@roderbrasil.com.br"];
+function emailConfiavelDoToken(dec) {
+  if (!dec || dec.firebase?.sign_in_provider === "anonymous") return "";
+  if (dec.email_verified !== true) return "";
+  return String(dec.email || "").toLowerCase().trim();
+}
+function ehDiretoriaPeloToken(dec) {
+  const email = emailConfiavelDoToken(dec);
+  return !!email && EMAILS_DIRETORIA.includes(email);
+}
+function papelDeQuemChama(dec, papelDoCadastro) {
+  if (ehDiretoriaPeloToken(dec)) return "admin";
+  return String(papelDoCadastro || "");
+}
+function classificarConta(contaAuth, cadastro, temPreCadastroPorEmail) {
+  if (!contaAuth || contaAuth.emailVerified === true) return "pular";
+  const email = String(contaAuth.email || "").toLowerCase().trim();
+  if (!email) return "pular";
+  const temSenha = Array.isArray(contaAuth.providerData) && contaAuth.providerData.some((p) => p?.providerId === "password");
+  if (!temSenha) return "pular";
+  if (EMAILS_DIRETORIA.includes(email)) return "diretoria";
+  if (!cadastro) return temPreCadastroPorEmail ? "pre_cadastro_por_email" : "sem_cadastro";
+  if (cadastro.status !== "active") return "cadastro_inativo";
+  const emailCadastro = String(cadastro.email || "").toLowerCase().trim();
+  if (emailCadastro && emailCadastro !== email) return "email_diferente";
+  return "marcar";
+}
+function podeConfirmarPrimeiroAcesso(dec, provisorio, cadastroId, marca) {
+  if (!dec || dec.firebase?.sign_in_provider !== "password") return false;
+  if (!provisorio || !String(provisorio.initial_password || "")) return false;
+  if (!marca || marca.cadastro_id !== cadastroId || !String(marca.definida_por_uid || "")) return false;
+  const email = String(dec.email || "").toLowerCase().trim();
+  if (!email || String(marca.email || "").toLowerCase().trim() !== email) return false;
+  if (String(provisorio.email || "").toLowerCase().trim() !== email) return false;
+  const definidaEm = Date.parse(String(marca.definida_em || ""));
+  if (!Number.isFinite(definidaEm)) return false;
+  const entrouEm = Number(dec.auth_time);
+  if (!Number.isFinite(entrouEm) || entrouEm <= 0) return false;
+  return entrouEm * 1e3 > definidaEm;
+}
+var CAMPOS_DO_PRE_CADASTRO = [
+  "name",
+  "phone",
+  "role",
+  "commission_rate",
+  "assigned_regions",
+  "monthly_salary",
+  "pix_key",
+  "bank_info",
+  "cpf_cnpj",
+  "company_name",
+  "city",
+  "state",
+  "is_icms_contributor",
+  "is_lead_receiver",
+  "is_commissionable",
+  "vacation_start",
+  "vacation_end",
+  "contract_accepted",
+  "contract_accepted_at",
+  "initial_password",
+  "initial_password_set_at",
+  "sidebar_order",
+  "created_at",
+  "permissions"
+];
+function camposDoPreCadastro(dados) {
+  const saida = {};
+  for (const k of CAMPOS_DO_PRE_CADASTRO) if (dados && dados[k] !== void 0) saida[k] = dados[k];
+  return saida;
+}
+async function escolherPreCadastros(p) {
+  const aceitos = [];
+  for (const c of p.cadastros) {
+    if (c.id === p.uidDoLogin) continue;
+    if (c.dados?.status !== "active") continue;
+    if (await p.ehContaDeLogin(c.id)) continue;
+    if (!p.confirmado && !podeConfirmarPrimeiroAcesso(p.dec, c.dados, c.id, await p.marcaDe(c.id))) continue;
+    aceitos.push(c);
+  }
+  return aceitos;
+}
+var PAPEIS_QUE_GESTAO_DEFINE_SENHA = [
+  "external_seller",
+  "vendedor_padrao",
+  "internal_seller",
+  "financial",
+  "finance",
+  "fiscal",
+  "marketing",
+  "assistant",
+  ""
+];
+function podeDefinirSenha(p) {
+  const admin2 = p.diretoria || p.papelQuemPede === "admin";
+  if (admin2) return { ok: true };
+  if (!["manager", "triagem"].includes(p.papelQuemPede)) {
+    return { ok: false, status: 403, erro: "Acesso negado. S\xF3 administrador, gerente e triagem definem senhas." };
+  }
+  const email = String(p.emailAlvo || "").toLowerCase().trim();
+  if (EMAILS_DIRETORIA.includes(email) || p.papeisAlvo.some((r) => !PAPEIS_QUE_GESTAO_DEFINE_SENHA.includes(String(r || "")))) {
+    return { ok: false, status: 403, erro: "S\xF3 o administrador troca a senha de contas de gest\xE3o (administrador, gerente e triagem)." };
+  }
+  if (p.temGoogle) {
+    return { ok: false, status: 403, erro: "Esta pessoa entra com o Google. S\xF3 o administrador pode p\xF4r senha nessa conta." };
+  }
+  return { ok: true };
+}
+function papeisDaContaAlvo(p) {
+  const papeisAlvo = [String(p.cadastroAlvoRole || ""), ...p.papeisPorEmail.map((r) => String(r || ""))];
+  if (!p.contaUid || p.contaUid === p.cadastroAlvoId) return { ok: true, papeisAlvo };
+  if (p.cadastroDaConta?.existe) {
+    papeisAlvo.push(String(p.cadastroDaConta.role || ""));
+    return { ok: true, papeisAlvo };
+  }
+  if (p.cadastroAlvoEhPreCadastro) return { ok: true, papeisAlvo };
+  return {
+    ok: false,
+    papeisAlvo,
+    status: 409,
+    erro: "A conta de login deste e-mail n\xE3o tem cadastro pr\xF3prio na tela de Usu\xE1rios. S\xF3 o pr\xE9-cadastro (primeiro acesso) recebe senha assim; fale com o administrador."
+  };
 }
 
 // src/lib/calculoComissao.ts
@@ -3804,7 +3930,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-20h comissao-automatica";
+  const RELEASE_LABEL = "2026-10-20i seguranca-email";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -3956,6 +4082,7 @@ async function startServer() {
     async (req, res, next) => {
       if (req.method === "OPTIONS") return next();
       if (ehGestao(await quemChama(req))) return next();
+      if (negarSessaoRevogada(req, res)) return;
       return res.status(403).json({ success: false, error: "Acesso restrito \xE0 gest\xE3o." });
     }
   );
@@ -4293,6 +4420,7 @@ Retorne um array JSON no formato exato:
         return res.status(400).json({ error: "Faltando base64 ou nome de arquivo." });
       }
       if (!ehEquipe(await quemChama(req))) {
+        if (negarSessaoRevogada(req, res)) return;
         return res.status(401).json({ error: "Entre no app para enviar arquivos." });
       }
       if (!/\.(jpe?g|jfif|png|webp|gif|heic|heif|pdf|webm|m4a|mp3|ogg|wav|docx?|xlsx?)$/i.test(String(fileName))) {
@@ -4396,19 +4524,31 @@ Retorne um array JSON no formato exato:
     try {
       const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
       if (!token || token.length < 100) return null;
-      const dec = await import_firebase_admin.default.auth().verifyIdToken(token);
+      let dec;
+      try {
+        dec = await import_firebase_admin.default.auth().verifyIdToken(token, true);
+      } catch (e) {
+        if (e?.code === "auth/id-token-revoked") req.sessaoRevogada = true;
+        return null;
+      }
       if (dec.firebase?.sign_in_provider === "anonymous") return null;
       const email = (dec.email || "").toLowerCase();
       let role = "";
       try {
-        role = String((await db.collection("users").doc(dec.uid).get()).data()?.role || "");
+        const cad = (await db.collection("users").doc(dec.uid).get()).data();
+        role = cad?.status === "active" ? String(cad?.role || "") : "";
       } catch {
       }
-      if (dec.email_verified && ["roderbrasil@gmail.com", "roderindica@gmail.com", "jeferson@roderbrasil.com.br"].includes(email)) role = "admin";
+      role = papelDeQuemChama(dec, role);
       return { uid: dec.uid, email, role };
     } catch {
       return null;
     }
+  }
+  function negarSessaoRevogada(req, res) {
+    if (!req.sessaoRevogada) return false;
+    res.status(401).json({ ok: false, success: false, codigo: "token_revogado", error: "Seu acesso precisa ser feito de novo. Entre outra vez com seu e-mail e senha." });
+    return true;
   }
   const envioPublicoPorIp = /* @__PURE__ */ new Map();
   const EQUIPE_RODER = ["admin", "manager", "triagem", "internal_seller", "financial", "finance", "fiscal", "marketing", "assistant", "vendedor_padrao"];
@@ -4501,8 +4641,35 @@ Retorne um array JSON no formato exato:
     }
     return j;
   }
+  const TRAVA_EMAIL_CONFIRMADO = "marcar_email_confirmado_equipe_v1";
+  const COLECAO_SENHAS_PELA_GESTAO = "senhas_definidas_pela_gestao";
+  async function ultimasSenhasPelaGestao(limite = 20) {
+    const q = await db.collection(COLECAO_SENHAS_PELA_GESTAO).orderBy("quando", "desc").limit(limite).get();
+    return q.docs.map((d) => {
+      const x = d.data();
+      return { quando: x.quando || "", quem_email: x.quem_email || "", quem_papel: x.quem_papel || "", email_alvo: x.email_alvo || "", cadastro_id: x.cadastro_id || "", tipo: x.tipo || "" };
+    });
+  }
+  async function resultadoEmailConfirmado() {
+    const t = (await db.collection("cron_locks").doc(TRAVA_EMAIL_CONFIRMADO).get()).data();
+    if (!t) return { terminou: false, iniciada_em: null };
+    return {
+      terminou: !!t.finished_at,
+      iniciada_em: t.started_at || null,
+      finished_at: t.finished_at || null,
+      contas: t.contas ?? null,
+      com_senha_sem_confirmar: t.comSenhaSemConfirmar ?? null,
+      marcadas: t.marcadas ?? null,
+      deixadas: (t.semCadastroAtivo ?? 0) + (t.diretoria ?? 0),
+      erros: t.erros ?? 0,
+      // rodada antiga gravava só o e-mail (texto); a nova grava e-mail, papel e código do cadastro
+      marcadas_emails: Array.isArray(t.marcadas_emails) ? t.marcadas_emails.map((m) => typeof m === "string" ? { email: m, role: "", doc_id: "" } : m) : [],
+      pendentes: Array.isArray(t.pendentes) ? t.pendentes : []
+    };
+  }
   async function exigirAdmin(req, res) {
     const q = await quemChama(req);
+    if (negarSessaoRevogada(req, res)) return null;
     if (!q || q.role !== "admin") {
       res.status(403).json({ ok: false, error: "S\xF3 o administrador." });
       return null;
@@ -4511,6 +4678,7 @@ Retorne um array JSON no formato exato:
   }
   async function exigirGestaoComissao(req, res) {
     const q = await quemChama(req);
+    if (negarSessaoRevogada(req, res)) return null;
     if (!ehGestao(q)) {
       res.status(403).json({ ok: false, error: "S\xF3 o administrador ou a ger\xEAncia podem trocar o indicador de uma venda faturada." });
       return null;
@@ -4541,6 +4709,8 @@ Retorne um array JSON no formato exato:
           pode_voltar: !!hist.data()?.anterior
         };
       }
+      out.email_confirmado = await resultadoEmailConfirmado().catch((e) => ({ terminou: false, erro: e.message }));
+      out.senhas_pela_gestao = await ultimasSenhasPelaGestao().catch((e) => ({ erro: e.message }));
       return res.json(out);
     } catch (e) {
       return res.status(500).json({ ok: false, error: e.message });
@@ -4549,6 +4719,10 @@ Retorne um array JSON no formato exato:
   app.post("/api/admin/regras/publicar", async (req, res) => {
     const q = await exigirAdmin(req, res);
     if (!q) return;
+    const rodada = await resultadoEmailConfirmado().catch(() => null);
+    if (!rodada?.terminou) {
+      return res.status(409).json({ ok: false, error: "A confer\xEAncia das contas da equipe ainda n\xE3o terminou. Espere alguns segundos depois de o servidor subir e recarregue esta tela.", feito: {} });
+    }
     const alvos = req.body?.alvo === "storage" ? ["storage"] : req.body?.alvo === "firestore" ? ["firestore"] : ["firestore", "storage"];
     const n = nomesRelease();
     const feito = {};
@@ -4616,19 +4790,35 @@ Retorne um array JSON no formato exato:
     try {
       const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
       if (!token) return res.status(401).json({ ok: false });
-      const dec = await import_firebase_admin.default.auth().verifyIdToken(token, true);
+      let dec;
+      try {
+        dec = await import_firebase_admin.default.auth().verifyIdToken(token, true);
+      } catch (e) {
+        const codigo = e?.code === "auth/id-token-revoked" ? "token_revogado" : "token_invalido";
+        return res.status(401).json({ ok: false, codigo, error: "Seu acesso precisa ser feito de novo. Entre outra vez com seu e-mail e senha." });
+      }
       const email = String(dec.email || "").toLowerCase().trim();
       if (!email || dec.firebase?.sign_in_provider === "anonymous") return res.status(401).json({ ok: false });
-      if (!dec.email_verified && dec.firebase?.sign_in_provider !== "password") {
-        return res.json({ ok: true, merged: false, motivo: "email_nao_confirmado" });
-      }
+      const confirmado = !!emailConfiavelDoToken(dec);
       const achados = await db.collection("users").where("email", "==", email).get();
-      let temporarios = achados.docs.filter((d) => d.id !== dec.uid);
-      if (!dec.email_verified) temporarios = temporarios.filter((d) => !!d.data().initial_password);
+      const porId = new Map(achados.docs.map((d) => [d.id, d]));
+      const escolhidos = await escolherPreCadastros({
+        cadastros: achados.docs.map((d) => ({ id: d.id, dados: d.data() })),
+        uidDoLogin: dec.uid,
+        confirmado,
+        dec,
+        ehContaDeLogin: (id) => import_firebase_admin.default.auth().getUser(id).then(() => true).catch((e) => e?.code !== "auth/user-not-found"),
+        marcaDe: async (id) => (await db.collection("senhas_iniciais").doc(id).get()).data()
+      });
+      const temporarios = escolhidos.map((c) => porId.get(c.id));
+      if (!confirmado && temporarios.length === 0) return res.json({ ok: true, merged: false, motivo: "email_nao_confirmado" });
       if (temporarios.length === 0) return res.json({ ok: true, merged: false });
       const realRef = db.collection("users").doc(dec.uid);
       const realSnap = await realRef.get();
       let perfil = realSnap.exists ? { ...realSnap.data() } : {};
+      if (perfil.status !== "active") {
+        for (const k of ["commission_rate", "is_commissionable", "is_lead_receiver", "assigned_regions"]) delete perfil[k];
+      }
       const prioridade = ["admin", "manager", "financial", "triagem", "internal_seller", "marketing", "vendedor_padrao", "external_seller", ""];
       for (const t of temporarios) {
         const td = t.data();
@@ -4636,7 +4826,7 @@ Retorne um array JSON no formato exato:
         const iTemp = prioridade.indexOf(td.role || "");
         const papel = iAtual !== -1 && iTemp !== -1 && iTemp < iAtual ? td.role : perfil.role || td.role || "external_seller";
         perfil = {
-          ...td,
+          ...camposDoPreCadastro(td),
           ...perfil,
           role: papel,
           is_lead_receiver: perfil.is_lead_receiver || td.is_lead_receiver || false,
@@ -4670,9 +4860,18 @@ Retorne um array JSON no formato exato:
       }
       const movidos = await moverComissoesDoProvisorio(db, lote, temporarios.map((t) => t.id), dec.uid, perfil.updated_at, perfil.name);
       if (movidos.presos.length) console.warn(`[AUTH] ${email}: ${movidos.presos.length} fechamento(s) do provis\xF3rio n\xE3o puderam ser juntados (pago ou aguardando pagamento).`);
-      temporarios.forEach((t) => lote.delete(t.ref));
+      temporarios.forEach((t) => {
+        lote.delete(t.ref);
+        lote.delete(db.collection("senhas_iniciais").doc(t.id));
+      });
       await lote.commit();
       console.log(`[AUTH] Perfil pr\xE9-cadastrado passado para ${email} (${temporarios.length} provis\xF3rio(s)).`);
+      if (!confirmado) {
+        await import_firebase_admin.default.auth().updateUser(dec.uid, { emailVerified: true });
+        await import_firebase_admin.default.auth().revokeRefreshTokens(dec.uid);
+        console.log(`[AUTH] E-mail de ${email} confirmado no primeiro acesso (senha definida pela Roder).`);
+        return res.json({ ok: true, merged: true, entrar_de_novo: true });
+      }
       return res.json({ ok: true, merged: true });
     } catch (err) {
       console.error("[AUTH] reivindicar-perfil:", err?.message);
@@ -4686,6 +4885,7 @@ Retorne um array JSON no formato exato:
         return res.status(400).json({ error: "Nome do documento n\xE3o fornecido." });
       }
       if (!/^engate_rapido/.test(docName) && !ehGestao(await quemChama(req))) {
+        if (negarSessaoRevogada(req, res)) return;
         return res.status(403).json({ error: "Acesso restrito." });
       }
       const docRef = db.collection("settings").doc(docName);
@@ -4707,6 +4907,7 @@ Retorne um array JSON no formato exato:
         return res.status(400).json({ error: "Nome do documento n\xE3o fornecido." });
       }
       if (!ehGestao(await quemChama(req))) {
+        if (negarSessaoRevogada(req, res)) return;
         return res.status(403).json({ error: "S\xF3 a gest\xE3o altera configura\xE7\xF5es." });
       }
       const docRef = db.collection("settings").doc(docName);
@@ -7221,10 +7422,13 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       console.log("[AUTH-ADMIN] Verifying admin token...");
       let decodedToken;
       try {
-        decodedToken = await import_firebase_admin.default.auth().verifyIdToken(token);
+        decodedToken = await import_firebase_admin.default.auth().verifyIdToken(token, true);
       } catch (tokenErr) {
         console.error("[AUTH-ADMIN] Token verification failed:", tokenErr.message);
-        return res.status(401).json({ error: "Token de autentica\xE7\xE3o inv\xE1lido ou expirado." });
+        if (tokenErr?.code === "auth/id-token-revoked") {
+          return res.status(401).json({ codigo: "token_revogado", error: "Seu acesso foi encerrado. Entre de novo com seu e-mail e senha." });
+        }
+        return res.status(401).json({ codigo: "token_invalido", error: "Token de autentica\xE7\xE3o inv\xE1lido ou expirado." });
       }
       const requesterUid = decodedToken.uid;
       console.log(`[AUTH-ADMIN] Requester UID: ${requesterUid}`);
@@ -7235,63 +7439,120 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       } catch (dbErr) {
         console.error("[AUTH-ADMIN] Database error fetching requester:", dbErr.message);
       }
-      const isAdmin = requesterData?.role === "admin" || requesterData?.role === "manager" || requesterData?.role === "triagem" || requesterData?.email === "roderbrasil@gmail.com" || requesterData?.email === "roderindica@gmail.com" || decodedToken.email === "roderbrasil@gmail.com" || decodedToken.email === "roderindica@gmail.com";
-      if (!isAdmin) {
-        console.warn(`[AUTH-ADMIN] Access denied for ${requesterData?.email || decodedToken.email || requesterUid}`);
-        return res.status(403).json({ error: "Acesso negado. Administradores e Gestores podem definir senhas." });
-      }
       if (decodedToken.firebase?.sign_in_provider === "anonymous") {
         return res.status(403).json({ error: "Acesso negado." });
       }
-      {
-        const alvo = await db.collection("users").where("email", "==", String(email).toLowerCase().trim()).limit(1).get();
-        const papelAlvo = alvo.empty ? "" : String(alvo.docs[0].data().role || "");
-        const alvoProtegido = papelAlvo === "admin" || papelAlvo === "manager" || ["roderbrasil@gmail.com", "roderindica@gmail.com", "jeferson@roderbrasil.com.br"].includes(String(email).toLowerCase().trim());
-        if (alvoProtegido && requesterData?.role !== "admin") {
-          return res.status(403).json({ error: "S\xF3 o administrador troca a senha de contas de gest\xE3o." });
+      const papelQuemPede = String(requesterData?.role || "");
+      const diretoria = ehDiretoriaPeloToken(decodedToken);
+      if (!diretoria && !["admin", "manager", "triagem"].includes(papelQuemPede)) {
+        console.warn(`[AUTH-ADMIN] Access denied for ${requesterData?.email || decodedToken.email || requesterUid}`);
+        return res.status(403).json({ error: "Acesso negado. Administradores e Gestores podem definir senhas." });
+      }
+      const emailAlvo = String(email).toLowerCase().trim();
+      const uidAlvo = String(req.body?.uid || "").trim();
+      const consultasEmail = [emailAlvo, ...String(email).trim() !== emailAlvo ? [String(email).trim()] : []];
+      const docsPorEmail = /* @__PURE__ */ new Map();
+      for (const e of consultasEmail) {
+        (await db.collection("users").where("email", "==", e).get()).docs.forEach((d) => docsPorEmail.set(d.id, d));
+      }
+      const porEmail = { docs: Array.from(docsPorEmail.values()), empty: docsPorEmail.size === 0, size: docsPorEmail.size };
+      let cadastroAlvo = null;
+      if (uidAlvo) {
+        const snap = await db.collection("users").doc(uidAlvo).get();
+        if (!snap.exists) return res.status(404).json({ error: "Cadastro n\xE3o encontrado na tela de Usu\xE1rios." });
+        if (String(snap.data()?.email || "").toLowerCase().trim() !== emailAlvo) {
+          return res.status(400).json({ error: "O e-mail n\xE3o confere com o cadastro. Salve o cadastro antes de definir a senha." });
+        }
+        cadastroAlvo = snap;
+      } else if (porEmail.empty) {
+        return res.status(404).json({ error: "Este e-mail n\xE3o tem cadastro na tela de Usu\xE1rios. Cadastre a pessoa antes de definir a senha." });
+      } else if (porEmail.size > 1) {
+        return res.status(409).json({ error: "H\xE1 mais de um cadastro com este e-mail. Defina a senha pelo bot\xE3o do cadastro certo (o app manda o c\xF3digo do cadastro)." });
+      } else {
+        cadastroAlvo = porEmail.docs[0];
+      }
+      let contaExistente = null;
+      try {
+        contaExistente = await import_firebase_admin.default.auth().getUserByEmail(emailAlvo);
+      } catch (e) {
+        if (e?.code !== "auth/user-not-found") throw e;
+      }
+      let cadastroDaConta = null;
+      if (contaExistente && contaExistente.uid !== cadastroAlvo.id) {
+        const sc = await db.collection("users").doc(contaExistente.uid).get();
+        cadastroDaConta = { existe: sc.exists, role: String(sc.data()?.role || "") };
+      }
+      let cadastroAlvoEhPreCadastro = false;
+      if (contaExistente && contaExistente.uid !== cadastroAlvo.id) {
+        try {
+          await import_firebase_admin.default.auth().getUser(cadastroAlvo.id);
+        } catch (e) {
+          if (e?.code !== "auth/user-not-found") throw e;
+          cadastroAlvoEhPreCadastro = true;
         }
       }
-      console.log(`[AUTH-ADMIN] Target Email: ${email}`);
-      let userRecord;
+      const alvo = papeisDaContaAlvo({
+        cadastroAlvoId: cadastroAlvo.id,
+        cadastroAlvoEhPreCadastro,
+        cadastroAlvoRole: String(cadastroAlvo.data()?.role || ""),
+        papeisPorEmail: porEmail.docs.map((d) => String(d.data()?.role || "")),
+        contaUid: contaExistente?.uid || null,
+        cadastroDaConta
+      });
+      if (!alvo.ok) return res.status(alvo.status || 409).json({ error: alvo.erro });
+      const papeisAlvo = alvo.papeisAlvo;
+      const temGoogle = !!contaExistente?.providerData?.some((pp) => pp?.providerId === "google.com");
+      const permissao = podeDefinirSenha({ papelQuemPede, diretoria, papeisAlvo, emailAlvo, temGoogle });
+      if (!permissao.ok) return res.status(permissao.status || 403).json({ error: permissao.erro });
+      const senhaDefinidaEm = (/* @__PURE__ */ new Date()).toISOString();
+      let precisaEntrarDeNovo = false;
+      if (contaExistente) {
+        await import_firebase_admin.default.auth().updateUser(contaExistente.uid, { password, emailVerified: true });
+        await import_firebase_admin.default.auth().revokeRefreshTokens(contaExistente.uid);
+        precisaEntrarDeNovo = true;
+        console.log(`[AUTH-ADMIN] Password updated successfully for ${emailAlvo}`);
+      } else {
+        await import_firebase_admin.default.auth().createUser({ email: emailAlvo, password, emailVerified: true });
+        console.log(`[AUTH-ADMIN] User created successfully with password: ${emailAlvo}`);
+      }
       try {
-        userRecord = await import_firebase_admin.default.auth().getUserByEmail(email);
-        console.log(`[AUTH-ADMIN] User found (UID: ${userRecord.uid}). Updating password...`);
-        await import_firebase_admin.default.auth().updateUser(userRecord.uid, {
-          password
+        const lote = db.batch();
+        lote.update(cadastroAlvo.ref, {
+          initial_password: password,
+          initial_password_set_at: senhaDefinidaEm,
+          updated_at: (/* @__PURE__ */ new Date()).toISOString()
         });
-        console.log(`[AUTH-ADMIN] Password updated successfully for ${email}`);
-      } catch (err) {
-        if (err.code === "auth/user-not-found") {
-          console.log(`[AUTH-ADMIN] User not found in Auth. Creating new record for ${email}`);
-          userRecord = await import_firebase_admin.default.auth().createUser({
-            email,
-            password,
-            emailVerified: true
-          });
-          console.log(`[AUTH-ADMIN] User created successfully with password: ${email}`);
-        } else {
-          console.error("[AUTH-ADMIN] Firebase Admin error during user fetch/update:", err);
-          throw err;
-        }
-      }
-      try {
-        const usersRef = db.collection("users");
-        const userQuery = await usersRef.where("email", "==", email.toLowerCase().trim()).get();
-        if (!userQuery.empty) {
-          const batch = db.batch();
-          userQuery.docs.forEach((docSnap) => {
-            batch.update(docSnap.ref, {
-              initial_password: password,
-              updated_at: (/* @__PURE__ */ new Date()).toISOString()
-            });
-          });
-          await batch.commit();
-          console.log(`[AUTH-ADMIN] Updated Firestore users doc for ${email} with initial_password`);
-        }
+        lote.set(db.collection("senhas_iniciais").doc(cadastroAlvo.id), {
+          cadastro_id: cadastroAlvo.id,
+          email: emailAlvo,
+          definida_em: senhaDefinidaEm,
+          definida_por_uid: requesterUid
+        });
+        await lote.commit();
       } catch (dbUpdateErr) {
         console.warn("[AUTH-ADMIN] Non-fatal: could not update Firestore initial_password:", dbUpdateErr.message);
       }
-      return res.json({ success: true, message: `Senha definida com sucesso para ${email}.` });
+      if (!(diretoria || papelQuemPede === "admin")) {
+        try {
+          await db.collection(COLECAO_SENHAS_PELA_GESTAO).add({
+            quando: (/* @__PURE__ */ new Date()).toISOString(),
+            quem_uid: requesterUid,
+            quem_email: String(decodedToken.email || requesterData?.email || ""),
+            quem_papel: papelQuemPede,
+            email_alvo: emailAlvo,
+            cadastro_id: cadastroAlvo.id,
+            conta_uid: contaExistente?.uid || "",
+            tipo: contaExistente ? "senha_trocada" : "conta_criada"
+          });
+        } catch (regErr) {
+          console.error("[AUTH-ADMIN] FALHA ao gravar o registro da senha definida pela gest\xE3o (senhas_definidas_pela_gestao):", regErr?.message, { quem: requesterUid, alvo: emailAlvo });
+        }
+      }
+      return res.json({
+        success: true,
+        precisa_entrar_de_novo: precisaEntrarDeNovo,
+        message: precisaEntrarDeNovo ? `Senha definida para ${emailAlvo}. A pessoa vai precisar entrar de novo com a senha nova em todos os aparelhos.` : `Senha definida com sucesso para ${emailAlvo}.`
+      });
     } catch (err) {
       console.error("[AUTH-ADMIN] FATAL ERROR:", err);
       const errorMessage = err.message || "Erro desconhecido ao processar senha.";
@@ -8689,11 +8950,73 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       }
     }
   };
+  const marcarContasDaEquipe = async () => {
+    const nomeTrava = TRAVA_EMAIL_CONFIRMADO;
+    const trava = db.collection("cron_locks").doc(nomeTrava);
+    try {
+      await trava.create({ job: nomeTrava, started_at: (/* @__PURE__ */ new Date()).toISOString() });
+    } catch (e) {
+      if (e?.code === 6) {
+        const t = (await trava.get()).data() || {};
+        const velha = !t.finished_at && t.started_at && Date.now() - new Date(t.started_at).getTime() > 30 * 60 * 1e3;
+        if (!velha) return;
+        await trava.set({ started_at: (/* @__PURE__ */ new Date()).toISOString(), retomada: true }, { merge: true });
+      } else {
+        console.error("[EMAIL-CONFIRMADO] N\xE3o consegui criar a trava:", e?.message);
+        return;
+      }
+    }
+    try {
+      const n = { contas: 0, comSenhaSemConfirmar: 0, marcadas: 0, semCadastroAtivo: 0, diretoria: 0, erros: 0 };
+      const marcadas = [];
+      const pendentes = [];
+      let pagina;
+      do {
+        const lista = await import_firebase_admin.default.auth().listUsers(1e3, pagina);
+        for (const conta of lista.users) {
+          n.contas++;
+          try {
+            const cadastro = (await db.collection("users").doc(conta.uid).get()).data();
+            const preCadastro = !cadastro && conta.email ? !(await db.collection("users").where("email", "==", String(conta.email).toLowerCase().trim()).limit(1).get()).empty : false;
+            const decisao = classificarConta(conta, cadastro, preCadastro);
+            if (decisao === "pular") continue;
+            n.comSenhaSemConfirmar++;
+            const emailConta = String(conta.email).toLowerCase();
+            if (decisao === "marcar") {
+              await import_firebase_admin.default.auth().updateUser(conta.uid, { emailVerified: true });
+              n.marcadas++;
+              marcadas.push({ email: emailConta, role: String(cadastro?.role || ""), doc_id: conta.uid });
+            } else {
+              if (decisao === "diretoria") n.diretoria++;
+              else n.semCadastroAtivo++;
+              pendentes.push({ email: emailConta, motivo: decisao });
+            }
+          } catch (e) {
+            n.erros++;
+            pendentes.push({ email: String(conta.email || conta.uid).toLowerCase(), motivo: "erro" });
+            console.error(`[EMAIL-CONFIRMADO] Erro na conta ${conta.uid}:`, e?.message);
+          }
+        }
+        pagina = lista.pageToken;
+      } while (pagina);
+      await trava.set({ finished_at: (/* @__PURE__ */ new Date()).toISOString(), ...n, marcadas_emails: marcadas.slice(0, 300), pendentes: pendentes.slice(0, 300) }, { merge: true });
+      console.log(`[EMAIL-CONFIRMADO] Contas lidas: ${n.contas}. Com senha e e-mail n\xE3o confirmado: ${n.comSenhaSemConfirmar}. Marcadas como confirmadas (cadastro ativo): ${n.marcadas}. Deixadas como est\xE3o: ${n.semCadastroAtivo + n.diretoria} (diretoria: ${n.diretoria}). Erros: ${n.erros}.`);
+    } catch (e) {
+      console.error("[EMAIL-CONFIRMADO] Erro:", e?.message);
+      try {
+        await trava.delete();
+      } catch {
+      }
+    }
+  };
   const onServerListen = () => {
     console.log(`Server running on port/socket: ${PORT}`);
     setTimeout(() => {
       if (db) backfillDonoIndicacoes();
     }, 8e3);
+    setTimeout(() => {
+      if (db) marcarContasDaEquipe();
+    }, 12e3);
     setTimeout(() => {
       if (db) ligarEmailsComissaoUmaVez(db).catch(() => {
       });
