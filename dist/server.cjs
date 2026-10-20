@@ -1972,6 +1972,15 @@ function mesDaComissao(dataEntrega, agora = /* @__PURE__ */ new Date()) {
 var UIDS_DE_SISTEMA = ["client_referral", "direct_factory", "public_request", "anonymous"];
 
 // server/diagnosticoComissao.ts
+var temMarcaDeEstorno = (ind) => !!ind?.estornado_em;
+var temEstornoNoHistorico = (ind) => {
+  const h = Array.isArray(ind?.negotiation_history) ? ind.negotiation_history : [];
+  const ultimo = (re) => h.reduce((m, x) => re.test(String(x?.content || "")) ? Math.max(m, Date.parse(x?.created_at) || 0) : m, -Infinity);
+  const estorno = ultimo(/^ESTORNO DE FATURAMENTO/i);
+  if (estorno === -Infinity) return false;
+  const faturou = ultimo(/^VENDA FINALIZADA/i);
+  return !(faturou !== -Infinity && faturou > estorno);
+};
 var normalizar = (v) => String(v ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9@._]+/g, " ").replace(/\s+/g, " ").trim();
 function nomeContido(a, b) {
   if (!a || !b || a === b) return false;
@@ -2144,7 +2153,8 @@ async function diagnosticar(deps, termoBruto, opcoes = {}) {
     const comms = listaComissoes.filter((c) => c.indication_id === ind.id);
     const falta = [];
     let parceiroOk = false;
-    const troca = comms.length ? "transferir" : "ligar";
+    const troca = comms.length ? void 0 : "ligar";
+    const TROCAR = ' Para mudar de conta, use "Trocar Indicador" na tela de Indica\xE7\xF5es: a comiss\xE3o vai junto.';
     if (!uidInd) falta.push({ codigo: "sem_uid", texto: "Indica\xE7\xE3o sem parceiro ligado. A comiss\xE3o n\xE3o nasce no faturamento e o painel do parceiro n\xE3o enxerga a venda.", acao: troca });
     else if (UIDS_DE_SISTEMA.includes(uidInd)) falta.push({ codigo: "uid_sistema", texto: `Ligada a "${uidInd}", que n\xE3o \xE9 um parceiro.`, acao: troca });
     else if (!parceiro) falta.push({ codigo: "uid_inexistente", texto: "Ligada a um c\xF3digo de parceiro que n\xE3o existe mais no cadastro (cadastro antigo ou apagado). O painel do parceiro n\xE3o enxerga esta venda.", acao: troca });
@@ -2153,7 +2163,7 @@ async function diagnosticar(deps, termoBruto, opcoes = {}) {
       parceiroOk = true;
       if (achados.length && !uids.has(uidInd)) falta.push({ codigo: "outro_parceiro", texto: `Ligada a outro cadastro: ${parceiro.name || uidInd}.`, acao: troca });
       else if (contaEscolhida && uidInd !== contaEscolhida.uid) {
-        falta.push({ codigo: "conta_repetida", texto: `Esta venda est\xE1 na conta ${nomeConta(uidInd)}, mas o parceiro entra com a conta ${nomeConta(contaEscolhida.uid)}. O painel dele n\xE3o mostra esta venda.`, acao: "transferir" });
+        falta.push({ codigo: "conta_repetida", texto: `Esta venda est\xE1 na conta ${nomeConta(uidInd)}, mas o parceiro entra com a conta ${nomeConta(contaEscolhida.uid)}. O painel dele n\xE3o mostra esta venda.` + TROCAR });
       }
     }
     const produtos = ind.commissioned_products || [];
@@ -2167,9 +2177,9 @@ async function diagnosticar(deps, termoBruto, opcoes = {}) {
       } else {
         for (const c of comms) {
           if (c.value <= 0) falta.push({ codigo: "comissao_zero", texto: `Comiss\xE3o lan\xE7ada com valor zero (${c.id}).` });
-          if (uidInd && c.external_seller_uid !== uidInd) falta.push({ codigo: "comissao_outro_uid", texto: `A comiss\xE3o est\xE1 em nome de outro c\xF3digo (${c.external_seller_name || c.external_seller_uid || "vazio"}): o painel do parceiro n\xE3o soma ela.`, acao: "transferir" });
+          if (uidInd && c.external_seller_uid !== uidInd) falta.push({ codigo: "comissao_outro_uid", texto: `A comiss\xE3o est\xE1 em nome de outro c\xF3digo (${c.external_seller_name || c.external_seller_uid || "vazio"}): o painel do parceiro n\xE3o soma ela. A corre\xE7\xE3o autom\xE1tica leva a comiss\xE3o para o parceiro da indica\xE7\xE3o; se ela continuar aqui, veja o motivo em "Corre\xE7\xF5es autom\xE1ticas".` });
           else if (contaEscolhida && c.external_seller_uid !== contaEscolhida.uid && uidInd === contaEscolhida.uid) {
-            falta.push({ codigo: "comissao_conta_repetida", texto: `A comiss\xE3o de ${brl(c.value)} est\xE1 na conta ${nomeConta(c.external_seller_uid)}, e o parceiro entra com a conta ${nomeConta(contaEscolhida.uid)}.`, acao: "transferir" });
+            falta.push({ codigo: "comissao_conta_repetida", texto: `A comiss\xE3o de ${brl(c.value)} est\xE1 na conta ${nomeConta(c.external_seller_uid)}, e o parceiro entra com a conta ${nomeConta(contaEscolhida.uid)}. A corre\xE7\xE3o autom\xE1tica leva a comiss\xE3o para o parceiro da indica\xE7\xE3o.` });
           }
           if (c.status !== "paid" && c.month && c.year && chaveMes(c.month, c.year) < mesAgora) {
             falta.push({ codigo: "comissao_atrasada", texto: `Comiss\xE3o de ${String(c.month).padStart(2, "0")}/${c.year} ainda n\xE3o est\xE1 como paga.` });
@@ -2219,7 +2229,7 @@ async function diagnosticar(deps, termoBruto, opcoes = {}) {
   const avisosGerais = [];
   if (!achados.length) avisosGerais.push("Nenhum usu\xE1rio encontrado com esse nome, e-mail ou c\xF3digo.");
   duplicados.forEach((d) => avisosGerais.push(`Cadastro repetido (${d.motivo}): ${d.uids.length} usu\xE1rios. A venda pode estar ligada a um e o parceiro entrando com o outro.`));
-  if (variasContas && !contaEscolhida) avisosGerais.push(`H\xE1 ${contasComissionaveis.length} contas que recebem comiss\xE3o. Escolha abaixo a conta em que o parceiro entra para ver o que precisa ser transferido.`);
+  if (variasContas && !contaEscolhida) avisosGerais.push(`H\xE1 ${contasComissionaveis.length} contas que recebem comiss\xE3o. Escolha abaixo a conta em que o parceiro entra para ver o que est\xE1 fora dela.`);
   if (!avisos.monthly_report_partners) avisosGerais.push("E-mail mensal ao parceiro (dia 1 e lembrete do dia 5) est\xE1 desligado em Configura\xE7\xF5es > Central de Notifica\xE7\xF5es.");
   if (!avisos.monthly_report_directors) avisosGerais.push("Relat\xF3rio mensal da diretoria e do financeiro (dia 1) est\xE1 desligado.");
   if (!avisos.payment_reminder_finance) avisosGerais.push("Lembrete de pagamento ao financeiro (dia 7) est\xE1 desligado.");
@@ -2257,7 +2267,7 @@ var idHist = () => Math.random().toString(36).substring(2, 11);
 function exigirId(indId) {
   if (!String(indId || "").trim()) throw erro(400, "Indica\xE7\xE3o n\xE3o informada.");
 }
-function conferirGeracao(indId, ind, parceiro, descontoInformado, agora) {
+function conferirGeracao(indId, ind, parceiro, descontoInformado, agora, usarTaxaGravada = false) {
   if (!ind) throw erro(404, "Indica\xE7\xE3o n\xE3o encontrada.");
   if (ind.status !== "sold") throw erro(409, "A venda ainda n\xE3o foi faturada. A comiss\xE3o nasce no faturamento.");
   const uid = String(ind.external_seller_uid || "");
@@ -2265,7 +2275,8 @@ function conferirGeracao(indId, ind, parceiro, descontoInformado, agora) {
   if (!parceiro) throw erro(409, "O parceiro ligado a esta indica\xE7\xE3o n\xE3o existe no cadastro. Ligue ao parceiro certo antes.");
   if (!papelComissionavel(parceiro.role)) throw erro(409, `O perfil de ${parceiro.name || "quem est\xE1 ligado"} n\xE3o recebe comiss\xE3o.`);
   const desconto = descontoInformado !== void 0 && descontoInformado !== null && Number.isFinite(Number(descontoInformado)) ? Number(descontoInformado) : Number(ind.discount_amount) || 0;
-  const calc = calcularComissao(ind.commissioned_products || [], desconto, taxaDoParceiro(parceiro));
+  const taxa = usarTaxaGravada && Number(ind.commission_rate_applied) > 0 ? Number(ind.commission_rate_applied) : taxaDoParceiro(parceiro);
+  const calc = calcularComissao(ind.commissioned_products || [], desconto, taxa);
   if (calc.baseBruta <= 0) throw erro(409, "Sem produtos comission\xE1veis na indica\xE7\xE3o: a comiss\xE3o daria zero. Vincule os produtos vendidos antes.");
   if (calc.valor <= 0) throw erro(409, "O desconto zera a base da comiss\xE3o. Confira o desconto informado.");
   const mes = mesDaComissao(ind.delivery_date, agora);
@@ -2295,7 +2306,7 @@ async function previaGeracao(deps, indId, desconto) {
     year: r.mes.year
   };
 }
-async function gerarComissao(deps, indId, autor, desconto) {
+async function gerarComissao(deps, indId, autor, desconto, opcoes = {}) {
   const { db: db2, arrayUnion } = deps;
   const agora = deps.agora ? deps.agora() : /* @__PURE__ */ new Date();
   exigirId(indId);
@@ -2308,8 +2319,15 @@ async function gerarComissao(deps, indId, autor, desconto) {
     const p = uid && !UIDS_DE_SISTEMA.includes(uid) ? await tx.get(db2.collection("users").doc(uid)) : null;
     const ja = await tx.get(commRef);
     const legado = await tx.get(db2.collection("commissions").where("indication_id", "==", indId));
-    const r = conferirGeracao(indId, ind, p?.exists ? p.data() : null, desconto, agora);
+    if (opcoes.recusarEstornada && (temMarcaDeEstorno(ind) || temEstornoNoHistorico(ind))) {
+      throw erro(409, "Esta indica\xE7\xE3o foi estornada (ou est\xE1 com o estorno em andamento). A comiss\xE3o n\xE3o \xE9 lan\xE7ada sozinha.");
+    }
+    const r = conferirGeracao(indId, ind, p?.exists ? p.data() : null, desconto, agora, !!opcoes.usarTaxaGravada);
     if (ja.exists || !legado.empty) throw erro(409, "J\xE1 existe comiss\xE3o lan\xE7ada para esta venda. Nada foi alterado.");
+    const fech = await tx.get(db2.collection("monthly_statements").doc(`${r.uid}_${r.mes.month}_${r.mes.year}`));
+    if (fech.exists && fechamentoTravado(fech.data())) {
+      throw erro(409, `O fechamento de ${mmaa(r.mes.month, r.mes.year)} de ${r.nomeParceiro} j\xE1 est\xE1 ${rotuloFechamento(fech.data())}. A comiss\xE3o entraria nele como paga sem ter sido paga. Acerte com o financeiro antes.`);
+    }
     const nowIso = agora.toISOString();
     tx.set(commRef, {
       indication_id: indId,
@@ -2326,7 +2344,7 @@ async function gerarComissao(deps, indId, autor, desconto) {
       year: r.mes.year,
       sale_date: ind.sale_date || null,
       created_at: nowIso,
-      generated_by: "diagnostico_admin",
+      generated_by: opcoes.geradoPor || "diagnostico_admin",
       generated_by_uid: autor.uid
     });
     tx.update(indRef, {
@@ -2337,13 +2355,13 @@ async function gerarComissao(deps, indId, autor, desconto) {
       discount_percentage: r.calc.descontoPct,
       updated_at: nowIso,
       // mesmo aviso ao financeiro do faturamento: sai 2 dias depois, se ainda não saiu
-      ...ind.finance_notice_sent_at ? {} : { finance_notice_pending: true, finance_notice_due_at: new Date(agora.getTime() + 2 * 24 * 60 * 60 * 1e3).toISOString() },
+      ...ind.finance_notice_sent_at || opcoes.semAvisoFinanceiro ? {} : { finance_notice_pending: true, finance_notice_due_at: new Date(agora.getTime() + 2 * 24 * 60 * 60 * 1e3).toISOString() },
       negotiation_history: arrayUnion({
         id: idHist(),
         type: "status_change",
         author_name: autor.nome || "Administrador",
         created_at: nowIso,
-        content: `COMISS\xC3O LAN\xC7ADA PELO DIAGN\xD3STICO: a venda estava faturada sem comiss\xE3o. Comiss\xE3o de ${brl(r.calc.valor)} sobre a base comission\xE1vel de ${brl(r.calc.base)}` + (r.calc.desconto > 0 ? `, j\xE1 com o desconto de ${brl(r.calc.desconto)} abatido` : "") + `, para pagamento em ${String(r.mes.month).padStart(2, "0")}/${r.mes.year}.`,
+        content: `${opcoes.textoHistorico || "COMISS\xC3O LAN\xC7ADA PELO DIAGN\xD3STICO"}: a venda estava faturada sem comiss\xE3o. Comiss\xE3o de ${brl(r.calc.valor)} sobre a base comission\xE1vel de ${brl(r.calc.base)}` + (r.calc.desconto > 0 ? `, j\xE1 com o desconto de ${brl(r.calc.desconto)} abatido` : "") + `, para pagamento em ${String(r.mes.month).padStart(2, "0")}/${r.mes.year}.`,
         attachments: []
       })
     });
@@ -2367,7 +2385,7 @@ async function ligarParceiro(deps, indId, uid, autor) {
     if (!papelComissionavel(user.role)) throw erro(409, `${user.name || "Este usu\xE1rio"} \xE9 da equipe Roder e n\xE3o recebe comiss\xE3o. Escolha o parceiro indicador.`);
     const novoUid = String(user.uid || u.id || uid);
     const outra = comms.docs.find((c) => (c.data() || {}).external_seller_uid !== novoUid);
-    if (outra) throw erro(409, `J\xE1 existe comiss\xE3o lan\xE7ada para esta venda em nome de ${(outra.data() || {}).external_seller_name || "outro c\xF3digo"}. Use "Transferir" para levar a indica\xE7\xE3o e a comiss\xE3o juntas.`);
+    if (outra) throw erro(409, `J\xE1 existe comiss\xE3o lan\xE7ada para esta venda em nome de ${(outra.data() || {}).external_seller_name || "outro c\xF3digo"}. Use "Trocar Indicador" na tela de Indica\xE7\xF5es para levar a indica\xE7\xE3o e a comiss\xE3o juntas.`);
     const nowIso = agora.toISOString();
     const antes = ind.external_seller_name || ind.external_seller_uid || "ningu\xE9m";
     tx.update(indRef, {
@@ -2403,6 +2421,9 @@ async function transferirIndicacao(deps, indId, uid, autor, origem = "diagn\xF3s
     const u = await tx.get(db2.collection("users").doc(uid));
     const user = u.exists ? u.data() || {} : null;
     const ind = s.data() || {};
+    if (opcoes.uidEsperado !== void 0 && String(ind.external_seller_uid || "") !== opcoes.uidEsperado) {
+      throw erro(409, "O parceiro desta indica\xE7\xE3o mudou enquanto a corre\xE7\xE3o rodava. Nada foi alterado; a pr\xF3xima rodada confere de novo.");
+    }
     const comms = (await tx.get(db2.collection("commissions").where("indication_id", "==", indId))).docs;
     const livre = !!opcoes.semComissaoQualquerDestino && !comms.length;
     const nomeInformado = String(opcoes.nomeInformado || "").trim();
@@ -2469,7 +2490,9 @@ async function transferirIndicacao(deps, indId, uid, autor, origem = "diagn\xF3s
         ..."external_seller_email" in cd ? { external_seller_email: email } : {},
         transferred_from_uid: cd.external_seller_uid || null,
         transferred_at: nowIso,
-        updated_at: nowIso
+        updated_at: nowIso,
+        // a marca do primeiro acesso (moverComissoesDoProvisorio) sai quando a comissão chega
+        ...cd.transferencia_pendente ? { transferencia_pendente: null } : {}
       });
     }
     for (const [, f] of fechamentos) {
@@ -2490,7 +2513,7 @@ async function transferirIndicacao(deps, indId, uid, autor, origem = "diagn\xF3s
         type: "system",
         author_name: autor.nome || "Administrador",
         created_at: nowIso,
-        content: `Venda transferida pelo ${origem}: antes ${antes}${antesUid ? ` (${antesUid})` : ""}, agora ${nome} (${novoUid}).` + (comms.length ? ` ${comms.length === 1 ? "A comiss\xE3o de" : `As ${comms.length} comiss\xF5es, somando`} ${brl(somaComissoes)} ${comms.length === 1 ? "foi junto" : "foram juntas"}.` : ""),
+        content: (antesUid === novoUid ? `Comiss\xE3o levada para ${nome} (${novoUid}) pela ${origem}: ela estava em outro c\xF3digo, e quem recebe \xE9 o parceiro da indica\xE7\xE3o.` : `Venda transferida pelo ${origem}: antes ${antes}${antesUid ? ` (${antesUid})` : ""}, agora ${nome} (${novoUid}).`) + (comms.length ? ` ${comms.length === 1 ? "A comiss\xE3o de" : `As ${comms.length} comiss\xF5es, somando`} ${brl(somaComissoes)} ${comms.length === 1 ? "foi junto" : "foram juntas"}.` : ""),
         attachments: []
       })
     });
@@ -2606,7 +2629,7 @@ async function moverComissoesDoProvisorio(db2, lote, deUids, paraUid, agoraIso, 
 }
 function registrarDiagnosticoComissao(app, deps) {
   const responderErro = (res, e) => res.status(e?.status || 500).json({ ok: false, error: e?.message || "Erro." });
-  const nomeDe = async (q) => {
+  const nomeDe2 = async (q) => {
     try {
       return String((await deps.db.collection("users").doc(q.uid).get()).data()?.name || q.email || "Administrador");
     } catch {
@@ -2633,7 +2656,7 @@ function registrarDiagnosticoComissao(app, deps) {
     const q = await deps.exigirAdmin(req, res);
     if (!q) return;
     try {
-      return res.json(await gerarComissao(deps, String(req.body?.indicacaoId || ""), { uid: q.uid, nome: await nomeDe(q) }, req.body?.desconto));
+      return res.json(await gerarComissao(deps, String(req.body?.indicacaoId || ""), { uid: q.uid, nome: await nomeDe2(q) }, req.body?.desconto));
     } catch (e) {
       return responderErro(res, e);
     }
@@ -2642,16 +2665,7 @@ function registrarDiagnosticoComissao(app, deps) {
     const q = await deps.exigirAdmin(req, res);
     if (!q) return;
     try {
-      return res.json(await ligarParceiro(deps, String(req.body?.indicacaoId || ""), String(req.body?.uid || ""), { uid: q.uid, nome: await nomeDe(q) }));
-    } catch (e) {
-      return responderErro(res, e);
-    }
-  });
-  app.post("/api/admin/diagnostico-comissao/transferir", async (req, res) => {
-    const q = await deps.exigirAdmin(req, res);
-    if (!q) return;
-    try {
-      return res.json(await transferirIndicacao(deps, String(req.body?.indicacaoId || ""), String(req.body?.uid || ""), { uid: q.uid, nome: await nomeDe(q) }));
+      return res.json(await ligarParceiro(deps, String(req.body?.indicacaoId || ""), String(req.body?.uid || ""), { uid: q.uid, nome: await nomeDe2(q) }));
     } catch (e) {
       return responderErro(res, e);
     }
@@ -2665,12 +2679,366 @@ function registrarDiagnosticoComissao(app, deps) {
         deps,
         String(req.body?.indicacaoId || ""),
         String(req.body?.uid || ""),
-        { uid: q.uid, nome: await nomeDe(q) },
+        { uid: q.uid, nome: await nomeDe2(q) },
         "Trocar Indicador",
         { semComissaoQualquerDestino: true, nomeInformado: String(req.body?.nome || "") }
       ));
     } catch (e) {
       return responderErro(res, e);
+    }
+  });
+}
+
+// server/conciliacaoComissao.ts
+var import_node_crypto2 = require("node:crypto");
+var DOC_TRAVA2 = "conciliacao_comissao_rodando";
+var DOC_RESULTADO = "conciliacao_comissao_resultado";
+var TRAVA_VELHA_MS = 30 * 60 * 1e3;
+var DIAS_PARA_GERAR = 90;
+var MINUTOS_SEM_MEXER = 30;
+var MAX_HISTORICO = 100;
+var MAX_TRAVADAS = 200;
+var MAX_CRIADAS_POR_RODADA = 20;
+var MAX_LISTA_NO_DOC = 200;
+var MAX_TEXTO_NO_DOC = 400;
+var AUTOR = { uid: "sistema", nome: "Corre\xE7\xE3o autom\xE1tica" };
+var ORIGEM = "corre\xE7\xE3o autom\xE1tica de comiss\xE3o";
+var brl2 = (v) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
+var ehProvisorio = (id) => /^(temp_|phone_)/.test(id);
+var statusQueRecebe = (st) => !st || st === "active" || st === "pending";
+var papelQueRecebe = (role) => !role || role === "external_seller";
+var recebe = (u) => !!u && papelQueRecebe(u.role) && statusQueRecebe(u.status);
+var UID_SINTETICO_DA_EQUIPE = /_manager_direct$/;
+var travadoPorStatus = (st) => st === "paid" || st === "waiting_payment";
+var CAMPOS_COMISSAO = ["indication_id", "external_seller_uid", "external_seller_name", "value", "status", "transferencia_pendente", "created_at", "sale_date", "month", "year"];
+var nomeDe = (u) => u?.name || "Parceiro";
+var ultimos9 = (t) => String(t || "").replace(/\D/g, "").slice(-9);
+async function conciliarComissoes(deps, origem = "di\xE1ria") {
+  const { db: db2 } = deps;
+  const log = deps.log || console.log;
+  const agora = deps.agora ? deps.agora() : /* @__PURE__ */ new Date();
+  const res = { rodada_em: agora.toISOString(), terminou_em: "", origem, movidas: [], criadas: [], travadas: [], travadas_total: 0, erros: [], adiadas: [] };
+  const todasTravadas = [];
+  let quandoAtual = "";
+  const travar = (t, quando) => {
+    const o = Date.parse(String(quando || quandoAtual || ""));
+    todasTravadas.push({ t, ordem: Number.isFinite(o) ? o : 0 });
+  };
+  const usersSnap = await db2.collection("users").get();
+  const porId = /* @__PURE__ */ new Map();
+  const porUidCampo = /* @__PURE__ */ new Map();
+  usersSnap.docs.forEach((d) => {
+    const u = { ...d.data() || {}, doc_id: d.id };
+    porId.set(d.id, u);
+    if (u.uid) porUidCampo.set(String(u.uid), u);
+  });
+  const usuario = (uid) => porId.get(uid) || porUidCampo.get(uid) || null;
+  const definitivas = Array.from(porId.values()).filter((u) => !ehProvisorio(u.doc_id) && recebe(u));
+  const unica = (lista) => lista.length === 1 ? lista[0] : null;
+  const porEmail = (e) => e ? unica(definitivas.filter((u) => String(u.email || "").toLowerCase().trim() === e)) : null;
+  const porNome = (n) => n ? unica(definitivas.filter((u) => normalizar(u.name) === n)) : null;
+  const indSnap = await db2.collection("indications").select("status", "client_name", "external_seller_uid", "external_seller_name", "external_seller_email", "sale_date", "updated_at", "commissioned_products", "discount_amount", "delivery_date", "commission_rate_applied", "estornado_em", "commission_value").get();
+  const indicacoes = /* @__PURE__ */ new Map();
+  indSnap.docs.forEach((d) => indicacoes.set(d.id, d.data() || {}));
+  const commSnap = await db2.collection("commissions").select(...CAMPOS_COMISSAO).get();
+  const comissoesPorInd = /* @__PURE__ */ new Map();
+  const semIndicacaoId = [];
+  for (const c of commSnap.docs) {
+    const cd = c.data() || {};
+    const indId = String(cd.indication_id || "");
+    if (!indId || !indicacoes.has(indId)) semIndicacaoId.push({ ...cd, _indicacao_apagada: !!indId });
+    if (!indId || !indicacoes.has(indId)) {
+      const u = cd.external_seller_uid ? usuario(String(cd.external_seller_uid)) : null;
+      if (!u && !travadoPorStatus(cd.status)) travar({ indicacao_id: indId || null, cliente: "", parceiro: cd.external_seller_name || cd.external_seller_uid || "-", motivo: `Comiss\xE3o ${c.id} de ${brl2(Number(cd.value) || 0)} sem indica\xE7\xE3o e num c\xF3digo que n\xE3o existe mais no cadastro.` }, cd.created_at);
+      continue;
+    }
+    if (!comissoesPorInd.has(indId)) comissoesPorInd.set(indId, []);
+    comissoesPorInd.get(indId).push({ id: c.id, ref: c.ref, ...cd });
+  }
+  const fechamentoTravado2 = async (uid, m, a) => {
+    if (!uid || !m || !a) return null;
+    const f = await db2.collection("monthly_statements").doc(`${uid}_${m}_${a}`).get();
+    const fd = f.exists ? f.data() || {} : null;
+    return fd && travadoPorStatus(fd.status) ? fd : null;
+  };
+  let ultimaRenovacao = Date.now();
+  for (const [indId, ind] of indicacoes) {
+    if (deps.renovarTrava && Date.now() - ultimaRenovacao > 6e4) {
+      ultimaRenovacao = Date.now();
+      try {
+        await deps.renovarTrava();
+      } catch {
+      }
+    }
+    const comms = comissoesPorInd.get(indId) || [];
+    const uidInd = String(ind.external_seller_uid || "");
+    const cliente = String(ind.client_name || "");
+    quandoAtual = ind.updated_at || ind.sale_date;
+    if (!uidInd || UIDS_DE_SISTEMA.includes(uidInd)) continue;
+    if (ind.status !== "sold") continue;
+    if (UID_SINTETICO_DA_EQUIPE.test(uidInd)) continue;
+    let atual = usuario(uidInd);
+    let destino = atual;
+    let motivo = "a comiss\xE3o estava em outro c\xF3digo, e quem recebe \xE9 o parceiro da indica\xE7\xE3o";
+    if (!atual || ehProvisorio(atual.doc_id)) {
+      let achada = null;
+      let porEmailOuNome = "e-mail";
+      if (atual) {
+        const email = String(atual.email || "").toLowerCase().trim();
+        achada = porEmail(email);
+        if (!achada && !email) {
+          const pelaNomeUnica = porNome(normalizar(atual.name));
+          if (pelaNomeUnica) {
+            if (ultimos9(atual.phone) && ultimos9(atual.phone) === ultimos9(pelaNomeUnica.phone)) {
+              achada = pelaNomeUnica;
+              porEmailOuNome = "nome";
+            } else {
+              travar({ indicacao_id: indId, cliente, parceiro: nomeDe(atual), motivo: `A venda est\xE1 num cadastro provis\xF3rio (${atual.doc_id}) e s\xF3 o nome bate com a conta ${pelaNomeUnica.doc_id} (sem e-mail e sem telefone em comum). Nome igual pode ser outra pessoa. Use "Trocar Indicador" para confirmar.` });
+              continue;
+            }
+          }
+        }
+      } else {
+        const email = String(ind.external_seller_email || "").toLowerCase().trim();
+        const nomeInd = normalizar(ind.external_seller_name);
+        const candidata = porEmail(email);
+        if (candidata) {
+          const nomeConta = normalizar(candidata.name);
+          if (nomeConta && nomeInd && (nomeConta === nomeInd || nomeContido(nomeConta, nomeInd))) achada = candidata;
+          else travar({ indicacao_id: indId, cliente, parceiro: ind.external_seller_name || uidInd, motivo: `A venda est\xE1 ligada a um c\xF3digo que n\xE3o existe mais, e o e-mail ${email} da indica\xE7\xE3o \xE9 de ${candidata.name || "outra conta"}, com nome diferente de ${ind.external_seller_name || "o da indica\xE7\xE3o"}. Pode ser o e-mail de um parceiro anterior. Use "Trocar Indicador" na tela de Indica\xE7\xF5es.` });
+          if (!achada) continue;
+        } else if (!email) {
+          const pelaNomeUnica = porNome(nomeInd);
+          if (pelaNomeUnica) {
+            travar({ indicacao_id: indId, cliente, parceiro: ind.external_seller_name || uidInd, motivo: `A venda est\xE1 ligada a um c\xF3digo que n\xE3o existe mais, e s\xF3 o nome bate com a conta ${pelaNomeUnica.doc_id} (a indica\xE7\xE3o n\xE3o tem e-mail nem telefone para confirmar). Nome igual pode ser outra pessoa. Use "Trocar Indicador" para confirmar.` });
+            continue;
+          }
+        }
+      }
+      if (achada) {
+        destino = achada;
+        motivo = `a venda estava num cadastro ${atual ? "provis\xF3rio" : "apagado"} e foi para a conta definitiva com o mesmo ${porEmailOuNome}`;
+      } else if (!atual) {
+        const email = String(ind.external_seller_email || "").trim();
+        const porque = email ? `O e-mail ${email} da indica\xE7\xE3o n\xE3o est\xE1 em nenhuma conta (ou est\xE1 em mais de uma), e o nome n\xE3o \xE9 usado quando h\xE1 e-mail, para n\xE3o levar a venda a um hom\xF4nimo.` : "N\xE3o h\xE1 uma conta s\xF3 com o mesmo nome (zero contas ou mais de uma).";
+        travar({ indicacao_id: indId, cliente, parceiro: ind.external_seller_name || uidInd, motivo: `A venda est\xE1 ligada a um c\xF3digo que n\xE3o existe mais. ${porque} Use "Trocar Indicador" na tela de Indica\xE7\xF5es.` });
+        continue;
+      }
+    }
+    const destUid = String(destino.uid || destino.doc_id);
+    const nomeDest = destino.name || ind.external_seller_name || "Parceiro";
+    const fora = comms.filter((c) => c.external_seller_uid !== destUid);
+    let mexiAgora = false;
+    if (uidInd !== destUid || fora.length) {
+      if (ehProvisorio(destino.doc_id)) {
+        if (fora.length) travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: `A venda est\xE1 num cadastro provis\xF3rio (${destino.doc_id}) que n\xE3o achou conta definitiva \xFAnica, mas a comiss\xE3o est\xE1 em outra conta (${fora[0].external_seller_name || fora[0].external_seller_uid}). N\xE3o foi mexida: lev\xE1-la para um provis\xF3rio faria o dinheiro sumir do painel do parceiro. Use "Trocar Indicador" e escolha a conta certa.` });
+        continue;
+      }
+      if (!recebe(destino)) {
+        if (fora.length) travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: `A comiss\xE3o est\xE1 em outro c\xF3digo, mas ${nomeDest} ${papelQueRecebe(destino.role) ? `est\xE1 com o cadastro ${destino.status}` : "\xE9 da equipe Roder"} e n\xE3o recebe comiss\xE3o.` });
+        continue;
+      }
+      const presa = comms.find((c) => travadoPorStatus(c.status));
+      if (presa) {
+        travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: `A comiss\xE3o de ${brl2(Number(presa.value) || 0)} j\xE1 est\xE1 ${presa.status === "paid" ? "paga" : "aguardando pagamento"} na conta ${presa.external_seller_name || presa.external_seller_uid}. N\xE3o foi mexida: a nota fiscal e o pagamento s\xE3o dessa conta. Acerte com o financeiro.` });
+        continue;
+      }
+      try {
+        await transferirIndicacao(deps, indId, destino.doc_id, AUTOR, ORIGEM, { uidEsperado: uidInd });
+        const valor = Math.round(fora.reduce((a, c) => a + (Number(c.value) || 0), 0) * 100) / 100;
+        const de = fora[0]?.external_seller_uid || uidInd;
+        const deNome = fora[0]?.external_seller_name || atual && atual.name || ind.external_seller_name || null;
+        res.movidas.push({ indicacao_id: indId, cliente, parceiro: nomeDest, de_uid: de || null, de_nome: deNome, para_uid: destUid, comissoes: fora.length, valor, motivo });
+        log(`[CORRECAO-COMISSAO] ${cliente || indId}: ${fora.length} comiss\xE3o(\xF5es) de ${brl2(valor)} de ${deNome || de} (${de}) para ${nomeDest} (${destUid}); ${motivo}.`);
+        comms.forEach((c) => {
+          c.external_seller_uid = destUid;
+          c.transferencia_pendente = null;
+        });
+        mexiAgora = true;
+      } catch (e) {
+        if (e?.status === 409) travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: e.message });
+        else res.erros.push(`${cliente || indId}: ${e?.message || e}`);
+        continue;
+      }
+    }
+    for (const c of comms) {
+      if (c.transferencia_pendente && c.external_seller_uid === destUid) {
+        try {
+          await c.ref.update({ transferencia_pendente: null, updated_at: agora.toISOString() });
+        } catch (e) {
+          res.erros.push(`${cliente || indId}: n\xE3o limpei a marca de primeiro acesso: ${e?.message || e}`);
+        }
+      }
+    }
+    if (comms.length && comms.every((c) => c.external_seller_uid === destUid)) {
+      const emailD = String(destino.email || "").toLowerCase().trim();
+      const nomeD = normalizar(destino.name);
+      const repetida = definitivas.find((u) => u.doc_id !== destino.doc_id && (emailD && String(u.email || "").toLowerCase().trim() === emailD || nomeD && normalizar(u.name) === nomeD));
+      if (repetida) travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: `${nomeDest} tem duas contas (${destino.doc_id} e ${repetida.doc_id}, mesmo e-mail ou nome). A venda e a comiss\xE3o est\xE3o em ${destino.doc_id}. Se ele entra pela outra, o painel mostra R$ 0,00: confirme com ele a conta certa e use "Trocar Indicador".` });
+    }
+    if (ind.status !== "sold" || comms.length || !recebe(destino)) continue;
+    let noHistorico = false;
+    try {
+      const f = await db2.collection("indications").doc(indId).get();
+      noHistorico = temEstornoNoHistorico(f.exists ? f.data() : null);
+    } catch (e) {
+      res.erros.push(`${cliente || indId}: n\xE3o consegui ler o hist\xF3rico: ${e?.message || e}`);
+      continue;
+    }
+    if (temMarcaDeEstorno(ind) || noHistorico) {
+      travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: noHistorico ? "Venda faturada sem comiss\xE3o, mas esta indica\xE7\xE3o j\xE1 foi estornada antes e a comiss\xE3o foi apagada de prop\xF3sito. N\xE3o \xE9 lan\xE7ada sozinha. Se for devida, gere pelo Diagn\xF3stico de comiss\xE3o." : "Estorno incompleto: o estorno foi come\xE7ado (a comiss\xE3o pode ter sido apagada) mas a venda continua faturada. Refa\xE7a o estorno na tela de Indica\xE7\xF5es. N\xE3o \xE9 lan\xE7ada comiss\xE3o sozinha." });
+      continue;
+    }
+    const dataVenda = Date.parse(String(ind.sale_date || "").slice(0, 10) + "T12:00:00-03:00");
+    const dias = Number.isFinite(dataVenda) ? (agora.getTime() - dataVenda) / 864e5 : Infinity;
+    if (dias > DIAS_PARA_GERAR) {
+      travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: `Venda faturada sem comiss\xE3o, com pedido de ${ind.sale_date ? String(ind.sale_date).slice(0, 10).split("-").reverse().join("/") : "data desconhecida"}: antiga demais para lan\xE7ar sozinha (mais de ${DIAS_PARA_GERAR} dias). Se a comiss\xE3o \xE9 devida, gere pelo Diagn\xF3stico de comiss\xE3o.` });
+      continue;
+    }
+    if (!(Number(ind.commission_rate_applied) > 0) || typeof ind.discount_amount !== "number") {
+      travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: "Venda faturada sem comiss\xE3o, e o faturamento n\xE3o gravou taxa de comiss\xE3o e desconto (foi faturada sem parceiro, ou o desconto \xE9 desconhecido). N\xE3o \xE9 lan\xE7ada sozinha, para n\xE3o pagar a mais. Confira o desconto e gere pelo Diagn\xF3stico de comiss\xE3o." });
+      continue;
+    }
+    const calc = calcularComissao(ind.commissioned_products || [], ind.discount_amount, Number(ind.commission_rate_applied));
+    if (calc.valor <= 0) {
+      travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: "Venda faturada sem comiss\xE3o, e os produtos da indica\xE7\xE3o n\xE3o d\xE3o base de comiss\xE3o (sem produto ou s\xF3 kit, frete e instala\xE7\xE3o). Vincule os produtos vendidos." });
+      continue;
+    }
+    if (typeof ind.commission_value === "number" && ind.commission_value > 0 && Math.abs(ind.commission_value - calc.valor) > 0.01) {
+      travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: `valor recalculado difere do gravado no faturamento (recalculado ${brl2(calc.valor)}, gravado ${brl2(ind.commission_value)}). N\xE3o foi lan\xE7ada sozinha. Confira e gere pelo Diagn\xF3stico de comiss\xE3o.` });
+      continue;
+    }
+    const mesDela = mesDaComissao(ind.delivery_date, agora);
+    const diaVenda = String(ind.sale_date || "").slice(0, 10);
+    const nomesDoParceiro = [normalizar(nomeDest), normalizar(ind.external_seller_name)].filter(Boolean);
+    const parecida = semIndicacaoId.find((c) => {
+      const doParceiro = [destUid, uidInd].includes(String(c.external_seller_uid || "")) || nomesDoParceiro.includes(normalizar(c.external_seller_name));
+      const mesmoDia = !!diaVenda && String(c.sale_date || "").slice(0, 10) === diaVenda;
+      const mesmoValor = Math.abs((Number(c.value) || 0) - calc.valor) < 0.01 && c.month === mesDela.month && c.year === mesDela.year;
+      return doParceiro && (c._indicacao_apagada ? mesmoValor : mesmoDia || mesmoValor);
+    });
+    if (parecida) {
+      travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: `Venda faturada sem comiss\xE3o ligada a ela, mas existe uma comiss\xE3o antiga sem v\xEDnculo com indica\xE7\xE3o (${brl2(Number(parecida.value) || 0)}, ${parecida.external_seller_name || parecida.external_seller_uid}) que pode ser desta venda. N\xE3o foi lan\xE7ada outra, para n\xE3o pagar duas vezes. Confira no Diagn\xF3stico de comiss\xE3o.` });
+      continue;
+    }
+    const mexida = Date.parse(ind.updated_at || "");
+    if (!mexiAgora && Number.isFinite(mexida) && agora.getTime() - mexida < MINUTOS_SEM_MEXER * 60 * 1e3) continue;
+    const mes = mesDaComissao(ind.delivery_date, agora);
+    let fechTravado = null;
+    try {
+      fechTravado = await fechamentoTravado2(destUid, mes.month, mes.year);
+    } catch (e) {
+      res.erros.push(`${cliente || indId}: n\xE3o consegui ler o fechamento: ${e?.message || e}`);
+      continue;
+    }
+    if (fechTravado) {
+      travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: `Venda faturada sem comiss\xE3o, mas o fechamento de ${String(mes.month).padStart(2, "0")}/${mes.year} de ${nomeDest} j\xE1 est\xE1 pago ou aguardando pagamento. Acerte com o financeiro.` });
+      continue;
+    }
+    if (res.criadas.length >= MAX_CRIADAS_POR_RODADA) {
+      res.adiadas.push({ indicacao_id: indId, cliente, parceiro: nomeDest });
+      continue;
+    }
+    try {
+      const r = await gerarComissao(deps, indId, AUTOR, void 0, { geradoPor: "correcao_automatica", textoHistorico: "COMISS\xC3O LAN\xC7ADA PELA CORRE\xC7\xC3O AUTOM\xC1TICA", semAvisoFinanceiro: true, usarTaxaGravada: true, recusarEstornada: true });
+      res.criadas.push({ indicacao_id: indId, cliente, parceiro: r.parceiro, valor: r.valor, month: r.month, year: r.year });
+      log(`[CORRECAO-COMISSAO] ${cliente || indId}: comiss\xE3o de ${brl2(r.valor)} lan\xE7ada para ${r.parceiro} (${destUid}), pagamento em ${String(r.month).padStart(2, "0")}/${r.year}.`);
+    } catch (e) {
+      if (e?.status === 409) travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: e.message });
+      else res.erros.push(`${cliente || indId}: ${e?.message || e}`);
+    }
+  }
+  res.travadas_total = todasTravadas.length;
+  res.travadas = todasTravadas.sort((a, b) => b.ordem - a.ordem).slice(0, MAX_TRAVADAS).map((x) => x.t);
+  res.terminou_em = (deps.agora ? deps.agora() : /* @__PURE__ */ new Date()).toISOString();
+  return res;
+}
+function paraDocumento(r) {
+  const corta = (t) => typeof t === "string" && t.length > MAX_TEXTO_NO_DOC ? t.slice(0, MAX_TEXTO_NO_DOC) + "..." : t;
+  const limita = (l) => l.slice(0, MAX_LISTA_NO_DOC).map((x) => Object.fromEntries(Object.entries(x).map(([k, v]) => [k, corta(v)])));
+  return {
+    ...r,
+    movidas: limita(r.movidas),
+    criadas: limita(r.criadas),
+    travadas: limita(r.travadas),
+    erros: r.erros.slice(0, MAX_LISTA_NO_DOC).map(corta),
+    adiadas: limita(r.adiadas),
+    movidas_total: r.movidas.length,
+    criadas_total: r.criadas.length,
+    adiadas_total: r.adiadas.length,
+    erros_total: r.erros.length
+  };
+}
+async function conciliarComTrava(deps, origem) {
+  const { db: db2 } = deps;
+  const log = deps.log || console.log;
+  const agora = () => deps.agora ? deps.agora() : /* @__PURE__ */ new Date();
+  const trava = db2.collection("cron_locks").doc(DOC_TRAVA2);
+  const dono = (0, import_node_crypto2.randomUUID)();
+  const dados = (extra = {}) => ({ job: "conciliacao_comissao", origem, owner_id: dono, started_at: agora().toISOString(), ...extra });
+  try {
+    await trava.create(dados());
+  } catch (e) {
+    if (e?.code !== 6) {
+      console.error("[CORRECAO-COMISSAO] N\xE3o consegui criar a trava:", e?.message);
+      return null;
+    }
+    const retomou = await db2.runTransaction(async (tx) => {
+      const atual = await tx.get(trava);
+      const t = atual.exists ? atual.data() || {} : {};
+      const velha = !atual.exists || !t.started_at || agora().getTime() - new Date(t.started_at).getTime() > TRAVA_VELHA_MS;
+      if (!velha) return false;
+      tx.set(trava, dados({ retomada: true }));
+      return true;
+    }).catch(() => false);
+    if (!retomou) {
+      log("[CORRECAO-COMISSAO] Outra rodada em andamento; esta foi pulada.");
+      return null;
+    }
+  }
+  try {
+    const renovarTrava = async () => {
+      await db2.runTransaction(async (tx) => {
+        const atual = await tx.get(trava);
+        if (atual.exists && (atual.data() || {}).owner_id === dono) tx.update(trava, { started_at: agora().toISOString() });
+      });
+    };
+    const r = await conciliarComissoes({ ...deps, renovarTrava }, origem);
+    const docRes = db2.collection("cron_locks").doc(DOC_RESULTADO);
+    const antes = (await docRes.get()).data() || {};
+    const novos = [
+      ...r.movidas.slice(0, MAX_HISTORICO).map((m) => ({ tipo: "movida", em: r.rodada_em, ...m })),
+      ...r.criadas.slice(0, MAX_HISTORICO).map((c) => ({ tipo: "criada", em: r.rodada_em, ...c }))
+    ];
+    const historico = [...novos, ...Array.isArray(antes.historico) ? antes.historico : []].slice(0, MAX_HISTORICO);
+    await docRes.set({ ultima: paraDocumento(r), historico, atualizado_em: r.terminou_em });
+    log(`[CORRECAO-COMISSAO] Rodada ${origem}: ${r.movidas.length} movida(s), ${r.criadas.length} criada(s), ${r.travadas.length} travada(s), ${r.adiadas.length} adiada(s), ${r.erros.length} erro(s).`);
+    return r;
+  } catch (e) {
+    console.error("[CORRECAO-COMISSAO] Erro:", e?.message);
+    return null;
+  } finally {
+    try {
+      await db2.runTransaction(async (tx) => {
+        const atual = await tx.get(trava);
+        if (atual.exists && (atual.data() || {}).owner_id === dono) tx.delete(trava);
+      });
+    } catch {
+    }
+  }
+}
+async function lerCorrecoes(db2) {
+  const d = await db2.collection("cron_locks").doc(DOC_RESULTADO).get();
+  const x = d.exists ? d.data() || {} : {};
+  return { ok: true, ultima: x.ultima || null, historico: Array.isArray(x.historico) ? x.historico : [] };
+}
+function registrarCorrecoesAutomaticas(app, deps) {
+  app.get("/api/admin/diagnostico-comissao/correcoes", async (req, res) => {
+    if (!await deps.exigirAdmin(req, res)) return;
+    try {
+      return res.json(await lerCorrecoes(deps.db));
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e?.message || "Erro." });
     }
   });
 }
@@ -3436,7 +3804,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-20g limpeza-app";
+  const RELEASE_LABEL = "2026-10-20h comissao-automatica";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -4150,6 +4518,7 @@ Retorne um array JSON no formato exato:
     return q;
   }
   registrarDiagnosticoComissao(app, { db, exigirAdmin, exigirGestao: exigirGestaoComissao, arrayUnion: (...v) => import_firebase_admin.default.firestore.FieldValue.arrayUnion(...v) });
+  registrarCorrecoesAutomaticas(app, { db, exigirAdmin });
   app.get("/api/admin/regras/estado", async (req, res) => {
     if (!await exigirAdmin(req, res)) return;
     try {
@@ -7801,6 +8170,10 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       console.error("[AUTO-CANCEL-60D] Erro:", e?.message);
     }
   }, { timezone: BR_TIMEZONE });
+  import_node_cron.default.schedule("30 7 * * *", async () => {
+    if (!db) return;
+    await conciliarComTrava({ db, arrayUnion: (...v) => import_firebase_admin.default.firestore.FieldValue.arrayUnion(...v) }, "di\xE1ria");
+  }, { timezone: BR_TIMEZONE });
   import_node_cron.default.schedule("0 8 7 * *", async () => {
     console.log("[Schedule] Generating Day 7 Finance Reminders...");
     try {
@@ -8325,6 +8698,10 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       if (db) ligarEmailsComissaoUmaVez(db).catch(() => {
       });
     }, 9e3);
+    setTimeout(() => {
+      if (db) conciliarComTrava({ db, arrayUnion: (...v) => import_firebase_admin.default.firestore.FieldValue.arrayUnion(...v) }, "in\xEDcio do servidor").catch(() => {
+      });
+    }, 15e3);
     setTimeout(() => {
       if (db) garantirEmailsLigados(db).catch(() => {
       });
