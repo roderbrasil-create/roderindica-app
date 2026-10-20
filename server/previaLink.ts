@@ -3,10 +3,18 @@
 // a página do link curto é o index.html do app com estas etiquetas encaixadas no <head>.
 // Separado do server.ts para o teste conferir o escape e a prévia padrão sem subir o servidor.
 import { videoDoEquipamento } from '../src/lib/videoEquipamento';
+import { OG_LARGURA, OG_ALTURA, urlImagemPrevia } from './previaImagem';
 
-export const SITE_PREVIA = 'https://roderindica.com';
+// Endereço público do app (sempre https). SITE_PUBLICO no ambiente troca, se um dia mudar o domínio.
+// Não sai do cabeçalho Host da requisição: quem chama poderia pôr outro domínio na prévia.
+export const SITE_PREVIA = (/^https:\/\/[a-z0-9.-]+$/i.test(String(process.env.SITE_PUBLICO || '')) ? String(process.env.SITE_PUBLICO) : 'https://roderindica.com').replace(/\/$/, '');
+
+// A foto da prévia é a arte JPEG 1200x630 do próprio servidor (server/previaImagem.ts)
+const ehArteOg = (u: string) => /\/og\/[A-Za-z0-9]{1,12}-[a-f0-9]{4,16}\.jpg$/.test(String(u || ''));
 
 export type DadosPrevia = { titulo: string; descricao: string; imagem: string; url: string; temVideo?: boolean };
+
+export const urlPreviaPadrao = () => urlImagemPrevia(SITE_PREVIA, '', []);
 
 export const escHtml = (t: string) => String(t ?? '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -18,7 +26,7 @@ export function previaPadrao(codigo: string): DadosPrevia {
   return {
     titulo: 'Roder Máquinas e Equipamentos',
     descricao: 'Fotos, vídeo, ficha técnica e orçamento.',
-    imagem: `${SITE_PREVIA}/marca/roder-redondo-512.png`,
+    imagem: urlPreviaPadrao(),
     url: `${SITE_PREVIA}/o/${codigoLimpo(codigo)}`,
   };
 }
@@ -46,10 +54,18 @@ export function metaPrevia(d: DadosPrevia): string {
     `<meta property="og:title" content="${escHtml(d.titulo)}" />`,
     `<meta property="og:description" content="${escHtml(d.descricao)}" />`,
     `<meta property="og:image" content="${escHtml(d.imagem)}" />`,
+    ...(d.imagem.startsWith('https://') ? [`<meta property="og:image:secure_url" content="${escHtml(d.imagem)}" />`] : []),
+    // largura, altura e tipo deixam o WhatsApp montar a prévia grande sem baixar a imagem antes
+    ...(ehArteOg(d.imagem) ? [
+      `<meta property="og:image:type" content="image/jpeg" />`,
+      `<meta property="og:image:width" content="${OG_LARGURA}" />`,
+      `<meta property="og:image:height" content="${OG_ALTURA}" />`,
+    ] : []),
     `<meta property="og:image:alt" content="${escHtml(d.titulo)}" />`,
     `<meta property="og:url" content="${escHtml(d.url)}" />`,
     `<meta name="description" content="${escHtml(d.descricao)}" />`,
     `<meta name="twitter:card" content="summary_large_image" />`,
+    `<meta name="twitter:image" content="${escHtml(d.imagem)}" />`,
   ].join('\n    ');
 }
 

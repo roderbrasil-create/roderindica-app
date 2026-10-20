@@ -36,9 +36,11 @@ import admin from "firebase-admin";
 import { getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { ACCESSORIES_DATA, INSTALLATION_KITS } from "./src/constants.js";
-import { registrarConsultorParceiro } from "./server/consultorParceiro";
+import { registrarConsultorParceiro, BUCKETS_VIDEO } from "./server/consultorParceiro";
 import { instrucaoPerfilConsultor } from "./server/consultorPerfil";
-import { injetarPrevia, previaPadrao, previaDoEquipamento, codigoLimpo } from "./server/previaLink";
+import { injetarPrevia, previaPadrao, previaDoEquipamento, codigoLimpo, SITE_PREVIA } from "./server/previaLink";
+import { criarImagemPrevia, candidatasDoLink, urlImagemPrevia, MAX_ORIGEM_BYTES, PASTA_CACHE } from "./server/previaImagem";
+import { fotosExternas } from "./server/fotosExternas";
 
 let __currentDir: string;
 try {
@@ -4615,29 +4617,93 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       res.status(500).send('Erro');
     }
   });
-  const fotoDaPrevia = new Map<string, { url: string; ate: number }>();
-  async function fotoAbre(u: string): Promise<boolean> {
+  // Foto da prévia do link no WhatsApp: arte JPEG 1200x630 abaixo de 300 KB (server/previaImagem.ts).
+  // Antes a og:image apontava direto para a foto do catálogo (WebP do site, original de 3 MB do
+  // Storage ou base64 grande do banco) e o WhatsApp mandava a mensagem sem a foto.
+  const BUCKETS_PROJETO = [...new Set([config.storageBucket, `${config.projectId}.appspot.com`, ...BUCKETS_VIDEO].filter(Boolean))] as string[];
+  const PASTA_PUBLICA = path.resolve(process.cwd(), 'public');
+  const lerArquivoSeguro = (raiz: string, relativo: string): Buffer | null => {
     try {
-      if (u.startsWith('db-file://')) {
-        const snap = await db.collection('app_files').doc(u.slice(10)).get();
-        return /^data:image\/(jpeg|png|webp|gif);base64,/.test(String((snap.data() as any)?.data || ''));
-      }
-      if (u.startsWith('/')) return true;
-      const ctl = new AbortController();
-      const t = setTimeout(() => ctl.abort(), 1500);
-      const r = await fetch(u, { method: 'GET', headers: { Range: 'bytes=0-1023' }, signal: ctl.signal });
-      clearTimeout(t);
-      try { await r.body?.cancel(); } catch { /* nada */ }
-      return (r.ok || r.status === 206) && /^image\//i.test(r.headers.get('content-type') || '');
-    } catch { return false; }
-  }
+      const alvo = path.resolve(raiz, '.' + path.posix.normalize('/' + relativo));
+      if (!alvo.startsWith(raiz + path.sep)) return null;
+      const st = fs.statSync(alvo);
+      if (!st.isFile() || st.size > MAX_ORIGEM_BYTES) return null;
+      return fs.readFileSync(alvo);
+    } catch { return null; }
+  };
+  let sharpCarregado: any = undefined;
+  const logoHorizontal = (() => { let b: Buffer | null | undefined; return () => (b === undefined ? (b = lerArquivoSeguro(PASTA_PUBLICA, '/marca/roder-horizontal.png') || lerArquivoSeguro(path.resolve(process.cwd(), 'dist'), '/marca/roder-horizontal.png')) : b); })();
+  const logoRedonda = (() => { let b: Buffer | null | undefined; return () => (b === undefined ? (b = lerArquivoSeguro(PASTA_PUBLICA, '/marca/roder-redondo-512.png') || lerArquivoSeguro(path.resolve(process.cwd(), 'dist'), '/marca/roder-redondo-512.png')) : b); })();
+  const bucketCache = () => getStorage(adminApp).bucket(config.storageBucket || `${config.projectId}.appspot.com`);
+  const imagemPrevia = criarImagemPrevia({
+    db,
+    site: SITE_PREVIA,
+    buckets: BUCKETS_PROJETO,
+    // sharp é nativo (vem do node_modules instalado no servidor). Se faltar, a rota manda a logo.
+    carregarSharp: async () => {
+      if (sharpCarregado !== undefined) return sharpCarregado;
+      try { const m: any = await import('sharp'); sharpCarregado = m.default || m; }
+      catch (e: any) { console.error('[OG] biblioteca sharp não carregou; prévia vai com a logo:', e?.message || e); sharpCarregado = null; }
+      return sharpCarregado;
+    },
+    lerStorage: async (bucket, caminho) => {
+      const file = getStorage(adminApp).bucket(bucket).file(caminho);
+      const [meta]: any = await file.getMetadata().catch(() => [null]);
+      if (!meta || Number(meta.size || 0) > MAX_ORIGEM_BYTES) return null;
+      const [buf] = await file.download();
+      return buf;
+    },
+    lerCache: async (chave) => {
+      const file = bucketCache().file(`${PASTA_CACHE}/${chave}.jpg`);
+      const [existe] = await file.exists();
+      if (!existe) return null;
+      const [buf] = await file.download();
+      return buf;
+    },
+    gravarCache: async (chave, jpeg) => {
+      await bucketCache().file(`${PASTA_CACHE}/${chave}.jpg`).save(jpeg, { contentType: 'image/jpeg', resumable: false, metadata: { cacheControl: 'public, max-age=31536000' } });
+    },
+    lerLocal: (caminho) => caminho.startsWith('/uploads/') ? lerArquivoSeguro(uploadsDir, caminho.slice('/uploads'.length)) : lerArquivoSeguro(PASTA_PUBLICA, caminho),
+    logoHorizontal,
+    logoRedonda,
+    log: (m) => console.warn(m),
+  });
+  // Antes do arquivo estático e do app: o robô do WhatsApp recebe a imagem direto, sem redirecionar
+  app.get('/og/:arquivo', (req, res) => { imagemPrevia.rota(req, res); });
+
+  // Admin > Configurações > "Trazer fotos do site para o app" (server/fotosExternas.ts).
+  // aplicar=0 só confere e mostra; aplicar=1 copia para o Storage e troca o endereço no catálogo.
+  app.post('/api/admin/fotos-externas', async (req, res) => {
+    const q = await exigirAdmin(req, res);
+    if (!q) return;
+    try {
+      const aplicar = String(req.query.aplicar || '0') === '1';
+      const bucketDestino = config.storageBucket || `${config.projectId}.appspot.com`;
+      const r = await fotosExternas({
+        db, site: SITE_PREVIA, buckets: BUCKETS_PROJETO, bucketDestino,
+        carregarSharp: async () => { try { const m: any = await import('sharp'); return m.default || m; } catch { return null; } },
+        gravar: async (caminho, bytes, tipo) => {
+          const token = crypto.randomUUID();
+          await getStorage(adminApp).bucket(bucketDestino).file(caminho).save(bytes, {
+            contentType: tipo, resumable: false,
+            metadata: { cacheControl: 'public, max-age=31536000', metadata: { firebaseStorageDownloadTokens: token } },
+          });
+          return `https://firebasestorage.googleapis.com/v0/b/${bucketDestino}/o/${encodeURIComponent(caminho)}?alt=media&token=${token}`;
+        },
+      }, aplicar, q.email || q.uid);
+      res.json(r);
+    } catch (e: any) {
+      res.status(500).json({ ok: false, error: e?.message || 'Erro ao conferir as fotos.' });
+    }
+  });
   const escHtml = (t: string) => String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
   // Cria (ou reaproveita) o código curto de um equipamento para um vendedor/parceiro
   async function criarLinkCurto(uid: string, pid: string, mid: string): Promise<string | null> {
     // o mesmo vendedor compartilhando o mesmo modelo reaproveita o código
     const existente = await db.collection('links_curtos').where('uid', '==', uid).where('pid', '==', pid).where('mid', '==', mid).limit(1).get();
-    if (!existente.empty) return existente.docs[0].id;
+    // a arte da prévia já fica pronta antes de o vendedor colar o link no WhatsApp
+    if (!existente.empty) { imagemPrevia.esquentar(existente.docs[0].id); return existente.docs[0].id; }
     for (let tentativa = 0; tentativa < 6; tentativa++) {
       const codigo = novoCodigo();
       const ref = db.collection('links_curtos').doc(codigo);
@@ -4647,7 +4713,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         t.set(ref, { uid, pid, mid, created_at: new Date().toISOString() });
         return true;
       });
-      if (criado) return codigo;
+      if (criado) { imagemPrevia.esquentar(codigo); return codigo; }
     }
     return null;
   }
@@ -4697,21 +4763,10 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
           if (prod.exists) {
             const p: any = prod.data();
             const m: any = (p.models || []).find((x: any) => x.id === l.mid) || null;
-            let imagem = '';
-            // A prévia do WhatsApp só mostra a foto se o endereço responder com uma imagem.
-            // Foto morta (endereço antigo do AI Studio, Storage que não existia) deixava a
-            // mensagem sem foto: agora usa a primeira que realmente abre.
-            const candidatas: string[] = [...(m?.images || []), p.image_url].filter((i: any) => typeof i === 'string' && i && !/run\.app/.test(i));
-            // a prévia do WhatsApp desiste se a página demora: no máximo 3 fotos testadas, e a
-            // escolha fica guardada por 1 hora para os próximos envios do mesmo link
-            const guardada = fotoDaPrevia.get(codigo);
-            if (guardada && guardada.ate > Date.now()) imagem = guardada.url;
-            else {
-              for (const c of candidatas.slice(0, 3)) {
-                if (await fotoAbre(c)) { imagem = absoluta(c); break; }
-              }
-              fotoDaPrevia.set(codigo, { url: imagem, ate: Date.now() + 3600_000 });
-            }
+            // a foto é a arte do servidor (/og/...); o nome do arquivo muda quando a foto do catálogo muda
+            const candidatas = candidatasDoLink(p, m);
+            const imagem = urlImagemPrevia(SITE_PREVIA, codigo, candidatas);
+            imagemPrevia.esquentar(codigo);
             previa = previaDoEquipamento(codigo, p, m, imagem);
           }
         }
