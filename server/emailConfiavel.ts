@@ -116,7 +116,25 @@ export function podeConfirmarPrimeiroAcesso(dec: any, provisorio: any, cadastroI
 // criar users/{uid da própria conta}, e a conta dele existe no Auth. Cadastro de outra conta de
 // login (como o Q) nunca é juntado nem apagado. Os campos de poder desse cadastro próprio também
 // são barrados pelas regras na criação.
+// SÓ CADASTRO "ACTIVE". Conta apagada no Auth deixa o users/{uid} órfão, e ele também passaria pelo
+// teste do Auth: o atacante entra com Google, grava o próprio users/Q (pending, papel de parceiro),
+// apaga a conta e entra de novo com outro uid; ou alguém desativado (inactive, blocked) apaga a
+// conta para fugir da desativação. O convite da gestão e o do servidor nascem "active"; o cadastro
+// próprio só pode ser pending ou sem status (regras), e desativado é inactive/blocked. Nenhum deles
+// é juntado. Convite que a gestão deixou inativo de propósito também não, até ser ativado.
 // No e-mail não confirmado vale também a prova da senha da Roder (marca do servidor).
+// Campos que o pré-cadastro da gestão leva para o cadastro definitivo (a lista do UserProfile).
+// O resto do documento não passa: campo estranho gravado ali não vira perfil.
+export const CAMPOS_DO_PRE_CADASTRO = ['name', 'phone', 'role', 'commission_rate', 'assigned_regions', 'monthly_salary',
+  'pix_key', 'bank_info', 'cpf_cnpj', 'company_name', 'city', 'state', 'is_icms_contributor', 'is_lead_receiver',
+  'is_commissionable', 'vacation_start', 'vacation_end', 'contract_accepted', 'contract_accepted_at',
+  'initial_password', 'initial_password_set_at', 'sidebar_order', 'created_at', 'permissions'];
+export function camposDoPreCadastro(dados: any): Record<string, any> {
+  const saida: Record<string, any> = {};
+  for (const k of CAMPOS_DO_PRE_CADASTRO) if (dados && dados[k] !== undefined) saida[k] = dados[k];
+  return saida;
+}
+
 export type CadastroParaJuntar = { id: string; dados: any };
 
 export async function escolherPreCadastros(p: {
@@ -130,6 +148,7 @@ export async function escolherPreCadastros(p: {
   const aceitos: CadastroParaJuntar[] = [];
   for (const c of p.cadastros) {
     if (c.id === p.uidDoLogin) continue;
+    if (c.dados?.status !== 'active') continue;
     if (await p.ehContaDeLogin(c.id)) continue;
     if (!p.confirmado && !podeConfirmarPrimeiroAcesso(p.dec, c.dados, c.id, await p.marcaDe(c.id))) continue;
     aceitos.push(c);

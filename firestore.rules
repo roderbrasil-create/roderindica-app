@@ -105,7 +105,7 @@ service cloud.firestore {
     // Campos de poder no cadastro do usuário: só admin muda.
     function naoMexeEmPoder() {
       return !request.resource.data.diff(resource.data).affectedKeys().hasAny(
-        ['role', 'permissions', 'status', 'is_commissionable', 'commission_rate', 'is_lead_receiver', 'uid']);
+        ['role', 'permissions', 'status', 'is_commissionable', 'commission_rate', 'is_lead_receiver', 'assigned_regions', 'uid']);
     }
 
     // CADASTRO FORJADO (19/10/2026). O próprio cadastro não pode levar senha inicial nem o e-mail de
@@ -124,7 +124,7 @@ service cloud.firestore {
     // Poder não se cria sozinho: taxa, comissionável e "recebe lead" são da gestão.
     function cadastroProprioSemSenhaNemEmailAlheio() {
       return !request.resource.data.keys().hasAny(['initial_password', 'initial_password_set_at',
-          'commission_rate', 'is_commissionable', 'is_lead_receiver']) &&
+          'commission_rate', 'is_commissionable', 'is_lead_receiver', 'assigned_regions']) &&
         emailDoCadastroEhODoLogin(string(request.resource.data.get('email', '')).lower());
     }
     function edicaoPropriaSemSenhaNemEmailAlheio() {

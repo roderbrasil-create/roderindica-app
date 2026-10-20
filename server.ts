@@ -44,7 +44,7 @@ import { injetarPrevia, previaPadrao, previaDoEquipamento, codigoLimpo, SITE_PRE
 import { criarImagemPrevia, candidatasDoLink, urlImagemPrevia, MAX_ORIGEM_BYTES, PASTA_CACHE, baixarExterna } from "./server/previaImagem";
 import { hostDeFotoAgendor, urlDeFotoAgendor } from "./server/fotoAgendor";
 import { fotosExternas, RodadaEmAndamento } from "./server/fotosExternas";
-import { emailConfiavelDoToken, ehDiretoriaPeloToken, papelDeQuemChama, classificarConta, podeConfirmarPrimeiroAcesso, podeDefinirSenha, ehIdDePreCadastro, escolherPreCadastros, papeisDaContaAlvo, type MarcaSenhaInicial } from "./server/emailConfiavel";
+import { emailConfiavelDoToken, ehDiretoriaPeloToken, papelDeQuemChama, classificarConta, podeConfirmarPrimeiroAcesso, podeDefinirSenha, ehIdDePreCadastro, escolherPreCadastros, camposDoPreCadastro, papeisDaContaAlvo, type MarcaSenhaInicial } from "./server/emailConfiavel";
 import { registrarDiagnosticoComissao, moverComissoesDoProvisorio, loteEmPartes } from "./server/diagnosticoComissao";
 import { relatorioDiretoriaDia1, relatorioParceirosDia1, lembreteNfDia5, lembreteFinanceiroDia7, ligarEmailsComissaoUmaVez } from "./server/relatoriosComissao";
 
@@ -1713,6 +1713,12 @@ Retorne um array JSON no formato exato:
       const realRef = db.collection('users').doc(dec.uid);
       const realSnap = await realRef.get();
       let perfil: any = realSnap.exists ? { ...realSnap.data() } : {};
+      // O cadastro próprio que ainda não foi ativado pela gestão não leva poder para o perfil final:
+      // quem vale é o pré-cadastro (ativo). Sem isso, campo de poder gravado ali antes das regras
+      // novas passaria por cima do que a gestão definiu.
+      if (perfil.status !== 'active') {
+        for (const k of ['commission_rate', 'is_commissionable', 'is_lead_receiver', 'assigned_regions']) delete perfil[k];
+      }
       const prioridade = ['admin', 'manager', 'financial', 'triagem', 'internal_seller', 'marketing', 'vendedor_padrao', 'external_seller', ''];
       for (const t of temporarios) {
         const td: any = t.data();
@@ -1720,7 +1726,7 @@ Retorne um array JSON no formato exato:
         const iTemp = prioridade.indexOf(td.role || '');
         const papel = (iAtual !== -1 && iTemp !== -1 && iTemp < iAtual) ? td.role : (perfil.role || td.role || 'external_seller');
         perfil = {
-          ...td, ...perfil,
+          ...camposDoPreCadastro(td), ...perfil,
           role: papel,
           is_lead_receiver: perfil.is_lead_receiver || td.is_lead_receiver || false,
           permissions: {

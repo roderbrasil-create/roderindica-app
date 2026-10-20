@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import fs from 'node:fs';
-import { emailConfiavelDoToken, ehDiretoriaPeloToken, papelDeQuemChama, deveMarcarEmailConfirmado, classificarConta, podeConfirmarPrimeiroAcesso, podeDefinirSenha, ehIdDePreCadastro, papeisDaContaAlvo, escolherPreCadastros } from '../server/emailConfiavel.ts';
+import { emailConfiavelDoToken, ehDiretoriaPeloToken, papelDeQuemChama, deveMarcarEmailConfirmado, classificarConta, podeConfirmarPrimeiroAcesso, podeDefinirSenha, ehIdDePreCadastro, papeisDaContaAlvo, escolherPreCadastros, camposDoPreCadastro } from '../server/emailConfiavel.ts';
 import { hostDeFotoAgendor, urlDeFotoAgendor } from '../server/fotoAgendor.ts';
 
 const token = (email: string, confirmado: boolean, provedor = 'password') =>
@@ -256,8 +256,8 @@ test('PODER AUTO-CRIADO: no e-mail confirmado, o cadastro de outra conta de logi
 
 test('PODER AUTO-CRIADO: o pré-cadastro da gestão (temp_/phone_, sem conta de login) continua sendo juntado no e-mail confirmado', async () => {
   const decX = { uid: 'uid_x', email: 'x@gmail.com', email_verified: true, firebase: { sign_in_provider: 'google.com' } };
-  const prov = { id: 'temp_123', dados: { email: 'x@gmail.com', role: 'external_seller', is_commissionable: true, commission_rate: 3 } };
-  const fone = { id: 'phone_14999990000', dados: { email: 'x@gmail.com', role: 'external_seller' } };
+  const prov = { id: 'temp_123', dados: { email: 'x@gmail.com', status: 'active', role: 'external_seller', is_commissionable: true, commission_rate: 3 } };
+  const fone = { id: 'phone_14999990000', dados: { email: 'x@gmail.com', status: 'active', role: 'external_seller' } };
   const forjado = { id: 'uid_q', dados: { email: 'x@gmail.com', commission_rate: 50 } };
   const proprio = { id: 'uid_x', dados: { email: 'x@gmail.com' } };
   const r = await escolherPreCadastros({
@@ -279,7 +279,7 @@ test('PODER AUTO-CRIADO: pré-cadastro cujo código já virou conta de login nã
 test('PRIMEIRO ACESSO não confirmado: continua exigindo a marca da senha da Roder e o login posterior a ela', async () => {
   const seg = 1_800_000_000;
   const dec = (auth: number) => ({ uid: 'uid_x', email: 'x@gmail.com', email_verified: false, auth_time: auth, firebase: { sign_in_provider: 'password' } });
-  const prov = { id: 'temp_1', dados: { email: 'x@gmail.com', initial_password: 'abc123' } };
+  const prov = { id: 'temp_1', dados: { email: 'x@gmail.com', status: 'active', initial_password: 'abc123' } };
   const marca = { cadastro_id: 'temp_1', email: 'x@gmail.com', definida_em: new Date(seg * 1000).toISOString(), definida_por_uid: 'u_jef' };
   const base = { cadastros: [prov], uidDoLogin: 'uid_x', confirmado: false, ehContaDeLogin: async () => false };
   assert.equal((await escolherPreCadastros({ ...base, dec: dec(seg + 60), marcaDe: async () => marca })).length, 1);
@@ -311,7 +311,7 @@ test('CONVITE RÁPIDO: heloisa_1 é juntado no e-mail confirmado (Google) e o de
 test('CONVITE RÁPIDO: heloisa_1 no e-mail não confirmado exige a marca da senha da Roder, como qualquer pré-cadastro', async () => {
   const seg = 1_800_000_000;
   const dec = { uid: 'uid_h', email: 'heloisa@gmail.com', email_verified: false, auth_time: seg + 60, firebase: { sign_in_provider: 'password' } };
-  const heloisa = { id: 'heloisa_1', dados: { email: 'heloisa@gmail.com', role: 'internal_seller', initial_password: 'abc123' } };
+  const heloisa = { id: 'heloisa_1', dados: { email: 'heloisa@gmail.com', status: 'active', role: 'internal_seller', initial_password: 'abc123' } };
   const marca = { cadastro_id: 'heloisa_1', email: 'heloisa@gmail.com', definida_em: new Date(seg * 1000).toISOString(), definida_por_uid: 'u_jef' };
   const base = { cadastros: [heloisa], uidDoLogin: 'uid_h', confirmado: false, dec, ehContaDeLogin: async () => false };
   assert.deepEqual((await escolherPreCadastros({ ...base, marcaDe: async () => marca })).map(c => c.id), ['heloisa_1']);
@@ -325,4 +325,34 @@ test('PAPEL NO SERVIDOR: cadastro que não está "active" não conta como equipe
   const i = src.indexOf('async function quemChama(');
   const trecho = src.slice(i, i + 2500);
   assert.match(trecho, /cad\?\.status === 'active'/);
+});
+
+// CONTA APAGADA NO AUTH (20/10/2026): o users/{uid} órfão passa no teste do Auth. Só vale "active".
+test('CADASTRO ÓRFÃO: pending, inactive, blocked, rejected ou sem status nunca é juntado; active (heloisa_1) é', async () => {
+  const decG = { uid: 'uid_novo', email: 'x@gmail.com', email_verified: true, firebase: { sign_in_provider: 'google.com' } };
+  const base = { uidDoLogin: 'uid_novo', confirmado: true, dec: decG, ehContaDeLogin: async () => false, marcaDe: async () => null };
+  const dados = { email: 'x@gmail.com', role: 'vendedor_padrao', assigned_regions: ['PR'], commission_rate: 50, is_commissionable: true };
+  for (const status of ['pending', 'inactive', 'blocked', 'rejected', '', undefined, null]) {
+    const d: any = { ...dados };
+    if (status !== undefined) d.status = status;
+    const r = await escolherPreCadastros({ ...base, cadastros: [{ id: 'uid_apagado', dados: d }] });
+    assert.deepEqual(r, [], `status ${String(status)} não pode ser juntado`);
+  }
+  const ativo = await escolherPreCadastros({ ...base, cadastros: [{ id: 'heloisa_1', dados: { ...dados, role: 'internal_seller', status: 'active' } }] });
+  assert.deepEqual(ativo.map(c => c.id), ['heloisa_1']);
+});
+
+test('CADASTRO ÓRFÃO: no e-mail não confirmado o status também precisa ser active, mesmo com a marca', async () => {
+  const seg = 1_800_000_000;
+  const dec = { uid: 'uid_h', email: 'h@gmail.com', email_verified: false, auth_time: seg + 60, firebase: { sign_in_provider: 'password' } };
+  const marca = { cadastro_id: 'heloisa_1', email: 'h@gmail.com', definida_em: new Date(seg * 1000).toISOString(), definida_por_uid: 'u_jef' };
+  const mk = (status: string) => escolherPreCadastros({ cadastros: [{ id: 'heloisa_1', dados: { email: 'h@gmail.com', initial_password: 'x', status } }], uidDoLogin: 'uid_h', confirmado: false, dec, ehContaDeLogin: async () => false, marcaDe: async () => marca });
+  assert.equal((await mk('active')).length, 1);
+  assert.equal((await mk('inactive')).length, 0);
+  assert.equal((await mk('pending')).length, 0);
+});
+
+test('MERGE: só os campos do perfil passam do pré-cadastro (campo estranho e status ficam de fora)', () => {
+  const r = camposDoPreCadastro({ name: 'H', role: 'internal_seller', assigned_regions: ['PR'], commission_rate: 3, status: 'active', uid: 'temp_1', admin_extra: true, email: 'h@x.com' });
+  assert.deepEqual(r, { name: 'H', role: 'internal_seller', assigned_regions: ['PR'], commission_rate: 3 });
 });

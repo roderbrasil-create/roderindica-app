@@ -795,3 +795,12 @@ test('PRÉ-CADASTRO: só a gestão cria users/{código} que não é o uid de que
   await assertSucceeds(setDoc(doc(fs_('gislene'), 'users', 'heloisa_1'), { role: 'internal_seller', status: 'active', email: 'heloisa2@gmail.com', is_lead_receiver: true }));
   await assertSucceeds(setDoc(doc(fs_('jeferson'), 'users', 'luana_1'), { role: 'triagem', status: 'active', email: 'luana2@gmail.com' }));
 });
+
+// assigned_regions é poder (define de quem é a indicação por estado): só a gestão grava (20/10/2026).
+test('REGIÕES: o próprio cadastro não cria nem muda assigned_regions', async () => {
+  const g = env.authenticatedContext('u_g', { email: 'g@gmail.com', email_verified: true, firebase: { sign_in_provider: 'google.com' } }).firestore();
+  await assertFails(setDoc(doc(g, 'users', 'u_g'), { role: 'vendedor_padrao', status: 'pending', email: 'g@gmail.com', assigned_regions: ['PR', 'SC'] }));
+  await assertSucceeds(setDoc(doc(g, 'users', 'u_g'), { role: 'vendedor_padrao', status: 'pending', email: 'g@gmail.com', name: 'G' }));
+  await assertFails(updateDoc(doc(g, 'users', 'u_g'), { assigned_regions: ['PR'] }));
+  await assertSucceeds(updateDoc(doc(fs_('gislene'), 'users', 'u_par'), { assigned_regions: ['PR'] }));
+});
