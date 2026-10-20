@@ -40,25 +40,14 @@ service firebase.storage {
       allow update, delete: if equipe();
     }
 
-    // Biblioteca de vídeos do consultor: só a equipe sobe, troca e apaga; vídeo até 80 MB, só mp4,
-    // webm ou mov; a capa (quadro tirado do vídeo no celular) até 2 MB, só imagem.
-    // A conta com senha conta como equipe pelo e-mail @roderbrasil (o cadastro público fica
-    // desligado: conta com senha só nasce pela tela de Usuários, como no Firestore).
-    function equipeVideos() {
-      return equipe() || (logado() && request.auth.token.firebase.sign_in_provider == 'password' &&
-        string(request.auth.token.get('email', '')).lower().matches('.*@roderbrasil[.]com[.]br$'));
-    }
-    match /consultor_videos/{arquivo} {
+    // Biblioteca de vídeos do consultor: o navegador NÃO grava aqui. O envio e a remoção passam pelo
+    // servidor (server/arquivosVideosConsultor.ts), que confere o papel em users/{uid} (admin,
+    // gerência, marketing) e assina um PUT só, com tipo e tamanho travados. A regra antiga olhava só
+    // o e-mail @roderbrasil: o papel mora no banco nomeado, que estas regras não enxergam.
+    // Ler continua para quem tem login (o cartão toca pelo link com token, que não passa por aqui).
+    match /consultor_videos/{allPaths=**} {
       allow read: if logado();
-      allow create, update: if equipeVideos() && tamanhoOk(80) &&
-        request.resource.contentType.matches('video/(mp4|webm|quicktime)');
-      allow delete: if equipeVideos();
-    }
-    match /consultor_videos/capas/{arquivo} {
-      allow read: if logado();
-      allow create, update: if equipeVideos() && tamanhoOk(2) &&
-        request.resource.contentType.matches('image/(jpeg|png|webp)');
-      allow delete: if equipeVideos();
+      allow write: if false;
     }
 
     // Todo o resto (vídeos, orçamentos, documentos): quem tem login de verdade lê e envia;
@@ -69,9 +58,9 @@ service firebase.storage {
       // perfis e notas fiscais têm regra própria acima; aqui não abrem por tabela
       allow create: if logado() && tamanhoOk(600) && (resource == null || equipe()) &&
         !request.resource.name.matches('^(profiles|commissions_nf|consultor_videos)/.*');
-      // a biblioteca do consultor tem limite e tipo próprios (acima): aqui não troca por tabela
+      // a biblioteca do consultor só se grava e apaga pelo servidor (acima): aqui não abre por tabela
       allow update: if equipe() && tamanhoOk(600) && !request.resource.name.matches('^consultor_videos/.*');
-      allow delete: if equipe();
+      allow delete: if equipe() && !resource.name.matches('^consultor_videos/.*');
     }
   }
 }

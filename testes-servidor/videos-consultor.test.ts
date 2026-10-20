@@ -69,11 +69,43 @@ test('PROMPT: lista compacta com id, equipamento, título e contexto, e a regra 
   const l = montarListaVideos(docs, produtos);
   const p = videosParaPrompt(l);
   assert.match(p, /- v1 \| Garra Traçadora GT 600X \| Traçando eucalipto \| GT 600X em PC200/);
-  assert.equal(videosParaPrompt(Array(100).fill(l[0]), 80).split('\n').length, 80);
+  assert.equal(videosParaPrompt(Array(100).fill(l[0])).split('\n').length, 60, 'no máximo 60 linhas');
+  // contexto cortado em 160 caracteres no prompt
+  const longo = { ...l[0], contexto: 'x'.repeat(400) };
+  assert.ok(videosParaPrompt([longo]).length < 260);
+  assert.ok(videosParaPrompt([longo]).includes('x'.repeat(160)));
+  assert.ok(!videosParaPrompt([longo]).includes('x'.repeat(161)));
   const inst = instrucaoVideos(l);
   assert.match(inst, /"videos"/);
-  assert.match(inst, /Tenho vídeo disso/);
+  // a frase fixa saiu: o modelo repetia "Tenho vídeo disso." em toda resposta
+  assert.doesNotMatch(inst, /Tenho vídeo disso/);
+  assert.match(inst, /uma vez só/);
   assert.equal(instrucaoVideos([]), '');
+});
+
+test('PROMPT: o equipamento da conversa vem primeiro, mesmo depois da linha 60', () => {
+  const muitos = Array.from({ length: 70 }, (_, i) => ({ id: `x${i}`, produto_id: 'p1', equipamento_nome: 'Garras Traçadoras', modelo_nome: 'GT 600X', tipo: 'campo' as const, contexto: '', titulo: `t${i}`, video_url: ST }));
+  const cmf = { id: 'cmf', produto_id: 'p2', equipamento_nome: 'Cabeçotes Multifuncionais', modelo_nome: 'CMF 600', tipo: 'campo' as const, contexto: 'rebrota', titulo: 'CMF em rebrota', video_url: ST };
+  const sem = videosParaPrompt([...muitos, cmf]);
+  assert.ok(!sem.includes('- cmf |'), 'sem conversa, a ordem da lista corta o 71º');
+  const com = videosParaPrompt([...muitos, cmf], 60, 'o cliente tem uma PC200 e quer o cmf-600 para rebrota');
+  assert.ok(com.startsWith('- cmf |'), 'o modelo citado vai para o topo');
+  assert.equal(com.split('\n').length, 60);
+});
+
+test('CATÁLOGO: modelo com vídeo próprio e mapa fixo dá um vídeo só por modelo, ids nunca repetem', () => {
+  const p = [{ id: 'c', name: 'CMF 600', video_url: 'https://www.youtube.com/watch?v=PPPPPPPPPPP', models: [
+    { id: 'm', name: 'CMF 600', video_url: 'https://www.youtube.com/watch?v=MMMMMMMMMMM' },
+    { id: 'm', name: 'CMF 500', video_url: 'https://www.youtube.com/watch?v=NNNNNNNNNNN' },
+  ] }];
+  const l = videosDoCatalogo(p);
+  const ids = l.map(v => v.id);
+  assert.equal(new Set(ids).size, ids.length, 'chaves únicas');
+  // produto: o vídeo dele (não o do mapa "CMF 600"); modelo: o vídeo dele (não o do mapa)
+  assert.equal(l.find(v => v.id === 'cat_c_p')!.video_url, 'https://www.youtube.com/watch?v=PPPPPPPPPPP');
+  assert.equal(l.find(v => v.id === 'cat_c_m')!.video_url, 'https://www.youtube.com/watch?v=MMMMMMMMMMM');
+  assert.ok(!l.some(v => v.video_url.includes('0_u6eJ6-YnQ')), 'o mapa fixo só entra quando falta vídeo próprio');
+  assert.ok(ids.includes('cat_c_m_2'), 'modelo com id repetido ganha sufixo');
 });
 
 test('ROTA: GET /api/consultor/videos guarda a lista 60 s e lê o banco uma vez', async () => {
@@ -92,8 +124,23 @@ test('ROTA: GET /api/consultor/videos guarda a lista 60 s e lê o banco uma vez'
   t += 61_000;
   await b.rotaListar({ query: {} }, res());
   assert.equal(leituras, 4);
+  // sem token da equipe, ?fresco=1 é ignorado (senão qualquer um esvaziava o cache a cada pedido)
   await b.rotaListar({ query: { fresco: '1' } }, res());
-  assert.equal(leituras, 6, 'depois de salvar, a tela pede a lista nova');
+  assert.equal(leituras, 4, 'rota sem conferência de equipe ignora fresco');
+  const rota = b.rotaListarCom({ ehEquipeDoPedido: async (req: any) => req.headers?.authorization === 'Bearer equipe' });
+  await rota({ query: { fresco: '1' }, headers: {} }, res());
+  assert.equal(leituras, 4, 'visitante não renova');
+  const rf = res();
+  await rota({ query: { fresco: '1' }, headers: { authorization: 'Bearer equipe' } }, rf);
+  assert.equal(leituras, 6, 'depois de salvar, a equipe pede a lista nova');
+  assert.match(rf.cab['Cache-Control'], /no-store/);
+  // teto por IP
+  const lim = new Map<string, number>();
+  const rotaIp = b.rotaListarCom({ ipDe: () => '1.2.3.4', passouLimite: (k: string, max: number) => { lim.set(k, (lim.get(k) || 0) + 1); return lim.get(k)! > max; } });
+  for (let i = 0; i < 60; i++) { const r = res(); await rotaIp({ query: {} }, r); assert.equal(r.code, undefined); }
+  const r429 = res();
+  await rotaIp({ query: {} }, r429);
+  assert.equal(r429.code, 429);
 });
 
 test('BUSCA E FORMATO: busca sem acento por operação e máquina; duração e capa do YouTube', () => {

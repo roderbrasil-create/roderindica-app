@@ -38,6 +38,7 @@ import { getStorage } from 'firebase-admin/storage';
 import { ACCESSORIES_DATA, INSTALLATION_KITS } from "./src/constants.js";
 import { registrarConsultorParceiro } from "./server/consultorParceiro";
 import { criarBibliotecaVideos, instrucaoVideos, sanitizarPainel } from "./server/videosConsultor";
+import { criarRotasArquivosVideos } from "./server/arquivosVideosConsultor";
 import { instrucaoPerfilConsultor } from "./server/consultorPerfil";
 import { injetarPrevia, previaPadrao, previaDoEquipamento, codigoLimpo } from "./server/previaLink";
 
@@ -3431,7 +3432,9 @@ ${kitsContext || "Não há kits de instalação cadastrados."}${improvedKnowledg
             try { videosDisponiveis = await bibliotecaVideos.listar(); } catch { videosDisponiveis = []; }
           }
           const idsVideos = new Set(videosDisponiveis.map((v: any) => String(v.id)));
-          const instrucaoDosVideos = querPainel ? instrucaoVideos(videosDisponiveis) : '';
+          // a pergunta e as últimas mensagens: os vídeos do equipamento citado vão primeiro na lista
+          const conversaRecente = [...(Array.isArray(chatHistory) ? chatHistory.slice(-6) : []).map((m: any) => String(m?.content || '').slice(0, 600)), String(question || '')].join(' ');
+          const instrucaoDosVideos = querPainel ? instrucaoVideos(videosDisponiveis, conversaRecente) : '';
 
           const finalSystemInstruction = systemInstruction + userTypeInstruction + contextoTrator + `\n\nLEMBRETE FINAL (PRIORIDADE MÁXIMA): siga as REGRAS PRIORITÁRIAS A, B, C e D do início. Resposta curta e direta; se faltar dado essencial, pergunte antes; no máximo 1 foto e só do equipamento recomendado.` + instrucaoPainel + instrucaoDosVideos;
 
@@ -4763,8 +4766,40 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     }
   });
 
-  // Biblioteca de vídeos do consultor: lista pública (só campos que podem ir para qualquer um)
-  app.get('/api/consultor/videos', bibliotecaVideos.rotaListar);
+  // Biblioteca de vídeos do consultor: lista pública (só campos que podem ir para qualquer um).
+  // ?fresco=1 só limpa o cache com token da equipe; teto de pedidos por IP.
+  app.get('/api/consultor/videos', bibliotecaVideos.rotaListarCom({
+    ehEquipeDoPedido: async (req) => ehEquipe(await quemChama(req)),
+    passouLimite,
+    ipDe,
+  }));
+
+  // Arquivos da biblioteca (server/arquivosVideosConsultor.ts): o navegador não grava mais em
+  // consultor_videos/ pelas regras do Storage; o servidor confere o papel e assina o envio.
+  const BUCKET_VIDEOS = config.storageBucket || `${config.projectId}.appspot.com`;
+  // origens que podem fazer o PUT direto no Storage (o bucket precisa aceitar no CORS)
+  const origemDoApp = (o: string) => /^https:\/\/(www\.)?roderindica\.com$/i.test(o) || /^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)*\.run\.app$/i.test(o) || /^http:\/\/localhost(:\d+)?$/i.test(o);
+  const corsConferido = new Set<string>();
+  const arquivosVideos = criarRotasArquivosVideos({
+    db, quemChama, passouLimite,
+    nomeBucket: BUCKET_VIDEOS,
+    arquivo: (caminho) => getStorage(adminApp).bucket(BUCKET_VIDEOS).file(caminho) as any,
+    garantirCors: async (origem) => {
+      if (!origemDoApp(origem) || corsConferido.has(origem)) return;
+      const bucket = getStorage(adminApp).bucket(BUCKET_VIDEOS);
+      const [meta]: any = await bucket.getMetadata();
+      const cors: any[] = Array.isArray(meta?.cors) ? meta.cors : [];
+      const aceita = cors.some(c => (c.origin || []).some((x: string) => x === '*' || x === origem) && (c.method || []).some((m: string) => m === '*' || String(m).toUpperCase() === 'PUT'));
+      if (!aceita) {
+        // acrescenta, sem mexer nas regras que já existem no bucket
+        await bucket.setCorsConfiguration([...cors, { origin: [origem], method: ['PUT'], responseHeader: ['Content-Type', 'x-goog-content-length-range'], maxAgeSeconds: 3600 }]);
+      }
+      corsConferido.add(origem);
+    },
+  });
+  app.post('/api/consultor/videos/upload-url', arquivosVideos.rotaUploadUrl);
+  app.post('/api/consultor/videos/confirmar', arquivosVideos.rotaConfirmar);
+  app.delete('/api/consultor/videos/arquivo', arquivosVideos.rotaApagar);
 
   // Link pessoal do parceiro no consultor e indicação pela conversa (server/consultorParceiro.ts)
   registrarConsultorParceiro(app, {

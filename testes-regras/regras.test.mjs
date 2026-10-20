@@ -9,7 +9,7 @@ import {
 import {
   doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, collection, getDocs, query, where,
 } from 'firebase/firestore';
-import { ref, uploadBytes, getBytes } from 'firebase/storage';
+import { ref, uploadBytes, getBytes, getMetadata } from 'firebase/storage';
 
 let env;
 const PROJ = 'demo-roder';
@@ -608,34 +608,23 @@ test('VÍDEOS DO CONSULTOR: cadastro sem equipamento, sem vídeo ou com tipo inv
 
 const mp4 = (n = 3) => new Uint8Array(n);
 const contaRoder = () => env.authenticatedContext('u_rog', { email: 'rogerio@roderbrasil.com.br', email_verified: true, firebase: { sign_in_provider: 'google.com' } });
-test('STORAGE VÍDEOS DO CONSULTOR: equipe @roderbrasil sobe mp4, webm e mov e a capa em jpg', async () => {
+test('STORAGE VÍDEOS DO CONSULTOR: ninguém grava pelo navegador; o envio passa pelo servidor (arquivosVideosConsultor.ts)', async () => {
+  // nem a equipe @roderbrasil, nem a conta com senha da Roder, nem admin: o servidor confere o papel e assina o PUT
   const st = contaRoder().storage();
-  await assertSucceeds(uploadBytes(ref(st, 'consultor_videos/a.mp4'), mp4(), { contentType: 'video/mp4' }));
-  await assertSucceeds(uploadBytes(ref(st, 'consultor_videos/b.webm'), mp4(), { contentType: 'video/webm' }));
-  await assertSucceeds(uploadBytes(ref(st, 'consultor_videos/c.mov'), mp4(), { contentType: 'video/quicktime' }));
-  await assertSucceeds(uploadBytes(ref(st, 'consultor_videos/capas/a.jpg'), mp4(), { contentType: 'image/jpeg' }));
-  // conta com senha do e-mail da Roder (criada pela tela de Usuários) também é equipe
-  await assertSucceeds(uploadBytes(ref(st_('vanessa'), 'consultor_videos/d.mp4'), mp4(), { contentType: 'video/mp4' }));
-  await assertSucceeds(deleteObject(ref(st, 'consultor_videos/a.mp4')));
-});
-test('STORAGE VÍDEOS DO CONSULTOR: nada de foto, PDF ou vídeo acima de 80 MB; capa acima de 2 MB não', async () => {
-  const st = contaRoder().storage();
-  await assertFails(uploadBytes(ref(st, 'consultor_videos/x.png'), mp4(), { contentType: 'image/png' }));
-  await assertFails(uploadBytes(ref(st, 'consultor_videos/x.pdf'), mp4(), { contentType: 'application/pdf' }));
-  await assertFails(uploadBytes(ref(st, 'consultor_videos/grande.mp4'), mp4(80 * 1024 * 1024 + 1), { contentType: 'video/mp4' }));
-  await assertFails(uploadBytes(ref(st, 'consultor_videos/capas/x.mp4'), mp4(), { contentType: 'video/mp4' }));
-  await assertFails(uploadBytes(ref(st, 'consultor_videos/capas/g.jpg'), mp4(2 * 1024 * 1024 + 1), { contentType: 'image/jpeg' }));
-});
-test('STORAGE VÍDEOS DO CONSULTOR: parceiro, visitante e e-mail de fora não sobem nem apagam', async () => {
-  await env.withSecurityRulesDisabled((ctx) => uploadBytes(ref(ctx.storage(), 'consultor_videos/existe.mp4'), mp4(), { contentType: 'video/mp4' }));
+  await assertFails(uploadBytes(ref(st, 'consultor_videos/a.mp4'), mp4(), { contentType: 'video/mp4' }));
+  await assertFails(uploadBytes(ref(st, 'consultor_videos/id1/a.mp4'), mp4(), { contentType: 'video/mp4' }));
+  await assertFails(uploadBytes(ref(st, 'consultor_videos/capas/a.jpg'), mp4(), { contentType: 'image/jpeg' }));
+  await assertFails(uploadBytes(ref(st_('vanessa'), 'consultor_videos/d.mp4'), mp4(), { contentType: 'video/mp4' }));
+  await assertFails(uploadBytes(ref(st_('jeferson'), 'consultor_videos/j.mp4'), mp4(), { contentType: 'video/mp4' }));
   await assertFails(uploadBytes(ref(st_('parceiro'), 'consultor_videos/p.mp4'), mp4(), { contentType: 'video/mp4' }));
   await assertFails(uploadBytes(ref(st_('anonimo'), 'consultor_videos/p.mp4'), mp4(), { contentType: 'video/mp4' }));
-  await assertFails(uploadBytes(ref(st_('heloisa'), 'consultor_videos/p.mp4'), mp4(), { contentType: 'video/mp4' }));
-  await assertFails(uploadBytes(ref(st_('gislene'), 'consultor_videos/p.mp4'), mp4(), { contentType: 'video/mp4' }));
-  await assertFails(deleteObject(ref(st_('parceiro'), 'consultor_videos/existe.mp4')));
-  await assertFails(uploadBytes(ref(st_('parceiro'), 'consultor_videos/existe.mp4'), mp4(), { contentType: 'video/mp4' }));
 });
-test('STORAGE VÍDEOS DO CONSULTOR: equipe não troca vídeo da biblioteca por uma foto pela regra geral', async () => {
-  await env.withSecurityRulesDisabled((ctx) => uploadBytes(ref(ctx.storage(), 'consultor_videos/troca.mp4'), mp4(), { contentType: 'video/mp4' }));
-  await assertFails(uploadBytes(ref(contaRoder().storage(), 'consultor_videos/troca.mp4'), mp4(), { contentType: 'image/png' }));
+test('STORAGE VÍDEOS DO CONSULTOR: ninguém troca nem apaga pelo navegador, nem pela regra geral; quem tem login lê', async () => {
+  await env.withSecurityRulesDisabled((ctx) => uploadBytes(ref(ctx.storage(), 'consultor_videos/id9/existe.mp4'), mp4(), { contentType: 'video/mp4' }));
+  await assertFails(deleteObject(ref(contaRoder().storage(), 'consultor_videos/id9/existe.mp4')));
+  await assertFails(deleteObject(ref(st_('jeferson'), 'consultor_videos/id9/existe.mp4')));
+  await assertFails(deleteObject(ref(st_('parceiro'), 'consultor_videos/id9/existe.mp4')));
+  await assertFails(uploadBytes(ref(contaRoder().storage(), 'consultor_videos/id9/existe.mp4'), mp4(), { contentType: 'image/png' }));
+  await assertSucceeds(getMetadata(ref(contaRoder().storage(), 'consultor_videos/id9/existe.mp4')));
+  await assertFails(getMetadata(ref(st_('anonimo'), 'consultor_videos/id9/existe.mp4')));
 });

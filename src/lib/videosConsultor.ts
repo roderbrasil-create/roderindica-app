@@ -6,7 +6,7 @@
 // tipo "catalogo", montados aqui na hora: não são copiados para o banco, senão viram duas fontes.
 // Sem dependência do navegador: o servidor e os testes importam este arquivo.
 import { tituloFicha } from './tituloFicha';
-import { PRODUCT_VIDEOS, videoValido } from './videoEquipamento';
+import { videoDoEquipamento, videoValido } from './videoEquipamento';
 
 export type TipoVideo = 'campo' | 'marketing' | 'instalacao' | 'catalogo';
 
@@ -38,7 +38,9 @@ export type VideoConsultor = {
 export const MAX_TITULO = 80;
 export const MAX_CONTEXTO = 400;
 export const MAX_VIDEOS_RESPOSTA = 3;
-export const MAX_VIDEOS_PROMPT = 80;
+export const MAX_VIDEOS_PROMPT = 60;
+// no prompt o contexto vai cortado: 60 vídeos com 400 caracteres cada pesariam mais que a pergunta
+export const MAX_CONTEXTO_PROMPT = 160;
 
 const texto = (v: any, max: number) => String(v ?? '').replace(/[\u0000-\u001f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 
@@ -72,21 +74,28 @@ export function lerVideoDoBanco(id: string, d: any): VideoConsultor | null {
   };
 }
 
-// Vídeos do catálogo: o do modelo, o do produto e o mapa fixo por nome. Um vídeo repetido no mesmo
-// equipamento (as garras R250 a R800 usam o mesmo) vira uma entrada só. Vídeo que já está na
-// biblioteca não entra de novo.
+// Vídeos do catálogo: um por equipamento e um por modelo, escolhido como o cartão da conversa escolhe
+// (videoDoEquipamento: o do modelo, o do produto e só então o mapa fixo por nome). Assim cada par
+// produto/modelo dá no máximo UM vídeo e o id (cat_<produto>_<modelo>) nunca se repete. Um vídeo
+// repetido no mesmo equipamento (as garras R250 a R800 usam o mesmo) vira uma entrada só, a do
+// produto quando ele tem. Vídeo que já está na biblioteca não entra de novo.
 export function videosDoCatalogo(produtos: any[], jaNaBiblioteca: Set<string> = new Set()): VideoConsultor[] {
   const saida: VideoConsultor[] = [];
   const vistos = new Set<string>();
+  const ids = new Set<string>();
   for (const p of produtos || []) {
     if (!p || p.is_blocked || !p.id) continue;
-    const add = (url: string, m: any) => {
-      const v = videoValido(url);
+    const add = (m: any) => {
+      const v = videoDoEquipamento(p, m);
       if (!v || jaNaBiblioteca.has(v) || vistos.has(`${p.id}|${v}`)) return;
+      let id = idDoCatalogo(String(p.id), m?.id ? String(m.id) : undefined);
+      // dois modelos com o mesmo id no cadastro: o segundo ganha sufixo, a chave fica única
+      for (let n = 2; ids.has(id); n++) id = `${idDoCatalogo(String(p.id), m?.id ? String(m.id) : undefined).slice(0, 114)}_${n}`;
       vistos.add(`${p.id}|${v}`);
+      ids.add(id);
       const nome = m ? tituloFicha(p, m) : String(p.name || '');
       saida.push({
-        id: idDoCatalogo(String(p.id), m?.id ? String(m.id) : undefined),
+        id,
         produto_id: String(p.id),
         ...(m?.id ? { modelo_id: String(m.id), modelo_nome: texto(m.name, 80) } : {}),
         equipamento_nome: texto(p.name, 120),
@@ -98,10 +107,8 @@ export function videosDoCatalogo(produtos: any[], jaNaBiblioteca: Set<string> = 
         ordem: 9999,
       });
     };
-    for (const m of p.models || []) add(m?.video_url, m);
-    add(p.video_url, null);
-    for (const m of p.models || []) add(PRODUCT_VIDEOS[String(m?.name || '')], m);
-    add(PRODUCT_VIDEOS[String(p.name || '')], null);
+    add(null);
+    for (const m of p.models || []) if (m) add(m);
   }
   return saida;
 }
@@ -121,10 +128,36 @@ export function nomeDoVideo(v: VideoConsultor): string {
   return tituloFicha({ name: v.equipamento_nome || '' }, { name: v.modelo_nome || '' });
 }
 
-// Lista compacta para o prompt: os da biblioteca primeiro (são os que têm contexto), depois o catálogo
-export function videosParaPrompt(lista: VideoConsultor[], max = MAX_VIDEOS_PROMPT): string {
-  return (lista || []).slice(0, max)
-    .map(v => `- ${v.id} | ${nomeDoVideo(v)} | ${v.titulo}${v.contexto && v.tipo !== 'catalogo' ? ` | ${v.contexto}` : ''}`)
+// Normaliza para comparar nome com conversa: sem acento, minúsculo, sem espaço, hífen nem ponto
+// ("CMF-600", "cmf 600" e "CMF600" batem)
+const colado = (t: string) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+// Quanto o vídeo tem a ver com a conversa: o modelo citado pesa mais que o tipo de equipamento
+export function pontosNaConversa(v: VideoConsultor, conversa: string): number {
+  const c = colado(conversa);
+  if (!c) return 0;
+  let pts = 0;
+  const modelo = colado(v.modelo_nome || '');
+  if (modelo.length >= 3 && c.includes(modelo)) pts += 3;
+  // "Garras Traçadoras" -> "garra", "tracad": o radical das palavras do equipamento
+  const radicais = String(v.equipamento_nome || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .split(/[^a-z0-9]+/).filter(w => w.length >= 5).map(w => w.slice(0, 5));
+  if (radicais.some(r => c.includes(r))) pts += 1;
+  return pts;
+}
+
+// Lista compacta para o prompt: primeiro os vídeos do equipamento da conversa, depois a ordem da
+// lista (biblioteca, que tem contexto, e então o catálogo). Contexto cortado e no máximo 60 linhas.
+export function videosParaPrompt(lista: VideoConsultor[], max = MAX_VIDEOS_PROMPT, conversa = ''): string {
+  const ordenada = (lista || [])
+    .map((v, i) => ({ v, i, pts: pontosNaConversa(v, conversa) }))
+    .sort((a, b) => b.pts - a.pts || a.i - b.i)
+    .map(x => x.v);
+  return ordenada.slice(0, max)
+    .map(v => {
+      const ctx = v.contexto && v.tipo !== 'catalogo' ? texto(v.contexto, MAX_CONTEXTO_PROMPT) : '';
+      return `- ${v.id} | ${nomeDoVideo(v)} | ${v.titulo}${ctx ? ` | ${ctx}` : ''}`;
+    })
     .join('\n');
 }
 

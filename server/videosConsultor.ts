@@ -3,9 +3,18 @@
 // O consultor é usado também pelo parceiro pelo link e pelo visitante, sem login: por isso a lista
 // sai por aqui, só com os campos que podem ir para qualquer um, e guardada 60 s na memória
 // (o consultor pede a lista a cada pergunta; o catálogo quase não muda).
-import { montarListaVideos, videosParaPrompt, lerIdsVideos, MAX_VIDEOS_RESPOSTA, type VideoConsultor } from '../src/lib/videosConsultor';
+import { montarListaVideos, videosParaPrompt, lerIdsVideos, MAX_VIDEOS_RESPOSTA, MAX_VIDEOS_PROMPT, type VideoConsultor } from '../src/lib/videosConsultor';
 
 export const VALIDADE_CACHE_MS = 60 * 1000;
+
+export const LIMITE_LISTA_IP_MIN = 60;
+
+export type OpcoesRotaVideos = {
+  // ?fresco=1 só vale para a equipe com token (senão qualquer um esvaziaria o cache a cada pedido)
+  ehEquipeDoPedido?: (req: any) => Promise<boolean>;
+  passouLimite?: (chave: string, max: number, janelaMs: number) => boolean;
+  ipDe?: (req: any) => string;
+};
 
 export function criarBibliotecaVideos(deps: { db: any; agora?: () => number }) {
   const agora = () => (deps.agora ? deps.agora() : Date.now());
@@ -35,28 +44,39 @@ export function criarBibliotecaVideos(deps: { db: any; agora?: () => number }) {
 
   const limpar = () => { cache = null; };
 
-  // GET /api/consultor/videos -> { videos: [...] }
-  async function rotaListar(req: any, res: any) {
+  // GET /api/consultor/videos -> { videos: [...] }. Uma instância só no servidor: o prompt e a rota
+  // usam o mesmo cache, então a tela de cadastro que pede fresco atualiza os dois.
+  const rotaListarCom = (op: OpcoesRotaVideos = {}) => async function rotaListar(req: any, res: any) {
+    const deps = op;
     try {
-      // a tela de cadastro pede a lista nova logo depois de salvar
-      if (String(req.query?.fresco || '') === '1') limpar();
+      // a rota é pública: teto por IP (o app pede a lista uma vez a cada 5 min)
+      if (deps.passouLimite && deps.ipDe && deps.passouLimite(`videos-ip:${deps.ipDe(req)}`, LIMITE_LISTA_IP_MIN, 60 * 1000)) {
+        return res.status(429).json({ error: 'Muitos pedidos seguidos. Espere um minuto.' });
+      }
+      // a tela de cadastro pede a lista nova logo depois de salvar; sem token da equipe, ignora
+      let fresco = false;
+      if (String(req.query?.fresco || '') === '1' && deps.ehEquipeDoPedido) {
+        try { fresco = await deps.ehEquipeDoPedido(req); } catch { fresco = false; }
+        if (fresco) limpar();
+      }
       const videos = await listar();
-      res.setHeader?.('Cache-Control', 'public, max-age=60');
+      res.setHeader?.('Cache-Control', fresco ? 'private, no-store' : 'public, max-age=60');
       res.json({ videos });
     } catch {
       res.status(500).json({ error: 'Não consegui carregar os vídeos.' });
     }
-  }
+  };
 
-  return { listar, limpar, rotaListar };
+  return { listar, limpar, rotaListarCom, rotaListar: rotaListarCom() };
 }
 
 // Instrução do prompt: a lista compacta e quando citar um vídeo no <painel>
-export function instrucaoVideos(lista: VideoConsultor[]): string {
+// conversa: a pergunta e as últimas mensagens, para pôr primeiro os vídeos do equipamento citado
+export function instrucaoVideos(lista: VideoConsultor[], conversa = ''): string {
   if (!lista.length) return '';
-  return `\n\nVÍDEOS DISPONÍVEIS (id | equipamento | título | contexto):\n${videosParaPrompt(lista)}
+  return `\n\nVÍDEOS DISPONÍVEIS (id | equipamento | título | contexto):\n${videosParaPrompt(lista, MAX_VIDEOS_PROMPT, conversa)}
 - Quando a pessoa pedir vídeo, ou quando um vídeo claramente ajudar (ex.: pergunta como o equipamento trabalha numa operação, material ou máquina específica), acrescente no JSON do <painel> o campo "videos": ["<id>", ...] com no máximo ${MAX_VIDEOS_RESPOSTA} ids DESTA lista, os mais próximos da pergunta (mesmo equipamento e modelo; o contexto diz a operação). Prefira os que têm contexto parecido com o da pergunta.
-- Ao mandar vídeo, diga no texto, curto: "Tenho vídeo disso." (os cartões com o vídeo aparecem sozinhos embaixo da resposta; não escreva link nem id do vídeo no texto).
+- Ao mandar vídeo, cite os vídeos uma vez só no texto, numa frase curta (sem repetir a mesma frase em toda resposta). Os cartões com o vídeo aparecem sozinhos embaixo da resposta; não escreva link nem id do vídeo no texto.
 - Nunca invente id. Sem vídeo do equipamento na lista, não ponha o campo e não prometa vídeo.`;
 }
 

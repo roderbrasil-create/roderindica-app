@@ -468,7 +468,9 @@ test('VÍDEO DA BIBLIOTECA: "Enviar o vídeo" baixa o vídeo do cadastro (vid), 
     v1: { produto_id: 'p3', video_url: urlSt('consultor_videos/campo.mp4'), ativo: true },
     v2: { produto_id: 'p3', video_url: urlSt('consultor_videos/outro.mp4'), ativo: false },
     v3: { produto_id: 'p3', video_url: urlSt('consultor_videos/capas/c.jpg'), ativo: true },
+    v4: { produto_id: 'pblq', video_url: urlSt('consultor_videos/campo.mp4'), ativo: true },
   };
+  db.dados.products.pblq = { name: 'Bloqueado', is_blocked: true };
   const tok = (await chamar(r.rotaLink, { params: { uid: 'car' }, body: {} })).corpo.token;
   quemAtual.v = null;
   const { pedir, fechar } = await servidorDe(r.rotaVideoArquivo);
@@ -486,6 +488,8 @@ test('VÍDEO DA BIBLIOTECA: "Enviar o vídeo" baixa o vídeo do cadastro (vid), 
     // vídeo desligado ou inexistente não sai
     assert.equal(await st({ url: urlSt('consultor_videos/outro.mp4'), vid: 'v2', p: tok }), 404);
     assert.equal(await st({ url: urlSt('consultor_videos/campo.mp4'), vid: 'naoexiste', p: tok }), 404);
+    // equipamento bloqueado no catálogo: o vídeo dele não sai
+    assert.equal(await st({ url: urlSt('consultor_videos/campo.mp4'), vid: 'v4', p: tok }), 404);
     // id com caractere estranho: recusa antes de ler o banco
     assert.equal(await st({ url: urlSt('consultor_videos/campo.mp4'), vid: '../v1', p: tok }), 400);
     // a capa mora na pasta, mas não é vídeo

@@ -443,6 +443,12 @@ export function criarRotasConsultorParceiro(deps: DepsConsultorParceiro) {
         const vd: any = v.exists ? (v.data() || {}) : null;
         if (!vd || vd.ativo === false) return res.status(404).json({ error: 'Vídeo não encontrado.' });
         if (String(vd.video_url || '').trim() !== url) return res.status(403).json({ error: 'Este vídeo não é da biblioteca.' });
+        // equipamento bloqueado no catálogo: o vídeo sai da lista (montarListaVideos) e daqui também
+        const pidVideo = String(vd.produto_id || '');
+        if (/^[A-Za-z0-9_-]{1,80}$/.test(pidVideo)) {
+          const pv = await db.collection('products').doc(pidVideo).get();
+          if (pv.exists && (pv.data() || {}).is_blocked) return res.status(404).json({ error: 'Vídeo não encontrado.' });
+        }
       } else {
         const p = await db.collection('products').doc(pid).get();
         if (!p.exists) return res.status(404).json({ error: 'Equipamento não encontrado.' });

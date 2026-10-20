@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   collection, deleteDoc, doc, getDocs, onSnapshot, orderBy, query, setDoc, updateDoc, writeBatch,
 } from 'firebase/firestore';
-import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { ArrowDown, ArrowUp, Loader2, Pencil, Play, Plus, Trash2, Video, X } from 'lucide-react';
 import { toast } from 'sonner';
 import Layout from '../components/layout/Layout';
@@ -10,7 +9,9 @@ import { EnvioDeVideo } from '../components/catalog/EnvioDeVideo';
 import { PlayerVideo } from '../components/video/VideoEquipamento';
 import { carregarVideosConsultor } from '../components/video/VideosConsultor';
 import { useAuth } from '../contexts/AuthContext';
-import { db, storage } from '../lib/firebase';
+import { db } from '../lib/firebase';
+import { apagarArquivoBiblioteca, enviarArquivoBiblioteca, MAX_VIDEO_BIBLIOTECA_MB } from '../lib/envioVideosConsultor';
+import { LIMITE_VIDEO_ARQUIVO_MB } from '../lib/videoEquipamento';
 import { cn } from '../lib/utils';
 import { lerVideoLocal } from '../lib/quadroDoVideo';
 import { tituloFicha } from '../lib/tituloFicha';
@@ -41,7 +42,9 @@ type Rascunho = {
 const vazio = (): Rascunho => ({ produto_id: '', modelo_id: '', titulo: '', contexto: '', tipo: 'campo', video_url: '', thumb_url: '', duracao_s: 0, no_carrossel: false, ativo: true });
 
 const PASTA = 'consultor_videos';
-const LIMITE_MB = 80;
+// o mesmo teto do servidor (server/arquivosVideosConsultor.ts), assinado no endereço de envio
+const LIMITE_MB = MAX_VIDEO_BIBLIOTECA_MB;
+const daBiblioteca = (u?: string) => !!u && /consultor_videos(%2F|\/)/.test(u);
 
 function Chave({ ligada, onMudar, rotulo, desligada = false }: { ligada: boolean; onMudar: (v: boolean) => void; rotulo: string; desligada?: boolean }) {
   return (
@@ -94,6 +97,11 @@ export default function VideosConsultor() {
   const [enviando, setEnviando] = useState(false);
   const [capaLocal, setCapaLocal] = useState<{ blob: Blob; url: string } | null>(null);
   const [tocando, setTocando] = useState<string | null>(null);
+  // arquivos que subiram com o formulário aberto: se ele fechar sem salvar, ou se trocar o vídeo
+  // antes de salvar, eles são apagados (nada de arquivo órfão no Storage)
+  const enviadosAgora = useRef<string[]>([]);
+  // o vídeo e a capa que o cadastro tinha ao abrir: trocados e salvos, os antigos são apagados
+  const original = useRef<{ video_url: string; thumb_url: string }>({ video_url: '', thumb_url: '' });
 
   useEffect(() => {
     getDocs(query(collection(db, 'products'), orderBy('name', 'asc')))
@@ -123,16 +131,32 @@ export default function VideosConsultor() {
 
   const avisarServidor = () => { carregarVideosConsultor(true).catch(() => {}); };
 
-  const abrirNovo = (base?: Partial<Rascunho>) => { setCapaLocal(null); setForm({ ...vazio(), ...base }); };
+  const abrirNovo = (base?: Partial<Rascunho>) => {
+    setCapaLocal(null);
+    enviadosAgora.current = [];
+    original.current = { video_url: '', thumb_url: '' };
+    setForm({ ...vazio(), ...base });
+  };
   const editar = (l: Linha) => {
     setCapaLocal(null);
+    enviadosAgora.current = [];
+    original.current = { video_url: l.video_url, thumb_url: l.thumb_url || '' };
     setForm({
       id: l.id, produto_id: l.produto_id, modelo_id: l.modelo_id || '', titulo: l.titulo, contexto: l.contexto,
       tipo: (l.tipo === 'catalogo' ? 'campo' : l.tipo), video_url: l.video_url, thumb_url: l.thumb_url || '',
       duracao_s: l.duracao_s || 0, no_carrossel: !!l.no_carrossel, ativo: l.ativo,
     });
   };
-  const fechar = () => { if (salvando || enviando) return; if (capaLocal) URL.revokeObjectURL(capaLocal.url); setCapaLocal(null); setForm(null); };
+  const fechar = () => {
+    if (salvando || enviando) return;
+    if (capaLocal) URL.revokeObjectURL(capaLocal.url);
+    // fechou sem salvar: o que subiu agora não está em cadastro nenhum
+    const sobras = enviadosAgora.current;
+    enviadosAgora.current = [];
+    sobras.forEach(u => { apagarArquivoBiblioteca(u); });
+    setCapaLocal(null);
+    setForm(null);
+  };
 
   const mudarCampo = async (l: Linha, campos: Record<string, any>) => {
     try {
@@ -155,10 +179,8 @@ export default function VideosConsultor() {
     try { await lote.commit(); avisarServidor(); } catch { toast.error('Não consegui mudar a ordem.'); }
   };
 
-  const apagarArquivo = async (url?: string) => {
-    if (!url || !/firebasestorage\.googleapis\.com/.test(url) || !/consultor_videos%2F/.test(url)) return;
-    try { await deleteObject(ref(storage, url)); } catch { /* o cadastro já saiu; o arquivo fica */ }
-  };
+  // pelo servidor (o navegador não apaga mais na pasta da biblioteca); só depois que o cadastro saiu
+  const apagarArquivo = (url?: string) => apagarArquivoBiblioteca(url);
 
   const apagar = async (l: Linha) => {
     if (!window.confirm(`Apagar o vídeo "${l.titulo}"? Ele sai do consultor na hora.`)) return;
@@ -193,9 +215,8 @@ export default function VideosConsultor() {
       let thumb = form.thumb_url;
       if (capaLocal) {
         try {
-          const r = ref(storage, `${PASTA}/capas/${Date.now()}.jpg`);
-          await uploadBytes(r, capaLocal.blob, { contentType: 'image/jpeg', cacheControl: 'public, max-age=31536000' });
-          thumb = await getDownloadURL(r);
+          thumb = await enviarArquivoBiblioteca(capaLocal.blob, 'capa.jpg', 'image/jpeg').promessa;
+          if (thumb) enviadosAgora.current.push(thumb);
         } catch { /* sem capa o cartão usa a foto do equipamento */ }
       }
       const agora = new Date().toISOString();
@@ -222,6 +243,13 @@ export default function VideosConsultor() {
       }
       await setDoc(doc(db, 'consultor_videos', id), dados, { merge: true });
       avisarServidor();
+      // gravado: apaga o que ficou de fora (vídeo trocado antes de salvar, capa ou vídeo antigos)
+      const usados = new Set([dados.video_url, dados.thumb_url].filter(Boolean));
+      const sobras = [...enviadosAgora.current, original.current.video_url, original.current.thumb_url]
+        .filter(u => daBiblioteca(u) && !usados.has(u));
+      enviadosAgora.current = [];
+      original.current = { video_url: dados.video_url, thumb_url: dados.thumb_url };
+      Array.from(new Set(sobras)).forEach(u => { apagarArquivo(u); });
       toast.success(form.id ? 'Vídeo atualizado.' : 'Vídeo cadastrado. Já aparece no consultor.');
       if (capaLocal) URL.revokeObjectURL(capaLocal.url);
       setCapaLocal(null);
@@ -410,6 +438,7 @@ export default function VideosConsultor() {
               <div>
                 <span className="text-[13px] font-bold text-[#3E444B]">Vídeo</span>
                 <p className="m-0 mb-1.5 text-[12.5px] text-[#5E6672]">MP4 da galeria (até {LIMITE_MB} MB, compactado no celular) ou link do YouTube.</p>
+                <p className="m-0 mb-1.5 text-[12.5px] text-[#5E6672]">No WhatsApp, vídeo acima de {LIMITE_VIDEO_ARQUIVO_MB} MB vai como link, não como arquivo.</p>
                 <EnvioDeVideo
                   valor={form.video_url}
                   aoMudar={(url) => setForm(f => f ? { ...f, video_url: url, ...(url ? {} : { duracao_s: 0, thumb_url: '' }) } : f)}
@@ -418,6 +447,10 @@ export default function VideosConsultor() {
                   titulo={form.titulo || 'Vídeo'}
                   limiteMb={LIMITE_MB}
                   aoArquivoPronto={aoArquivo}
+                  enviar={(arquivo, aoProgresso) => {
+                    const e = enviarArquivoBiblioteca(arquivo, arquivo.name, arquivo.type || 'video/mp4', aoProgresso);
+                    return { cancelar: e.cancelar, promessa: e.promessa.then(url => { if (url) enviadosAgora.current.push(url); return url; }) };
+                  }}
                 />
                 {(capaLocal || capaDoVideo({ thumb_url: form.thumb_url, video_url: form.video_url })) && (
                   <div className="mt-2 flex items-center gap-3">

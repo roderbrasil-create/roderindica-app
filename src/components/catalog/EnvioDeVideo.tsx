@@ -15,7 +15,7 @@ import { compactarVideo } from '../../lib/compactarVideo';
 const LIMITE_MB = 500;          // depois de compactado
 const LIMITE_ORIGINAL_MB = 3000; // antes de compactar
 
-export function EnvioDeVideo({ valor, aoMudar, pasta, aoEnviando, titulo, limiteMb = LIMITE_MB, aoArquivoPronto }: {
+export function EnvioDeVideo({ valor, aoMudar, pasta, aoEnviando, titulo, limiteMb = LIMITE_MB, aoArquivoPronto, enviar }: {
   valor: string;
   aoMudar: (url: string) => void;
   pasta: string;
@@ -25,9 +25,13 @@ export function EnvioDeVideo({ valor, aoMudar, pasta, aoEnviando, titulo, limite
   limiteMb?: number;
   // o arquivo que vai subir (já compactado): a tela tira dele a duração e a capa, no próprio celular
   aoArquivoPronto?: (arquivo: File) => void;
+  // envio próprio (a biblioteca do consultor sobe por endereço assinado do servidor, não pelo SDK):
+  // recebe o arquivo e o aviso de progresso, devolve o link final e como cancelar
+  enviar?: (arquivo: File, aoProgresso: (enviado: number, total: number) => void) => { promessa: Promise<string>; cancelar: () => void };
 }) {
   const [progresso, setProgresso] = useState<{ etapa: 'compactando' | 'enviando'; pct: number; enviado: number; total: number; nome: string; antes?: number } | null>(null);
   const tarefa = useRef<UploadTask | null>(null);
+  const envioProprio = useRef<{ cancelar: () => void } | null>(null);
   const cancelarCompactacao = useRef<(() => void) | null>(null);
   const cancelado = useRef(false);
   const [parado, setParado] = useState(false);
@@ -38,7 +42,7 @@ export function EnvioDeVideo({ valor, aoMudar, pasta, aoEnviando, titulo, limite
   const pararAbrindo = () => { setAbrindo(false); clearTimeout(vigiaAbrindo.current); };
 
   // fechou a tela no meio do envio: cancela e libera o botão Salvar
-  useEffect(() => () => { cancelado.current = true; cancelarCompactacao.current?.(); tarefa.current?.cancel(); aoEnviando?.(false); }, []);
+  useEffect(() => () => { cancelado.current = true; cancelarCompactacao.current?.(); tarefa.current?.cancel(); envioProprio.current?.cancelar(); aoEnviando?.(false); }, []);
   useEffect(() => { aoEnviando?.(!!progresso); }, [!!progresso]);
 
   const mb = (b: number) => (b / 1024 / 1024).toFixed(b > 100 * 1024 * 1024 ? 0 : 1);
@@ -48,6 +52,7 @@ export function EnvioDeVideo({ valor, aoMudar, pasta, aoEnviando, titulo, limite
     cancelado.current = true;
     if (cancelarCompactacao.current) { cancelarCompactacao.current(); cancelarCompactacao.current = null; setProgresso(null); toast('Envio do vídeo cancelado.'); return; }
     tarefa.current?.cancel();
+    envioProprio.current?.cancelar();
   };
 
   const escolher = async (original: File) => {
@@ -81,6 +86,33 @@ export function EnvioDeVideo({ valor, aoMudar, pasta, aoEnviando, titulo, limite
     }
     try { aoArquivoPronto?.(arquivo); } catch { /* a capa é só um extra */ }
     // 2) envia
+    if (enviar) {
+      const antesP = arquivo !== original ? original.size : undefined;
+      setProgresso({ etapa: 'enviando', pct: 0, enviado: 0, total: arquivo.size, nome: arquivo.name, antes: antesP });
+      setParado(false);
+      let enviadoAgora = 0;
+      const e = enviar(arquivo, (enviado, total) => {
+        enviadoAgora = enviado;
+        setProgresso({ etapa: 'enviando', pct: Math.floor((enviado / (total || 1)) * 100), enviado, total, nome: arquivo.name, antes: antesP });
+      });
+      envioProprio.current = e;
+      const vigiaP = setTimeout(() => { if (envioProprio.current === e && enviadoAgora === 0) setParado(true); }, 30000);
+      try {
+        const url = await e.promessa;
+        if (!url) throw new Error('sem link');
+        aoMudar(url);
+        toast.success('Vídeo enviado! Toque em Salvar para gravar.');
+      } catch (erro: any) {
+        if (erro?.code === 'cancelado' || cancelado.current) toast('Envio do vídeo cancelado.');
+        else toast.error(erro?.status === 403 ? 'Seu acesso não permite enviar vídeo.' : erro?.status === 413 || erro?.code === 'grande' ? `O vídeo passou de ${limiteMb} MB. Corte o vídeo ou use um link do YouTube.` : 'O vídeo não subiu. Confira a internet e tente de novo.');
+      } finally {
+        clearTimeout(vigiaP);
+        setParado(false);
+        envioProprio.current = null;
+        setProgresso(null);
+      }
+      return;
+    }
     const nomeLimpo = arquivo.name.replace(/[^a-zA-Z0-9.]/g, '_').slice(-60);
     const destino = ref(storage, `${pasta}/${Date.now()}_${nomeLimpo}`);
     const t = uploadBytesResumable(destino, arquivo, { contentType: arquivo.type || 'video/mp4', cacheControl: 'public, max-age=31536000' });
