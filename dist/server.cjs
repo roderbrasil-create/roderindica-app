@@ -191,6 +191,42 @@ var INSTALLATION_KITS = [
 
 // server/consultorParceiro.ts
 var import_crypto = __toESM(require("crypto"), 1);
+var import_stream = require("stream");
+
+// src/lib/videoEquipamento.ts
+var PRODUCT_VIDEOS = {
+  "CMF 600": "https://www.youtube.com/watch?v=0_u6eJ6-YnQ",
+  "CMF 500": "https://www.youtube.com/watch?v=Aof_7Q-fS1s",
+  "CMF 800": "https://www.youtube.com/watch?v=t5A9Tj_C9n4",
+  "GPR 4500": "https://www.youtube.com/watch?v=W0ybyuB9gB0",
+  "GPR 7000": "https://www.youtube.com/watch?v=W0ybyuB9gB0",
+  "R250": "https://www.youtube.com/watch?v=Kzqi_Cn2WG4",
+  "R280": "https://www.youtube.com/watch?v=Kzqi_Cn2WG4",
+  "R360": "https://www.youtube.com/watch?v=Kzqi_Cn2WG4",
+  "R360G": "https://www.youtube.com/watch?v=Kzqi_Cn2WG4",
+  "R400": "https://www.youtube.com/watch?v=Kzqi_Cn2WG4",
+  "R600": "https://www.youtube.com/watch?v=Kzqi_Cn2WG4",
+  "R800": "https://www.youtube.com/watch?v=Kzqi_Cn2WG4",
+  "SSH 150": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
+  "SSH 200": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
+  "SSH 225": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
+  "SSH 250": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
+  "SSH-150": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
+  "SSH-200": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
+  "SSH-225": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
+  "SSH-250": "https://www.youtube.com/watch?v=na5Z2tLWMgA"
+};
+var VIDEOS_MORTOS = ["t_8n_nlf2xk"];
+function videoValido(url) {
+  const v = String(url || "").trim();
+  if (!v) return "";
+  if (!/^https?:\/\//i.test(v) && !/^db-file:\/\/[A-Za-z0-9_-]+$/.test(v)) return "";
+  if (VIDEOS_MORTOS.some((m) => v.toLowerCase().includes(m))) return "";
+  return v;
+}
+function videoDoEquipamento(prod, model) {
+  return videoValido(model?.video_url) || videoValido(prod?.video_url) || videoValido(PRODUCT_VIDEOS[String(model?.name || "")]) || videoValido(PRODUCT_VIDEOS[String(prod?.name || "")]);
+}
 
 // src/lib/consultorIndicar.ts
 var PAPEIS_QUE_INDICAM = ["external_seller", "admin", "manager", "internal_seller", "vendedor_padrao", "triagem"];
@@ -344,10 +380,50 @@ function validarCnpj(texto) {
 }
 
 // server/consultorParceiro.ts
+var BUCKETS_VIDEO = ["gen-lang-client-0708423613.firebasestorage.app", "gen-lang-client-0708423613.appspot.com"];
+var PASTAS_VIDEO = ["product_videos/", "model_videos/"];
+var MAX_VIDEO_PROXY = 40 * 1024 * 1024;
+function alvoDoVideo(url) {
+  const u = String(url || "").trim();
+  if (!u || u.length > 2e3) return null;
+  const banco = u.match(/^db-file:\/\/([A-Za-z0-9_-]{1,128})$/);
+  if (banco) return { tipo: "banco", id: banco[1] };
+  let x;
+  try {
+    x = new URL(u);
+  } catch {
+    return null;
+  }
+  if (x.protocol !== "https:" || x.username || x.password || x.port) return null;
+  let bucket = "";
+  let caminho = "";
+  try {
+    if (x.hostname === "firebasestorage.googleapis.com") {
+      const m = x.pathname.match(/^\/v0\/b\/([^/]+)\/o\/([^/]+)$/);
+      if (!m) return null;
+      bucket = decodeURIComponent(m[1]);
+      caminho = decodeURIComponent(m[2]);
+    } else if (x.hostname === "storage.googleapis.com") {
+      const m = x.pathname.match(/^\/([^/]+)\/(.+)$/);
+      if (!m) return null;
+      bucket = decodeURIComponent(m[1]);
+      caminho = decodeURIComponent(m[2]);
+    } else return null;
+  } catch {
+    return null;
+  }
+  if (!BUCKETS_VIDEO.includes(bucket) || !caminho || caminho.length > 500 || /[\u0000-\u001f]/.test(caminho)) return null;
+  if (!PASTAS_VIDEO.some((p) => caminho.startsWith(p)) || caminho.split("/").some((t) => !t || t === "." || t === "..")) return null;
+  return { tipo: "storage", bucket, caminho };
+}
 var GESTAO_LINK = ["admin", "manager"];
 var PAPEL_DO_LINK = "external_seller";
 var EQUIPE = ["admin", "manager", "triagem", "internal_seller", "financial", "finance", "fiscal", "marketing", "assistant"];
 var LIMITE_DIA = 20;
+var LIMITE_IP_HORA = 200;
+var LIMITE_LINK_HORA = 30;
+var LIMITE_INDICACAO_HORA = 30;
+var LIMITE_VIDEO_HORA = 20;
 var novoToken = () => import_crypto.default.randomBytes(24).toString("base64url");
 var limpaTexto = (t, max) => String(t ?? "").replace(/[\u0000-\u001f<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
 var escHtml = (t) => String(t || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -404,7 +480,7 @@ function criarRotasConsultorParceiro(deps) {
       if (!ud || ud.status !== "active" || !PAPEIS_QUE_INDICAM.includes(role)) return { erro: 403, msg: "Seu cadastro n\xE3o pode fazer indica\xE7\xF5es por aqui." };
       return { uid: q.uid, nome: String(ud.name || q.email || ""), email: String(ud.email || q.email || "").toLowerCase(), role, via: "login" };
     }
-    const dono = await donoDoToken(String(req.body?.p || ""));
+    const dono = await donoDoToken(String(req.body?.p || req.query?.p || ""));
     if (!dono) return { erro: 401, msg: "Seu link n\xE3o vale mais. Pe\xE7a um novo ao comercial da Roder." };
     return { ...dono, via: "link" };
   }
@@ -435,9 +511,10 @@ function criarRotasConsultorParceiro(deps) {
   }
   async function rotaLinkCliente(req, res) {
     try {
-      if (passouLimite(`conslc-ip:${ipDe(req)}`, 40, 60 * 60 * 1e3)) return res.status(429).json({ error: "Muitos pedidos. Espere alguns minutos." });
+      if (passouLimite(`conslc-ip:${ipDe(req)}`, LIMITE_IP_HORA, 60 * 60 * 1e3)) return res.status(429).json({ error: "Muitos pedidos. Espere alguns minutos." });
       const dono = await donoDoPedido(req);
       if ("erro" in dono) return res.status(dono.erro).json({ error: dono.msg });
+      if (passouLimite(`conslc:${dono.uid}`, LIMITE_LINK_HORA, 60 * 60 * 1e3)) return res.status(429).json({ error: "Muitos links seguidos. Espere alguns minutos." });
       const pid = String(req.body?.pid || "").slice(0, 80);
       const mid = String(req.body?.mid || "").slice(0, 80);
       if (!/^[A-Za-z0-9_-]{1,80}$/.test(pid) || mid && !/^[A-Za-z0-9_.-]{1,80}$/.test(mid)) return res.status(400).json({ error: "Equipamento inv\xE1lido." });
@@ -550,9 +627,10 @@ function criarRotasConsultorParceiro(deps) {
   }
   async function rotaIndicacao(req, res) {
     try {
-      if (passouLimite(`consind-ip:${ipDe(req)}`, 30, 60 * 60 * 1e3)) return res.status(429).json({ error: "Muitas indica\xE7\xF5es seguidas. Espere um pouco." });
+      if (passouLimite(`consind-ip:${ipDe(req)}`, LIMITE_IP_HORA, 60 * 60 * 1e3)) return res.status(429).json({ error: "Muitas indica\xE7\xF5es seguidas. Espere um pouco." });
       const dono = await donoDoPedido(req);
       if ("erro" in dono) return res.status(dono.erro).json({ error: dono.msg });
+      if (passouLimite(`consind-h:${dono.uid}`, LIMITE_INDICACAO_HORA, 60 * 60 * 1e3)) return res.status(429).json({ error: "Muitas indica\xE7\xF5es seguidas. Espere um pouco." });
       const b = req.body || {};
       const cliente = limpaTexto(b.cliente, 120);
       if (cliente.length < 2) return res.status(400).json({ error: "Informe o nome do cliente ou da fazenda." });
@@ -657,7 +735,86 @@ CLIENTE: ${cliente} | ${tel.formatado} | ${localizacao}${cnpj ? ` | CNPJ ${cnpj}
       if (!res.headersSent) res.status(500).json({ error: "N\xE3o consegui enviar a indica\xE7\xE3o. Tente de novo." });
     }
   }
-  return { rotaLink, rotaResolver, rotaLinkCliente, rotaIndicacao, donoDoToken, linkDoUsuario };
+  async function rotaVideoArquivo(req, res) {
+    try {
+      if (passouLimite(`consvid-ip:${ipDe(req)}`, LIMITE_IP_HORA, 60 * 60 * 1e3)) return res.status(429).json({ error: "Muitos pedidos. Espere alguns minutos." });
+      const url = String(req.query?.url || "").trim();
+      const alvo = alvoDoVideo(url);
+      if (!alvo) return res.status(400).json({ error: "V\xEDdeo n\xE3o permitido." });
+      const pid = String(req.query?.pid || "");
+      const mid = String(req.query?.mid || "");
+      if (!/^[A-Za-z0-9_-]{1,80}$/.test(pid) || mid && !/^[A-Za-z0-9_.-]{1,80}$/.test(mid)) return res.status(400).json({ error: "Equipamento inv\xE1lido." });
+      const dono = await donoDoPedido(req);
+      if ("erro" in dono) return res.status(dono.erro).json({ error: dono.msg });
+      if (passouLimite(`consvid:${dono.uid}`, LIMITE_VIDEO_HORA, 60 * 60 * 1e3)) return res.status(429).json({ error: "Muitos v\xEDdeos seguidos. Espere alguns minutos." });
+      const p = await db2.collection("products").doc(pid).get();
+      if (!p.exists) return res.status(404).json({ error: "Equipamento n\xE3o encontrado." });
+      const pd = p.data() || {};
+      const modelo = mid ? (pd.models || []).find((x) => String(x?.id) === mid) : null;
+      if (mid && !modelo) return res.status(404).json({ error: "Equipamento n\xE3o encontrado." });
+      if (videoDoEquipamento(pd, modelo) !== url) return res.status(403).json({ error: "Este v\xEDdeo n\xE3o \xE9 do equipamento." });
+      res.setHeader?.("Cache-Control", "private, no-store");
+      res.setHeader?.("X-Content-Type-Options", "nosniff");
+      if (alvo.tipo === "banco") {
+        const s = await db2.collection("app_files").doc(alvo.id).get();
+        const d = String(s.exists && s.data()?.data || "");
+        const m = d.match(/^data:(video\/[A-Za-z0-9.+-]+)(?:;[^,]*)?;base64,(.*)$/s);
+        if (!m) return res.status(415).json({ error: "Este arquivo n\xE3o \xE9 um v\xEDdeo." });
+        const buf = Buffer.from(m[2], "base64");
+        if (buf.length > MAX_VIDEO_PROXY) return res.status(413).json({ error: "V\xEDdeo grande demais." });
+        res.setHeader?.("Content-Type", m[1]);
+        res.setHeader?.("Content-Length", String(buf.length));
+        return res.end(buf);
+      }
+      if (!deps.abrirArquivoStorage) return res.status(500).json({ error: "N\xE3o consegui baixar o v\xEDdeo." });
+      const arq = await deps.abrirArquivoStorage(alvo.bucket, alvo.caminho);
+      if (!arq) return res.status(404).json({ error: "V\xEDdeo n\xE3o encontrado." });
+      if (!/^video\/[A-Za-z0-9.+-]+$/.test(arq.contentType || "")) {
+        arq.stream?.destroy?.();
+        return res.status(415).json({ error: "Este arquivo n\xE3o \xE9 um v\xEDdeo." });
+      }
+      if (!(arq.tamanho > 0) || arq.tamanho > MAX_VIDEO_PROXY) {
+        arq.stream?.destroy?.();
+        return res.status(413).json({ error: "V\xEDdeo grande demais." });
+      }
+      await new Promise((resolve) => {
+        let comecou = false;
+        let fim = false;
+        const acabar = () => {
+          if (!fim) {
+            fim = true;
+            resolve();
+          }
+        };
+        const comecar = () => {
+          if (comecou) return;
+          comecou = true;
+          res.setHeader?.("Content-Type", arq.contentType);
+          res.setHeader?.("Content-Length", String(arq.tamanho));
+          (0, import_stream.pipeline)(portao, res, () => acabar());
+        };
+        const portao = new import_stream.Transform({
+          transform(pedaco, _cod, cb) {
+            comecar();
+            cb(null, pedaco);
+          },
+          flush(cb) {
+            comecar();
+            cb();
+          }
+        });
+        (0, import_stream.pipeline)(arq.stream, portao, (err) => {
+          if (err && !comecou) {
+            if (!res.headersSent) res.status(500).json({ error: "N\xE3o consegui baixar o v\xEDdeo." });
+            acabar();
+          }
+        });
+      });
+    } catch {
+      if (!res.headersSent) res.status(500).json({ error: "N\xE3o consegui baixar o v\xEDdeo." });
+    }
+  }
+  return { rotaLink, rotaResolver, rotaLinkCliente, rotaIndicacao, rotaVideoArquivo, donoDoToken, linkDoUsuario };
 }
 function registrarConsultorParceiro(app, deps) {
   const r = criarRotasConsultorParceiro(deps);
@@ -665,6 +822,7 @@ function registrarConsultorParceiro(app, deps) {
   app.get("/api/consultor/parceiro/:token", r.rotaResolver);
   app.post("/api/consultor/link-cliente", r.rotaLinkCliente);
   app.post("/api/consultor/indicacao", r.rotaIndicacao);
+  app.get("/api/consultor/video-arquivo", r.rotaVideoArquivo);
   return r;
 }
 
@@ -708,6 +866,53 @@ function instrucaoPerfilConsultor(userInfo, equipe) {
 - Voc\xEA est\xE1 conversando com um PARCEIRO/VENDEDOR cadastrado da Roder chamado "${u.name || "Vendedor"}".
 - Ofere\xE7a suporte de engenharia avan\xE7ado, com foco em ajud\xE1-lo a sanar d\xFAvidas t\xE9cnicas de clientes, dimensionar corretamente os equipamentos para fechar neg\xF3cios, identificar c\xF3digos de produtos, consultar o estoque atual da f\xE1brica de garras/cabe\xE7otes e auxiliar na elabora\xE7\xE3o de propostas que ser\xE3o encaminhadas e finalizadas pela nossa equipe de vendas internas da f\xE1brica no painel administrativo.
 - Sinta-se \xE0 vontade para ser mais t\xE9cnico e usar termos de revenda, comiss\xE3o, estoque e especifica\xE7\xF5es de montagem e instala\xE7\xE3o.`;
+}
+
+// server/previaLink.ts
+var SITE_PREVIA = "https://roderindica.com";
+var escHtml2 = (t) => String(t ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+var codigoLimpo = (c) => String(c || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
+function previaPadrao(codigo) {
+  return {
+    titulo: "Roder M\xE1quinas e Equipamentos",
+    descricao: "Fotos, v\xEDdeo, ficha t\xE9cnica e or\xE7amento.",
+    imagem: `${SITE_PREVIA}/marca/roder-redondo-512.png`,
+    url: `${SITE_PREVIA}/o/${codigoLimpo(codigo)}`
+  };
+}
+function previaDoEquipamento(codigo, p, m, imagem) {
+  const nome = String(p?.name || "").trim();
+  if (!nome) return previaPadrao(codigo);
+  const titulo = `${nome}${m?.name && !nome.includes(String(m.name)) ? ` ${m.name}` : ""} | Roder`;
+  const base = String(m?.technical_specs?.maquina_base || "").trim();
+  const temVideo = !!videoDoEquipamento(p, m);
+  const fim = temVideo ? "Veja o v\xEDdeo trabalhando e pe\xE7a o or\xE7amento." : "Fotos, v\xEDdeo, ficha e or\xE7amento.";
+  const descricao = base ? `Para ${/carregadeira|engate/i.test(nome) ? "p\xE1 carregadeira" : "escavadeiras"} de ${base.replace(/\s*ton\.?$/i, " t")}. ${fim}` : temVideo ? fim : previaPadrao(codigo).descricao;
+  return { titulo, descricao, imagem: imagem || previaPadrao(codigo).imagem, url: `${SITE_PREVIA}/o/${codigoLimpo(codigo)}`, temVideo };
+}
+function metaPrevia(d) {
+  return [
+    `<meta property="og:type" content="website" />`,
+    `<meta property="og:site_name" content="Roder M\xE1quinas e Equipamentos" />`,
+    `<meta property="og:locale" content="pt_BR" />`,
+    `<meta property="og:title" content="${escHtml2(d.titulo)}" />`,
+    `<meta property="og:description" content="${escHtml2(d.descricao)}" />`,
+    `<meta property="og:image" content="${escHtml2(d.imagem)}" />`,
+    `<meta property="og:image:alt" content="${escHtml2(d.titulo)}" />`,
+    `<meta property="og:url" content="${escHtml2(d.url)}" />`,
+    `<meta name="description" content="${escHtml2(d.descricao)}" />`,
+    `<meta name="twitter:card" content="summary_large_image" />`
+  ].join("\n    ");
+}
+function injetarPrevia(html, d) {
+  let saida = String(html || "").replace(/\s*<meta\s+(?:property="og:[^"]*"|name="twitter:[^"]*"|name="description")[^>]*>/gi, "");
+  const bloco = `<title>${escHtml2(d.titulo)}</title>
+    ${metaPrevia(d)}`;
+  if (/<title>[\s\S]*?<\/title>/i.test(saida)) return saida.replace(/<title>[\s\S]*?<\/title>/i, () => bloco);
+  if (/<\/head>/i.test(saida)) return saida.replace(/<\/head>/i, () => `${bloco}
+  </head>`);
+  return `${bloco}
+${saida}`;
 }
 
 // server.ts
@@ -963,7 +1168,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-19n consultor-perfis";
+  const RELEASE_LABEL = "2026-10-20a consultor-videos";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -4818,7 +5023,7 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       return false;
     }
   }
-  const escHtml2 = (t) => String(t || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const escHtml3 = (t) => String(t || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   async function criarLinkCurto(uid, pid, mid) {
     const existente = await db.collection("links_curtos").where("uid", "==", uid).where("pid", "==", pid).where("mid", "==", mid).limit(1).get();
     if (!existente.empty) return existente.docs[0].id;
@@ -4866,21 +5071,17 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       const arquivo = indexPath && import_fs.default.existsSync(indexPath) ? indexPath : import_path.default.resolve(process.cwd(), "dist", "index.html");
       if (!import_fs.default.existsSync(arquivo)) return next();
       let html = import_fs.default.readFileSync(arquivo, "utf8");
-      const codigo = String(req.params.codigo || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
-      let titulo = "Roder M\xE1quinas e Equipamentos";
-      let descricao = "Fotos, v\xEDdeo, ficha t\xE9cnica e or\xE7amento.";
-      let imagem = `${SITE}/marca/roder-redondo-512.png`;
+      const codigo = codigoLimpo(req.params.codigo);
+      let previa = previaPadrao(codigo);
       try {
-        const link = await db.collection("links_curtos").doc(codigo).get();
-        if (link.exists) {
+        const link = codigo ? await db.collection("links_curtos").doc(codigo).get() : null;
+        if (link && link.exists) {
           const l = link.data();
           const prod = await db.collection("products").doc(l.pid).get();
           if (prod.exists) {
             const p = prod.data();
             const m = (p.models || []).find((x) => x.id === l.mid) || null;
-            titulo = `${p.name}${m && !String(p.name).includes(m.name) ? ` ${m.name}` : ""} | Roder`;
-            const base = String(m?.technical_specs?.maquina_base || "").trim();
-            descricao = base ? `Para ${/carregadeira|engate/i.test(p.name) ? "p\xE1 carregadeira" : "escavadeiras"} de ${base.replace(/\s*ton\.?$/i, " t")}. Fotos, v\xEDdeo, ficha e or\xE7amento.` : descricao;
+            let imagem = "";
             const candidatas = [...m?.images || [], p.image_url].filter((i) => typeof i === "string" && i && !/run\.app/.test(i));
             const guardada = fotoDaPrevia.get(codigo);
             if (guardada && guardada.ate > Date.now()) imagem = guardada.url;
@@ -4893,19 +5094,12 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
               }
               fotoDaPrevia.set(codigo, { url: imagem, ate: Date.now() + 36e5 });
             }
+            previa = previaDoEquipamento(codigo, p, m, imagem);
           }
         }
       } catch (e) {
       }
-      const meta = `<meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Roder M\xE1quinas e Equipamentos" />
-    <meta property="og:title" content="${escHtml2(titulo)}" />
-    <meta property="og:description" content="${escHtml2(descricao)}" />
-    <meta property="og:image" content="${escHtml2(imagem)}" />
-    <meta property="og:url" content="${SITE}/o/${codigo}" />
-    <meta name="twitter:card" content="summary_large_image" />`;
-      html = html.replace(/<title>[^<]*<\/title>/, () => `<title>${escHtml2(titulo)}</title>
-    ${meta}`);
+      html = injetarPrevia(html, previa);
       res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       res.type("html").send(html);
     } catch (e) {
@@ -4935,6 +5129,13 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
     ipDe,
     criarLinkCurto,
     campoApagado: () => import_firebase_admin.default.firestore.FieldValue.delete(),
+    abrirArquivoStorage: async (bucket, caminho) => {
+      const file = (0, import_storage.getStorage)(adminApp).bucket(bucket).file(caminho);
+      const [existe] = await file.exists();
+      if (!existe) return null;
+      const [meta] = await file.getMetadata();
+      return { contentType: String(meta?.contentType || ""), tamanho: Number(meta?.size || 0), stream: file.createReadStream() };
+    },
     enviarEmail: (to, subject, html) => sendAutomaticEmail(to, subject, html),
     sincronizarAgendor: async (id, dados) => {
       const ag = (await db.collection("settings").doc("agendor").get()).data() || {};
@@ -5021,7 +5222,7 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       let link = SITE;
       try {
         const u = new URL(String(req.body?.link || ""));
-        if (u.origin === SITE) link = escHtml2(u.toString());
+        if (u.origin === SITE) link = escHtml3(u.toString());
       } catch {
       }
       const PERFIS = {
@@ -5037,8 +5238,8 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
 <div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#111">
   <div style="background:#090909;padding:16px;text-align:center"><img src="${SITE}/marca/roder-horizontal.png" alt="Roder" style="height:36px" /></div>
   <div style="padding:20px 18px;font-size:15px;line-height:1.55">
-    <p>Ol\xE1${nome ? `, ${escHtml2(nome)}` : ""}.</p>
-    <p>Recebemos seu pedido de or\xE7amento da <b>${escHtml2(produto)}</b>.</p>
+    <p>Ol\xE1${nome ? `, ${escHtml3(nome)}` : ""}.</p>
+    <p>Recebemos seu pedido de or\xE7amento da <b>${escHtml3(produto)}</b>.</p>
     ${foto ? `<p style="text-align:center"><img src="${foto}" alt="" style="max-width:260px;max-height:200px" /></p>` : ""}
     <p>Seu or\xE7amento inclui:<br>${perfilTxt.itens.map((i) => `\u2022 ${i}`).join("<br>")}</p>
     <p>Para chegar aos valores certos, um consultor Roder vai falar com voc\xEA pelo WhatsApp. ${perfilTxt.consultor}</p>
