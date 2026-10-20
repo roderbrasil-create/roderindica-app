@@ -525,7 +525,7 @@ var INSTALLATION_KITS = [
       { code: "3000.5000.0318", description: "Adaptador Painel 9/16 JIC", quantity: 1 },
       { code: "3000.5000.0317", description: "Adaptador Painel 7/8 JIC", quantity: 1 },
       { code: "2000.1000.3147", description: "CHAPA PAINEL 9/16 -7/8 INSTALACAO", quantity: 1 },
-      { code: "3000.5003.0006", description: "VALVULA CONTROLE FLUXO UNIDIRECIONAL 1/4 BSP", quantity: 1 },
+      { code: "3000.5003.0006", description: "VALVULA CONTROLE FLUXO UNIDIRECIONAL 1/4 BSP", quantity: 1, unit: "PC" },
       { code: "3000.5000.0291", description: "ADAPTADOR MACHO/MACHO 1/4 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC", quantity: 1 },
       { code: "3000.5000.0321", description: "ADAPTADOR MACHO/FEMEA 1/4 BSP X 9/16 JIC", quantity: 1 },
       { code: "3000.5000.0274", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 9/16 JIC X 9/16 JIC", quantity: 2 },
@@ -729,7 +729,7 @@ var INSTALLATION_KITS = [
       { code: "3000.5001.1042", description: "3/8 R2 - 2000 MM X FG 9/16 JIC X FG 9/16 JIC", quantity: 1 },
       { code: "3000.5000.0318", description: "Adaptador Painel 9/16 JIC", quantity: 1 },
       { code: "3000.5000.0317", description: "Adaptador Painel 7/8 JIC", quantity: 1 },
-      { code: "3000.5003.0006", description: "VALVULA CONTROLE FLUXO UNIDIRECIONAL 1/4 BSP", quantity: 1 },
+      { code: "3000.5003.0006", description: "VALVULA CONTROLE FLUXO UNIDIRECIONAL 1/4 BSP", quantity: 1, unit: "PC" },
       { code: "3000.5000.0291", description: "ADAPTADOR MACHO/MACHO 1/4 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC", quantity: 4 },
       { code: "3000.5000.0321", description: "ADAPTADOR MACHO/FEMEA 1/4 BSP X 9/16 JIC", quantity: 2 },
       { code: "3000.5000.0274", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 9/16 JIC X 9/16 JIC", quantity: 2 },
@@ -758,7 +758,7 @@ var INSTALLATION_KITS = [
       { code: "3000.1001.0069", description: "PARAFUSO ALLEN 12.9-M8 X 160", quantity: 4 },
       { code: "3000.1003.0005", description: "Porca M8 parlock", quantity: 6 },
       { code: "3000.2001.0338", description: "Oring D.I. 26,70 x 1,78 - NBR-90sh - ref. Parker 2023", quantity: 2 },
-      { code: "3000.5003.0092", description: "VALVULA SOLENOIDE DVS90-6-G1/2- 6 VIAS PADRAO G1/2, VAZAO HIDRAULICA MAX. DE 90 LPM COM BOBINA DE ACIONAMENTO 12 OU 24 VDC, UTILIZADA PARA ACIONAMENTO DE MOVIMENTOS HIDRAULICOS EM EQUIPAMENTOS_NCM:8481.80.92", quantity: 2 },
+      { code: "3000.5003.0092", description: "VALVULA SOLENOIDE DVS90-6-G1/2- 6 VIAS PADRAO G1/2, VAZAO HIDRAULICA MAX. DE 90 LPM COM BOBINA DE ACIONAMENTO 12 OU 24 VDC, UTILIZADA PARA ACIONAMENTO DE MOVIMENTOS HIDRAULICOS EM EQUIPAMENTOS_NCM:8481.80.92", quantity: 2, unit: "PC" },
       { code: "3000.5000.0364", description: "ABRACADEIRA DUPLA TUBO 25MM P/ SOLDAR", quantity: 4 },
       { code: "3000.5000.0276", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 1.1/16 JIC X 1.1/16 JIC", quantity: 2 },
       { code: "5000.1001.0059", description: "MANOPLA JOYSTICK 3 BOTOES- PADRAO FLORESTAL", quantity: 1 },
@@ -770,7 +770,7 @@ var INSTALLATION_KITS = [
     description: "KIT ELETRO HIDRAULICO PA CARREGADEIRA PARA INSTALACAO DE 3\xAA FUNCAO 24V",
     items: [
       { code: "5000.1001.0051", description: "CAIXA ELETRICA 01 FUNCAO 12/24V", quantity: 1 },
-      { code: "3000.5003.0092", description: "VALVULA SOLENOIDE DVS90-6-G1/2- 6 VIAS PADRAO G1/2, VAZAO HIDRAULICA MAX. DE 90 LPM COM BOBINA DE ACIONAMENTO 12 OU 24 VDC, UTILIZADA PARA ACIONAMENTO DE MOVIMENTOS HIDRAULICOS EM EQUIPAMENTOS_NCM:8481.80.92", quantity: 1 },
+      { code: "3000.5003.0092", description: "VALVULA SOLENOIDE DVS90-6-G1/2- 6 VIAS PADRAO G1/2, VAZAO HIDRAULICA MAX. DE 90 LPM COM BOBINA DE ACIONAMENTO 12 OU 24 VDC, UTILIZADA PARA ACIONAMENTO DE MOVIMENTOS HIDRAULICOS EM EQUIPAMENTOS_NCM:8481.80.92", quantity: 1, unit: "PC" },
       { code: "3000.5000.0288", description: "Adaptador macho/macho 1/2 BSP x 1.1/16 JIC", quantity: 4 },
       { code: "3000.5000.0283", description: "ADAPTADOR MACHO/MACHO 1/2 BSPP PARALELO COM ANEL VEDACAO ED X 7/8 JIC", quantity: 2 },
       { code: "2000.1000.0743", description: "SUPORTE VALVULA 6 VIAS", quantity: 1 },
@@ -886,7 +886,7 @@ var INSTALLATION_KITS = [
       { code: "3000.5001.1042", description: "3/8 R2 - 2000 MM X FG 9/16 JIC X FG 9/16 JIC", quantity: 1 },
       { code: "3000.5000.0318", description: "Adaptador Painel 9/16 JIC", quantity: 1 },
       { code: "3000.5000.0317", description: "Adaptador Painel 7/8 JIC", quantity: 1 },
-      { code: "3000.5003.0006", description: "VALVULA CONTROLE FLUXO UNIDIRECIONAL 1/4 BSP", quantity: 1 },
+      { code: "3000.5003.0006", description: "VALVULA CONTROLE FLUXO UNIDIRECIONAL 1/4 BSP", quantity: 1, unit: "PC" },
       { code: "3000.5000.0291", description: "ADAPTADOR MACHO/MACHO 1/4 BSPP PARALELO COM ANEL VEDACAO ED X 9/16 JIC", quantity: 4 },
       { code: "3000.5000.0321", description: "ADAPTADOR MACHO/FEMEA 1/4 BSP X 9/16 JIC", quantity: 1 },
       { code: "3000.5000.0274", description: "ADAPTADOR MACHO/FEMEA 90GRAUS 9/16 JIC X 9/16 JIC", quantity: 2 },
@@ -1003,7 +1003,7 @@ var INSTALLATION_KITS = [
       { code: "5000.1001.0027", description: "Conector para Reles com 5 Vias", quantity: 2 },
       { code: "3000.1002.0046", description: "PARAFUSO 4,2 X 13MM FLANGEADO CROMADO PONTA AGULHA", quantity: 2 },
       { code: "5000.1001.0038", description: "Caixa PVC 154 x 110 x 70mm S.SX.161 LIGHT IP55 - STECK", quantity: 1 },
-      { code: "5000.1001.0030", description: "Cabo PP 3 x 1,00mm PT", quantity: 2.5 },
+      { code: "5000.1001.0030", description: "Cabo PP 3 x 1,00mm PT", quantity: 2.5, unit: "MT" },
       { code: "5000.1001.0005", description: "Rele Auxiliar 4 pinos 12 Volts c/ Suporte 40A", quantity: 2 }
     ]
   },
@@ -1347,9 +1347,9 @@ var INSTALLATION_KITS = [
       { code: "3000.5000.0287", description: "Adaptador macho/macho 7/8 UNF x 7/8 JIC", quantity: 7 },
       { code: "3000.5000.0366", description: "BUJAO FEMEA SEXTAVADO EXTERNO 7/8 JIC", quantity: 1 },
       { code: "3000.5000.0426", description: "ABRACADEIRA MANGOTE PESADO 32MM MSA 54-62 (PARA MANGUEIRA SUCCAO 2)", quantity: 2 },
-      { code: "3000.5001.0029", description: "MANGUEIRA HIDRAULICA R4 2 (SUCCAO)", quantity: 0.8 },
+      { code: "3000.5001.0029", description: "MANGUEIRA HIDRAULICA R4 2 (SUCCAO)", quantity: 0.8, unit: "MT" },
       { code: "3000.5000.0436", description: 'MACHO FIXO 2 NPT X 2 (MANGUEIRA DE 2")', quantity: 1 },
-      { code: "3000.5000.0516", description: "FLANGE BIPARTIDA 2 (PARA FLANGE \xD871,4)", quantity: 1 },
+      { code: "3000.5000.0516", description: "FLANGE BIPARTIDA 2 (PARA FLANGE \xD871,4)", quantity: 1, unit: "PAR" },
       { code: "3000.5000.0517", description: 'FLANGE RETA 71,4MM X 2"', quantity: 1 },
       { code: "3000.5001.1179", description: "1/4 R17 - 550 MM X FG 9/16 JIC X FG 90\xB0 9/16 JIC", quantity: 1 },
       { code: "3000.5001.1188", description: "3/4R12 - 1650 MM X FG 1.1/16 JIC X FG 1.1/16 JIC", quantity: 12 },
@@ -1440,15 +1440,16 @@ var INSTALLATION_KITS = [
 // src/lib/confirmacaoMaquina.ts
 var RESSALVA_KIT = "Estes kits s\xE3o POSSIBILIDADES, nunca afirme pelo modelo nem pelo serial. S\xF3 indique o kit depois que a configura\xE7\xE3o for confirmada por foto e v\xEDdeo, ou depois de o vendedor informar e confirmar essa configura\xE7\xE3o: fatia extra com sa\xEDda dupla (duas sa\xEDdas com os dois tamp\xF5es) no comando hidr\xE1ulico e, em CAT nova, a liga\xE7\xE3o ao joystick eletr\xF4nico. O t\xE9cnico Roder respons\xE1vel confirma.";
 var TEXTO_CMF_CAT320 = 'CMF em CAT 320 nova (GC, NG ou eletr\xF4nica, a partir de cerca de 2020, joystick eletr\xF4nico). (a) COM fatia extra dupla j\xE1 acionada no joystick eletr\xF4nico, faltando s\xF3 a tubula\xE7\xE3o: possibilidade do kit 9000.9000.9035 (KIT INSTALACAO CMF500/600 EM ESCAVADEIRA, MAQUINA COM FATIA EXTRA ACIONADA SEM LINHA), que traz toda a linha hidr\xE1ulica do CMF e vale para CMF 500, 600 e 800. (b) SEM fatia extra: possibilidade do 9000.9000.9035 mais o 9000.9000.9003 (KIT BAIXA PRESSAO 1 SECCAO DUPLA CAT320GC/NG 24V, 80L/190BAR: bomba extra na tampa da bomba original, que alimenta um comando hidr\xE1ulico duplo para a linha de giro do rotator). CAT mais antiga de comando pilotado sem fatia extra: precisa de fatia ou bomba extra, e o t\xE9cnico Roder define. Garra de carregamento usa o 9003 para o rotator, mas outro kit para a garra: o t\xE9cnico informa. Em CAT 320 nova a fatia \xE9 instalada pela concession\xE1ria; nas outras m\xE1quinas, o t\xE9cnico Roder define ap\xF3s foto e v\xEDdeo. Sempre confirmar por foto e v\xEDdeo, no modelo do v\xEDdeo de amostra, mesmo que o cliente diga que a m\xE1quina n\xE3o tem prepara\xE7\xE3o nenhuma. M\xE1quina nova e cliente sem a informa\xE7\xE3o: pe\xE7a o contato do vendedor ou da concession\xE1ria da m\xE1quina; a Roder fala com ele para saber como a m\xE1quina ser\xE1 fornecida e s\xF3 ent\xE3o passa o valor do kit. Se for preciso instalar a fatia extra original pela concession\xE1ria, a Roder orienta o vendedor a repassar esse valor ao cliente. N\xE3o declare "perigoso" ou "invi\xE1vel" s\xF3 pelo modelo; bloco de press\xE3o piloto para serra e tilt s\xF3 se o t\xE9cnico confirmar.';
+var SEQUENCIA_VIDEO_PROMPT = "UM v\xEDdeo na mesma sequ\xEAncia do v\xEDdeo modelo: (1) bra\xE7o e lan\xE7a da m\xE1quina, mostrando as tubula\xE7\xF5es; (2) comando hidr\xE1ulico, que fica atr\xE1s do motor de giro; (3) dentro da cabine, os joysticks e os pedais; (4) se poss\xEDvel, em Caterpillar de modelo novo, abrir e filmar a porta traseira para mostrar a bomba hidr\xE1ulica. Fotos s\xF3 como complemento.";
 var REGRA_KIT_CONFIRMACAO = `
 REGRA PRIORIT\xC1RIA DE KIT DE INSTALA\xC7\xC3O (vale acima das regras de kit mais abaixo, que continuam valendo como possibilidades):
    \u2022 Quando a pergunta for QUAL KIT de instala\xE7\xE3o, kit hidr\xE1ulico ou mangueiras usar numa m\xE1quina (qualquer marca, e principalmente Caterpillar), NUNCA afirme kit nem fatia extra s\xF3 pelo modelo ou pelo n\xFAmero de s\xE9rie. O serial mostra como a m\xE1quina saiu de f\xE1brica, n\xE3o o que foi acrescentado depois. A configura\xE7\xE3o \xE9 confirmada por foto e v\xEDdeo.
    \u2022 REQUISITO GERAL: a m\xE1quina precisa ter, no comando hidr\xE1ulico (bloco de v\xE1lvulas), pelo menos a FATIA EXTRA COM SA\xCDDA DUPLA (duas sa\xEDdas, com os dois tamp\xF5es) dispon\xEDvel. Com ela, a Roder vende o kit de instala\xE7\xE3o completo (todas as linhas hidr\xE1ulicas, v\xE1lvulas, eletrov\xE1lvulas e acionamento el\xE9trico). Isso vale para a maioria das m\xE1quinas com joystick hidr\xE1ulico pilotado (Komatsu, Hyundai, JCB, John Deere e outras). N\xC3O exija "linhas hidr\xE1ulicas no bra\xE7o": elas s\xE3o s\xF3 um complemento opcional do v\xEDdeo, nunca requisito.
    \u2022 CAT 320 tem v\xE1rias configura\xE7\xF5es. Antigas (320C, 320D, 320FM): comando pilotado com joystick hidr\xE1ulico, mesmo padr\xE3o das outras marcas. Novas (a partir de cerca de 2020: 320GC, 320NG nova gera\xE7\xE3o, e "320" sem nomenclatura antiga): joystick ELETR\xD4NICO, de acionamento el\xE9trico, n\xE3o pilotado. Nelas, para os equipamentos que exigem fatia extra, a m\xE1quina J\xC1 deve ter a fatia extra no comando, ligada ao joystick eletr\xF4nico por chicote el\xE9trico. Muitas saem sem fatia extra, e a Roder N\xC3O instala fatia extra em CAT nova: o cliente deve pedir \xE0 concession\xE1ria que instale a fatia extra e deixe a liga\xE7\xE3o el\xE9trica/eletr\xF4nica pronta no joystick. S\xF3 diga isso depois de a foto e o v\xEDdeo mostrarem o caso; n\xE3o presuma pelo modelo.
    \u2022 EXCE\xC7\xC3O na CAT 320 nova: garra de carregamento, garras florestais (de carregamento) e cabe\xE7ote multifuncional podem ser instalados MESMO SEM fatia extra, com o "kit de baixa" (9003, cadastrado; o t\xE9cnico confirma a press\xE3o; cadastro do 9003: 190 bar). ${TEXTO_CMF_CAT320} N\xE3o invente c\xF3digo: s\xF3 cite c\xF3digo que esteja na lista de kits cadastrados (ex.: 9000.9000.9035 e 9000.9000.9003), sempre como possibilidade a confirmar pelo t\xE9cnico; sem item cadastrado, diga que o t\xE9cnico informa o c\xF3digo.
-   \u2022 PROPOSTA OU LISTA DE COMPONENTES (ex.: vendedor de pe\xE7as ou exporta\xE7\xE3o pergunta o que incluir na proposta de um CMF numa CAT 320, com s\xE9rie informada e "configura\xE7\xE3o padr\xE3o"): N\xC3O entregue lista fechada de kit, v\xE1lvulas e linhas como certa, e n\xE3o use a s\xE9rie nem o "padr\xE3o" para decidir. Explique em 2 frases que a CAT 320 tem configura\xE7\xF5es diferentes (antiga com joystick hidr\xE1ulico, nova com joystick eletr\xF4nico; fatia extra com sa\xEDda dupla j\xE1 instalada ou n\xE3o), pe\xE7a foto do comando, da bomba, dos dois joysticks e o v\xEDdeo, e diga que o t\xE9cnico Roder confirma os kits. Sendo cabe\xE7ote multifuncional, informe que na CAT 320 nova sem fatia extra existe a op\xE7\xE3o do kit 9035 mais o kit de baixa 9003, a confirmar pelo t\xE9cnico. S\xF3 cite c\xF3digos de kit que apare\xE7am na lista de kits cadastrados fornecida no contexto, sempre como possibilidades a confirmar pelo t\xE9cnico; se o c\xF3digo n\xE3o estiver na lista, diga que o t\xE9cnico informa.
+   \u2022 PROPOSTA OU LISTA DE COMPONENTES (ex.: vendedor de pe\xE7as ou exporta\xE7\xE3o pergunta o que incluir na proposta de um CMF numa CAT 320, com s\xE9rie informada e "configura\xE7\xE3o padr\xE3o"): N\xC3O entregue lista fechada de kit, v\xE1lvulas e linhas como certa, e n\xE3o use a s\xE9rie nem o "padr\xE3o" para decidir. Explique em 2 frases que a CAT 320 tem configura\xE7\xF5es diferentes (antiga com joystick hidr\xE1ulico, nova com joystick eletr\xF4nico; fatia extra com sa\xEDda dupla j\xE1 instalada ou n\xE3o), pe\xE7a o v\xEDdeo na sequ\xEAncia (bra\xE7o e lan\xE7a com as tubula\xE7\xF5es, comando atr\xE1s do motor de giro, joysticks e pedais, porta traseira e bomba em CAT nova), com fotos como complemento, e diga que o t\xE9cnico Roder confirma os kits. Sendo cabe\xE7ote multifuncional, informe que na CAT 320 nova sem fatia extra existe a op\xE7\xE3o do kit 9035 mais o kit de baixa 9003, a confirmar pelo t\xE9cnico. S\xF3 cite c\xF3digos de kit que apare\xE7am na lista de kits cadastrados fornecida no contexto, sempre como possibilidades a confirmar pelo t\xE9cnico; se o c\xF3digo n\xE3o estiver na lista, diga que o t\xE9cnico informa.
    \u2022 Melhor resposta: pedir foto e v\xEDdeo para passar ao t\xE9cnico Roder respons\xE1vel, que informa corretamente os kits e se o cliente precisa pedir a fatia extra \xE0 concession\xE1ria. Explique em 2 frases curtas por que a configura\xE7\xE3o \xE9 confirmada assim, sem afirmar kit nem fatia por serial ou modelo. Voc\xEA pode citar os kits que costumam existir como POSSIBILIDADES, deixando claro que dependem da confirma\xE7\xE3o, usando s\xF3 c\xF3digos cadastrados.
-   \u2022 O pedido ao cliente \xE9: fotos do comando hidr\xE1ulico (bloco de v\xE1lvulas, mostrando as fatias e as sa\xEDdas), da bomba hidr\xE1ulica e dos DOIS joysticks, mais um V\xCDDEO da cabine e do comando, no mesmo modelo do v\xEDdeo de amostra. N\xE3o d\xEA a entender que a concession\xE1ria \xE9 obrigat\xF3ria antes da an\xE1lise: por ora \xE9 s\xF3 coletar foto e v\xEDdeo. O app mostra abaixo da sua resposta o bot\xE3o "Pedir confirma\xE7\xE3o da m\xE1quina ao cliente" com o texto pronto; diga ao vendedor que ele est\xE1 logo abaixo e n\xE3o escreva o texto do pedido por extenso.
+   \u2022 O pedido ao cliente \xE9 ${SEQUENCIA_VIDEO_PROMPT} N\xE3o d\xEA a entender que a concession\xE1ria \xE9 obrigat\xF3ria antes da an\xE1lise: por ora \xE9 s\xF3 coletar foto e v\xEDdeo. O app mostra abaixo da sua resposta o bot\xE3o "Pedir confirma\xE7\xE3o da m\xE1quina ao cliente" com o texto pronto; diga ao vendedor que ele est\xE1 logo abaixo e n\xE3o escreva o texto do pedido por extenso.
    \u2022 Se o vendedor j\xE1 informou e confirmou a configura\xE7\xE3o (fatia extra com sa\xEDda dupla, joystick), pode indicar o kit, citando o que foi confirmado.
    \u2022 No JSON do <painel>, quando aplicar esta regra, acrescente "confirmar_maquina": true.`;
 var AVISO_SEM_AMOSTRA = "Ainda n\xE3o h\xE1 v\xEDdeo de amostra cadastrado.";
@@ -2474,7 +2475,7 @@ function criarRotasArquivosVideos(deps) {
 var RE_COD = "\\d{4}\\.\\d{4}\\.\\d{4}";
 var RE_CABECALHO_KIT = new RegExp(`^(${RE_COD})\\s+(.*)$`);
 var RE_ITEM = new RegExp(`^\\d+\\s+\\d+\\s+(${RE_COD})\\s*(.*)$`);
-var RE_FIM_ITEM = /^(.*?)\s*(?:^|\s)(?:UN|PC|MT|PAR|KG|CJ|LT|JG|PCT|CX|M2|M3|M|L|GR|RL)\s+([\d.]*\d,\d{1,6})\s+\d{2}\/\d{2}\/\d{4}(?:\s+\d{2}\/\d{2}\/\d{4})?$/;
+var RE_FIM_ITEM = /^(.*?)\s*(?:^|\s)(UN|PC|MT|PAR|KG|CJ|LT|JG|PCT|CX|M2|M3|M|L|GR|RL)\s+([\d.]*\d,\d{1,6})\s+\d{2}\/\d{2}\/\d{4}(?:\s+\d{2}\/\d{2}\/\d{4})?$/;
 var RE_LIXO = /^(Roder M[aá]quinas|Quant\. Item Pai|N[ií]vel\b|Item(\s+UN(\s+Vers[aã]o)?)?$|UN$|Vers[aã]o$|\d{2}\/\d{2}\/\d{4}(\s+\d{2}:\d{2})?$)|--\s*\d+\s+of\s+\d+\s*--|Filtros:|DBCorp PCR|Relat[oó]rio de Estruturas/i;
 var limpa = (t) => t.replace(/\s+/g, " ").trim();
 var numero = (t) => parseFloat(t.replace(/\./g, "").replace(",", "."));
@@ -2483,8 +2484,12 @@ function parseKitsText(texto2) {
   let kit = null;
   let item = null;
   let noTitulo = false;
-  const fecha = (qtd) => {
-    if (kit && item) kit.items.push({ code: item.code, description: limpa(item.partes.join(" ")), quantity: Number.isFinite(qtd) && qtd > 0 ? qtd : 1 });
+  const fecha = (qtd, unidade) => {
+    if (kit && item) {
+      const novo = { code: item.code, description: limpa(item.partes.join(" ")), quantity: Number.isFinite(qtd) && qtd > 0 ? qtd : 1 };
+      if (unidade.toUpperCase() !== "UN") novo.unit = unidade.toUpperCase();
+      kit.items.push(novo);
+    }
     item = null;
   };
   const semUnidadeDoKit = (t) => t.replace(/\s*\bUN\s+\d+$/i, "");
@@ -2505,7 +2510,7 @@ function parseKitsText(texto2) {
       const fim = RE_FIM_ITEM.exec(resto);
       if (fim) {
         if (limpa(fim[1])) item.partes.push(fim[1]);
-        fecha(numero(fim[2]));
+        fecha(numero(fim[3]), fim[2]);
       } else if (resto) item.partes.push(resto);
       continue;
     }
@@ -2520,7 +2525,7 @@ function parseKitsText(texto2) {
       const fim = RE_FIM_ITEM.exec(linha);
       if (fim) {
         if (limpa(fim[1])) item.partes.push(fim[1]);
-        fecha(numero(fim[2]));
+        fecha(numero(fim[3]), fim[2]);
       } else item.partes.push(linha);
     } else if (kit && noTitulo) {
       const t = limpa(semUnidadeDoKit(linha));
@@ -5270,7 +5275,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-20p kit-cmf-9035-kits-pdf";
+  const RELEASE_LABEL = "2026-10-20q kit-9015-video-sequencia";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -6898,7 +6903,7 @@ C. FOTO: mostre no m\xE1ximo 1 foto, somente do equipamento que voc\xEA est\xE1 
 D. N\xE3o ofere\xE7a listas de outros equipamentos que o usu\xE1rio n\xE3o pediu.
 E. ROTATOR DE GARRA FLORESTAL (orienta\xE7\xE3o da Roder): garra R600 ou maior em escavadeira acima de 20 t = sempre com Rotator IR10 (garra CA), para trabalho pesado. Garra R400 a R600 em escavadeira de 12 a 16 t = Rotator de 12 t ou 16 t (preferir 16 t). Nunca indique rotator de 16 t para garra R800/R1000 em m\xE1quina acima de 20 t.
 F. INSTALA\xC7\xC3O (o que entra na venda, orienta\xE7\xE3o da Roder). 95% das vendas s\xE3o completas: equipamento, frete, instala\xE7\xE3o pelo t\xE9cnico Roder na cidade do cliente, regulagem e orienta\xE7\xE3o ao operador. Nunca prometa instala\xE7\xE3o onde ela n\xE3o existe:
-   - ESCAVADEIRA (garras florestais e tra\xE7adoras, garra rachadora, Clamshell, cabe\xE7otes CMF, feller tesoura e de disco, destocador, sacador, trituradores FAE de escavadeira): instala\xE7\xE3o hidr\xE1ulica completa, adequa\xE7\xE3o e regulagem de press\xE3o. O vendedor pede fotos (bloco de comando, bomba, os dois joysticks) e v\xEDdeo (cabine e comando) para confirmar se a m\xE1quina tem fatia extra e v\xE1lvula de regulagem de press\xE3o na fatia extra.
+   - ESCAVADEIRA (garras florestais e tra\xE7adoras, garra rachadora, Clamshell, cabe\xE7otes CMF, feller tesoura e de disco, destocador, sacador, trituradores FAE de escavadeira): instala\xE7\xE3o hidr\xE1ulica completa, adequa\xE7\xE3o e regulagem de press\xE3o. O vendedor pede um v\xEDdeo (bra\xE7o e lan\xE7a com as tubula\xE7\xF5es, comando atr\xE1s do motor de giro, joysticks e pedais e, em CAT nova, porta traseira com a bomba; fotos s\xF3 como complemento) para confirmar se a m\xE1quina tem fatia extra e v\xE1lvula de regulagem de press\xE3o na fatia extra.
    - P\xC1 CARREGADEIRA: Engate R\xE1pido hidr\xE1ulico precisa da 3\xAA fun\xE7\xE3o (linha extra) para engatar e desengatar; vendemos junto o adaptador para a concha original do cliente. Garra Frontal / Top Clamp, Triturador FAE p/ p\xE1 e Carregador Frontal CFR precisam de 3\xAA e 4\xAA fun\xE7\xE3o (CFR: giro hor\xE1rio/anti-hor\xE1rio do rotator e abre/fecha da garra = 4 mangueiras).
    - Ca\xE7amba High Tip e Prolongador com Concha: precisam de uma linha extra bidirecional (3\xAA fun\xE7\xE3o) para o basculante. Se a p\xE1 N\xC3O tem engate r\xE1pido nem linha extra, a Roder instala engate + 3\xAA fun\xE7\xE3o (com 3\xAA e 4\xAA fun\xE7\xE3o o operador n\xE3o precisa trocar a fun\xE7\xE3o entre engate e basculante). Se a p\xE1 J\xC1 tem engate r\xE1pido original e linha extra bidirecional, n\xE3o precisa de instala\xE7\xE3o: a Roder fabrica o equipamento com o gancho traseiro na medida do engate original.
    - Garfo Paleteiro GPR 4500 / GPR 7000: s\xF3 mec\xE2nico, sem instala\xE7\xE3o (vai no lugar dos pinos). Normalmente \xE9 vendido com o engate r\xE1pido, e o garfo j\xE1 vai com o gancho do engate para o operador trocar entre concha e garfo sem descer da m\xE1quina.
@@ -7143,7 +7148,7 @@ ${REGRA_KIT_CONFIRMACAO}
     - **Link para Garra com Biela (Instala\xE7\xE3o Pr\xE1tica de Garra Florestal)**:
       - **REGRA DE FILTRO**: Se o usu\xE1rio N\xC3O perguntou especificamente sobre o "link", **NUNCA** mencione o c\xF3digo do link ou o kit de instala\xE7\xE3o para link. Seja direto e responda apenas o solicitado (Ponteira).
       - **Quando o Link \xE9 Solicitado**: Explique que \xE9 poss\xEDvel e facilite a troca r\xE1pida com a concha original.
-      - **C\xF3digos de Link (Escavadeiras 22t pino 80mm)**: Link **1000.0000.0120** e Kit Hidr\xE1ulico **9000.9000.9015**. ${RESSALVA_KIT}
+      - **C\xF3digos de Link (Escavadeiras 22t pino 80mm)**: o link \xE9 o item **1000.0000.0120** (item separado, n\xE3o faz parte de nenhum kit hidr\xE1ulico). O kit **9000.9000.9015** ("Kit instala\xE7\xE3o garra + lan\xE7a extensora em escavadeira, m\xE1quina com fatia extra sem linha") \xE9 outro item, s\xF3 para garra com lan\xE7a extensora em m\xE1quina com fatia extra sem linha. NUNCA diga que o 9015 inclui o link nem trate os dois como um conjunto. ${RESSALVA_KIT}
       - **Instala\xE7\xE3o com Ponteira (Padr\xE3o)**: Se a pergunta for sobre instala\xE7\xE3o com ponteira (ou se "link" n\xE3o for mencionado), indique o item: **"Kit de instala\xE7\xE3o garra em escavadeira, m\xE1quina com fatia extra, sem linha"**. ${RESSALVA_KIT}
       - **Identifica\xE7\xE3o de Kits**: Os kits para garra/CMF/tra\xE7adora que N\xC3O mencionam "link" referem-se automaticamente \xE0 montagem com ponteira.
       - **Acoplamento**: Use engates r\xE1pidos flat-face para facilitar a troca.
@@ -9236,7 +9241,7 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       } catch {
       }
       const PERFIS = {
-        completa: { itens: ["equipamento", "frete at\xE9 a sua cidade", "instala\xE7\xE3o hidr\xE1ulica na sua m\xE1quina por t\xE9cnico Roder", "regulagem e orienta\xE7\xE3o ao operador"], consultor: "Ele vai pedir fotos (bloco de comando, bomba, os dois joysticks) e v\xEDdeo (cabine e comando), para confirmar se ela tem fatia extra e v\xE1lvula de regulagem de press\xE3o. \xC9 com isso que a Roder prepara a instala\xE7\xE3o hidr\xE1ulica completa." },
+        completa: { itens: ["equipamento", "frete at\xE9 a sua cidade", "instala\xE7\xE3o hidr\xE1ulica na sua m\xE1quina por t\xE9cnico Roder", "regulagem e orienta\xE7\xE3o ao operador"], consultor: "Ele vai pedir um v\xEDdeo (bra\xE7o e lan\xE7a com as tubula\xE7\xF5es, comando atr\xE1s do motor de giro, joysticks e pedais e, em CAT nova, porta traseira com a bomba; fotos s\xF3 como complemento), para confirmar se ela tem fatia extra e v\xE1lvula de regulagem de press\xE3o. \xC9 com isso que a Roder prepara a instala\xE7\xE3o hidr\xE1ulica completa." },
         linha_extra: { itens: ["equipamento com o encaixe do engate da sua p\xE1 carregadeira", "frete at\xE9 a sua cidade", "instala\xE7\xE3o da linha extra (3\xAA fun\xE7\xE3o), se a sua m\xE1quina ainda n\xE3o tiver"], consultor: "Ele vai confirmar o modelo da sua p\xE1 carregadeira e se ela j\xE1 tem engate r\xE1pido e linha extra bidirecional (3\xAA fun\xE7\xE3o). Se j\xE1 tiver, n\xE3o precisa de instala\xE7\xE3o. Se n\xE3o tiver, a Roder instala." },
         garfo: { itens: ["equipamento", "frete at\xE9 a sua cidade"], consultor: "Ele vai confirmar o modelo da sua p\xE1 carregadeira e se ela usa engate r\xE1pido, para o garfo ir com o encaixe certo." },
         trator_tecnico: { itens: ["equipamento", "frete at\xE9 a sua cidade", "t\xE9cnico Roder acompanha a primeira instala\xE7\xE3o no trator", "orienta\xE7\xE3o de trabalho ao operador no in\xEDcio"], consultor: "Ele vai confirmar o modelo e a pot\xEAncia do seu trator." },
