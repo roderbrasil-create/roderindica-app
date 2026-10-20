@@ -311,11 +311,11 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150', enviar = fa
       video_url: 'https://www.youtube.com/watch?v=na5Z2tLWMgA',
       image_url: 'https://roderbrasil.com.br/wp-content/uploads/2024/07/img-fresa-ssh-trituradora-tocos-02.jpg',
       specs: {
-        trator_hp: '240 - 360 (400) HP (CVT)',
+        trator_hp: '200 - 360 (400) HP (CVT)',
         pto_rpm: '1000 rpm',
         largura_trabalho_mm: '2560 mm',
-        largura_total_mm: '2950 mm',
-        peso_kg: '5600 kg',
+        largura_total_mm: '2952 mm',
+        peso_kg: '5640 kg',
         diametro_rotor_mm: '900 mm',
         diametro_max_trituracao_mm: '700 mm (70 cm)',
         profundidade_max_trabalho_mm: '500 mm (50 cm)',
@@ -908,7 +908,7 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150', enviar = fa
               <div style={{ background: COR_G, color: '#E6E8EB', borderRadius: '14px', padding: '15px 17px', display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '18px', fontSize: '11.3px', lineHeight: 1.5 }}>
                 <div>
                   <h3 style={{ fontFamily: FONTE_TIT, fontSize: '12.5px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#FFB27A', marginBottom: '5px' }}>Peças e suporte</h3>
-                  Dentes FAE originais tipo A/3 e MH, com pastilha de carboneto de tungstênio (vídea). Estoque na Matriz e em Sinop-MT: eixos, correias, rolamentos e dentes para reposição imediata.
+                  Dentes FAE originais: A/3 nos centrais e MH (raspador lateral) nos 4 laterais, com pastilha de carboneto de tungstênio (vídea). Estoque na Matriz e em Sinop-MT: eixos, correias, rolamentos e dentes para reposição imediata.
                 </div>
                 <div>
                   <h3 style={{ fontFamily: FONTE_TIT, fontSize: '12.5px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#FFB27A', marginBottom: '5px' }}>Na entrega técnica</h3>
