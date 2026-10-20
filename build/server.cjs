@@ -1929,6 +1929,1237 @@ async function fotosExternas(deps, aplicar, quem) {
   }
 }
 
+// src/lib/calculoComissao.ts
+var PAPEIS_SEM_COMISSAO = ["admin", "manager", "internal_seller", "triagem", "financial", "marketing", "fiscal", "vendedor_padrao"];
+var TAXA_SEM_CADASTRO = 2;
+var RE_SERVICO = /m[ãa]o\s*de\s*obra|frete|transporte|instala[çc][ãa]o|montagem|entrega\s*t[ée]cnica|deslocamento|kit\s+de\s+instala/i;
+function itemComissionavel(p) {
+  const is9000 = !!p.code && String(p.code).trim().startsWith("9000");
+  const isService = RE_SERVICO.test(p.name || "");
+  return p.is_commissionable !== false && !is9000 && !isService;
+}
+function baseBrutaDosProdutos(produtos) {
+  return (produtos || []).reduce((acc, p) => acc + (itemComissionavel(p) ? (p.base_value || 0) * (p.quantity || 0) : 0), 0);
+}
+function papelComissionavel(papel) {
+  return !PAPEIS_SEM_COMISSAO.includes(papel || "external_seller");
+}
+function taxaDoParceiro(parceiro) {
+  const t = parceiro?.commission_rate;
+  return t !== void 0 && t !== null ? Number(t) : TAXA_SEM_CADASTRO;
+}
+function calcularComissao(produtos, descontoReais, taxa) {
+  const baseBruta = baseBrutaDosProdutos(produtos);
+  const desconto = Math.min(Math.max(Number(descontoReais) || 0, 0), baseBruta);
+  const descontoPct = baseBruta > 0 ? desconto / baseBruta * 100 : 0;
+  const base = baseBruta - desconto;
+  return { baseBruta, desconto, descontoPct, base, taxa, valor: base * (taxa / 100) };
+}
+var FUSO_BR = "America/Sao_Paulo";
+function diaEmBrasilia(d) {
+  return d.toLocaleDateString("en-CA", { timeZone: FUSO_BR });
+}
+function diaDaEntrega(v) {
+  const s = String(v).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : diaEmBrasilia(d);
+}
+function mesDaComissao(dataEntrega, agora = /* @__PURE__ */ new Date()) {
+  const hoje = diaEmBrasilia(agora);
+  const [anoAtual, mesAtual] = hoje.split("-").map(Number);
+  if (dataEntrega) {
+    const dia = diaDaEntrega(dataEntrega);
+    if (dia && dia < hoje) return { month: mesAtual, year: anoAtual };
+  }
+  return mesAtual === 12 ? { month: 1, year: anoAtual + 1 } : { month: mesAtual + 1, year: anoAtual };
+}
+var UIDS_DE_SISTEMA = ["client_referral", "direct_factory", "public_request", "anonymous"];
+
+// server/diagnosticoComissao.ts
+var normalizar = (v) => String(v ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9@._]+/g, " ").replace(/\s+/g, " ").trim();
+function nomeContido(a, b) {
+  if (!a || !b || a === b) return false;
+  const [curto, longo] = a.length <= b.length ? [a, b] : [b, a];
+  if (curto.length < 3) return false;
+  return ` ${longo} `.includes(` ${curto} `);
+}
+function nomeCasa(nome, termoNormalizado) {
+  const n = normalizar(nome);
+  if (!n || !termoNormalizado) return false;
+  const palavras = n.split(" ");
+  return termoNormalizado.split(" ").every((t) => palavras.some((p) => p.startsWith(t)));
+}
+var CAMPOS_IND = [
+  "status",
+  "client_name",
+  "external_seller_uid",
+  "external_seller_name",
+  "external_seller_email",
+  "indicator_name",
+  "indicator_uid",
+  "created_by",
+  "user_id",
+  "sale_value",
+  "base_commission_value",
+  "commissioned_products",
+  "commission_value",
+  "commissionable_value",
+  "discount_amount",
+  "sale_date",
+  "sale_order_number",
+  "delivery_date",
+  "updated_at",
+  "created_at",
+  "finance_notice_pending",
+  "finance_notice_due_at",
+  "finance_notice_sent_at",
+  "base_machine"
+];
+var ROTULO_STATUS = {
+  pending: "pendente",
+  negotiating: "em negocia\xE7\xE3o",
+  sold: "faturada",
+  cancelled: "cancelada",
+  lost: "perdida"
+};
+var chaveMes = (m, a) => a * 12 + (m - 1);
+async function diagnosticar(deps, termoBruto, opcoes = {}) {
+  const { db: db2 } = deps;
+  const agora = deps.agora ? deps.agora() : /* @__PURE__ */ new Date();
+  const termo = String(termoBruto || "").trim();
+  if (termo.length < 2) throw Object.assign(new Error("Digite o nome, o e-mail ou o c\xF3digo do parceiro."), { status: 400 });
+  const termoN = normalizar(termo);
+  const termoEmail = termo.includes("@") ? termo.toLowerCase() : "";
+  const usersSnap = await db2.collection("users").get();
+  const todos = usersSnap.docs.map((d) => {
+    const u = d.data() || {};
+    return { ...u, uid: String(u.uid || d.id), doc_id: d.id };
+  });
+  const porUid = /* @__PURE__ */ new Map();
+  todos.forEach((u) => {
+    porUid.set(u.uid, u);
+    porUid.set(u.doc_id, u);
+  });
+  const achadosBusca = todos.filter((u) => u.uid === termo || u.doc_id === termo || termoEmail && String(u.email || "").toLowerCase() === termoEmail || !termoEmail && nomeCasa(u.name, termoN));
+  const duplicados = [];
+  const vistos = /* @__PURE__ */ new Set();
+  const extras = /* @__PURE__ */ new Map();
+  for (const u of achadosBusca) {
+    const nome = normalizar(u.name);
+    const email = String(u.email || "").toLowerCase();
+    const motivoDe = (o) => {
+      if (o.uid === u.uid) return "mesmo";
+      if (email && String(o.email || "").toLowerCase() === email) return "mesmo e-mail";
+      const on = normalizar(o.name);
+      if (nome && on === nome) return "mesmo nome";
+      if (nome && on && papelComissionavel(u.role) && papelComissionavel(o.role) && nomeContido(nome, on)) return "nome parecido";
+      return null;
+    };
+    const iguais = todos.filter((o) => motivoDe(o));
+    const chave = iguais.map((o) => o.uid).sort().join(",");
+    if (iguais.length > 1 && !vistos.has(chave)) {
+      vistos.add(chave);
+      const motivos = new Set(iguais.map(motivoDe).filter((m) => m && m !== "mesmo"));
+      const motivo = motivos.has("mesmo e-mail") ? "mesmo e-mail" : motivos.has("mesmo nome") ? "mesmo nome" : "nome parecido";
+      duplicados.push({ motivo, uids: iguais.map((o) => o.uid) });
+      iguais.forEach((o) => {
+        if (!achadosBusca.includes(o)) extras.set(o.uid, o);
+      });
+    }
+  }
+  const achados = [...achadosBusca, ...extras.values()];
+  const uids = /* @__PURE__ */ new Set();
+  achados.forEach((u) => {
+    uids.add(u.uid);
+    uids.add(u.doc_id);
+  });
+  if (!achados.length) uids.add(termo);
+  const emails = new Set(achados.map((u) => String(u.email || "").toLowerCase()).filter(Boolean));
+  if (termoEmail) emails.add(termoEmail);
+  const nomesAchados = new Set(achados.map((u) => normalizar(u.name)).filter(Boolean));
+  const contasComissionaveis = achados.filter((u) => papelComissionavel(u.role));
+  const variasContas = contasComissionaveis.length > 1;
+  const contaEscolhida = variasContas && opcoes.conta ? contasComissionaveis.find((u) => u.uid === opcoes.conta || u.doc_id === opcoes.conta) || null : null;
+  const nomeConta = (uid) => {
+    const u = uid ? porUid.get(uid) : null;
+    return u ? u.name || u.uid : uid || "nenhuma";
+  };
+  const indSnap = await db2.collection("indications").select(...CAMPOS_IND).get();
+  const indicacoes = [];
+  for (const d of indSnap.docs) {
+    const ind = d.data() || {};
+    const por = [];
+    if (["external_seller_uid", "indicator_uid", "created_by", "user_id"].some((c) => ind[c] && uids.has(String(ind[c])))) por.push("uid");
+    if (ind.external_seller_email && emails.has(String(ind.external_seller_email).toLowerCase())) por.push("e-mail");
+    const nomeBate = (v) => !!v && (nomesAchados.has(normalizar(v)) || !termoEmail && nomeCasa(v, termoN));
+    if (nomeBate(ind.external_seller_name) || nomeBate(ind.indicator_name)) por.push("nome");
+    if (por.length) indicacoes.push({ id: d.id, ...ind, ligado_por: por });
+  }
+  indicacoes.sort((a, b) => String(b.updated_at || b.created_at || "").localeCompare(String(a.updated_at || a.created_at || "")));
+  const limitadas = indicacoes.slice(0, 150);
+  const comissoes = /* @__PURE__ */ new Map();
+  for (const uid of uids) {
+    const s = await db2.collection("commissions").where("external_seller_uid", "==", uid).get();
+    s.docs.forEach((c) => comissoes.set(c.id, { id: c.id, ...c.data(), achada_por: "uid" }));
+  }
+  const ids = limitadas.map((i) => i.id);
+  for (let i = 0; i < ids.length; i += 10) {
+    const s = await db2.collection("commissions").where("indication_id", "in", ids.slice(i, i + 10)).get();
+    s.docs.forEach((c) => {
+      if (!comissoes.has(c.id)) comissoes.set(c.id, { id: c.id, ...c.data(), achada_por: "indica\xE7\xE3o" });
+    });
+  }
+  const listaComissoes = Array.from(comissoes.values()).map((c) => ({
+    id: c.id,
+    indication_id: c.indication_id || null,
+    external_seller_uid: c.external_seller_uid || null,
+    external_seller_name: c.external_seller_name || null,
+    value: Number(c.value) || 0,
+    base_value_used: Number(c.base_value_used) || 0,
+    status: c.status || null,
+    month: c.month ?? null,
+    year: c.year ?? null,
+    sale_date: c.sale_date || null,
+    created_at: c.created_at || null,
+    achada_por: c.achada_por,
+    conta_nome: c.external_seller_uid ? nomeConta(c.external_seller_uid) : null
+  }));
+  const extratos = [];
+  for (const uid of uids) {
+    const s = await db2.collection("monthly_statements").where("seller_uid", "==", uid).get();
+    s.docs.forEach((e) => {
+      const x = e.data() || {};
+      extratos.push({ id: e.id, seller_uid: x.seller_uid, month: x.month, year: x.year, status: x.status || null, total_value: Number(x.total_value) || 0, nf_enviada: !!x.nf_url, commission_ids: (x.commission_ids || []).length });
+    });
+  }
+  const notifSnap = await db2.collection("settings").doc("notifications").get();
+  const notif = notifSnap.exists ? notifSnap.data() || {} : {};
+  const avisos = {
+    existe: !!notifSnap.exists,
+    monthly_report_partners: notif.monthly_report_partners === true,
+    monthly_report_directors: notif.monthly_report_directors === true,
+    payment_reminder_finance: notif.payment_reminder_finance === true
+  };
+  const [anoBr, mesBr] = diaEmBrasilia(agora).split("-").map(Number);
+  const mesAgora = chaveMes(mesBr, anoBr);
+  const resultadoInd = limitadas.map((ind) => {
+    const uidInd = String(ind.external_seller_uid || "");
+    const parceiro = uidInd ? porUid.get(uidInd) : null;
+    const comms = listaComissoes.filter((c) => c.indication_id === ind.id);
+    const falta = [];
+    let parceiroOk = false;
+    const troca = comms.length ? "transferir" : "ligar";
+    if (!uidInd) falta.push({ codigo: "sem_uid", texto: "Indica\xE7\xE3o sem parceiro ligado. A comiss\xE3o n\xE3o nasce no faturamento e o painel do parceiro n\xE3o enxerga a venda.", acao: troca });
+    else if (UIDS_DE_SISTEMA.includes(uidInd)) falta.push({ codigo: "uid_sistema", texto: `Ligada a "${uidInd}", que n\xE3o \xE9 um parceiro.`, acao: troca });
+    else if (!parceiro) falta.push({ codigo: "uid_inexistente", texto: "Ligada a um c\xF3digo de parceiro que n\xE3o existe mais no cadastro (cadastro antigo ou apagado). O painel do parceiro n\xE3o enxerga esta venda.", acao: troca });
+    else if (!papelComissionavel(parceiro.role)) falta.push({ codigo: "papel", texto: `Ligada a ${parceiro.name || uidInd}, com perfil ${parceiro.role}, que n\xE3o recebe comiss\xE3o.`, acao: troca });
+    else {
+      parceiroOk = true;
+      if (achados.length && !uids.has(uidInd)) falta.push({ codigo: "outro_parceiro", texto: `Ligada a outro cadastro: ${parceiro.name || uidInd}.`, acao: troca });
+      else if (contaEscolhida && uidInd !== contaEscolhida.uid) {
+        falta.push({ codigo: "conta_repetida", texto: `Esta venda est\xE1 na conta ${nomeConta(uidInd)}, mas o parceiro entra com a conta ${nomeConta(contaEscolhida.uid)}. O painel dele n\xE3o mostra esta venda.`, acao: "transferir" });
+      }
+    }
+    const produtos = ind.commissioned_products || [];
+    const calc = calcularComissao(produtos, Number(ind.discount_amount) || 0, taxaDoParceiro(parceiro));
+    if (calc.baseBruta <= 0) {
+      falta.push({ codigo: "base_zero", texto: produtos.length ? "Nenhum produto da indica\xE7\xE3o conta para comiss\xE3o (s\xF3 kit 9000, frete, instala\xE7\xE3o ou item marcado como n\xE3o comission\xE1vel). A base fica zerada." : "Sem produtos cadastrados na indica\xE7\xE3o: a base da comiss\xE3o fica zerada. Vincule os produtos vendidos na indica\xE7\xE3o." });
+    }
+    if (ind.status === "sold") {
+      if (!comms.length) {
+        falta.push(parceiroOk && calc.valor > 0 ? { codigo: "sem_comissao", texto: "Venda faturada sem comiss\xE3o lan\xE7ada.", acao: "gerar" } : { codigo: "sem_comissao", texto: "Venda faturada sem comiss\xE3o lan\xE7ada. Resolva os itens acima para poder gerar." });
+      } else {
+        for (const c of comms) {
+          if (c.value <= 0) falta.push({ codigo: "comissao_zero", texto: `Comiss\xE3o lan\xE7ada com valor zero (${c.id}).` });
+          if (uidInd && c.external_seller_uid !== uidInd) falta.push({ codigo: "comissao_outro_uid", texto: `A comiss\xE3o est\xE1 em nome de outro c\xF3digo (${c.external_seller_name || c.external_seller_uid || "vazio"}): o painel do parceiro n\xE3o soma ela.`, acao: "transferir" });
+          else if (contaEscolhida && c.external_seller_uid !== contaEscolhida.uid && uidInd === contaEscolhida.uid) {
+            falta.push({ codigo: "comissao_conta_repetida", texto: `A comiss\xE3o de ${brl(c.value)} est\xE1 na conta ${nomeConta(c.external_seller_uid)}, e o parceiro entra com a conta ${nomeConta(contaEscolhida.uid)}.`, acao: "transferir" });
+          }
+          if (c.status !== "paid" && c.month && c.year && chaveMes(c.month, c.year) < mesAgora) {
+            falta.push({ codigo: "comissao_atrasada", texto: `Comiss\xE3o de ${String(c.month).padStart(2, "0")}/${c.year} ainda n\xE3o est\xE1 como paga.` });
+          }
+        }
+        if (comms.length > 1) falta.push({ codigo: "comissao_duplicada", texto: `${comms.length} comiss\xF5es para a mesma venda.` });
+      }
+      if (ind.finance_notice_pending && !ind.finance_notice_sent_at) falta.push({ codigo: "aviso_financeiro", texto: `Aviso ao financeiro programado para ${String(ind.finance_notice_due_at || "").slice(0, 10).split("-").reverse().join("/")}.`, tipo: "info" });
+    } else {
+      falta.push({ codigo: "nao_faturada", texto: `Ainda n\xE3o faturada (${ROTULO_STATUS[ind.status] || ind.status || "sem status"}).`, tipo: "info" });
+    }
+    return {
+      id: ind.id,
+      client_name: ind.client_name || "",
+      status: ind.status || null,
+      ligado_por: ind.ligado_por,
+      conta: uidInd || null,
+      conta_nome: uidInd ? nomeConta(uidInd) : null,
+      fora_da_conta: !!contaEscolhida && (uidInd !== contaEscolhida.uid || comms.some((c) => c.external_seller_uid !== contaEscolhida.uid)),
+      external_seller_uid: ind.external_seller_uid || null,
+      external_seller_name: ind.external_seller_name || null,
+      external_seller_email: ind.external_seller_email || null,
+      indicator_name: ind.indicator_name || null,
+      indicator_uid: ind.indicator_uid || null,
+      created_by: ind.created_by || null,
+      sale_value: Number(ind.sale_value) || 0,
+      base_commission_value: Number(ind.base_commission_value) || 0,
+      produtos: {
+        total: produtos.length,
+        comissionaveis: produtos.filter(itemComissionavel).length,
+        base_bruta: baseBrutaDosProdutos(produtos),
+        itens: produtos.slice(0, 12).map((p) => ({ code: p.code || "", name: p.name || "", quantity: Number(p.quantity) || 0, base_value: Number(p.base_value) || 0, conta: itemComissionavel(p) }))
+      },
+      commission_value: Number(ind.commission_value) || 0,
+      discount_amount: Number(ind.discount_amount) || 0,
+      sale_date: ind.sale_date || null,
+      sale_order_number: ind.sale_order_number || null,
+      updated_at: ind.updated_at || null,
+      finance_notice_pending: !!ind.finance_notice_pending,
+      finance_notice_due_at: ind.finance_notice_due_at || null,
+      finance_notice_sent_at: ind.finance_notice_sent_at || null,
+      calculo_previsto: parceiroOk ? { base: calc.base, valor: calc.valor, desconto: calc.desconto } : null,
+      comissoes: comms,
+      falta
+    };
+  });
+  const avisosGerais = [];
+  if (!achados.length) avisosGerais.push("Nenhum usu\xE1rio encontrado com esse nome, e-mail ou c\xF3digo.");
+  duplicados.forEach((d) => avisosGerais.push(`Cadastro repetido (${d.motivo}): ${d.uids.length} usu\xE1rios. A venda pode estar ligada a um e o parceiro entrando com o outro.`));
+  if (variasContas && !contaEscolhida) avisosGerais.push(`H\xE1 ${contasComissionaveis.length} contas que recebem comiss\xE3o. Escolha abaixo a conta em que o parceiro entra para ver o que precisa ser transferido.`);
+  if (!avisos.monthly_report_partners) avisosGerais.push("E-mail mensal ao parceiro (dia 1 e lembrete do dia 5) est\xE1 desligado em Configura\xE7\xF5es > Central de Notifica\xE7\xF5es.");
+  if (!avisos.monthly_report_directors) avisosGerais.push("Relat\xF3rio mensal da diretoria e do financeiro (dia 1) est\xE1 desligado.");
+  if (!avisos.payment_reminder_finance) avisosGerais.push("Lembrete de pagamento ao financeiro (dia 7) est\xE1 desligado.");
+  if (indicacoes.length > limitadas.length) avisosGerais.push(`Mostrando as ${limitadas.length} indica\xE7\xF5es mais recentes de ${indicacoes.length}.`);
+  return {
+    ok: true,
+    termo,
+    usuarios: achados.map((u) => ({
+      uid: u.uid,
+      doc_id: u.doc_id,
+      name: u.name || "",
+      email: u.email || "",
+      role: u.role || "",
+      status: u.status || "",
+      commission_rate: u.commission_rate ?? null,
+      // só o administrador chega aqui
+      comissionavel: papelComissionavel(u.role),
+      repetido: extras.has(u.uid)
+    })),
+    duplicados,
+    varias_contas: variasContas,
+    conta_escolhida: contaEscolhida ? contaEscolhida.uid : null,
+    indicacoes: resultadoInd,
+    comissoes: listaComissoes,
+    extratos,
+    avisos,
+    avisos_gerais: avisosGerais
+  };
+}
+function erro(status, msg) {
+  return Object.assign(new Error(msg), { status });
+}
+var brl = (v) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
+var idHist = () => Math.random().toString(36).substring(2, 11);
+function exigirId(indId) {
+  if (!String(indId || "").trim()) throw erro(400, "Indica\xE7\xE3o n\xE3o informada.");
+}
+function conferirGeracao(indId, ind, parceiro, descontoInformado, agora) {
+  if (!ind) throw erro(404, "Indica\xE7\xE3o n\xE3o encontrada.");
+  if (ind.status !== "sold") throw erro(409, "A venda ainda n\xE3o foi faturada. A comiss\xE3o nasce no faturamento.");
+  const uid = String(ind.external_seller_uid || "");
+  if (!uid || UIDS_DE_SISTEMA.includes(uid)) throw erro(409, "Ligue a indica\xE7\xE3o ao parceiro antes de gerar a comiss\xE3o.");
+  if (!parceiro) throw erro(409, "O parceiro ligado a esta indica\xE7\xE3o n\xE3o existe no cadastro. Ligue ao parceiro certo antes.");
+  if (!papelComissionavel(parceiro.role)) throw erro(409, `O perfil de ${parceiro.name || "quem est\xE1 ligado"} n\xE3o recebe comiss\xE3o.`);
+  const desconto = descontoInformado !== void 0 && descontoInformado !== null && Number.isFinite(Number(descontoInformado)) ? Number(descontoInformado) : Number(ind.discount_amount) || 0;
+  const calc = calcularComissao(ind.commissioned_products || [], desconto, taxaDoParceiro(parceiro));
+  if (calc.baseBruta <= 0) throw erro(409, "Sem produtos comission\xE1veis na indica\xE7\xE3o: a comiss\xE3o daria zero. Vincule os produtos vendidos antes.");
+  if (calc.valor <= 0) throw erro(409, "O desconto zera a base da comiss\xE3o. Confira o desconto informado.");
+  const mes = mesDaComissao(ind.delivery_date, agora);
+  return { uid, calc, mes, nomeParceiro: parceiro.name || ind.external_seller_name || "Parceiro" };
+}
+async function previaGeracao(deps, indId, desconto) {
+  const { db: db2 } = deps;
+  const agora = deps.agora ? deps.agora() : /* @__PURE__ */ new Date();
+  exigirId(indId);
+  const s = await db2.collection("indications").doc(indId).get();
+  const ind = s.exists ? s.data() : null;
+  const uid = String(ind?.external_seller_uid || "");
+  const p = uid && !UIDS_DE_SISTEMA.includes(uid) ? await db2.collection("users").doc(uid).get() : null;
+  const r = conferirGeracao(indId, ind, p?.exists ? p.data() : null, desconto, agora);
+  const ja = await db2.collection("commissions").doc(indId).get();
+  const legado = await db2.collection("commissions").where("indication_id", "==", indId).get();
+  return {
+    ok: true,
+    ja_existe: ja.exists || !legado.empty,
+    parceiro: r.nomeParceiro,
+    cliente: ind.client_name || "",
+    base_bruta: r.calc.baseBruta,
+    desconto: r.calc.desconto,
+    base: r.calc.base,
+    valor: r.calc.valor,
+    month: r.mes.month,
+    year: r.mes.year
+  };
+}
+async function gerarComissao(deps, indId, autor, desconto) {
+  const { db: db2, arrayUnion } = deps;
+  const agora = deps.agora ? deps.agora() : /* @__PURE__ */ new Date();
+  exigirId(indId);
+  const indRef = db2.collection("indications").doc(indId);
+  const commRef = db2.collection("commissions").doc(indId);
+  return db2.runTransaction(async (tx) => {
+    const s = await tx.get(indRef);
+    const ind = s.exists ? s.data() : null;
+    const uid = String(ind?.external_seller_uid || "");
+    const p = uid && !UIDS_DE_SISTEMA.includes(uid) ? await tx.get(db2.collection("users").doc(uid)) : null;
+    const ja = await tx.get(commRef);
+    const legado = await tx.get(db2.collection("commissions").where("indication_id", "==", indId));
+    const r = conferirGeracao(indId, ind, p?.exists ? p.data() : null, desconto, agora);
+    if (ja.exists || !legado.empty) throw erro(409, "J\xE1 existe comiss\xE3o lan\xE7ada para esta venda. Nada foi alterado.");
+    const nowIso = agora.toISOString();
+    tx.set(commRef, {
+      indication_id: indId,
+      external_seller_uid: r.uid,
+      external_seller_name: r.nomeParceiro,
+      value: r.calc.valor,
+      base_value_used: r.calc.base,
+      gross_commissionable_value: r.calc.baseBruta,
+      discount_applied: r.calc.desconto,
+      discount_percentage: r.calc.descontoPct,
+      rate_applied: r.calc.taxa,
+      status: "waiting_nf",
+      month: r.mes.month,
+      year: r.mes.year,
+      sale_date: ind.sale_date || null,
+      created_at: nowIso,
+      generated_by: "diagnostico_admin",
+      generated_by_uid: autor.uid
+    });
+    tx.update(indRef, {
+      commission_value: r.calc.valor,
+      commission_rate_applied: r.calc.taxa,
+      commissionable_value: r.calc.base,
+      discount_amount: r.calc.desconto,
+      discount_percentage: r.calc.descontoPct,
+      updated_at: nowIso,
+      // mesmo aviso ao financeiro do faturamento: sai 2 dias depois, se ainda não saiu
+      ...ind.finance_notice_sent_at ? {} : { finance_notice_pending: true, finance_notice_due_at: new Date(agora.getTime() + 2 * 24 * 60 * 60 * 1e3).toISOString() },
+      negotiation_history: arrayUnion({
+        id: idHist(),
+        type: "status_change",
+        author_name: autor.nome || "Administrador",
+        created_at: nowIso,
+        content: `COMISS\xC3O LAN\xC7ADA PELO DIAGN\xD3STICO: a venda estava faturada sem comiss\xE3o. Comiss\xE3o de ${brl(r.calc.valor)} sobre a base comission\xE1vel de ${brl(r.calc.base)}` + (r.calc.desconto > 0 ? `, j\xE1 com o desconto de ${brl(r.calc.desconto)} abatido` : "") + `, para pagamento em ${String(r.mes.month).padStart(2, "0")}/${r.mes.year}.`,
+        attachments: []
+      })
+    });
+    return { ok: true, valor: r.calc.valor, base: r.calc.base, month: r.mes.month, year: r.mes.year, parceiro: r.nomeParceiro };
+  });
+}
+async function ligarParceiro(deps, indId, uid, autor) {
+  const { db: db2, arrayUnion } = deps;
+  const agora = deps.agora ? deps.agora() : /* @__PURE__ */ new Date();
+  exigirId(indId);
+  if (!uid) throw erro(400, "Escolha o parceiro.");
+  const indRef = db2.collection("indications").doc(indId);
+  return db2.runTransaction(async (tx) => {
+    const s = await tx.get(indRef);
+    if (!s.exists) throw erro(404, "Indica\xE7\xE3o n\xE3o encontrada.");
+    const u = await tx.get(db2.collection("users").doc(uid));
+    if (!u.exists) throw erro(404, "Usu\xE1rio n\xE3o encontrado.");
+    const comms = await tx.get(db2.collection("commissions").where("indication_id", "==", indId));
+    const ind = s.data() || {};
+    const user = u.data() || {};
+    if (!papelComissionavel(user.role)) throw erro(409, `${user.name || "Este usu\xE1rio"} \xE9 da equipe Roder e n\xE3o recebe comiss\xE3o. Escolha o parceiro indicador.`);
+    const novoUid = String(user.uid || u.id || uid);
+    const outra = comms.docs.find((c) => (c.data() || {}).external_seller_uid !== novoUid);
+    if (outra) throw erro(409, `J\xE1 existe comiss\xE3o lan\xE7ada para esta venda em nome de ${(outra.data() || {}).external_seller_name || "outro c\xF3digo"}. Use "Transferir" para levar a indica\xE7\xE3o e a comiss\xE3o juntas.`);
+    const nowIso = agora.toISOString();
+    const antes = ind.external_seller_name || ind.external_seller_uid || "ningu\xE9m";
+    tx.update(indRef, {
+      external_seller_uid: novoUid,
+      external_seller_name: user.name || ind.external_seller_name || "Parceiro",
+      external_seller_email: String(user.email || "").toLowerCase(),
+      updated_at: nowIso,
+      negotiation_history: arrayUnion({
+        id: idHist(),
+        type: "system",
+        author_name: autor.nome || "Administrador",
+        created_at: nowIso,
+        content: `Parceiro indicador ligado pelo diagn\xF3stico de comiss\xE3o: antes ${antes}, agora ${user.name || novoUid}.`,
+        attachments: []
+      })
+    });
+    return { ok: true, uid: novoUid, nome: user.name || "" };
+  });
+}
+var ROTULO_STATUS_COMISSAO = { waiting_payment: "aguardando pagamento (nota fiscal j\xE1 enviada)", paid: "paga" };
+var fechamentoTravado = (st) => !!st && (st.status === "paid" || st.status === "waiting_payment");
+var rotuloFechamento = (st) => st?.status === "paid" ? "pago" : "aguardando pagamento";
+var mmaa = (m, a) => `${String(m).padStart(2, "0")}/${a}`;
+async function transferirIndicacao(deps, indId, uid, autor, origem = "diagn\xF3stico de comiss\xE3o", opcoes = {}) {
+  const { db: db2, arrayUnion } = deps;
+  const agora = deps.agora ? deps.agora() : /* @__PURE__ */ new Date();
+  exigirId(indId);
+  if (!uid) throw erro(400, "Escolha a conta para onde a venda vai.");
+  const indRef = db2.collection("indications").doc(indId);
+  return db2.runTransaction(async (tx) => {
+    const s = await tx.get(indRef);
+    if (!s.exists) throw erro(404, "Indica\xE7\xE3o n\xE3o encontrada.");
+    const u = await tx.get(db2.collection("users").doc(uid));
+    const user = u.exists ? u.data() || {} : null;
+    const ind = s.data() || {};
+    const comms = (await tx.get(db2.collection("commissions").where("indication_id", "==", indId))).docs;
+    const livre = !!opcoes.semComissaoQualquerDestino && !comms.length;
+    const nomeInformado = String(opcoes.nomeInformado || "").trim();
+    if (!user && !(livre && nomeInformado)) throw erro(404, "Usu\xE1rio n\xE3o encontrado.");
+    if (!livre && !papelComissionavel(user.role)) {
+      throw erro(409, `${user.name || "Este usu\xE1rio"} \xE9 da equipe Roder e n\xE3o recebe comiss\xE3o.` + (opcoes.semComissaoQualquerDestino ? " Esta venda j\xE1 tem comiss\xE3o lan\xE7ada: ela s\xF3 pode ir para um parceiro que recebe comiss\xE3o. Acerte a comiss\xE3o no Diagn\xF3stico de comiss\xE3o (Configura\xE7\xF5es) antes." : " Escolha o parceiro indicador."));
+    }
+    const novoUid = user ? String(user.uid || u.id || uid) : uid;
+    const fechamentos = /* @__PURE__ */ new Map();
+    const destinos = /* @__PURE__ */ new Map();
+    for (const c of comms) {
+      const cd = c.data() || {};
+      if (cd.status === "paid" || cd.status === "waiting_payment") {
+        throw erro(409, `A comiss\xE3o desta venda j\xE1 est\xE1 ${ROTULO_STATUS_COMISSAO[cd.status]} na conta ${cd.external_seller_name || cd.external_seller_uid}. N\xE3o d\xE1 para transferir: a nota fiscal e o pagamento s\xE3o dessa conta. Acerte com o financeiro antes.`);
+      }
+      const lidos = [];
+      if (cd.external_seller_uid && cd.month && cd.year) {
+        const f = await tx.get(db2.collection("monthly_statements").doc(`${cd.external_seller_uid}_${cd.month}_${cd.year}`));
+        if (f.exists) lidos.push(f);
+      }
+      const q = await tx.get(db2.collection("monthly_statements").where("commission_ids", "array-contains", c.id));
+      lidos.push(...q.docs);
+      for (const f of lidos) {
+        const fd = f.data() || {};
+        const lista = fd.commission_ids || [];
+        const contem = lista.includes(c.id);
+        const doMesmoMes = fd.seller_uid === cd.external_seller_uid && fd.month === cd.month && fd.year === cd.year;
+        if ((contem || doMesmoMes) && fechamentoTravado(fd)) {
+          throw erro(409, `A comiss\xE3o desta venda est\xE1 no fechamento de ${mmaa(fd.month, fd.year)} da conta ${fd.seller_name || fd.seller_uid}, que est\xE1 ${rotuloFechamento(fd)}. N\xE3o d\xE1 para transferir: a nota fiscal e o pagamento s\xE3o dessa conta. Acerte com o financeiro antes.`);
+        }
+        if (contem || doMesmoMes && !lista.length) {
+          const atual = fechamentos.get(f.id) || { ref: f.ref, data: fd, tirar: [] };
+          if (!atual.tirar.some((t) => t.id === c.id)) atual.tirar.push({ id: c.id, valor: Number(cd.value) || 0 });
+          fechamentos.set(f.id, atual);
+        }
+      }
+      if (cd.external_seller_uid !== novoUid && cd.month && cd.year) {
+        const idDestino = `${novoUid}_${cd.month}_${cd.year}`;
+        if (!destinos.has(idDestino)) {
+          const d = await tx.get(db2.collection("monthly_statements").doc(idDestino));
+          destinos.set(idDestino, d.exists ? d.data() || {} : null);
+        }
+        const dd = destinos.get(idDestino);
+        if (fechamentoTravado(dd)) {
+          throw erro(409, `O fechamento de ${mmaa(cd.month, cd.year)} da conta ${dd.seller_name || user && user.name || novoUid} j\xE1 est\xE1 ${rotuloFechamento(dd)}. A comiss\xE3o desta venda entraria nele como paga sem ter sido paga. Acerte com o financeiro antes.`);
+        }
+      }
+    }
+    const jaNaConta = String(ind.external_seller_uid || "") === novoUid && comms.every((c) => (c.data() || {}).external_seller_uid === novoUid);
+    if (jaNaConta) throw erro(409, `A venda e as comiss\xF5es j\xE1 est\xE3o na conta ${user && user.name || nomeInformado || novoUid}. Nada foi alterado.`);
+    const nowIso = agora.toISOString();
+    const nome = user && user.name || nomeInformado || ind.external_seller_name || "Parceiro";
+    const email = user ? String(user.email || "").toLowerCase() : "";
+    const antes = ind.external_seller_name || ind.external_seller_uid || "ningu\xE9m";
+    const antesUid = ind.external_seller_uid || null;
+    let somaComissoes = 0;
+    for (const c of comms) {
+      const cd = c.data() || {};
+      somaComissoes += Number(cd.value) || 0;
+      if (cd.external_seller_uid === novoUid) continue;
+      tx.update(c.ref, {
+        external_seller_uid: novoUid,
+        external_seller_name: nome,
+        ..."external_seller_email" in cd ? { external_seller_email: email } : {},
+        transferred_from_uid: cd.external_seller_uid || null,
+        transferred_at: nowIso,
+        updated_at: nowIso
+      });
+    }
+    for (const [, f] of fechamentos) {
+      const ids = new Set(f.tirar.map((t) => t.id));
+      const menos = f.tirar.reduce((a, t) => a + t.valor, 0);
+      const restantes = (f.data.commission_ids || []).filter((x) => !ids.has(x));
+      const total = Math.max(0, Math.round(((Number(f.data.total_value) || 0) - menos) * 100) / 100);
+      if (!restantes.length && total <= 0 && !f.data.nf_url) tx.delete(f.ref);
+      else tx.update(f.ref, { commission_ids: restantes, total_value: total, updated_at: nowIso });
+    }
+    tx.update(indRef, {
+      external_seller_uid: novoUid,
+      external_seller_name: nome,
+      external_seller_email: email,
+      updated_at: nowIso,
+      negotiation_history: arrayUnion({
+        id: idHist(),
+        type: "system",
+        author_name: autor.nome || "Administrador",
+        created_at: nowIso,
+        content: `Venda transferida pelo ${origem}: antes ${antes}${antesUid ? ` (${antesUid})` : ""}, agora ${nome} (${novoUid}).` + (comms.length ? ` ${comms.length === 1 ? "A comiss\xE3o de" : `As ${comms.length} comiss\xF5es, somando`} ${brl(somaComissoes)} ${comms.length === 1 ? "foi junto" : "foram juntas"}.` : ""),
+        attachments: []
+      })
+    });
+    return { ok: true, uid: novoUid, nome, comissoes: comms.length };
+  });
+}
+function loteEmPartes(db2, limite = 450) {
+  const ops = [];
+  return {
+    set: (r, v, o) => {
+      ops.push((b) => o ? b.set(r, v, o) : b.set(r, v));
+    },
+    update: (r, v) => {
+      ops.push((b) => b.update(r, v));
+    },
+    delete: (r) => {
+      ops.push((b) => b.delete(r));
+    },
+    get tamanho() {
+      return ops.length;
+    },
+    commit: async () => {
+      for (let i = 0; i < ops.length; i += limite) {
+        const b = db2.batch();
+        ops.slice(i, i + limite).forEach((op) => op(b));
+        await b.commit();
+      }
+    }
+  };
+}
+var PESO_STATUS = { paid: 3, waiting_payment: 2, waiting_nf: 1 };
+async function moverComissoesDoProvisorio(db2, lote, deUids, paraUid, agoraIso, paraNome) {
+  const origens = Array.from(new Set((Array.isArray(deUids) ? deUids : [deUids]).filter((d) => d && d !== paraUid)));
+  const resultado = { comissoes: 0, fechamentos: 0, presos: [] };
+  if (!paraUid || !origens.length) return resultado;
+  const grupos = /* @__PURE__ */ new Map();
+  const comissoes = [];
+  for (const de of origens) {
+    const cs = await db2.collection("commissions").where("external_seller_uid", "==", de).get();
+    cs.docs.forEach((c) => comissoes.push({ de, ref: c.ref, data: c.data() || {} }));
+    const extratos = await db2.collection("monthly_statements").where("seller_uid", "==", de).get();
+    for (const e of extratos.docs) {
+      const d = e.data() || {};
+      const novoId = e.id.includes(de) ? e.id.split(de).join(paraUid) : e.id;
+      if (novoId === e.id) {
+        lote.update(e.ref, { seller_uid: paraUid, updated_at: agoraIso });
+        resultado.fechamentos++;
+        continue;
+      }
+      let g = grupos.get(novoId);
+      if (!g) {
+        const ja = await db2.collection("monthly_statements").doc(novoId).get();
+        g = { destino: ja.exists ? { ref: ja.ref, data: ja.data() || {} } : null, fontes: [] };
+        grupos.set(novoId, g);
+      }
+      g.fontes.push({ de, ref: e.ref, data: d });
+    }
+  }
+  const presos = /* @__PURE__ */ new Set();
+  const destinoTravado = /* @__PURE__ */ new Set();
+  const chave = (de, m, a) => `${de}|${m}|${a}`;
+  for (const [novoId, g] of grupos) {
+    const fontes = [...g.fontes].sort((x, y) => (PESO_STATUS[y.data.status] || 0) - (PESO_STATUS[x.data.status] || 0));
+    let base = g.destino ? { ...g.destino.data } : null;
+    const juntadas = [];
+    for (const f of fontes) {
+      if (!base) {
+        base = { ...f.data, ..."id" in f.data ? { id: novoId } : {}, seller_uid: paraUid };
+        juntadas.push(f);
+        continue;
+      }
+      if (fechamentoTravado(base) || fechamentoTravado(f.data)) {
+        presos.add(chave(f.de, f.data.month, f.data.year));
+        resultado.presos.push(f.ref.id);
+        console.warn(`[AUTH] Fechamento ${f.ref.id} N\xC3O foi juntado a ${novoId}: um dos dois j\xE1 est\xE1 pago ou aguardando pagamento. Ficou no c\xF3digo provis\xF3rio ${f.de}, com as comiss\xF5es do m\xEAs. Acerte no Diagn\xF3stico de comiss\xE3o.`);
+        continue;
+      }
+      const st = (PESO_STATUS[f.data.status] || 0) > (PESO_STATUS[base.status] || 0) ? f.data.status : base.status;
+      base = {
+        ...base,
+        commission_ids: Array.from(/* @__PURE__ */ new Set([...base.commission_ids || [], ...f.data.commission_ids || []])),
+        total_value: Math.round(((Number(base.total_value) || 0) + (Number(f.data.total_value) || 0)) * 100) / 100,
+        nf_url: base.nf_url || f.data.nf_url || null,
+        ...st !== void 0 ? { status: st } : {}
+      };
+      juntadas.push(f);
+    }
+    if (g.destino && !juntadas.length && fechamentoTravado(g.destino.data)) destinoTravado.add(novoId);
+    if (!juntadas.length) continue;
+    const novoRef = g.destino ? g.destino.ref : db2.collection("monthly_statements").doc(novoId);
+    lote.set(novoRef, { ...base, updated_at: agoraIso });
+    juntadas.forEach((f) => {
+      lote.delete(f.ref);
+      resultado.fechamentos++;
+    });
+  }
+  for (const c of comissoes) {
+    const { month, year } = c.data;
+    let travadoNoDestino = false;
+    if (month && year && !grupos.has(`${paraUid}_${month}_${year}`)) {
+      const d = await db2.collection("monthly_statements").doc(`${paraUid}_${month}_${year}`).get();
+      travadoNoDestino = d.exists && fechamentoTravado(d.data());
+    }
+    if (month && year && (presos.has(chave(c.de, month, year)) || destinoTravado.has(`${paraUid}_${month}_${year}`) || travadoNoDestino)) {
+      lote.update(c.ref, { transferencia_pendente: { para_uid: paraUid, motivo: `fechamento de ${mmaa(month, year)} j\xE1 pago ou aguardando pagamento`, em: agoraIso } });
+      console.warn(`[AUTH] Comiss\xE3o ${c.ref.id} ficou no c\xF3digo provis\xF3rio ${c.de}: o fechamento de ${mmaa(month, year)} n\xE3o p\xF4de ser juntado. Acerte no Diagn\xF3stico de comiss\xE3o.`);
+      continue;
+    }
+    lote.update(c.ref, { external_seller_uid: paraUid, ...paraNome ? { external_seller_name: paraNome } : {}, updated_at: agoraIso });
+    resultado.comissoes++;
+  }
+  return resultado;
+}
+function registrarDiagnosticoComissao(app, deps) {
+  const responderErro = (res, e) => res.status(e?.status || 500).json({ ok: false, error: e?.message || "Erro." });
+  const nomeDe = async (q) => {
+    try {
+      return String((await deps.db.collection("users").doc(q.uid).get()).data()?.name || q.email || "Administrador");
+    } catch {
+      return "Administrador";
+    }
+  };
+  app.get("/api/admin/diagnostico-comissao", async (req, res) => {
+    if (!await deps.exigirAdmin(req, res)) return;
+    try {
+      return res.json(await diagnosticar(deps, String(req.query?.parceiro || ""), { conta: String(req.query?.conta || "") || void 0 }));
+    } catch (e) {
+      return responderErro(res, e);
+    }
+  });
+  app.post("/api/admin/diagnostico-comissao/previa", async (req, res) => {
+    if (!await deps.exigirAdmin(req, res)) return;
+    try {
+      return res.json(await previaGeracao(deps, String(req.body?.indicacaoId || ""), req.body?.desconto));
+    } catch (e) {
+      return responderErro(res, e);
+    }
+  });
+  app.post("/api/admin/diagnostico-comissao/gerar", async (req, res) => {
+    const q = await deps.exigirAdmin(req, res);
+    if (!q) return;
+    try {
+      return res.json(await gerarComissao(deps, String(req.body?.indicacaoId || ""), { uid: q.uid, nome: await nomeDe(q) }, req.body?.desconto));
+    } catch (e) {
+      return responderErro(res, e);
+    }
+  });
+  app.post("/api/admin/diagnostico-comissao/ligar", async (req, res) => {
+    const q = await deps.exigirAdmin(req, res);
+    if (!q) return;
+    try {
+      return res.json(await ligarParceiro(deps, String(req.body?.indicacaoId || ""), String(req.body?.uid || ""), { uid: q.uid, nome: await nomeDe(q) }));
+    } catch (e) {
+      return responderErro(res, e);
+    }
+  });
+  app.post("/api/admin/diagnostico-comissao/transferir", async (req, res) => {
+    const q = await deps.exigirAdmin(req, res);
+    if (!q) return;
+    try {
+      return res.json(await transferirIndicacao(deps, String(req.body?.indicacaoId || ""), String(req.body?.uid || ""), { uid: q.uid, nome: await nomeDe(q) }));
+    } catch (e) {
+      return responderErro(res, e);
+    }
+  });
+  app.post("/api/indicacoes/trocar-indicador", async (req, res) => {
+    const exigir = deps.exigirGestao || deps.exigirAdmin;
+    const q = await exigir(req, res);
+    if (!q) return;
+    try {
+      return res.json(await transferirIndicacao(
+        deps,
+        String(req.body?.indicacaoId || ""),
+        String(req.body?.uid || ""),
+        { uid: q.uid, nome: await nomeDe(q) },
+        "Trocar Indicador",
+        { semComissaoQualquerDestino: true, nomeInformado: String(req.body?.nome || "") }
+      ));
+    } catch (e) {
+      return responderErro(res, e);
+    }
+  });
+}
+
+// server/relatoriosComissao.ts
+var FUSO_BR2 = "America/Sao_Paulo";
+function mesEmBrasilia(agora) {
+  const [y, m] = agora.toLocaleDateString("en-CA", { timeZone: FUSO_BR2 }).split("-").map(Number);
+  return { month: m, year: y };
+}
+var mesAnterior = (c) => c.month === 1 ? { month: 12, year: c.year - 1 } : { month: c.month - 1, year: c.year };
+var pago = (st) => !!st && st.status === "paid";
+async function comissoesDoCiclo(db2, ciclo) {
+  const ant = mesAnterior(ciclo);
+  const ler = async (c, acumulado) => {
+    const s = await db2.collection("commissions").where("month", "==", c.month).where("year", "==", c.year).get();
+    return s.docs.map((d) => ({ id: d.id, ...d.data(), acumulado }));
+  };
+  const todas = [...await ler(ciclo, false), ...await ler(ant, true)].filter((c) => c.status !== "paid" && c.external_seller_uid && (Number(c.value) || 0) > 0);
+  const extratos = /* @__PURE__ */ new Map();
+  for (const c of todas) {
+    const id = `${c.external_seller_uid}_${c.month}_${c.year}`;
+    if (!extratos.has(id)) {
+      const st = await db2.collection("monthly_statements").doc(id).get();
+      extratos.set(id, st.exists ? st.data() : null);
+    }
+  }
+  return todas.filter((c) => !pago(extratos.get(`${c.external_seller_uid}_${c.month}_${c.year}`)));
+}
+function agruparPorParceiro(comissoes) {
+  const m = /* @__PURE__ */ new Map();
+  for (const c of comissoes) {
+    const g = m.get(c.external_seller_uid) || { uid: c.external_seller_uid, nome: c.external_seller_name || "", itens: [], total: 0 };
+    g.itens.push(c);
+    g.total += Number(c.value) || 0;
+    m.set(c.external_seller_uid, g);
+  }
+  return Array.from(m.values()).sort((a, b) => b.total - a.total);
+}
+async function comTravaMensal(db2, tarefa, ciclo, fn) {
+  const id = `${tarefa}_${ciclo.year}-${String(ciclo.month).padStart(2, "0")}`;
+  const ref = db2.collection("cron_locks").doc(id);
+  try {
+    await ref.create({ job: tarefa, month: ciclo.month, year: ciclo.year, started_at: (/* @__PURE__ */ new Date()).toISOString() });
+  } catch (e) {
+    if (e?.code === 6) console.log(`[CRON] ${id}: j\xE1 executado ou em execu\xE7\xE3o.`);
+    else console.error(`[CRON] ${id}: n\xE3o consegui criar a trava:`, e?.message);
+    return false;
+  }
+  try {
+    const r = await fn();
+    await ref.set({ finished_at: (/* @__PURE__ */ new Date()).toISOString(), ...r && typeof r === "object" ? r : {} }, { merge: true });
+  } catch (e) {
+    await ref.set({ error: String(e?.message || e), failed_at: (/* @__PURE__ */ new Date()).toISOString() }, { merge: true }).catch(() => {
+    });
+    console.error(`[CRON] ${id}: erro:`, e?.message);
+  }
+  return true;
+}
+async function lerIndicacoes(db2, ids) {
+  const m = /* @__PURE__ */ new Map();
+  for (const id of Array.from(new Set(ids.filter(Boolean)))) {
+    const s = await db2.collection("indications").doc(id).get();
+    if (s.exists) m.set(id, s.data());
+  }
+  return m;
+}
+async function lerAvisos(db2) {
+  const s = await db2.collection("settings").doc("notifications").get();
+  return (s.exists ? s.data() : null) || null;
+}
+var emailDeVerdade = (e) => !!e && String(e).includes("@") && !String(e).endsWith("@mobile.roder.com.br");
+async function relatorioParceirosDia1(deps) {
+  const { db: db2, formatCurrency } = deps;
+  const notif = await lerAvisos(db2);
+  if (!notif?.monthly_report_partners) return "desligado";
+  const agora = deps.agora ? deps.agora() : /* @__PURE__ */ new Date();
+  const ciclo = mesEmBrasilia(agora);
+  const ant = mesAnterior(ciclo);
+  const lastMonth = new Date(ant.year, ant.month - 1, 1);
+  return comTravaMensal(db2, "relatorio_parceiros_dia1", ciclo, async () => {
+    const grupos = agruparPorParceiro(await comissoesDoCiclo(db2, ciclo));
+    const inds = await lerIndicacoes(db2, grupos.flatMap((g) => g.itens.map((c) => c.indication_id)));
+    let enviados = 0;
+    for (const g of grupos) {
+      const partnerData = await db2.collection("users").doc(g.uid).get();
+      if (!partnerData.exists) continue;
+      const partner = partnerData.data();
+      if (!emailDeVerdade(partner.email)) continue;
+      const totalCommissions = g.total;
+      if (totalCommissions <= 0) continue;
+      const monthName = lastMonth.toLocaleString("pt-BR", { month: "long", year: "numeric" });
+      const financeReplyTo = deps.getFinanceReplyTo(notif);
+      const firstName = String(partner.name || "").split(" ")[0] || "parceiro";
+      const linhas = g.itens.map((c) => ({ c, x: inds.get(c.indication_id) || {} }));
+      const temAcumulado = g.itens.some((c) => c.acumulado);
+      const html = `
+        <div style="font-family: Arial, sans-serif; color: #1f2937; max-width: 620px;">
+          <p style="font-size: 16px;">Ol\xE1, ${firstName}!</p>
+          <p style="font-size: 15px; line-height: 1.6;">${temAcumulado ? `Este \xE9 o resumo das suas <strong>comiss\xF5es a receber</strong>: as de <strong>${monthName}</strong> e as de meses anteriores que ficaram acumuladas para este pagamento. Muito obrigado pela parceria e pela confian\xE7a na Roder.` : `\xC9 um prazer informar que as suas indica\xE7\xF5es geraram vendas em <strong>${monthName}</strong>. Muito obrigado pela parceria e pela confian\xE7a na Roder.`}</p>
+
+          <div style="background: #fff7ed; border: 1px solid #fed7aa; padding: 18px; border-radius: 10px; margin: 20px 0; text-align: center;">
+            <p style="margin: 0; font-size: 13px; color: #9a3412; text-transform: uppercase; letter-spacing: .05em;">Sua comiss\xE3o a receber</p>
+            <p style="margin: 6px 0 0 0; font-size: 30px; font-weight: 800; color: #c2410c;">${formatCurrency(totalCommissions)}</p>
+          </div>
+
+          <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+            <thead>
+              <tr style="color: #6b7280; text-align: left;">
+                <th style="padding: 8px; border-bottom: 1px solid #e5e7eb;">Cliente</th>
+                <th style="padding: 8px; border-bottom: 1px solid #e5e7eb;">Equipamento</th>
+                <th style="padding: 8px; border-bottom: 1px solid #e5e7eb; text-align: right;">Comiss\xE3o</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${linhas.map(({ c, x }) => `
+                <tr>
+                  <td style="padding: 8px; border-bottom: 1px solid #f3f4f6;">${x.client_name || x.client_person_name || ""}</td>
+                  <td style="padding: 8px; border-bottom: 1px solid #f3f4f6;">${x.base_machine || x.product_name || ""}</td>
+                  <td style="padding: 8px; border-bottom: 1px solid #f3f4f6; text-align: right; font-weight: bold;">${formatCurrency(Number(c.value) || 0)}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+
+          <div style="margin-top: 24px; padding: 16px; background: #f0fdf4; border-left: 4px solid #16a34a; border-radius: 8px; font-size: 14px; line-height: 1.6;">
+            <p style="margin: 0;"><strong>Pr\xF3ximo passo: nota fiscal de servi\xE7o</strong></p>
+            <p style="margin: 6px 0 0 0;">Nosso setor financeiro est\xE1 aguardando a sua <strong>nota fiscal de servi\xE7o no valor de ${formatCurrency(totalCommissions)}</strong>.</p>
+            <p style="margin: 6px 0 0 0;">Basta <strong>responder este e-mail com a nota fiscal anexada</strong> at\xE9 o dia <strong>05</strong>. A resposta vai direto para o nosso financeiro, e o pagamento \xE9 feito at\xE9 o dia <strong>07</strong> (se cair em fim de semana ou feriado, no pr\xF3ximo dia \xFAtil).</p>
+            <p style="margin: 6px 0 0 0; font-size: 12px; color: #6b7280;">Se preferir, voc\xEA tamb\xE9m pode carregar a nota no Roder Indica, na tela Comiss\xF5es.</p>
+          </div>
+
+          <p style="font-size: 14px; margin-top: 24px;">Um abra\xE7o,<br><strong>Equipe Roder M\xE1quinas e Equipamentos</strong></p>
+        </div>
+      `;
+      await deps.enviar(partner.email, temAcumulado ? `Suas comiss\xF5es Roder a receber: ${formatCurrency(totalCommissions)}` : `Sua comiss\xE3o Roder de ${monthName}: ${formatCurrency(totalCommissions)}`, html, { replyTo: financeReplyTo, fromName: "Roder M\xE1quinas" });
+      enviados++;
+    }
+    return { enviados };
+  });
+}
+async function lembreteNfDia5(deps) {
+  const { db: db2 } = deps;
+  const notif = await lerAvisos(db2);
+  if (!notif?.monthly_report_partners) return "desligado";
+  const agora = deps.agora ? deps.agora() : /* @__PURE__ */ new Date();
+  const ciclo = mesEmBrasilia(agora);
+  return comTravaMensal(db2, "lembrete_nf_dia5", ciclo, async () => {
+    const grupos = agruparPorParceiro(await comissoesDoCiclo(db2, ciclo));
+    let enviados = 0;
+    for (const g of grupos) {
+      if (g.total <= 0) continue;
+      const candidatos = Array.from(new Set(g.itens.map((c) => `${g.uid}_${c.month}_${c.year}`)));
+      let alreadySent = false;
+      for (const stId of candidatos) {
+        const st = await db2.collection("monthly_statements").doc(stId).get();
+        const stData = st.exists ? st.data() : null;
+        if (stData && (stData.nf_url || stData.status === "waiting_payment" || stData.status === "paid")) {
+          alreadySent = true;
+          break;
+        }
+      }
+      if (alreadySent) continue;
+      const partnerData = await db2.collection("users").doc(g.uid).get();
+      if (!partnerData.exists) continue;
+      const partner = partnerData.data();
+      if (!emailDeVerdade(partner.email)) continue;
+      const html = `
+          <div style="font-family: sans-serif; color: #333;">
+            <h2 style="color: #ef4444;">\u26A0\uFE0F AVISO: \xDAltimo dia para envio da Nota Fiscal</h2>
+            <p>Ol\xE1 ${partner.name},</p>
+            <p>Identificamos que a sua Nota Fiscal referente \xE0s comiss\xF5es do m\xEAs passado ainda n\xE3o foi carregada no sistema.</p>
+
+            <div style="background: #fef2f2; border: 1px solid #fee2e2; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ef4444;">
+              <p style="margin: 0; font-weight: bold; color: #991b1b;">PRAZO FINAL: HOJE</p>
+              <p style="margin: 5px 0 0 0; font-size: 14px;">Conforme contrato, o n\xE3o envio da NF at\xE9 o dia 05 (hoje) impossibilita o pagamento neste ciclo. O valor ser\xE1 acumulado para o pagamento do pr\xF3ximo m\xEAs.</p>
+            </div>
+
+            <p>Para garantir seu recebimento, <strong>responda este e-mail com a nota fiscal anexada</strong> (vai direto para o nosso financeiro) ou carregue a nota no sistema.</p>
+            <a href="${deps.appUrl || "https://roder-indica.web.app"}/comissoes" style="display: inline-block; background: #eab308; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Acessar Minhas Comiss\xF5es</a>
+          </div>
+        `;
+      await deps.enviar(partner.email, `\xDAltimo dia para enviar a nota fiscal da sua comiss\xE3o Roder`, html, { replyTo: deps.getFinanceReplyTo(notif), fromName: "Roder M\xE1quinas" });
+      enviados++;
+    }
+    return { enviados };
+  });
+}
+function emailsDoFinanceiro(notif) {
+  const financeEmails = ["financeiro@roderbrasil.com.br", "financeiro2@roderbrasil.com.br", "jeferson@roderbrasil.com.br"];
+  if (notif?.finance_email) {
+    String(notif.finance_email).split(",").map((e) => e.trim()).filter(Boolean).forEach((email) => {
+      if (!financeEmails.map((x) => x.toLowerCase()).includes(email.toLowerCase())) financeEmails.push(email);
+    });
+  }
+  return financeEmails;
+}
+function dataDaVenda(ind) {
+  return String(ind.sale_date || ind.sale_order_date || "").slice(0, 10) || (ind.updated_at ? new Date(ind.updated_at).toLocaleDateString("en-CA", { timeZone: FUSO_BR2 }) : "");
+}
+async function relatorioDiretoriaDia1(deps) {
+  const { db: db2, formatCurrency } = deps;
+  const notif = await lerAvisos(db2);
+  if (!notif?.monthly_report_directors) return "desligado";
+  const now = deps.agora ? deps.agora() : /* @__PURE__ */ new Date();
+  const ciclo = mesEmBrasilia(now);
+  const ant = mesAnterior(ciclo);
+  const lastMonth = new Date(ant.year, ant.month - 1, 1);
+  const prefixoMes = `${ant.year}-${String(ant.month).padStart(2, "0")}`;
+  return comTravaMensal(db2, "relatorio_diretoria_dia1", ciclo, async () => {
+    const indicationsSnap = await db2.collection("indications").where("status", "==", "sold").get();
+    const negotiatingSnap = await db2.collection("indications").where("status", "==", "negotiating").get();
+    const monthlySales = indicationsSnap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((d) => dataDaVenda(d).startsWith(prefixoMes));
+    const activeNegotiations = negotiatingSnap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((d) => {
+      if (!d.budget_date) return false;
+      const daysOld = (now.getTime() - new Date(d.budget_date).getTime()) / (1e3 * 60 * 60 * 24);
+      return daysOld <= 60;
+    });
+    const comissoes = await comissoesDoCiclo(db2, ciclo);
+    const grupos = agruparPorParceiro(comissoes);
+    const indsComissao = await lerIndicacoes(db2, comissoes.map((c) => c.indication_id));
+    if (monthlySales.length === 0 && activeNegotiations.length === 0 && comissoes.length === 0) return { enviados: 0 };
+    const totalSalesValue = monthlySales.reduce((acc, curr) => acc + (curr.sale_value || 0), 0);
+    const totalCommissions = grupos.reduce((acc, g) => acc + g.total, 0);
+    const totalNegotiatingValue = activeNegotiations.reduce((acc, curr) => acc + (curr.sale_value || 0), 0);
+    const sellersMap = {};
+    monthlySales.forEach((sale) => {
+      const sid = sale.external_seller_uid || `nome:${sale.external_seller_name || ""}`;
+      if (!sellersMap[sid]) sellersMap[sid] = { name: sale.external_seller_name, count: 0, total: 0, saleTimes: [] };
+      sellersMap[sid].count++;
+      sellersMap[sid].total += sale.sale_value || 0;
+      if (sale.created_at && sale.updated_at) {
+        const t = (new Date(sale.updated_at).getTime() - new Date(sale.created_at).getTime()) / (1e3 * 60 * 60 * 24);
+        sellersMap[sid].saleTimes.push(t);
+      }
+    });
+    const sellersRanking = Object.values(sellersMap).sort((a, b) => b.total - a.total);
+    const monthName = lastMonth.toLocaleString("pt-BR", { month: "long", year: "numeric" });
+    const html = `
+      <div style="font-family: sans-serif; color: #333; max-width: 900px;">
+        <h1 style="color: #eab308; border-bottom: 2px solid #eab308; padding-bottom: 10px;">Relat\xF3rio de Vendas - ${monthName}</h1>
+
+        <div style="display: flex; gap: 20px; margin: 20px 0;">
+          <div style="background: #f8fafc; padding: 15px; border-radius: 8px; flex: 1; border: 1px solid #e2e8f0;">
+            <p style="margin: 0; font-size: 12px; font-weight: bold; color: #64748b;">VENDAS TOTAIS (NF)</p>
+            <p style="margin: 5px 0 0 0; font-size: 20px; font-weight: 800; color: #eab308;">${formatCurrency(totalSalesValue)}</p>
+          </div>
+          <div style="background: #f8fafc; padding: 15px; border-radius: 8px; flex: 1; border: 1px solid #e2e8f0;">
+            <p style="margin: 0; font-size: 12px; font-weight: bold; color: #64748b;">EM NEGOCIA\xC7\xC3O (ABERTO)</p>
+            <p style="margin: 5px 0 0 0; font-size: 20px; font-weight: 800; color: #3b82f6;">${formatCurrency(totalNegotiatingValue)}</p>
+          </div>
+          <div style="background: #f8fafc; padding: 15px; border-radius: 8px; flex: 1; border: 1px solid #e2e8f0;">
+            <p style="margin: 0; font-size: 12px; font-weight: bold; color: #64748b;">COMISS\xD5ES \xC0 PAGAR</p>
+            <p style="margin: 5px 0 0 0; font-size: 20px; font-weight: 800; color: #0f172a;">${formatCurrency(totalCommissions)}</p>
+          </div>
+        </div>
+
+        <h2 style="font-size: 18px; margin-top: 30px;">Destaques por Vendedor</h2>
+        <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+          <thead>
+            <tr style="background: #f1f5f9; text-align: left;">
+              <th style="padding: 10px; border: 1px solid #e2e8f0;">Vendedor</th>
+              <th style="padding: 10px; border: 1px solid #e2e8f0;">Vendas</th>
+              <th style="padding: 10px; border: 1px solid #e2e8f0;">T. M\xE9dio (Dias)</th>
+              <th style="padding: 10px; border: 1px solid #e2e8f0;">Valor Total (NF)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${sellersRanking.map((s) => `
+              <tr>
+                <td style="padding: 10px; border: 1px solid #e2e8f0;">${s.name}</td>
+                <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center;">${s.count}</td>
+                <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center;">${s.saleTimes.length > 0 ? (s.saleTimes.reduce((a, b) => a + b, 0) / s.saleTimes.length).toFixed(1) : "N/A"}</td>
+                <td style="padding: 10px; border: 1px solid #e2e8f0; font-weight: bold;">${formatCurrency(s.total)}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+
+        <h2 style="font-size: 18px; margin-top: 40px;">Listagem Detalhada de Vendas</h2>
+        <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px;">
+          <thead>
+            <tr style="background: #f1f5f9; text-align: left;">
+              <th style="padding: 8px; border: 1px solid #e2e8f0;">Cliente</th>
+              <th style="padding: 8px; border: 1px solid #e2e8f0;">Equipamento</th>
+              <th style="padding: 8px; border: 1px solid #e2e8f0;">Indicador</th>
+              <th style="padding: 8px; border: 1px solid #e2e8f0;">Vendedor Interno</th>
+              <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">Valor Venda</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${monthlySales.map((sale) => `
+              <tr>
+                <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.client_name}</td>
+                <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.product_name}</td>
+                <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.external_seller_name || "-"}</td>
+                <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.internal_seller_name || "-"}</td>
+                <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; font-weight: bold;">${formatCurrency(sale.sale_value || 0)}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+
+        <h2 style="font-size: 18px; margin-top: 40px; color: #3b82f6;">Or\xE7amentos em Aberto (V\xE1lidos)</h2>
+        <p style="font-size: 13px; color: #64748b; margin-bottom: 10px;">Estas negocia\xE7\xF5es ainda est\xE3o dentro do prazo de 60 dias e s\xE3o prioridade para reuni\xF5es de acompanhamento.</p>
+        <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px;">
+          <thead>
+            <tr style="background: #eff6ff; text-align: left;">
+              <th style="padding: 8px; border: 1px solid #e2e8f0;">Cliente</th>
+              <th style="padding: 8px; border: 1px solid #e2e8f0;">Equipamento</th>
+              <th style="padding: 8px; border: 1px solid #e2e8f0;">Interno</th>
+              <th style="padding: 8px; border: 1px solid #e2e8f0;">Enviado em</th>
+              <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: center;">Validade</th>
+              <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">Previs\xE3o</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${activeNegotiations.map((neg) => {
+      const bDate = new Date(neg.budget_date);
+      const daysLeft = 60 - Math.floor((now.getTime() - bDate.getTime()) / (1e3 * 60 * 60 * 24));
+      return `
+                <tr>
+                  <td style="padding: 8px; border: 1px solid #e2e8f0;">${neg.client_name}</td>
+                  <td style="padding: 8px; border: 1px solid #e2e8f0;">${neg.product_name}</td>
+                  <td style="padding: 8px; border: 1px solid #e2e8f0;">${neg.internal_seller_name || "-"}</td>
+                  <td style="padding: 8px; border: 1px solid #e2e8f0;">${bDate.toLocaleDateString("pt-BR")}</td>
+                  <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center; color: ${daysLeft <= 5 ? "#ef4444" : "#64748b"}; font-weight: bold;">
+                    ${daysLeft} dias
+                  </td>
+                  <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; font-weight: bold;">${formatCurrency(neg.sale_value || 0)}</td>
+                </tr>
+              `;
+    }).join("")}
+            ${activeNegotiations.length === 0 ? '<tr><td colspan="6" style="padding: 20px; text-align: center; color: #94a3b8;">Nenhuma negocia\xE7\xE3o ativa no momento.</td></tr>' : ""}
+          </tbody>
+        </table>
+
+        <p style="margin-top: 30px; font-size: 12px; color: #666;">
+          Este relat\xF3rio cont\xE9m valores reais de nota fiscal para fins gerenciais.
+        </p>
+      </div>
+    `;
+    const recipients = [
+      ...notif.manager_emails ? String(notif.manager_emails).split(",").map((e) => e.trim()) : [],
+      ...notif.director_emails ? String(notif.director_emails).split(",").map((e) => e.trim()) : []
+    ].filter((e) => e !== "");
+    let enviados = 0;
+    for (const email of recipients) {
+      await deps.enviar(email, `Relat\xF3rio de Vendas Roder - ${monthName}`, html);
+      enviados++;
+    }
+    const detailedSellers = await Promise.all(grupos.map(async (g) => {
+      const userDoc = await db2.collection("users").doc(g.uid).get();
+      const userData = userDoc.exists ? userDoc.data() || {} : null;
+      return {
+        name: userData && userData.name || g.nome,
+        commissions: g.total,
+        pix_key: userData ? userData.pix_key || "N\xE3o informado" : "-",
+        bank_info: userData && userData.bank_info || { bank: "-", agency: "-", account: "-" }
+      };
+    }));
+    const financeHtml = `
+      <div style="font-family: sans-serif; color: #333; max-width: 900px;">
+        <h1 style="color: #0f172a; border-bottom: 2px solid #0f172a; padding-bottom: 10px;">Previs\xE3o de Pagamentos - ${monthName}</h1>
+        <p>O valor total de comiss\xF5es para as vendas de <strong>${monthName}</strong> \xE9 de: <strong style="font-size: 18px; color: #eab308;">${formatCurrency(totalCommissions)}</strong>.</p>
+        <p>Abaixo seguem os detalhes de cada vendedor e suas respectivas informa\xE7\xF5es banc\xE1rias para processamento do pagamento.</p>
+
+        <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px;">
+          <thead>
+            <tr style="background: #f1f5f9;">
+              <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Vendedor</th>
+              <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Comiss\xE3o</th>
+              <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Chave PIX</th>
+              <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Dados Banc\xE1rios</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${detailedSellers.map((s) => `
+              <tr>
+                <td style="padding: 10px; border: 1px solid #ddd;">${s.name}</td>
+                <td style="padding: 10px; border: 1px solid #ddd; font-weight: bold;">${formatCurrency(s.commissions)}</td>
+                <td style="padding: 10px; border: 1px solid #ddd; color: #666;">${s.pix_key}</td>
+                <td style="padding: 10px; border: 1px solid #ddd; font-size: 11px; color: #666;">
+                  ${s.bank_info?.bank ? `Bco: ${s.bank_info.bank}<br>Ag: ${s.bank_info.agency}<br>Cc: ${s.bank_info.account}` : "N/A"}
+                </td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+
+        <h2 style="font-size: 16px; margin-top: 35px; border-bottom: 2px solid #0f172a; padding-bottom: 5px; color: #0f172a; font-weight: bold;">Detalhamento das Indica\xE7\xF5es Faturadas no M\xEAs (Roder Indica)</h2>
+        <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px;">
+          <thead>
+            <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0; text-align: left;">
+              <th style="padding: 8px; border: 1px solid #e2e8f0;">Cliente</th>
+              <th style="padding: 8px; border: 1px solid #e2e8f0;">Parceiro Indicador</th>
+              <th style="padding: 8px; border: 1px solid #e2e8f0;">Equipamento(s)</th>
+              <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">Valor Venda (R$)</th>
+              <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">Base Comission\xE1vel (R$)</th>
+              <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: center;">Al\xEDquota (%)</th>
+              <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">Comiss\xE3o (R$)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${comissoes.map((c) => {
+      const sale = indsComissao.get(c.indication_id) || {};
+      return `
+              <tr style="border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.client_name || "N\xE3o informado"}</td>
+                <td style="padding: 8px; border: 1px solid #e2e8f0;">${c.external_seller_name || sale.external_seller_name || "-"}</td>
+                <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.product_name || sale.base_machine || "-"}</td>
+                <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">${formatCurrency(sale.sale_value || 0)}</td>
+                <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; font-weight: bold;">${formatCurrency(Number(c.base_value_used) || 0)}</td>
+                <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center;">${c.rate_applied !== void 0 && c.rate_applied !== null ? `${c.rate_applied}%` : "-"}</td>
+                <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; font-weight: bold; color: #16a34a;">${formatCurrency(Number(c.value) || 0)}</td>
+              </tr>
+            `;
+    }).join("")}
+            ${comissoes.length === 0 ? '<tr><td colspan="7" style="padding: 20px; text-align: center; color: #64748b;">Nenhum faturamento registrado no m\xEAs anterior.</td></tr>' : ""}
+          </tbody>
+        </table>
+
+        <p style="margin-top: 25px; font-size: 12px; color: #666; font-style: italic;">
+          * Por favor, verifique se os vendedores enviaram as Notas Fiscais no sistema antes de efetivar o pagamento.
+        </p>
+      </div>
+    `;
+    for (const email of emailsDoFinanceiro(notif)) {
+      await deps.enviar(email, `Financeiro: Relat\xF3rio de Pagamentos - ${monthName}`, financeHtml);
+      enviados++;
+    }
+    return { enviados };
+  });
+}
+async function lembreteFinanceiroDia7(deps) {
+  const { db: db2, formatCurrency } = deps;
+  const notif = await lerAvisos(db2);
+  if (!notif?.payment_reminder_finance) return "desligado";
+  const agora = deps.agora ? deps.agora() : /* @__PURE__ */ new Date();
+  const ciclo = mesEmBrasilia(agora);
+  return comTravaMensal(db2, "lembrete_financeiro_dia7", ciclo, async () => {
+    const monthlyCommissions = (await comissoesDoCiclo(db2, ciclo)).reduce((acc, c) => acc + (Number(c.value) || 0), 0);
+    if (monthlyCommissions === 0) return { enviados: 0 };
+    const html = `
+      <div style="font-family: sans-serif; color: #333;">
+        <h2 style="color: #0f172a;">Lembrete de Pagamento de Comiss\xF5es</h2>
+        <p>Ol\xE1 Setor Financeiro / Jeferson,</p>
+        <p>Hoje \xE9 dia 7. Lembramos que o valor total de comiss\xF5es calculadas para o fechamento do m\xEAs anterior \xE9 de:</p>
+        <div style="font-size: 36px; font-weight: 900; color: #eab308; margin: 20px 0;">${formatCurrency(monthlyCommissions)}</div>
+        <p>Ap\xF3s realizar os pagamentos, por favor, certifique que as notas fiscais foram enviadas no sistema e carregue os respectivos comprovantes para notificar os parceiros.</p>
+      </div>
+    `;
+    let enviados = 0;
+    for (const email of emailsDoFinanceiro(notif)) {
+      await deps.enviar(email, `URGENTE: Pagamento de Comiss\xF5es do M\xEAs`, html);
+      enviados++;
+    }
+    return { enviados };
+  });
+}
+var TRAVA_LIGAR_EMAILS = "ligar_emails_comissao_v1";
+async function ligarEmailsComissaoUmaVez(db2, agora = /* @__PURE__ */ new Date()) {
+  const trava = db2.collection("cron_locks").doc(TRAVA_LIGAR_EMAILS);
+  try {
+    await trava.create({ job: TRAVA_LIGAR_EMAILS, started_at: agora.toISOString() });
+  } catch (e) {
+    if (e?.code === 6) return "ja_rodou";
+    console.error("[EMAILS-COMISSAO] N\xE3o consegui criar a trava:", e?.message);
+    return "erro";
+  }
+  try {
+    const flags = { monthly_report_partners: true, monthly_report_directors: true, payment_reminder_finance: true };
+    await db2.collection("settings").doc("notifications").set({ ...flags, updated_at: agora.toISOString() }, { merge: true });
+    await trava.set({ finished_at: (/* @__PURE__ */ new Date()).toISOString(), ...flags }, { merge: true });
+    console.log("[EMAILS-COMISSAO] Ligados: e-mail do parceiro (dia 1 e dia 5), relat\xF3rio da diretoria (dia 1) e lembrete ao financeiro (dia 7).");
+    return "ligado";
+  } catch (e) {
+    await trava.delete().catch(() => {
+    });
+    console.error("[EMAILS-COMISSAO] Erro ao ligar:", e?.message);
+    return "erro";
+  }
+}
+
 // server.ts
 var import_meta = {};
 var customRequire;
@@ -2183,7 +3414,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-20e videos-consultor";
+  const RELEASE_LABEL = "2026-10-20f comissao-diagnostico";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -3152,6 +4383,15 @@ Retorne um array JSON no formato exato:
     }
     return q;
   }
+  async function exigirGestaoComissao(req, res) {
+    const q = await quemChama(req);
+    if (!ehGestao(q)) {
+      res.status(403).json({ ok: false, error: "S\xF3 o administrador ou a ger\xEAncia podem trocar o indicador de uma venda faturada." });
+      return null;
+    }
+    return q;
+  }
+  registrarDiagnosticoComissao(app, { db, exigirAdmin, exigirGestao: exigirGestaoComissao, arrayUnion: (...v) => import_firebase_admin.default.firestore.FieldValue.arrayUnion(...v) });
   app.get("/api/admin/regras/estado", async (req, res) => {
     if (!await exigirAdmin(req, res)) return;
     try {
@@ -3283,10 +4523,9 @@ Retorne um array JSON no formato exato:
       perfil.email = email;
       perfil.status = "active";
       perfil.updated_at = (/* @__PURE__ */ new Date()).toISOString();
-      const lote = db.batch();
+      const lote = loteEmPartes(db);
       lote.set(realRef, perfil);
       for (const t of temporarios) {
-        lote.delete(t.ref);
         const ligados = await Promise.all([
           db.collection("indications").where("internal_seller_uid", "==", t.id).get(),
           db.collection("indications").where("assigned_to_uid", "==", t.id).get(),
@@ -3302,6 +4541,9 @@ Retorne um array JSON no formato exato:
         ligados[1].forEach((d) => lote.update(d.ref, { assigned_to_uid: dec.uid, updated_at: perfil.updated_at }));
         ligados[2].forEach((d) => lote.update(d.ref, { assigned_to_uid: dec.uid, updated_at: perfil.updated_at }));
       }
+      const movidos = await moverComissoesDoProvisorio(db, lote, temporarios.map((t) => t.id), dec.uid, perfil.updated_at, perfil.name);
+      if (movidos.presos.length) console.warn(`[AUTH] ${email}: ${movidos.presos.length} fechamento(s) do provis\xF3rio n\xE3o puderam ser juntados (pago ou aguardando pagamento).`);
+      temporarios.forEach((t) => lote.delete(t.ref));
       await lote.commit();
       console.log(`[AUTH] Perfil pr\xE9-cadastrado passado para ${email} (${temporarios.length} provis\xF3rio(s)).`);
       return res.json({ ok: true, merged: true });
@@ -6644,395 +7886,31 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
   }, {
     timezone: BR_TIMEZONE
   });
+  const depsRelatorio = { db, enviar: sendAutomaticEmail, formatCurrency, getFinanceReplyTo, appUrl: process.env.APP_URL };
   import_node_cron.default.schedule("0 8 1 * *", async () => {
     console.log("[Schedule] Generating Day 1 Monthly Reports...");
-    const notifSnap = await db.collection("settings").doc("notifications").get();
-    const notif = notifSnap.data();
-    if (!notif?.monthly_report_directors) return;
-    const now = /* @__PURE__ */ new Date();
-    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-    const indicationsSnap = await db.collection("indications").where("status", "==", "sold").get();
-    const negotiatingSnap = await db.collection("indications").where("status", "==", "negotiating").get();
-    const monthlySales = indicationsSnap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((d) => {
-      if (!d.updated_at) return false;
-      const date = new Date(d.updated_at);
-      return date >= lastMonth && date <= endOfLastMonth;
-    });
-    const activeNegotiations = negotiatingSnap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((d) => {
-      if (!d.budget_date) return false;
-      const budgetDate = new Date(d.budget_date);
-      const daysOld = (now.getTime() - budgetDate.getTime()) / (1e3 * 60 * 60 * 24);
-      return daysOld <= 60;
-    });
-    if (monthlySales.length === 0 && activeNegotiations.length === 0) return;
-    const totalSalesValue = monthlySales.reduce((acc, curr) => acc + (curr.sale_value || 0), 0);
-    const totalCommissions = monthlySales.reduce((acc, curr) => acc + (curr.commission_value || 0), 0);
-    const totalNegotiatingValue = activeNegotiations.reduce((acc, curr) => acc + (curr.sale_value || 0), 0);
-    const sellersMap = {};
-    monthlySales.forEach((sale) => {
-      const sid = sale.external_seller_uid;
-      if (!sellersMap[sid]) {
-        sellersMap[sid] = { name: sale.external_seller_name, count: 0, total: 0, commissions: 0, saleTimes: [] };
-      }
-      sellersMap[sid].count++;
-      sellersMap[sid].total += sale.sale_value || 0;
-      sellersMap[sid].commissions += sale.commission_value || 0;
-      if (sale.created_at && sale.updated_at) {
-        const t = (new Date(sale.updated_at).getTime() - new Date(sale.created_at).getTime()) / (1e3 * 60 * 60 * 24);
-        sellersMap[sid].saleTimes.push(t);
-      }
-    });
-    const sellersRanking = Object.entries(sellersMap).map(([uid, data]) => ({
-      uid,
-      ...data
-    })).sort((a, b) => b.total - a.total);
-    const monthName = lastMonth.toLocaleString("pt-BR", { month: "long", year: "numeric" });
-    let html = `
-      <div style="font-family: sans-serif; color: #333; max-width: 900px;">
-        <h1 style="color: #eab308; border-bottom: 2px solid #eab308; padding-bottom: 10px;">Relat\xF3rio de Vendas - ${monthName}</h1>
-        
-        <div style="display: flex; gap: 20px; margin: 20px 0;">
-          <div style="background: #f8fafc; padding: 15px; border-radius: 8px; flex: 1; border: 1px solid #e2e8f0;">
-            <p style="margin: 0; font-size: 12px; font-weight: bold; color: #64748b;">VENDAS TOTAIS (NF)</p>
-            <p style="margin: 5px 0 0 0; font-size: 20px; font-weight: 800; color: #eab308;">${formatCurrency(totalSalesValue)}</p>
-          </div>
-          <div style="background: #f8fafc; padding: 15px; border-radius: 8px; flex: 1; border: 1px solid #e2e8f0;">
-            <p style="margin: 0; font-size: 12px; font-weight: bold; color: #64748b;">EM NEGOCIA\xC7\xC3O (ABERTO)</p>
-            <p style="margin: 5px 0 0 0; font-size: 20px; font-weight: 800; color: #3b82f6;">${formatCurrency(totalNegotiatingValue)}</p>
-          </div>
-          <div style="background: #f8fafc; padding: 15px; border-radius: 8px; flex: 1; border: 1px solid #e2e8f0;">
-            <p style="margin: 0; font-size: 12px; font-weight: bold; color: #64748b;">COMISS\xD5ES \xC0 PAGAR</p>
-            <p style="margin: 5px 0 0 0; font-size: 20px; font-weight: 800; color: #0f172a;">${formatCurrency(totalCommissions)}</p>
-          </div>
-        </div>
-
-        <h2 style="font-size: 18px; margin-top: 30px;">Destaques por Vendedor</h2>
-        <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
-          <thead>
-            <tr style="background: #f1f5f9; text-align: left;">
-              <th style="padding: 10px; border: 1px solid #e2e8f0;">Vendedor</th>
-              <th style="padding: 10px; border: 1px solid #e2e8f0;">Vendas</th>
-              <th style="padding: 10px; border: 1px solid #e2e8f0;">T. M\xE9dio (Dias)</th>
-              <th style="padding: 10px; border: 1px solid #e2e8f0;">Valor Total (NF)</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${sellersRanking.map((s) => `
-              <tr>
-                <td style="padding: 10px; border: 1px solid #e2e8f0;">${s.name}</td>
-                <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center;">${s.count}</td>
-                <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center;">${s.saleTimes.length > 0 ? (s.saleTimes.reduce((a, b) => a + b, 0) / s.saleTimes.length).toFixed(1) : "N/A"}</td>
-                <td style="padding: 10px; border: 1px solid #e2e8f0; font-weight: bold;">${formatCurrency(s.total)}</td>
-              </tr>
-            `).join("")}
-          </tbody>
-        </table>
-
-        <h2 style="font-size: 18px; margin-top: 40px;">Listagem Detalhada de Vendas</h2>
-        <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px;">
-          <thead>
-            <tr style="background: #f1f5f9; text-align: left;">
-              <th style="padding: 8px; border: 1px solid #e2e8f0;">Cliente</th>
-              <th style="padding: 8px; border: 1px solid #e2e8f0;">Equipamento</th>
-              <th style="padding: 8px; border: 1px solid #e2e8f0;">Indicador</th>
-              <th style="padding: 8px; border: 1px solid #e2e8f0;">Vendedor Interno</th>
-              <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">Valor Venda</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${monthlySales.map((sale) => `
-              <tr>
-                <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.client_name}</td>
-                <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.product_name}</td>
-                <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.external_seller_name || "-"}</td>
-                <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.internal_seller_name || "-"}</td>
-                <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; font-weight: bold;">${formatCurrency(sale.sale_value || 0)}</td>
-              </tr>
-            `).join("")}
-          </tbody>
-        </table>
-
-        <h2 style="font-size: 18px; margin-top: 40px; color: #3b82f6;">Or\xE7amentos em Aberto (V\xE1lidos)</h2>
-        <p style="font-size: 13px; color: #64748b; margin-bottom: 10px;">Estas negocia\xE7\xF5es ainda est\xE3o dentro do prazo de 60 dias e s\xE3o prioridade para reuni\xF5es de acompanhamento.</p>
-        <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px;">
-          <thead>
-            <tr style="background: #eff6ff; text-align: left;">
-              <th style="padding: 8px; border: 1px solid #e2e8f0;">Cliente</th>
-              <th style="padding: 8px; border: 1px solid #e2e8f0;">Equipamento</th>
-              <th style="padding: 8px; border: 1px solid #e2e8f0;">Interno</th>
-              <th style="padding: 8px; border: 1px solid #e2e8f0;">Enviado em</th>
-              <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: center;">Validade</th>
-              <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">Previs\xE3o</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${activeNegotiations.map((neg) => {
-      const bDate = new Date(neg.budget_date);
-      const daysLeft = 60 - Math.floor((now.getTime() - bDate.getTime()) / (1e3 * 60 * 60 * 24));
-      return `
-                <tr>
-                  <td style="padding: 8px; border: 1px solid #e2e8f0;">${neg.client_name}</td>
-                  <td style="padding: 8px; border: 1px solid #e2e8f0;">${neg.product_name}</td>
-                  <td style="padding: 8px; border: 1px solid #e2e8f0;">${neg.internal_seller_name || "-"}</td>
-                  <td style="padding: 8px; border: 1px solid #e2e8f0;">${bDate.toLocaleDateString("pt-BR")}</td>
-                  <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center; color: ${daysLeft <= 5 ? "#ef4444" : "#64748b"}; font-weight: bold;">
-                    ${daysLeft} dias
-                  </td>
-                  <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; font-weight: bold;">${formatCurrency(neg.sale_value || 0)}</td>
-                </tr>
-              `;
-    }).join("")}
-            ${activeNegotiations.length === 0 ? '<tr><td colspan="6" style="padding: 20px; text-align: center; color: #94a3b8;">Nenhuma negocia\xE7\xE3o ativa no momento.</td></tr>' : ""}
-          </tbody>
-        </table>
-
-        <p style="margin-top: 30px; font-size: 12px; color: #666;">
-          Este relat\xF3rio cont\xE9m valores reais de nota fiscal para fins gerenciais.
-        </p>
-      </div>
-    `;
-    const recipients = [
-      ...notif.manager_emails ? notif.manager_emails.split(",").map((e) => e.trim()) : [],
-      ...notif.director_emails ? notif.director_emails.split(",").map((e) => e.trim()) : []
-    ].filter((e) => e !== "");
-    for (const email of recipients) {
-      await sendAutomaticEmail(email, `Relat\xF3rio de Vendas Roder - ${monthName}`, html);
+    try {
+      await relatorioDiretoriaDia1(depsRelatorio);
+    } catch (e) {
+      console.error("[Schedule] Relat\xF3rio da diretoria:", e?.message);
     }
-    const financeEmails = [
-      "financeiro@roderbrasil.com.br",
-      "financeiro2@roderbrasil.com.br",
-      "jeferson@roderbrasil.com.br"
-    ];
-    if (notif.finance_email) {
-      const customEmails = String(notif.finance_email).split(",").map((e) => e.trim()).filter((e) => e !== "");
-      customEmails.forEach((email) => {
-        if (!financeEmails.map((x) => x.toLowerCase()).includes(email.toLowerCase())) {
-          financeEmails.push(email);
-        }
-      });
-    }
-    const detailedSellers = await Promise.all(sellersRanking.map(async (s) => {
-      if (!s.uid) return { ...s, pix_key: "-", bank_info: { bank: "-", agency: "-", account: "-" } };
-      const userDoc = await db.collection("users").doc(s.uid).get();
-      if (userDoc.exists) {
-        const userData = userDoc.data() || {};
-        return {
-          ...s,
-          pix_key: userData.pix_key || "N\xE3o informado",
-          bank_info: userData.bank_info || { bank: "-", agency: "-", account: "-" }
-        };
-      }
-      return { ...s, pix_key: "-", bank_info: { bank: "-", agency: "-", account: "-" } };
-    }));
-    const financeHtml = `
-      <div style="font-family: sans-serif; color: #333; max-width: 900px;">
-        <h1 style="color: #0f172a; border-bottom: 2px solid #0f172a; padding-bottom: 10px;">Previs\xE3o de Pagamentos - ${monthName}</h1>
-        <p>O valor total de comiss\xF5es para as vendas de <strong>${monthName}</strong> \xE9 de: <strong style="font-size: 18px; color: #eab308;">${formatCurrency(totalCommissions)}</strong>.</p>
-        <p>Abaixo seguem os detalhes de cada vendedor e suas respectivas informa\xE7\xF5es banc\xE1rias para processamento do pagamento.</p>
-        
-        <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px;">
-          <thead>
-            <tr style="background: #f1f5f9;">
-              <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Vendedor</th>
-              <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Comiss\xE3o</th>
-              <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Chave PIX</th>
-              <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Dados Banc\xE1rios</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${detailedSellers.map((s) => `
-              <tr>
-                <td style="padding: 10px; border: 1px solid #ddd;">${s.name}</td>
-                <td style="padding: 10px; border: 1px solid #ddd; font-weight: bold;">${formatCurrency(s.commissions)}</td>
-                <td style="padding: 10px; border: 1px solid #ddd; color: #666;">${s.pix_key}</td>
-                <td style="padding: 10px; border: 1px solid #ddd; font-size: 11px; color: #666;">
-                  ${s.bank_info?.bank ? `Bco: ${s.bank_info.bank}<br>Ag: ${s.bank_info.agency}<br>Cc: ${s.bank_info.account}` : "N/A"}
-                </td>
-              </tr>
-            `).join("")}
-          </tbody>
-        </table>
-
-        <h2 style="font-size: 16px; margin-top: 35px; border-bottom: 2px solid #0f172a; padding-bottom: 5px; color: #0f172a; font-weight: bold;">Detalhamento das Indica\xE7\xF5es Faturadas no M\xEAs (Roder Indica)</h2>
-        <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px;">
-          <thead>
-            <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0; text-align: left;">
-              <th style="padding: 8px; border: 1px solid #e2e8f0;">Cliente</th>
-              <th style="padding: 8px; border: 1px solid #e2e8f0;">Parceiro Indicador</th>
-              <th style="padding: 8px; border: 1px solid #e2e8f0;">Equipamento(s)</th>
-              <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">Valor Venda (R$)</th>
-              <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">Base Comission\xE1vel (R$)</th>
-              <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: center;">Al\xEDquota (%)</th>
-              <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">Comiss\xE3o (R$)</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${monthlySales.map((sale) => `
-              <tr style="border-bottom: 1px solid #e2e8f0;">
-                <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.client_name || "N\xE3o informado"}</td>
-                <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.external_seller_name || "-"}</td>
-                <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.product_name || "-"}</td>
-                <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">${formatCurrency(sale.sale_value || 0)}</td>
-                <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; font-weight: bold;">${formatCurrency(sale.base_commission_value || 0)}</td>
-                <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center;">${sale.commission_rate_applied || 5}%</td>
-                <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; font-weight: bold; color: #16a34a;">${formatCurrency(sale.commission_value || 0)}</td>
-              </tr>
-            `).join("")}
-            ${monthlySales.length === 0 ? '<tr><td colspan="7" style="padding: 20px; text-align: center; color: #64748b;">Nenhum faturamento registrado no m\xEAs anterior.</td></tr>' : ""}
-          </tbody>
-        </table>
-
-        <p style="margin-top: 25px; font-size: 12px; color: #666; font-style: italic;">
-          * Por favor, verifique se os vendedores enviaram as Notas Fiscais no sistema antes de efetivar o pagamento.
-        </p>
-      </div>
-    `;
-    for (const email of financeEmails) {
-      await sendAutomaticEmail(email, `Financeiro: Relat\xF3rio de Pagamentos - ${monthName}`, financeHtml);
-    }
-  }, {
-    timezone: BR_TIMEZONE
-  });
+  }, { timezone: BR_TIMEZONE });
   import_node_cron.default.schedule("0 8 1 * *", async () => {
     console.log("[Schedule] Generating Day 1 Partner Reports...");
-    const notifSnap = await db.collection("settings").doc("notifications").get();
-    const notif = notifSnap.data();
-    if (!notif?.monthly_report_partners) return;
-    const now = /* @__PURE__ */ new Date();
-    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-    const indicationsSnap = await db.collection("indications").where("status", "==", "sold").get();
-    const monthlySales = indicationsSnap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((d) => {
-      if (!d.updated_at) return false;
-      const date = new Date(d.updated_at);
-      return date >= lastMonth && date <= endOfLastMonth;
-    });
-    const sellersMap = {};
-    monthlySales.forEach((sale) => {
-      const sid = sale.external_seller_uid;
-      if (!sellersMap[sid]) sellersMap[sid] = [];
-      sellersMap[sid].push(sale);
-    });
-    for (const [sid, sales] of Object.entries(sellersMap)) {
-      const partnerData = await db.collection("users").doc(sid).get();
-      if (!partnerData.exists) continue;
-      const partner = partnerData.data();
-      if (!partner.email || partner.email.endsWith("@mobile.roder.com.br")) continue;
-      const salesWithCommission = sales.filter((x) => (x.commission_value || 0) > 0);
-      const totalCommissions = salesWithCommission.reduce((acc, curr) => acc + (curr.commission_value || 0), 0);
-      if (totalCommissions <= 0) continue;
-      const monthName = lastMonth.toLocaleString("pt-BR", { month: "long", year: "numeric" });
-      const financeReplyTo = getFinanceReplyTo(notif);
-      const firstName = String(partner.name || "").split(" ")[0] || "parceiro";
-      const html = `
-        <div style="font-family: Arial, sans-serif; color: #1f2937; max-width: 620px;">
-          <p style="font-size: 16px;">Ol\xE1, ${firstName}!</p>
-          <p style="font-size: 15px; line-height: 1.6;">\xC9 um prazer informar que as suas indica\xE7\xF5es geraram vendas em <strong>${monthName}</strong>. Muito obrigado pela parceria e pela confian\xE7a na Roder.</p>
-
-          <div style="background: #fff7ed; border: 1px solid #fed7aa; padding: 18px; border-radius: 10px; margin: 20px 0; text-align: center;">
-            <p style="margin: 0; font-size: 13px; color: #9a3412; text-transform: uppercase; letter-spacing: .05em;">Sua comiss\xE3o a receber</p>
-            <p style="margin: 6px 0 0 0; font-size: 30px; font-weight: 800; color: #c2410c;">${formatCurrency(totalCommissions)}</p>
-          </div>
-
-          <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
-            <thead>
-              <tr style="color: #6b7280; text-align: left;">
-                <th style="padding: 8px; border-bottom: 1px solid #e5e7eb;">Cliente</th>
-                <th style="padding: 8px; border-bottom: 1px solid #e5e7eb;">Equipamento</th>
-                <th style="padding: 8px; border-bottom: 1px solid #e5e7eb; text-align: right;">Comiss\xE3o</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${salesWithCommission.map((x) => `
-                <tr>
-                  <td style="padding: 8px; border-bottom: 1px solid #f3f4f6;">${x.client_name || x.client_person_name || ""}</td>
-                  <td style="padding: 8px; border-bottom: 1px solid #f3f4f6;">${x.base_machine || x.product_name || ""}</td>
-                  <td style="padding: 8px; border-bottom: 1px solid #f3f4f6; text-align: right; font-weight: bold;">${formatCurrency(x.commission_value || 0)}</td>
-                </tr>
-              `).join("")}
-            </tbody>
-          </table>
-
-          <div style="margin-top: 24px; padding: 16px; background: #f0fdf4; border-left: 4px solid #16a34a; border-radius: 8px; font-size: 14px; line-height: 1.6;">
-            <p style="margin: 0;"><strong>Pr\xF3ximo passo: nota fiscal de servi\xE7o</strong></p>
-            <p style="margin: 6px 0 0 0;">Nosso setor financeiro est\xE1 aguardando a sua <strong>nota fiscal de servi\xE7o no valor de ${formatCurrency(totalCommissions)}</strong>.</p>
-            <p style="margin: 6px 0 0 0;">Basta <strong>responder este e-mail com a nota fiscal anexada</strong> at\xE9 o dia <strong>05</strong>. A resposta vai direto para o nosso financeiro, e o pagamento \xE9 feito at\xE9 o dia <strong>07</strong> (se cair em fim de semana ou feriado, no pr\xF3ximo dia \xFAtil).</p>
-            <p style="margin: 6px 0 0 0; font-size: 12px; color: #6b7280;">Se preferir, voc\xEA tamb\xE9m pode carregar a nota no Roder Indica, na tela Comiss\xF5es.</p>
-          </div>
-
-          <p style="font-size: 14px; margin-top: 24px;">Um abra\xE7o,<br><strong>Equipe Roder M\xE1quinas e Equipamentos</strong></p>
-        </div>
-      `;
-      await sendAutomaticEmail(partner.email, `Sua comiss\xE3o Roder de ${monthName}: ${formatCurrency(totalCommissions)}`, html, { replyTo: financeReplyTo, fromName: "Roder M\xE1quinas" });
+    try {
+      await relatorioParceirosDia1(depsRelatorio);
+    } catch (e) {
+      console.error("[Schedule] Relat\xF3rio dos parceiros:", e?.message);
     }
-  }, {
-    timezone: BR_TIMEZONE
-  });
+  }, { timezone: BR_TIMEZONE });
   import_node_cron.default.schedule("0 8 5 * *", async () => {
     console.log("[Schedule] Running Day 5 Invoice Reminders...");
-    const notifSnap = await db.collection("settings").doc("notifications").get();
-    const notif = notifSnap.data();
-    if (!notif?.monthly_report_partners) return;
-    const now = /* @__PURE__ */ new Date();
-    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-    const indicationsSnap = await db.collection("indications").where("status", "==", "sold").get();
-    const monthlySales = indicationsSnap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((d) => {
-      if (!d.updated_at) return false;
-      const date = new Date(d.updated_at);
-      return date >= lastMonth && date <= endOfLastMonth;
-    });
-    const sellersMap = {};
-    monthlySales.forEach((sale) => {
-      const sid = sale.external_seller_uid;
-      if (!sellersMap[sid]) sellersMap[sid] = [];
-      sellersMap[sid].push(sale);
-    });
-    for (const [sid, _] of Object.entries(sellersMap)) {
-      const salesOfSeller = sellersMap[sid] || [];
-      const totalDue = salesOfSeller.reduce((acc, x) => acc + (x.commission_value || 0), 0);
-      if (totalDue <= 0) continue;
-      const candidates = [
-        `${sid}_${lastMonth.getMonth() + 1}_${lastMonth.getFullYear()}`,
-        `${sid}_${now.getMonth() + 1}_${now.getFullYear()}`
-      ];
-      let alreadySent = false;
-      for (const stId of candidates) {
-        const st = await db.collection("monthly_statements").doc(stId).get();
-        const stData = st.exists ? st.data() : null;
-        if (stData && (stData.nf_url || stData.status === "waiting_payment" || stData.status === "paid")) {
-          alreadySent = true;
-          break;
-        }
-      }
-      const needsReminder = !alreadySent;
-      if (needsReminder) {
-        const partnerData = await db.collection("users").doc(sid).get();
-        if (!partnerData.exists) continue;
-        const partner = partnerData.data();
-        if (!partner.email || partner.email.endsWith("@mobile.roder.com.br")) continue;
-        const html = `
-          <div style="font-family: sans-serif; color: #333;">
-            <h2 style="color: #ef4444;">\u26A0\uFE0F AVISO: \xDAltimo dia para envio da Nota Fiscal</h2>
-            <p>Ol\xE1 ${partner.name},</p>
-            <p>Identificamos que a sua Nota Fiscal referente \xE0s comiss\xF5es do m\xEAs passado ainda n\xE3o foi carregada no sistema.</p>
-            
-            <div style="background: #fef2f2; border: 1px solid #fee2e2; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ef4444;">
-              <p style="margin: 0; font-weight: bold; color: #991b1b;">PRAZO FINAL: HOJE</p>
-              <p style="margin: 5px 0 0 0; font-size: 14px;">Conforme contrato, o n\xE3o envio da NF at\xE9 o dia 05 (hoje) impossibilita o pagamento neste ciclo. O valor ser\xE1 acumulado para o pagamento do pr\xF3ximo m\xEAs.</p>
-            </div>
-
-            <p>Para garantir seu recebimento, <strong>responda este e-mail com a nota fiscal anexada</strong> (vai direto para o nosso financeiro) ou carregue a nota no sistema.</p>
-            <a href="${process.env.APP_URL || "https://roder-indica.web.app"}/comissoes" style="display: inline-block; background: #eab308; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Acessar Minhas Comiss\xF5es</a>
-          </div>
-        `;
-        await sendAutomaticEmail(partner.email, `\xDAltimo dia para enviar a nota fiscal da sua comiss\xE3o Roder`, html, { replyTo: getFinanceReplyTo(notif), fromName: "Roder M\xE1quinas" });
-      }
+    try {
+      await lembreteNfDia5(depsRelatorio);
+    } catch (e) {
+      console.error("[Schedule] Lembrete do dia 5:", e?.message);
     }
-  }, {
-    timezone: BR_TIMEZONE
-  });
+  }, { timezone: BR_TIMEZONE });
   import_node_cron.default.schedule("20 * * * *", async () => {
     try {
       const snap = await db.collection("indications").where("finance_notice_pending", "==", true).get();
@@ -7171,47 +8049,12 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
   }, { timezone: BR_TIMEZONE });
   import_node_cron.default.schedule("0 8 7 * *", async () => {
     console.log("[Schedule] Generating Day 7 Finance Reminders...");
-    const notifSnap = await db.collection("settings").doc("notifications").get();
-    const notif = notifSnap.data();
-    if (!notif?.payment_reminder_finance) return;
-    const financeEmails = [
-      "financeiro@roderbrasil.com.br",
-      "financeiro2@roderbrasil.com.br",
-      "jeferson@roderbrasil.com.br"
-    ];
-    if (notif.finance_email) {
-      const customEmails = String(notif.finance_email).split(",").map((e) => e.trim()).filter((e) => e !== "");
-      customEmails.forEach((email) => {
-        if (!financeEmails.map((x) => x.toLowerCase()).includes(email.toLowerCase())) {
-          financeEmails.push(email);
-        }
-      });
+    try {
+      await lembreteFinanceiroDia7(depsRelatorio);
+    } catch (e) {
+      console.error("[Schedule] Lembrete do dia 7:", e?.message);
     }
-    const now = /* @__PURE__ */ new Date();
-    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-    const indicationsSnap = await db.collection("indications").where("status", "==", "sold").get();
-    const monthlyCommissions = indicationsSnap.docs.map((d) => d.data()).filter((d) => {
-      if (!d.updated_at) return false;
-      const date = new Date(d.updated_at);
-      return date >= lastMonth && date <= endOfLastMonth;
-    }).reduce((acc, curr) => acc + (curr.commission_value || 0), 0);
-    if (monthlyCommissions === 0) return;
-    const html = `
-      <div style="font-family: sans-serif; color: #333;">
-        <h2 style="color: #0f172a;">Lembrete de Pagamento de Comiss\xF5es</h2>
-        <p>Ol\xE1 Setor Financeiro / Jeferson,</p>
-        <p>Hoje \xE9 dia 7. Lembramos que o valor total de comiss\xF5es calculadas para o fechamento do m\xEAs anterior \xE9 de:</p>
-        <div style="font-size: 36px; font-weight: 900; color: #eab308; margin: 20px 0;">${formatCurrency(monthlyCommissions)}</div>
-        <p>Ap\xF3s realizar os pagamentos, por favor, certifique que as notas fiscais foram enviadas no sistema e carregue os respectivos comprovantes para notificar os parceiros.</p>
-      </div>
-    `;
-    for (const email of financeEmails) {
-      await sendAutomaticEmail(email, `URGENTE: Pagamento de Comiss\xF5es do M\xEAs`, html);
-    }
-  }, {
-    timezone: BR_TIMEZONE
-  });
+  }, { timezone: BR_TIMEZONE });
   function getBrtDateParts(dateInput) {
     const d = new Date(dateInput);
     if (isNaN(d.getTime())) return getBrtDateParts(/* @__PURE__ */ new Date());
@@ -9539,7 +10382,7 @@ ${content || ""}`;
       }
     }
     try {
-      const normalizar = (v) => String(v || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+      const normalizar2 = (v) => String(v || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
       const parceiros = await db.collection("users").where("role", "in", ["external_seller", "vendedor_padrao"]).get();
       const porNome = /* @__PURE__ */ new Map();
       const porEmail = /* @__PURE__ */ new Map();
@@ -9547,7 +10390,7 @@ ${content || ""}`;
       parceiros.docs.forEach((u) => {
         const d = u.data();
         const uid = String(d.uid || u.id);
-        const nome = normalizar(d.name);
+        const nome = normalizar2(d.name);
         const email = String(d.email || "").toLowerCase().trim();
         if (email) {
           emailDe.set(uid, email);
@@ -9593,7 +10436,7 @@ ${content || ""}`;
             const candidatos = /* @__PURE__ */ new Set();
             let ambiguo = false;
             for (const campo of ["external_seller_name", "indicator_name"]) {
-              const nome = normalizar(ind[campo]);
+              const nome = normalizar2(ind[campo]);
               if (!nome || !porNome.has(nome)) continue;
               const s = porNome.get(nome);
               if (s.size > 1) ambiguo = true;
@@ -9628,6 +10471,10 @@ ${content || ""}`;
     setTimeout(() => {
       if (db) backfillDonoIndicacoes();
     }, 8e3);
+    setTimeout(() => {
+      if (db) ligarEmailsComissaoUmaVez(db).catch(() => {
+      });
+    }, 9e3);
     setTimeout(async () => {
       try {
         if (!db) return;
