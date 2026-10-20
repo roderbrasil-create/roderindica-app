@@ -779,3 +779,19 @@ test('o registro das senhas definidas pela gestão (senhas_definidas_pela_gestao
     await assertFails(setDoc(doc(fs_(quem), 'senhas_definidas_pela_gestao', 'r2'), { quando: '2000-01-01T00:00:00Z' }));
   }
 });
+
+// O primeiro acesso decide pelo Auth: users/{código} que não é uid de conta de login é pré-cadastro.
+// Isso só é seguro porque o atacante não cria users/{código alheio} (20/10/2026).
+test('PRÉ-CADASTRO: só a gestão cria users/{código} que não é o uid de quem escreve (heloisa_1, temp_x)', async () => {
+  const q = contaSenha('u_q', 'x@gmail.com', false);
+  const g = env.authenticatedContext('u_g', { email: 'g@gmail.com', email_verified: true, firebase: { sign_in_provider: 'google.com' } }).firestore();
+  const dado = { role: 'external_seller', status: 'pending', email: 'x@gmail.com' };
+  for (const id of ['heloisa_1', 'temp_x', 'phone_14999990000', 'luana_1', 'qualquer']) {
+    await assertFails(setDoc(doc(q, 'users', id), dado));
+    await assertFails(setDoc(doc(g, 'users', id), { ...dado, email: 'g@gmail.com' }));
+    await assertFails(setDoc(doc(fs_('parceiro'), 'users', id), { ...dado, email: 'parceiro@gmail.com' }));
+  }
+  // a gestão cria o convite rápido com papel de equipe, como o botão fazia
+  await assertSucceeds(setDoc(doc(fs_('gislene'), 'users', 'heloisa_1'), { role: 'internal_seller', status: 'active', email: 'heloisa2@gmail.com', is_lead_receiver: true }));
+  await assertSucceeds(setDoc(doc(fs_('jeferson'), 'users', 'luana_1'), { role: 'triagem', status: 'active', email: 'luana2@gmail.com' }));
+});

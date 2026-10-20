@@ -90,9 +90,9 @@ test('CADASTRO FORJADO: users/{B} com o e-mail de A, senha inicial e data antiga
   // sem a marca do servidor: não passa
   assert.equal(podeConfirmarPrimeiroAcesso(decA, forjado, 'u_b_uid_do_atacante', undefined), false);
   assert.equal(podeConfirmarPrimeiroAcesso(decA, forjado, 'u_b_uid_do_atacante', null), false);
-  // código que não é de pré-cadastro: não passa nem com marca
+  // código que é uid de conta de login: não passa nem com marca (quem decide é o Auth)
   const marcaB = { cadastro_id: 'u_b_uid_do_atacante', email: 'x@roderbrasil.com.br', definida_em: '2000-01-01T00:00:00.000Z', definida_por_uid: 'u_jef' };
-  assert.equal(podeConfirmarPrimeiroAcesso(decA, forjado, 'u_b_uid_do_atacante', marcaB), false);
+  assert.equal(podeConfirmarPrimeiroAcesso(decA, forjado, 'u_b_uid_do_atacante', undefined), false);
   // B chamando o próprio cadastro de temp_: ainda falta a marca do servidor
   assert.equal(podeConfirmarPrimeiroAcesso(decA, forjado, 'temp_123', undefined), false);
   // marca de outro cadastro, de outro e-mail, ou sem quem definiu: não passa
@@ -249,9 +249,9 @@ test('PODER AUTO-CRIADO: no e-mail confirmado, o cadastro de outra conta de logi
   const forjado = { id: 'uid_q', dados: { email: 'x@gmail.com', role: 'external_seller', status: 'pending', is_commissionable: true, commission_rate: 50, is_lead_receiver: true } };
   const r = await escolherPreCadastros({ cadastros: [forjado], uidDoLogin: 'uid_x', confirmado: true, dec: decX, ehContaDeLogin, marcaDe: async () => null });
   assert.deepEqual(r, []);
-  // nem com um id que não parece uid e que o atacante tenha colocado: sem prefixo de pré-cadastro, fora
-  const outro = { id: 'qualquer_id', dados: forjado.dados };
-  assert.deepEqual(await escolherPreCadastros({ cadastros: [outro], uidDoLogin: 'uid_x', confirmado: true, dec: decX, ehContaDeLogin, marcaDe: async () => null }), []);
+  // quem decide é o Auth: qualquer id que seja conta de login fica de fora, com ou sem prefixo
+  const outro = { id: 'temp_parece_mas_e_conta', dados: forjado.dados };
+  assert.deepEqual(await escolherPreCadastros({ cadastros: [outro], uidDoLogin: 'uid_x', confirmado: true, dec: decX, ehContaDeLogin: async () => true, marcaDe: async () => null }), []);
 });
 
 test('PODER AUTO-CRIADO: o pré-cadastro da gestão (temp_/phone_, sem conta de login) continua sendo juntado no e-mail confirmado', async () => {
@@ -293,4 +293,36 @@ test('PODER AUTO-CRIADO: o servidor usa escolherPreCadastros também no e-mail c
   const trecho = src.slice(i, i + 6000);
   assert.match(trecho, /escolherPreCadastros\(/);
   assert.doesNotMatch(trecho, /achados\.docs\.filter\(d => d\.id !== dec\.uid\)/);
+});
+
+// PRÉ-CADASTRO COM CÓDIGO ANTIGO (20/10/2026): heloisa_1, luana_1 etc. criados pelos botões de convite
+// rápido. Quem decide é o Auth (o código não é uid de conta de login), e não o prefixo.
+test('CONVITE RÁPIDO: heloisa_1 é juntado no e-mail confirmado (Google) e o decoy Q continua de fora', async () => {
+  const decH = { uid: 'uid_h', email: 'heloisa@gmail.com', email_verified: true, firebase: { sign_in_provider: 'google.com' } };
+  const heloisa = { id: 'heloisa_1', dados: { email: 'heloisa@gmail.com', role: 'internal_seller', status: 'active', is_lead_receiver: true } };
+  const q = { id: 'uid_q', dados: { email: 'heloisa@gmail.com', role: 'external_seller', status: 'pending', commission_rate: 50, is_commissionable: true } };
+  const r = await escolherPreCadastros({
+    cadastros: [q, heloisa], uidDoLogin: 'uid_h', confirmado: true, dec: decH,
+    ehContaDeLogin: async (id) => id === 'uid_q', marcaDe: async () => null,
+  });
+  assert.deepEqual(r.map(c => c.id), ['heloisa_1']);
+});
+
+test('CONVITE RÁPIDO: heloisa_1 no e-mail não confirmado exige a marca da senha da Roder, como qualquer pré-cadastro', async () => {
+  const seg = 1_800_000_000;
+  const dec = { uid: 'uid_h', email: 'heloisa@gmail.com', email_verified: false, auth_time: seg + 60, firebase: { sign_in_provider: 'password' } };
+  const heloisa = { id: 'heloisa_1', dados: { email: 'heloisa@gmail.com', role: 'internal_seller', initial_password: 'abc123' } };
+  const marca = { cadastro_id: 'heloisa_1', email: 'heloisa@gmail.com', definida_em: new Date(seg * 1000).toISOString(), definida_por_uid: 'u_jef' };
+  const base = { cadastros: [heloisa], uidDoLogin: 'uid_h', confirmado: false, dec, ehContaDeLogin: async () => false };
+  assert.deepEqual((await escolherPreCadastros({ ...base, marcaDe: async () => marca })).map(c => c.id), ['heloisa_1']);
+  assert.equal((await escolherPreCadastros({ ...base, marcaDe: async () => null })).length, 0);
+  // se o código virar conta de login, não vale nem com a marca
+  assert.equal((await escolherPreCadastros({ ...base, ehContaDeLogin: async () => true, marcaDe: async () => marca })).length, 0);
+});
+
+test('PAPEL NO SERVIDOR: cadastro que não está "active" não conta como equipe em quemChama', () => {
+  const src = fs.readFileSync(new URL('../server.ts', import.meta.url), 'utf8');
+  const i = src.indexOf('async function quemChama(');
+  const trecho = src.slice(i, i + 2500);
+  assert.match(trecho, /cad\?\.status === 'active'/);
 });

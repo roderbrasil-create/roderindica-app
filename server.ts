@@ -1399,7 +1399,14 @@ Retorne um array JSON no formato exato:
       if (dec.firebase?.sign_in_provider === 'anonymous') return null;
       const email = (dec.email || '').toLowerCase();
       let role = '';
-      try { role = String((await db.collection('users').doc(dec.uid).get()).data()?.role || ''); } catch { /* sem banco: fica só o e-mail */ }
+      // O papel do cadastro só vale com status "active". O cadastro próprio nasce "pending" (ou sem
+      // status) pelas regras e pode levar o papel vendedor_padrao, que está em EQUIPE_RODER: sem esta
+      // conferência, quem criou a conta sozinho contava como equipe no servidor (envio de arquivos,
+      // configurações públicas). O primeiro acesso e a gestão gravam "active".
+      try {
+        const cad: any = (await db.collection('users').doc(dec.uid).get()).data();
+        role = cad?.status === 'active' ? String(cad?.role || '') : '';
+      } catch { /* sem banco: fica só o e-mail */ }
       // Papel pelo cadastro. A diretoria vale pelo e-mail só CONFIRMADO: conta com senha criada
       // por fora (cadastro aberto no Firebase) não confirma e-mail nenhum. Ver server/emailConfiavel.ts
       role = papelDeQuemChama(dec, role);

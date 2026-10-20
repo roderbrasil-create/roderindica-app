@@ -91,7 +91,6 @@ export type MarcaSenhaInicial = { cadastro_id?: string; email?: string; definida
 
 export function podeConfirmarPrimeiroAcesso(dec: any, provisorio: any, cadastroId: string, marca: MarcaSenhaInicial | null | undefined): boolean {
   if (!dec || dec.firebase?.sign_in_provider !== 'password') return false;
-  if (!ehIdDePreCadastro(cadastroId)) return false;
   if (!provisorio || !String(provisorio.initial_password || '')) return false;
   if (!marca || marca.cadastro_id !== cadastroId || !String(marca.definida_por_uid || '')) return false;
   const email = String(dec.email || '').toLowerCase().trim();
@@ -108,9 +107,15 @@ export function podeConfirmarPrimeiroAcesso(dec: any, provisorio: any, cadastroI
 // para o não confirmado. Antes o caminho do e-mail confirmado juntava QUALQUER users/ com o mesmo
 // e-mail: o atacante dono do e-mail X criava uma segunda conta com senha (Q, sem confirmar), gravava
 // em users/Q is_commissionable, commission_rate 50 e is_lead_receiver, entrava como X (confirmado,
-// sem users/X) e o servidor juntava users/Q forçando "active". Agora só entra o pré-cadastro de
-// verdade: código de pré-cadastro (temp_/phone_) que NÃO é uid de conta de login. Cadastro de outra
-// conta de login (como o Q) nunca é juntado nem apagado: fica como está.
+// sem users/X) e o servidor juntava users/Q forçando "active".
+// QUEM DECIDE É O AUTH, E NÃO O PREFIXO DO CÓDIGO. A tela de Usuários (e os botões de convite
+// rápido, hoje removidos, mas com cadastros antigos em produção) cria o pré-cadastro com códigos
+// como temp_, phone_, heloisa_, luana_. É pré-cadastro o users/{código} cujo código NÃO é uid de
+// conta de login (getUser dá auth/user-not-found). Isso é seguro porque pelas regras só a gestão
+// (ou o servidor) cria users/{código} que não seja o uid de quem escreve: o atacante só consegue
+// criar users/{uid da própria conta}, e a conta dele existe no Auth. Cadastro de outra conta de
+// login (como o Q) nunca é juntado nem apagado. Os campos de poder desse cadastro próprio também
+// são barrados pelas regras na criação.
 // No e-mail não confirmado vale também a prova da senha da Roder (marca do servidor).
 export type CadastroParaJuntar = { id: string; dados: any };
 
@@ -125,7 +130,6 @@ export async function escolherPreCadastros(p: {
   const aceitos: CadastroParaJuntar[] = [];
   for (const c of p.cadastros) {
     if (c.id === p.uidDoLogin) continue;
-    if (!ehIdDePreCadastro(c.id)) continue;
     if (await p.ehContaDeLogin(c.id)) continue;
     if (!p.confirmado && !podeConfirmarPrimeiroAcesso(p.dec, c.dados, c.id, await p.marcaDe(c.id))) continue;
     aceitos.push(c);
