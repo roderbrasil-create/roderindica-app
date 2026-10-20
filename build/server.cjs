@@ -22,7 +22,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 
 // server.ts
-var import_crypto = __toESM(require("crypto"), 1);
+var import_crypto2 = __toESM(require("crypto"), 1);
 var import_express = __toESM(require("express"), 1);
 var import_vite = require("vite");
 var import_path = __toESM(require("path"), 1);
@@ -188,6 +188,485 @@ var INSTALLATION_KITS = [
     ]
   }
 ];
+
+// server/consultorParceiro.ts
+var import_crypto = __toESM(require("crypto"), 1);
+
+// src/lib/consultorIndicar.ts
+var PAPEIS_QUE_INDICAM = ["external_seller", "admin", "manager", "internal_seller", "vendedor_padrao", "triagem"];
+var TOKEN_LINK_VALIDO = /^[A-Za-z0-9_-]{24,64}$/;
+function primeiroNome(nome) {
+  return String(nome || "").replace("Jefferson", "Jeferson").trim().split(/\s+/)[0] || "";
+}
+var DDDS = /* @__PURE__ */ new Set([
+  11,
+  12,
+  13,
+  14,
+  15,
+  16,
+  17,
+  18,
+  19,
+  21,
+  22,
+  24,
+  27,
+  28,
+  31,
+  32,
+  33,
+  34,
+  35,
+  37,
+  38,
+  41,
+  42,
+  43,
+  44,
+  45,
+  46,
+  47,
+  48,
+  49,
+  51,
+  53,
+  54,
+  55,
+  61,
+  62,
+  63,
+  64,
+  65,
+  66,
+  67,
+  68,
+  69,
+  71,
+  73,
+  74,
+  75,
+  77,
+  79,
+  81,
+  82,
+  83,
+  84,
+  85,
+  86,
+  87,
+  88,
+  89,
+  91,
+  92,
+  93,
+  94,
+  95,
+  96,
+  97,
+  98,
+  99
+]);
+function validarTelefoneBR(texto) {
+  let d = String(texto || "").replace(/\D/g, "");
+  d = d.replace(/^0+/, "");
+  if ((d.length === 12 || d.length === 13) && d.startsWith("55")) d = d.slice(2);
+  if (d.length !== 10 && d.length !== 11) return { ok: false };
+  if (!DDDS.has(Number(d.slice(0, 2)))) return { ok: false };
+  if (d.length === 11 && d[2] !== "9") return { ok: false };
+  if (d.length === 10 && !/[2-8]/.test(d[2])) return { ok: false };
+  if (/^(\d)\1+$/.test(d.slice(2))) return { ok: false };
+  const formatado = d.length === 11 ? `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}` : `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return { ok: true, digitos: d, formatado };
+}
+var UFS = ["AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"];
+var NOMES_UF = {
+  "acre": "AC",
+  "alagoas": "AL",
+  "amapa": "AP",
+  "amazonas": "AM",
+  "bahia": "BA",
+  "ceara": "CE",
+  "distrito federal": "DF",
+  "espirito santo": "ES",
+  "goias": "GO",
+  "maranhao": "MA",
+  "mato grosso": "MT",
+  "mato grosso do sul": "MS",
+  "minas gerais": "MG",
+  "para": "PA",
+  "paraiba": "PB",
+  "parana": "PR",
+  "pernambuco": "PE",
+  "piaui": "PI",
+  "rio de janeiro": "RJ",
+  "rio grande do norte": "RN",
+  "rio grande do sul": "RS",
+  "rondonia": "RO",
+  "roraima": "RR",
+  "santa catarina": "SC",
+  "sao paulo": "SP",
+  "sergipe": "SE",
+  "tocantins": "TO"
+};
+var semAcento = (t) => t.normalize("NFD").replace(/[̀-ͯ]/g, "");
+function lerCidadeUf(texto) {
+  const t = String(texto || "").trim().replace(/\s+/g, " ").replace(/[.]+$/, "");
+  if (!t) return null;
+  const limpaCidade = (c) => c.replace(/[\s,/-]+$/, "").trim();
+  const base = semAcento(t).toLowerCase();
+  const nomes = Object.keys(NOMES_UF).sort((a, b) => b.length - a.length);
+  for (const n of nomes) {
+    if (base.endsWith(n) && base.length > n.length) {
+      const cidade2 = limpaCidade(t.slice(0, t.length - n.length));
+      if (cidade2.length >= 2 && /[\s,/-]$/.test(t.slice(0, t.length - n.length))) return { cidade: cidade2, uf: NOMES_UF[n] };
+    }
+  }
+  const m = t.match(/^(.*?)[\s,/-]+([A-Za-z]{2})$/);
+  if (!m) return null;
+  const uf = m[2].toUpperCase();
+  const cidade = limpaCidade(m[1]);
+  if (!UFS.includes(uf) || cidade.length < 2) return null;
+  return { cidade, uf };
+}
+function validarCnpj(texto) {
+  const d = String(texto || "").replace(/\D/g, "");
+  if (d.length !== 14 || /^(\d)\1+$/.test(d)) return { ok: false };
+  const calc = (base, pesos) => {
+    const s = base.split("").reduce((acc, n, i) => acc + Number(n) * pesos[i], 0);
+    const r = s % 11;
+    return r < 2 ? 0 : 11 - r;
+  };
+  const d1 = calc(d.slice(0, 12), [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+  const d2 = calc(d.slice(0, 12) + d1, [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+  if (d1 !== Number(d[12]) || d2 !== Number(d[13])) return { ok: false };
+  return { ok: true, digitos: d, formatado: `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}` };
+}
+
+// server/consultorParceiro.ts
+var GESTAO_LINK = ["admin", "manager"];
+var PAPEL_DO_LINK = "external_seller";
+var EQUIPE = ["admin", "manager", "triagem", "internal_seller", "financial", "finance", "fiscal", "marketing", "assistant"];
+var LIMITE_DIA = 20;
+var novoToken = () => import_crypto.default.randomBytes(24).toString("base64url");
+var limpaTexto = (t, max) => String(t ?? "").replace(/[\u0000-\u001f<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
+var escHtml = (t) => String(t || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+function criarRotasConsultorParceiro(deps) {
+  const { db: db2, quemChama, passouLimite, ipDe } = deps;
+  const agora = () => deps.agora ? deps.agora() : /* @__PURE__ */ new Date();
+  async function linksAtivosDe(uid) {
+    const snap = await db2.collection("consultor_links").where("uid", "==", uid).get();
+    return snap.docs.filter((d) => d.data()?.ativo === true).sort((a, b) => String(b.data()?.criado_em || "").localeCompare(String(a.data()?.criado_em || "")));
+  }
+  async function linkDoUsuario(uid, regenerar, criadoPor) {
+    const userRef = db2.collection("users").doc(uid);
+    const userSnap = await userRef.get();
+    if (!userSnap.exists) return { erro: 404, msg: "Usu\xE1rio n\xE3o encontrado." };
+    const u = userSnap.data() || {};
+    if (u.role !== PAPEL_DO_LINK) return { erro: 400, msg: "O link do consultor \xE9 s\xF3 para parceiro externo (indicador)." };
+    const iso = agora().toISOString();
+    const lote = db2.batch();
+    const limpaUsuario = "consultor_link_token" in u && deps.campoApagado ? { consultor_link_token: deps.campoApagado() } : {};
+    const ativos = await linksAtivosDe(uid);
+    const atual = ativos.find((d) => TOKEN_LINK_VALIDO.test(String(d.id)));
+    if (!regenerar && atual) {
+      if (Object.keys(limpaUsuario).length) {
+        lote.set(userRef, limpaUsuario, { merge: true });
+        await lote.commit();
+      }
+      return { token: String(atual.id), nome: u.name || "" };
+    }
+    const token = novoToken();
+    for (const d of ativos) lote.set(db2.collection("consultor_links").doc(d.id), { ativo: false, desativado_em: iso }, { merge: true });
+    lote.set(db2.collection("consultor_links").doc(token), { uid, nome: u.name || "", criado_em: iso, criado_por: criadoPor, ativo: true });
+    lote.set(userRef, { ...limpaUsuario, consultor_link_em: iso }, { merge: true });
+    await lote.commit();
+    return { token, nome: u.name || "" };
+  }
+  async function donoDoToken(token) {
+    if (!TOKEN_LINK_VALIDO.test(token)) return null;
+    const l = await db2.collection("consultor_links").doc(token).get();
+    if (!l.exists) return null;
+    const ld = l.data() || {};
+    if (ld.ativo !== true || !ld.uid) return null;
+    const u = await db2.collection("users").doc(String(ld.uid)).get();
+    if (!u.exists) return null;
+    const ud = u.data() || {};
+    if (ud.status !== "active" || ud.role !== PAPEL_DO_LINK) return null;
+    return { uid: String(ld.uid), nome: String(ud.name || ""), email: String(ud.email || "").toLowerCase(), role: PAPEL_DO_LINK };
+  }
+  async function donoDoPedido(req) {
+    const q = await quemChama(req);
+    if (q) {
+      const u = await db2.collection("users").doc(q.uid).get();
+      const ud = u.exists ? u.data() : null;
+      const role = q.role || String(ud?.role || "");
+      if (!ud || ud.status !== "active" || !PAPEIS_QUE_INDICAM.includes(role)) return { erro: 403, msg: "Seu cadastro n\xE3o pode fazer indica\xE7\xF5es por aqui." };
+      return { uid: q.uid, nome: String(ud.name || q.email || ""), email: String(ud.email || q.email || "").toLowerCase(), role, via: "login" };
+    }
+    const dono = await donoDoToken(String(req.body?.p || ""));
+    if (!dono) return { erro: 401, msg: "Seu link n\xE3o vale mais. Pe\xE7a um novo ao comercial da Roder." };
+    return { ...dono, via: "link" };
+  }
+  async function rotaLink(req, res) {
+    try {
+      const q = await quemChama(req);
+      if (!q || !GESTAO_LINK.includes(q.role)) return res.status(403).json({ error: "S\xF3 a gest\xE3o comercial gera o link do parceiro." });
+      const uid = String(req.params?.uid || "");
+      if (!/^[A-Za-z0-9_-]{1,128}$/.test(uid)) return res.status(400).json({ error: "Usu\xE1rio inv\xE1lido." });
+      if (passouLimite(`conslink:${q.uid}`, 60, 60 * 60 * 1e3)) return res.status(429).json({ error: "Muitos pedidos. Espere alguns minutos." });
+      const r = await linkDoUsuario(uid, req.body?.novo === true, q.uid);
+      if ("erro" in r) return res.status(r.erro).json({ error: r.msg });
+      res.json({ ok: true, token: r.token, caminho: `/consultor?p=${r.token}`, nome: r.nome, primeiroNome: primeiroNome(r.nome) });
+    } catch {
+      res.status(500).json({ error: "N\xE3o consegui gerar o link." });
+    }
+  }
+  async function rotaResolver(req, res) {
+    try {
+      if (passouLimite(`consparc-ip:${ipDe(req)}`, 40, 15 * 60 * 1e3)) return res.status(429).json({ error: "Muitas tentativas. Espere alguns minutos." });
+      const dono = await donoDoToken(String(req.params?.token || ""));
+      if (!dono) return res.status(404).json({ error: "Link n\xE3o encontrado." });
+      res.setHeader?.("Cache-Control", "no-store");
+      res.json({ ok: true, nome: dono.nome, primeiroNome: primeiroNome(dono.nome) });
+    } catch {
+      res.status(500).json({ error: "Erro ao abrir o link." });
+    }
+  }
+  async function rotaLinkCliente(req, res) {
+    try {
+      if (passouLimite(`conslc-ip:${ipDe(req)}`, 40, 60 * 60 * 1e3)) return res.status(429).json({ error: "Muitos pedidos. Espere alguns minutos." });
+      const dono = await donoDoPedido(req);
+      if ("erro" in dono) return res.status(dono.erro).json({ error: dono.msg });
+      const pid = String(req.body?.pid || "").slice(0, 80);
+      const mid = String(req.body?.mid || "").slice(0, 80);
+      if (!/^[A-Za-z0-9_-]{1,80}$/.test(pid) || mid && !/^[A-Za-z0-9_.-]{1,80}$/.test(mid)) return res.status(400).json({ error: "Equipamento inv\xE1lido." });
+      const p = await db2.collection("products").doc(pid).get();
+      if (!p.exists) return res.status(404).json({ error: "Equipamento n\xE3o encontrado." });
+      const codigo = await deps.criarLinkCurto(dono.uid, pid, mid);
+      if (!codigo) return res.status(500).json({ error: "N\xE3o consegui gerar o link." });
+      res.json({ ok: true, codigo });
+    } catch {
+      res.status(500).json({ error: "N\xE3o consegui gerar o link." });
+    }
+  }
+  async function regionalDoEstado(uf) {
+    try {
+      const snap = await db2.collection("users").where("role", "==", "vendedor_padrao").where("status", "==", "active").get();
+      const achado = snap.docs.map((d) => ({ uid: d.id, ...d.data() || {} })).find((u) => Array.isArray(u.assigned_regions) && u.assigned_regions.includes(uf));
+      return achado || null;
+    } catch {
+      return null;
+    }
+  }
+  async function equipamentoDe(body) {
+    const pid = String(body?.equipamento?.pid || "").slice(0, 80);
+    const mid = String(body?.equipamento?.mid || "").slice(0, 80);
+    const escrito = limpaTexto(body?.equipamento?.nome, 120);
+    if (pid && /^[A-Za-z0-9_-]{1,80}$/.test(pid)) {
+      const p = await db2.collection("products").doc(pid).get();
+      if (p.exists) {
+        const pd = p.data() || {};
+        const m = mid ? (pd.models || []).find((x) => String(x?.id) === mid) : null;
+        const nome = m ? `${pd.name} - ${m.name}` : String(pd.name || escrito);
+        return { nome: limpaTexto(nome, 160), pid, mid: m ? mid : "" };
+      }
+    }
+    if (escrito.length < 2) return null;
+    return { nome: escrito, pid: "", mid: "" };
+  }
+  async function avisarGestao(titulo, mensagem) {
+    const snap = await db2.collection("users").where("role", "in", ["admin", "manager", "triagem"]).get();
+    const lote = db2.batch();
+    const iso = agora().toISOString();
+    snap.docs.forEach((d) => lote.set(db2.collection("notifications").doc(), {
+      user_uid: d.id,
+      title: titulo,
+      message: mensagem,
+      link: "/indicacoes",
+      type: "info",
+      read: false,
+      created_at: iso
+    }));
+    await lote.commit();
+  }
+  async function enviarEmails(dados, dono) {
+    if (!deps.enviarEmail) return;
+    const obrigatorios = ["gislene@roderbrasil.com.br", "contato@roderbrasil.com.br", "roderbrasil@gmail.com", "luana@roderbrasil.com.br"];
+    let config2 = {};
+    try {
+      const s = await db2.collection("settings").doc("notifications").get();
+      config2 = s.exists ? s.data() || {} : {};
+    } catch {
+    }
+    const lista = String(Array.isArray(config2.manager_emails) ? config2.manager_emails.join(",") : config2.manager_emails || "").split(",").map((e) => e.trim()).filter(Boolean);
+    for (const e of obrigatorios) if (!lista.map((x) => x.toLowerCase()).includes(e)) lista.push(e);
+    const corte = dados.client_location.lastIndexOf(" - ");
+    const cidade = corte >= 0 ? dados.client_location.slice(0, corte) : dados.client_location;
+    const uf = corte >= 0 ? dados.client_location.slice(corte + 3) : "";
+    const produto = dados.items?.[0]?.product_name || "Equipamento";
+    const assunto = `\u{1F525} NOVO LEAD CADASTRADO: ${dados.client_name} (via ${dono.nome})`;
+    const html = `
+      <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 8px; overflow: hidden;">
+        <div style="background-color: #f97316; color: white; padding: 20px; text-align: center;">
+          <h2 style="margin: 0; text-transform: uppercase;">Nova Indica\xE7\xE3o Recebida</h2>
+          <p style="margin: 5px 0 0 0; opacity: 0.9;">Um novo neg\xF3cio foi registrado pela conversa do Consultor Roder por <strong>${escHtml(dono.nome)}</strong></p>
+        </div>
+        <div style="padding: 24px;">
+          <div style="background-color: #fdf2f7; border-left: 4px solid #f97316; padding: 15px; margin-bottom: 20px;">
+            <p style="margin: 0; font-weight: bold; color: #7c2d12; font-size: 16px;">CLIENTE: ${escHtml(dados.client_name)}</p>
+          </div>
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr><td style="padding: 8px 0; color: #666; width: 140px;">Origem / Indicador:</td><td style="padding: 8px 0; font-weight: bold; color: #f97316;">${escHtml(dono.nome)}</td></tr>
+            <tr><td style="padding: 8px 0; color: #666;">Canal:</td><td style="padding: 8px 0; font-weight: bold;">Conversa do Consultor Roder</td></tr>
+            <tr><td style="padding: 8px 0; color: #666;">WhatsApp Cliente:</td><td style="padding: 8px 0; font-weight: bold;">${escHtml(dados.client_phone)}</td></tr>
+            <tr><td style="padding: 8px 0; color: #666;">Cidade/UF:</td><td style="padding: 8px 0;">${escHtml(cidade)}/${escHtml(uf)}</td></tr>
+            ${dados.client_cnpj ? `<tr><td style="padding: 8px 0; color: #666;">CNPJ:</td><td style="padding: 8px 0;">${escHtml(dados.client_cnpj)}</td></tr>` : ""}
+            <tr><td style="padding: 8px 0; color: #666;">Equipamento:</td><td style="padding: 8px 0; color: #f97316; font-weight: bold;">${escHtml(produto)}</td></tr>
+          </table>
+          <div style="margin-top: 30px; text-align: center;">
+            <a href="https://roderindica.roderbrasil.com.br/triagem" style="background-color: #f97316; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">ACESSAR TRIAGEM NO SISTEMA</a>
+          </div>
+        </div>
+      </div>`;
+    const envios = lista.map((e) => deps.enviarEmail(e, assunto, html));
+    if (dono.email && dono.email.includes("@") && !dono.email.endsWith("@mobile.roder.com.br") && config2.confirmation_partner !== false) {
+      const htmlParceiro = `
+        <div style="font-family: sans-serif; color: #333;">
+          <h2 style="color: #eab308;">Ol\xE1 ${escHtml(dono.nome)},</h2>
+          <p>Recebemos com sucesso a sua indica\xE7\xE3o para <strong>${escHtml(dados.client_name)}</strong>.</p>
+          <p>Nossa equipe comercial j\xE1 foi notificada. Em breve, um de nossos vendedores entrar\xE1 em contato para dar continuidade ao atendimento.</p>
+          <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #eab308;">
+            <p style="margin: 0;"><strong>Equipamento:</strong> ${escHtml(produto)}</p>
+            <p style="margin: 5px 0 0 0;"><strong>Status Inicial:</strong> Em Triagem</p>
+          </div>
+          <p>Voc\xEA pode acompanhar o andamento no seu painel no sistema <strong>Roder Indica</strong>.</p>
+          <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+          <p style="font-size: 12px; color: #666;">Atenciosamente,<br>Equipe Roder M\xE1quinas</p>
+        </div>`;
+      envios.push(deps.enviarEmail(dono.email, `Confirma\xE7\xE3o de Recebimento: Sua indica\xE7\xE3o de ${dados.client_name}`, htmlParceiro));
+    }
+    await Promise.allSettled(envios);
+  }
+  async function rotaIndicacao(req, res) {
+    try {
+      if (passouLimite(`consind-ip:${ipDe(req)}`, 30, 60 * 60 * 1e3)) return res.status(429).json({ error: "Muitas indica\xE7\xF5es seguidas. Espere um pouco." });
+      const dono = await donoDoPedido(req);
+      if ("erro" in dono) return res.status(dono.erro).json({ error: dono.msg });
+      const b = req.body || {};
+      const cliente = limpaTexto(b.cliente, 120);
+      if (cliente.length < 2) return res.status(400).json({ error: "Informe o nome do cliente ou da fazenda." });
+      const tel = validarTelefoneBR(String(b.telefone || ""));
+      if (!tel.ok) return res.status(400).json({ error: "Telefone inv\xE1lido. Use DDD e n\xFAmero." });
+      const local = lerCidadeUf(String(b.cidade || ""));
+      if (!local) return res.status(400).json({ error: "Informe a cidade e o estado (UF)." });
+      let cnpj = "";
+      if (String(b.cnpj || "").trim()) {
+        const c = validarCnpj(String(b.cnpj));
+        if (!c.ok) return res.status(400).json({ error: "CNPJ inv\xE1lido." });
+        cnpj = c.formatado;
+      }
+      const equip = await equipamentoDe(b);
+      if (!equip) return res.status(400).json({ error: "Informe o equipamento." });
+      const agoraMs = agora().getTime();
+      const recentes = await db2.collection("indications").where("external_seller_uid", "==", dono.uid).where("origem", "==", "consultor").get();
+      const doDia = recentes.docs.map((d) => ({ id: d.id, ...d.data() || {} })).filter((d) => agoraMs - new Date(d.created_at || 0).getTime() < 24 * 36e5);
+      const repetida = doDia.find((d) => d.client_phone === tel.formatado && d.items?.[0]?.product_name === equip.nome && agoraMs - new Date(d.created_at || 0).getTime() < 10 * 6e4);
+      if (repetida) return res.json({ ok: true, id: repetida.id, repetida: true });
+      if (doDia.length >= LIMITE_DIA || passouLimite(`consind:${dono.uid}`, LIMITE_DIA, 24 * 36e5)) {
+        return res.status(429).json({ error: `Limite de ${LIMITE_DIA} indica\xE7\xF5es por dia pela conversa. Use o app para mais.` });
+      }
+      const ehEquipe = EQUIPE.includes(dono.role);
+      const ehInterna = dono.role === "internal_seller" || dono.role === "triagem";
+      const regional = await regionalDoEstado(local.uf);
+      const iso = agora().toISOString();
+      const ref = db2.collection("indications").doc();
+      const localizacao = `${local.cidade} - ${local.uf}`;
+      const descricao = "Indica\xE7\xE3o feita pela conversa do Consultor Roder." + (!equip.pid ? " Equipamento escrito pelo indicador." : !equip.mid ? " Modelo a definir com a Roder." : "");
+      const dados = {
+        client_name: cliente,
+        client_person_name: cliente,
+        client_phone: tel.formatado,
+        client_email: "",
+        client_cnpj: cnpj,
+        client_location: localizacao,
+        base_machine: "",
+        machine_details: "",
+        machine_porte: "",
+        description: descricao,
+        is_icms_contributor: false,
+        ai_score: "hot",
+        id: ref.id,
+        items: [{ id: equip.mid ? `model-${equip.mid}` : equip.pid || "custom-item", product_name: equip.nome, quantity: 1 }],
+        options: [],
+        origin_type: ehEquipe ? "direct" : "partner",
+        is_client_referral: false,
+        referring_client_name: null,
+        referring_client_phone: null,
+        referring_client_notes: null,
+        external_seller_uid: dono.uid,
+        external_seller_name: ehEquipe ? `${dono.nome || "Venda Direta"} (F\xE1brica)` : dono.nome || "Parceiro",
+        external_seller_email: dono.email || null,
+        internal_seller_uid: ehInterna ? dono.uid : null,
+        internal_seller_name: ehInterna ? dono.nome : null,
+        internal_seller_email: ehInterna ? dono.email : null,
+        created_by_uid: dono.uid,
+        created_by_name: dono.nome || null,
+        created_by_role: dono.role || null,
+        standard_seller_uid: regional?.uid || null,
+        standard_seller_name: regional?.name || null,
+        standard_seller_commission_rate: regional?.commission_rate || 2,
+        standard_seller_commission_enabled: !!regional,
+        media_urls: [],
+        media_upload_status: "none",
+        status: "pending",
+        negotiation_history: [{
+          id: Math.random().toString(36).substring(2, 11),
+          type: "system",
+          author_name: dono.nome || "Sistema",
+          created_at: iso,
+          content: `Indica\xE7\xE3o inicial enviada pela conversa do Consultor Roder${dono.via === "link" ? " (link pessoal do parceiro)" : ""}.
+
+SOLICITA\xC7\xC3O: 1x ${equip.nome}
+
+CLIENTE: ${cliente} | ${tel.formatado} | ${localizacao}${cnpj ? ` | CNPJ ${cnpj}` : ""}`,
+          attachments: []
+        }],
+        created_at: iso,
+        updated_at: iso,
+        protection_expires_at: new Date(agoraMs + 60 * 24 * 60 * 60 * 1e3).toISOString(),
+        origem: "consultor",
+        origem_via: dono.via
+      };
+      if (equip.pid) dados.product_id = equip.pid;
+      if (equip.mid) dados.model_id = equip.mid;
+      await ref.set(dados);
+      res.json({ ok: true, id: ref.id });
+      (async () => {
+        await avisarGestao("Nova Indica\xE7\xE3o Recebida", `${dono.nome || "Parceiro"} enviou uma nova indica\xE7\xE3o para ${cliente} pela conversa do consultor.`).catch(() => {
+        });
+        await enviarEmails(dados, dono).catch(() => {
+        });
+        try {
+          const ag = await db2.collection("settings").doc("agendor").get();
+          if (ag.exists && ag.data()?.enabled && deps.sincronizarAgendor) await deps.sincronizarAgendor(ref.id, dados);
+        } catch {
+        }
+      })();
+    } catch {
+      if (!res.headersSent) res.status(500).json({ error: "N\xE3o consegui enviar a indica\xE7\xE3o. Tente de novo." });
+    }
+  }
+  return { rotaLink, rotaResolver, rotaLinkCliente, rotaIndicacao, donoDoToken, linkDoUsuario };
+}
+function registrarConsultorParceiro(app, deps) {
+  const r = criarRotasConsultorParceiro(deps);
+  app.post("/api/consultor/links/:uid", r.rotaLink);
+  app.get("/api/consultor/parceiro/:token", r.rotaResolver);
+  app.post("/api/consultor/link-cliente", r.rotaLinkCliente);
+  app.post("/api/consultor/indicacao", r.rotaIndicacao);
+  return r;
+}
 
 // server.ts
 var import_meta = {};
@@ -442,7 +921,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-19l consultor-cel";
+  const RELEASE_LABEL = "2026-10-19m consultor-indicar";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -610,7 +1089,7 @@ async function startServer() {
       if (!name || typeof name !== "string" || name.trim().length === 0) {
         return res.status(400).json({ success: false, error: "O nome do aplicativo ou destino \xE9 obrigat\xF3rio." });
       }
-      const randomHex = import_crypto.default.randomBytes(16).toString("hex");
+      const randomHex = import_crypto2.default.randomBytes(16).toString("hex");
       const apiKey = `rod_live_${randomHex}`;
       const keyDoc = {
         name: name.trim(),
@@ -4312,7 +4791,23 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       return false;
     }
   }
-  const escHtml = (t) => String(t || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const escHtml2 = (t) => String(t || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  async function criarLinkCurto(uid, pid, mid) {
+    const existente = await db.collection("links_curtos").where("uid", "==", uid).where("pid", "==", pid).where("mid", "==", mid).limit(1).get();
+    if (!existente.empty) return existente.docs[0].id;
+    for (let tentativa = 0; tentativa < 6; tentativa++) {
+      const codigo = novoCodigo();
+      const ref = db.collection("links_curtos").doc(codigo);
+      const criado = await db.runTransaction(async (t) => {
+        const snap = await t.get(ref);
+        if (snap.exists) return false;
+        t.set(ref, { uid, pid, mid, created_at: (/* @__PURE__ */ new Date()).toISOString() });
+        return true;
+      });
+      if (criado) return codigo;
+    }
+    return null;
+  }
   app.post("/api/link-curto", async (req, res) => {
     try {
       const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
@@ -4321,19 +4816,8 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       const pid = String(req.body?.pid || "").slice(0, 80);
       const mid = String(req.body?.mid || "").slice(0, 80);
       if (!pid) return res.status(400).json({ error: "Equipamento n\xE3o informado." });
-      const existente = await db.collection("links_curtos").where("uid", "==", quem.uid).where("pid", "==", pid).where("mid", "==", mid).limit(1).get();
-      if (!existente.empty) return res.json({ codigo: existente.docs[0].id });
-      for (let tentativa = 0; tentativa < 6; tentativa++) {
-        const codigo = novoCodigo();
-        const ref = db.collection("links_curtos").doc(codigo);
-        const criado = await db.runTransaction(async (t) => {
-          const snap = await t.get(ref);
-          if (snap.exists) return false;
-          t.set(ref, { uid: quem.uid, pid, mid, created_at: (/* @__PURE__ */ new Date()).toISOString() });
-          return true;
-        });
-        if (criado) return res.json({ codigo });
-      }
+      const codigo = await criarLinkCurto(quem.uid, pid, mid);
+      if (codigo) return res.json({ codigo });
       res.status(500).json({ error: "N\xE3o consegui gerar o link." });
     } catch (e) {
       res.status(500).json({ error: e?.message || "Erro" });
@@ -4388,12 +4872,12 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       }
       const meta = `<meta property="og:type" content="website" />
     <meta property="og:site_name" content="Roder M\xE1quinas e Equipamentos" />
-    <meta property="og:title" content="${escHtml(titulo)}" />
-    <meta property="og:description" content="${escHtml(descricao)}" />
-    <meta property="og:image" content="${escHtml(imagem)}" />
+    <meta property="og:title" content="${escHtml2(titulo)}" />
+    <meta property="og:description" content="${escHtml2(descricao)}" />
+    <meta property="og:image" content="${escHtml2(imagem)}" />
     <meta property="og:url" content="${SITE}/o/${codigo}" />
     <meta name="twitter:card" content="summary_large_image" />`;
-      html = html.replace(/<title>[^<]*<\/title>/, () => `<title>${escHtml(titulo)}</title>
+      html = html.replace(/<title>[^<]*<\/title>/, () => `<title>${escHtml2(titulo)}</title>
     ${meta}`);
       res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       res.type("html").send(html);
@@ -4415,6 +4899,19 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       res.json({ ok: true, name: u.name || "Equipe Roder", role: u.role });
     } catch {
       res.status(500).json({ error: "Erro ao conferir o e-mail." });
+    }
+  });
+  registrarConsultorParceiro(app, {
+    db,
+    quemChama,
+    passouLimite,
+    ipDe,
+    criarLinkCurto,
+    campoApagado: () => import_firebase_admin.default.firestore.FieldValue.delete(),
+    enviarEmail: (to, subject, html) => sendAutomaticEmail(to, subject, html),
+    sincronizarAgendor: async (id, dados) => {
+      const ag = (await db.collection("settings").doc("agendor").get()).data() || {};
+      if (ag.enabled && ag.apiToken) await executeAgendorSync(id, dados, ag.apiToken, true);
     }
   });
   app.post("/api/orcamento/registrar-link", async (req, res) => {
@@ -4497,7 +4994,7 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       let link = SITE;
       try {
         const u = new URL(String(req.body?.link || ""));
-        if (u.origin === SITE) link = escHtml(u.toString());
+        if (u.origin === SITE) link = escHtml2(u.toString());
       } catch {
       }
       const PERFIS = {
@@ -4513,8 +5010,8 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
 <div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#111">
   <div style="background:#090909;padding:16px;text-align:center"><img src="${SITE}/marca/roder-horizontal.png" alt="Roder" style="height:36px" /></div>
   <div style="padding:20px 18px;font-size:15px;line-height:1.55">
-    <p>Ol\xE1${nome ? `, ${escHtml(nome)}` : ""}.</p>
-    <p>Recebemos seu pedido de or\xE7amento da <b>${escHtml(produto)}</b>.</p>
+    <p>Ol\xE1${nome ? `, ${escHtml2(nome)}` : ""}.</p>
+    <p>Recebemos seu pedido de or\xE7amento da <b>${escHtml2(produto)}</b>.</p>
     ${foto ? `<p style="text-align:center"><img src="${foto}" alt="" style="max-width:260px;max-height:200px" /></p>` : ""}
     <p>Seu or\xE7amento inclui:<br>${perfilTxt.itens.map((i) => `\u2022 ${i}`).join("<br>")}</p>
     <p>Para chegar aos valores certos, um consultor Roder vai falar com voc\xEA pelo WhatsApp. ${perfilTxt.consultor}</p>
@@ -5271,7 +5768,7 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
               cancelled_automatically_at: nowIso2,
               updated_at: nowIso2,
               negotiation_history: import_firebase_admin.default.firestore.FieldValue.arrayUnion({
-                id: import_crypto.default.randomBytes(6).toString("hex"),
+                id: import_crypto2.default.randomBytes(6).toString("hex"),
                 type: "status_change",
                 author_name: "Sistema",
                 created_at: nowIso2,
