@@ -46,6 +46,7 @@ import {
   CHAVE_PARCEIRO_LINK, PAPEIS_QUE_INDICAM, TOKEN_LINK_VALIDO, WHATS_COMERCIAL, WHATS_COMERCIAL_TEXTO,
   lerCidadeUf, primeiroNome, querIndicar, textoLinkCliente, validarCnpj, validarTelefoneBR,
 } from '../../lib/consultorIndicar';
+import { linkWhatsSemNumero, textoEquipamentoCliente } from '../../lib/mensagemWhatsCliente';
 
 // Equipe Roder: exemplos de pergunta técnica na tela de início do Consultor
 const PERGUNTAS_TECNICAS_EQUIPE = [
@@ -3143,6 +3144,46 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
   };
 
   // Handle equipment redirection
+  // "Link para o cliente": gera o link público /o/código do modelo e abre o WhatsApp só com o texto
+  // (sem número: o parceiro escolhe o contato). O celular só deixa abrir janela DENTRO do toque,
+  // então ela abre em branco na hora e recebe o endereço quando o link chega do servidor.
+  const [gerandoLinkCliente, setGerandoLinkCliente] = useState<string | null>(null);
+  const linksClienteRef = React.useRef<Map<string, string>>(new Map());
+  const mandarAoClienteWhats = async (prod: Product, model: ProductModel) => {
+    if (gerandoLinkCliente) return;
+    const chave = `${parceiroViaLink?.token || user?.uid || 'x'}:${prod.id}:${model.id}`;
+    const abrir = (link: string, janela: Window | null) => {
+      const url = linkWhatsSemNumero(textoEquipamentoCliente(prod, model, link));
+      if (janela && !janela.closed) {
+        try { janela.location.href = url; return; } catch { /* cai no aviso */ }
+      }
+      toast('Toque para abrir o WhatsApp', { duration: 15000, action: { label: 'Abrir WhatsApp', onClick: () => { window.open(url, '_blank', 'noopener'); } } });
+    };
+    const guardado = linksClienteRef.current.get(chave);
+    if (guardado) { abrir(guardado, window.open('', '_blank')); return; }
+    let janela: Window | null = null;
+    try { janela = window.open('', '_blank'); } catch { janela = null; }
+    try { if (janela) janela.opener = null; } catch { /* nada */ }
+    setGerandoLinkCliente(model.id);
+    try {
+      const r = await fetch(`${getApiBaseUrl()}/api/consultor/link-cliente`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p: parceiroViaLink?.token || undefined, pid: prod.id, mid: model.id }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.codigo) throw new Error(j.error || 'Não consegui gerar o link.');
+      const link = `${window.location.origin}/o/${j.codigo}`;
+      linksClienteRef.current.set(chave, link);
+      abrir(link, janela);
+    } catch (e: any) {
+      try { janela?.close(); } catch { /* nada */ }
+      toast.error(e?.message || 'Não consegui gerar o link. Tente de novo.');
+    } finally {
+      setGerandoLinkCliente(null);
+    }
+  };
+
   const handleMakeIndication = (prod: Product, model: ProductModel) => {
     const productFullName = `${prod.name} - ${model.name}`;
     // parceiro do link pessoal: indica pela própria conversa, já com este equipamento
@@ -5171,10 +5212,15 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
               <div className={cn('mt-3.5 grid gap-2', podeEnviarFicha ? 'grid-cols-3' : 'grid-cols-2')}>
                 <button type="button" onClick={() => verFicha(prod, model)} className="h-11 px-1 whitespace-nowrap rounded-xl border-2 border-[#1B1E22] bg-white text-[#1B1E22] font-extrabold text-[13.5px] hover:bg-[#F3F4F6] transition">Ver ficha</button>
                 {podeEnviarFicha && (
-                  <button type="button" onClick={() => enviarFicha(prod, model)} className="h-11 px-1 whitespace-nowrap rounded-xl bg-[#1FA855] hover:bg-[#178a45] text-[#fff] font-extrabold text-[13.5px] transition">Enviar ficha</button>
+                  <button type="button" onClick={() => enviarFicha(prod, model)} className="h-11 px-1 whitespace-nowrap rounded-xl bg-[#1FA855] hover:bg-[#178a45] text-[#fff] font-extrabold text-[13.5px] transition">Enviar PDF</button>
                 )}
                 <button type="button" onClick={() => handleMakeIndication(prod, model)} className="h-11 px-1 whitespace-nowrap rounded-xl bg-[#F6C400] hover:bg-[#e2b400] text-[#1B1E22] font-extrabold text-[13.5px] transition">Indicar</button>
               </div>
+              {podeIndicar && (
+                <button type="button" onClick={() => mandarAoClienteWhats(prod, model)} disabled={gerandoLinkCliente === model.id} className="mt-2 h-auto min-h-[44px] w-full rounded-xl border-2 border-[#1FA855] bg-[#E7F8DE] py-2 text-[#0F5E2C] font-extrabold text-[13.5px] leading-tight flex items-center justify-center gap-2 transition disabled:opacity-60">
+                  {gerandoLinkCliente === model.id ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : <Phone className="h-4 w-4 shrink-0" />} Enviar para o WhatsApp do cliente
+                </button>
+              )}
             </div>
           </div>
         );
@@ -5290,7 +5336,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
 .cpc-claro{--color-slate-950:#ECEEF0;--color-slate-900:#FFFFFF;--color-slate-800:#E3E6E9;--color-slate-700:#D3D7DC;--color-slate-600:#B8BEC5;--color-slate-500:#6B7178;--color-slate-400:#5B6168;--color-slate-300:#3E444B;--color-slate-200:#2A2F35;--color-slate-100:#1B1E22;--color-slate-50:#111316;
 --color-amber-400:#8A6500;--color-amber-300:#7A5800;--color-emerald-400:#157F3C;--color-emerald-300:#116632;--color-green-400:#157F3C;--color-green-300:#116632;--color-rose-400:#B42318;--color-sky-400:#0369A1;--color-sky-300:#075985;--color-purple-400:#7E22CE;--color-purple-300:#6B21A8;--color-red-950:#FEE2E2;--color-red-200:#991B1B;}
 .cpc-claro .text-white{color:#1B1E22}
-.cpc-claro .text-white:is(.bg-primary,.bg-red-600,.bg-sky-600,.bg-emerald-500,.msg-usuario,[class*="bg-[#1FA855]"]){color:#fff}
+.cpc-claro .text-white:is(.bg-primary,.bg-red-600,.bg-sky-600,.bg-emerald-500,.msg-usuario,[class*="bg-[#1FA855]"],[class*="bg-[#1B1E22]"]){color:#fff}
 .cpc-claro .hover\\:text-white:hover{color:#1B1E22}
 .cpc-claro .text-primary-foreground:not(.bg-primary){color:#1B1E22}
 .cpc-claro .bg-slate-850{background-color:#fff}
@@ -5449,13 +5495,19 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                     </button>
                     {/* o explorador antigo sempre oferecia indicar: parceiro indica, visitante pede orçamento */}
                     {(podeIndicar || perfilConsultor === 'visitante') && (
-                      <button type="button" onClick={() => handleMakeIndication(prod, model)} className="h-11 min-h-[44px] w-full rounded-xl bg-[#1B1E22] text-white font-extrabold text-[14.5px] flex items-center justify-center gap-1.5 active:scale-[0.98] transition">
+                      <button type="button" onClick={() => handleMakeIndication(prod, model)} className="h-11 min-h-[44px] w-full rounded-xl bg-[#1B1E22] text-[#fff] font-extrabold text-[14.5px] flex items-center justify-center gap-1.5 active:scale-[0.98] transition">
                         <UserPlus className="h-4 w-4" /> Indicar
                       </button>
                     )}
                     {podeEnviarFicha && (
-                      <button type="button" onClick={() => enviarFicha(prod, model)} className="h-11 min-h-[44px] w-full rounded-xl bg-[#1FA855] text-white font-extrabold text-[14.5px] flex items-center justify-center gap-1.5 active:scale-[0.98] transition">
-                        <Send className="h-4 w-4" /> Enviar ficha
+                      <button type="button" onClick={() => enviarFicha(prod, model)} className="h-auto min-h-[44px] w-full rounded-xl bg-[#1FA855] text-white font-extrabold text-[14.5px] leading-tight flex items-center justify-center gap-1.5 active:scale-[0.98] transition">
+                        <Send className="h-4 w-4 shrink-0" /> Enviar PDF
+                      </button>
+                    )}
+                    {/* o link público do equipamento: o cliente pede orçamento, vê o vídeo e a ficha sem login */}
+                    {podeIndicar && (
+                      <button type="button" onClick={() => mandarAoClienteWhats(prod, model)} disabled={gerandoLinkCliente === model.id} className="col-span-2 h-auto min-h-[44px] w-full rounded-xl border-2 border-[#1FA855] bg-[#E7F8DE] text-[#0F5E2C] font-extrabold text-[14.5px] leading-tight py-2 flex items-center justify-center gap-2 active:scale-[0.98] transition disabled:opacity-60">
+                        {gerandoLinkCliente === model.id ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : <Phone className="h-4 w-4 shrink-0" />} Enviar para o WhatsApp do cliente
                       </button>
                     )}
                     {temProdutividadeCel(prod, model) && (
