@@ -21,27 +21,33 @@ const semDefeito = (t: string) => {
   assert.ok(!/comiss/i.test(t), 'sem comissão');
 };
 
-test('mensagem pronta COM vídeo de amostra: leva o link, o vídeo do braço, a cabine e as três fotos', () => {
+const passos = (t: string) => {
+  assert.match(t, /UM vídeo/);
+  assert.match(t, /1\) Filme o braço e a lança da máquina, mostrando as tubulações/);
+  assert.match(t, /2\) Filme o comando hidráulico da máquina, que fica atrás do motor de giro/);
+  assert.match(t, /3\) Filme dentro da cabine os joysticks e os pedais/);
+  assert.match(t, /4\) Se possível, quando for Caterpillar de modelo novo, abra e filme a porta traseira para mostrar a bomba hidráulica/);
+  assert.ok(t.indexOf('1)') < t.indexOf('2)') && t.indexOf('2)') < t.indexOf('3)') && t.indexOf('3)') < t.indexOf('4)'));
+  assert.match(t, /fotos também, como complemento/);
+  assert.ok(!/concession/i.test(t), 'a concessionária não entra no pedido');
+  assert.ok(t.length < 900, 'texto curto');
+};
+
+test('mensagem pronta COM vídeo modelo: um vídeo em 4 passos numerados e o link do modelo', () => {
   const t = textoPedirConfirmacaoMaquina(LINK);
   semDefeito(t);
+  passos(t);
   assert.ok(t.includes(LINK));
-  assert.match(t, /vídeo curto da cabine e do comando/);
-  assert.match(t, /comando hidráulico \(bloco de válvulas, mostrando as fatias e as saídas\)/);
-  assert.ok(!/braço|concession/i.test(t), 'linhas do braço não são requisito e a concessionária não entra no pedido');
-  assert.match(t, /bomba hidráulica/);
-  assert.match(t, /dois joysticks/);
-  assert.ok(t.length < 700, 'texto curto');
+  assert.match(t, /vídeo modelo para você seguir/);
 });
 
-test('mensagem pronta SEM vídeo de amostra: sai igual, só que sem link e sem "exemplo"', () => {
+test('mensagem pronta SEM vídeo modelo: mesmos passos, sem link, e diz que o vendedor envia o vídeo de exemplo', () => {
   for (const vazio of ['', undefined as any, null as any, '  ', 'db-file://x', 'javascript:alert(1)']) {
     const t = textoPedirConfirmacaoMaquina(vazio);
     semDefeito(t);
+    passos(t);
     assert.ok(!/https?:/.test(t) && !/db-file|javascript/.test(t));
-    assert.ok(!/exemplo/.test(t));
-    assert.match(t, /vídeo curto mostrando a cabine e o comando/);
-    assert.ok(!/braço|concession/i.test(t));
-    assert.match(t, /dois joysticks/);
+    assert.match(t, /o vendedor envia um vídeo de exemplo/);
   }
 });
 
@@ -86,8 +92,10 @@ test('regra de prompt: não afirma kit por modelo nem serial, pede confirmação
   assert.match(r, /Não dê a entender que a concessionária é obrigatória antes da análise/);
   assert.match(r, /técnico Roder responsável/);
   assert.match(r, /Não invente código/);
-  assert.match(r, /bloco de válvulas, mostrando as fatias e as saídas/);
-  assert.match(r, /DOIS joysticks/);
+  assert.match(r, /braço e lança da máquina, mostrando as tubulações/);
+  assert.match(r, /comando hidráulico, que fica atrás do motor de giro/);
+  assert.match(r, /os joysticks e os pedais/);
+  assert.match(r, /porta traseira para mostrar a bomba hidráulica/);
   assert.ok(!/\d\s*%|comiss/i.test(r));
   assert.match(r, /confirmar_maquina/);
   assert.ok(!/[—–]/.test(r));
@@ -169,7 +177,7 @@ test('caso real do Yuri: CMF 600 na CAT 320 com série e "configuração padrão
   assert.match(r, /NÃO entregue lista fechada/);
   assert.match(r, /não use a série nem o "padrão"/);
   assert.match(r, /joystick hidráulico, nova com joystick eletrônico/);
-  assert.match(r, /foto do comando, da bomba, dos dois joysticks e o vídeo/);
+  assert.match(r, /peça o vídeo na sequência \(braço e lança com as tubulações, comando atrás do motor de giro, joysticks e pedais, porta traseira e bomba em CAT nova\)/);
   assert.match(r, /técnico Roder confirma os kits/);
   assert.match(r, /cabeçote multifuncional, informe que na CAT 320 nova sem fatia extra existe a opção do kit 9035 mais o kit de baixa 9003, a confirmar pelo técnico/);
   assert.match(r, /Só cite códigos de kit que apareçam na lista de kits cadastrados fornecida no contexto/);
@@ -238,7 +246,7 @@ test('últimas sobras: viabilidade do 9016, pedido de foto e vídeo, e títulos 
   assert.ok(!/pedir fotos ou vídeos do comando hidráulico do cliente/.test(server));
   assert.ok(!/pede marca, modelo e fotos do comando/.test(server));
   assert.ok(!/pedir a marca e o modelo da sua máquina e fotos do comando/.test(server));
-  assert.equal((server.match(/fotos \(bloco de comando, bomba, os dois joysticks\) e vídeo \(cabine e comando\)/g) || []).length, 2);
+  assert.equal((server.match(/um vídeo \(braço e lança com as tubulações, comando atrás do motor de giro, joysticks e pedais e, em CAT nova, porta traseira com a bomba; fotos só como complemento\)/g) || []).length, 2);
   // todo título ou linha de documento que cita o 9016 ligado a "sem fatia extra" leva a ressalva
   for (const f of ['src/utils/manualExportUtils.ts', 'src/pages/IAManual.tsx', 'src/utils/generateTechnicalPdf.ts', 'src/utils/generateTechnicalDocx.ts', 'src/utils/generateGoogleDocsHtml.ts', 'src/components/catalog/EstudosComparativosModal.tsx']) {
     const linhas = ler(f).split('\n').filter(l => /sem fatia extra/i.test(l) && /9000\.9000\.9016/.test(l));
