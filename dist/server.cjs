@@ -3930,7 +3930,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-20l tela-consultor e zoom";
+  const RELEASE_LABEL = "2026-10-20m ficha-escavadeira-consultor";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -6073,6 +6073,7 @@ Regras de Neg\xF3cio e Diretrizes de Engenharia Roder:
           - Para **Sacador de \xC1rvores SAC 500**: utilize o link [Visualizar Ficha T\xE9cnica Oficial do Sacador SAC 500](sacador-sac-500)
           - Para **Fresa FAE SSH** (SSH 150, 200, 225, 250): utilize o link [Visualizar Ficha T\xE9cnica Oficial da Fresa SSH](fresa-ssh)
           - Para **Ca\xE7amba High Tip**: utilize o link [Visualizar Ficha T\xE9cnica Oficial da Ca\xE7amba High Tip](cacamba-high-tip)
+          - Para **Trituradores/Desbastadores FAE de escavadeira** (ficha montada pelo sistema, com a tabela dos modelos da linha): use o link do modelo certo, sem inventar outro: [Ver ficha t\xE9cnica FAE UML/EX/VT](ficha-fae:uml-ex-vt), [Ver ficha t\xE9cnica FAE UML/S/EX/VT](ficha-fae:uml-s-ex-vt), [Ver ficha t\xE9cnica FAE UMM/EX/VT](ficha-fae:umm), [Ver ficha t\xE9cnica FAE BL0/EX](ficha-fae:bl0), [Ver ficha t\xE9cnica FAE PML/EX](ficha-fae:pml), [Ver ficha t\xE9cnica FAE BL1/EX/VT](ficha-fae:bl1), [Ver ficha t\xE9cnica FAE DML/HY](ficha-fae:dml), [Ver ficha t\xE9cnica FAE BL2/EX/VT](ficha-fae:bl2), [Ver ficha t\xE9cnica FAE BL3/EX/VT](ficha-fae:bl3). Ao indicar um desses modelos, ou quando o vendedor pedir a ficha, ofere\xE7a o link do modelo indicado numa linha curta (ex.: "Voc\xEA pode abrir e ver a ficha t\xE9cnica completa do UML/EX/VT") e diga que d\xE1 para salvar o PDF e mandar ao cliente. Nunca informe n\xFAmero de dentes desses trituradores de escavadeira (n\xE3o h\xE1 esse dado cadastrado): fale s\xF3 do tipo de dente. Os de p\xE1 carregadeira (UML SSL VT 175 e 140 U PM 200) t\xEAm ficha pr\xF3pria e n\xE3o usam esses links.
           - Para **Garras Florestais Roder (R400, R600, R800, etc.)** ou qualquer outro modelo do cat\xE1logo: utilize o link da ficha t\xE9cnica (campo pdf_url do modelo/produto se presente no contexto abaixo) como: [Visualizar Ficha T\xE9cnica Oficial (PDF)](url_do_pdf)
           
           Sempre incentive o compartilhamento desses links r\xE1pidos com o vendedor ou cliente!
