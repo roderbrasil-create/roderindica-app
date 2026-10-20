@@ -2129,7 +2129,7 @@ Retorne um array JSON no formato exato:
                   const qData = doc.data();
                   items.push(`- Pergunta Similar: "${qData.question}"\n  Resposta Correta/Aprimorada a ser usada: "${qData.improvedAnswer}"`);
                 });
-                improvedKnowledgeContext = `\n\n11. BASE DE CONHECIMENTO ADICIONAL (CORREÇÕES APROVADAS PELA GERÊNCIA/ADMINISTRAÇÃO):\nUse as orientações abaixo se a pergunta do usuário for similar a estas dúvidas mapeadas de forma prioritária para dar a resposta correta. Se alguma orientação abaixo indicar kit, fatia extra ou válvulas só pelo modelo ou pelo número de série, trate como possibilidade e aplique a regra de confirmação da máquina:\n${items.join("\n")}`;
+                improvedKnowledgeContext = `\n\n11. BASE DE CONHECIMENTO ADICIONAL (CORREÇÕES APROVADAS PELA GERÊNCIA/ADMINISTRAÇÃO):\nUse as orientações abaixo se a pergunta do usuário for similar a estas dúvidas mapeadas de forma prioritária para dar a resposta correta. Se alguma orientação abaixo indicar kit, fatia extra ou válvulas só pelo modelo ou pelo número de série, IGNORE o código e aplique a regra de confirmação da máquina (sem código de kit até o vendedor afirmar a configuração):\n${items.join("\n")}`;
               }
             } else {
               console.warn("Could not load improved questions context:", improvedSnapResult.reason);
@@ -2366,7 +2366,7 @@ Regras de Negócio e Diretrizes de Engenharia Roder:
 ${REGRA_KIT_CONFIRMACAO}
    - DIRETRIZ CRÍTICA PARA INSTALAÇÃO DE GARRA EM ESCAVADEIRAS SEM FATIA EXTRA DE COMANDO (MUITO IMPORTANTE):
       • Se o vendedor perguntar sobre a instalação de garras em escavadeiras que, **depois de confirmado**, NÃO possuem a fatia extra de comando original (a ausência nunca se presume pelo modelo; só vale quando confirmado: PC200, PC210, Volvo 200 e outros variam de máquina para máquina):
-        - **Solução Técnico-Oficial**: Explique que o kit possível, a confirmar pelo técnico Roder, é o **Kit de Instalação de Garra para Máquinas sem Fatia Extra - Código 9000.9000.9016**. ${RESSALVA_KIT}
+        - **Solução Técnico-Oficial**: Só se o vendedor AFIRMAR que a máquina não tem fatia extra, o kit é o **Kit de Instalação de Garra para Máquinas sem Fatia Extra - Código 9000.9000.9016**. ${RESSALVA_KIT}
         - **Como Funciona o Kit 9000.9000.9016**: Este kit deriva a pressão hidráulica diretamente da bomba principal da escavadeira para alimentar uma válvula com duas solenoides. Como opera com baixo fluxo, ele é utilizado exclusivamente para fazer a rotação do rotator de forma independente, sem necessitar de uma fatia extra no comando principal. O 9016 deriva da bomba principal e NÃO é o kit de baixa.
         - **Condição Crítica/Deficiência que o Cliente DEVE Saber**: Como a vazão é derivada diretamente da bomba principal, quando a escavadeira está estática (ou seja, quando o operador não está executando nenhuma outra função como levantar o braço, fechar a lança ou girar a cabine), a bomba trabalha no deslocamento mínimo. Consequentemente, se o operador acionar apenas os botões de rotação do rotator sem realizar nenhuma outra operação, o giro da garra será **extremamente lento** ("fluxo muito lento / rotação lenta").
         - **Normalização da Velocidade**: No entanto, quando o operador está executando qualquer outra função simultaneamente (por exemplo, durante a operação florestal em que ele move o braço, levanta a lança ou gira a cabine ao mesmo tempo em que rotaciona a garra), o fluxo da bomba aumenta e a rotação do rotator é **normalizada**. Essa oscilação é uma característica normal do projeto para máquinas sem fatia extra original e não um defeito.
@@ -2521,8 +2521,8 @@ ${REGRA_KIT_CONFIRMACAO}
       - **REGRA DE FILTRO**: Se o usuário NÃO perguntou especificamente sobre o "link", **NUNCA** mencione o código do link ou o kit de instalação para link. Seja direto e responda apenas o solicitado (Ponteira).
       - **Quando o Link é Solicitado**: Explique que é possível e facilite a troca rápida com a concha original.
       - **Códigos de Link (Escavadeiras 22t pino 80mm)**: o link é o item **1000.0000.0120** (item separado, não faz parte de nenhum kit hidráulico). O kit **9000.9000.9015** ("Kit instalação garra + lança extensora em escavadeira, máquina com fatia extra sem linha") é outro item, só para garra com lança extensora em máquina com fatia extra sem linha. NUNCA diga que o 9015 inclui o link nem trate os dois como um conjunto. ${RESSALVA_KIT}
-      - **Instalação com Ponteira (Padrão)**: Se a pergunta for sobre instalação com ponteira (ou se "link" não for mencionado), indique o item: **"Kit de instalação garra em escavadeira, máquina com fatia extra, sem linha"**. ${RESSALVA_KIT}
-      - **Identificação de Kits**: Os kits para garra/CMF/traçadora que NÃO mencionam "link" referem-se automaticamente à montagem com ponteira.
+      - **Suporte do implemento (link, ponteira ou lança extensora)**: Só depois de o vendedor AFIRMAR a configuração da máquina e de confirmado o tipo de suporte (link, ponteira ou lança extensora), cite o kit cadastrado correspondente; sem isso, peça o vídeo e o tipo de suporte, sem citar kit. ${RESSALVA_KIT}
+      - **Identificação de Kits**: a ausência de "link" no nome do kit NÃO decide o suporte (pode ser ponteira ou lança extensora): o tipo de suporte deve ser perguntado, nunca presumido.
       - **Acoplamento**: Use engates rápidos flat-face para facilitar a troca.
     - **Compatibilidade e Diretrizes de Escavadeiras com Harvester ou Linha F (Florestal) de Fábrica**:
       - **Incompatibilidade Direta com Outros Equipamentos**: Escavadeiras configuradas/preparadas para Harvester florestal **NÃO** são compatíveis com outros acessórios florestais (garras de carregamento, garras traçadoras, cabeçotes multifuncionais, feller tesoura, feller de disco, desbastador, triturador, etc.) sem modificações profundas e irreversíveis.
@@ -2784,7 +2784,7 @@ ${REGRA_KIT_CONFIRMACAO}
             1. A garra **R400** é a ideal e mais segura para a **alimentação do picador/carregador**. O vendedor deve explicar com clareza ao cliente que uma garra R600 (que é maior, tem uma abertura muito larga e é mais pesada) pode facilmente causar danos físicos severos à calha/funil/caçamba de entrada do próprio picador durante a operação de alimentação.
             2. Para a atividade exclusiva de **carregamento de toras** (fora da boca do picador), a garra **R600** é perfeitamente recomendada e trará uma produtividade/eficiência de trabalho muito superior.
             3. **Decisão do Cliente**: O vendedor deve expor esses prós e contras de forma transparente para que o próprio cliente tome a decisão consciente, avaliando o ganho de eficiência no carregamento (com a R600) em relação ao risco de avarias no picador durante a alimentação.
-        - **Kit para máquina com fatia extra de saída dupla já disponível**: o código do kit depende da configuração confirmada e o técnico Roder informa. Cite só códigos que apareçam na lista de kits cadastrados do contexto, sempre como possibilidade. É kit de Garra Florestal (NÃO para Destocador). ${RESSALVA_KIT}
+        - **Kit para máquina com fatia extra de saída dupla já disponível**: o código do kit depende da configuração confirmada e o técnico Roder informa. Cite só códigos que apareçam na lista de kits cadastrados do contexto, e só depois de o vendedor afirmar a configuração. É kit de Garra Florestal (NÃO para Destocador). ${RESSALVA_KIT}
         - **Kit de Instalação de Garra para Máquinas sem Fatia Extra de Comando (9000.9000.9016)**:
           - **Kit Código 9000.9000.9016**: Kit de instalação de **Garra Florestal** especial para escavadeiras que, **depois de confirmado**, NÃO possuem a fatia extra original no comando (não presuma por modelo: PC200, PC210, Volvo 200 e outras variam). ${RESSALVA_KIT}
           - **Funcionamento**: Deriva fluxo diretamente da bomba para uma válvula de duas solenoides com baixo fluxo para o rotator.
@@ -3103,7 +3103,7 @@ ${stockContext || "Não há itens em estoque hoje."}
 Aqui está a tabela/quadro oficial de compatibilidade de acessórios e ponteiras de escavadeiras cadastradas (consulte esta lista para responder sobre códigos de ponteiras, pinos e suportes de cada marca/modelo de máquina):
 ${accessoriesContext || "Não há tabela de acessórios cadastrada."}
 
-Aqui estão os kits de instalação cadastrados para referência. ${RESSALVA_KIT}
+Aqui estão os kits de instalação cadastrados. USE ESTA LISTA SOMENTE quando o vendedor AFIRMOU a configuração da máquina; caso contrário NÃO cite nenhum código nem liste kits desta lista, e peça o vídeo da máquina. ${RESSALVA_KIT}
 ${kitsContext || "Não há kits de instalação cadastrados."}${improvedKnowledgeContext}`;
 
           if (chatHistory && Array.isArray(chatHistory)) {
