@@ -30,11 +30,21 @@ import { usePodeEnviarFicha, enviarArquivoPdf, nomeArquivoFicha } from '../catal
 import { ehFichaPropria } from '../../lib/fichaPropria';
 import { CartaoFicha } from '../catalog/CartaoFicha';
 import { useVoltarFecha } from '../../lib/useVoltarFecha';
+import { montarProntaEntrega, itemProntoDe, type ItemProntaEntrega } from '../../lib/prontaEntrega';
+import { CarrosselProntaEntrega, ListaProntaEntrega, AvisoProntaEntrega } from './ProntaEntregaConsultor';
 import { abrirDocumento } from '../../lib/abrirDocumento';
 import {
   CHAVE_PARCEIRO_LINK, PAPEIS_QUE_INDICAM, TOKEN_LINK_VALIDO, WHATS_COMERCIAL, WHATS_COMERCIAL_TEXTO,
   lerCidadeUf, primeiroNome, querIndicar, textoLinkCliente, validarCnpj, validarTelefoneBR,
 } from '../../lib/consultorIndicar';
+
+// Equipe Roder: exemplos de pergunta técnica na tela de início do Consultor
+const PERGUNTAS_TECNICAS_EQUIPE = [
+  'A garra R400 serve na CAT 320?',
+  'Kit de instalação do CMF 600 na PC200',
+  'Qual ponteira e biela para a ZX130?',
+  'O trator do cliente serve na fresa SSH?',
+];
 
 const DEFAULT_PRODUCTIVITIES: Record<string, string> = {
   "CMF 600": `DERRUBADA (COLHEITA FLORESTAL):
@@ -661,7 +671,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   const parceiroViaLink = !logado ? parceiroLink : null;
   // Quem pode indicar pela conversa: o parceiro do link e quem cria indicação no app
   const podeIndicar = !!parceiroViaLink || (logado && !!profile && !isImpersonating && PAPEIS_QUE_INDICAM.includes(String(profile.role)));
-  const saudacaoParceiro = (nome: string) => `Olá, **${primeiroNome(nome) || 'parceiro'}**! Pergunte sobre um equipamento ou faça uma indicação.`;
+  const saudacaoParceiro = (nome: string) => `Olá, **${primeiroNome(nome) || 'parceiro'}**! Tire dúvidas ou indique um cliente.`;
   
   // If a registered seller or partner logged in, clear any external referral code
   useEffect(() => {
@@ -692,6 +702,13 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   const [fichaPadrao, setFichaPadrao] = useState<{ product: Product; model: ProductModel } | null>(null);
   // Regra do Jeferson: parceiro/indicador e consultor público só veem a ficha
   const podeEnviarFicha = usePodeEnviarFicha();
+  // Uma tela para cada perfil (aprovado pelo Jeferson em 19/10/2026):
+  // equipe Roder vê só o técnico; parceiro vê o que ajuda a vender; visitante continua como era.
+  const perfilConsultor: 'equipe' | 'parceiro' | 'visitante' = podeEnviarFicha
+    ? 'equipe'
+    : (parceiroViaLink || (logado && String(profile?.role || '') === 'external_seller')) ? 'parceiro' : 'visitante';
+  const ehEquipeConsultor = perfilConsultor === 'equipe';
+  const ehParceiroConsultor = perfilConsultor === 'parceiro';
 
   type FichaEspecial = 'sac500' | 'loader-fae' | 'high-tip' | 'engate' | 'estufagem' | 'fresa-ssh' | 'gmt035' | 'poda';
 
@@ -824,6 +841,8 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   
   const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
+  // Pronta entrega: a mesma lista da tela inicial do parceiro (estoque com quantidade, casado com o catálogo)
+  const prontaEntrega = React.useMemo(() => montarProntaEntrega(stockItems, catalogProducts), [stockItems, catalogProducts]);
   const [loadingExplorer, setLoadingExplorer] = useState(false);
 
   // Explorer states for interactive navigation
@@ -1730,6 +1749,8 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   // "Voltar" do celular fecha primeiro o menu e a lista de equipamentos
   useVoltarFecha(menuCel, () => setMenuCel(false));
   useVoltarFecha(folhaEquip, () => setFolhaEquip(false));
+  const [folhaPronta, setFolhaPronta] = useState(false);
+  useVoltarFecha(folhaPronta, () => setFolhaPronta(false));
   const campoCelRef = useRef<HTMLTextAreaElement>(null);
   const listaCelRef = useRef<HTMLDivElement>(null);
   // Altura visível de verdade no celular (descontando o teclado): a caixa de texto fica sempre acima dele
@@ -1752,7 +1773,8 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     if (el) el.scrollTop = el.scrollHeight;
   };
   // teclado abriu ou fechou: a conversa desce até a última mensagem
-  useEffect(() => { if (vvCel) rolarListaCelAoFim(); }, [vvCel?.h]);
+  // (na tela de início não: a saudação fica no topo)
+  useEffect(() => { if (vvCel && messages.some(m => m.role === 'user')) rolarListaCelAoFim(); }, [vvCel?.h]);
   // Caixa de texto que cresce com o texto (digitado ou ditado): de 1 até 6 linhas, depois rola por dentro
   React.useLayoutEffect(() => {
     const el = campoCelRef.current;
@@ -2344,9 +2366,10 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     });
   };
 
-  const iniciarIndicacao = (texto = '') => {
+  const iniciarIndicacao = (texto = '', direto?: { prod: Product; model: ProductModel }) => {
     setExplorerMinimized(true);
     setFolhaEquip(false);
+    setFolhaPronta(false);
     setMenuCel(false);
     if (!podeIndicar) {
       falaInd(logado
@@ -2355,6 +2378,8 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
       return;
     }
     const inicio: FluxoIndicar = { etapa: 'equip_lista' };
+    // tocou "Indicar" num equipamento da pronta entrega: ele já está escolhido
+    if (direto) { equipEscolhido(nomeEquip(direto.prod, direto.model), inicio); return; }
     // 1) equipamento citado no próprio pedido; 2) família citada; 3) o equipamento desta conversa
     const citado = texto ? detectEquipmentInMessage(texto)[0] : undefined;
     const familia = !citado && texto ? familiaNoTexto(texto) : null;
@@ -2566,6 +2591,19 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     usuarioInd('Quero fazer uma indicação');
     iniciarIndicacao();
   };
+  // Pronta entrega: "Indicar" já leva o equipamento; "Perguntar" manda a pergunta pronta
+  const indicarProntaEntrega = (it: ItemProntaEntrega) => {
+    if (loading) return;
+    setFolhaPronta(false);
+    if (fluxoInd) { falaInd('Já estamos fazendo uma indicação. Responda a pergunta acima ou cancele.', { opcoes: [CANCELAR_IND] }); return; }
+    usuarioInd(`Quero indicar ${it.nome}`);
+    iniciarIndicacao('', { prod: it.produto, model: it.modelo });
+  };
+  const perguntarProntaEntrega = (it: ItemProntaEntrega) => {
+    if (loading) return;
+    setFolhaPronta(false);
+    handleSend(`Me fale sobre ${it.nome} à pronta entrega`);
+  };
 
   const handleSend = async (textToSend?: string) => {
     const queryText = (textToSend || inputValue).trim();
@@ -2662,6 +2700,8 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
           name: (profile?.name || parceiroViaLink?.nome || publicUser?.name || user?.displayName || user?.email || 'Anônimo').replace('Jefferson', 'Jeferson'),
           email: profile?.email || publicUser?.email || user?.email || '',
           role: profile?.role || (parceiroViaLink ? 'external_seller' : publicUser?.userType) || 'visitor',
+          // equipe Roder: resposta técnica (veredito primeiro, kit, ponteira/biela, suporte, códigos)
+          equipe: ehEquipeConsultor,
           baseMachine: publicUser?.baseMachine || '',
           referredBy: localStorage.getItem('roder_consultant_ref') || ''
         }
@@ -2734,6 +2774,8 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
           name: (profile?.name || parceiroViaLink?.nome || publicUser?.name || user?.displayName || user?.email || 'Anônimo').replace('Jefferson', 'Jeferson'),
           email: profile?.email || publicUser?.email || user?.email || '',
           role: profile?.role || (parceiroViaLink ? 'external_seller' : publicUser?.userType) || 'visitor',
+          // equipe Roder: resposta técnica (veredito primeiro, kit, ponteira/biela, suporte, códigos)
+          equipe: ehEquipeConsultor,
           baseMachine: publicUser?.baseMachine || '',
           referredBy: localStorage.getItem('roder_consultant_ref') || ''
         }
@@ -3346,6 +3388,42 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
     : serve === 'sim'
       ? { caixa: 'border-[#BFE3CB] bg-[#F2FAF4]', titulo: 'text-[#157F3C]', valor: 'text-[#157F3C]', texto: 'Sim' }
       : { caixa: 'border-[#F1DFA6] bg-[#FFFBEB]', titulo: 'text-[#8A6500]', valor: 'text-[#8A6500]', texto: serve === 'verificar' ? 'Verificar' : '' };
+  const fotoPe = (src: string | undefined, className: string) => <MarkdownImage src={src} className={className} />;
+  // Indicar na pronta entrega: só para quem indica (parceiro e a equipe que cria indicação no app)
+  const onIndicarPe = podeIndicar ? indicarProntaEntrega : undefined;
+  // Aviso de pronta entrega: só parceiro e equipe, só em resposta do consultor (não no roteiro de indicação
+  // nem enquanto ele pergunta com opções), e só uma vez por equipamento na conversa
+  const avisoProntaDe = (msg: Message, idx: number): ItemProntaEntrega | null => {
+    if (perfilConsultor === 'visitante' || !prontaEntrega.length) return null;
+    if (msg.role !== 'assistant' || idx === 0 || msg.indicar || msg.content.includes('Ops, ocorreu um erro')) return null;
+    if (parseConsultantOptions(msg.content).options.length > 0) return null;
+    const achado = (msg.painel?.produto ? detectEquipmentInMessage(msg.painel.produto)[0] : undefined)
+      || detectEquipmentInMessage(parseConsultantOptions(msg.content).text)[0];
+    const it = achado ? itemProntoDe(prontaEntrega, achado.prod.id, achado.model.id) : null;
+    if (!it) return null;
+    // já avisou deste equipamento numa resposta anterior
+    for (let i = 1; i < idx; i++) {
+      const m = messages[i];
+      if (m.role !== 'assistant' || m.indicar || parseConsultantOptions(m.content).options.length > 0) continue;
+      const a = (m.painel?.produto ? detectEquipmentInMessage(m.painel.produto)[0] : undefined) || detectEquipmentInMessage(parseConsultantOptions(m.content).text)[0];
+      if (a && a.prod.id === achado!.prod.id && a.model.id === achado!.model.id) return null;
+    }
+    return it;
+  };
+  const copiarResposta = async (conteudo: string) => {
+    const texto = parseConsultantOptions(conteudo).text
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+      .replace(/[*#]/g, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+    try {
+      await navigator.clipboard.writeText(texto);
+      toast.success('Resposta copiada.');
+    } catch {
+      toast.error('Não consegui copiar. Selecione o texto e copie.');
+    }
+  };
   // Celular: os dados do painel da resposta viram cartões compactos dentro da conversa
   const cartoesPainelCel = (painel: PainelConversa, perguntandoOpcoes = false) => {
     const mq = painel.maquina && painel.maquina.nome ? painel.maquina : null;
@@ -3378,6 +3456,24 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
           {equip && (() => {
             const { prod, model } = equip;
             const foto = fotoDoModelo(prod, model);
+            // Equipe: o equipamento numa linha só (foto, nome, Ver ficha e Enviar)
+            if (ehEquipeConsultor) return (
+              <div className="rounded-2xl border border-[#E2E5E8] bg-white py-2 pl-2 pr-2.5 flex items-center gap-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+                <div className="h-11 w-12 shrink-0 rounded-[10px] bg-gradient-to-b from-[#F4F5F6] to-[#DCE0E4] flex items-center justify-center overflow-hidden">
+                  {foto
+                    ? <MarkdownImage src={foto} className="max-w-full max-h-full m-0 p-0.5 border-0 bg-transparent shadow-none hover:scale-100 object-contain" />
+                    : <Package className="h-5 w-5 text-[#9AA1A9]" />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="m-0 fonte-titulo text-[15.5px] font-extrabold leading-tight text-[#1B1E22] truncate">{model.name || tituloFicha(prod, model)}</p>
+                  {model.name && <p className="m-0 text-[12px] leading-tight text-[#6B7178] truncate">{prod.name}</p>}
+                </div>
+                <button type="button" onClick={() => verFicha(prod, model)} className="h-10 shrink-0 px-2.5 whitespace-nowrap rounded-[10px] border-[1.5px] border-[#1B1E22] bg-white text-[#1B1E22] font-extrabold text-[13.5px] active:scale-95 transition">Ver ficha</button>
+                {podeEnviarFicha && (
+                  <button type="button" onClick={() => enviarFicha(prod, model)} title="Enviar ficha" aria-label="Enviar ficha" className="h-10 w-10 shrink-0 p-0 rounded-[10px] bg-[#1FA855] text-[#fff] flex items-center justify-center active:scale-95 transition"><Send className="h-4 w-4" /></button>
+                )}
+              </div>
+            );
             const linhaSpecs = specsChave(model).map(([, v]) => v).join(' · ');
             return (
               <div className="rounded-2xl border border-[#E2E5E8] bg-white p-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
@@ -3947,6 +4043,17 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                           );
                           return null;
                         })()}
+
+                        {/* Equipe: copia a resposta limpa para colar no WhatsApp do cliente */}
+                        {ehEquipeConsultor && idx > 0 && !msg.indicar && onboardingStep === 'COMPLETED' && !msg.content.includes('Ops, ocorreu um erro') && (
+                          <button
+                            type="button"
+                            onClick={() => copiarResposta(msg.content)}
+                            className="w-full min-h-[40px] h-auto rounded-xl border-[1.5px] border-[#1B1E22] bg-white text-[#1B1E22] text-[14px] font-extrabold flex items-center justify-center gap-1.5 active:scale-[0.99] transition"
+                          >
+                            Copiar resposta
+                          </button>
+                        )}
                       </div>
                     ) : (
                       <p className="whitespace-pre-wrap">{msg.content}</p>
@@ -3955,6 +4062,15 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                 </div>
                 {/* Celular: o painel da resposta (máquina, equipamento, perguntas) vem logo abaixo dela */}
                 {!layoutPc && msg.role === 'assistant' && msg.painel && cartoesPainelCel(msg.painel, parseConsultantOptions(msg.content).options.length > 0)}
+                {/* Equipamento da resposta está no estoque: aviso amarelo (parceiro indica, equipe pergunta) */}
+                {(() => {
+                  const it = avisoProntaDe(msg, idx);
+                  if (!it) return null;
+                  const acao = ehParceiroConsultor && onIndicarPe
+                    ? { rotulo: 'Indicar', fn: () => indicarProntaEntrega(it) }
+                    : { rotulo: 'Perguntar', fn: () => perguntarProntaEntrega(it) };
+                  return <AvisoProntaEntrega item={it} foto={fotoPe} rotulo={acao.rotulo} onAcao={acao.fn} parceiro={ehParceiroConsultor} />;
+                })()}
                 </React.Fragment>
               ))}
 
@@ -5013,7 +5129,19 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
         );
       })()}
 
-      {painelAtual?.perguntas && painelAtual.perguntas.length > 0 && (
+      {painelAtual?.perguntas && painelAtual.perguntas.length > 0 && ehEquipeConsultor && (
+        <details className="group rounded-2xl border border-[#F1DFA6] bg-[#FFF8DB]">
+          <summary className="list-none [&::-webkit-details-marker]:hidden cursor-pointer select-none min-h-11 px-4 flex items-center justify-between gap-2">
+            <span className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#8A6500]">Pergunte ao cliente ({painelAtual.perguntas.length})</span>
+            <ChevronDown className="h-5 w-5 text-[#8A6500] transition-transform group-open:rotate-180" />
+          </summary>
+          <ul className="px-4 pb-3 -mt-1 space-y-1.5 list-disc pl-9 text-[14px] leading-snug text-[#1B1E22]">
+            {painelAtual.perguntas.map((p, i) => <li key={i}>{p}</li>)}
+          </ul>
+        </details>
+      )}
+
+      {painelAtual?.perguntas && painelAtual.perguntas.length > 0 && !ehEquipeConsultor && (
         <div className="rounded-2xl border border-[#F1DFA6] bg-[#FFF8DB] px-4 py-3.5">
           <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#8A6500]">Pergunte ao cliente</p>
           <ul className="mt-2 space-y-1.5 list-disc pl-5 text-[14px] leading-snug text-[#1B1E22]">
@@ -5136,6 +5264,18 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
 `;
   const toqueCel = typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
   const primeiroNomeCel = nomeUsuario.split(' ')[0] || '';
+  const saudacaoPerfil = ehParceiroConsultor ? 'Tire dúvidas ou indique um cliente.' : 'Informe a máquina do cliente e o equipamento.';
+  // Equipe: 4 famílias em destaque na tela de início; o resto fica no atalho Equipamentos
+  const equipDestaqueEquipe = (() => {
+    const ordem = [/garra.*florest/i, /cabe[cç]ote/i, /tra[cç]ador/i, /fresa|ssh/i];
+    const escolhidos: Product[] = [];
+    for (const re of ordem) {
+      const p = catalogProducts.find(x => re.test(x.name || '') && !escolhidos.includes(x));
+      if (p) escolhidos.push(p);
+    }
+    for (const p of catalogProducts) { if (escolhidos.length >= 4) break; if (!escolhidos.includes(p)) escolhidos.push(p); }
+    return escolhidos.slice(0, 4);
+  })();
   const fotoProdutoCel = (prod: Product) =>
     prod.image_url || ((prod as any).images || []).find(Boolean) || (prod.models || []).map(m => fotoDoModelo(prod, m)).find(Boolean) || '';
   // Abre a folha de equipamentos; com um equipamento, já entra no guia dele (igual ao explorador)
@@ -5229,6 +5369,14 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
               );
             })}
           </nav>
+          {/* Pronta entrega fixa no pé da coluna: gira sozinha e fica visível durante a conversa,
+              sem empurrar o que importa (a conversa no centro e o veredito da máquina na direita) */}
+          {perfilConsultor !== 'visitante' && prontaEntrega.length > 0 && (
+            <div className="shrink-0 border-t border-[#E1E4E8] bg-[#F7F8F9] px-3 pt-2.5 pb-2">
+              <p className="mb-1.5 px-0.5 text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#6B7178]">Pronta entrega</p>
+              <CarrosselProntaEntrega compacto itens={prontaEntrega} foto={fotoPe} onPerguntar={perguntarProntaEntrega} onIndicar={onIndicarPe} />
+            </div>
+          )}
         </aside>
 
         {/* Centro: a conversa */}
@@ -5244,7 +5392,36 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
               {blocoCalculadora}
               <div className="flex-1 min-h-0 overflow-y-auto px-7 py-6">
                 <div className="max-w-[880px] mx-auto space-y-4">
-                  {listaMensagens}
+                  {conversaVazia && onboardingStep === 'COMPLETED' && perfilConsultor !== 'visitante' ? (
+                    <div className="space-y-5">
+                      <div className="flex justify-start">
+                        <div className="msg-consultor border">
+                          <p className="m-0 leading-relaxed text-[#1B1E22]">{primeiroNomeCel ? `Olá, ${primeiroNomeCel}! ` : 'Olá! '}{saudacaoPerfil}</p>
+                        </div>
+                      </div>
+                      {ehParceiroConsultor && podeIndicar && (
+                        <button type="button" onClick={tocarIndicar} className="w-full max-w-[520px] min-h-[60px] h-auto px-5 py-3 rounded-2xl bg-[#F6C400] hover:bg-[#e2b400] text-[#1B1E22] flex items-center gap-3 text-left transition">
+                          <UserPlus className="h-6 w-6 shrink-0" />
+                          <span className="min-w-0">
+                            <span className="block text-[16px] font-extrabold leading-tight">Indicar um cliente</span>
+                            <span className="block text-[13.5px] font-medium leading-snug text-[#3E444B]">Passe os dados ou mande um link para ele</span>
+                          </span>
+                        </button>
+                      )}
+                      {ehEquipeConsultor && (
+                        <section className="max-w-[640px]">
+                          <p className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#6B7178]">Perguntas técnicas</p>
+                          <div className="grid grid-cols-2 gap-2.5">
+                            {PERGUNTAS_TECNICAS_EQUIPE.map(q => (
+                              <button key={q} type="button" onClick={() => handleSend(q)} className="h-auto min-h-12 px-4 py-2.5 rounded-2xl border border-[#DADDE1] bg-white text-left text-[14px] font-semibold text-[#2A2F35] hover:border-[#1B1E22] transition leading-snug">
+                                {q}
+                              </button>
+                            ))}
+                          </div>
+                        </section>
+                      )}
+                    </div>
+                  ) : listaMensagens}
                 </div>
               </div>
               <div className="shrink-0 px-7 pb-5 pt-1">
@@ -5252,7 +5429,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                   {selectedProduct && !explorerMinimized && (
                     <div className="cpc-explorador max-h-[42vh] overflow-y-auto rounded-2xl">{blocoExplorador}</div>
                   )}
-                  {conversaVazia && onboardingStep === 'COMPLETED' && !loading && (
+                  {conversaVazia && onboardingStep === 'COMPLETED' && !loading && perfilConsultor === 'visitante' && (
                     <div className="grid grid-cols-3 gap-2.5">
                       {sugestoesPc.map(s => (
                         <button key={s} type="button" onClick={() => handleSend(s)} className="h-auto min-h-12 px-4 py-2.5 rounded-2xl border border-[#DADDE1] bg-white text-left text-[14px] font-semibold text-[#2A2F35] hover:border-[#1B1E22] transition leading-snug">
@@ -5473,7 +5650,69 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
 
                 {/* Conversa (ou a tela de início) */}
                 <div ref={listaCelRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3.5 pt-4 pb-3">
-                  {conversaVazia && onboardingStep === 'COMPLETED' ? (
+                  {conversaVazia && onboardingStep === 'COMPLETED' ? (perfilConsultor !== 'visitante' ? (
+                    <div className="space-y-5">
+                      <div className="msg-consultor border">
+                        <p className="text-[15.5px] leading-relaxed text-[#1B1E22] m-0">
+                          {primeiroNomeCel ? `Olá, ${primeiroNomeCel}! ` : 'Olá! '}{saudacaoPerfil}
+                        </p>
+                      </div>
+
+                      {/* começou a digitar: a tela de início sai e fica só a conversa */}
+                      {!inputValue.trim() && (<>
+                        {ehParceiroConsultor && podeIndicar && (
+                          <button type="button" onClick={tocarIndicar} className="w-full min-h-[56px] h-auto px-4 py-3 rounded-2xl bg-[#F6C400] text-[#1B1E22] flex items-center gap-3 text-left active:scale-[0.99] transition">
+                            <UserPlus className="h-6 w-6 shrink-0" />
+                            <span className="min-w-0">
+                              <span className="block text-[16px] font-extrabold leading-tight">Indicar um cliente</span>
+                              <span className="block text-[13.5px] font-medium leading-snug text-[#3E444B]">Passe os dados ou mande um link para ele</span>
+                            </span>
+                          </button>
+                        )}
+
+                        {prontaEntrega.length > 0 && (
+                          <section>
+                            <p className="ccel-rotulo">Pronta entrega</p>
+                            <CarrosselProntaEntrega itens={prontaEntrega} foto={fotoPe} onPerguntar={perguntarProntaEntrega} onIndicar={onIndicarPe} />
+                          </section>
+                        )}
+
+                        {ehEquipeConsultor && (
+                          <section>
+                            <p className="ccel-rotulo">Perguntas técnicas</p>
+                            <div className="space-y-2">
+                              {PERGUNTAS_TECNICAS_EQUIPE.map(q => (
+                                <button key={q} type="button" onClick={() => handleSend(q)} className="w-full h-auto min-h-12 px-4 py-2.5 rounded-2xl border border-[#E2E5E8] bg-white text-left text-[15px] font-medium text-[#1B1E22] leading-snug active:scale-[0.99] transition">
+                                  {q}
+                                </button>
+                              ))}
+                            </div>
+                          </section>
+                        )}
+
+                        {ehEquipeConsultor && equipDestaqueEquipe.length > 0 && (
+                          <section>
+                            <p className="ccel-rotulo">Equipamentos</p>
+                            <div className="grid grid-cols-2 gap-2">
+                              {equipDestaqueEquipe.map(prod => {
+                                const foto = fotoProdutoCel(prod);
+                                return (
+                                  <button key={prod.id} type="button" onClick={() => abrirEquipamentoCel(prod)} className="h-auto min-h-[56px] p-2.5 rounded-2xl border border-[#E2E5E8] bg-white flex items-center gap-2.5 text-left active:scale-[0.98] transition">
+                                    <span className="h-9 w-9 shrink-0 rounded-[10px] bg-[#FFF6D1] flex items-center justify-center overflow-hidden">
+                                      {foto
+                                        ? <MarkdownImage src={foto} className="max-w-full max-h-full m-0 p-0.5 border-0 bg-transparent shadow-none hover:scale-100 object-contain mix-blend-multiply" />
+                                        : <Package className="h-5 w-5 text-[#B08A00]" />}
+                                    </span>
+                                    <span className="min-w-0 text-[14.5px] font-bold leading-snug text-[#1B1E22] break-words line-clamp-2">{prod.name}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </section>
+                        )}
+                      </>)}
+                    </div>
+                  ) : (
                     <div className="space-y-5">
                       <div className="msg-consultor border">
                         <p className="text-[15.5px] leading-relaxed text-[#1B1E22] m-0">
@@ -5530,6 +5769,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                         </div>
                       </section>
                     </div>
+                  )
                   ) : (
                     <div className="space-y-4">{listaMensagens}</div>
                   )}
@@ -5537,7 +5777,34 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
 
                 {/* Caixa de texto, com os atalhos logo acima durante a conversa */}
                 <div className="shrink-0 px-3 pt-1 pb-[calc(env(safe-area-inset-bottom,0px)+10px)]">
-                  {!conversaVazia && onboardingStep === 'COMPLETED' && (
+                  {onboardingStep === 'COMPLETED' && perfilConsultor !== 'visitante' && (
+                    <div className="ccel-atalhos flex gap-2 overflow-x-auto pb-2 -mx-3 px-3">
+                      {ehParceiroConsultor ? (<>
+                        {podeIndicar && !fluxoInd && (
+                          <button type="button" onClick={tocarIndicar} disabled={loading} className="ccel-chip border-[#F6C400] bg-[#F6C400] font-extrabold">
+                            <UserPlus className="h-4 w-4" /> Indicar
+                          </button>
+                        )}
+                        {prontaEntrega.length > 0 && (
+                          <button type="button" onClick={() => { setMenuCel(false); setFolhaPronta(true); }} className="ccel-chip">Pronta entrega</button>
+                        )}
+                        <button type="button" onClick={() => abrirEquipamentoCel()} className="ccel-chip">
+                          <Menu className="h-4 w-4" /> Equipamentos
+                        </button>
+                      </>) : (<>
+                        <button type="button" onClick={() => abrirEquipamentoCel()} className="ccel-chip">
+                          <Menu className="h-4 w-4" /> Equipamentos
+                        </button>
+                        <button type="button" onClick={() => setCalcOpen(!calcOpen)} className={cn('ccel-chip', calcOpen && 'border-[#F6C400] bg-[#FFF6D1]')}>
+                          <Calculator className="h-4 w-4" /> Calculadora
+                        </button>
+                        {prontaEntrega.length > 0 && (
+                          <button type="button" onClick={() => { setMenuCel(false); setFolhaPronta(true); }} className="ccel-chip">Pronta entrega</button>
+                        )}
+                      </>)}
+                    </div>
+                  )}
+                  {!conversaVazia && onboardingStep === 'COMPLETED' && perfilConsultor === 'visitante' && (
                     <div className="ccel-atalhos flex gap-2 overflow-x-auto pb-2 -mx-3 px-3">
                       {podeIndicar && !fluxoInd && (
                         <button type="button" onClick={tocarIndicar} disabled={loading} className="ccel-chip border-[#F6C400] bg-[#F6C400] font-extrabold">
@@ -5599,6 +5866,24 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                   )}
                 </div>
               </>
+            )}
+
+            {/* Folha da pronta entrega: todos os equipamentos em estoque, um embaixo do outro */}
+            {folhaPronta && !knowledgeOpen && (
+              <div className="absolute inset-0 z-30 flex flex-col justify-end">
+                <button type="button" aria-label="Fechar pronta entrega" onClick={() => setFolhaPronta(false)} className="absolute inset-0 h-auto w-auto p-0 bg-black/40 cursor-default" />
+                <div role="dialog" aria-label="Pronta entrega" className="relative flex max-h-[85%] flex-col rounded-t-[22px] bg-[#ECEEF0] shadow-[0_-8px_30px_rgba(0,0,0,0.2)] pb-[env(safe-area-inset-bottom,0px)]">
+                  <div className="shrink-0 flex items-center justify-between gap-2 pl-4 pr-1.5 pt-2">
+                    <p className="fonte-titulo text-[17px] font-extrabold text-[#1B1E22]">Pronta entrega</p>
+                    <button type="button" onClick={() => setFolhaPronta(false)} aria-label="Fechar" className="h-11 w-11 p-0 rounded-xl bg-transparent text-[#1B1E22] flex items-center justify-center">
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3.5 pb-4 pt-1">
+                    <ListaProntaEntrega itens={prontaEntrega} foto={fotoPe} onPerguntar={perguntarProntaEntrega} onIndicar={onIndicarPe} />
+                  </div>
+                </div>
+              </div>
             )}
 
             {/* Folha de equipamentos: a mesma lista e o mesmo guia do explorador */}

@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { collection, getDocs, getDoc, doc, onSnapshot, query, where, limit } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
 import { useAuth } from '../../contexts/AuthContext';
-import { frasePara, perfilInstalacao, type TipoMaquina } from '../../lib/instalacao';
+import { type TipoMaquina } from '../../lib/instalacao';
+import { montarProntaEntrega } from '../../lib/prontaEntrega';
 import { Package, Loader2 } from 'lucide-react';
 import { cn, getApiBaseUrl } from '../../lib/utils';
 
@@ -51,7 +52,6 @@ function etapaDa(ind: any): { etapa: Etapa; perdida: boolean } {
   return { etapa: 0, perdida: false };
 }
 
-const so = (t: any) => String(t || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function Foto({ src, alt, className }: { src?: string; alt: string; className?: string }) {
@@ -140,35 +140,8 @@ export default function PainelParceiro() {
     return () => { u1(); u2(); };
   }, [profile?.uid, isRegionalSeller]);
 
-  // Pronta entrega: o código do estoque casa com o código Roder do modelo; sem código, o nome do modelo
-  const prontaEntrega = useMemo(() => {
-    const achados: any[] = [];
-    const vistos = new Set<string>();
-    for (const item of estoque) {
-      const cod = so(item.code);
-      const desc = ` ${String(item.description || '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ')} `;
-      for (const p of produtos) {
-        if (p.is_blocked) continue;
-        for (const m of (p.models || [])) {
-          const codModelo = so(m.technical_specs?.codigo_roder || m.codigo_roder);
-          // nome inteiro, com fronteira: "CMF 50" não casa com "CMF500", "R250" não casa com "R2500"
-          const partes = String(m.name || '').toUpperCase().match(/[A-Z]+|\d+/g) || [];
-          const nomeOk = partes.length > 0 && /\d/.test(partes.join('')) && partes.join('').length >= 4;
-          const casouNome = nomeOk && new RegExp(`(^|[^A-Z0-9])${partes.join('\\s*')}([^A-Z0-9]|$)`).test(desc);
-          const casou = (codModelo && cod && codModelo === cod) || casouNome;
-          if (!casou) continue;
-          const chave = `${p.id}:${m.id}`;
-          if (vistos.has(chave)) continue;
-          vistos.add(chave);
-          const nome = `${p.name || ''}`.toLowerCase().includes(String(m.name || '').toLowerCase()) ? p.name : `${p.name} ${m.name}`;
-          const foto = (m.images || []).find((i: string) => i && !/\.run\.app\//.test(i)) || p.image_url;
-          const specs = m.technical_specs || {};
-          achados.push({ chave, produto: p, modelo: m, nome, foto, para: frasePara(perfilInstalacao(`${p.name} ${m.name}`, specs), `${p.name} ${m.name}`, specs.maquina_base) });
-        }
-      }
-    }
-    return achados.slice(0, 10);
-  }, [estoque, produtos]);
+  // Pronta entrega: a mesma lista do Consultor (src/lib/prontaEntrega.ts)
+  const prontaEntrega = useMemo(() => montarProntaEntrega(estoque, produtos), [estoque, produtos]);
 
   // prepara link e foto de cada equipamento da pronta entrega, para o envio abrir na hora do toque
   useEffect(() => {

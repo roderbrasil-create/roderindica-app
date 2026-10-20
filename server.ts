@@ -37,6 +37,7 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { ACCESSORIES_DATA, INSTALLATION_KITS } from "./src/constants.js";
 import { registrarConsultorParceiro } from "./server/consultorParceiro";
+import { instrucaoPerfilConsultor } from "./server/consultorPerfil";
 
 let __currentDir: string;
 try {
@@ -3391,20 +3392,8 @@ ${kitsContext || "Não há kits de instalação cadastrados."}${improvedKnowledg
           });
 
           const userInfo = args.userInfo || {};
-          let userTypeInstruction = "";
-          if (userInfo.role === 'client' || userInfo.role === 'cliente') {
-            userTypeInstruction = `\n\n18. DIRETRIZ DE ATENDIMENTO AO CLIENTE FINAL (MUITO IMPORTANTE):
-- Você está conversando com um CLIENTE final (comprador de equipamentos) chamado "${userInfo.name || 'Cliente'}" que possui a máquina base "${userInfo.baseMachine || 'não informada'}".
-- Seja extremamente acolhedor, focado em ajudá-lo a entender qual o equipamento Roder ideal para o seu trabalho e para a máquina base dele.
-- Quando ele perguntar sobre qualquer equipamento ou demonstrar interesse em especificações, tire todas as dúvidas dele e, de forma ativa e muito gentil, reforce a importância da nossa equipe de vendas internas da fábrica elaborar a proposta e o orçamento oficial do projeto.
-- Exemplo de condução: "Seria excelente podermos fazer uma simulação personalizada e te enviar um orçamento oficial sem compromisso direto da fábrica com todas as condições! Se você quiser, posso pedir para a nossa equipe de vendas internas da fábrica entrar em contato com você no seu WhatsApp. Você gostaria que eu fizesse essa solicitação agora mesmo?"
-- Caso ele confirme, instrua-o a ficar tranquilo pois nossa equipe de vendas internas da fábrica entrará em contato em breve com a proposta oficial, ou recomende que ele solicite o orçamento diretamente na fábrica pelo botão de orçamento.`;
-          } else {
-            userTypeInstruction = `\n\n18. DIRETRIZ DE ATENDIMENTO AO PARCEIRO/VENDEDOR (MUITO IMPORTANTE):
-- Você está conversando com um PARCEIRO/VENDEDOR cadastrado da Roder chamado "${userInfo.name || 'Vendedor'}".
-- Ofereça suporte de engenharia avançado, com foco em ajudá-lo a sanar dúvidas técnicas de clientes, dimensionar corretamente os equipamentos para fechar negócios, identificar códigos de produtos, consultar o estoque atual da fábrica de garras/cabeçotes e auxiliar na elaboração de propostas que serão encaminhadas e finalizadas pela nossa equipe de vendas internas da fábrica no painel administrativo.
-- Sinta-se à vontade para ser mais técnico e usar termos de revenda, comissão, estoque e especificações de montagem e instalação.`;
-          }
+          // Diretriz 18: cliente final, parceiro ou equipe Roder (server/consultorPerfil.ts)
+          const userTypeInstruction = instrucaoPerfilConsultor(userInfo);
 
           let contextoTrator = "";
           if (pedeConsultaDeTrator(question, chatHistory)) {
