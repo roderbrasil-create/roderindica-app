@@ -28,6 +28,7 @@ import { CabecoteGmt035Ficha } from '../catalog/CabecoteGmt035Ficha';
 import { FichaPadrao, enviarFichaPadrao, fotoDoModelo, tituloFicha } from '../catalog/FichaPadrao';
 import { usePodeEnviarFicha, enviarArquivoPdf, nomeArquivoFicha } from '../catalog/fichaPdf';
 import { ehFichaPropria } from '../../lib/fichaPropria';
+import { acharFichaEscavadeira, chaveDoLinkFichaFae } from '../../lib/fichaEscavadeira';
 import { CartaoFicha } from '../catalog/CartaoFicha';
 import { useVoltarFecha } from '../../lib/useVoltarFecha';
 import { useRolagemConversa } from '../../lib/useRolagemConversa';
@@ -772,6 +773,14 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   const componentesMd = React.useMemo(() => criarComponentesMarkdown((href) => abrirFichaDoLinkRef.current(href)), []);
   const openTechnicalSheet = (url: string, modelName?: string) => {
     if (!url) return;
+    // Trituradores FAE de escavadeira: abre a ficha montada do modelo (link "ficha-fae:<modelo>")
+    const chaveFae = chaveDoLinkFichaFae(url);
+    if (chaveFae) {
+      const achada = acharFichaEscavadeira(catalogProducts, chaveFae);
+      if (achada) setFichaPadrao(achada);
+      else toast.error('Não achei essa ficha no catálogo agora. Procure o modelo na lista de equipamentos.');
+      return;
+    }
     const tipo = fichaEspecialDe(url, modelName);
     if (tipo) {
       // na URL da SSH o modelo vem no próprio link (ssh-200)
