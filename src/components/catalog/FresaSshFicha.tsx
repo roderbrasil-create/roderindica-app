@@ -8,6 +8,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { RODER_LOGO_BASE64 } from './RoderLogo';
+import { LOGO_FAE_PADRAO } from '../../lib/logoFae';
 import { pdfDasFolhas, entregarPdf, nomeArquivoFicha, usePodeEnviarFicha } from './fichaPdf';
 import { toast } from 'sonner';
 import { EditableImage } from './EditableImage';
@@ -82,7 +83,7 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150', enviar = fa
   const printRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [selectedModelId, setSelectedModelId] = useState<string>(defaultModelId);
-  const [faeLogo, setFaeLogo] = useState<string | null>(null);
+  const [faeLogo, setFaeLogo] = useState<string | null>(LOGO_FAE_PADRAO);
   
   const [scale, setScale] = useState<number>(1);
   const [cardHeight, setCardHeight] = useState<number>(0);

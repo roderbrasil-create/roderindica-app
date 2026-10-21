@@ -51,16 +51,18 @@ export async function resolverImagem(url?: string | null): Promise<string> {
   return urlParaCaptura(url);
 }
 
+import { LOGO_FAE_PADRAO } from '../../lib/logoFae';
+
 let logoFaePromessa: Promise<string | null> | null = null;
-// Mesmo logo da ficha da SSH (app_files/fae_header_logo); nulo = usa o texto FAE
+// Mesmo logo da ficha da SSH (app_files/fae_header_logo); sem ele, usa o logo FAE embutido
 export function carregarLogoFae(): Promise<string | null> {
   if (!logoFaePromessa) {
     logoFaePromessa = getDoc(doc(db, 'app_files', 'fae_header_logo'))
       .then(snap => {
         const d = snap.exists() ? (snap.data() as any)?.data : null;
-        return d ? (String(d).startsWith('http') ? urlParaCaptura(d) : d) : null;
+        return d ? (String(d).startsWith('http') ? urlParaCaptura(d) : d) : LOGO_FAE_PADRAO;
       })
-      .catch(() => null);
+      .catch(() => LOGO_FAE_PADRAO);
   }
   return logoFaePromessa;
 }

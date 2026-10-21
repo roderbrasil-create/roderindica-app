@@ -432,7 +432,7 @@ export const FolhaFichaPadrao = React.forwardRef<HTMLDivElement, FolhaProps>(({ 
           {dados.fae && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
               {logoFae ? (
-                <img src={logoFae} alt="FAE" style={{ height: '28px', width: 'auto', display: 'block' }} />
+                <img src={logoFae} alt="FAE" style={{ height: '38px', width: 'auto', display: 'block' }} />
               ) : (
                 <span style={{ fontFamily: FONTE_TIT, fontStretch: '120%', fontWeight: 900, fontSize: '25px', color: '#E8590C', letterSpacing: '0.06em', lineHeight: 1 }}>FAE</span>
               )}
