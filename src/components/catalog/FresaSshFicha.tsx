@@ -620,40 +620,50 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150', enviar = fa
         </div>
 
         {/* Scrollable Printable Area */}
-        <ZoomRolagem className="flex-1 min-h-0 bg-neutral-100" interiorRef={wrapperRef} interiorClassName="p-2 sm:p-8 flex flex-col items-center">
+        <ZoomRolagem
+          className="flex-1 min-h-0 bg-neutral-100"
+          interiorRef={wrapperRef}
+          interiorClassName="p-2 sm:p-8 flex flex-col items-center"
+          // abas dos modelos FIXAS no topo (só a folha amplia e arrasta); não entram no PDF
+          topo={
+            <div className="bg-neutral-100 px-2 sm:px-8 pt-2 pb-2 border-b border-neutral-200 max-h-[30vh] overflow-y-auto">
+            <div className="w-full max-w-4xl mx-auto flex flex-wrap items-center justify-between gap-2 bg-white p-1.5 rounded-xl border border-neutral-200 no-print shrink-0">
+              <div className="flex flex-wrap gap-1 flex-1">
+                {models.map(m => (
+                  <button
+                    key={m.id}
+                    onClick={() => setSelectedModelId(m.id)}
+                    className={`py-2 px-4 rounded-lg text-xs font-bold transition-all ${
+                      selectedModelId === m.id
+                        ? 'bg-orange-500 text-white shadow-sm'
+                        : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
+                    }`}
+                  >
+                    {m.name}
+                  </button>
+                ))}
+              </div>
 
-          {/* Tabs inside app but hidden in print */}
-          <div className="w-full max-w-4xl mx-auto mb-4 flex flex-wrap items-center justify-between gap-2 bg-white p-1.5 rounded-xl border border-neutral-200 no-print shrink-0">
-            <div className="flex flex-wrap gap-1 flex-1">
-              {models.map(m => (
+              {canEdit && (
                 <button
-                  key={m.id}
-                  onClick={() => setSelectedModelId(m.id)}
-                  className={`py-2 px-4 rounded-lg text-xs font-bold transition-all ${
-                    selectedModelId === m.id
-                      ? 'bg-orange-500 text-white shadow-sm'
-                      : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
-                  }`}
+                  onClick={handleResetToDefault}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-200 hover:border-red-200 hover:bg-red-50 text-neutral-600 hover:text-red-600 text-xs font-semibold transition-all"
+                  title="Restaurar todas as fotos e zooms para as originais de fábrica"
                 >
-                  {m.name}
+                  <RefreshCw className="h-3 w-3 animate-none hover:rotate-180 transition-transform duration-300" />
+                  Restaurar Fotos Originais
                 </button>
-              ))}
+              )}
             </div>
+            </div>
+          }
+        >
 
-            {canEdit && (
-              <button
-                onClick={handleResetToDefault}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-200 hover:border-red-200 hover:bg-red-50 text-neutral-600 hover:text-red-600 text-xs font-semibold transition-all"
-                title="Restaurar todas as fotos e zooms para as originais de fábrica"
-              >
-                <RefreshCw className="h-3 w-3 animate-none hover:rotate-180 transition-transform duration-300" />
-                Restaurar Fotos Originais
-              </button>
-            )}
-          </div>
-
+          {/* items-start é o que impede a piscada: sem ele a folha estica até a altura deste quadro, a medida
+              lê essa altura esticada (e não a da folha) e o quadro encolhe a cada medida até zero, volta
+              a "auto" e recomeça (visto com Playwright: scrollHeight oscilando entre 1229 e 2673). */}
           <div
-            className="w-full flex justify-center"
+            className="w-full flex justify-center items-start"
             style={{
               height: isPrinting ? 'auto' : (cardHeight ? `${cardHeight}px` : 'auto'),
               overflow: 'visible',

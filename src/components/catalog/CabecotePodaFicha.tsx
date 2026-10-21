@@ -262,7 +262,7 @@ export function CabecotePodaFicha({ onClose, enviar = false }: CabecotePodaFicha
               height: cardHeight ? `${cardHeight}px` : 'auto',
               width: scale < 1 ? '100%' : '840px' 
             }} 
-            className="transition-all duration-150 ease-out flex justify-center"
+            className="transition-all duration-150 ease-out flex justify-center items-start"
           >
             <div
               ref={printRef}

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Minus, Plus, Maximize2 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { rolagemParaAncorar, pontoDoConteudo, limitarZoom } from '../../lib/zoomAncora';
 
 // Área de leitura com zoom para fichas e documentos no celular (pedido do Jeferson, 20/10/2026:
 // "não consigo dar zoom na ficha, o texto fica pequeno").
@@ -13,6 +14,13 @@ import { cn } from '../../lib/utils';
 //    button em h-10, por isso h-11 w-11 com min-h/min-w explícitos);
 //  - a área rola nos dois sentidos quando ampliada (`touch-action: pan-x pan-y`: o gesto de pinça
 //    não vira zoom da página, quem trata é este componente).
+// Segunda rodada (20/10/2026, ficha aberta pelo consultor): a barra de modelos ampliava junto com a ficha, o
+// arraste era solto (o iOS "estica" a borda da área) e a pinça não seguia o movimento dos dedos. Agora:
+//  - `topo` é um cabeçalho FIXO, fora da área que amplia (barra de modelos, por exemplo);
+//  - `overscroll-behavior: none` tira o efeito elástico: a borda da ficha é o limite do arraste;
+//  - a pinça fixa o ponto do conteúdo que estava entre os dedos no INÍCIO do gesto e o mantém sob os dedos
+//    o tempo todo, então ampliar e arrastar com dois dedos ao mesmo tempo funciona;
+//  - ctrl + roda (pinça do trackpad no computador) amplia em torno do cursor.
 // A ampliação é uma `transform: scale` num invólucro EXTERNO. A ficha por dentro não sabe de nada:
 // a escala dela para caber na largura e a geração do PDF (que lê o próprio elemento, sem o zoom da
 // tela) continuam exatamente como eram.
@@ -35,13 +43,15 @@ export interface ZoomRolagemProps {
   reiniciarCom?: unknown;
   // esconde os botões flutuantes (quando o cabeçalho já tem os seus)
   semBotoes?: boolean;
+  // cabeçalho fixo, FORA da área que rola e amplia (ex.: a barra de modelos da ficha)
+  topo?: React.ReactNode;
 }
 
 const pontoMedio = (a: Touch, b: Touch) => ({ x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 });
 const distancia = (a: Touch, b: Touch) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
 const ehInterativo = (alvo: EventTarget | null) => !!(alvo as HTMLElement | null)?.closest?.('a,button,input,select,textarea,summary,label,[role="button"]');
 
-export function ZoomRolagem({ children, className, interiorClassName, interiorRef, interiorStyle, onZoom, max = MAX_PADRAO, reiniciarCom, semBotoes }: ZoomRolagemProps) {
+export function ZoomRolagem({ children, className, interiorClassName, interiorRef, interiorStyle, onZoom, max = MAX_PADRAO, reiniciarCom, semBotoes, topo }: ZoomRolagemProps) {
   const rolavelRef = useRef<HTMLDivElement>(null);
   const interiorLocal = useRef<HTMLDivElement | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -62,7 +72,7 @@ export function ZoomRolagem({ children, className, interiorClassName, interiorRe
     const r = rolavelRef.current, i = interiorLocal.current;
     if (!r || !i) return;
     const medir = () => {
-      const w = r.offsetWidth, h = i.offsetHeight;
+      const w = r.clientWidth, h = i.offsetHeight; // clientWidth: sem a barra de rolagem, para a ficha ampliada não ganhar rolagem lateral a mais
       setBase(b => (b.w === w && b.h === h) ? b : { w, h });
     };
     medir();
@@ -71,7 +81,11 @@ export function ZoomRolagem({ children, className, interiorClassName, interiorRe
     return () => obs.disconnect();
   }, []);
 
-  useEffect(() => { setZoom(1); }, [reiniciarCom]);
+  useEffect(() => {
+    setZoom(1);
+    const r = rolavelRef.current;
+    if (r) { r.scrollLeft = 0; r.scrollTop = 0; }
+  }, [reiniciarCom]);
   const onZoomRef = useRef(onZoom);
   onZoomRef.current = onZoom;
   useEffect(() => { onZoomRef.current?.(zoom); }, [zoom]);
@@ -81,28 +95,40 @@ export function ZoomRolagem({ children, className, interiorClassName, interiorRe
     const f = foco.current, r = rolavelRef.current;
     if (!f || !r) return;
     foco.current = null;
-    r.scrollLeft = f.cx * zoom - f.px;
-    r.scrollTop = f.cy * zoom - f.py;
+    r.scrollLeft = rolagemParaAncorar(f.cx, zoom, f.px);
+    r.scrollTop = rolagemParaAncorar(f.cy, zoom, f.py);
   }, [zoom]);
+
+  // Põe o ponto (cx, cy) do conteúdo a 100% sob o ponto (px, py) do quadro, no zoom pedido
+  const ancorar = useCallback((novo: number, cx: number, cy: number, px: number, py: number) => {
+    const r = rolavelRef.current;
+    if (!r) return;
+    const z1 = limitarZoom(novo, max);
+    if (Math.abs(z1 - zoomRef.current) < 0.001) {
+      // mesmo zoom: só os dedos andaram (arraste com dois dedos)
+      r.scrollLeft = rolagemParaAncorar(cx, z1, px);
+      r.scrollTop = rolagemParaAncorar(cy, z1, py);
+      return;
+    }
+    foco.current = { cx, cy, px, py };
+    zoomRef.current = z1;
+    setZoom(z1);
+  }, [max]);
 
   const mudarZoom = useCallback((novo: number, px?: number, py?: number) => {
     const r = rolavelRef.current;
     if (!r) return;
     const z0 = zoomRef.current;
-    const z1 = Math.min(max, Math.max(1, novo));
-    if (Math.abs(z1 - z0) < 0.001) return;
     const caixa = r.getBoundingClientRect();
     const x = px ?? caixa.width / 2, y = py ?? caixa.height / 2; // relativos ao quadro
-    foco.current = { cx: (r.scrollLeft + x) / z0, cy: (r.scrollTop + y) / z0, px: x, py: y };
-    zoomRef.current = z1;
-    setZoom(z1);
-  }, [max]);
+    ancorar(novo, pontoDoConteudo(r.scrollLeft, x, z0), pontoDoConteudo(r.scrollTop, y, z0), x, y);
+  }, [ancorar]);
 
   // Gestos: pinça e toque duplo (ouvintes nativos, porque precisam de preventDefault)
   useEffect(() => {
     const r = rolavelRef.current;
     if (!r) return;
-    let pinca: { d0: number; z0: number } | null = null;
+    let pinca: { d0: number; z0: number; cx: number; cy: number } | null = null;
     let quadroPend = 0;
     let alvoPend: { z: number; x: number; y: number } | null = null;
     let toque: { t: number; x: number; y: number; moveu: boolean } | null = null;
@@ -113,11 +139,19 @@ export function ZoomRolagem({ children, className, interiorClassName, interiorRe
       quadroPend = 0;
       if (!alvoPend) return;
       const a = alvoPend; alvoPend = null;
-      mudarZoom(a.z, a.x, a.y);
+      if (pinca) ancorar(a.z, pinca.cx, pinca.cy, a.x, a.y);
+      else mudarZoom(a.z, a.x, a.y);
     };
     const aoIniciar = (e: TouchEvent) => {
       if (e.touches.length === 2) {
-        pinca = { d0: distancia(e.touches[0], e.touches[1]) || 1, z0: zoomRef.current };
+        // ponto do conteúdo (a 100%) que está entre os dedos agora: é ele que acompanha os dedos até o fim
+        const m = pontoMedio(e.touches[0], e.touches[1]);
+        const caixa = r.getBoundingClientRect();
+        const z0 = zoomRef.current;
+        pinca = {
+          d0: distancia(e.touches[0], e.touches[1]) || 1, z0,
+          cx: pontoDoConteudo(r.scrollLeft, m.x - caixa.left, z0), cy: pontoDoConteudo(r.scrollTop, m.y - caixa.top, z0),
+        };
         toque = null; ultimo = null; pincouAgora = true;
       } else if (e.touches.length === 1) {
         const t = e.touches[0];
@@ -162,6 +196,13 @@ export function ZoomRolagem({ children, className, interiorClassName, interiorRe
     };
     // Safari: gesto de pinça próprio, que também precisa ser contido
     const travarGesto = (e: Event) => e.preventDefault();
+    // Computador: ctrl + roda (e a pinça do trackpad, que chega assim) amplia em torno do cursor
+    const aoRodar = (e: WheelEvent) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      const caixa = r.getBoundingClientRect();
+      mudarZoom(zoomRef.current * Math.exp(-e.deltaY * 0.01), e.clientX - caixa.left, e.clientY - caixa.top);
+    };
 
     r.addEventListener('touchstart', aoIniciar, { passive: true });
     r.addEventListener('touchmove', aoMover, { passive: false });
@@ -169,7 +210,9 @@ export function ZoomRolagem({ children, className, interiorClassName, interiorRe
     r.addEventListener('touchcancel', aoTerminar, { passive: false });
     r.addEventListener('gesturestart', travarGesto);
     r.addEventListener('gesturechange', travarGesto);
+    r.addEventListener('wheel', aoRodar, { passive: false });
     return () => {
+      r.removeEventListener('wheel', aoRodar);
       r.removeEventListener('touchstart', aoIniciar);
       r.removeEventListener('touchmove', aoMover);
       r.removeEventListener('touchend', aoTerminar);
@@ -178,29 +221,31 @@ export function ZoomRolagem({ children, className, interiorClassName, interiorRe
       r.removeEventListener('gesturechange', travarGesto);
       if (quadroPend) cancelAnimationFrame(quadroPend);
     };
-  }, [mudarZoom, max]);
+  }, [mudarZoom, ancorar, max]);
 
   const ampliado = zoom > 1.001 && base.w > 0;
   return (
-    <div className={cn('relative', className)}>
-      <div
-        ref={rolavelRef}
-        data-zoom-rolagem=""
-        className="absolute inset-0 overflow-auto overscroll-contain"
-        style={{ touchAction: 'pan-x pan-y', overflowAnchor: 'none' }}
-      >
-        <div style={ampliado ? { width: base.w * zoom, height: base.h * zoom, position: 'relative' } : { height: '100%' }}>
-          <div
-            ref={prenderInterior}
-            className={interiorClassName}
-            style={ampliado
-              ? { ...interiorStyle, width: base.w, position: 'absolute', left: 0, top: 0, transform: `scale(${zoom})`, transformOrigin: '0 0' }
-              : { minHeight: '100%', ...interiorStyle }}
-          >
-            {children}
+    <div className={cn('relative flex flex-col', className)}>
+      {topo && <div className="shrink-0" data-zoom-topo="">{topo}</div>}
+      <div className="relative flex-1 min-h-0">
+        <div
+          ref={rolavelRef}
+          data-zoom-rolagem=""
+          className="absolute inset-0 overflow-auto"
+          style={{ touchAction: 'pan-x pan-y', overflowAnchor: 'none', overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}
+        >
+          <div style={ampliado ? { width: base.w * zoom, height: base.h * zoom, position: 'relative' } : { height: '100%' }}>
+            <div
+              ref={prenderInterior}
+              className={interiorClassName}
+              style={ampliado
+                ? { ...interiorStyle, width: base.w, position: 'absolute', left: 0, top: 0, transform: `scale(${zoom})`, transformOrigin: '0 0' }
+                : { minHeight: '100%', ...interiorStyle }}
+            >
+              {children}
+            </div>
           </div>
         </div>
-      </div>
       {!semBotoes && (
         <div
           className="absolute right-3 z-10 flex items-center gap-1 rounded-2xl bg-white/95 p-1 shadow-lg ring-1 ring-black/10 backdrop-blur"
@@ -218,6 +263,7 @@ export function ZoomRolagem({ children, className, interiorClassName, interiorRe
           </button>
         </div>
       )}
+      </div>
     </div>
   );
 }

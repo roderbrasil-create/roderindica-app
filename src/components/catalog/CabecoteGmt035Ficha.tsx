@@ -295,7 +295,7 @@ export function CabecoteGmt035Ficha({ onClose, enviar = false }: CabecoteGmt035F
                 minHeight: isPrinting ? 'auto' : `${(activeTab === 'all' ? 1188 * 2 + 48 : 1188) * scale}px`,
                 width: scale < 1 ? '100%' : '840px'
               }} 
-              className="relative transition-all duration-150 ease-out flex justify-center"
+              className="relative transition-all duration-150 ease-out flex justify-center items-start"
             >
               <div 
                 ref={printRef}

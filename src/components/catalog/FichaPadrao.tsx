@@ -725,27 +725,35 @@ export function FichaPadrao({ product, model, onClose, enviar = false }: FichaPa
           </div>
         </div>
 
-        <ZoomRolagem className="flex-1 min-h-0 bg-neutral-100" interiorRef={wrapperRef} interiorClassName="p-2 sm:p-8 flex flex-col items-center" reiniciarCom={modeloId}>
-          {(modelos.length > 1 || temPdfSite) && (
-            <div className="w-full max-w-4xl mx-auto mb-3 flex flex-wrap items-center justify-between gap-2 bg-white p-1.5 rounded-xl border border-neutral-200 shrink-0">
-              <div className="flex flex-wrap gap-1 flex-1">
-                {modelos.length > 1 && modelos.map(x => (
-                  <button
-                    key={x.id}
-                    onClick={() => setModeloId(x.id)}
-                    className={`py-2 px-3 min-h-[44px] rounded-lg text-xs font-bold transition-all ${x.id === atual.id ? 'bg-[#1B1E22] text-white' : 'text-neutral-600 hover:bg-neutral-100'}`}
-                  >
-                    {x.name}
-                  </button>
-                ))}
+        <ZoomRolagem
+          className="flex-1 min-h-0 bg-neutral-100"
+          interiorRef={wrapperRef}
+          interiorClassName="p-2 sm:p-8 flex flex-col items-center"
+          reiniciarCom={modeloId}
+          // a barra de modelos fica FIXA no topo: só a folha amplia e arrasta
+          topo={(modelos.length > 1 || temPdfSite) ? (
+            <div className="bg-neutral-100 px-2 sm:px-8 pt-2 pb-2 border-b border-neutral-200 max-h-[30vh] overflow-y-auto">
+              <div className="w-full max-w-4xl mx-auto flex flex-wrap items-center justify-between gap-2 bg-white p-1.5 rounded-xl border border-neutral-200 shrink-0">
+                <div className="flex flex-wrap gap-1 flex-1">
+                  {modelos.length > 1 && modelos.map(x => (
+                    <button
+                      key={x.id}
+                      onClick={() => setModeloId(x.id)}
+                      className={`py-2 px-3 min-h-[44px] rounded-lg text-xs font-bold transition-all ${x.id === atual.id ? 'bg-[#1B1E22] text-white' : 'text-neutral-600 hover:bg-neutral-100'}`}
+                    >
+                      {x.name}
+                    </button>
+                  ))}
+                </div>
+                {temPdfSite && (
+                  <a href={pdfSite} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[44px] text-[11px] font-black text-neutral-700 hover:text-neutral-950 rounded-lg hover:bg-neutral-100">
+                    <ExternalLink className="h-3 w-3" /> PDF do site
+                  </a>
+                )}
               </div>
-              {temPdfSite && (
-                <a href={pdfSite} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[44px] text-[11px] font-black text-neutral-700 hover:text-neutral-950 rounded-lg hover:bg-neutral-100">
-                  <ExternalLink className="h-3 w-3" /> PDF do site
-                </a>
-              )}
             </div>
-          )}
+          ) : undefined}
+        >
           {original ? (
             <div className="w-full max-w-md mx-auto mt-6 bg-white rounded-2xl border border-neutral-200 p-6 text-center space-y-3">
               <FileText className="h-10 w-10 mx-auto text-neutral-700" />
