@@ -50,6 +50,13 @@ service firebase.storage {
       allow write: if false;
     }
 
+    // Sonda de versão das regras (src/lib/sondaRegras.ts, VERSAO_REGRAS). O app lê os metadados deste arquivo,
+    // que não existe, com um login anônimo: as regras antigas respondem "unauthorized" (o anônimo não é logado()),
+    // estas respondem "object-not-found". Só leitura de um objeto; nada de escrita. Suba a versão nos três lugares.
+    match /_sonda_regras/v_2026_10_20.txt {
+      allow get: if request.auth != null;
+    }
+
     // Todo o resto (vídeos, orçamentos, documentos): quem tem login de verdade lê e envia;
     // trocar ou apagar arquivo que já existe, só a equipe.
     match /{allPaths=**} {

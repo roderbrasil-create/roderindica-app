@@ -462,6 +462,13 @@ service cloud.firestore {
       }
     }
 
+    // Sonda de versão das regras (src/lib/sondaRegras.ts, VERSAO_REGRAS). O app lê este documento, que não
+    // existe, só para saber se esta versão das regras foi publicada: sem esta regra a leitura dá permission-denied.
+    // Só leitura de um documento (get); nada de escrita. A cada mudança de regra, suba a versão nos três lugares.
+    match /_sonda_regras/v_2026_10_20 {
+      allow get: if request.auth != null;
+    }
+
     match /api_keys/{keyId} {
       allow read, write: if isAdmin();
     }

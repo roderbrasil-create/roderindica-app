@@ -212,5 +212,5 @@
     - **Imagens**: **NUNCA** envie imagens de equipamentos que não façam parte do assunto específico da pergunta. Se a pergunta é sobre garra florestal (R400/R600), não envie fotos de garras de pá carregadeira ou feller.
     - **Foco Técnico**: Falar exclusivamente de equipamentos pertencentes à linha oficial e catálogo de produtos Roder.
 
-
-
+- **Sonda de versão das regras**: a tela de Configurações confere se firestore.rules e storage.rules publicados são os do código. A cada mudança de regra, suba a versão (ex.: 2026_10_20) nos TRÊS lugares: `VERSAO_REGRAS` em `src/lib/sondaRegras.ts` e a sonda `_sonda_regras/v_AAAA_MM_DD` em `firestore.rules` e em `storage.rules`.
+- O teste `testes-servidor/sonda-regras.test.ts` falha se os três não forem iguais; depois de subir a versão, publique os dois arquivos no console e confira o cartão.
