@@ -31,7 +31,7 @@ async function sondarStorage(): Promise<ResultadoSonda> {
     try { cred = await signInAnonymously(auth); } catch { return 'incerto'; }
     try { await getMetadata(ref(getStorage(app), SONDA_STORAGE)); return interpretarStorage(null); }
     catch (e) { return interpretarStorage(codigoDe(e)); }
-    finally { deleteUser(cred.user).catch(() => {}); }
+    finally { await deleteUser(cred.user).catch(() => {}); }
   } finally {
     deleteApp(app).catch(() => {});
   }
