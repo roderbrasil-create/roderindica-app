@@ -1,3 +1,4 @@
+import { LOGO_FAE_PADRAO } from '../../lib/logoFae';
 import React, { useRef, useState, useEffect } from 'react';
 import { 
   X, 
@@ -64,7 +65,7 @@ export function TrituradorLoaderFaeFicha({ onClose, defaultModelId = 'fae-uml-ss
   const printRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [selectedModelId, setSelectedModelId] = useState<string>(defaultModelId);
-  const [faeLogo, setFaeLogo] = useState<string | null>(null);
+  const [faeLogo, setFaeLogo] = useState<string | null>(LOGO_FAE_PADRAO);
   
   const [scale, setScale] = useState<number>(1);
   const [cardHeight, setCardHeight] = useState<number>(0);
@@ -116,7 +117,7 @@ export function TrituradorLoaderFaeFicha({ onClose, defaultModelId = 'fae-uml-ss
       try {
         const snap = await getDoc(doc(db, 'system_files', 'fae_header_logo'));
         if (snap.exists()) {
-          setFaeLogo(snap.data().data);
+          // logo vem do arquivo embutido; o do Firebase era o da Roder
         }
       } catch (err) {
         console.error("Erro ao carregar logo FAE:", err);
@@ -504,7 +505,7 @@ export function TrituradorLoaderFaeFicha({ onClose, defaultModelId = 'fae-uml-ss
                         <img 
                           src={faeLogo} 
                           alt="FAE logo" 
-                          className="h-8 w-auto object-contain"
+                          className="h-10 w-auto object-contain"
                           referrerPolicy="no-referrer"
                         />
                       ) : (

@@ -151,7 +151,7 @@ export function FresaSshFicha({ onClose, defaultModelId = 'ssh-150', enviar = fa
       try {
         const snap = await getDoc(doc(db, 'app_files', 'fae_header_logo'));
         if (snap.exists() && snap.data()?.data) {
-          setFaeLogo(snap.data().data);
+          // logo vem do arquivo embutido; o do Firebase era o da Roder
         }
       } catch (err) {
         console.error("Erro ao carregar logo FAE:", err);

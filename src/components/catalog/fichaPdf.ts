@@ -53,18 +53,10 @@ export async function resolverImagem(url?: string | null): Promise<string> {
 
 import { LOGO_FAE_PADRAO } from '../../lib/logoFae';
 
-let logoFaePromessa: Promise<string | null> | null = null;
-// Mesmo logo da ficha da SSH (app_files/fae_header_logo); sem ele, usa o logo FAE embutido
+// Sempre o logo FAE embutido. O que estava salvo no Firebase (app_files/fae_header_logo) era o logo da Roder,
+// e as fichas mostravam "Roder" no bloco do distribuidor (visto em 20/10/2026).
 export function carregarLogoFae(): Promise<string | null> {
-  if (!logoFaePromessa) {
-    logoFaePromessa = getDoc(doc(db, 'app_files', 'fae_header_logo'))
-      .then(snap => {
-        const d = snap.exists() ? (snap.data() as any)?.data : null;
-        return d ? (String(d).startsWith('http') ? urlParaCaptura(d) : d) : LOGO_FAE_PADRAO;
-      })
-      .catch(() => LOGO_FAE_PADRAO);
-  }
-  return logoFaePromessa;
+  return Promise.resolve(LOGO_FAE_PADRAO);
 }
 
 export async function esperarImagens(el: HTMLElement) {
