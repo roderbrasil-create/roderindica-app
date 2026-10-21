@@ -2541,6 +2541,143 @@ function parseKitsText(texto2) {
   return kits;
 }
 
+// src/lib/conviteConsultor.ts
+var LINK_CONSULTOR_EQUIPE = "https://roderbrasil.com.br/consultor-equipe";
+var PAPEIS_CONVITE = ["internal_seller", "manager", "admin", "triagem"];
+var ROTULO_PAPEL_CONVITE = {
+  internal_seller: "Vendedor interno",
+  manager: "Ger\xEAncia comercial",
+  admin: "Diretoria",
+  triagem: "Triagem"
+};
+var EMAIL_OK = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function filtrarDestinatarios(usuarios) {
+  const vistos = /* @__PURE__ */ new Set();
+  const saida = [];
+  for (const u of usuarios) {
+    const email = String(u.email || "").trim().toLowerCase();
+    const papel = String(u.role || "");
+    if (u.status !== "active" || !EMAIL_OK.test(email)) continue;
+    if (!PAPEIS_CONVITE.includes(papel)) continue;
+    if (vistos.has(email)) continue;
+    vistos.add(email);
+    saida.push({ id: u.id, nome: String(u.name || "").trim() || email, email, papel, rotulo: ROTULO_PAPEL_CONVITE[papel] || papel });
+  }
+  const ordem = (p) => PAPEIS_CONVITE.indexOf(p);
+  return saida.sort((a, b) => ordem(a.papel) - ordem(b.papel) || a.nome.localeCompare(b.nome, "pt-BR"));
+}
+var esc = (t) => t.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+var ASSUNTO_CONVITE = "Consultor T\xE9cnico Roder no seu celular e no computador";
+var USOS = [
+  "D\xFAvidas t\xE9cnicas e de compatibilidade: qual equipamento serve em qual m\xE1quina.",
+  "Ponteiras, suportes e links: o que cada m\xE1quina aceita.",
+  "Kits de instala\xE7\xE3o, com a confirma\xE7\xE3o da m\xE1quina antes de indicar o kit.",
+  "Equipamentos \xE0 pronta entrega.",
+  "Fichas t\xE9cnicas e v\xEDdeos para mandar ao cliente."
+];
+var PASSOS = [
+  ["iPhone (Safari)", 'toque em Compartilhar e depois em "Adicionar \xE0 Tela de In\xEDcio".'],
+  ["Android (Chrome)", 'toque no menu dos tr\xEAs pontos e depois em "Instalar app" ou "Adicionar \xE0 tela inicial".'],
+  ["Computador (Chrome ou Edge)", 'clique no \xEDcone de instalar, na ponta direita da barra de endere\xE7o, e depois em "Instalar".']
+];
+function montarConvite(nome) {
+  const pn = primeiroNome(nome);
+  const saudacao = pn ? `Ol\xE1, ${pn}!` : "Ol\xE1!";
+  const abertura = "O Consultor T\xE9cnico Roder est\xE1 liberado para o comercial. Use no dia a dia, direto do celular ou do computador.";
+  const entrada = "Na primeira vez, entre com o seu e-mail cadastrado na Roder. Depois disso o aparelho fica liberado.";
+  const texto2 = [
+    saudacao,
+    "",
+    abertura,
+    "",
+    `Abrir: ${LINK_CONSULTOR_EQUIPE}`,
+    entrada,
+    "",
+    "Para que serve:",
+    ...USOS.map((u) => `- ${u}`),
+    "",
+    "Como deixar como aplicativo:",
+    ...PASSOS.map(([a, b]) => `- ${a}: ${b}`),
+    "",
+    "Dica: pergunte do jeito que falaria com um colega, citando a m\xE1quina do cliente. Se faltar dado, ele pergunta antes de responder."
+  ].join("\n");
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;color:#1B1E22;max-width:560px;line-height:1.5;font-size:15px">
+<p style="font-size:17px;font-weight:bold;margin:0 0 10px">${esc(saudacao)}</p>
+<p style="margin:0 0 14px">${esc(abertura)}</p>
+<p style="margin:0 0 6px"><a href="${LINK_CONSULTOR_EQUIPE}" style="display:inline-block;background:#facc15;color:#000;font-weight:bold;text-decoration:none;padding:12px 22px;border-radius:8px">Abrir o Consultor</a></p>
+<p style="margin:0 0 18px;font-size:13px;color:#555">${esc(entrada)}</p>
+<p style="margin:0 0 6px;font-weight:bold">Para que serve</p>
+<ul style="margin:0 0 18px;padding-left:20px">${USOS.map((u) => `<li>${esc(u)}</li>`).join("")}</ul>
+<p style="margin:0 0 6px;font-weight:bold">Como deixar como aplicativo</p>
+<ul style="margin:0 0 18px;padding-left:20px">${PASSOS.map(([a, b]) => `<li><b>${esc(a)}:</b> ${esc(b)}</li>`).join("")}</ul>
+<p style="margin:0;font-size:13px;color:#555">Dica: pergunte do jeito que falaria com um colega, citando a m\xE1quina do cliente. Se faltar dado, ele pergunta antes de responder.</p>
+</div>`;
+  return { assunto: ASSUNTO_CONVITE, html, texto: texto2 };
+}
+
+// server/conviteConsultor.ts
+var COLECAO = "convites_consultor";
+function registrarConviteConsultor(app, deps) {
+  const agora = deps.agora || (() => /* @__PURE__ */ new Date());
+  async function candidatos() {
+    const snap = await deps.db.collection("users").get();
+    const lista = filtrarDestinatarios(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    const out = [];
+    for (const d of lista) {
+      let ultimo = null;
+      try {
+        ultimo = (await deps.db.collection(COLECAO).doc(d.id).get()).data()?.enviado_em || null;
+      } catch {
+      }
+      out.push({ ...d, ultimo_convite: ultimo });
+    }
+    return out;
+  }
+  app.get("/api/admin/convite-consultor", async (req, res) => {
+    if (!await deps.exigirGestao(req, res)) return;
+    try {
+      const lista = await candidatos();
+      const exemplo = montarConvite("Nome");
+      return res.json({ ok: true, destinatarios: lista, assunto: exemplo.assunto, texto: exemplo.texto });
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: "N\xE3o consegui montar a lista agora." });
+    }
+  });
+  app.post("/api/admin/convite-consultor/enviar", async (req, res) => {
+    const q = await deps.exigirGestao(req, res);
+    if (!q) return;
+    try {
+      const pedidos = Array.isArray(req.body?.emails) ? req.body.emails.map((e) => String(e).trim().toLowerCase()).filter(Boolean) : [];
+      const reenviar = req.body?.reenviar === true;
+      if (pedidos.length === 0 || pedidos.length > 50) return res.status(400).json({ ok: false, error: "Marque quem vai receber." });
+      const permitidos = new Map((await candidatos()).map((c) => [c.email, c]));
+      const resultados = [];
+      for (const email of [...new Set(pedidos)]) {
+        const d = permitidos.get(email);
+        if (!d) {
+          resultados.push({ email, nome: "", status: "fora_da_lista", detalhe: "N\xE3o est\xE1 no comercial interno ativo." });
+          continue;
+        }
+        if (d.ultimo_convite && !reenviar) {
+          resultados.push({ email, nome: d.nome, status: "ja_enviado", detalhe: d.ultimo_convite });
+          continue;
+        }
+        try {
+          const m = montarConvite(d.nome);
+          await deps.enviarEmail(email, m.assunto, m.html, m.texto);
+          await deps.db.collection(COLECAO).doc(d.id).set({ email, enviado_em: agora().toISOString(), enviado_por: q.email || "" }, { merge: true });
+          resultados.push({ email, nome: d.nome, status: "enviado" });
+        } catch (e) {
+          resultados.push({ email, nome: d.nome, status: "erro", detalhe: String(e?.message || "N\xE3o saiu.").slice(0, 160) });
+        }
+      }
+      return res.json({ ok: true, resultados });
+    } catch {
+      return res.status(500).json({ ok: false, error: "Erro ao enviar o convite." });
+    }
+  });
+}
+
 // server/consultorPerfil.ts
 var PAPEIS_EQUIPE = ["admin", "manager", "internal_seller", "triagem", "financial", "marketing", "fiscal", "vendedor_padrao"];
 function ehEquipeNoConsultor(userInfo) {
@@ -5278,7 +5415,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-20v fichas-zoom-logo";
+  const RELEASE_LABEL = "2026-10-20w convite-consultor";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -5944,6 +6081,22 @@ Retorne um array JSON no formato exato:
   }
   registrarDiagnosticoComissao(app, { db, exigirAdmin, exigirGestao: exigirGestaoComissao, arrayUnion: (...v) => import_firebase_admin.default.firestore.FieldValue.arrayUnion(...v) });
   registrarCorrecoesAutomaticas(app, { db, exigirAdmin });
+  registrarConviteConsultor(app, {
+    db,
+    exigirGestao: async (req, res) => {
+      const q = await quemChama(req);
+      if (negarSessaoRevogada(req, res)) return null;
+      if (!ehGestao(q)) {
+        res.status(403).json({ ok: false, error: "S\xF3 o administrador ou a ger\xEAncia." });
+        return null;
+      }
+      return q;
+    },
+    enviarEmail: async (to, subject, html) => {
+      if (!await getEmailTransporter()) throw new Error("O e-mail do app n\xE3o est\xE1 configurado.");
+      await sendAutomaticEmail(to, subject, html, { fromName: "Roder Indica" });
+    }
+  });
   app.get("/api/admin/regras/estado", async (req, res) => {
     if (!await exigirAdmin(req, res)) return;
     try {
