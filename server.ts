@@ -41,6 +41,7 @@ import { registrarConsultorParceiro, BUCKETS_VIDEO } from "./server/consultorPar
 import { criarBibliotecaVideos, instrucaoVideos, sanitizarPainel } from "./server/videosConsultor";
 import { criarRotasArquivosVideos } from "./server/arquivosVideosConsultor";
 import { parseKitsText } from "./server/kitsPdf";
+import { registrarConviteConsultor } from "./server/conviteConsultor";
 import { instrucaoPerfilConsultor } from "./server/consultorPerfil";
 import { injetarPrevia, previaPadrao, previaDoEquipamento, codigoLimpo, SITE_PREVIA } from "./server/previaLink";
 import { criarImagemPrevia, candidatasDoLink, urlImagemPrevia, MAX_ORIGEM_BYTES, PASTA_CACHE, baixarExterna } from "./server/previaImagem";
@@ -1160,6 +1161,21 @@ Retorne um array JSON no formato exato:
   registrarDiagnosticoComissao(app, { db, exigirAdmin, exigirGestao: exigirGestaoComissao, arrayUnion: (...v: any[]) => admin.firestore.FieldValue.arrayUnion(...v) });
   // "Correções automáticas" da mesma tela: o que a correção automática de comissão fez (só leitura)
   registrarCorrecoesAutomaticas(app, { db, exigirAdmin });
+
+  // Convite do Consultor por e-mail ao comercial interno (admin e gerência)
+  registrarConviteConsultor(app, {
+    db,
+    exigirGestao: async (req: any, res: any) => {
+      const q = await quemChama(req);
+      if (negarSessaoRevogada(req, res)) return null;
+      if (!ehGestao(q)) { res.status(403).json({ ok: false, error: 'Só o administrador ou a gerência.' }); return null; }
+      return q;
+    },
+    enviarEmail: async (to, subject, html) => {
+      if (!(await getEmailTransporter())) throw new Error('O e-mail do app não está configurado.');
+      await sendAutomaticEmail(to, subject, html, { fromName: 'Roder Indica' });
+    },
+  });
 
   app.get('/api/admin/regras/estado', async (req, res) => {
     if (!(await exigirAdmin(req, res))) return;

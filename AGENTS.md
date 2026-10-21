@@ -214,3 +214,5 @@
 
 - **Sonda de versão das regras**: a tela de Configurações confere se firestore.rules e storage.rules publicados são os do código. A cada mudança de regra, suba a versão (ex.: 2026_10_20) nos TRÊS lugares: `VERSAO_REGRAS` em `src/lib/sondaRegras.ts` e a sonda `_sonda_regras/v_AAAA_MM_DD` em `firestore.rules` e em `storage.rules`.
 - O teste `testes-servidor/sonda-regras.test.ts` falha se os três não forem iguais; depois de subir a versão, publique os dois arquivos no console e confira o cartão.
+
+- **Convite do Consultor por e-mail (20/10/2026)**: card em Configurações (admin e gerência) manda o link https://roderbrasil.com.br/consultor-equipe ao comercial interno (internal_seller, manager, admin, triagem). Não falar de indicação de equipamento nem de comissão nesse e-mail (comercial interno atende direto). Trava de reenvio em `convites_consultor/{uid}`, só pelo servidor.
