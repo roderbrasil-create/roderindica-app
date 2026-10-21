@@ -14,7 +14,7 @@ export function useManifestoConsultor() {
       document.head.appendChild(manifesto);
     }
     const manifestoAntes = manifesto.getAttribute('href') || '';
-    manifesto.setAttribute('href', '/consultor.webmanifest');
+    manifesto.setAttribute('href', window.location.pathname.startsWith('/consultor-equipe') ? '/consultor-equipe.webmanifest' : '/consultor.webmanifest');
 
     const cor = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
     const corAntes = cor?.getAttribute('content') || '';
