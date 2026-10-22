@@ -26,7 +26,7 @@ test('ZOOM: nunca passa do limite nem fica abaixo de 100%', () => {
 test('PISCADA DA SSH: o quadro da folha não estica a folha (items-start), senão a medida lê a própria altura e entra em laço', () => {
   // Sem items-start a folha estica até a altura do quadro; a medida (offsetHeight x escala) vira a altura nova do
   // quadro e ele encolhe a cada medida até zero, volta a "auto" e recomeça (scrollHeight oscilando 1229 e 2673).
-  for (const arq of ['catalog/FresaSshFicha.tsx', 'catalog/CabecotePodaFicha.tsx', 'catalog/CabecoteGmt035Ficha.tsx']) {
+  for (const arq of ['catalog/FresaSshFicha.tsx', 'catalog/CabecotePodaFicha.tsx']) {
     assert.match(fonte(arq), /flex justify-center items-start/, `${arq} sem items-start no quadro da folha`);
   }
 });

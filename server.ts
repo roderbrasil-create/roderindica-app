@@ -2719,6 +2719,7 @@ ${REGRA_KIT_CONFIRMACAO}
           - Para **Sacador de Árvores SAC 500**: utilize o link [Visualizar Ficha Técnica Oficial do Sacador SAC 500](sacador-sac-500)
           - Para **Fresa FAE SSH** (SSH 150, 200, 225, 250): utilize o link [Visualizar Ficha Técnica Oficial da Fresa SSH](fresa-ssh)
           - Para **Caçamba High Tip**: utilize o link [Visualizar Ficha Técnica Oficial da Caçamba High Tip](cacamba-high-tip)
+          - Para o **Cabeçote de Poda GMT 035** (guindaste, serra de garra, TTC): utilize o link [Ver ficha técnica GMT 035 para guindaste](ficha-gmt:035). Ofereça numa linha curta e diga que o vendedor pode compartilhar a ficha com o cliente para ele encaminhar ao fabricante do guindaste. Se o vendedor pediu só para enviar o equipamento ao cliente, siga a regra de envio (botão "Enviar ao cliente") e não ofereça ficha.
           - Para **Trituradores/Desbastadores FAE de escavadeira**: use o link do modelo certo, sem inventar outro. Quatro modelos têm FICHA INDIVIDUAL oficial (uma página só do modelo, aprovada pelo Jeferson): [Ver ficha técnica FAE UML/S/EX/VT 125](ficha-fae:uml-s-ex-vt), [Ver ficha técnica FAE UML/EX/VT 125](ficha-fae:uml-ex-vt), [Ver ficha técnica FAE BL2/EX/VT 100](ficha-fae:bl2), [Ver ficha técnica FAE UMM/EX/VT 150](ficha-fae:umm). Os outros usam a ficha geral da linha, com a tabela dos modelos: [Ver ficha técnica FAE BL0/EX](ficha-fae:bl0), [Ver ficha técnica FAE PML/EX](ficha-fae:pml), [Ver ficha técnica FAE BL1/EX/VT](ficha-fae:bl1), [Ver ficha técnica FAE DML/HY](ficha-fae:dml), [Ver ficha técnica FAE BL3/EX/VT](ficha-fae:bl3). Ao indicar um dos quatro com ficha individual, ou quando o vendedor pedir a ficha desse modelo, ofereça o link do modelo indicado numa linha curta (ex.: "Você pode abrir e ver a ficha técnica do UML/EX/VT 125") e diga que dá para salvar o PDF e mandar ao cliente. Só ofereça a ficha geral da linha (todos os modelos) se o vendedor pedir a linha toda. Se o vendedor pediu só para enviar o equipamento ao cliente, siga a regra de envio acima (botão "Enviar ao cliente") e não ofereça ficha. Os de pá carregadeira (UML SSL VT 175 e 140 U PM 200) têm ficha própria e não usam esses links.
           - **FATOS DOS 4 TRITURADORES FAE DE ESCAVADEIRA COM FICHA INDIVIDUAL** (conferidos nos catálogos FAE e aprovados em 22/10/2026; valem sobre qualquer outro número que apareça no catálogo):
             • O número do modelo é a largura do rotor: 125 = 1.250 mm, 150 = 1.500 mm, 100 = 1.000 mm. A largura total, com chapas laterais e mancais, é maior (UML/S 125: 1.347 mm; UML/EX 125: 1.342 mm; UMM 150: 1.584 mm).
@@ -2941,15 +2942,24 @@ ${REGRA_KIT_CONFIRMACAO}
     - **DETALHAMENTO TÉCNICO DO CABEÇOTE DE PODA GMT 035 / JMT 035 (IMPORTADO)**:
       • **Aplicação**: Poda urbana e manejo florestal suspenso acoplado em guindastes Munck, gruas florestais ou miniescavadeiras de pequeno porte (até 8t).
       • **Como Funciona**: Opera suspenso por rotator pendular. Possui garra com serra de corrente e sabre hidráulico acoplado para abraçar e serrar o galho.
-      • **Sistema TTC (Tilt Control / Travamento Vertical)**: Acionado por controle remoto sem fio (wireless), trava o cabeçote na posição vertical ao prender o galho em pé, permitindo cortá-lo e tombar o galho pesado com total direcionamento e segurança, sem despencar de forma descontrolada sobre fiações elétricas, muros ou veículos.
-      • **Requisitos Hidráulicos no Guindaste Munck**:
-        - Requer **4 linhas hidráulicas** até a ponta da lança do Munck (2 para abrir/fechar garra + 2 para rotação do rotator).
-        - Vazão de óleo: **35 a 65 L/min**.
-        - Pressão operacional: **185 a 250 Bar**.
-        - Requer a instalação de uma **válvula de dreno de descarga de pressão** na linha de abrir garra (evitando a necessidade de passar uma 5ª linha até a ponta).
-      • **Capacidade e Especificações**:
-        - Diâmetro nominal de corte: **40 cm** em corte único e até **60 cm** em corte duplo.
-        - Peso aproximado: **230 kg a 245 kg**.
+      • **Versão TTC (travamento do galho)**: trava o galho antes do corte, com controle remoto PRÓPRIO do GMT, fornecido pela Roder. Esse controle serve SÓ para a função do TTC. Todas as demais funções hidráulicas (abrir e fechar a garra, giro horário e anti-horário e demais) dependem do controle remoto do PRÓPRIO guindaste, fornecido pelo fabricante do guindaste. Nunca diga que o controle do TTC comanda o resto.
+      • **O QUE O GUINDASTE PRECISA (ponta da lança)**:
+        - **4 linhas** até a ponta: 2 da garra (abrir e fechar; a mesma linha de fechar aciona a serra) e 2 do giro do rotator (horário e anti-horário).
+        - Vazão **35 a 65 L/min**. Pressão máxima **250 bar** (acima disso danifica o bloco de válvulas); a válvula de alívio do guindaste deve ficar ajustada em no máximo 250 bar.
+        - Mangueira da garra e da serra: **1/2 pol R2** (2 tramas de aço), engate rápido macho e fêmea **face plana, rosca 1/2 pol, ponta macho Ø 25 mm**.
+        - Mangueira do giro: **3/8 R2 ou 1/2 R2**, engate rápido face plana **3/8 pol, ponta macho Ø 20 mm**.
+        - **Dreno**: obrigatório, mas NÃO vai até a ponta. É só um desvio em T na linha de abrir a garra, perto do comando do guindaste, com válvula de esfera e válvula de dreno (fornecidas pela Roder) e retorno direto ao tanque em mangueira 3/8 ou 1/2 pol, sem engate na ponta. Não precisa se o comando principal tem porta H em neutro. Com a válvula de esfera fechada, o guindaste trabalha com garra de madeira comum.
+        - Óleo ISO 46, limpeza 19/17/14 (ISO 4406) ou melhor. Montagem com o guindaste desligado e despressurizado.
+        - Carga: a tabela de carga do guindaste manda. Descontar o peso do conjunto; do que sobrar, metade é o peso máximo do galho a cortar. Peça cortada de no máximo 6 m.
+        - A serra roda no máximo 15 segundos seguidos. Garra abrir no máximo posiciona na vertical; fechar no máximo aciona a serra; até 3/4 do comando trabalha como garra florestal comum.
+      • **COMO TRATAR O CLIENTE**: o cliente deve CONSULTAR O FABRICANTE DO GUINDASTE. O vendedor compartilha a ficha com o cliente para ele encaminhar ao fabricante do guindaste, que verifica os detalhes de preparação (linhas, vazão, pressão, engates e controle remoto). Para fechar a preparação, a Roder precisa saber: modelo e ano do guindaste e tabela de carga; vazão e pressão disponíveis nas linhas da ponta; se já existem 4 linhas até a ponta; tipo de comando (porta H em neutro ou não); diâmetro das mangueiras e conexão de ponta. Não serve para cesto aéreo de braço isolado (para isso, GP 150). Não usar com vento forte; ninguém dentro da zona de risco de queda do galho.
+      • **Nunca mostre ao cliente nome, site ou contato do fabricante do cabeçote.** O nome do cabeçote é só "GMT 035". Nunca cite comissão do vendedor.
+      • **Capacidade e Especificações (ficha aprovada)**:
+        - Abertura máxima da garra **85 cm**; fechamento mínimo **4,5 cm**.
+        - Diâmetro máximo de corte **Ø 40 cm**; mínimo **Ø 5 cm**. Carga máxima na garra **1.500 kg**.
+        - Peso do cabeçote (sem TTC) **275 kg**; conjunto TTC (cabeçote com rotator, link e placa de cabeça) **405 kg**.
+        - Dimensões do conjunto TTC: altura 1.531 mm, largura 1.021 mm com a garra aberta e 723 mm fechada, profundidade 600 mm.
+      • **FICHA**: ao falar do GMT 035 (cabeçote de poda para guindaste, serra de garra, TTC), responda com os dados e OFEREÇA a ficha: [Ver ficha técnica GMT 035 para guindaste](ficha-gmt:035). Diga ao vendedor que pode compartilhar a ficha (PDF de 4 páginas) com o cliente para ele encaminhar ao fabricante do guindaste.
       • **Vantagem de Mercado**: Solução ideal para empresas de poda e prefeituras que utilizam caminhão guindaste Munck, cortando e fracionando galhos no alto sem expor nenhum trabalhador a riscos de escalada ou acidentes.
 
     - **DETALHAMENTO TÉCNICO DO CABEÇOTE DE PODA GP 150 RODER (FABRICAÇÃO PRÓPRIA)**:
@@ -2971,10 +2981,10 @@ ${REGRA_KIT_CONFIRMACAO}
       |---|---|---|
       | **Máquina Base** | Guindaste Munck / Grua / Escavadeira ≤8t | Caminhão de Braço Isolado (Linha Viva) |
       | **Montagem no Cesto de Fibra?** | ❌ NÃO PERMITIDO (Incompatível) | ✅ SIM (Exclusivo e Dedicado) |
-      | **Diâmetro de Corte** | 40 cm (único) até 60 cm (duplo) | 150 mm (até 200 mm) |
-      | **Pressão / Vazão** | 185-250 bar / 35-65 L/min | Serra: 200-230 bar / Garra: 150-220 bar |
-      | **Peso do Equipamento** | ~230 kg | ~130 kg |
-      | **Giro / Rotação** | Rotator Pendular com TTC Sem Fio | Rotator 360° Infinito Junta Rotativa |
+      | **Diâmetro de Corte** | Ø 40 cm (mínimo Ø 5 cm) | 150 mm (até 200 mm) |
+      | **Pressão / Vazão** | máx. 250 bar / 35-65 L/min | Serra: 200-230 bar / Garra: 150-220 bar |
+      | **Peso do Equipamento** | 275 kg (cabeçote), 405 kg (conjunto TTC) | ~130 kg |
+      | **Giro / Rotação** | Rotator, com TTC (controle remoto próprio só para o TTC) | Rotator 360° Infinito Junta Rotativa |
       | **Isolamento Elétrico** | Padrão mecânico florestal | Isolamento elétrico testado para Linha Viva |
 
 21. DIRETRIZ CRÍTICA DE RELATÓRIO COMPARATIVO TÉCNICO E OPERACIONAL ("RELATÓRIO COMPARATIVO DE EQUIPAMENTOS"):

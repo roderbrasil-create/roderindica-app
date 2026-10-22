@@ -74,7 +74,7 @@ export const EQUIPMENT_SPEC_TABLES: EquipmentSpecTable[] = [
       ['CMF 500', '500 mm', '88 cm | Passo .404"', '100 a 200 L/min', '200 a 220 bar', '24 cc', '8 a 13 Ton. (acima de 13t: CMF 600)'],
       ['CMF 600', '600 mm', '45" | Passo 3/4"', '150 a 200 L/min', '200 a 240 bar', '60 cc', '13 a 22 Ton. (Ideal p/ Rebrota)'],
       ['CMF 800', '800 mm', '48" | Passo 3/4"', '200 a 250 L/min', '200 a 240 bar', '60 cc', '20 a 30 Ton. (Madeiras Grossas)'],
-      ['GMT 035 TTC', '40 a 60 cm', '52 cm (20") Lâmina', '35 a 65 L/min', '185 a 250 bar', 'Grapple Saw TTC', '275 kg | Munck / Grua / Escavadeira ≤ 8t'],
+      ['GMT 035', 'Ø 5 a 40 cm', 'Serra de garra (abertura 85 cm)', '35 a 65 L/min', 'até 250 bar', 'Garra e serra pela mesma linha; 4 linhas na ponta', '275 kg (cabeçote) | 405 kg (conjunto TTC) | Guindaste / Munck / Grua'],
       ['GP 150', '150 mm', 'Sabre e Corrente Hidr.', '30 a 50 L/min', '160 a 200 bar', 'Motor Rápido', 'Guindastes Munck e Gruas de Poda Urbana']
     ],
     notes: [

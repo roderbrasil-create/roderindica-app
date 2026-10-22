@@ -25,7 +25,8 @@ import { GarraEstufagemFicha } from '../catalog/GarraEstufagemFicha';
 import { TrituradorLoaderFaeFicha } from '../catalog/TrituradorLoaderFaeFicha';
 import { SacadorSac500Ficha } from '../catalog/SacadorSac500Ficha';
 import { CabecotePodaFicha } from '../catalog/CabecotePodaFicha';
-import { CabecoteGmt035Ficha } from '../catalog/CabecoteGmt035Ficha';
+import { FichaGmt035, compartilharFichaGmt } from '../catalog/FichaGmt035';
+import { ehLinkFichaGmt, chaveDoLinkFichaGmt } from '../../lib/fichaGmt';
 import { FichaPadrao, enviarFichaPadrao, fotoDoModelo, tituloFicha } from '../catalog/FichaPadrao';
 import { usePodeEnviarFicha, enviarArquivoPdf, nomeArquivoFicha } from '../catalog/fichaPdf';
 import { ehFichaPropria } from '../../lib/fichaPropria';
@@ -781,6 +782,12 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   const componentesMd = React.useMemo(() => criarComponentesMarkdown((href) => abrirFichaDoLinkRef.current(href)), []);
   const openTechnicalSheet = (url: string, modelName?: string) => {
     if (!url) return;
+    // Cabeçote GMT 035 para guindaste: abre a ficha de 4 páginas (link "ficha-gmt:035")
+    if (ehLinkFichaGmt(url)) {
+      if (chaveDoLinkFichaGmt(url)) setIsCabecoteGmt035FichaOpen(true);
+      else toast.error('Não reconheci essa ficha. Procure o GMT 035 na lista de equipamentos.');
+      return;
+    }
     // Trituradores FAE de escavadeira: abre a ficha montada do modelo (link "ficha-fae:<modelo>")
     const decisaoFae = decidirLinkFichaFae<ProductModel, Product>(url, catalogProducts);
     if (decisaoFae.acao === 'individual') { setFichaFae(decisaoFae.chave); return; }
@@ -843,6 +850,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
       return;
     }
     const tipo = fichaEspecialDe(linkFichaDe(prod, model), `${model.name} ${prod.name}`);
+    if (tipo === 'gmt035') { compartilharFichaGmt(); return; }
     if (tipo) {
       abrirFichaEspecial(tipo, model.name, true);
       toast.info('Toque em "Enviar" na ficha para mandar o PDF.');
@@ -6414,7 +6422,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
         )}
 
         {isCabecoteGmt035FichaOpen && (
-          <CabecoteGmt035Ficha onClose={() => setIsCabecoteGmt035FichaOpen(false)} enviar={fichaParaEnviar} />
+          <FichaGmt035 onClose={() => setIsCabecoteGmt035FichaOpen(false)} enviar={fichaParaEnviar} />
         )}
 
         {fichaFae && (

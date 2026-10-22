@@ -266,14 +266,14 @@ export function EstudosComparativosModal({ onClose, initialSearch = '' }: Estudo
                 Ofertar EXCLUSIVAMENTE o Cabeçote GMT 035 (Importado)
               </p>
               <p className="text-sm font-semibold text-slate-950 leading-relaxed">
-                <strong className="font-black text-slate-950">Motivo Técnico:</strong> Trabalha suspenso por rotator/pendular em guindastes Munck, gruas florestais ou escavadeiras de até 8t. Possui serra de garra e kit de válvulas solenoides dedicado.
+                <strong className="font-black text-slate-950">Motivo Técnico:</strong> Trabalha suspenso por rotator/pendular em guindastes Munck, gruas florestais ou escavadeiras de até 8t. Possui serra de garra, e a ficha do modelo vai ao fabricante do guindaste para preparar a ponta da lança.
               </p>
               <div className="bg-white p-3 rounded-lg border border-slate-300 space-y-1.5 shadow-xs text-xs sm:text-sm font-bold text-slate-950">
                 <p className="font-black text-slate-950 uppercase">• Requisitos no Guindaste Munck:</p>
                 <p className="flex items-center gap-1.5">✓ Necessita de 4 linhas hidráulicas até a ponta da lança.</p>
-                <p className="flex items-center gap-1.5">✓ Vazão: 35 a 65 L/min | Pressão: 185 a 250 Bar.</p>
-                <p className="flex items-center gap-1.5">✓ Instalação de válvula de dreno de descarga de pressão na linha de abrir garra (sem 5ª linha).</p>
-                <p className="flex items-center gap-1.5">✓ Sistema TTC acionado por controle remoto sem fio para travamento vertical de galhas.</p>
+                <p className="flex items-center gap-1.5">✓ Vazão: 35 a 65 L/min | Pressão máxima: 250 bar.</p>
+                <p className="flex items-center gap-1.5">✓ Dreno só um desvio em T na linha de abrir, perto do comando, com válvula de esfera e de dreno fornecidas pela Roder (sem 5ª linha).</p>
+                <p className="flex items-center gap-1.5">✓ Versão TTC: controle remoto próprio, só para travar o galho. As demais funções ficam no controle remoto do guindaste.</p>
               </div>
             </div>
 
@@ -326,12 +326,12 @@ export function EstudosComparativosModal({ onClose, initialSearch = '' }: Estudo
                   </tr>
                   <tr className="bg-slate-50">
                     <td className="py-2.5 px-4 font-black text-slate-950">Diâmetro de Corte:</td>
-                    <td className="py-2.5 px-4">40 cm (único) até 60 cm (duplo)</td>
+                    <td className="py-2.5 px-4">Ø 40 cm (mínimo Ø 5 cm)</td>
                     <td className="py-2.5 px-4">150 mm (até 200 mm)</td>
                   </tr>
                   <tr>
                     <td className="py-2.5 px-4 font-black text-slate-950">Pressão Operacional:</td>
-                    <td className="py-2.5 px-4">185 a 250 Bar (Vazão 35-65 L/min)</td>
+                    <td className="py-2.5 px-4">Máx. 250 bar (Vazão 35-65 L/min)</td>
                     <td className="py-2.5 px-4">200-230 Bar (Serra) / 150-220 Bar (Garra)</td>
                   </tr>
                 </tbody>

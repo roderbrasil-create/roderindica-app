@@ -89,7 +89,7 @@ import { TrituradorLoaderFaeFicha } from '../components/catalog/TrituradorLoader
 import { EngateRapidoFicha } from '../components/catalog/EngateRapidoFicha';
 import { GarraEstufagemFicha } from '../components/catalog/GarraEstufagemFicha';
 import { CabecotePodaFicha } from '../components/catalog/CabecotePodaFicha';
-import { CabecoteGmt035Ficha } from '../components/catalog/CabecoteGmt035Ficha';
+import { FichaGmt035 } from '../components/catalog/FichaGmt035';
 import { SacadorSac500Ficha } from '../components/catalog/SacadorSac500Ficha';
 import { FichaPadrao } from '../components/catalog/FichaPadrao';
 import { FichaTrituradorFae } from '../components/catalog/FichaTrituradorFae';
@@ -6590,7 +6590,7 @@ export default function Catalog() {
         )}
 
         {isCabecoteGmt035FichaOpen && (
-          <CabecoteGmt035Ficha 
+          <FichaGmt035 
             onClose={() => {
               setIsCabecoteGmt035FichaOpen(false);
               if (suspendedProductModels) {

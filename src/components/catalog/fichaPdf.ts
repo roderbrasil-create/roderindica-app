@@ -189,7 +189,7 @@ export async function pdfDeElementoLongo(el: HTMLElement): Promise<jsPDF> {
   return pdf;
 }
 
-function baixarBlob(blob: Blob, nome: string) {
+export function baixarBlob(blob: Blob, nome: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
