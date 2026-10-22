@@ -10,6 +10,7 @@
 import crypto from 'crypto';
 import { Transform, pipeline } from 'stream';
 import { videoDoEquipamento } from '../src/lib/videoEquipamento';
+import { donoDoLinkCurto } from './linkCurtoDono';
 import {
   PAPEIS_QUE_INDICAM, TOKEN_LINK_VALIDO, lerCidadeUf, primeiroNome, validarCnpj, validarTelefoneBR,
 } from '../src/lib/consultorIndicar';
@@ -197,7 +198,14 @@ export function criarRotasConsultorParceiro(deps: DepsConsultorParceiro) {
       if (!/^[A-Za-z0-9_-]{1,80}$/.test(pid) || (mid && !/^[A-Za-z0-9_.-]{1,80}$/.test(mid))) return res.status(400).json({ error: 'Equipamento inválido.' });
       const p = await db.collection('products').doc(pid).get();
       if (!p.exists) return res.status(404).json({ error: 'Equipamento não encontrado.' });
-      const codigo = await deps.criarLinkCurto(dono.uid, pid, mid);
+      // modo olho: admin ou gerência vendo como parceiro (só por login) gera o link no nome dele
+      const donoLink = dono.via === 'login'
+        ? await donoDoLinkCurto({ uid: dono.uid, role: dono.role }, req.body?.uid, async (u) => {
+          const d: any = (await db.collection('users').doc(u).get()).data();
+          return !!d && d.status === 'active';
+        })
+        : dono.uid;
+      const codigo = await deps.criarLinkCurto(donoLink, pid, mid);
       if (!codigo) return res.status(500).json({ error: 'Não consegui gerar o link.' });
       res.json({ ok: true, codigo });
     } catch {

@@ -3162,7 +3162,7 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
   // (sem número: o parceiro escolhe o contato). O celular só deixa abrir janela DENTRO do toque,
   // então ela abre em branco na hora e recebe o endereço quando o link chega do servidor.
   const linksClienteRef = React.useRef<Map<string, string>>(new Map());
-  const chaveLinkCliente = (prod: Product, model: ProductModel) => `${parceiroViaLink?.token || user?.uid || 'x'}:${prod.id}:${model.id}`;
+  const chaveLinkCliente = (prod: Product, model: ProductModel) => `${parceiroViaLink?.token || (isImpersonating ? profile?.uid : '') || user?.uid || 'x'}:${prod.id}:${model.id}`;
   const buscarLinkCliente = async (prod: Product, model: ProductModel): Promise<string> => {
     const chave = chaveLinkCliente(prod, model);
     const guardado = linksClienteRef.current.get(chave);
@@ -3170,7 +3170,7 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
     const r = await fetch(`${getApiBaseUrl()}/api/consultor/link-cliente`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ p: parceiroViaLink?.token || undefined, pid: prod.id, mid: model.id }),
+      body: JSON.stringify({ p: parceiroViaLink?.token || undefined, pid: prod.id, mid: model.id, uid: isImpersonating && logado ? profile?.uid : undefined }),
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.codigo) throw new Error(j.error || 'Não consegui gerar o link.');
@@ -3185,7 +3185,8 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
   // toque, então o link e a foto são preparados antes, assim que o equipamento aparece na tela.
   const [enviandoEquip, setEnviandoEquip] = useState<string | null>(null);
   const fotosEnvioRef = React.useRef<Map<string, File | null>>(new Map());
-  const podeEnviarAoCliente = podeEnviarFicha || podeIndicar;
+  // modo olho como parceiro: ele também envia ao cliente (o link nasce no nome dele)
+  const podeEnviarAoCliente = podeEnviarFicha || podeIndicar || (isImpersonating && logado && !!profile && PAPEIS_QUE_INDICAM.includes(String(profile.role)));
   const prepararEnvio = async (prod: Product, model: ProductModel) => {
     const chave = chaveLinkCliente(prod, model);
     await buscarLinkCliente(prod, model);

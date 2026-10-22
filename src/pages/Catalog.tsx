@@ -733,7 +733,7 @@ let rachadoraEmAndamento = false;
 const fichasDoSiteEmAndamento = new Set<string>();
 
 export default function Catalog() {
-  const { user, profile, realProfile, isManager, isAdmin, isExternalSeller, isMarketing, auth } = useAuth();
+  const { user, profile, realProfile, isImpersonating, isManager, isAdmin, isExternalSeller, isMarketing, auth } = useAuth();
   // Parceiro/indicador só vê a ficha: compartilhar o arquivo fica com a equipe Roder
   const podeEnviarFicha = usePodeEnviarFicha();
   const navigate = useNavigate();
@@ -928,6 +928,8 @@ export default function Catalog() {
   // Modelo cujo link curto está sendo criado agora (o botão mostra "Criando link...")
   const [criandoLinkDe, setCriandoLinkDe] = useState<string | null>(null);
   const linksCurtosRef = useRef<Record<string, string>>({});
+  // trocou de "ver como" (ou saiu dele): os links guardados eram de outra pessoa, nascem de novo
+  useEffect(() => { linksCurtosRef.current = {}; setLinksCurtos({}); }, [isImpersonating, profile?.uid]);
   const obterLinkCurto = async (pid: string, mid: string): Promise<string | null> => {
     const chave = `${pid}:${mid}`;
     if (linksCurtosRef.current[chave]) return linksCurtosRef.current[chave];
@@ -937,7 +939,8 @@ export default function Catalog() {
       const r = await fetch(`${getApiBaseUrl()}/api/link-curto`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ pid, mid }),
+        // modo olho: o link nasce no nome do parceiro que está sendo visto (o servidor só aceita de admin ou gerência)
+        body: JSON.stringify({ pid, mid, uid: isImpersonating ? profile?.uid : undefined }),
       });
       if (!r.ok) return null;
       const j = await r.json();

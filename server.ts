@@ -36,6 +36,7 @@ import admin from "firebase-admin";
 import { getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { ACCESSORIES_DATA, INSTALLATION_KITS } from "./src/constants.js";
+import { donoDoLinkCurto } from "./server/linkCurtoDono";
 import { REGRA_ENVIO_EQUIPAMENTO } from "./src/lib/pedidoEnvio";
 import { REGRA_KIT_CONFIRMACAO, TEXTO_CMF_CAT320, RESSALVA_KIT, instrucaoAmostra, videoAmostraDe } from "./src/lib/confirmacaoMaquina";
 import { registrarConsultorParceiro, BUCKETS_VIDEO } from "./server/consultorParceiro";
@@ -4561,7 +4562,13 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       const pid = String(req.body?.pid || '').slice(0, 80);
       const mid = String(req.body?.mid || '').slice(0, 80);
       if (!pid) return res.status(400).json({ error: 'Equipamento não informado.' });
-      const codigo = await criarLinkCurto(quem.uid, pid, mid);
+      // modo olho: admin ou gerência vendo como parceiro manda o uid dele (qualquer outro chamador é ignorado)
+      const chamador = await quemChama(req);
+      const dono = await donoDoLinkCurto({ uid: quem.uid, role: chamador?.role }, req.body?.uid, async (u) => {
+        const d: any = (await db.collection('users').doc(u).get()).data();
+        return !!d && d.status === 'active';
+      });
+      const codigo = await criarLinkCurto(dono, pid, mid);
       if (codigo) return res.json({ codigo });
       res.status(500).json({ error: 'Não consegui gerar o link.' });
     } catch (e: any) {

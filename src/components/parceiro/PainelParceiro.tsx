@@ -85,11 +85,11 @@ function DesenhoMaquina({ tipo, className }: { tipo: TipoMaquina; className?: st
 }
 
 // Link curto do parceiro (o pedido do cliente fica no nome dele) e a foto pronta para mandar junto
-async function linkCurtoDe(pid: string, mid: string): Promise<string | null> {
+async function linkCurtoDe(pid: string, mid: string, comoUid?: string): Promise<string | null> {
   try {
     const token = await auth.currentUser?.getIdToken();
     if (!token) return null;
-    const r = await fetch(`${getApiBaseUrl()}/api/link-curto`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ pid, mid }) });
+    const r = await fetch(`${getApiBaseUrl()}/api/link-curto`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ pid, mid, uid: comoUid }) });
     const j = await r.json().catch(() => ({}));
     return r.ok && j.codigo ? j.codigo : null;
   } catch { return null; }
@@ -113,7 +113,7 @@ async function fotoParaEnviar(src: string | undefined, nome: string): Promise<Fi
 }
 
 export default function PainelParceiro() {
-  const { profile, isRegionalSeller } = useAuth();
+  const { profile, isRegionalSeller, isImpersonating } = useAuth();
   const navigate = useNavigate();
   const [produtos, setProdutos] = useState<any[]>([]);
   const [estoque, setEstoque] = useState<any[]>([]);
@@ -152,7 +152,7 @@ export default function PainelParceiro() {
     (async () => {
       for (const it of prontaEntrega) {
         if (!vivo || preparados[it.chave]) continue;
-        const [codigo, foto] = await Promise.all([linkCurtoDe(it.produto.id, it.modelo.id), fotoParaEnviar(it.foto, it.nome)]);
+        const [codigo, foto] = await Promise.all([linkCurtoDe(it.produto.id, it.modelo.id, isImpersonating ? profile?.uid : undefined), fotoParaEnviar(it.foto, it.nome)]);
         // sem link (login ainda carregando, internet caiu): não marca como pronto, tenta de novo depois
         if (vivo && codigo) setPreparados(p => ({ ...p, [it.chave]: { codigo, foto } }));
       }
