@@ -90,6 +90,8 @@ import { EngateRapidoFicha } from '../components/catalog/EngateRapidoFicha';
 import { GarraEstufagemFicha } from '../components/catalog/GarraEstufagemFicha';
 import { CabecotePodaFicha } from '../components/catalog/CabecotePodaFicha';
 import { FichaGmt035 } from '../components/catalog/FichaGmt035';
+import { FichaDestocador } from '../components/catalog/FichaDestocador';
+import { ehDestocadorDth } from '../lib/fichaDestocador';
 import { SacadorSac500Ficha } from '../components/catalog/SacadorSac500Ficha';
 import { FichaPadrao } from '../components/catalog/FichaPadrao';
 import { FichaTrituradorFae } from '../components/catalog/FichaTrituradorFae';
@@ -393,7 +395,9 @@ const isAnyFichaSupported = (product: any) => {
   const isCabecotePoda = isCabecotePodaProduct(url) || isCabecotePodaProduct(name) || isCabecotePodaProduct(desc) || isCabecotePodaProduct(cat) ||
                          !!(product.id && (product.id.toLowerCase().includes('gp150') || product.id.toLowerCase().includes('poda')));
 
-  return !!product.pdf_url || isEngate || isHighTip || isFresa || isEstufagem || isLoaderTriturador || isCabecoteGmt || isCabecotePoda;
+  const isDestocadorDth = ehDestocadorDth(url) || ehDestocadorDth(name) || ehDestocadorDth(product.id);
+
+  return !!product.pdf_url || isDestocadorDth || isEngate || isHighTip || isFresa || isEstufagem || isLoaderTriturador || isCabecoteGmt || isCabecotePoda;
 };
 
 // Mesma rota do cartão da galeria para todo botão "Ficha": a ficha própria quando existe,
@@ -782,6 +786,7 @@ export default function Catalog() {
   const [isGarraEstufagemFichaOpen, setIsGarraEstufagemFichaOpen] = useState(false);
   const [isCabecotePodaFichaOpen, setIsCabecotePodaFichaOpen] = useState(false);
   const [isCabecoteGmt035FichaOpen, setIsCabecoteGmt035FichaOpen] = useState(false);
+  const [isFichaDestocadorOpen, setIsFichaDestocadorOpen] = useState(false);
   const [isSacadorSac500FichaOpen, setIsSacadorSac500FichaOpen] = useState(false);
   // Ficha padrão em PDF (modelo sem ficha própria)
   const [fichaPadrao, setFichaPadrao] = useState<{ product: any; model: any } | null>(null);
@@ -1421,11 +1426,10 @@ export default function Catalog() {
               'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-destocador-roder-03.jpg.webp'
             ],
             technical_specs: {
-              diametro_corte: '240',
-              peso: '750',
-              maquina_base: '14 a 25 Ton.',
-              pressao: '210 a 250',
-              vazao: '120 a 180'
+              diametro_corte: '660',
+              maquina_base: '14 a 22 Ton. (escavadeira) | 6 a 10 Ton. (retro/escavadeira pequena)',
+              pressao: '280 a 350 (escavadeira) | 190 a 220 (retro)',
+              vazao: '140 a 220 (escavadeira) | 100 a 150 (retro)'
             }
           }
         ]
@@ -2720,11 +2724,10 @@ export default function Catalog() {
               'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-destocador-roder-03.jpg.webp'
             ],
             technical_specs: {
-              diametro_corte: '240',
-              peso: '750',
-              maquina_base: '14 a 25 Ton.',
-              pressao: '210 a 250',
-              vazao: '120 a 180'
+              diametro_corte: '660',
+              maquina_base: '14 a 22 Ton. (escavadeira) | 6 a 10 Ton. (retro/escavadeira pequena)',
+              pressao: '280 a 350 (escavadeira) | 190 a 220 (retro)',
+              vazao: '140 a 220 (escavadeira) | 100 a 150 (retro)'
             }
           }
         ]
@@ -3455,6 +3458,21 @@ export default function Catalog() {
     // Só o começo da descrição (que nomeia o próprio produto); o resto cita outros equipamentos (ex.: "use com engate rápido")
     const lowerContextDesc = (productContext?.description || '').toLowerCase().slice(0, 90);
     const lowerContextPdfUrl = (productContext?.pdf_url || '').toLowerCase();
+
+    // Destocador Roder DTH 240B: abre a ficha de 1 página (suporte e kit de destocador não entram)
+    const isDestocadorDth = [lowerUrl, lowerModelName, lowerViewingName, lowerSelectedName, lowerContextName, lowerContextPdfUrl, (productContext?.id || '').toLowerCase()].some(t => ehDestocadorDth(t));
+    if (isDestocadorDth) {
+      if (selectedProductModels) {
+        setSuspendedProductModels(selectedProductModels);
+        setSelectedProductModels(null);
+      }
+      if (viewingGallery) {
+        setSuspendedViewingGallery(viewingGallery);
+        setViewingGallery(null);
+      }
+      setIsFichaDestocadorOpen(true);
+      return;
+    }
 
     const containsLoaderTriturador = (str: string) => {
       const s = (str || '').toLowerCase();
@@ -6586,6 +6604,22 @@ export default function Catalog() {
                 setSuspendedViewingGallery(null);
               }
             }} 
+          />
+        )}
+
+        {isFichaDestocadorOpen && (
+          <FichaDestocador
+            onClose={() => {
+              setIsFichaDestocadorOpen(false);
+              if (suspendedProductModels) {
+                setSelectedProductModels(suspendedProductModels);
+                setSuspendedProductModels(null);
+              }
+              if (suspendedViewingGallery) {
+                setViewingGallery(suspendedViewingGallery);
+                setSuspendedViewingGallery(null);
+              }
+            }}
           />
         )}
 

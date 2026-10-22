@@ -27,6 +27,8 @@ import { SacadorSac500Ficha } from '../catalog/SacadorSac500Ficha';
 import { CabecotePodaFicha } from '../catalog/CabecotePodaFicha';
 import { FichaGmt035, compartilharFichaGmt } from '../catalog/FichaGmt035';
 import { ehLinkFichaGmt, chaveDoLinkFichaGmt } from '../../lib/fichaGmt';
+import { FichaDestocador, compartilharFichaDestocador } from '../catalog/FichaDestocador';
+import { ehLinkFichaDestocador, chaveDoLinkFichaDestocador, ehDestocadorDth } from '../../lib/fichaDestocador';
 import { FichaPadrao, enviarFichaPadrao, fotoDoModelo, tituloFicha } from '../catalog/FichaPadrao';
 import { usePodeEnviarFicha, enviarArquivoPdf, nomeArquivoFicha } from '../catalog/fichaPdf';
 import { ehFichaPropria } from '../../lib/fichaPropria';
@@ -707,6 +709,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
 
   const [isCabecotePodaFichaOpen, setIsCabecotePodaFichaOpen] = useState(false);
   const [isCabecoteGmt035FichaOpen, setIsCabecoteGmt035FichaOpen] = useState(false);
+  const [isFichaDestocadorOpen, setIsFichaDestocadorOpen] = useState(false);
   // Ficha especial aberta pelo "Enviar ficha": o botão Enviar dela fica em destaque
   const [fichaParaEnviar, setFichaParaEnviar] = useState(false);
   // vídeo aberto no painel de fotos do computador (toca ali mesmo, sem abrir outra aba)
@@ -725,7 +728,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   const ehEquipeConsultor = perfilConsultor === 'equipe';
   const ehParceiroConsultor = perfilConsultor === 'parceiro';
 
-  type FichaEspecial = 'sac500' | 'loader-fae' | 'high-tip' | 'engate' | 'estufagem' | 'fresa-ssh' | 'gmt035' | 'poda';
+  type FichaEspecial = 'sac500' | 'loader-fae' | 'high-tip' | 'engate' | 'estufagem' | 'fresa-ssh' | 'gmt035' | 'poda' | 'destocador';
 
   // Qual ficha própria atende este link/equipamento (nulo = usa a ficha padrão).
   // Regras presas aos nomes, ids e links reais de cada ficha, para um equipamento parecido
@@ -734,6 +737,8 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   const fichaEspecialDe = (url: string, nome = ''): FichaEspecial | null => {
     const u = (url || '').toLowerCase().trim();
     const n = (nome || '').toLowerCase();
+    // Destocador Roder tipo broca DTH 240B (suporte e kit de destocador não entram)
+    if (ehDestocadorDth(u) || ehDestocadorDth(n)) return 'destocador';
     // SAC500: "Sacador de Árvores SAC500"
     if (/sac[-_ ]?500/.test(u) || u.includes('sacador') || /sac[-_ ]?500/.test(n) || n.includes('sacador')) return 'sac500';
     // Triturador FAE para pá carregadeira: UML/SSL/VT 175 e 140/U/PM 200
@@ -769,6 +774,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
       case 'engate': setIsEngateRapidoFichaOpen(true); break;
       case 'estufagem': setIsGarraEstufagemFichaOpen(true); break;
       case 'gmt035': setIsCabecoteGmt035FichaOpen(true); break;
+      case 'destocador': setIsFichaDestocadorOpen(true); break;
       case 'poda': setIsCabecotePodaFichaOpen(true); break;
       case 'fresa-ssh':
         setFresaSshDefaultModel(dica.includes('250') ? 'ssh-250' : dica.includes('225') ? 'ssh-225' : dica.includes('200') ? 'ssh-200' : 'ssh-150');
@@ -786,6 +792,12 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     if (ehLinkFichaGmt(url)) {
       if (chaveDoLinkFichaGmt(url)) setIsCabecoteGmt035FichaOpen(true);
       else toast.error('Não reconheci essa ficha. Procure o GMT 035 na lista de equipamentos.');
+      return;
+    }
+    // Destocador DTH-240B: abre a ficha de 1 página (link "ficha-destocador:dth240b")
+    if (ehLinkFichaDestocador(url)) {
+      if (chaveDoLinkFichaDestocador(url)) setIsFichaDestocadorOpen(true);
+      else toast.error('Não reconheci essa ficha. Procure o Destocador DTH-240B na lista de equipamentos.');
       return;
     }
     // Trituradores FAE de escavadeira: abre a ficha montada do modelo (link "ficha-fae:<modelo>")
@@ -851,6 +863,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     }
     const tipo = fichaEspecialDe(linkFichaDe(prod, model), `${model.name} ${prod.name}`);
     if (tipo === 'gmt035') { compartilharFichaGmt(); return; }
+    if (tipo === 'destocador') { compartilharFichaDestocador(); return; }
     if (tipo) {
       abrirFichaEspecial(tipo, model.name, true);
       toast.info('Toque em "Enviar" na ficha para mandar o PDF.');
@@ -6423,6 +6436,10 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
 
         {isCabecoteGmt035FichaOpen && (
           <FichaGmt035 onClose={() => setIsCabecoteGmt035FichaOpen(false)} enviar={fichaParaEnviar} />
+        )}
+
+        {isFichaDestocadorOpen && (
+          <FichaDestocador onClose={() => setIsFichaDestocadorOpen(false)} enviar={fichaParaEnviar} />
         )}
 
         {fichaFae && (

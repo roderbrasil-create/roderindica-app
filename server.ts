@@ -368,7 +368,7 @@ async function startServer() {
 
   // API routes
   // Versão publicada (conferência de implantação). Atualizar RELEASE_LABEL a cada publicação.
-  const RELEASE_LABEL = "2026-10-22e ficha-gmt035";
+  const RELEASE_LABEL = "2026-10-22f ficha-destocador";
   const SERVER_STARTED_AT = new Date().toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -2719,6 +2719,7 @@ ${REGRA_KIT_CONFIRMACAO}
           - Para **Sacador de Árvores SAC 500**: utilize o link [Visualizar Ficha Técnica Oficial do Sacador SAC 500](sacador-sac-500)
           - Para **Fresa FAE SSH** (SSH 150, 200, 225, 250): utilize o link [Visualizar Ficha Técnica Oficial da Fresa SSH](fresa-ssh)
           - Para **Caçamba High Tip**: utilize o link [Visualizar Ficha Técnica Oficial da Caçamba High Tip](cacamba-high-tip)
+          - Para o **Destocador Roder DTH-240B** (tipo broca, escavadeira e retroescavadeira): utilize o link [Ver ficha técnica do Destocador DTH-240B](ficha-destocador:dth240b). Ofereça numa linha curta e diga que o vendedor pode enviar a ficha por WhatsApp ao cliente, que faz a solicitação de orçamento por conta própria. Peça modelo e ano da máquina para o suporte e o hidráulico. Se o vendedor pediu só para enviar o equipamento ao cliente, siga a regra de envio (botão "Enviar ao cliente") e não ofereça ficha.
           - Para o **Cabeçote de Poda GMT 035** (guindaste, serra de garra, TTC): utilize o link [Ver ficha técnica GMT 035 para guindaste](ficha-gmt:035). Ofereça numa linha curta e diga que o vendedor pode compartilhar a ficha com o cliente para ele encaminhar ao fabricante do guindaste. Se o vendedor pediu só para enviar o equipamento ao cliente, siga a regra de envio (botão "Enviar ao cliente") e não ofereça ficha.
           - Para **Trituradores/Desbastadores FAE de escavadeira**: use o link do modelo certo, sem inventar outro. Quatro modelos têm FICHA INDIVIDUAL oficial (uma página só do modelo, aprovada pelo Jeferson): [Ver ficha técnica FAE UML/S/EX/VT 125](ficha-fae:uml-s-ex-vt), [Ver ficha técnica FAE UML/EX/VT 125](ficha-fae:uml-ex-vt), [Ver ficha técnica FAE BL2/EX/VT 100](ficha-fae:bl2), [Ver ficha técnica FAE UMM/EX/VT 150](ficha-fae:umm). Os outros usam a ficha geral da linha, com a tabela dos modelos: [Ver ficha técnica FAE BL0/EX](ficha-fae:bl0), [Ver ficha técnica FAE PML/EX](ficha-fae:pml), [Ver ficha técnica FAE BL1/EX/VT](ficha-fae:bl1), [Ver ficha técnica FAE DML/HY](ficha-fae:dml), [Ver ficha técnica FAE BL3/EX/VT](ficha-fae:bl3). Ao indicar um dos quatro com ficha individual, ou quando o vendedor pedir a ficha desse modelo, ofereça o link do modelo indicado numa linha curta (ex.: "Você pode abrir e ver a ficha técnica do UML/EX/VT 125") e diga que dá para salvar o PDF e mandar ao cliente. Só ofereça a ficha geral da linha (todos os modelos) se o vendedor pedir a linha toda. Se o vendedor pediu só para enviar o equipamento ao cliente, siga a regra de envio acima (botão "Enviar ao cliente") e não ofereça ficha. Os de pá carregadeira (UML SSL VT 175 e 140 U PM 200) têm ficha própria e não usam esses links.
           - **FATOS DOS 4 TRITURADORES FAE DE ESCAVADEIRA COM FICHA INDIVIDUAL** (conferidos nos catálogos FAE e aprovados em 22/10/2026; valem sobre qualquer outro número que apareça no catálogo):
@@ -2905,20 +2906,21 @@ ${REGRA_KIT_CONFIRMACAO}
 
     - Destaque que os vendedores podem descrever qualquer parâmetro ou texto técnico e você integrará e aplicará essa inteligência técnica imediatamente em suas análises.
 
-19. DIRETRIZ CRÍTICA DE TRIAGEM E CONHECIMENTO TÉCNICO: SACADOR DE ÁRVORES SAC 500 VS. DESTOCADOR TIPO BROCA RODER:
-    - **REGRA DE TRIAGEM OBRIGATÓRIA PARA PERGUNTAS SOBRE DESTOCA OU REMOÇÃO DE TOCOS**:
-      • Sempre que um vendedor, parceiro ou cliente fizer uma pergunta genérica sobre "destocador", "equipamento para destoca", "como remover toco", "arrancar toco da terra", etc., **VOCÊ DEVE PRIMEIRO IDENTIFICAR A AMBIGUIDADE E PERGUNTAR ATIVAMENTE SOBRE QUAL EQUIPAMENTO/PROCESSO ELE DESEJA MAIS INFORMAÇÕES**:
-        1. **Sacador de Árvores SAC 500**: Equipamento de **COLHEITA DE ÁRVORES VIVAS EM PÉ** que extrai a árvore por completo **junto com o toco e as raízes mais estruturadas**. *(O Sacador exige a árvore inteira em pé para alavancagem e NÃO retira toco isolado sozinho da terra)*.
-        2. **Destocador Tipo Broca Roder**: Equipamento **PÓS-COLHEITA** operado por motor redutor hidráulico e broca especial para **destruir e moer tocos que já estão no solo** após o abate prévio da floresta.
-      • **Pergunte com clareza oferecendo as duas opções**, para que a resposta não misture conceitos operacionais nem passe uma informação equivocada.
-
-    - **ESPECIFICAÇÕES TÉCNICAS E OPERACIONAIS DA BROCA - DESTOCADOR TIPO BROCA RODER**:
-      • **Diâmetro Padrão da Broca Roder**: A broca padrão fabricada pela Roder possui aproximadamente **680 milímetros (68 cm) de diâmetro**.
-      • **Operação em Tocos Menores que 68 cm**: Para tocos com diâmetro menor que 68 cm, a destoca é realizada em apenas **uma única passada**, posicionando a broca centralizada sobre o toco e fresando/furando até a profundidade limite.
-      • **Limpeza das Raízes no Entorno**: Durante a operação, o operador costuma fazer furos complementares ao redor do toco para destruir as raízes laterais mais grossas e garantir a limpeza do perímetro.
-      • **Operação em Tocos Grandes (1 metro ou mais)**: Em tocos muito grandes (de 1 metro de diâmetro ou superiores), é perfeitamente possível destruir o toco por completo realizando **múltiplos furos sobrepostos e sequenciais**, eliminando a estrutura de madeira na totalidade, independente do tamanho do toco.
-      • **Profundidade Máxima de Corte**: A broca padrão atinge aproximadamente **60 centímetros (600 mm) de profundidade** no solo.
-      • **Suficiência Agronômica**: Essa profundidade de 60 cm é amplamente suficiente para o preparo agrícola, pois a faixa de trabalho de subsoladores e gradagens para novas culturas (como o plantio de soja e grãos) necessita de **35 a 45 cm** de profundidade. Isso permite que as plantadeiras operem com total conforto, sem travar ou encontrar impedimentos no solo.
+19. DIRETRIZ CRÍTICA DE CONHECIMENTO TÉCNICO: DESTOCADOR RODER DTH-240B (TIPO BROCA) E SACADOR DE ÁRVORES SAC 500:
+    - **PERGUNTA SOBRE DESTOCA OU REMOÇÃO DE TOCOS**: responda direto com o **Destocador Roder DTH-240B** (tipo broca, patenteado), sem pergunta de triagem. O **Sacador de Árvores SAC 500** só entra se a pessoa falar de extrair **árvore viva em pé** com o toco e as raízes (o SAC 500 não retira toco isolado). Se houver dúvida real entre os dois, pergunte numa linha só.
+    - **É O MESMO DESTOCADOR PARA ESCAVADEIRA E PARA RETROESCAVADEIRA**: modelo **DTH-240B**. Muda só o **suporte**, que a Roder fabrica **sob medida para a máquina do cliente**, e a **Roder faz a instalação hidráulica**. Peça sempre o **modelo e o ano da máquina** para o suporte e o hidráulico.
+      • **Escavadeira hidráulica (médio/grande porte)**: peso operacional ideal **14 a 22 t**, vazão **140 a 220 L/min**, pressão **280 a 350 bar**.
+      • **Retroescavadeira ou escavadeira pequena**: peso operacional ideal **6 a 10 t**, vazão **100 a 150 L/min**, pressão **190 a 220 bar**.
+    - **ESPECIFICAÇÕES TÉCNICAS DO DTH-240B**:
+      • **Diâmetro da broca**: **Ø 660 mm**.
+      • **Comprimento total sem o suporte**: **1.452 mm**. **Profundidade de trabalho sem o suporte**: **740 mm** (medida do cepo).
+      • As dimensões do desenho da ficha (952, 630, 530, 477 e 260 mm) **não incluem o suporte de fixação**.
+      • **Peso**: não há peso confirmado para citar. Não informe peso; se perguntarem, diga que o time técnico confirma.
+      • **Tocos menores que a broca (Ø 660 mm)**: destoca em uma única passada, com a broca centralizada sobre o toco.
+      • **Tocos grandes (1 metro ou mais)**: múltiplos furos sobrepostos e sequenciais destroem o toco por completo. O operador costuma fazer furos complementares ao redor para destruir as raízes laterais mais grossas.
+      • **Profundidade**: 740 mm é amplamente suficiente para o preparo agrícola, pois subsolagem e gradagem para novas culturas (soja, grãos) trabalham a **35 a 45 cm**.
+    - **POR QUE VENDE**: destoca **sem buraco** (destrói o toco no próprio lugar e não altera a posição das camadas do solo), com **menos operações** e o **menor custo por hectare**, mais barato que arrancar o toco com a concha, arrastar até a borda e enterrar ou queimar. **Queimada é proibida.**
+    - **FICHA PARA O CLIENTE**: ofereça numa linha curta o link [Ver ficha técnica do Destocador DTH-240B](ficha-destocador:dth240b). O vendedor pode compartilhar a ficha por WhatsApp com o cliente que fará ele mesmo a solicitação de orçamento (botão "Enviar ficha"). Nunca cite comissão do vendedor.
 
     - **CONHECIMENTO DE PROCESSO - DESTOCADOR TIPO BROCA RODER**:
       • **Momento de Operação**: Trabalha exclusivamente **PÓS-COLHEITA**. As árvores (eucalipto, pinus, etc.) já foram previamente colhidas por feller, harvester ou motosserra. Apenas os tocos permanecem fixados no solo.
