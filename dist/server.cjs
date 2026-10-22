@@ -1458,6 +1458,54 @@ var REGRA_ENVIO_EQUIPAMENTO = `REGRA DE ENVIO DO EQUIPAMENTO AO CLIENTE (vale pa
 - Responda curto: cite o equipamento, diga que o bot\xE3o "Enviar ao cliente" manda a foto com o link e, se faltar saber qual \xE9 o equipamento, pergunte s\xF3 isso.
 - S\xF3 fale em ficha em PDF e s\xF3 mostre o link da ficha quando o vendedor pedir a ficha de forma expl\xEDcita (palavras como ficha, ficha t\xE9cnica, PDF).`;
 
+// src/lib/destocadorDth.ts
+var SPECS_DTH240B = {
+  diametro_corte: "660",
+  maquina_base: "14 a 22 t (escavadeira) | 6 a 10 t (retro/escav. pequena)",
+  pressao: "280 a 350 bar (escavadeira) | 190 a 220 bar (retro)",
+  vazao: "140 a 220 L/min (escavadeira) | 100 a 150 L/min (retro)"
+};
+var SPECS_NOVAS_DTH240B = {
+  comprimento_total: "1.452 mm",
+  profundidade_trabalho: "740 mm"
+};
+var ANTIGOS = {
+  diametro_corte: [/^\s*240\s*(mm)?\s*$/i],
+  maquina_base: [/^\s*14\s*a\s*25\s*(t|ton)?\.?\s*$/i, /^\s*14\s*a\s*22\s*ton\.?\s*\(escavadeira\)\s*\|\s*6\s*a\s*10\s*ton\.?\s*\(retro\/escavadeira pequena\)\s*$/i],
+  pressao: [/^\s*210\s*(a|-)\s*250\s*(bar)?\s*$/i, /^\s*280\s*a\s*350\s*\(escavadeira\)\s*\|\s*190\s*a\s*220\s*\(retro\)\s*$/i],
+  vazao: [/^\s*120\s*(a|-)\s*180\s*(l\/min)?\s*$/i, /^\s*140\s*a\s*220\s*\(escavadeira\)\s*\|\s*100\s*a\s*150\s*\(retro\)\s*$/i]
+};
+var ehModeloDth240b = (m) => !!m && (/^dth[-_ ]?240b?$/i.test(String(m.id || "").trim()) || /^dth[-_ ]?240b?$/i.test(String(m.name || "").trim()));
+function corrigirDestocadorDth240b(modelos) {
+  let mudou = false;
+  const novos = (modelos || []).map((m) => {
+    if (!ehModeloDth240b(m) || !m.technical_specs) return m;
+    const specs = { ...m.technical_specs };
+    let alterou = false;
+    for (const campo of Object.keys(SPECS_DTH240B)) {
+      if (typeof specs[campo] === "string" && ANTIGOS[campo].some((re) => re.test(specs[campo]))) {
+        specs[campo] = SPECS_DTH240B[campo];
+        alterou = true;
+      }
+    }
+    if (!alterou) return m;
+    for (const campo of Object.keys(SPECS_NOVAS_DTH240B)) {
+      if (!String(specs[campo] ?? "").trim()) specs[campo] = SPECS_NOVAS_DTH240B[campo];
+    }
+    mudou = true;
+    return { ...m, technical_specs: specs };
+  });
+  return mudou ? novos : null;
+}
+function modeloParaEnvio(model) {
+  const novos = corrigirDestocadorDth240b([model]);
+  return novos ? novos[0] : model;
+}
+function comDestocadorDthCorrigido(produto) {
+  const novos = corrigirDestocadorDth240b(produto?.models);
+  return novos ? { ...produto, models: novos } : produto;
+}
+
 // src/lib/confirmacaoMaquina.ts
 var RESSALVA_KIT = 'REGRA DE KIT: enquanto o vendedor n\xE3o AFIRMAR a configura\xE7\xE3o da m\xE1quina (fatia extra com sa\xEDda dupla, joystick eletr\xF4nico ou hidr\xE1ulico, GC/NG sem fatia), N\xC3O cite c\xF3digo de kit, N\xC3O liste op\xE7\xF5es de kit e N\xC3O escreva "poss\xEDvel kit". "Acho que tem" ou falta de informa\xE7\xE3o n\xE3o vale como afirma\xE7\xE3o, e modelo ou n\xFAmero de s\xE9rie nunca decidem. Nesse caso responda em 1 ou 2 frases curtas: a configura\xE7\xE3o varia de m\xE1quina para m\xE1quina e o primeiro passo \xE9 pedir ao cliente o v\xEDdeo no modelo do v\xEDdeo de amostra; aponte o bot\xE3o "Pedir confirma\xE7\xE3o da m\xE1quina ao cliente" logo abaixo (confirmar_maquina true). Na d\xFAvida, pe\xE7a sempre o v\xEDdeo (no modelo) OU o contato do vendedor da m\xE1quina, para o t\xE9cnico especialista conversar com ele ou analisar o v\xEDdeo e definir os kits. Lembre tamb\xE9m que o kit depende do modelo da m\xE1quina EM CONJUNTO com o tipo de suporte do implemento (link, ponteira, lan\xE7a extensora) e do equipamento, ent\xE3o pergunte o suporte e nunca chute c\xF3digo: um c\xF3digo errado entra errado no pedido de venda. S\xF3 quando o vendedor afirmar a configura\xE7\xE3o voc\xEA pode citar os kits cadastrados correspondentes, como resposta baseada no que ele informou, lembrando que o t\xE9cnico Roder confirma na confer\xEAncia final.';
 var KIT_BAIXA_SEM_LINHAS = "O kit de baixa 9000.9000.9003 sozinho N\xC3O tem tubula\xE7\xF5es nem mangueiras. Pelo cadastro ele \xE9 s\xF3: a bomba de engrenagem extra (48 cc), o comando el\xE9trico de uma se\xE7\xE3o (80 L) que recebe o fluxo dessa bomba extra e a caixa el\xE9trica de controle do comando, com a manopla de joystick, o bot\xE3o pulsante, os conectores e os adaptadores de conex\xE3o. Ele SEMPRE precisa de outro kit com as linhas hidr\xE1ulicas, que depende do equipamento a instalar (9000.9000.9035 para CMF; para garra, destocador, feller e outros, o kit de linhas correspondente do cadastro).";
@@ -3200,7 +3248,7 @@ function previaDoEquipamento(codigo, p, m, imagem) {
   const nome = String(p?.name || "").trim();
   if (!nome) return previaPadrao(codigo);
   const titulo = `${nome}${m?.name && !nome.includes(String(m.name)) ? ` ${m.name}` : ""} | Roder`;
-  const base = String(m?.technical_specs?.maquina_base || "").trim();
+  const base = String(m?.technical_specs?.maquina_base || "").split("|")[0].replace(/\s*\([^)]*\)\s*$/, "").trim();
   const temVideo = !!videoDoEquipamento(p, m);
   const fim = temVideo ? "Veja o v\xEDdeo trabalhando e pe\xE7a o or\xE7amento." : "Fotos, v\xEDdeo, ficha e or\xE7amento.";
   const descricao = base ? `Para ${/carregadeira|engate/i.test(nome) ? "p\xE1 carregadeira" : "escavadeiras"} de ${base.replace(/\s*ton\.?$/i, " t")}. ${fim}` : temVideo ? fim : previaPadrao(codigo).descricao;
@@ -5441,7 +5489,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-22g destocador-card";
+  const RELEASE_LABEL = "2026-10-22h envio-modelo-foto";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -6979,7 +7027,7 @@ ${items.join("\n")}`;
                 "Desbastador Florestal": "https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-desbastador-florestal.jpg.webp"
               };
               snap.forEach((doc) => {
-                const data = doc.data();
+                const data = comDestocadorDthCorrigido(doc.data());
                 const productImg = data.image_url || FALLBACK_PRODUCT_IMAGES[data.name] || "";
                 const modelsList = (data.models || []).map((m) => {
                   const specs = m.technical_specs || {};
@@ -9293,7 +9341,8 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
           const prod = await db.collection("products").doc(l.pid).get();
           if (prod.exists) {
             const p = prod.data();
-            const m = (p.models || []).find((x) => x.id === l.mid) || null;
+            const mBruto = (p.models || []).find((x) => x.id === l.mid) || null;
+            const m = mBruto ? modeloParaEnvio(mBruto) : null;
             const candidatas = candidatasDoLink(p, m);
             const imagem = urlImagemPrevia(SITE_PREVIA, codigo, candidatas);
             imagemPrevia.esquentar(codigo);
