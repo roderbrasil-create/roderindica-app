@@ -97,7 +97,7 @@ test('as imagens das fichas estão embutidas no repositório (public/fichas-fae)
   const comp = fonte('../src/components/catalog/FichaTrituradorFae.tsx');
   assert.ok(!/firestore|firebase\/storage|db-file:\/\//.test(comp));
   // o PDF usa as cópias em memória e espera as imagens decodificarem (bug do iPhone com imagem grande na primeira captura)
-  assert.ok(comp.includes('imagensEmMemoria') && comp.includes('esperarImagens(folha!)') && comp.includes('pdfDasFolhas([folha!])'));
+  assert.ok(comp.includes('imagensEmMemoria') && comp.includes('esperarImagens(folha!)') && comp.includes('pdfDasFolhas([folha!], '));
 });
 
 test('o prompt do consultor ensina os fatos das 4 fichas e oferece a ficha individual', () => {

@@ -104,31 +104,39 @@ export async function esperarImagens(el: HTMLElement) {
 }
 
 // Cada folha vira uma página A4. Folha mais alta que o A4 é reduzida para caber inteira.
-export async function pdfDasFolhas(folhas: HTMLElement[]): Promise<jsPDF> {
+// opcoes: largura da folha em px (padrão 840), pixelRatio da captura (padrão 2) e quantas capturas
+// descartáveis fazer antes da final (padrão 1; o iPhone às vezes precisa de duas) e fundo (padrão branco).
+export async function pdfDasFolhas(folhas: HTMLElement[], opcoes: { largura?: number; pixelRatio?: number; aquecimentos?: number; fundo?: string } = {}): Promise<jsPDF> {
+  const larguraFolha = opcoes.largura ?? LARGURA_FOLHA;
+  const pixelRatio = opcoes.pixelRatio ?? 2;
+  // a captura pinta esta cor por cima do fundo da folha: quem tem fundo próprio passa a mesma cor aqui
+  const fundo = opcoes.fundo ?? '#ffffff';
   const pdf = new jsPDF('p', 'mm', 'a4');
   // Safari/iPhone: a primeira captura sai sem as imagens. Uma captura descartável antes aquece o motor.
   if (folhas[0]) {
-    try {
-      await toPng(folhas[0], { pixelRatio: 1, backgroundColor: '#ffffff', width: LARGURA_FOLHA, height: folhas[0].offsetHeight || folhas[0].scrollHeight, style: { transform: 'none', margin: '0', boxShadow: 'none', borderRadius: '0' } });
-    } catch { /* o aquecimento é só um reforço */ }
+    for (let k = 0; k < (opcoes.aquecimentos ?? 1); k++) {
+      try {
+        await toPng(folhas[0], { pixelRatio: 1, backgroundColor: fundo, width: larguraFolha, height: folhas[0].offsetHeight || folhas[0].scrollHeight, style: { transform: 'none', margin: '0', boxShadow: 'none', borderRadius: '0' } });
+      } catch { /* o aquecimento é só um reforço */ }
+    }
   }
   for (let i = 0; i < folhas.length; i++) {
     const folha = folhas[i];
     const altura = folha.offsetHeight || folha.scrollHeight;
     const dataUrl = await toPng(folha, {
       quality: 0.98,
-      pixelRatio: 2,
-      backgroundColor: '#ffffff',
-      width: LARGURA_FOLHA,
+      pixelRatio,
+      backgroundColor: fundo,
+      width: larguraFolha,
       height: altura,
       style: { transform: 'none', margin: '0', boxShadow: 'none', borderRadius: '0' },
       filter: (node: HTMLElement) => !(node.classList && node.classList.contains('no-print')),
     });
     let largura = 210;
-    let alturaMm = (altura * largura) / LARGURA_FOLHA;
+    let alturaMm = (altura * largura) / larguraFolha;
     if (alturaMm > 297) {
       alturaMm = 297;
-      largura = (LARGURA_FOLHA * alturaMm) / altura;
+      largura = (larguraFolha * alturaMm) / altura;
     }
     if (i > 0) pdf.addPage();
     pdf.addImage(dataUrl, 'PNG', (210 - largura) / 2, 0, largura, alturaMm, undefined, 'FAST');

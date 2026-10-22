@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { useVoltarFecha } from '../../lib/useVoltarFecha';
 import { ZoomRolagem } from '../documento/ZoomRolagem';
 import {
-  LARGURA_FOLHA, ALTURA_FOLHA, carregarLogoFae, esperarImagens, pdfDasFolhas, entregarPdf, enviarArquivoPdf,
+  carregarLogoFae, esperarImagens, pdfDasFolhas, entregarPdf, enviarArquivoPdf,
   nomeArquivoFicha, usePodeEnviarFicha,
 } from './fichaPdf';
 import {
@@ -15,28 +15,46 @@ import {
 
 // Ficha individual (A4, uma página) dos trituradores FAE de escavadeira que a Roder vende.
 // Desenha o layout aprovado em 22/10/2026 a partir de src/data/fichasTrituradorFae.ts.
-// As medidas ficam em mm e pt, como no HTML aprovado: a página de 210 mm é desenhada e depois
-// ampliada para a largura de 840 px das outras fichas (840 / 793,7 px de 210 mm).
+// A folha é desenhada direto em 1680 x 2376 px (o dobro das outras fichas, 8 px por mm), SEM transform:
+// - a captura do PDF (html-to-image) troca cada font-size por floor(tamanho) - 0,1 px, o que encolhia o texto
+//   e quebrava linha diferente da tela; aqui todo font-size é inteiro e grande, então a perda some;
+// - no iPhone (WebKit) imagem dentro de folha com transform sumia na captura; aqui a folha é capturada com
+//   pixelRatio 1, sem escala nenhuma, e toda imagem tem largura e altura explícitas e nunca é ampliada.
+// Na tela, a folha é reduzida pela metade por um envoltório (fora do elemento capturado).
 const PASTA = '/fichas-fae';
-// A folha é desenhada K vezes maior e reduzida por transform. Motivo: a captura do PDF (html-to-image) troca
-// cada font-size por floor(tamanho) - 0,1 px, o que encolhe até 7% um texto de 12,8 px e quebra as linhas
-// diferente da tela. Com o texto em tamanho grande (mais de 60 px) a perda some (menos de 1%).
-const K = 8;
-const ESCALA = LARGURA_FOLHA / (210 * 96 / 25.4) / K;
-const mm = (n: number) => `${n * K}mm`;
-// multiplica toda medida (mm, pt, px) do CSS por K
-const emK = (css: string) => css.replace(/(-?\d*\.?\d+)(mm|pt|px)\b/g, (_, n, u) => `${Math.round(parseFloat(n) * K * 1000) / 1000}${u}`);
+export const LARGURA_FAE = 1680;
+export const ALTURA_FAE = 2376;
+const LARGURA_TELA = LARGURA_FAE / 2;
+const ALTURA_TELA = ALTURA_FAE / 2;
+const PX_MM = LARGURA_FAE / 210; // 8 px por mm
+const PX_PT = (96 / 72) * (840 / (210 * 96 / 25.4)) * (LARGURA_FAE / 840); // pt do HTML aprovado, na folha de 840 px, dobrado
+const mm = (n: number) => `${Math.round(n * PX_MM * 100) / 100}px`;
+// converte o CSS escrito em mm e pt (como no HTML aprovado) para px da folha; font-size sempre inteiro
+const emPx = (css: string) => css
+  .replace(/font-size:(-?\d*\.?\d+)pt/g, (_, n) => `font-size:${Math.round(parseFloat(n) * PX_PT)}@@`)
+  .replace(/(-?\d*\.?\d+)(mm|pt|px)\b/g, (_, n, u) => {
+    const v = parseFloat(n);
+    return `${Math.round((u === 'mm' ? v * PX_MM : u === 'pt' ? v * PX_PT : v * 2) * 100) / 100}px`;
+  })
+  .replace(/@@/g, 'px');
 
 const caminhoImagem = (chave: ChaveFichaFae, arquivo: string) => `${PASTA}/${chave}/${arquivo}`;
 const COMUM = { qr: `${PASTA}/comum/qr.png`, roder: `${PASTA}/comum/roder-branco.png`, fundo: `${PASTA}/comum/x-000.png` };
+// largura / altura reais do rotor de cada modelo: a imagem tem as duas medidas escritas, nunca "auto"
+const PROPORCAO: Record<string, number> = {
+  'bl2/rotor-bl.png': 640 / 289,
+  'uml-ex-vt/rotor-bl.png': 640 / 385,
+  'uml-s-ex-vt/rotor-bl.png': 640 / 393,
+};
 const PESOS_OSWALD = [400, 500, 600, 700];
+// colunas da tabela (mm): a divisória laranja fica no meio (94 + 94); o rótulo longo da direita tem folga
+const COLUNAS_MM = [56, 34, 64, 34] as const;
 
 // Tudo preso a .ffae, para não mexer em nenhuma outra tela
-const CSS = emK(`
+const CSS = emPx(`
 ${PESOS_OSWALD.map(p => `@font-face{font-family:Oswald;font-weight:${p};font-display:block;src:url(${PASTA}/fonts/oswald-latin-${p}-normal.woff2) format("woff2")}`).join('\n')}
-.ffae-raiz{position:relative;overflow:hidden;background:#f0efed}
 .ffae,.ffae *{box-sizing:border-box;margin:0;padding:0}
-.ffae{position:relative;width:210mm;height:297mm;overflow:hidden;background:#f0efed;font-family:Oswald,sans-serif;color:#111;transform-origin:0 0;text-rendering:geometricPrecision;font-kerning:normal;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.ffae{position:relative;width:210mm;height:297mm;overflow:hidden;background:#f0efed;font-family:Oswald,sans-serif;color:#111;text-rendering:geometricPrecision;font-kerning:normal;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .ffae .titulo{position:absolute;left:11mm;top:11mm;font-weight:600;font-size:29pt;line-height:1;letter-spacing:-.3pt;color:#111}
 .ffae .modelo{position:absolute;left:11mm;top:24mm;font-weight:700;font-size:34pt;line-height:1;color:#ff7a00;letter-spacing:-.3pt}
 .ffae .cod{position:absolute;left:11.4mm;top:38mm;font-weight:500;font-size:8pt;letter-spacing:.5pt;color:#555}
@@ -65,6 +83,7 @@ ${PESOS_OSWALD.map(p => `@font-face{font-family:Oswald;font-weight:${p};font-dis
 .ffae .tab table{position:absolute;left:11mm;top:10mm;width:188mm;border-collapse:collapse;font-size:9.2pt;table-layout:fixed}
 .ffae .tab th{background:#000;color:#fff;font-weight:600;text-align:left;padding:2mm 3mm}
 .ffae .tab td{padding:1.8mm 1mm 1.8mm 3mm;border-bottom:1px solid #dcdbd8;font-weight:400;background:#f4f3f1;white-space:nowrap}
+.ffae .tab td:nth-child(1),.ffae .tab td:nth-child(3){white-space:normal}
 .ffae .tab tr:nth-child(even) td{background:#e7e6e3}
 .ffae .tab td:nth-child(1),.ffae .tab td:nth-child(3){color:#6b6b6b;font-weight:400}
 .ffae .tab td:nth-child(2),.ffae .tab td:nth-child(4){color:#000;font-weight:700;text-align:left}
@@ -72,12 +91,13 @@ ${PESOS_OSWALD.map(p => `@font-face{font-family:Oswald;font-weight:${p};font-dis
 .ffae .qr{position:absolute;left:142mm;top:164mm;width:57mm;display:flex;gap:3mm;align-items:flex-start;font-family:Arial,Helvetica,sans-serif;font-size:6.4pt;line-height:1.3;color:#444}
 .ffae .qr img{width:17mm;height:17mm}
 .ffae .nota{position:absolute;left:11mm;top:256mm;width:150mm;font-size:7.4pt;line-height:1.35;color:#666;font-weight:400}
-.ffae .rod{position:absolute;left:0;bottom:0;width:210mm;height:34mm;background-color:#000;background-repeat:no-repeat;background-position:left bottom;background-size:cover}
+.ffae .rod{position:absolute;left:0;bottom:0;width:210mm;height:34mm;background-color:#000;overflow:hidden}
+.ffae .rod .fundo{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;object-position:left bottom}
 .ffae .rod:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.35),rgba(0,0,0,.88) 70%)}
 .ffae .rod .f{position:absolute;left:11mm;top:11mm;color:#fff;font-weight:600;font-size:15pt;z-index:2;max-width:92mm;line-height:1.15}
 .ffae .rod .l{position:absolute;right:11mm;top:6.5mm;z-index:2;display:flex;align-items:center;gap:6mm}
-.ffae .rod .l img.r{height:14.5mm;width:auto}
-.ffae .logofae{position:absolute;right:8mm;top:6mm;height:18mm;width:auto;border-radius:1.5mm}
+.ffae .rod .l img.r{height:14.5mm;width:66.18mm}
+.ffae .logofae{position:absolute;right:8mm;top:6mm;height:18mm;width:19.35mm;border-radius:1.5mm}
 `);
 
 interface FolhaProps {
@@ -87,13 +107,13 @@ interface FolhaProps {
   resolver?: (caminho: string) => string;
 }
 
-// A folha em si, 840 x 1188 px. Sem hooks de contexto: também é desenhada fora da tela para gerar o PDF.
+// A folha em si, 1680 x 2376 px. Sem hooks de contexto: também é desenhada fora da tela para gerar o PDF.
 export const FolhaFichaFae = React.forwardRef<HTMLDivElement, FolhaProps>(({ ficha, logoFae, resolver }, ref) => {
   const src = (c: string) => (resolver ? resolver(c) : c);
   return (
-    <div ref={ref} className="ffae-raiz" data-ficha-fae={ficha.chave} style={{ width: `${LARGURA_FOLHA}px`, height: `${ALTURA_FOLHA}px` }}>
+    <div ref={ref} className="ffae" data-ficha-fae={ficha.chave}>
       <style>{CSS}</style>
-      <div className="ffae" style={{ transform: `scale(${ESCALA})` }}>
+      <div style={{ display: 'contents' }}>
         <div className="titulo">{TITULO_FICHA_FAE}</div>
         <div className="modelo">{ficha.nome}</div>
         <div className="cod">{LINHA_FICHA_FAE}</div>
@@ -109,7 +129,7 @@ export const FolhaFichaFae = React.forwardRef<HTMLDivElement, FolhaProps>(({ fic
           {ficha.dentes.map(d => (
             <div className="lin" key={d.imagem}>
               <div className="im">
-                <img src={src(caminhoImagem(ficha.chave, d.imagem))} alt={d.titulo} style={d.larguraMm ? { maxWidth: 'none', width: mm(d.larguraMm), height: 'auto', flex: 'none' } : undefined} />
+                <img src={src(caminhoImagem(ficha.chave, d.imagem))} alt={d.titulo} style={d.larguraMm ? { maxWidth: 'none', maxHeight: 'none', width: mm(d.larguraMm), height: mm(d.larguraMm / (PROPORCAO[`${ficha.chave}/${d.imagem}`] || 2)), flex: 'none', objectFit: 'fill' } : undefined} />
               </div>
               <div className="tx"><b>{d.titulo}{d.destaque ? <> <i>{d.destaque}</i></> : null}</b><p>{d.texto}</p></div>
             </div>
@@ -124,7 +144,7 @@ export const FolhaFichaFae = React.forwardRef<HTMLDivElement, FolhaProps>(({ fic
         <div className="tab">
           <h2>MODELO E CARACTERÍSTICA TÉCNICA</h2>
           <table>
-            <colgroup><col style={{ width: mm(60) }} /><col style={{ width: mm(34) }} /><col style={{ width: mm(60) }} /><col style={{ width: mm(34) }} /></colgroup>
+            <colgroup><col style={{ width: mm(COLUNAS_MM[0]) }} /><col style={{ width: mm(COLUNAS_MM[1]) }} /><col style={{ width: mm(COLUNAS_MM[2]) }} /><col style={{ width: mm(COLUNAS_MM[3]) }} /></colgroup>
             <tbody>
               <tr><th colSpan={4}>ESPECIFICAÇÃO <span style={{ float: 'right' }}>{ficha.codigoTabela}</span></th></tr>
               {ficha.linhas.map(l => (
@@ -140,7 +160,8 @@ export const FolhaFichaFae = React.forwardRef<HTMLDivElement, FolhaProps>(({ fic
         <div className="qr"><img src={src(COMUM.qr)} alt="" /><div>Acesse<br />e conheça nossa<br />linha completa.</div></div>
         <div className="nota">{NOTA_FICHA_FAE}</div>
 
-        <div className="rod" style={{ backgroundImage: `url(${src(COMUM.fundo)})` }}>
+        <div className="rod">
+          <img className="fundo" src={src(COMUM.fundo)} alt="" />
           <div className="f">{RODAPE_FICHA_FAE}</div>
           <div className="l"><img className="r" src={src(COMUM.roder)} alt="Roder" /></div>
         </div>
@@ -163,6 +184,26 @@ const comoDataUrl = (blob: Blob) => new Promise<string>((ok, erro) => {
   r.readAsDataURL(blob);
 });
 
+// Passa a imagem por um canvas: sai sempre como um bitmap simples, já decodificado e no tamanho de uso.
+// Foto grande e PNG com perfil de cor estranho são o que o Safari costuma largar dentro da captura.
+async function recodificar(dataUrl: string, ladoMax: number, tipo: 'image/png' | 'image/jpeg'): Promise<string> {
+  try {
+    const img = new Image();
+    img.src = dataUrl;
+    await img.decode();
+    const f = Math.min(1, ladoMax / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(img.naturalWidth * f));
+    c.height = Math.max(1, Math.round(img.naturalHeight * f));
+    const ctx = c.getContext('2d');
+    if (!ctx) return dataUrl;
+    if (tipo === 'image/jpeg') { ctx.fillStyle = '#f0efed'; ctx.fillRect(0, 0, c.width, c.height); }
+    ctx.drawImage(img, 0, 0, c.width, c.height);
+    const saida = c.toDataURL(tipo, 0.92);
+    return saida.startsWith('data:image') ? saida : dataUrl;
+  } catch { return dataUrl; }
+}
+
 // Imagens pequenas e já em memória: a captura do PDF não depende de buscar arquivo no meio do caminho
 // (no iPhone a primeira captura saía sem as imagens que ainda não tinham decodificado).
 async function imagensEmMemoria(ficha: FichaFae): Promise<Record<string, string>> {
@@ -171,10 +212,19 @@ async function imagensEmMemoria(ficha: FichaFae): Promise<Record<string, string>
     try {
       const r = await fetch(c);
       if (!r.ok) throw new Error(String(r.status));
-      mapa[c] = await comoDataUrl(await r.blob());
+      const url = await comoDataUrl(await r.blob());
+      mapa[c] = c.endsWith('foto.jpg') ? await recodificar(url, 760, 'image/jpeg')
+        : c === COMUM.roder ? await recodificar(url, 640, 'image/png') : url;
     } catch { /* sem a cópia, a folha usa o endereço normal */ }
   }));
   return mapa;
+}
+
+// Nome das imagens da folha que não estão carregadas de verdade (o teste e a geração do PDF cobram vazio)
+export function imagensNaoCarregadas(folha: HTMLElement): string[] {
+  return (Array.from(folha.getElementsByTagName('img')) as HTMLImageElement[])
+    .filter(i => !i.complete || i.naturalWidth === 0)
+    .map(i => (i.getAttribute('alt') || i.className || 'imagem') + '');
 }
 
 async function esperarFontes() {
@@ -189,7 +239,7 @@ export async function gerarFichaFaePdf(chave: ChaveFichaFae) {
   const [logoFae, mapa] = await Promise.all([carregarLogoFae(), imagensEmMemoria(ficha)]);
   const caixa = document.createElement('div');
   caixa.setAttribute('aria-hidden', 'true');
-  caixa.style.cssText = `position:fixed;left:-10000px;top:0;width:${LARGURA_FOLHA}px;pointer-events:none;`;
+  caixa.style.cssText = `position:fixed;left:-10000px;top:0;width:${LARGURA_FAE}px;pointer-events:none;`;
   document.body.appendChild(caixa);
   const raiz = createRoot(caixa);
   try {
@@ -199,7 +249,9 @@ export async function gerarFichaFaePdf(chave: ChaveFichaFae) {
     });
     await esperarFontes();
     await esperarImagens(folha!);
-    return await pdfDasFolhas([folha!]);
+    const faltam = imagensNaoCarregadas(folha!);
+    if (faltam.length) throw new Error(`Imagens da ficha sem carregar: ${faltam.join(', ')}`);
+    return await pdfDasFolhas([folha!], { largura: LARGURA_FAE, pixelRatio: 1, aquecimentos: 2, fundo: '#f0efed' });
   } finally {
     raiz.unmount();
     caixa.remove();
@@ -250,7 +302,7 @@ export function FichaTrituradorFae({ chave, onClose, enviar = false }: FichaFaeP
     const medir = () => {
       if (!wrapperRef.current) return;
       const disponivel = wrapperRef.current.clientWidth - (window.innerWidth < 640 ? 16 : 32);
-      setEscala(disponivel < LARGURA_FOLHA ? disponivel / LARGURA_FOLHA : 1);
+      setEscala(disponivel < LARGURA_TELA ? disponivel / LARGURA_TELA : 1);
     };
     medir();
     const obs = new ResizeObserver(medir);
@@ -317,9 +369,14 @@ export function FichaTrituradorFae({ chave, onClose, enviar = false }: FichaFaeP
           interiorClassName="p-2 sm:p-8 flex flex-col items-center"
           reiniciarCom={chave}
         >
-          <div className="w-full flex justify-center" style={{ height: `${ALTURA_FOLHA * escala}px` }}>
-            <div style={{ width: `${LARGURA_FOLHA}px`, minWidth: `${LARGURA_FOLHA}px`, transform: `scale(${escala})`, transformOrigin: 'top center' }}>
-              <FolhaFichaFae ref={folhaRef} ficha={ficha} logoFae={logoFae} />
+          <div className="w-full flex justify-center" style={{ height: `${ALTURA_TELA * escala}px` }}>
+            <div style={{ width: `${LARGURA_TELA}px`, minWidth: `${LARGURA_TELA}px`, transform: `scale(${escala})`, transformOrigin: 'top center' }}>
+              {/* a folha tem o dobro do tamanho da tela: a redução pela metade fica aqui, fora do que é capturado */}
+              <div style={{ width: `${LARGURA_TELA}px`, height: `${ALTURA_TELA}px`, overflow: 'hidden' }}>
+                <div style={{ width: `${LARGURA_FAE}px`, height: `${ALTURA_FAE}px`, transform: 'scale(0.5)', transformOrigin: 'top left' }}>
+                  <FolhaFichaFae ref={folhaRef} ficha={ficha} logoFae={logoFae} />
+                </div>
+              </div>
             </div>
           </div>
         </ZoomRolagem>
