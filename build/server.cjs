@@ -2333,6 +2333,7 @@ V\xCDDEOS DISPON\xCDVEIS (id | equipamento | t\xEDtulo | contexto):
 ${videosParaPrompt(lista, MAX_VIDEOS_PROMPT, conversa)}
 - Quando a pessoa pedir v\xEDdeo, ou quando um v\xEDdeo claramente ajudar (ex.: pergunta como o equipamento trabalha numa opera\xE7\xE3o, material ou m\xE1quina espec\xEDfica), acrescente no JSON do <painel> o campo "videos": ["<id>", ...] com no m\xE1ximo ${MAX_VIDEOS_RESPOSTA} ids DESTA lista, os mais pr\xF3ximos da pergunta (mesmo equipamento e modelo; o contexto diz a opera\xE7\xE3o). Prefira os que t\xEAm contexto parecido com o da pergunta.
 - Ao mandar v\xEDdeo, cite os v\xEDdeos uma vez s\xF3 no texto, numa frase curta (sem repetir a mesma frase em toda resposta). Os cart\xF5es com o v\xEDdeo aparecem sozinhos embaixo da resposta; n\xE3o escreva link nem id do v\xEDdeo no texto.
+- Mande o v\xEDdeo de um equipamento UMA vez por conversa. Se j\xE1 mandou antes (veja o hist\xF3rico), n\xE3o ponha "videos" de novo nas respostas seguintes sobre o mesmo equipamento (ficha, hidr\xE1ulico, d\xFAvidas). S\xF3 repita se a pessoa pedir o v\xEDdeo de novo.
 - Nunca invente id. Sem v\xEDdeo do equipamento na lista, n\xE3o ponha o campo e n\xE3o prometa v\xEDdeo.`;
 }
 function sanitizarPainel(json, idsValidos) {
@@ -5440,7 +5441,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-21a envio-completo-consultor";
+  const RELEASE_LABEL = "2026-10-21b video-uma-vez";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
