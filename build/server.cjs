@@ -1437,6 +1437,27 @@ var INSTALLATION_KITS = [
   }
 ];
 
+// server/linkCurtoDono.ts
+var PAPEIS_QUE_VEEM_COMO = ["admin", "manager"];
+var UID_VALIDO = /^[A-Za-z0-9_-]{1,128}$/;
+async function donoDoLinkCurto(chamador, uidPedido, parceiroAtivoExiste) {
+  const pedido = typeof uidPedido === "string" ? uidPedido.trim() : "";
+  if (!pedido || pedido === chamador.uid) return chamador.uid;
+  if (!PAPEIS_QUE_VEEM_COMO.includes(String(chamador.role || ""))) return chamador.uid;
+  if (!UID_VALIDO.test(pedido)) return chamador.uid;
+  try {
+    return await parceiroAtivoExiste(pedido) ? pedido : chamador.uid;
+  } catch {
+    return chamador.uid;
+  }
+}
+
+// src/lib/pedidoEnvio.ts
+var REGRA_ENVIO_EQUIPAMENTO = `REGRA DE ENVIO DO EQUIPAMENTO AO CLIENTE (vale para a equipe):
+- Quando o vendedor pedir para enviar, mandar, compartilhar, apresentar, divulgar o equipamento ao cliente, ou pedir cat\xE1logo, folder, propaganda ou material de venda, N\xC3O ofere\xE7a escolha entre formatos e N\xC3O pergunte "ficha ou link". O envio \xE9 sempre o formato completo: foto grande, caracter\xEDsticas e link para o cliente ver v\xEDdeo, ficha e pedir or\xE7amento. Esse envio \xE9 o bot\xE3o verde "Enviar ao cliente" do cart\xE3o do equipamento, que aparece abaixo da sua resposta.
+- Responda curto: cite o equipamento, diga que o bot\xE3o "Enviar ao cliente" manda a foto com o link e, se faltar saber qual \xE9 o equipamento, pergunte s\xF3 isso.
+- S\xF3 fale em ficha em PDF e s\xF3 mostre o link da ficha quando o vendedor pedir a ficha de forma expl\xEDcita (palavras como ficha, ficha t\xE9cnica, PDF).`;
+
 // src/lib/confirmacaoMaquina.ts
 var RESSALVA_KIT = 'REGRA DE KIT: enquanto o vendedor n\xE3o AFIRMAR a configura\xE7\xE3o da m\xE1quina (fatia extra com sa\xEDda dupla, joystick eletr\xF4nico ou hidr\xE1ulico, GC/NG sem fatia), N\xC3O cite c\xF3digo de kit, N\xC3O liste op\xE7\xF5es de kit e N\xC3O escreva "poss\xEDvel kit". "Acho que tem" ou falta de informa\xE7\xE3o n\xE3o vale como afirma\xE7\xE3o, e modelo ou n\xFAmero de s\xE9rie nunca decidem. Nesse caso responda em 1 ou 2 frases curtas: a configura\xE7\xE3o varia de m\xE1quina para m\xE1quina e o primeiro passo \xE9 pedir ao cliente o v\xEDdeo no modelo do v\xEDdeo de amostra; aponte o bot\xE3o "Pedir confirma\xE7\xE3o da m\xE1quina ao cliente" logo abaixo (confirmar_maquina true). Na d\xFAvida, pe\xE7a sempre o v\xEDdeo (no modelo) OU o contato do vendedor da m\xE1quina, para o t\xE9cnico especialista conversar com ele ou analisar o v\xEDdeo e definir os kits. Lembre tamb\xE9m que o kit depende do modelo da m\xE1quina EM CONJUNTO com o tipo de suporte do implemento (link, ponteira, lan\xE7a extensora) e do equipamento, ent\xE3o pergunte o suporte e nunca chute c\xF3digo: um c\xF3digo errado entra errado no pedido de venda. S\xF3 quando o vendedor afirmar a configura\xE7\xE3o voc\xEA pode citar os kits cadastrados correspondentes, como resposta baseada no que ele informou, lembrando que o t\xE9cnico Roder confirma na confer\xEAncia final.';
 var KIT_BAIXA_SEM_LINHAS = "O kit de baixa 9000.9000.9003 sozinho N\xC3O tem tubula\xE7\xF5es nem mangueiras. Pelo cadastro ele \xE9 s\xF3: a bomba de engrenagem extra (48 cc), o comando el\xE9trico de uma se\xE7\xE3o (80 L) que recebe o fluxo dessa bomba extra e a caixa el\xE9trica de controle do comando, com a manopla de joystick, o bot\xE3o pulsante, os conectores e os adaptadores de conex\xE3o. Ele SEMPRE precisa de outro kit com as linhas hidr\xE1ulicas, que depende do equipamento a instalar (9000.9000.9035 para CMF; para garra, destocador, feller e outros, o kit de linhas correspondente do cadastro).";
@@ -1800,7 +1821,11 @@ function criarRotasConsultorParceiro(deps) {
       if (!/^[A-Za-z0-9_-]{1,80}$/.test(pid) || mid && !/^[A-Za-z0-9_.-]{1,80}$/.test(mid)) return res.status(400).json({ error: "Equipamento inv\xE1lido." });
       const p = await db2.collection("products").doc(pid).get();
       if (!p.exists) return res.status(404).json({ error: "Equipamento n\xE3o encontrado." });
-      const codigo = await deps.criarLinkCurto(dono.uid, pid, mid);
+      const donoLink = dono.via === "login" ? await donoDoLinkCurto({ uid: dono.uid, role: dono.role }, req.body?.uid, async (u) => {
+        const d = (await db2.collection("users").doc(u).get()).data();
+        return !!d && d.status === "active";
+      }) : dono.uid;
+      const codigo = await deps.criarLinkCurto(donoLink, pid, mid);
       if (!codigo) return res.status(500).json({ error: "N\xE3o consegui gerar o link." });
       res.json({ ok: true, codigo });
     } catch {
@@ -5415,7 +5440,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-20w convite-consultor";
+  const RELEASE_LABEL = "2026-10-21a envio-completo-consultor";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -7472,8 +7497,10 @@ ${REGRA_KIT_CONFIRMACAO}
           - A profundidade de trabalho tamb\xE9m depende diretamente da pot\xEAncia do trator. Para alcan\xE7ar a profundidade m\xE1xima, o trator deve estar operando em sua m\xE1xima pot\xEAncia exigida pelo equipamento, e n\xE3o na pot\xEAncia m\xEDnima.
           - Solos de compacta\xE7\xE3o extrema podem restringir a profundidade de trabalho, impedindo que se alcance uma profundidade alta mesmo ap\xF3s uma ou duas passadas, devido aos limites f\xEDsicos de resist\xEAncia do terreno.
           
+          ${REGRA_ENVIO_EQUIPAMENTO}
+
           DIRETRIZ REVOLUCION\xC1RIA DE FICHA T\xC9CNICA INTERATIVA (COMPARTILHAMENTO DE LINKS):
-          - Quando qualquer usu\xE1rio ou vendedor solicitar a ficha t\xE9cnica, especifica\xE7\xF5es detalhadas ou o cat\xE1logo de qualquer equipamento (especialmente Fresa SSH, Ca\xE7amba High Tip ou garras/cabe\xE7otes), voc\xEA DEVE:
+          - Quando qualquer usu\xE1rio ou vendedor solicitar a ficha t\xE9cnica (ou o PDF) ou as especifica\xE7\xF5es detalhadas de qualquer equipamento (especialmente Fresa SSH, Ca\xE7amba High Tip ou garras/cabe\xE7otes), voc\xEA DEVE:
             1. Descrever de forma completa e estruturada as especifica\xE7\xF5es e caracter\xEDsticas do equipamento diretamente na resposta.
             2. Fornecer ativamente um link Markdown direto para o vendedor abrir a ficha t\xE9cnica correspondente e interativa dentro do sistema, ou o PDF oficial do cat\xE1logo.
             3. Instruir o vendedor que ele pode clicar neste link direto para abrir a ficha t\xE9cnica oficial do equipamento, onde ele poder\xE1 ajustar e personalizar as imagens, simular compatibilidades, e clicar em **Salvar PDF** para gerar e exportar de forma instant\xE2nea uma via limpa, profissional e de alta defini\xE7\xE3o para enviar diretamente no WhatsApp de seu cliente!
@@ -9204,7 +9231,12 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       const pid = String(req.body?.pid || "").slice(0, 80);
       const mid = String(req.body?.mid || "").slice(0, 80);
       if (!pid) return res.status(400).json({ error: "Equipamento n\xE3o informado." });
-      const codigo = await criarLinkCurto(quem.uid, pid, mid);
+      const chamador = await quemChama(req);
+      const dono = await donoDoLinkCurto({ uid: quem.uid, role: chamador?.role }, req.body?.uid, async (u) => {
+        const d = (await db.collection("users").doc(u).get()).data();
+        return !!d && d.status === "active";
+      });
+      const codigo = await criarLinkCurto(dono, pid, mid);
       if (codigo) return res.json({ codigo });
       res.status(500).json({ error: "N\xE3o consegui gerar o link." });
     } catch (e) {
