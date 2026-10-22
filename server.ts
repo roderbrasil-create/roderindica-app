@@ -2915,7 +2915,7 @@ ${REGRA_KIT_CONFIRMACAO}
       • **Diâmetro da broca**: **Ø 660 mm**.
       • **Comprimento total sem o suporte**: **1.452 mm**. **Profundidade de trabalho sem o suporte**: **740 mm** (medida do cepo).
       • As dimensões do desenho da ficha (952, 630, 530, 477 e 260 mm) **não incluem o suporte de fixação**.
-      • **Peso**: não há peso confirmado para citar. Não informe peso; se perguntarem, diga que o time técnico confirma.
+      • **Peso**: **750 kg** (apenas o destocador, sem o suporte).
       • **Tocos menores que a broca (Ø 660 mm)**: destoca em uma única passada, com a broca centralizada sobre o toco.
       • **Tocos grandes (1 metro ou mais)**: múltiplos furos sobrepostos e sequenciais destroem o toco por completo. O operador costuma fazer furos complementares ao redor para destruir as raízes laterais mais grossas.
       • **Profundidade**: 740 mm é amplamente suficiente para o preparo agrícola, pois subsolagem e gradagem para novas culturas (soja, grãos) trabalham a **35 a 45 cm**.

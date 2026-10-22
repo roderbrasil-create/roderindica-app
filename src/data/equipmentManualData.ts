@@ -192,7 +192,7 @@ export const EQUIPMENT_SPEC_TABLES: EquipmentSpecTable[] = [
     headers: ['Equipamento / Modelo', 'Função Operacional', 'Diâm. de Trabalho', 'Peso', 'Vazão / Pressão', 'Máquina Base Recomendada'],
     columnWidthsPdf: [26, 38, 26, 20, 32, 40],
     rows: [
-      ['Destocador DTH-240B', 'Destoca sem buraco: destrói o toco no próprio lugar', 'Broca Ø 660 mm (740 mm de profundidade sem suporte)', 'Sob consulta', 'Escavadeira: 140 a 220 L/min | 280-350 bar. Retro: 100 a 150 L/min | 190-220 bar', 'Escavadeira de 14 a 22 Ton. ou retroescavadeira/escavadeira de 6 a 10 Ton. (suporte sob medida)'],
+      ['Destocador DTH-240B', 'Destoca sem buraco: destrói o toco no próprio lugar', 'Broca Ø 660 mm (740 mm de profundidade sem suporte)', '750 kg', 'Escavadeira: 140 a 220 L/min | 280-350 bar. Retro: 100 a 150 L/min | 190-220 bar', 'Escavadeira de 14 a 22 Ton. ou retroescavadeira/escavadeira de 6 a 10 Ton. (suporte sob medida)'],
       ['Sacador SAC 500', 'Extração de árvores vivas com torrão de raiz intacto', '500 mm (torrão circular)', '920 kg', '80 a 140 L/min | 180-220 bar', 'Escavadeiras e Pás Carregadeiras'],
       ['Mini Skidder MSR 600', 'Arraste de toras em talhões acoplado no 3º ponto', 'Garra de arraste 0,60 m²', '340 kg', 'Acionamento remoto do trator', 'Tratores Agrícolas de 60 a 90 cv'],
       ['Mini Skidder MSR 1000', 'Arraste pesado de toras em talhões florestais', 'Garra de arraste 1,00 m²', '490 kg', 'Acionamento remoto do trator', 'Tratores Agrícolas de 90 a 140 cv'],

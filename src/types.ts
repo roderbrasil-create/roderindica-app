@@ -244,6 +244,8 @@ export interface ProductModel {
     maquina_base?: string;
     // Cabeçote Multifuncional
     diametro_corte?: string;
+    comprimento_total?: string;
+    profundidade_trabalho?: string;
     sabre?: string;
     corrente?: string;
     vazao?: string;

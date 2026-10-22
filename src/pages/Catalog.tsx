@@ -92,6 +92,8 @@ import { CabecotePodaFicha } from '../components/catalog/CabecotePodaFicha';
 import { FichaGmt035 } from '../components/catalog/FichaGmt035';
 import { FichaDestocador } from '../components/catalog/FichaDestocador';
 import { ehDestocadorDth } from '../lib/fichaDestocador';
+import { comDestocadorDthCorrigido, comUnidade, rotuloDiametroDoModelo, ehModeloDth240b, perfisDoTexto, comporPerfis, ROTULOS_DTH240B } from '../lib/destocadorDth';
+import { corrigirDestocadorDthUmaVez } from '../lib/migracaoDestocadorDth';
 import { SacadorSac500Ficha } from '../components/catalog/SacadorSac500Ficha';
 import { FichaPadrao } from '../components/catalog/FichaPadrao';
 import { FichaTrituradorFae } from '../components/catalog/FichaTrituradorFae';
@@ -1058,7 +1060,9 @@ export default function Catalog() {
   useEffect(() => {
     const q = query(collection(db, 'products'), orderBy('created_at', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
+      const dadosBrutos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
+      // Destocador DTH 240B: o card já aparece com os valores da ficha, mesmo antes da correção do banco
+      const data = dadosBrutos.map(comDestocadorDthCorrigido);
       
       // Auto-seed if empty
       if (data.length === 0) {
@@ -1072,6 +1076,7 @@ export default function Catalog() {
 
       if (user?.email === 'roderbrasil@gmail.com' || user?.email === 'roderindica@gmail.com') {
         corrigirFaixaCmf500UmaVez(data, db);
+        corrigirDestocadorDthUmaVez(dadosBrutos, db);
         const fellerTesoura = data.find(p => p.name === 'Feller Tesoura');
         if (!fellerTesoura && data.length > 0) {
           addFellerTesoura();
@@ -1427,9 +1432,12 @@ export default function Catalog() {
             ],
             technical_specs: {
               diametro_corte: '660',
-              maquina_base: '14 a 22 Ton. (escavadeira) | 6 a 10 Ton. (retro/escavadeira pequena)',
-              pressao: '280 a 350 (escavadeira) | 190 a 220 (retro)',
-              vazao: '140 a 220 (escavadeira) | 100 a 150 (retro)'
+              peso: '750',
+              comprimento_total: '1.452 mm',
+              profundidade_trabalho: '740 mm',
+              maquina_base: '14 a 22 t (escavadeira) | 6 a 10 t (retro/escav. pequena)',
+              pressao: '280 a 350 bar (escavadeira) | 190 a 220 bar (retro)',
+              vazao: '140 a 220 L/min (escavadeira) | 100 a 150 L/min (retro)'
             }
           }
         ]
@@ -2725,9 +2733,12 @@ export default function Catalog() {
             ],
             technical_specs: {
               diametro_corte: '660',
-              maquina_base: '14 a 22 Ton. (escavadeira) | 6 a 10 Ton. (retro/escavadeira pequena)',
-              pressao: '280 a 350 (escavadeira) | 190 a 220 (retro)',
-              vazao: '140 a 220 (escavadeira) | 100 a 150 (retro)'
+              peso: '750',
+              comprimento_total: '1.452 mm',
+              profundidade_trabalho: '740 mm',
+              maquina_base: '14 a 22 t (escavadeira) | 6 a 10 t (retro/escav. pequena)',
+              pressao: '280 a 350 bar (escavadeira) | 190 a 220 bar (retro)',
+              vazao: '140 a 220 L/min (escavadeira) | 100 a 150 L/min (retro)'
             }
           }
         ]
@@ -4372,7 +4383,7 @@ export default function Catalog() {
                           area_da_garra: 'Área da Garra',
                           capacidade_de_carga: 'Capacidade de Carga',
                           potencia_do_trator: 'Pá Carregadeira',
-                          diametro_corte: 'Ø Máx. Corte',
+                          diametro_corte: rotuloDiametroDoModelo(model, 'Ø Máx. Corte'),
                           diametro_max_corte: 'Ø Máx. Corte',
                           n_facas: 'Nº Facas',
                           acumulador: 'Acumulador',
@@ -4411,11 +4422,12 @@ export default function Catalog() {
                           peso_com_rotator: 'Peso com rotator',
                           diametro_max_tora: 'Diâmetro máx. de tora',
                           codigo_roder: 'Código Roder',
-                          hidraulica: 'Hidráulica'
+                          hidraulica: 'Hidráulica',
+                          ...ROTULOS_DTH240B
                         };
               const order = [
                           'maquina_base', 'peso_do_equipamento', 'peso', 'peso_operacional',
-                          'diametro_max_trituracao', 'diametro_max_de_trituracao_mm', 'diametro_max_corte', 'diametro_corte',
+                          'diametro_max_trituracao', 'diametro_max_de_trituracao_mm', 'diametro_max_corte', 'diametro_corte', 'comprimento_total', 'profundidade_trabalho',
                           'pressao', 'pressao_trabalho', 'vazao', 'vazão',
                           'instalacao_hidraulica', 'acionamento', 'tempo_de_ciclo', 'compatibilidade', 'seguranca', 'giro_360',
                           'n_facas', 'acumulador', 'area_carga', 'area_da_garra', 
@@ -5190,10 +5202,16 @@ export default function Catalog() {
                           {/* Cabeçote Multifuncional Specs */}
                           {selectedModel.technical_specs.diametro_corte && (
                             <div className="p-3 rounded-xl border border-border bg-muted/20 shadow-sm hover:border-primary/30 transition-colors">
-                              <p className="text-[10px] text-muted-foreground uppercase font-black tracking-wider mb-1">Ø Máx. Corte</p>
-                              <p className="text-xl font-black text-primary">{selectedModel.technical_specs.diametro_corte} <span className="text-xs font-medium text-muted-foreground">mm</span></p>
+                              <p className="text-[10px] text-muted-foreground uppercase font-black tracking-wider mb-1">{rotuloDiametroDoModelo(selectedModel, 'Ø Máx. Corte')}</p>
+                              <p className="text-xl font-black text-primary">{comUnidade(selectedModel.technical_specs.diametro_corte, 'mm')}</p>
                             </div>
                           )}
+                          {['comprimento_total', 'profundidade_trabalho'].map(k => (selectedModel.technical_specs as any)[k] ? (
+                            <div key={k} className="p-3 rounded-xl border border-border bg-muted/20 shadow-sm hover:border-primary/30 transition-colors">
+                              <p className="text-[10px] text-muted-foreground uppercase font-black tracking-wider mb-1">{ROTULOS_DTH240B[k]}</p>
+                              <p className="text-xl font-black text-primary">{comUnidade((selectedModel.technical_specs as any)[k], 'mm')}</p>
+                            </div>
+                          ) : null)}
                           {selectedModel.technical_specs.sabre && (
                             <div className="p-3 rounded-xl border border-border bg-muted/20 shadow-sm hover:border-primary/30 transition-colors">
                               <p className="text-[10px] text-muted-foreground uppercase font-black tracking-wider mb-1">Sabre</p>
@@ -5209,13 +5227,13 @@ export default function Catalog() {
                           {selectedModel.technical_specs.vazao && (
                             <div className="p-3 rounded-xl border border-border bg-muted/20 shadow-sm hover:border-primary/30 transition-colors">
                               <p className="text-[10px] text-muted-foreground uppercase font-black tracking-wider mb-1">Vazão</p>
-                              <p className="text-xl font-black text-primary">{selectedModel.technical_specs.vazao} <span className="text-xs font-medium text-muted-foreground">L/min</span></p>
+                              <p className="text-xl font-black text-primary">{comUnidade(selectedModel.technical_specs.vazao, 'L/min')}</p>
                             </div>
                           )}
                           {selectedModel.technical_specs.pressao && (
                             <div className="p-3 rounded-xl border border-border bg-muted/20 shadow-sm hover:border-primary/30 transition-colors">
                               <p className="text-[10px] text-muted-foreground uppercase font-black tracking-wider mb-1">Pressão</p>
-                              <p className="text-xl font-black text-primary">{selectedModel.technical_specs.pressao} <span className="text-xs font-medium text-muted-foreground">bar</span></p>
+                              <p className="text-xl font-black text-primary">{comUnidade(selectedModel.technical_specs.pressao, 'bar')}</p>
                             </div>
                           )}
                           {selectedModel.technical_specs.peso_operacional && (
@@ -5914,7 +5932,51 @@ export default function Catalog() {
 
                 <div className="space-y-3">
                   <Label className="text-xs uppercase font-bold text-muted-foreground">Especificações Técnicas</Label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {ehModeloDth240b(editingModelData) && (() => {
+                    const sp = editingModelData.technical_specs || {};
+                    const mudar = (campo: string, valor: string) => setEditingModelData({ ...editingModelData, technical_specs: { ...sp, [campo]: valor } });
+                    const perfil = (campo: 'maquina_base' | 'pressao' | 'vazao', lado: 'escavadeira' | 'retro', valor: string) => {
+                      const atual = perfisDoTexto(sp[campo]);
+                      atual[lado] = valor;
+                      mudar(campo, comporPerfis(atual.escavadeira, atual.retro, campo === 'maquina_base' ? 'retro/escav. pequena' : 'retro'));
+                    };
+                    const campoPerfil = (campo: 'maquina_base' | 'pressao' | 'vazao', rotulo: string, exEsc: string, exRetro: string) => (
+                      <>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] uppercase">{rotulo} (escavadeira)</Label>
+                          <Input className="h-9 text-xs" placeholder={exEsc} value={perfisDoTexto(sp[campo]).escavadeira} onChange={(e) => perfil(campo, 'escavadeira', e.target.value)} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] uppercase">{rotulo} (retro / escav. pequena)</Label>
+                          <Input className="h-9 text-xs" placeholder={exRetro} value={perfisDoTexto(sp[campo]).retro} onChange={(e) => perfil(campo, 'retro', e.target.value)} />
+                        </div>
+                      </>
+                    );
+                    return (
+                      <div className="grid grid-cols-2 gap-3" data-editor-dth240b>
+                        {campoPerfil('maquina_base', 'Máquina base', '14 a 22 t', '6 a 10 t')}
+                        <div className="space-y-1">
+                          <Label className="text-[10px] uppercase">Ø da broca (mm)</Label>
+                          <Input className="h-9 text-xs" value={sp.diametro_corte || ''} onChange={(e) => mudar('diametro_corte', e.target.value)} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] uppercase">Peso (kg)</Label>
+                          <Input className="h-9 text-xs" value={sp.peso || ''} onChange={(e) => mudar('peso', e.target.value)} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] uppercase">Comprimento total, sem suporte (mm)</Label>
+                          <Input className="h-9 text-xs" value={sp.comprimento_total || ''} onChange={(e) => mudar('comprimento_total', e.target.value)} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] uppercase">Profundidade de trabalho, sem suporte (mm)</Label>
+                          <Input className="h-9 text-xs" value={sp.profundidade_trabalho || ''} onChange={(e) => mudar('profundidade_trabalho', e.target.value)} />
+                        </div>
+                        {campoPerfil('vazao', 'Vazão', '140 a 220 L/min', '100 a 150 L/min')}
+                        {campoPerfil('pressao', 'Pressão', '280 a 350 bar', '190 a 220 bar')}
+                      </div>
+                    );
+                  })()}
+                  <div className={`grid grid-cols-2 sm:grid-cols-3 gap-3 ${ehModeloDth240b(editingModelData) ? 'hidden' : ''}`}>
                     {/* Garra Florestal Fields */}
                     <div className="space-y-1">
                       <Label className="text-[10px] uppercase">Área Carga (m²)</Label>
