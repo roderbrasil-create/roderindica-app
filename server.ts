@@ -36,6 +36,7 @@ import admin from "firebase-admin";
 import { getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { ACCESSORIES_DATA, INSTALLATION_KITS } from "./src/constants.js";
+import { REGRA_ENVIO_EQUIPAMENTO } from "./src/lib/pedidoEnvio";
 import { REGRA_KIT_CONFIRMACAO, TEXTO_CMF_CAT320, RESSALVA_KIT, instrucaoAmostra, videoAmostraDe } from "./src/lib/confirmacaoMaquina";
 import { registrarConsultorParceiro, BUCKETS_VIDEO } from "./server/consultorParceiro";
 import { criarBibliotecaVideos, instrucaoVideos, sanitizarPainel } from "./server/videosConsultor";
@@ -2704,8 +2705,10 @@ ${REGRA_KIT_CONFIRMACAO}
           - A profundidade de trabalho também depende diretamente da potência do trator. Para alcançar a profundidade máxima, o trator deve estar operando em sua máxima potência exigida pelo equipamento, e não na potência mínima.
           - Solos de compactação extrema podem restringir a profundidade de trabalho, impedindo que se alcance uma profundidade alta mesmo após uma ou duas passadas, devido aos limites físicos de resistência do terreno.
           
+          ${REGRA_ENVIO_EQUIPAMENTO}
+
           DIRETRIZ REVOLUCIONÁRIA DE FICHA TÉCNICA INTERATIVA (COMPARTILHAMENTO DE LINKS):
-          - Quando qualquer usuário ou vendedor solicitar a ficha técnica, especificações detalhadas ou o catálogo de qualquer equipamento (especialmente Fresa SSH, Caçamba High Tip ou garras/cabeçotes), você DEVE:
+          - Quando qualquer usuário ou vendedor solicitar a ficha técnica (ou o PDF) ou as especificações detalhadas de qualquer equipamento (especialmente Fresa SSH, Caçamba High Tip ou garras/cabeçotes), você DEVE:
             1. Descrever de forma completa e estruturada as especificações e características do equipamento diretamente na resposta.
             2. Fornecer ativamente um link Markdown direto para o vendedor abrir a ficha técnica correspondente e interativa dentro do sistema, ou o PDF oficial do catálogo.
             3. Instruir o vendedor que ele pode clicar neste link direto para abrir a ficha técnica oficial do equipamento, onde ele poderá ajustar e personalizar as imagens, simular compatibilidades, e clicar em **Salvar PDF** para gerar e exportar de forma instantânea uma via limpa, profissional e de alta definição para enviar diretamente no WhatsApp de seu cliente!

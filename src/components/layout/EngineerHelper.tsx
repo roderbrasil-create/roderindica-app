@@ -47,6 +47,8 @@ import {
   lerCidadeUf, primeiroNome, querIndicar, textoLinkCliente, validarCnpj, validarTelefoneBR,
 } from '../../lib/consultorIndicar';
 import { linkWhatsSemNumero, textoEquipamentoCliente } from '../../lib/mensagemWhatsCliente';
+import { textoCatalogoWhats, arquivoDeFoto, compartilharFotoETexto } from '../../lib/compartilharEquipamento';
+import { pediuFicha } from '../../lib/pedidoEnvio';
 import { AVISO_SEM_AMOSTRA, linkPublicoDoVideo, precisaConfirmarMaquina, textoPedirConfirmacaoMaquina, videoAmostraDe } from '../../lib/confirmacaoMaquina';
 
 // Equipe Roder: exemplos de pergunta técnica na tela de início do Consultor
@@ -3159,42 +3161,70 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
   // "Link para o cliente": gera o link público /o/código do modelo e abre o WhatsApp só com o texto
   // (sem número: o parceiro escolhe o contato). O celular só deixa abrir janela DENTRO do toque,
   // então ela abre em branco na hora e recebe o endereço quando o link chega do servidor.
-  const [gerandoLinkCliente, setGerandoLinkCliente] = useState<string | null>(null);
   const linksClienteRef = React.useRef<Map<string, string>>(new Map());
-  const mandarAoClienteWhats = async (prod: Product, model: ProductModel) => {
-    if (gerandoLinkCliente) return;
-    const chave = `${parceiroViaLink?.token || user?.uid || 'x'}:${prod.id}:${model.id}`;
-    const abrir = (link: string, janela: Window | null) => {
-      const url = linkWhatsSemNumero(textoEquipamentoCliente(prod, model, link));
-      if (janela && !janela.closed) {
-        try { janela.location.href = url; return; } catch { try { janela.close(); } catch { /* nada */ } }
-      }
-      toast('Toque para abrir o WhatsApp', { duration: 15000, action: { label: 'Abrir WhatsApp', onClick: () => { window.open(url, '_blank', 'noopener'); } } });
-    };
+  const chaveLinkCliente = (prod: Product, model: ProductModel) => `${parceiroViaLink?.token || user?.uid || 'x'}:${prod.id}:${model.id}`;
+  const buscarLinkCliente = async (prod: Product, model: ProductModel): Promise<string> => {
+    const chave = chaveLinkCliente(prod, model);
     const guardado = linksClienteRef.current.get(chave);
-    if (guardado) { abrir(guardado, window.open('', '_blank')); return; }
-    let janela: Window | null = null;
-    try { janela = window.open('', '_blank'); } catch { janela = null; }
-    try { if (janela) janela.opener = null; } catch { /* nada */ }
-    setGerandoLinkCliente(model.id);
-    try {
-      const r = await fetch(`${getApiBaseUrl()}/api/consultor/link-cliente`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ p: parceiroViaLink?.token || undefined, pid: prod.id, mid: model.id }),
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok || !j.codigo) throw new Error(j.error || 'Não consegui gerar o link.');
-      const link = `${window.location.origin}/o/${j.codigo}`;
-      linksClienteRef.current.set(chave, link);
-      abrir(link, janela);
-    } catch (e: any) {
-      try { janela?.close(); } catch { /* nada */ }
-      toast.error(e?.message || 'Não consegui gerar o link. Tente de novo.');
-    } finally {
-      setGerandoLinkCliente(null);
+    if (guardado) return guardado;
+    const r = await fetch(`${getApiBaseUrl()}/api/consultor/link-cliente`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p: parceiroViaLink?.token || undefined, pid: prod.id, mid: model.id }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.codigo) throw new Error(j.error || 'Não consegui gerar o link.');
+    const link = `${window.location.origin}/o/${j.codigo}`;
+    linksClienteRef.current.set(chave, link);
+    return link;
+  };
+
+  // Enviar equipamento ao cliente: SEMPRE no formato do botão WhatsApp do catálogo (foto grande + características
+  // + link, onde o cliente vê vídeo e ficha e pede orçamento). Ficha em PDF é outro botão, só quando a vendedora
+  // pede a ficha (ver src/lib/pedidoEnvio.ts). O celular só deixa abrir o menu de compartilhar logo depois do
+  // toque, então o link e a foto são preparados antes, assim que o equipamento aparece na tela.
+  const [enviandoEquip, setEnviandoEquip] = useState<string | null>(null);
+  const fotosEnvioRef = React.useRef<Map<string, File | null>>(new Map());
+  const podeEnviarAoCliente = podeEnviarFicha || podeIndicar;
+  const prepararEnvio = async (prod: Product, model: ProductModel) => {
+    const chave = chaveLinkCliente(prod, model);
+    await buscarLinkCliente(prod, model);
+    if (!fotosEnvioRef.current.has(chave)) {
+      const imagens = [...(model.images || []), model.image_url, prod.image_url];
+      fotosEnvioRef.current.set(chave, await arquivoDeFoto(imagens, `${prod.name || ''} ${model.name || ''}`));
     }
   };
+  const enviarAoCliente = async (prod: Product, model: ProductModel) => {
+    if (!podeEnviarAoCliente || enviandoEquip) return;
+    const chave = chaveLinkCliente(prod, model);
+    const jaPronto = linksClienteRef.current.has(chave) && fotosEnvioRef.current.has(chave);
+    if (!jaPronto) {
+      setEnviandoEquip(model.id);
+      try { await prepararEnvio(prod, model); }
+      catch (e: any) { toast.error(e?.message || 'Não consegui gerar o link. Tente de novo.'); setEnviandoEquip(null); return; }
+      setEnviandoEquip(null);
+    }
+    const link = linksClienteRef.current.get(chave);
+    if (!link) return;
+    const texto = textoCatalogoWhats(prod.name || '', model, link);
+    const res = await compartilharFotoETexto(fotosEnvioRef.current.get(chave), texto);
+    if (res !== 'indisponivel') return;
+    // sem menu de compartilhar com foto (ou o celular recusou): vai o texto com o link, que mostra a foto na prévia
+    const url = linkWhatsSemNumero(texto);
+    let janela: Window | null = null;
+    try { janela = window.open(url, '_blank'); if (janela) janela.opener = null; } catch { janela = null; }
+    if (!janela) toast('Toque para abrir o WhatsApp', { duration: 15000, action: { label: 'Abrir WhatsApp', onClick: () => { window.open(url, '_blank', 'noopener'); } } });
+  };
+  // A ficha em PDF só aparece quando o último pedido da vendedora pede a ficha de forma explícita
+  const fichaPedida = podeEnviarFicha && (() => {
+    for (let i = messages.length - 1; i >= 0; i--) if (messages[i].role === 'user') return pediuFicha(messages[i].content);
+    return false;
+  })();
+  const botaoEnviarCliente = (prod: Product, model: ProductModel, classe: string, rotulo = 'Enviar ao cliente', icone = true) => (
+    <button type="button" onClick={() => enviarAoCliente(prod, model)} disabled={enviandoEquip === model.id} className={classe} title="Enviar ao cliente: foto, características e link" aria-label="Enviar ao cliente">
+      {icone && (enviandoEquip === model.id ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : <Send className="h-4 w-4 shrink-0" />)}{rotulo}
+    </button>
+  );
 
   const handleMakeIndication = (prod: Product, model: ProductModel) => {
     const productFullName = `${prod.name} - ${model.name}`;
@@ -3627,8 +3657,11 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                   <p className="m-0 fonte-titulo text-[15.5px] font-extrabold leading-tight text-[#1B1E22] truncate">{tituloFicha(prod, model)}</p>
                 </div>
                 <button type="button" onClick={() => verFicha(prod, model)} className="h-10 shrink-0 px-2.5 whitespace-nowrap rounded-[10px] border-[1.5px] border-[#1B1E22] bg-white text-[#1B1E22] font-extrabold text-[13.5px] active:scale-95 transition">Ver ficha</button>
-                {podeEnviarFicha && (
-                  <button type="button" onClick={() => enviarFicha(prod, model)} title="Enviar ficha" aria-label="Enviar ficha" className="h-10 w-10 shrink-0 p-0 rounded-[10px] bg-[#1FA855] text-[#fff] flex items-center justify-center active:scale-95 transition"><Send className="h-4 w-4" /></button>
+                {fichaPedida && (
+                  <button type="button" onClick={() => enviarFicha(prod, model)} title="Enviar a ficha em PDF" aria-label="Enviar a ficha em PDF" className="h-10 w-10 shrink-0 p-0 rounded-[10px] border-[1.5px] border-[#1FA855] bg-white text-[#0F5E2C] flex items-center justify-center active:scale-95 transition"><FileText className="h-4 w-4" /></button>
+                )}
+                {podeEnviarAoCliente && (
+                  <button type="button" onClick={() => enviarAoCliente(prod, model)} disabled={enviandoEquip === model.id} title="Enviar ao cliente: foto, características e link" aria-label="Enviar ao cliente" className="h-10 w-10 shrink-0 p-0 rounded-[10px] bg-[#1FA855] text-[#fff] flex items-center justify-center active:scale-95 transition disabled:opacity-60">{enviandoEquip === model.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}</button>
                 )}
               </div>
               {/* equipe que indica: Indicar discreto, em texto, embaixo da linha */}
@@ -3655,13 +3688,14 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                     {linhaSpecs && <p className="mt-0.5 text-[13px] text-[#5B6168] truncate">{linhaSpecs}</p>}
                   </div>
                 </div>
-                <div className={cn('mt-3 grid gap-2', podeEnviarFicha ? 'grid-cols-3' : 'grid-cols-2')}>
+                <div className={cn('mt-3 grid gap-2', podeEnviarAoCliente ? 'grid-cols-3' : 'grid-cols-2')}>
                   <button type="button" onClick={() => verFicha(prod, model)} className="h-11 px-1 whitespace-nowrap rounded-xl border-2 border-[#1B1E22] bg-white text-[#1B1E22] font-extrabold text-[14px] active:scale-95 transition">Ver ficha</button>
-                  {podeEnviarFicha && (
-                    <button type="button" onClick={() => enviarFicha(prod, model)} className="h-11 px-1 whitespace-nowrap rounded-xl bg-[#1FA855] text-[#fff] font-extrabold text-[14px] active:scale-95 transition">Enviar</button>
-                  )}
+                  {podeEnviarAoCliente && botaoEnviarCliente(prod, model, 'h-11 px-1 whitespace-nowrap rounded-xl bg-[#1FA855] text-[#fff] font-extrabold text-[14px] active:scale-95 transition disabled:opacity-60', 'Enviar', false)}
                   <button type="button" onClick={() => handleMakeIndication(prod, model)} className="h-11 px-1 whitespace-nowrap rounded-xl bg-[#F6C400] text-[#1B1E22] font-extrabold text-[14px] active:scale-95 transition">Indicar</button>
                 </div>
+                {fichaPedida && (
+                  <button type="button" onClick={() => enviarFicha(prod, model)} className="mt-2 h-11 w-full rounded-xl border-2 border-[#1FA855] bg-white text-[#0F5E2C] font-extrabold text-[14px] active:scale-95 transition flex items-center justify-center gap-1.5"><FileText className="h-4 w-4" /> Enviar a ficha em PDF</button>
+                )}
               </div>
             );
           })()}
@@ -3930,9 +3964,9 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
                                           key={`${prod.id}-${model.id}`}
                                           titulo={tituloFicha(prod, model)}
                                           imagem={foto ? <MarkdownImage src={foto} className="max-w-full max-h-full object-contain m-0 p-1 mix-blend-multiply" /> : undefined}
-                                          podeEnviar={podeEnviarFicha}
+                                          podeEnviar={podeEnviarAoCliente}
                                           onVer={() => verFicha(prod, model)}
-                                          onEnviar={() => enviarFicha(prod, model)}
+                                          onEnviar={() => enviarAoCliente(prod, model)}
                                           onIndicar={() => handleMakeIndication(prod, model)}
                                           video={videoUrl || undefined}
                                           pid={prod.id}
@@ -4900,10 +4934,10 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                       </Button>
                       {podeEnviarFicha && (
                         <Button
-                          onClick={() => enviarFicha(selectedProduct, selectedModel)}
+                          onClick={() => enviarAoCliente(selectedProduct, selectedModel)}
                           className="flex-1 h-11 bg-[#1FA855] hover:bg-[#178a45] text-white font-black text-xs uppercase tracking-wider rounded-xl flex items-center justify-center gap-2"
                         >
-                          <Send className="h-4 w-4" /> Enviar ficha
+                          <Send className="h-4 w-4" /> Enviar ao cliente
                         </Button>
                       )}
                     </div>
@@ -5157,6 +5191,12 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
     if (selectedProduct && selectedModel) return { prod: selectedProduct, model: selectedModel };
     return null;
   })();
+  // Prepara o envio (link e foto) em silêncio assim que o equipamento aparece: no toque tudo já está pronto
+  useEffect(() => {
+    if (!equipAtual || !podeEnviarAoCliente) return;
+    prepararEnvio(equipAtual.prod, equipAtual.model).catch(() => { /* o botão tenta de novo no toque e avisa */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [equipAtual?.prod.id, equipAtual?.model.id, podeEnviarAoCliente]);
   const videoDe = (prod: Product, model: ProductModel) => videoDoEquipamento(prod, model);
   const nomeUsuario = (profile?.name || (logado ? '' : (parceiroViaLink?.nome || publicUser?.name)) || '').replace('Jefferson', 'Jeferson').split(' ').slice(0, 2).join(' ');
   const papelUsuario = logado && profile
@@ -5238,18 +5278,11 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                   ))}
                 </div>
               )}
-              <div className={cn('mt-3.5 grid gap-2', podeEnviarFicha ? 'grid-cols-3' : 'grid-cols-2')}>
+              <div className={cn('mt-3.5 grid gap-2', podeEnviarAoCliente ? 'grid-cols-3' : 'grid-cols-2')}>
                 <button type="button" onClick={() => verFicha(prod, model)} className="h-11 px-1 whitespace-nowrap rounded-xl border-2 border-[#1B1E22] bg-white text-[#1B1E22] font-extrabold text-[13.5px] hover:bg-[#F3F4F6] transition">Ver ficha</button>
-                {podeEnviarFicha && (
-                  <button type="button" onClick={() => enviarFicha(prod, model)} className="h-11 px-1 whitespace-nowrap rounded-xl bg-[#1FA855] hover:bg-[#178a45] text-[#fff] font-extrabold text-[13.5px] transition">Enviar PDF</button>
-                )}
+                {podeEnviarAoCliente && botaoEnviarCliente(prod, model, 'h-11 px-1 whitespace-nowrap rounded-xl bg-[#1FA855] hover:bg-[#178a45] text-[#fff] font-extrabold text-[13.5px] transition disabled:opacity-60', 'Enviar', false)}
                 <button type="button" onClick={() => handleMakeIndication(prod, model)} className="h-11 px-1 whitespace-nowrap rounded-xl bg-[#F6C400] hover:bg-[#e2b400] text-[#1B1E22] font-extrabold text-[13.5px] transition">Indicar</button>
               </div>
-              {podeIndicar && (
-                <button type="button" onClick={() => mandarAoClienteWhats(prod, model)} disabled={gerandoLinkCliente === model.id} className="mt-2 h-auto min-h-[44px] w-full rounded-xl border-2 border-[#1FA855] bg-[#E7F8DE] py-2 text-[#0F5E2C] font-extrabold text-[13.5px] leading-tight flex items-center justify-center gap-2 transition disabled:opacity-60">
-                  {gerandoLinkCliente === model.id ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : <Phone className="h-4 w-4 shrink-0" />} Enviar para o WhatsApp do cliente
-                </button>
-              )}
             </div>
           </div>
         );
@@ -5307,8 +5340,9 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
       ) : <p className="text-[13.5px] text-[#5B6168]">A ficha completa está no PDF.</p>}
       <div className="flex gap-2">
         <button type="button" onClick={() => verFicha(equipAtual.prod, equipAtual.model)} className="flex-1 h-11 rounded-xl border-2 border-[#1B1E22] bg-white text-[#1B1E22] font-extrabold text-[14px] hover:bg-[#F3F4F6] transition">Abrir ficha</button>
-        {podeEnviarFicha && (
-          <button type="button" onClick={() => enviarFicha(equipAtual.prod, equipAtual.model)} className="flex-1 h-11 rounded-xl bg-[#1FA855] hover:bg-[#178a45] text-[#fff] font-extrabold text-[14px] transition flex items-center justify-center gap-1.5"><Send className="h-4 w-4" /> Enviar ficha</button>
+        {podeEnviarAoCliente && botaoEnviarCliente(equipAtual.prod, equipAtual.model, 'flex-1 h-11 rounded-xl bg-[#1FA855] hover:bg-[#178a45] text-[#fff] font-extrabold text-[14px] transition flex items-center justify-center gap-1.5 disabled:opacity-60')}
+        {fichaPedida && (
+          <button type="button" onClick={() => enviarFicha(equipAtual.prod, equipAtual.model)} className="flex-1 h-11 rounded-xl border-2 border-[#1FA855] bg-white text-[#0F5E2C] font-extrabold text-[14px] transition flex items-center justify-center gap-1.5"><FileText className="h-4 w-4" /> Ficha PDF</button>
         )}
       </div>
     </div>
@@ -5528,17 +5562,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                         <UserPlus className="h-4 w-4" /> Indicar
                       </button>
                     )}
-                    {podeEnviarFicha && (
-                      <button type="button" onClick={() => enviarFicha(prod, model)} className={cn(!(podeIndicar || perfilConsultor === 'visitante') && 'col-span-2', "h-auto min-h-[44px] w-full rounded-xl bg-[#1FA855] text-white font-extrabold text-[14.5px] leading-tight flex items-center justify-center gap-1.5 active:scale-[0.98] transition")}>
-                        <Send className="h-4 w-4 shrink-0" /> Enviar PDF
-                      </button>
-                    )}
-                    {/* o link público do equipamento: o cliente pede orçamento, vê o vídeo e a ficha sem login */}
-                    {podeIndicar && (
-                      <button type="button" onClick={() => mandarAoClienteWhats(prod, model)} disabled={gerandoLinkCliente === model.id} className="col-span-2 h-auto min-h-[44px] w-full rounded-xl border-2 border-[#1FA855] bg-[#E7F8DE] text-[#0F5E2C] font-extrabold text-[14.5px] leading-tight py-2 flex items-center justify-center gap-2 active:scale-[0.98] transition disabled:opacity-60">
-                        {gerandoLinkCliente === model.id ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : <Phone className="h-4 w-4 shrink-0" />} Enviar para o WhatsApp do cliente
-                      </button>
-                    )}
+                    {podeEnviarAoCliente && botaoEnviarCliente(prod, model, cn(!(podeIndicar || perfilConsultor === 'visitante') && 'col-span-2', "h-auto min-h-[44px] w-full rounded-xl bg-[#1FA855] text-white font-extrabold text-[14.5px] leading-tight flex items-center justify-center gap-1.5 active:scale-[0.98] transition disabled:opacity-60"))}
                     {temProdutividadeCel(prod, model) && (
                       <button type="button" onClick={() => { setFolhaEquip(false); enviarPronto(`Produtividade do ${tituloFicha(prod, model)}`); }} disabled={loading} className="h-11 min-h-[44px] w-full rounded-xl border-2 border-[#E2E5E8] bg-white text-[#1B1E22] font-extrabold text-[14.5px] flex items-center justify-center gap-1.5 active:scale-[0.98] transition disabled:opacity-50">
                         <Sparkles className="h-4 w-4" /> Produtividade
