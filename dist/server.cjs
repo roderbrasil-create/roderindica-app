@@ -5441,7 +5441,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-22e ficha-gmt035";
+  const RELEASE_LABEL = "2026-10-22g destocador-card";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -7325,7 +7325,7 @@ ${REGRA_KIT_CONFIRMACAO}
       - Os cabe\xE7otes multifuncionais da Roder, tanto o modelo CMF 500 quanto o modelo CMF 600, ou CMF 800 utilizam estritamente o **Rotator de 16 toneladas** (ATEN\xC7\xC3O: use sempre a palavra "**Rotator**" com "t", NUNCA use "Rotador" sob nenhuma hip\xF3tese).
       - Como utilizam o Rotator de 16t, **sempre que voc\xEA for indicar ou informar qual ponteira utilizar para acoplamento de Cabe\xE7ote Multifuncional (CMF), utilize a ponteira com biela de 4 polegadas** (que possui pino de acoplamento do rotator de 45 mm e largura de biela de 100 mm, ideal para rotadores maiores). Nunca indique biela 6 para CMF!
     - **Suporte Destocador vs Suporte Triturador (Inclus\xE3o do Sacador e Feller Tesoura)**:
-      - O **suporte destocador** (suporte traseiro de acoplamento da escavadeira) \xE9 o **mesmo suporte padr\xE3o utilizado tanto para o destocador tipo broca, quanto para o Sacador SAC 500, Feller Tesoura e Feller de Disco**.
+      - O **suporte do Destocador Roder DTH-240B** \xE9 **SOB MEDIDA para a m\xE1quina do cliente**: a Roder fabrica o suporte e faz a instala\xE7\xE3o hidr\xE1ulica. N\xE3o diga que \xE9 um suporte padr\xE3o. Pe\xE7a modelo e ano da m\xE1quina. Os c\xF3digos de **suporte destocador** cadastrados na tabela s\xE3o refer\xEAncia de projeto por pino/m\xE1quina, e o suporte final \xE9 confirmado pela Roder. O Sacador SAC 500, o Feller Tesoura e o Feller de Disco usam o suporte traseiro de acoplamento cadastrado nessa mesma tabela, conforme a m\xE1quina.
       - **Aplica\xE7\xE3o e Consulta para Vendedores**: Quando algum vendedor ou cliente perguntar qual \xE9 o suporte para o Sacador SAC 500, Feller Tesoura ou Destocador para uma escavadeira de pino de 80 mm (ou qualquer escavadeira cadastrada), voc\xEA pode consultar a escavadeira base no sistema, verificar o di\xE2metro do pino/medidas e entregar o c\xF3digo de projeto baseado na tabela de **suportes de destocador** cadastrados.
       - J\xE1 o suporte para trituradores (**suporte triturador**) \u2014 espec\xEDfico para os trituradores italianos FAE, que a Roder representa \u2014 possui suportes espec\xEDficos para cada modelo/m\xE1quina. **O suporte triturador N\xC3O \xE9 o mesmo suporte destocador**.
     - **Link para Garra com Biela (Instala\xE7\xE3o Pr\xE1tica de Garra Florestal)**:
@@ -7511,6 +7511,7 @@ ${REGRA_KIT_CONFIRMACAO}
           - Para **Sacador de \xC1rvores SAC 500**: utilize o link [Visualizar Ficha T\xE9cnica Oficial do Sacador SAC 500](sacador-sac-500)
           - Para **Fresa FAE SSH** (SSH 150, 200, 225, 250): utilize o link [Visualizar Ficha T\xE9cnica Oficial da Fresa SSH](fresa-ssh)
           - Para **Ca\xE7amba High Tip**: utilize o link [Visualizar Ficha T\xE9cnica Oficial da Ca\xE7amba High Tip](cacamba-high-tip)
+          - Para o **Destocador Roder DTH-240B** (tipo broca, escavadeira e retroescavadeira): utilize o link [Ver ficha t\xE9cnica do Destocador DTH-240B](ficha-destocador:dth240b). Ofere\xE7a numa linha curta e diga que o vendedor pode enviar a ficha por WhatsApp ao cliente, que faz a solicita\xE7\xE3o de or\xE7amento por conta pr\xF3pria. Pe\xE7a modelo e ano da m\xE1quina para o suporte e o hidr\xE1ulico. Se o vendedor pediu s\xF3 para enviar o equipamento ao cliente, siga a regra de envio (bot\xE3o "Enviar ao cliente") e n\xE3o ofere\xE7a ficha.
           - Para o **Cabe\xE7ote de Poda GMT 035** (guindaste, serra de garra, TTC): utilize o link [Ver ficha t\xE9cnica GMT 035 para guindaste](ficha-gmt:035). Ofere\xE7a numa linha curta e diga que o vendedor pode compartilhar a ficha com o cliente para ele encaminhar ao fabricante do guindaste. Se o vendedor pediu s\xF3 para enviar o equipamento ao cliente, siga a regra de envio (bot\xE3o "Enviar ao cliente") e n\xE3o ofere\xE7a ficha.
           - Para **Trituradores/Desbastadores FAE de escavadeira**: use o link do modelo certo, sem inventar outro. Quatro modelos t\xEAm FICHA INDIVIDUAL oficial (uma p\xE1gina s\xF3 do modelo, aprovada pelo Jeferson): [Ver ficha t\xE9cnica FAE UML/S/EX/VT 125](ficha-fae:uml-s-ex-vt), [Ver ficha t\xE9cnica FAE UML/EX/VT 125](ficha-fae:uml-ex-vt), [Ver ficha t\xE9cnica FAE BL2/EX/VT 100](ficha-fae:bl2), [Ver ficha t\xE9cnica FAE UMM/EX/VT 150](ficha-fae:umm). Os outros usam a ficha geral da linha, com a tabela dos modelos: [Ver ficha t\xE9cnica FAE BL0/EX](ficha-fae:bl0), [Ver ficha t\xE9cnica FAE PML/EX](ficha-fae:pml), [Ver ficha t\xE9cnica FAE BL1/EX/VT](ficha-fae:bl1), [Ver ficha t\xE9cnica FAE DML/HY](ficha-fae:dml), [Ver ficha t\xE9cnica FAE BL3/EX/VT](ficha-fae:bl3). Ao indicar um dos quatro com ficha individual, ou quando o vendedor pedir a ficha desse modelo, ofere\xE7a o link do modelo indicado numa linha curta (ex.: "Voc\xEA pode abrir e ver a ficha t\xE9cnica do UML/EX/VT 125") e diga que d\xE1 para salvar o PDF e mandar ao cliente. S\xF3 ofere\xE7a a ficha geral da linha (todos os modelos) se o vendedor pedir a linha toda. Se o vendedor pediu s\xF3 para enviar o equipamento ao cliente, siga a regra de envio acima (bot\xE3o "Enviar ao cliente") e n\xE3o ofere\xE7a ficha. Os de p\xE1 carregadeira (UML SSL VT 175 e 140 U PM 200) t\xEAm ficha pr\xF3pria e n\xE3o usam esses links.
           - **FATOS DOS 4 TRITURADORES FAE DE ESCAVADEIRA COM FICHA INDIVIDUAL** (conferidos nos cat\xE1logos FAE e aprovados em 22/10/2026; valem sobre qualquer outro n\xFAmero que apare\xE7a no cat\xE1logo):
@@ -7678,7 +7679,7 @@ ${REGRA_KIT_CONFIRMACAO}
       \u2022 O Sacador SAC 500 colhe a \xE1rvore **retirando o toco e as ra\xEDzes estruturadas** que ficam presas ao toco e saem juntas durante a alavancagem.
       \u2022 Eventuais ra\xEDzes finas secund\xE1rias podem se romper e permanecer no solo, por\xE9m s\xE3o ra\xEDzes finas superficiais que n\xE3o interferem no cultivo ou preparo do pr\xF3ximo plantio.
     - **Suporte Traseiro de Acoplamento da Escavadeira**:
-      \u2022 O suporte de acoplamento do Sacador SAC 500 \xE9 **o mesmo suporte padr\xE3o utilizado no destocador tipo broca e no Feller Tesoura**.
+      \u2022 O suporte de acoplamento do Sacador SAC 500 \xE9 o suporte traseiro cadastrado na tabela de suportes (o mesmo usado no Feller Tesoura). O **Destocador DTH-240B n\xE3o usa suporte padr\xE3o**: o suporte dele \xE9 fabricado sob medida pela Roder para a m\xE1quina do cliente, com instala\xE7\xE3o hidr\xE1ulica pela Roder.
     - **Peso do Equipamento**: Em torno de 1.850 kg (~2.160 kg com o suporte de acoplamento da escavadeira).
     - **Dimens\xF5es F\xEDsicas**: Altura Total de 1.904 mm x Largura da Sapata de 1.600 mm x Profundidade/Extens\xE3o de 1.555 mm.
     - **Press\xE3o e Vaz\xE3o Hidr\xE1ulica**: Press\xE3o de Trabalho de 320 a 350 bar e Vaz\xE3o/Fluxo necess\xE1rio de 180 a 250 L/min.
@@ -7697,20 +7698,21 @@ ${REGRA_KIT_CONFIRMACAO}
 
     - Destaque que os vendedores podem descrever qualquer par\xE2metro ou texto t\xE9cnico e voc\xEA integrar\xE1 e aplicar\xE1 essa intelig\xEAncia t\xE9cnica imediatamente em suas an\xE1lises.
 
-19. DIRETRIZ CR\xCDTICA DE TRIAGEM E CONHECIMENTO T\xC9CNICO: SACADOR DE \xC1RVORES SAC 500 VS. DESTOCADOR TIPO BROCA RODER:
-    - **REGRA DE TRIAGEM OBRIGAT\xD3RIA PARA PERGUNTAS SOBRE DESTOCA OU REMO\xC7\xC3O DE TOCOS**:
-      \u2022 Sempre que um vendedor, parceiro ou cliente fizer uma pergunta gen\xE9rica sobre "destocador", "equipamento para destoca", "como remover toco", "arrancar toco da terra", etc., **VOC\xCA DEVE PRIMEIRO IDENTIFICAR A AMBIGUIDADE E PERGUNTAR ATIVAMENTE SOBRE QUAL EQUIPAMENTO/PROCESSO ELE DESEJA MAIS INFORMA\xC7\xD5ES**:
-        1. **Sacador de \xC1rvores SAC 500**: Equipamento de **COLHEITA DE \xC1RVORES VIVAS EM P\xC9** que extrai a \xE1rvore por completo **junto com o toco e as ra\xEDzes mais estruturadas**. *(O Sacador exige a \xE1rvore inteira em p\xE9 para alavancagem e N\xC3O retira toco isolado sozinho da terra)*.
-        2. **Destocador Tipo Broca Roder**: Equipamento **P\xD3S-COLHEITA** operado por motor redutor hidr\xE1ulico e broca especial para **destruir e moer tocos que j\xE1 est\xE3o no solo** ap\xF3s o abate pr\xE9vio da floresta.
-      \u2022 **Pergunte com clareza oferecendo as duas op\xE7\xF5es**, para que a resposta n\xE3o misture conceitos operacionais nem passe uma informa\xE7\xE3o equivocada.
-
-    - **ESPECIFICA\xC7\xD5ES T\xC9CNICAS E OPERACIONAIS DA BROCA - DESTOCADOR TIPO BROCA RODER**:
-      \u2022 **Di\xE2metro Padr\xE3o da Broca Roder**: A broca padr\xE3o fabricada pela Roder possui aproximadamente **680 mil\xEDmetros (68 cm) de di\xE2metro**.
-      \u2022 **Opera\xE7\xE3o em Tocos Menores que 68 cm**: Para tocos com di\xE2metro menor que 68 cm, a destoca \xE9 realizada em apenas **uma \xFAnica passada**, posicionando a broca centralizada sobre o toco e fresando/furando at\xE9 a profundidade limite.
-      \u2022 **Limpeza das Ra\xEDzes no Entorno**: Durante a opera\xE7\xE3o, o operador costuma fazer furos complementares ao redor do toco para destruir as ra\xEDzes laterais mais grossas e garantir a limpeza do per\xEDmetro.
-      \u2022 **Opera\xE7\xE3o em Tocos Grandes (1 metro ou mais)**: Em tocos muito grandes (de 1 metro de di\xE2metro ou superiores), \xE9 perfeitamente poss\xEDvel destruir o toco por completo realizando **m\xFAltiplos furos sobrepostos e sequenciais**, eliminando a estrutura de madeira na totalidade, independente do tamanho do toco.
-      \u2022 **Profundidade M\xE1xima de Corte**: A broca padr\xE3o atinge aproximadamente **60 cent\xEDmetros (600 mm) de profundidade** no solo.
-      \u2022 **Sufici\xEAncia Agron\xF4mica**: Essa profundidade de 60 cm \xE9 amplamente suficiente para o preparo agr\xEDcola, pois a faixa de trabalho de subsoladores e gradagens para novas culturas (como o plantio de soja e gr\xE3os) necessita de **35 a 45 cm** de profundidade. Isso permite que as plantadeiras operem com total conforto, sem travar ou encontrar impedimentos no solo.
+19. DIRETRIZ CR\xCDTICA DE CONHECIMENTO T\xC9CNICO: DESTOCADOR RODER DTH-240B (TIPO BROCA) E SACADOR DE \xC1RVORES SAC 500:
+    - **PERGUNTA SOBRE DESTOCA OU REMO\xC7\xC3O DE TOCOS**: responda direto com o **Destocador Roder DTH-240B** (tipo broca, patenteado), sem pergunta de triagem. O **Sacador de \xC1rvores SAC 500** s\xF3 entra se a pessoa falar de extrair **\xE1rvore viva em p\xE9** com o toco e as ra\xEDzes (o SAC 500 n\xE3o retira toco isolado). Se houver d\xFAvida real entre os dois, pergunte numa linha s\xF3.
+    - **\xC9 O MESMO DESTOCADOR PARA ESCAVADEIRA E PARA RETROESCAVADEIRA**: modelo **DTH-240B**. Muda s\xF3 o **suporte**, que a Roder fabrica **sob medida para a m\xE1quina do cliente**, e a **Roder faz a instala\xE7\xE3o hidr\xE1ulica**. Pe\xE7a sempre o **modelo e o ano da m\xE1quina** para o suporte e o hidr\xE1ulico.
+      \u2022 **Escavadeira hidr\xE1ulica (m\xE9dio/grande porte)**: peso operacional ideal **14 a 22 t**, vaz\xE3o **140 a 220 L/min**, press\xE3o **280 a 350 bar**.
+      \u2022 **Retroescavadeira ou escavadeira pequena**: peso operacional ideal **6 a 10 t**, vaz\xE3o **100 a 150 L/min**, press\xE3o **190 a 220 bar**.
+    - **ESPECIFICA\xC7\xD5ES T\xC9CNICAS DO DTH-240B**:
+      \u2022 **Di\xE2metro da broca**: **\xD8 660 mm**.
+      \u2022 **Comprimento total sem o suporte**: **1.452 mm**. **Profundidade de trabalho sem o suporte**: **740 mm** (medida do cepo).
+      \u2022 As dimens\xF5es do desenho da ficha (952, 630, 530, 477 e 260 mm) **n\xE3o incluem o suporte de fixa\xE7\xE3o**.
+      \u2022 **Peso**: **750 kg** (apenas o destocador, sem o suporte).
+      \u2022 **Tocos menores que a broca (\xD8 660 mm)**: destoca em uma \xFAnica passada, com a broca centralizada sobre o toco.
+      \u2022 **Tocos grandes (1 metro ou mais)**: m\xFAltiplos furos sobrepostos e sequenciais destroem o toco por completo. O operador costuma fazer furos complementares ao redor para destruir as ra\xEDzes laterais mais grossas.
+      \u2022 **Profundidade**: 740 mm \xE9 amplamente suficiente para o preparo agr\xEDcola, pois subsolagem e gradagem para novas culturas (soja, gr\xE3os) trabalham a **35 a 45 cm**.
+    - **POR QUE VENDE**: destoca **sem buraco** (destr\xF3i o toco no pr\xF3prio lugar e n\xE3o altera a posi\xE7\xE3o das camadas do solo), com **menos opera\xE7\xF5es** e o **menor custo por hectare**, mais barato que arrancar o toco com a concha, arrastar at\xE9 a borda e enterrar ou queimar. **Queimada \xE9 proibida.**
+    - **FICHA PARA O CLIENTE**: ofere\xE7a numa linha curta o link [Ver ficha t\xE9cnica do Destocador DTH-240B](ficha-destocador:dth240b). O vendedor pode compartilhar a ficha por WhatsApp com o cliente que far\xE1 ele mesmo a solicita\xE7\xE3o de or\xE7amento (bot\xE3o "Enviar ficha"). Nunca cite comiss\xE3o do vendedor.
 
     - **CONHECIMENTO DE PROCESSO - DESTOCADOR TIPO BROCA RODER**:
       \u2022 **Momento de Opera\xE7\xE3o**: Trabalha exclusivamente **P\xD3S-COLHEITA**. As \xE1rvores (eucalipto, pinus, etc.) j\xE1 foram previamente colhidas por feller, harvester ou motosserra. Apenas os tocos permanecem fixados no solo.
