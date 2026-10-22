@@ -59,16 +59,46 @@ export function carregarLogoFae(): Promise<string | null> {
   return Promise.resolve(LOGO_FAE_PADRAO);
 }
 
+// Foto do equipamento num tamanho que o iPhone aguenta dentro da captura da folha: a original pode ter
+// vários MB em base64 e, no Safari, a imagem some da captura sem dar erro (caixa cinza vazia no PDF enviado
+// pelo consultor). Reduz para no máximo 1400 px de lado, em JPEG, já decodificada. Sem conseguir, devolve a original.
+export async function fotoLeveParaPdf(src: string, maxLado = 1400): Promise<string> {
+  if (!src || typeof document === 'undefined') return src;
+  try {
+    const img = new Image();
+    if (!src.startsWith('data:') && !src.startsWith('blob:')) img.crossOrigin = 'anonymous';
+    img.src = src;
+    await img.decode();
+    if (!img.naturalWidth || !img.naturalHeight) return src;
+    const k = Math.min(1, maxLado / Math.max(img.naturalWidth, img.naturalHeight));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(img.naturalWidth * k));
+    canvas.height = Math.max(1, Math.round(img.naturalHeight * k));
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return src;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const leve = canvas.toDataURL('image/jpeg', 0.88);
+    return leve.length > 100 ? leve : src;
+  } catch {
+    return src;
+  }
+}
+
 export async function esperarImagens(el: HTMLElement) {
   const imagens = Array.from(el.getElementsByTagName('img')) as HTMLImageElement[];
-  await Promise.all(imagens.map(img => {
-    if (img.complete) return Promise.resolve();
-    return new Promise<void>(resolve => {
-      const fim = () => resolve();
-      img.addEventListener('load', fim, { once: true });
-      img.addEventListener('error', fim, { once: true });
-      setTimeout(fim, 8000);
-    });
+  await Promise.all(imagens.map(async img => {
+    if (!img.complete) {
+      await new Promise<void>(resolve => {
+        const fim = () => resolve();
+        img.addEventListener('load', fim, { once: true });
+        img.addEventListener('error', fim, { once: true });
+        setTimeout(fim, 8000);
+      });
+    }
+    // decodificada de verdade: no Safari "complete" não garante que a imagem já entra na captura
+    try { await img.decode(); } catch { /* imagem quebrada: segue sem ela */ }
   }));
   try { await (document as any).fonts?.ready; } catch { /* sem API de fontes */ }
 }
@@ -76,6 +106,12 @@ export async function esperarImagens(el: HTMLElement) {
 // Cada folha vira uma página A4. Folha mais alta que o A4 é reduzida para caber inteira.
 export async function pdfDasFolhas(folhas: HTMLElement[]): Promise<jsPDF> {
   const pdf = new jsPDF('p', 'mm', 'a4');
+  // Safari/iPhone: a primeira captura sai sem as imagens. Uma captura descartável antes aquece o motor.
+  if (folhas[0]) {
+    try {
+      await toPng(folhas[0], { pixelRatio: 1, backgroundColor: '#ffffff', width: LARGURA_FOLHA, height: folhas[0].offsetHeight || folhas[0].scrollHeight, style: { transform: 'none', margin: '0', boxShadow: 'none', borderRadius: '0' } });
+    } catch { /* o aquecimento é só um reforço */ }
+  }
   for (let i = 0; i < folhas.length; i++) {
     const folha = folhas[i];
     const altura = folha.offsetHeight || folha.scrollHeight;

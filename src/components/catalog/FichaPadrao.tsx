@@ -12,7 +12,7 @@ import { ZoomRolagem } from '../documento/ZoomRolagem';
 import { tituloFicha } from '../../lib/tituloFicha';
 import { corrigirFaixaCmf500 } from '../../lib/faixaCmf';
 import {
-  LARGURA_FOLHA, ALTURA_FOLHA, carregarLogoFae, esperarImagens, pdfDasFolhas, entregarPdf,
+  LARGURA_FOLHA, ALTURA_FOLHA, carregarLogoFae, esperarImagens, fotoLeveParaPdf, pdfDasFolhas, entregarPdf,
   enviarArquivoPdf, nomeArquivoFicha, resolverImagem, usePodeEnviarFicha,
 } from './fichaPdf';
 
@@ -577,7 +577,7 @@ FolhaFichaPadrao.displayName = 'FolhaFichaPadrao';
 // Gera o PDF da ficha padrão sem abrir a tela (botão "Enviar ficha")
 export async function gerarFichaPadraoPdf(p: Product, m: ProductModel) {
   const dados = montarDadosFicha(p, m);
-  const [foto, logoFae] = await Promise.all([resolverImagem(fotoDoModelo(p, m)), dados.fae ? carregarLogoFae() : Promise.resolve(null)]);
+  const [foto, logoFae] = await Promise.all([resolverImagem(fotoDoModelo(p, m)).then(f => fotoLeveParaPdf(f)), dados.fae ? carregarLogoFae() : Promise.resolve(null)]);
   const caixa = document.createElement('div');
   caixa.setAttribute('aria-hidden', 'true');
   caixa.style.cssText = `position:fixed;left:-10000px;top:0;width:${LARGURA_FOLHA}px;pointer-events:none;`;
