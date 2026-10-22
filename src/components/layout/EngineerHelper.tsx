@@ -10,6 +10,7 @@ import { askEngineerHelper, transcribeAudio, analyzeAndEnrichProductDossier } fr
 import { useAuth } from '../../contexts/AuthContext';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { microfone } from '../../lib/microfone';
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
 import { Product, ProductModel, StockItem } from '../../types';
@@ -1402,6 +1403,12 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   // "Voltar" do celular fecha primeiro o relatório e depois o consultor, em vez de sair da tela
   useVoltarFecha(isOpen && !isFullPage, () => setIsOpenState(false));
   useVoltarFecha(isReportOpen, () => setIsReportOpen(false));
+  // Microfone: o stream é reaproveitado entre gravações para o iPhone não perguntar toda vez.
+  // Ao fechar o painel ou desmontar, as tracks são paradas (apaga o indicador de microfone).
+  useEffect(() => {
+    if (!isOpen) microfone.liberar();
+  }, [isOpen]);
+  useEffect(() => () => microfone.liberar(), []);
   useVoltarFecha(isShareModalOpen, () => setIsShareModalOpen(false));
   useVoltarFecha(isBudgetFormOpen, () => setIsBudgetFormOpen(false));
   const [reportContent, setReportContent] = useState('');
@@ -1443,7 +1450,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
 
   const startTeachingRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await microfone.obterStream();
       const types = [
         'audio/webm', 
         'audio/mp4', 
@@ -1514,6 +1521,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
       };
 
       mediaRecorder.start(1000);
+      microfone.iniciarUso();
       setIsTeachingRecording(true);
       toast.success('Gravando sua voz para ensinar a IA...');
     } catch (err: any) {
@@ -1526,7 +1534,8 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     if (teachingMediaRecorderRef.current && isTeachingRecording) {
       teachingMediaRecorderRef.current.stop();
       setIsTeachingRecording(false);
-      teachingMediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      // não para as tracks: o stream é reaproveitado (src/lib/microfone.ts)
+      microfone.terminarUso();
     }
   };
 
@@ -2934,7 +2943,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
         return;
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await microfone.obterStream();
       
       const types = [
         'audio/webm;codecs=opus', 
@@ -3078,6 +3087,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
       };
 
       mediaRecorder.start(1000);
+      microfone.iniciarUso();
       setIsRecording(true);
       toast.success('Gravando áudio...');
     } catch (err: any) {
@@ -3090,7 +3100,8 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
-      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      // não para as tracks: o stream é reaproveitado (src/lib/microfone.ts)
+      microfone.terminarUso();
     }
   };
 
