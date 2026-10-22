@@ -85,6 +85,7 @@ test('CARD DO DTH 240B: o cadastro antigo aparece com os valores novos, sem desf
 test('a migração do DTH 240B é uma vez só, com marca em settings, só para a diretoria, e não mexe nas regras', () => {
   const m = fonte('../src/lib/migracaoDestocadorDth.ts');
   assert.ok(m.includes("'settings', 'migracao_destocador_dth240b'") && m.includes('getDoc(marca)'));
+  assert.ok(m.includes('runTransaction') && m.includes('tx.get(ref)') && m.includes('tx.update(ref, { models: novos })'));
   const c = fonte('../src/pages/Catalog.tsx');
   const i = c.indexOf('corrigirDestocadorDthUmaVez(dadosBrutos, db)');
   assert.ok(i > c.indexOf("user?.email === 'roderbrasil@gmail.com'") && i > 0);
@@ -109,4 +110,42 @@ test('EDITOR DO DTH 240B: campos por perfil e medidas novas, e o cadastro antigo
   }
   const c = fonte('../src/pages/Catalog.tsx');
   assert.ok(c.includes('data-editor-dth240b') && c.includes('ehModeloDth240b(editingModelData)') && c.includes('Ø da broca (mm)') && c.includes('ROTULOS_DTH240B'));
+});
+
+test('PERFIS DO EDITOR: só retro, só escavadeira, ambos, apagar um deles e ida e volta', async () => {
+  const d = await import('../src/lib/destocadorDth.ts');
+  const ida = (e: string, r: string, n = 'retro') => d.perfisDoTexto(d.comporPerfis(e, r, n));
+  assert.deepEqual(ida('', '6 a 10 t', 'retro/escav. pequena'), { escavadeira: '', retro: '6 a 10 t' }); // só retro
+  assert.deepEqual(ida('14 a 22 t', ''), { escavadeira: '14 a 22 t', retro: '' }); // só escavadeira
+  assert.deepEqual(ida('14 a 22 t', '6 a 10 t'), { escavadeira: '14 a 22 t', retro: '6 a 10 t' }); // ambos
+  // apagar um deles, a partir do texto completo
+  const completo = d.SPECS_DTH240B.vazao;
+  let p = d.perfisDoTexto(completo);
+  assert.deepEqual(d.perfisDoTexto(d.comporPerfis('', p.retro)), { escavadeira: '', retro: p.retro });
+  assert.deepEqual(d.perfisDoTexto(d.comporPerfis(p.escavadeira, '')), { escavadeira: p.escavadeira, retro: '' });
+  assert.equal(d.comporPerfis('', ''), '');
+  // texto só com retro, voltando para o campo certo, e recomposto igual
+  const soRetro = d.comporPerfis('', '100 a 150 L/min');
+  assert.equal(soRetro, '100 a 150 L/min (retro)');
+  assert.equal(d.comporPerfis(d.perfisDoTexto(soRetro).escavadeira, d.perfisDoTexto(soRetro).retro), soRetro);
+  // texto antigo sem sufixo conta como escavadeira
+  assert.deepEqual(d.perfisDoTexto('14 a 25 Ton.'), { escavadeira: '14 a 25 Ton.', retro: '' });
+});
+
+test('MIGRAÇÃO: reconhece também os valores intermediários do commit 52160d1', async () => {
+  const d = await import('../src/lib/destocadorDth.ts');
+  const inter = [{ id: 'dth-240b', name: 'DTH 240B', technical_specs: {
+    diametro_corte: '660', peso: '750',
+    maquina_base: '14 a 22 Ton. (escavadeira) | 6 a 10 Ton. (retro/escavadeira pequena)',
+    pressao: '280 a 350 (escavadeira) | 190 a 220 (retro)', vazao: '140 a 220 (escavadeira) | 100 a 150 (retro)' } }];
+  const s = d.corrigirDestocadorDth240b(inter)![0].technical_specs;
+  assert.equal(s.maquina_base, d.SPECS_DTH240B.maquina_base);
+  assert.equal(s.pressao, d.SPECS_DTH240B.pressao);
+  assert.equal(s.vazao, d.SPECS_DTH240B.vazao);
+});
+
+test('SUPORTE DO DESTOCADOR: sob medida, nunca "o mesmo suporte padrão" do SAC 500 e do Feller', () => {
+  const s = fonte('../server.ts');
+  assert.ok(!s.includes('mesmo suporte padrão utilizado') && !s.includes('o mesmo suporte padrão utilizado no destocador'));
+  assert.ok(s.includes('SOB MEDIDA para a máquina do cliente') && s.includes('fabricado sob medida pela Roder'));
 });

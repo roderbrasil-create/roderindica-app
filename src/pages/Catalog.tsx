@@ -5944,11 +5944,11 @@ export default function Catalog() {
                       <>
                         <div className="space-y-1">
                           <Label className="text-[10px] uppercase">{rotulo} (escavadeira)</Label>
-                          <Input className="h-9 text-xs" placeholder={exEsc} value={perfisDoTexto(sp[campo]).escavadeira} onChange={(e) => perfil(campo, 'escavadeira', e.target.value)} />
+                          <Input className="h-9 text-xs" key={`${campo}-esc-${editingModelIndex}`} placeholder={exEsc} defaultValue={perfisDoTexto(sp[campo]).escavadeira} onChange={(e) => perfil(campo, 'escavadeira', e.target.value)} />
                         </div>
                         <div className="space-y-1">
                           <Label className="text-[10px] uppercase">{rotulo} (retro / escav. pequena)</Label>
-                          <Input className="h-9 text-xs" placeholder={exRetro} value={perfisDoTexto(sp[campo]).retro} onChange={(e) => perfil(campo, 'retro', e.target.value)} />
+                          <Input className="h-9 text-xs" key={`${campo}-retro-${editingModelIndex}`} placeholder={exRetro} defaultValue={perfisDoTexto(sp[campo]).retro} onChange={(e) => perfil(campo, 'retro', e.target.value)} />
                         </div>
                       </>
                     );

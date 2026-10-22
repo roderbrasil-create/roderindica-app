@@ -2533,7 +2533,7 @@ ${REGRA_KIT_CONFIRMACAO}
       - Os cabeçotes multifuncionais da Roder, tanto o modelo CMF 500 quanto o modelo CMF 600, ou CMF 800 utilizam estritamente o **Rotator de 16 toneladas** (ATENÇÃO: use sempre a palavra "**Rotator**" com "t", NUNCA use "Rotador" sob nenhuma hipótese).
       - Como utilizam o Rotator de 16t, **sempre que você for indicar ou informar qual ponteira utilizar para acoplamento de Cabeçote Multifuncional (CMF), utilize a ponteira com biela de 4 polegadas** (que possui pino de acoplamento do rotator de 45 mm e largura de biela de 100 mm, ideal para rotadores maiores). Nunca indique biela 6 para CMF!
     - **Suporte Destocador vs Suporte Triturador (Inclusão do Sacador e Feller Tesoura)**:
-      - O **suporte destocador** (suporte traseiro de acoplamento da escavadeira) é o **mesmo suporte padrão utilizado tanto para o destocador tipo broca, quanto para o Sacador SAC 500, Feller Tesoura e Feller de Disco**.
+      - O **suporte do Destocador Roder DTH-240B** é **SOB MEDIDA para a máquina do cliente**: a Roder fabrica o suporte e faz a instalação hidráulica. Não diga que é um suporte padrão. Peça modelo e ano da máquina. Os códigos de **suporte destocador** cadastrados na tabela são referência de projeto por pino/máquina, e o suporte final é confirmado pela Roder. O Sacador SAC 500, o Feller Tesoura e o Feller de Disco usam o suporte traseiro de acoplamento cadastrado nessa mesma tabela, conforme a máquina.
       - **Aplicação e Consulta para Vendedores**: Quando algum vendedor ou cliente perguntar qual é o suporte para o Sacador SAC 500, Feller Tesoura ou Destocador para uma escavadeira de pino de 80 mm (ou qualquer escavadeira cadastrada), você pode consultar a escavadeira base no sistema, verificar o diâmetro do pino/medidas e entregar o código de projeto baseado na tabela de **suportes de destocador** cadastrados.
       - Já o suporte para trituradores (**suporte triturador**) — específico para os trituradores italianos FAE, que a Roder representa — possui suportes específicos para cada modelo/máquina. **O suporte triturador NÃO é o mesmo suporte destocador**.
     - **Link para Garra com Biela (Instalação Prática de Garra Florestal)**:
@@ -2887,7 +2887,7 @@ ${REGRA_KIT_CONFIRMACAO}
       • O Sacador SAC 500 colhe a árvore **retirando o toco e as raízes estruturadas** que ficam presas ao toco e saem juntas durante a alavancagem.
       • Eventuais raízes finas secundárias podem se romper e permanecer no solo, porém são raízes finas superficiais que não interferem no cultivo ou preparo do próximo plantio.
     - **Suporte Traseiro de Acoplamento da Escavadeira**:
-      • O suporte de acoplamento do Sacador SAC 500 é **o mesmo suporte padrão utilizado no destocador tipo broca e no Feller Tesoura**.
+      • O suporte de acoplamento do Sacador SAC 500 é o suporte traseiro cadastrado na tabela de suportes (o mesmo usado no Feller Tesoura). O **Destocador DTH-240B não usa suporte padrão**: o suporte dele é fabricado sob medida pela Roder para a máquina do cliente, com instalação hidráulica pela Roder.
     - **Peso do Equipamento**: Em torno de 1.850 kg (~2.160 kg com o suporte de acoplamento da escavadeira).
     - **Dimensões Físicas**: Altura Total de 1.904 mm x Largura da Sapata de 1.600 mm x Profundidade/Extensão de 1.555 mm.
     - **Pressão e Vazão Hidráulica**: Pressão de Trabalho de 320 a 350 bar e Vazão/Fluxo necessário de 180 a 250 L/min.

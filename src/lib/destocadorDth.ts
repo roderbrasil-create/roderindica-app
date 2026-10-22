@@ -22,11 +22,13 @@ export const ROTULOS_DTH240B: Record<string, string> = {
 
 export const ROTULO_DIAMETRO_BROCA = 'Ø da broca';
 
-const ANTIGOS: Record<keyof typeof SPECS_DTH240B, RegExp> = {
-  diametro_corte: /^\s*240\s*(mm)?\s*$/i,
-  maquina_base: /^\s*14\s*a\s*25\s*(t|ton)?\.?\s*$/i,
-  pressao: /^\s*210\s*(a|-)\s*250\s*(bar)?\s*$/i,
-  vazao: /^\s*120\s*(a|-)\s*180\s*(l\/min)?\s*$/i,
+// Valores antigos: o cadastro de antes de 22/10/2026 e os intermediários do commit 52160d1
+// ("14 a 22 Ton. (escavadeira) | 6 a 10 Ton. (retro/escavadeira pequena)", pressão e vazão sem unidade)
+const ANTIGOS: Record<keyof typeof SPECS_DTH240B, RegExp[]> = {
+  diametro_corte: [/^\s*240\s*(mm)?\s*$/i],
+  maquina_base: [/^\s*14\s*a\s*25\s*(t|ton)?\.?\s*$/i, /^\s*14\s*a\s*22\s*ton\.?\s*\(escavadeira\)\s*\|\s*6\s*a\s*10\s*ton\.?\s*\(retro\/escavadeira pequena\)\s*$/i],
+  pressao: [/^\s*210\s*(a|-)\s*250\s*(bar)?\s*$/i, /^\s*280\s*a\s*350\s*\(escavadeira\)\s*\|\s*190\s*a\s*220\s*\(retro\)\s*$/i],
+  vazao: [/^\s*120\s*(a|-)\s*180\s*(l\/min)?\s*$/i, /^\s*140\s*a\s*220\s*\(escavadeira\)\s*\|\s*100\s*a\s*150\s*\(retro\)\s*$/i],
 };
 
 type Modelo = { id?: string; name?: string; technical_specs?: any };
@@ -42,7 +44,7 @@ export function corrigirDestocadorDth240b<T extends Modelo>(modelos: T[] | undef
     const specs = { ...m.technical_specs };
     let alterou = false;
     for (const campo of Object.keys(SPECS_DTH240B) as (keyof typeof SPECS_DTH240B)[]) {
-      if (typeof specs[campo] === 'string' && ANTIGOS[campo].test(specs[campo])) { specs[campo] = SPECS_DTH240B[campo]; alterou = true; }
+      if (typeof specs[campo] === 'string' && ANTIGOS[campo].some(re => re.test(specs[campo]))) { specs[campo] = SPECS_DTH240B[campo]; alterou = true; }
     }
     if (!alterou) return m;
     // cadastro antigo: acrescenta as medidas novas só quando estão vazias
@@ -72,9 +74,20 @@ export const rotuloDiametroDoModelo = (m: Modelo | null | undefined, padrao: str
 
 // Editor: máquina base, pressão e vazão guardam os dois perfis num texto só ("A (escavadeira) | B (retro/escav. pequena)"),
 // que é o que o card, a ficha padrão e o envio ao cliente já leem. O editor mostra um campo por perfil.
+// Um perfil sozinho também vai e volta: "(escavadeira)" ou "(retro...)" no sufixo diz de qual lado é.
+// Texto antigo sem sufixo (ex.: "14 a 22 t") conta como escavadeira.
+const SUFIXO = /\s*\(([^)]*)\)\s*$/;
+
 export function perfisDoTexto(texto: unknown): { escavadeira: string; retro: string } {
-  const partes = String(texto ?? '').split('|').map(x => x.replace(/\s*\([^)]*\)\s*$/, '').trim());
-  return { escavadeira: partes[0] || '', retro: partes[1] || '' };
+  const r = { escavadeira: '', retro: '' };
+  const partes = String(texto ?? '').split('|').map(x => x.trim()).filter(Boolean);
+  partes.forEach((parte, i) => {
+    const m = parte.match(SUFIXO);
+    const valor = parte.replace(SUFIXO, '').trim();
+    const lado = m ? (/^\s*retro/i.test(m[1]) ? 'retro' : /^\s*escav/i.test(m[1]) ? 'escavadeira' : (i === 0 ? 'escavadeira' : 'retro')) : (i === 0 ? 'escavadeira' : 'retro');
+    if (!r[lado]) r[lado] = valor;
+  });
+  return r;
 }
 
 // A máquina base diz "retro/escav. pequena"; vazão e pressão dizem só "retro" (como na ficha)
