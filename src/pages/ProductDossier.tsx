@@ -3,6 +3,7 @@ import { useVoltarFecha } from '../lib/useVoltarFecha';
 import Layout from '../components/layout/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../lib/firebase';
+import { comDestocadorDthCorrigido } from '../lib/destocadorDth';
 import { doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 import { Product, ProductModel } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '../components/ui/card';
@@ -351,7 +352,7 @@ export default function ProductDossier() {
     setLoading(true);
     const q = query(collection(db, 'products'), orderBy('name', 'asc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
+      const items = snapshot.docs.map(doc => comDestocadorDthCorrigido({ id: doc.id, ...doc.data() } as Product));
       setProducts(items);
       setLoading(false);
     }, (error) => {

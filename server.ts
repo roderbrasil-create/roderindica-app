@@ -38,6 +38,7 @@ import { getStorage } from 'firebase-admin/storage';
 import { ACCESSORIES_DATA, INSTALLATION_KITS } from "./src/constants.js";
 import { donoDoLinkCurto } from "./server/linkCurtoDono";
 import { REGRA_ENVIO_EQUIPAMENTO } from "./src/lib/pedidoEnvio";
+import { comDestocadorDthCorrigido, modeloParaEnvio } from "./src/lib/destocadorDth";
 import { REGRA_KIT_CONFIRMACAO, TEXTO_CMF_CAT320, RESSALVA_KIT, instrucaoAmostra, videoAmostraDe } from "./src/lib/confirmacaoMaquina";
 import { registrarConsultorParceiro, BUCKETS_VIDEO } from "./server/consultorParceiro";
 import { criarBibliotecaVideos, instrucaoVideos, sanitizarPainel } from "./server/videosConsultor";
@@ -2179,7 +2180,8 @@ Retorne um array JSON no formato exato:
               };
 
               snap.forEach((doc: any) => {
-                const data = doc.data();
+                // cadastro antigo do Destocador DTH 240B: o consultor já lê os valores da ficha
+                const data = comDestocadorDthCorrigido(doc.data());
                 const productImg = data.image_url || FALLBACK_PRODUCT_IMAGES[data.name] || "";
                 const modelsList = (data.models || []).map((m: any) => {
                   const specs = m.technical_specs || {};
@@ -4628,7 +4630,8 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
           const prod = await db.collection('products').doc(l.pid).get();
           if (prod.exists) {
             const p: any = prod.data();
-            const m: any = (p.models || []).find((x: any) => x.id === l.mid) || null;
+            const mBruto: any = (p.models || []).find((x: any) => x.id === l.mid) || null;
+            const m: any = mBruto ? modeloParaEnvio(mBruto) : null;
             // a foto é a arte do servidor (/og/...); o nome do arquivo muda quando a foto do catálogo muda
             const candidatas = candidatasDoLink(p, m);
             const imagem = urlImagemPrevia(SITE_PREVIA, codigo, candidatas);

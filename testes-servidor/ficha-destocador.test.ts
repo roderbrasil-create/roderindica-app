@@ -149,3 +149,38 @@ test('SUPORTE DO DESTOCADOR: sob medida, nunca "o mesmo suporte padrão" do SAC 
   assert.ok(!s.includes('mesmo suporte padrão utilizado') && !s.includes('o mesmo suporte padrão utilizado no destocador'));
   assert.ok(s.includes('SOB MEDIDA para a máquina do cliente') && s.includes('fabricado sob medida pela Roder'));
 });
+
+test('ENVIO AO CLIENTE: card e Consultor usam a mesma função, com os dados novos e a foto', async () => {
+  const e = await import('../src/lib/envioEquipamento.ts');
+  const antigo = {
+    id: 'dth-240b', name: 'DTH 240B', images: ['https://x.com/a.webp', 'https://x.com/b.webp'], image_url: 'https://x.com/a.webp',
+    technical_specs: { diametro_corte: '240', peso: '750', maquina_base: '14 a 25 Ton.', pressao: '210 a 250', vazao: '120 a 180' },
+  };
+  const prod = { id: 'p1', name: 'Destocador Tipo Broca', image_url: 'https://x.com/p.webp', models: [antigo] };
+  const link = 'https://roderindica.com/o/abc123';
+  // card (modelo já corrigido na tela) e Consultor (modelo antigo do Firestore) geram o MESMO texto
+  const doConsultor = e.textoEnvioModelo(prod, antigo, link);
+  const doCard = e.textoEnvioModelo(prod, e.modeloParaEnvio(antigo), link, prod.name);
+  assert.equal(doCard, doConsultor);
+  for (const t of ['14 a 22 t (escavadeira) | 6 a 10 t', 'Corte até 660 mm', 'Peso 750 kg', '280 a 350 bar (escavadeira) | 190 a 220 bar (retro)', '140 a 220 L/min (escavadeira) | 100 a 150 L/min (retro)', link]) assert.ok(doConsultor.includes(t), t);
+  for (const velho of ['14 a 25', '240 mm', '210 a 250', '120 a 180']) assert.ok(!doConsultor.includes(velho), velho);
+  // a foto: as do modelo primeiro, depois a do produto, sem repetir
+  assert.deepEqual(e.imagensParaEnvio(prod, antigo), ['https://x.com/a.webp', 'https://x.com/b.webp', 'https://x.com/p.webp']);
+  assert.equal(antigo.technical_specs.diametro_corte, '240'); // o original não é alterado
+});
+
+test('ENVIO AO CLIENTE: todos os pontos de envio passam pela fonte única e levam a foto', () => {
+  for (const a of ['../src/pages/Catalog.tsx', '../src/components/layout/EngineerHelper.tsx']) {
+    const s = fonte(a);
+    assert.ok(s.includes('textoEnvioModelo(') && s.includes('compartilharModeloComFoto('), a);
+    assert.ok(!/textoCatalogoWhats|compartilharFotoETexto|arquivoDeFoto/.test(s), `${a} ainda monta o envio por fora`);
+  }
+  assert.ok(fonte('../src/pages/Catalog.tsx').includes('prepararFotoEnvio('));
+  assert.ok(fonte('../src/components/layout/EngineerHelper.tsx').includes('prepararFotoEnvio('));
+  // quem lê o cadastro (consultor no servidor, prévia do link, página pública, lista do consultor) aplica a correção
+  assert.ok(fonte('../server.ts').includes('comDestocadorDthCorrigido(doc.data())') && fonte('../server.ts').includes('modeloParaEnvio(mBruto)'));
+  assert.ok(fonte('../src/pages/PublicBudgetRequest.tsx').includes('comDestocadorDthCorrigido('));
+  assert.ok(fonte('../src/components/layout/EngineerHelper.tsx').includes('prods.map(comDestocadorDthCorrigido)'));
+  // o servidor não pode puxar o Firebase do navegador
+  assert.ok(!fonte('../server.ts').includes('lib/envioEquipamento'));
+});

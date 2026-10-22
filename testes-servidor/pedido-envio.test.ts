@@ -61,9 +61,9 @@ test('os botões do consultor mandam ao cliente no formato do catálogo e a fich
   const src = readFileSync('src/components/layout/EngineerHelper.tsx', 'utf8');
   assert.ok(!src.includes('escolherEnvio'), 'sobrou a escolha de dois botões');
   assert.ok(!src.includes('mandarAoClienteWhats'), 'sobrou o envio só com texto');
-  assert.ok(src.includes('textoCatalogoWhats('), 'não usa o texto do catálogo');
-  assert.ok(src.includes('compartilharFotoETexto('), 'não manda a foto');
+  assert.ok(src.includes('textoEnvioModelo('), 'não usa o texto do catálogo (fonte única)');
+  assert.ok(src.includes('compartilharModeloComFoto('), 'não manda a foto');
   assert.ok(src.includes('fichaPedida'), 'botão da ficha sem trava');
   const cat = readFileSync('src/pages/Catalog.tsx', 'utf8');
-  assert.ok(cat.includes('textoCatalogoWhats(') && cat.includes('compartilharFotoETexto('), 'catálogo deixou de usar o código compartilhado');
+  assert.ok(cat.includes('textoEnvioModelo(') && cat.includes('compartilharModeloComFoto('), 'catálogo deixou de usar o código compartilhado');
 });

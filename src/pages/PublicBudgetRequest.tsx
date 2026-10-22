@@ -30,6 +30,7 @@ import { ImageLightbox } from '../components/ui/ImageLightbox';
 import { PlayerVideo } from '../components/video/VideoEquipamento';
 import { tituloFicha } from '../lib/tituloFicha';
 import { videoDoEquipamento } from '../lib/videoEquipamento';
+import { comDestocadorDthCorrigido } from '../lib/destocadorDth';
 
 // Faixa preta com a logo horizontal da Roder, abaixo da hora e da bateria do celular
 function Cabecalho() {
@@ -135,7 +136,7 @@ export default function PublicBudgetRequest() {
         if (productId && productId !== 'undefined' && productId !== 'null' && productId !== '') {
           const productSnap = await getDoc(doc(db, 'products', productId));
           if (productSnap.exists()) {
-            const productData = { id: productSnap.id, ...productSnap.data() } as Product;
+            const productData = comDestocadorDthCorrigido({ id: productSnap.id, ...productSnap.data() } as Product);
             setProduct(productData);
             
             const foundModel = productData.models?.find(m => m.id === modelId);

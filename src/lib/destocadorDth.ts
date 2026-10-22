@@ -57,6 +57,12 @@ export function corrigirDestocadorDth240b<T extends Modelo>(modelos: T[] | undef
   return mudou ? novos : null;
 }
 
+// O modelo como o card mostra: valores novos aplicados sobre o cadastro antigo (usado no envio ao cliente e no servidor)
+export function modeloParaEnvio<M extends Modelo>(model: M): M {
+  const novos = corrigirDestocadorDth240b([model]);
+  return novos ? novos[0] : model;
+}
+
 // Só a exibição: o card já aparece certo antes de a correção do banco rodar (ou se ela não puder gravar)
 export function comDestocadorDthCorrigido<P extends { models?: Modelo[] }>(produto: P): P {
   const novos = corrigirDestocadorDth240b(produto?.models);

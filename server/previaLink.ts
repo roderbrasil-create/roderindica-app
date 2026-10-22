@@ -37,7 +37,8 @@ export function previaDoEquipamento(codigo: string, p: any, m: any, imagem: stri
   const nome = String(p?.name || '').trim();
   if (!nome) return previaPadrao(codigo);
   const titulo = `${nome}${m?.name && !nome.includes(String(m.name)) ? ` ${m.name}` : ''} | Roder`;
-  const base = String(m?.technical_specs?.maquina_base || '').trim();
+  // dois perfis no mesmo texto ("14 a 22 t (escavadeira) | 6 a 10 t (retro)"): a prévia fala do primeiro
+  const base = String(m?.technical_specs?.maquina_base || '').split('|')[0].replace(/\s*\([^)]*\)\s*$/, '').trim();
   const temVideo = !!videoDoEquipamento(p, m);
   const fim = temVideo ? 'Veja o vídeo trabalhando e peça o orçamento.' : 'Fotos, vídeo, ficha e orçamento.';
   const descricao = base

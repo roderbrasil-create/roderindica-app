@@ -52,7 +52,7 @@ import {
   lerCidadeUf, primeiroNome, querIndicar, textoLinkCliente, validarCnpj, validarTelefoneBR,
 } from '../../lib/consultorIndicar';
 import { linkWhatsSemNumero, textoEquipamentoCliente } from '../../lib/mensagemWhatsCliente';
-import { textoCatalogoWhats, arquivoDeFoto, compartilharFotoETexto } from '../../lib/compartilharEquipamento';
+import { textoEnvioModelo, prepararFotoEnvio, compartilharModeloComFoto, comDestocadorDthCorrigido } from '../../lib/envioEquipamento';
 import { pediuFicha } from '../../lib/pedidoEnvio';
 import { AVISO_SEM_AMOSTRA, linkPublicoDoVideo, precisaConfirmarMaquina, textoPedirConfirmacaoMaquina, videoAmostraDe } from '../../lib/confirmacaoMaquina';
 
@@ -2004,7 +2004,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
           const prods = prodSnap.docs
             .map(doc => ({ id: doc.id, ...doc.data() } as Product))
             .filter(p => !p.is_blocked);
-          setCatalogProducts(prods);
+          setCatalogProducts(prods.map(comDestocadorDthCorrigido));
 
           const qStock = query(collection(db, 'stock_items'));
           const stockSnap = await getDocs(qStock);
@@ -3231,8 +3231,7 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
     const chave = chaveLinkCliente(prod, model);
     await buscarLinkCliente(prod, model);
     if (!fotosEnvioRef.current.has(chave)) {
-      const imagens = [...(model.images || []), model.image_url, prod.image_url];
-      fotosEnvioRef.current.set(chave, await arquivoDeFoto(imagens, `${prod.name || ''} ${model.name || ''}`));
+      fotosEnvioRef.current.set(chave, await prepararFotoEnvio(prod, model));
     }
   };
   const enviarAoCliente = async (prod: Product, model: ProductModel) => {
@@ -3247,8 +3246,8 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
     }
     const link = linksClienteRef.current.get(chave);
     if (!link) return;
-    const texto = textoCatalogoWhats(prod.name || '', model, link);
-    const res = await compartilharFotoETexto(fotosEnvioRef.current.get(chave), texto);
+    const texto = textoEnvioModelo(prod, model, link);
+    const res = await compartilharModeloComFoto(prod, model, texto);
     if (res !== 'indisponivel') return;
     // sem menu de compartilhar com foto (ou o celular recusou): vai o texto com o link, que mostra a foto na prévia
     const url = linkWhatsSemNumero(texto);

@@ -102,7 +102,8 @@ import { usePodeEnviarFicha } from '../components/catalog/fichaPdf';
 import { EstudosComparativosModal } from '../components/catalog/EstudosComparativosModal';
 import { RODER_LOGO_BASE64 } from '../components/catalog/RoderLogo';
 import { useVoltarFecha } from '../lib/useVoltarFecha';
-import { DEFAULT_FAE_SPECS, textoCatalogoWhats, arquivoDeFoto, compartilharFotoETexto } from '../lib/compartilharEquipamento';
+import { DEFAULT_FAE_SPECS } from '../lib/compartilharEquipamento';
+import { textoEnvioModelo, prepararFotoEnvio, compartilharModeloComFoto } from '../lib/envioEquipamento';
 import { perfilInstalacao, frasePara, maquinasDoProduto, NOME_MAQUINA, type TipoMaquina } from '../lib/instalacao';
 import { abrirDocumento } from '../lib/abrirDocumento';
 import { ehFichaPropria } from '../lib/fichaPropria';
@@ -965,12 +966,6 @@ export default function Catalog() {
   // Foto de cada modelo já pronta como arquivo, para o botão WhatsApp mandar FOTO + texto.
   // A prévia do link pelo WhatsApp não aparecia (testado em 18/10 com vários equipamentos):
   // mandando a foto junto, ela chega sempre.
-  const fotosParaEnviar = useRef<Record<string, File>>({});
-  const prepararFoto = async (chave: string, imagens: string[] | undefined, nome: string) => {
-    if (fotosParaEnviar.current[chave]) return;
-    const arq = await arquivoDeFoto(imagens, nome);
-    if (arq) fotosParaEnviar.current[chave] = arq;
-  };
   useEffect(() => {
     const prod = viewingGallery || selectedProductModels;
     if (!prod?.id || !prod.models?.length || !usuarioPronto) return;
@@ -982,7 +977,7 @@ export default function Catalog() {
       }
       for (const m of prod.models!) {
         if (cancelado) return;
-        await prepararFoto(`${prod.id}:${m.id}`, m.images?.length ? m.images : [prod.image_url], m.name || prod.name);
+        await prepararFotoEnvio(prod, m);
       }
     })();
     return () => { cancelado = true; };
@@ -3900,16 +3895,16 @@ export default function Catalog() {
       ? `https://roderindica.com/o/${codigo}`
       : `${window.location.origin}/pedido-orcamento?uid=${profile?.uid || user?.uid || ''}&pid=${productId || ''}&mid=${model.id || ''}`;
 
-    const text = textoCatalogoWhats(finalProductName, model, budgetUrl);
+    // Mesmo texto e mesma foto do Consultor (src/lib/envioEquipamento.ts)
+    const prodEnvio = { id: productId, name: finalProductName, image_url: (viewingGallery || selectedProductModels)?.image_url, models: [] as any[] };
+    const text = textoEnvioModelo(prodEnvio, model, budgetUrl, finalProductName);
 
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
-    // Foto + texto pelo menu de compartilhar do celular (a pessoa escolhe o WhatsApp).
-    // Só quando a foto e o link já estavam prontos: o celular exige que o menu abra logo
-    // depois do toque. Sem isso, vai só o texto, como antes.
-    const foto = productId ? fotosParaEnviar.current[`${productId}:${model.id}`] : undefined;
-    if (!janela && foto && codigo) {
-      const res = await compartilharFotoETexto(foto, text);
-      if (res !== 'indisponivel') return; // enviou ou fechou o menu sem escolher
+    // Foto + texto pelo menu de compartilhar do celular (a pessoa escolhe o WhatsApp). Se a foto ainda
+    // não estiver pronta, espera até 6 segundos por ela. Se o aparelho não aceitar, vai só o texto.
+    if (codigo) {
+      const res = await compartilharModeloComFoto(prodEnvio, model, text);
+      if (res !== 'indisponivel') { if (janela && !janela.closed) janela.close(); return; } // enviou ou fechou o menu sem escolher
     }
     if (janela && !janela.closed) janela.location.href = whatsappUrl;
     else window.open(whatsappUrl, '_blank');
