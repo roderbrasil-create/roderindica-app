@@ -41,25 +41,31 @@ test('link sem produto no catálogo devolve nulo em vez de abrir a ficha errada'
   assert.equal(acharFichaEscavadeira([{ name: 'x', models: [{ id: 'a', name: 'Garra R400' }] }], 'umm'), null);
 });
 
-test('o prompt do consultor traz o link dos nove modelos e a regra de não falar número de dentes', async () => {
+test('o prompt do consultor traz o link dos nove modelos e só libera número de dentes dos quatro com ficha individual', async () => {
   const { readFileSync } = await import('node:fs');
   const fonte = readFileSync(new URL('../server.ts', import.meta.url), 'utf8');
   for (const m of MODELOS_FICHA_ESCAVADEIRA) assert.ok(fonte.includes(`(${linkFichaEscavadeira(m.chave)})`), m.chave);
-  assert.ok(fonte.includes('Nunca informe número de dentes desses trituradores de escavadeira'));
+  assert.ok(!fonte.includes('Nunca informe número de dentes desses trituradores de escavadeira'));
+  assert.ok(fonte.includes('Para BL0, PML, BL1, DML e BL3 não informe número de dentes'));
 });
 
-test('decisão do link: modelo válido abre, desconhecido e ssh-150 avisam, outros links seguem o caminho antigo', async () => {
-  const { decidirLinkFichaFae } = await import('../src/lib/fichaEscavadeira.ts');
+test('decisão do link: os quatro com ficha individual abrem ela, os outros cinco abrem a geral, desconhecido e ssh-150 avisam, outros links seguem o caminho antigo', async () => {
+  const { decidirLinkFichaFae, temFichaIndividualFae } = await import('../src/lib/fichaEscavadeira.ts');
   for (const m of MODELOS_FICHA_ESCAVADEIRA) {
     const d = decidirLinkFichaFae(linkFichaEscavadeira(m.chave), [produto]);
-    assert.equal(d.acao, 'abrir');
-    if (d.acao === 'abrir') assert.equal(d.model.name, m.nome);
+    if (temFichaIndividualFae(m.chave)) {
+      assert.deepEqual(d, { acao: 'individual', chave: m.chave });
+    } else {
+      assert.equal(d.acao, 'abrir');
+      if (d.acao === 'abrir') assert.equal(d.model.name, m.nome);
+    }
   }
   assert.equal(decidirLinkFichaFae('ficha-fae:ssh-150', [produto]).acao, 'avisar');
   assert.equal(decidirLinkFichaFae('ficha-fae:xyz', [produto]).acao, 'avisar');
   assert.equal(decidirLinkFichaFae('ficha-fae:', [produto]).acao, 'avisar');
   assert.equal(decidirLinkFichaFae('FICHA-FAE:ssh-150', [produto]).acao, 'avisar');
-  assert.equal(decidirLinkFichaFae('ficha-fae:umm', []).acao, 'avisar');
+  assert.equal(decidirLinkFichaFae('ficha-fae:umm', []).acao, 'individual');
+  assert.equal(decidirLinkFichaFae('ficha-fae:bl3', []).acao, 'avisar');
   assert.equal(decidirLinkFichaFae('fresa-ssh', [produto]).acao, 'ignorar');
 });
 

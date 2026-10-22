@@ -1,3 +1,6 @@
+// Quatro dos nove modelos têm ficha INDIVIDUAL aprovada (src/data/fichasTrituradorFae.ts): é a ficha oficial
+// deles, aberta pelo "Ver ficha" do card do modelo e pelo link do consultor. Os outros cinco (bl0, pml, bl1,
+// dml, bl3) continuam na ficha geral, a mesma do card principal dos trituradores, com seletor de modelo.
 // Fichas montadas pelo sistema dos trituradores FAE de escavadeira (UML/EX/VT, UML/S/EX/VT, UMM,
 // BL0, PML, BL1, DML, BL2, BL3). O consultor manda o vendedor para a ficha certa do modelo
 // por um link "ficha-fae:<modelo>", e a tela abre a ficha padrão desse modelo (a mesma da lista de equipamentos).
@@ -14,6 +17,11 @@ export const MODELOS_FICHA_ESCAVADEIRA = [
   { chave: 'uml-s-ex-vt', nome: 'FAE UML/S/EX/VT' },
   { chave: 'umm', nome: 'FAE UMM/EX/VT' },
 ] as const;
+
+export const CHAVES_FICHA_INDIVIDUAL = ['uml-s-ex-vt', 'uml-ex-vt', 'bl2', 'umm'] as const;
+export type ChaveFichaIndividual = typeof CHAVES_FICHA_INDIVIDUAL[number];
+export const temFichaIndividualFae = (chave: string | null | undefined): chave is ChaveFichaIndividual =>
+  !!chave && (CHAVES_FICHA_INDIVIDUAL as readonly string[]).includes(chave);
 
 export const PREFIXO_LINK_FICHA_FAE = 'ficha-fae:';
 
@@ -50,6 +58,13 @@ export function chaveDoLinkFichaFae(href: string): string | null {
 }
 
 type ModeloLike = { id?: string; name?: string };
+
+// Chave da ficha individual do modelo do catálogo (nulo = usa a ficha geral)
+export function chaveIndividualDoModelo(model?: ModeloLike | null): ChaveFichaIndividual | null {
+  if (!model) return null;
+  const chave = chaveFichaEscavadeira(model.name || '') || chaveFichaEscavadeira(model.id || '');
+  return temFichaIndividualFae(chave) ? chave : null;
+}
 type ProdutoLike<M extends ModeloLike> = { name?: string; models?: M[] };
 
 // Acha, na lista de produtos do catálogo, o produto e o modelo da ficha pedida
@@ -68,6 +83,7 @@ export function acharFichaEscavadeira<M extends ModeloLike, P extends ProdutoLik
 // nunca segue para as outras fichas (ex.: "ficha-fae:ssh-150" não pode abrir a ficha da SSH).
 export type DecisaoLinkFichaFae<P, M> =
   | { acao: 'ignorar' }
+  | { acao: 'individual'; chave: ChaveFichaIndividual }
   | { acao: 'abrir'; product: P; model: M }
   | { acao: 'avisar'; aviso: string };
 
@@ -75,6 +91,8 @@ export function decidirLinkFichaFae<M extends ModeloLike, P extends ProdutoLike<
   if (!String(url || '').trim().toLowerCase().startsWith(PREFIXO_LINK_FICHA_FAE)) return { acao: 'ignorar' };
   const chave = chaveDoLinkFichaFae(url);
   if (!chave) return { acao: 'avisar', aviso: 'Não reconheci o modelo dessa ficha. Procure na lista de equipamentos.' };
+  // Os quatro modelos com ficha individual abrem ela, sem depender do catálogo estar carregado
+  if (temFichaIndividualFae(chave)) return { acao: 'individual', chave };
   const achada = acharFichaEscavadeira<M, P>(produtos, chave);
   if (!achada) return { acao: 'avisar', aviso: 'Não achei essa ficha no catálogo agora. Procure o modelo na lista de equipamentos.' };
   return { acao: 'abrir', ...achada };

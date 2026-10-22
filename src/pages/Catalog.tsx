@@ -92,6 +92,8 @@ import { CabecotePodaFicha } from '../components/catalog/CabecotePodaFicha';
 import { CabecoteGmt035Ficha } from '../components/catalog/CabecoteGmt035Ficha';
 import { SacadorSac500Ficha } from '../components/catalog/SacadorSac500Ficha';
 import { FichaPadrao } from '../components/catalog/FichaPadrao';
+import { FichaTrituradorFae } from '../components/catalog/FichaTrituradorFae';
+import { chaveIndividualDoModelo, type ChaveFichaIndividual } from '../lib/fichaEscavadeira';
 import { usePodeEnviarFicha } from '../components/catalog/fichaPdf';
 import { EstudosComparativosModal } from '../components/catalog/EstudosComparativosModal';
 import { RODER_LOGO_BASE64 } from '../components/catalog/RoderLogo';
@@ -399,7 +401,8 @@ const isAnyFichaSupported = (product: any) => {
 const padraoDaFicha = (product: any, model?: any) => {
   const m = model || (product?.models || []).find((x: any) => x && x.name) ||
     { id: product?.id || 'modelo', name: product?.name || '', technical_specs: {}, pdf_url: product?.pdf_url || '' };
-  return { product, model: m };
+  // geral: ficha do card principal do produto (sem modelo escolhido), que abre a ficha geral com seletor
+  return { product, model: m, geral: !model };
 };
 
 
@@ -782,6 +785,8 @@ export default function Catalog() {
   const [isSacadorSac500FichaOpen, setIsSacadorSac500FichaOpen] = useState(false);
   // Ficha padrão em PDF (modelo sem ficha própria)
   const [fichaPadrao, setFichaPadrao] = useState<{ product: any; model: any } | null>(null);
+  // Ficha individual dos trituradores FAE de escavadeira (UML/S, UML, BL2, UMM)
+  const [fichaFae, setFichaFae] = useState<ChaveFichaIndividual | null>(null);
   const [isEstudosComparativosOpen, setIsEstudosComparativosOpen] = useState(false);
   const [garraEstufagemDefaultModel, setGarraEstufagemDefaultModel] = useState<string>('af-360');
   const [suspendedProductModels, setSuspendedProductModels] = useState<Product | null>(null);
@@ -2217,12 +2222,12 @@ export default function Catalog() {
                 'db-file://hM1qTk09k1O977KpPSSV'
               ],
               technical_specs: {
-                peso_do_equipamento: '645 a 750',
+                peso_do_equipamento: '570',
                 maquina_base: '8 a 14 Ton.',
-                pressao: '200 a 350',
-                vazao: '80 a 150',
+                pressao: '180 a 350',
+                vazao: '100 a 140',
                 diametro_max_trituracao: '150 mm (15 cm)',
-                tipo_dente: 'Dentes fixos planos de Vídea com tecnologia Bite Limiter'
+                tipo_dente: 'Lâmina BL/MINI de série; dente de vídea C/3/MINI opcional'
               }
             },
             {
@@ -2256,12 +2261,12 @@ export default function Catalog() {
                 'db-file://Dwtp2CuoZNYB5bBIUzG4'
               ],
               technical_specs: {
-                peso_do_equipamento: '1100 a 1350',
+                peso_do_equipamento: '1170',
                 maquina_base: '14 a 20 Ton.',
                 pressao: '220 a 350',
-                vazao: '110 a 220',
+                vazao: '130 a 210',
                 diametro_max_trituracao: '200 mm (20 cm)',
-                tipo_dente: 'Dentes fixos de Vídea tipo C/3 ou dente Blade C/3/W'
+                tipo_dente: 'Dentes de vídea C/3 ou lâmina BL nos dentes centrais (a Roder fornece o outro para troca); C/3/HD só opcional'
               }
             },
             {
@@ -2276,12 +2281,12 @@ export default function Catalog() {
                 'db-file://EueQzUxvKuDIiEwQmdpK'
               ],
               technical_specs: {
-                peso_do_equipamento: '1340 a 1580',
+                peso_do_equipamento: '1450',
                 maquina_base: '18 a 25 Ton.',
                 pressao: '220 a 350',
-                vazao: '120 a 250',
-                diametro_max_trituracao: '250 mm (25 cm)',
-                tipo_dente: 'Dentes fixos de Vídea tipo C/3 ou dente Blade C/3/W'
+                vazao: '145 a 240',
+                diametro_max_trituracao: '300 mm (30 cm)',
+                tipo_dente: 'Dentes de vídea C/3 ou lâmina BL nos dentes centrais (a Roder fornece o outro para troca)'
               }
             },
             {
@@ -2296,12 +2301,12 @@ export default function Catalog() {
                 'db-file://tvABksEedUjzZdNWqzcr'
               ],
               technical_specs: {
-                peso_do_equipamento: '1550 a 1880',
+                peso_do_equipamento: '2120',
                 maquina_base: '20 a 30 Ton.',
-                pressao: '220 a 350',
-                vazao: '150 a 300',
+                pressao: '240 a 350',
+                vazao: '130 a 210',
                 diametro_max_trituracao: '300 mm (30 cm)',
-                tipo_dente: 'Dentes fixos de Vídea tipo C/3 ou dente HD'
+                tipo_dente: 'Dentes de vídea C/3 (a Roder sempre fornece assim), lâmina BL nos dentes centrais com suporte adaptador'
               }
             }
           ]
@@ -2817,12 +2822,12 @@ export default function Catalog() {
               'https://roderbrasil.com.br/wp-content/uploads/2021/05/triturador-florestal-fae.jpg'
             ],
             technical_specs: {
-              peso_do_equipamento: '645 a 750',
+              peso_do_equipamento: '570',
               maquina_base: '8 a 14 Ton.',
-              pressao: '200 a 350',
-              vazao: '80 a 150',
+              pressao: '180 a 350',
+              vazao: '100 a 140',
               diametro_max_trituracao: '150 mm (15 cm)',
-              tipo_dente: 'Dentes fixos planos de Vídea com tecnologia Bite Limiter'
+              tipo_dente: 'Lâmina BL/MINI de série; dente de vídea C/3/MINI opcional'
             }
           },
           {
@@ -2854,12 +2859,12 @@ export default function Catalog() {
               'https://roderbrasil.com.br/wp-content/uploads/2021/05/triturador-florestal-fae.jpg'
             ],
             technical_specs: {
-              peso_do_equipamento: '1100 a 1350',
+              peso_do_equipamento: '1170',
               maquina_base: '14 a 20 Ton.',
               pressao: '220 a 350',
-              vazao: '110 a 220',
+              vazao: '130 a 210',
               diametro_max_trituracao: '200 mm (20 cm)',
-              tipo_dente: 'Dentes C/3/HD planos com Vídea'
+              tipo_dente: 'Dentes de vídea C/3 ou lâmina BL nos dentes centrais (a Roder fornece o outro para troca); C/3/HD só opcional'
             }
           },
           {
@@ -2873,12 +2878,12 @@ export default function Catalog() {
               'https://roderbrasil.com.br/wp-content/uploads/2021/05/triturador-florestal-fae.jpg'
             ],
             technical_specs: {
-              peso_do_equipamento: '1350 a 1600',
+              peso_do_equipamento: '1450',
               maquina_base: '18 a 25 Ton.',
               pressao: '220 a 350',
-              vazao: '120 a 250',
-              diametro_max_trituracao: '250 mm (25 cm)',
-              tipo_dente: 'Dentes fixos de Vídea tipo C/3/HD ou dentes planos F'
+              vazao: '145 a 240',
+              diametro_max_trituracao: '300 mm (30 cm)',
+              tipo_dente: 'Dentes de vídea C/3 ou lâmina BL nos dentes centrais (a Roder fornece o outro para troca)'
             }
           },
           {
@@ -2892,12 +2897,12 @@ export default function Catalog() {
               'https://roderbrasil.com.br/wp-content/uploads/2021/05/triturador-florestal-fae.jpg'
             ],
             technical_specs: {
-              peso_do_equipamento: '1700 a 1950',
+              peso_do_equipamento: '2120',
               maquina_base: '20 a 30 Ton.',
-              pressao: '220 a 350',
-              vazao: '150 a 300',
+              pressao: '240 a 350',
+              vazao: '130 a 210',
               diametro_max_trituracao: '300 mm (30 cm)',
-              tipo_dente: 'Dentes fixos reforçados tipo UMM/HD com Vídea'
+              tipo_dente: 'Dentes de vídea C/3 (a Roder sempre fornece assim), lâmina BL nos dentes centrais com suporte adaptador'
             }
           }
         ]
@@ -3423,7 +3428,22 @@ export default function Catalog() {
     abrirDocumento(url, 'Catálogo de peças');
   };
 
-  const openPdf = (url: string, modelName?: string, productContext?: any, padrao?: { product: any; model: any }) => {
+  const openPdf = (url: string, modelName?: string, productContext?: any, padrao?: { product: any; model: any; geral?: boolean }) => {
+    // "Ver ficha" do card de UML/S/EX/VT, UML/EX/VT, BL2/EX/VT e UMM/EX/VT: a ficha individual aprovada.
+    // O card principal dos trituradores (padrao.geral) continua com a ficha geral e o seletor de modelo.
+    const individual = padrao && !padrao.geral ? chaveIndividualDoModelo(padrao.model) : null;
+    if (individual) {
+      if (selectedProductModels) {
+        setSuspendedProductModels(selectedProductModels);
+        setSelectedProductModels(null);
+      }
+      if (viewingGallery) {
+        setSuspendedViewingGallery(viewingGallery);
+        setViewingGallery(null);
+      }
+      setFichaFae(individual);
+      return;
+    }
     const lowerUrl = (url || '').toLowerCase();
     const lowerModelName = (modelName || '').toLowerCase();
     const lowerViewingName = (viewingGallery?.name || '').toLowerCase();
@@ -6582,6 +6602,23 @@ export default function Catalog() {
                 setSuspendedViewingGallery(null);
               }
             }} 
+          />
+        )}
+
+        {fichaFae && (
+          <FichaTrituradorFae
+            chave={fichaFae}
+            onClose={() => {
+              setFichaFae(null);
+              if (suspendedProductModels) {
+                setSelectedProductModels(suspendedProductModels);
+                setSuspendedProductModels(null);
+              }
+              if (suspendedViewingGallery) {
+                setViewingGallery(suspendedViewingGallery);
+                setSuspendedViewingGallery(null);
+              }
+            }}
           />
         )}
 

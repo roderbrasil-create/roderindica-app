@@ -28,7 +28,8 @@ import { CabecoteGmt035Ficha } from '../catalog/CabecoteGmt035Ficha';
 import { FichaPadrao, enviarFichaPadrao, fotoDoModelo, tituloFicha } from '../catalog/FichaPadrao';
 import { usePodeEnviarFicha, enviarArquivoPdf, nomeArquivoFicha } from '../catalog/fichaPdf';
 import { ehFichaPropria } from '../../lib/fichaPropria';
-import { decidirLinkFichaFae } from '../../lib/fichaEscavadeira';
+import { decidirLinkFichaFae, chaveIndividualDoModelo, type ChaveFichaIndividual } from '../../lib/fichaEscavadeira';
+import { FichaTrituradorFae, enviarFichaFae } from '../catalog/FichaTrituradorFae';
 import { CartaoFicha } from '../catalog/CartaoFicha';
 import { useVoltarFecha } from '../../lib/useVoltarFecha';
 import { useRolagemConversa } from '../../lib/useRolagemConversa';
@@ -710,6 +711,8 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   const [videoPainel, setVideoPainel] = useState('');
   // Ficha padrão (todo equipamento sem ficha própria)
   const [fichaPadrao, setFichaPadrao] = useState<{ product: Product; model: ProductModel } | null>(null);
+  // Ficha individual dos trituradores FAE de escavadeira (UML/S, UML, BL2, UMM)
+  const [fichaFae, setFichaFae] = useState<ChaveFichaIndividual | null>(null);
   // Regra do Jeferson: parceiro/indicador e consultor público só veem a ficha
   const podeEnviarFicha = usePodeEnviarFicha();
   // Uma tela para cada perfil (aprovado pelo Jeferson em 19/10/2026):
@@ -779,6 +782,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     if (!url) return;
     // Trituradores FAE de escavadeira: abre a ficha montada do modelo (link "ficha-fae:<modelo>")
     const decisaoFae = decidirLinkFichaFae<ProductModel, Product>(url, catalogProducts);
+    if (decisaoFae.acao === 'individual') { setFichaFae(decisaoFae.chave); return; }
     if (decisaoFae.acao === 'abrir') { setFichaPadrao({ product: decisaoFae.product, model: decisaoFae.model }); return; }
     if (decisaoFae.acao === 'avisar') { toast.error(decisaoFae.aviso); return; }
     const tipo = fichaEspecialDe(url, modelName);
@@ -805,6 +809,8 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   };
 
   const verFicha = (prod: Product, model: ProductModel) => {
+    const individual = chaveIndividualDoModelo(model);
+    if (individual) { setFichaFae(individual); return; }
     const link = linkProprioDe(prod, model);
     if (link && !fichaEspecialDe(linkFichaDe(prod, model), `${model.name} ${prod.name}`)) { openTechnicalSheet(link, model.name); return; }
     const tipo = fichaEspecialDe(linkFichaDe(prod, model), `${model.name} ${prod.name}`);
@@ -815,6 +821,8 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   // "Enviar ficha" (só equipe): a padrão gera o PDF direto; a especial abre com o Enviar em destaque
   const enviarFicha = (prod: Product, model: ProductModel) => {
     if (!podeEnviarFicha) return;
+    const individual = chaveIndividualDoModelo(model);
+    if (individual) { enviarFichaFae(individual); return; }
     const link = linkProprioDe(prod, model);
     if (link && !fichaEspecialDe(linkFichaDe(prod, model), `${model.name} ${prod.name}`)) {
       const titulo = `Ficha ${model.name || prod.name}`;
@@ -6396,6 +6404,10 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
 
         {isCabecoteGmt035FichaOpen && (
           <CabecoteGmt035Ficha onClose={() => setIsCabecoteGmt035FichaOpen(false)} enviar={fichaParaEnviar} />
+        )}
+
+        {fichaFae && (
+          <FichaTrituradorFae chave={fichaFae} onClose={() => setFichaFae(null)} />
         )}
 
         {fichaPadrao && (

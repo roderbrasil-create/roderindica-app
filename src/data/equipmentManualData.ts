@@ -150,16 +150,18 @@ export const EQUIPMENT_SPEC_TABLES: EquipmentSpecTable[] = [
     categorySubtitle: 'Trituradores hidráulicos de acoplamento na lança para limpeza florestal, faixas de servidão e aceiros',
     headers: ['Modelo', 'Diâm. Máx. Trituração', 'Peso Equipamento', 'Vazão Óleo', 'Pressão Trab.', 'Tipo de Dente / Rotor', 'Máquina Base'],
     columnWidthsPdf: [24, 26, 24, 25, 24, 33, 26],
+    // BL2, UML/EX, UML/S e UMM: valores das fichas individuais aprovadas (22/10/2026), do modelo que a Roder
+    // trabalha (BL2 100, UML 125, UML/S 125, UMM 150); os catálogos FAE trazem faixa para todos os tamanhos da linha.
     rows: [
       ['FAE BL0/EX', '80 mm (8 cm)', '290 a 325 kg', '50 a 90 L/min', '180 a 250 bar', 'Mini BL (Bite Limiter) / Lâmina ou Martelo', '2 a 4 Ton.'],
       ['FAE PML/EX', '50 mm (5 cm)', '190 a 210 kg', '20 a 90 L/min', '150 a 220 bar', 'Mini PML Lâminas Y ou Martelos PML', '1.5 a 5.5 Ton.'],
       ['FAE BL1/EX/VT', '120 mm (12 cm)', '350 a 410 kg', '50 a 140 L/min', '180 a 350 bar', 'Mini BL Dentes Fixos de Vídea (VT)', '4 a 8 Ton.'],
       ['FAE DML/HY', '120 mm (12 cm)', '490 a 590 kg', '50 a 160 L/min', '200 a 350 bar', 'Dentes cilíndricos tipo E com Vídea', '5 a 13 Ton.'],
-      ['FAE BL2/EX/VT', '150 mm (15 cm)', '645 a 750 kg', '80 a 150 L/min', '200 a 350 bar', 'Dentes Fixos Planos de Vídea Bite Limiter', '8 a 14 Ton.'],
+      ['FAE BL2/EX/VT', '150 mm (15 cm)', '570 kg', '100 a 140 L/min', '180 a 350 bar', 'Lâmina BL/MINI de série; dente de vídea C/3/MINI opcional', '8 a 14 Ton.'],
       ['FAE BL3/EX/VT', '200 mm (20 cm)', '1.050 a 1.250 kg', '100 a 200 L/min', '220 a 350 bar', 'Dentes Fixos BL3 de Vídea Bite Limiter', '14 a 20 Ton.'],
-      ['FAE UML/EX/VT', '200 mm (20 cm)', '1.100 a 1.350 kg', '110 a 220 L/min', '220 a 350 bar', 'Dentes C/3/HD Planos de Vídea Reforçada', '14 a 20 Ton.'],
-      ['FAE UML/S/EX/VT', '250 mm (25 cm)', '1.350 a 1.600 kg', '120 a 250 L/min', '220 a 350 bar', 'Dentes Fixos de Vídea C/3/HD ou Planos F', '18 a 25 Ton.'],
-      ['FAE UMM/EX/VT', '300 mm (30 cm)', '1.700 a 1.950 kg', '150 a 300 L/min', '220 a 350 bar', 'Dentes Fixos Reforçados UMM/HD com Vídea', '20 a 30 Ton.']
+      ['FAE UML/EX/VT', '200 mm (20 cm)', '1.170 kg', '130 a 210 L/min', '220 a 350 bar', 'Dentes de vídea C/3 ou lâmina BL nos dentes centrais (a Roder fornece o outro para troca); C/3/HD só opcional', '14 a 20 Ton.'],
+      ['FAE UML/S/EX/VT', '300 mm (30 cm)', '1.450 kg', '145 a 240 L/min', '220 a 350 bar', 'Dentes de vídea C/3 ou lâmina BL nos dentes centrais (a Roder fornece o outro para troca)', '18 a 25 Ton.'],
+      ['FAE UMM/EX/VT', '300 mm (30 cm)', '2.120 kg', '130 a 210 L/min', '240 a 350 bar', 'Dentes de vídea C/3; lâmina BL nos dentes centrais com suporte adaptador', '20 a 30 Ton.']
     ],
     notes: [
       'Tecnologia Bite Limiter (BL): Perfil especial de rotor que limita a mordida dos dentes, mantendo a rotação constante e evitando travamentos do motor hidráulico.'
