@@ -220,3 +220,33 @@ export function capaDoVideo(v: Pick<VideoConsultor, 'thumb_url' | 'video_url'>):
     : null;
   return m ? `https://i.ytimg.com/vi/${m[1]}/hqdefault.jpg` : '';
 }
+
+// ---------------------------------------------------------------------------
+// Vídeo UMA vez por equipamento na conversa (pedido do Jeferson, 21/10/2026): o consultor devolvia o
+// cartão do vídeo em toda resposta sobre o mesmo equipamento (ver ficha, hidráulico, qualquer pergunta)
+// e o cartão grande empurrava a conversa. Depois da primeira vez o cartão não volta, a menos que a
+// pessoa peça vídeo de novo. O estado é derivado das próprias mensagens: limpar a conversa zera sozinho.
+// ---------------------------------------------------------------------------
+export const PEDIU_VIDEO = /\b(v[ií]deos?|filmagem|filme|assistir)\b/i;
+
+type MsgVideo = { role: string; content?: string; painel?: { videos?: string[] } | null };
+
+export function idsVideosParaMostrar(mensagens: MsgVideo[], idx: number, lista: Pick<VideoConsultor, 'id' | 'produto_id' | 'modelo_id'>[]): string[] {
+  const chaveDe = (id: string) => {
+    const v = lista.find(x => x.id === id);
+    return v?.produto_id && v.produto_id !== PRODUTO_AMOSTRA ? `eq:${v.produto_id}:${v.modelo_id || ''}` : `id:${id}`;
+  };
+  const vistos = new Set<string>();
+  let atual: string[] = [];
+  for (let k = 0; k <= idx; k++) {
+    const m = mensagens[k];
+    if (!m || m.role !== 'assistant') continue;
+    const ids = m.painel?.videos || [];
+    const ant = mensagens[k - 1];
+    const pediu = !!ant && ant.role === 'user' && PEDIU_VIDEO.test(ant.content || '');
+    const mostrar = pediu ? ids : ids.filter(id => !vistos.has(chaveDe(id)) && !vistos.has(`id:${id}`));
+    mostrar.forEach(id => { vistos.add(chaveDe(id)); vistos.add(`id:${id}`); });
+    if (k === idx) atual = mostrar;
+  }
+  return atual;
+}

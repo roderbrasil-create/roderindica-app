@@ -39,7 +39,7 @@ import { abrirDocumento } from '../../lib/abrirDocumento';
 import { videoDoEquipamento } from '../../lib/videoEquipamento';
 import { ContextoVideo, PlayerVideo } from '../video/VideoEquipamento';
 import { ListaVideos, VideosDaResposta, useVideosConsultor } from '../video/VideosConsultor';
-import { nomeDoVideo, type VideoConsultor } from '../../lib/videosConsultor';
+import { idsVideosParaMostrar, nomeDoVideo, type VideoConsultor } from '../../lib/videosConsultor';
 import { separarPainel, type PainelConversa } from '../../lib/painelConsultor';
 export { separarPainel, type PainelConversa };
 import {
@@ -4201,9 +4201,11 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                 {/* Celular: o painel da resposta (máquina, equipamento, perguntas) vem logo abaixo dela */}
                 {!layoutPc && msg.role === 'assistant' && msg.painel && cartoesPainelCel(msg.painel, parseConsultantOptions(msg.content).options.length > 0)}
                 {/* Vídeos que o consultor escolheu para esta resposta (ids conferidos contra a lista) */}
-                {msg.role === 'assistant' && msg.painel?.videos && msg.painel.videos.length > 0 && (
-                  <VideosDaResposta ids={msg.painel.videos} lista={videosConsultor} foto={fotoDoVideo} />
-                )}
+                {msg.role === 'assistant' && msg.painel?.videos && msg.painel.videos.length > 0 && (() => {
+                  // só na primeira vez por equipamento; volta se a pessoa pedir vídeo de novo
+                  const idsVideo = idsVideosParaMostrar(messages, idx, videosConsultor);
+                  return idsVideo.length > 0 ? <VideosDaResposta ids={idsVideo} lista={videosConsultor} foto={fotoDoVideo} /> : null;
+                })()}
                 {/* Pergunta de kit: o kit depende da configuração da máquina, então o pedido de vídeo e fotos ao cliente */}
                 {msg.role === 'assistant' && perfilConsultor !== 'visitante' && idx > 0 && !(loading && idx === messages.length - 1) && precisaConfirmarMaquina(msg.painel, messages[idx - 1]?.role === 'user' ? messages[idx - 1].content : '') && (
                   <div className="flex justify-start">

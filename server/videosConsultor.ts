@@ -79,6 +79,7 @@ export function instrucaoVideos(listaCompleta: VideoConsultor[], conversa = ''):
   return `\n\nVÍDEOS DISPONÍVEIS (id | equipamento | título | contexto):\n${videosParaPrompt(lista, MAX_VIDEOS_PROMPT, conversa)}
 - Quando a pessoa pedir vídeo, ou quando um vídeo claramente ajudar (ex.: pergunta como o equipamento trabalha numa operação, material ou máquina específica), acrescente no JSON do <painel> o campo "videos": ["<id>", ...] com no máximo ${MAX_VIDEOS_RESPOSTA} ids DESTA lista, os mais próximos da pergunta (mesmo equipamento e modelo; o contexto diz a operação). Prefira os que têm contexto parecido com o da pergunta.
 - Ao mandar vídeo, cite os vídeos uma vez só no texto, numa frase curta (sem repetir a mesma frase em toda resposta). Os cartões com o vídeo aparecem sozinhos embaixo da resposta; não escreva link nem id do vídeo no texto.
+- Mande o vídeo de um equipamento UMA vez por conversa. Se já mandou antes (veja o histórico), não ponha "videos" de novo nas respostas seguintes sobre o mesmo equipamento (ficha, hidráulico, dúvidas). Só repita se a pessoa pedir o vídeo de novo.
 - Nunca invente id. Sem vídeo do equipamento na lista, não ponha o campo e não prometa vídeo.`;
 }
 
