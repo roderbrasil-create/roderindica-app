@@ -4914,7 +4914,7 @@ async function relatorioParceirosDia1(deps) {
             <p style="margin: 0;"><strong>Pr\xF3ximo passo: nota fiscal de servi\xE7o</strong></p>
             <p style="margin: 6px 0 0 0;">Nosso setor financeiro est\xE1 aguardando a sua <strong>nota fiscal de servi\xE7o no valor de ${formatCurrency(totalCommissions)}</strong>.</p>
             <p style="margin: 6px 0 0 0;">Basta <strong>responder este e-mail com a nota fiscal anexada</strong> at\xE9 o dia <strong>05</strong>. A resposta vai direto para o nosso financeiro, e o pagamento \xE9 feito at\xE9 o dia <strong>07</strong> (se cair em fim de semana ou feriado, no pr\xF3ximo dia \xFAtil).</p>
-            <p style="margin: 6px 0 0 0; font-size: 12px; color: #6b7280;">Se preferir, voc\xEA tamb\xE9m pode carregar a nota no Roder Indica, na tela Comiss\xF5es.</p>
+            <p style="margin: 6px 0 0 0; font-size: 12px; color: #6b7280;">Se preferir, voc\xEA tamb\xE9m pode carregar a nota no Roder Indica, na tela Meus ganhos.</p>
           </div>
 
           <p style="font-size: 14px; margin-top: 24px;">Um abra\xE7o,<br><strong>Equipe Roder M\xE1quinas e Equipamentos</strong></p>
@@ -4964,7 +4964,7 @@ async function lembreteNfDia5(deps) {
             </div>
 
             <p>Para garantir seu recebimento, <strong>responda este e-mail com a nota fiscal anexada</strong> (vai direto para o nosso financeiro) ou carregue a nota no sistema.</p>
-            <a href="${deps.appUrl || "https://roder-indica.web.app"}/comissoes" style="display: inline-block; background: #eab308; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Acessar Minhas Comiss\xF5es</a>
+            <a href="${deps.appUrl || "https://roder-indica.web.app"}/comissoes" style="display: inline-block; background: #eab308; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Acessar Meus ganhos</a>
           </div>
         `;
       await deps.enviar(partner.email, `\xDAltimo dia para enviar a nota fiscal da sua comiss\xE3o Roder`, html, { replyTo: deps.getFinanceReplyTo(notif), fromName: "Roder M\xE1quinas" });
@@ -5523,7 +5523,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-23f vinculo-parceiro-home";
+  const RELEASE_LABEL = "2026-10-23g meus-ganhos-parceiro";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
