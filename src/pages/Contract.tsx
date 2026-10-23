@@ -13,6 +13,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { FileText, CheckCircle2, User, MapPin, CreditCard, ArrowRight, Share2, Printer, LogOut, Loader2 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { maskPhone } from '../lib/masks';
+import { textoPercentualContrato } from '../lib/percentualContrato';
 import { dataDaAssinatura, dadosDeExibicaoDoContrato } from '../lib/contratoAssinado';
 
 export default function Contract() {
@@ -151,7 +152,7 @@ export default function Contract() {
     window.print();
   };
 
-  const commissionRate = isPreview ? previewRate : (viewProfile?.commission_rate || 2);
+  const textoComissao = textoPercentualContrato(isPreview ? previewRate : viewProfile?.commission_rate);
   const somenteLeitura = modoLeitura || !!viewUid;
   const dadosContrato = dadosDeExibicaoDoContrato({ isPreview, somenteLeitura, step, viewProfile, formData });
   const displayName = dadosContrato.nome;
@@ -261,7 +262,7 @@ export default function Contract() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4 py-12 print:p-0 print:bg-white">
+    <div className="contrato-impressao min-h-screen bg-background flex items-center justify-center p-4 py-12 print:p-0 print:bg-white">
       <Card className="w-full max-w-3xl border-border shadow-2xl print:shadow-none print:border-none">
         <CardHeader className="text-center space-y-4 print:space-y-2">
           <div className="flex justify-center print:hidden">
@@ -323,7 +324,7 @@ export default function Contract() {
               <section className="space-y-2">
                 <h3 className="font-black uppercase text-xs tracking-widest text-primary print:text-black">CLÁUSULA 2ª – DAS COMISSÕES E BASE DE CÁLCULO</h3>
                 <p>
-                  2.1. O <strong>PARCEIRO INDICADOR</strong> fará jus a uma comissão de <strong>{commissionRate}% ({commissionRate === 1 ? 'um' : commissionRate === 2 ? 'dois' : commissionRate === 3 ? 'três' : commissionRate} por cento)</strong> sobre o <strong>VALOR BASE DE TABELA</strong> do equipamento vendido.
+                  2.1. O <strong>PARCEIRO INDICADOR</strong> fará jus a uma comissão de <strong>{textoComissao}</strong> sobre o <strong>VALOR BASE DE TABELA</strong> do equipamento vendido.
                 </p>
                 <p>
                   2.2. <strong>Base de Cálculo:</strong> A comissão incide exclusivamente sobre o valor bruto de tabela do equipamento (Roder ou FAE).
@@ -413,7 +414,7 @@ export default function Contract() {
                 </p>
               </section>
 
-              <div className="pt-12 border-t border-border/50 text-center space-y-8">
+              <div className="contrato-assinatura pt-12 border-t border-border/50 text-center space-y-8">
                 <div className="grid grid-cols-2 gap-8">
                   <div className="space-y-2">
                     <div className="border-b border-black h-12 flex items-end justify-center pb-1">

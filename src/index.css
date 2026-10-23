@@ -359,3 +359,53 @@ input:focus::placeholder, textarea:focus::placeholder {
 /* Archivo larga e pesada, só nos títulos da tela do parceiro (o texto corrido continua em Geist) */
 .fonte-titulo { font-family: 'Archivo Variable', 'Geist Variable', sans-serif; font-stretch: 112%; }
 .fonte-titulo-larga { font-family: 'Archivo Variable', 'Geist Variable', sans-serif; font-stretch: 118%; }
+
+/* CONTRATO DO PARCEIRO (22/10/2026). A regra geral de impressão acima esconde tudo o que está direto
+   no body, e a tela do contrato fica dentro de #root: o "Imprimir / PDF" saía em branco. Aqui o
+   contrato volta a aparecer, a rolagem de 500px vira texto corrido, e a quebra de página não corta
+   cláusula nem o bloco de assinatura. */
+@page contrato {
+  size: A4 portrait;
+  margin: 16mm 14mm;
+}
+@media print {
+  body:has(.contrato-impressao) > #root {
+    display: block !important;
+  }
+  .contrato-impressao {
+    page: contrato;
+    display: block !important;
+    min-height: 0 !important;
+    background: white !important;
+    font-size: 11pt;
+  }
+  .contrato-impressao [data-slot="scroll-area"],
+  .contrato-impressao [data-slot="scroll-area-viewport"] {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+  .contrato-impressao [data-slot="scroll-area-scrollbar"],
+  .contrato-impressao [data-slot="scroll-area-viewport"] + div {
+    display: none !important;
+  }
+  .contrato-impressao section h3 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+  .contrato-impressao section p {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    orphans: 3;
+    widows: 3;
+  }
+  .contrato-impressao .contrato-assinatura {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .contrato-impressao * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

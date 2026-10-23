@@ -91,6 +91,8 @@ function PrivateRoute({ children, roles }: { children: React.ReactNode, roles?: 
   return <>{children}</>;
 }
 
+import { corrigirContratoRafaelUmaVez } from './lib/migracaoContratoRafael';
+import { db } from './lib/firebase';
 import PWAInstallBanner from './components/system/PWAInstallBanner';
 
 // App Version: 2.6.0 - Manual Tecnico da Base de Conhecimento IA
@@ -186,8 +188,13 @@ export default function App() {
 function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, profile, loading } = useAuth();
-  
+  const { user, profile, loading, isAdmin, isImpersonating } = useAuth();
+
+  // Correção única do contrato do parceiro Rafael (1% para 2%): roda ao admin abrir o app.
+  useEffect(() => {
+    if (!loading && user && isAdmin && !isImpersonating) corrigirContratoRafaelUmaVez(db);
+  }, [loading, user, isAdmin, isImpersonating]);
+
   // PWA & Fair Mode Hijack: ensure quick registration links don't conflict with main app flow
   const isStandalone = typeof window !== 'undefined' && 
                        (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone);
