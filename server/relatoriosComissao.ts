@@ -161,7 +161,7 @@ export async function relatorioParceirosDia1(deps: DepsRelatorio) {
             <p style="margin: 0;"><strong>Próximo passo: nota fiscal de serviço</strong></p>
             <p style="margin: 6px 0 0 0;">Nosso setor financeiro está aguardando a sua <strong>nota fiscal de serviço no valor de ${formatCurrency(totalCommissions)}</strong>.</p>
             <p style="margin: 6px 0 0 0;">Basta <strong>responder este e-mail com a nota fiscal anexada</strong> até o dia <strong>05</strong>. A resposta vai direto para o nosso financeiro, e o pagamento é feito até o dia <strong>07</strong> (se cair em fim de semana ou feriado, no próximo dia útil).</p>
-            <p style="margin: 6px 0 0 0; font-size: 12px; color: #6b7280;">Se preferir, você também pode carregar a nota no Roder Indica, na tela Comissões.</p>
+            <p style="margin: 6px 0 0 0; font-size: 12px; color: #6b7280;">Se preferir, você também pode carregar a nota no Roder Indica, na tela Meus ganhos.</p>
           </div>
 
           <p style="font-size: 14px; margin-top: 24px;">Um abraço,<br><strong>Equipe Roder Máquinas e Equipamentos</strong></p>
@@ -214,7 +214,7 @@ export async function lembreteNfDia5(deps: DepsRelatorio) {
             </div>
 
             <p>Para garantir seu recebimento, <strong>responda este e-mail com a nota fiscal anexada</strong> (vai direto para o nosso financeiro) ou carregue a nota no sistema.</p>
-            <a href="${deps.appUrl || 'https://roder-indica.web.app'}/comissoes" style="display: inline-block; background: #eab308; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Acessar Minhas Comissões</a>
+            <a href="${deps.appUrl || 'https://roder-indica.web.app'}/comissoes" style="display: inline-block; background: #eab308; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Acessar Meus ganhos</a>
           </div>
         `;
 

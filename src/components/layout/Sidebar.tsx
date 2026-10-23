@@ -465,7 +465,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     },
     { id: 'configurations', name: 'Configurações', path: '/admin', icon: Settings, roles: ['admin', 'manager', 'triagem', 'marketing'] },
     { id: 'trash', name: 'Lixeira Segura', path: '/lixeira', icon: Trash2, roles: ['admin', 'manager'] },
-    { id: 'comissoes_ext', name: 'Comissões', path: '/comissoes', icon: DollarSign, roles: ['external_seller'] },
+    { id: 'comissoes_ext', name: 'Meus ganhos', path: '/comissoes', icon: DollarSign, roles: ['external_seller'] },
     { id: 'reports', name: 'Relatórios', path: '/relatorios', icon: BarChart3, roles: ['admin', 'manager', 'financial'] },
     { id: 'profile', name: 'Minha Conta', path: '/perfil', icon: User, roles: ['admin', 'manager', 'internal_seller', 'triagem', 'external_seller', 'vendedor_padrao', 'financial', 'marketing'] },
   ], [pendingTriageCount, fairsMenuOpen, financialMenuOpen, comercialMenuOpen, technicalMenuOpen, isExternalSeller, isRegionalSeller]);

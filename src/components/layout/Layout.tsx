@@ -12,13 +12,13 @@ import { temTelaAberta } from '../../lib/useVoltarFecha';
 import EngineerHelper from './EngineerHelper';
 import { BarraParceiro, useEhParceiro } from '../parceiro/NavParceiro';
 
-const getPageTitle = (path: string): string => {
+const getPageTitle = (path: string, ehParceiro = false): string => {
   if (path === '/') return 'Painel de Controle';
   if (path === '/indicacoes/nova') return 'Nova Indicação';
   if (path === '/indicacoes') return 'Central de Negócios';
   if (path === '/perfil') return 'Meu Perfil';
   if (path === '/catalogo') return 'Catálogo de Equipamentos';
-  if (path === '/comissoes') return 'Central de Comissões';
+  if (path === '/comissoes') return ehParceiro ? 'Meus ganhos' : 'Central de Comissões';
   if (path === '/triagem') return 'Triagem de Leads';
   if (path === '/financeiro/kpis') return 'KPIs Financeiros';
   if (path === '/financeiro') return 'Financeiro';
@@ -279,7 +279,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             
             <div className="flex items-center gap-2 border-l border-border pl-4">
               <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-              <span className="text-xs font-black uppercase tracking-wider text-muted-foreground">{getPageTitle(location.pathname)}</span>
+              <span className="text-xs font-black uppercase tracking-wider text-muted-foreground">{getPageTitle(location.pathname, ehParceiro)}</span>
             </div>
           </div>
           {!celular && <NotificationBell />}

@@ -76,6 +76,7 @@ import {
 import { MonthlyStatement } from '../types';
 import { sendEmail } from '../services/emailService';
 import { abrirDocumento } from '../lib/abrirDocumento';
+import MeusGanhos from '../components/parceiro/MeusGanhos';
 
 const months = [
   { value: 1, label: 'Janeiro' },
@@ -450,7 +451,8 @@ export default function Commissions() {
 
   // Fetch indications detail referenced by any displayed or active commission (to display client names and order dates)
   useEffect(() => {
-    const listComms = [...commissions, ...currentCommissions];
+    const ehParc = profile?.role === 'external_seller';
+    const listComms = [...commissions, ...currentCommissions, ...(ehParc ? allCommissions : [])];
     if (listComms.length === 0) return;
 
     const ids = Array.from(new Set(listComms.map(c => c.indication_id).filter(Boolean)));
@@ -493,7 +495,7 @@ export default function Commissions() {
     };
 
     fetchIndicationsDocs();
-  }, [commissions, currentCommissions, profile?.role]);
+  }, [commissions, currentCommissions, allCommissions, profile?.role]);
 
   // Action to mark a payment directly as executed
   const handleMarkAsPaidDirect = async (statement: MonthlyStatement) => {
@@ -993,6 +995,7 @@ export default function Commissions() {
   return (
     <Layout>
       <div className="space-y-8">
+        {profile?.role !== 'external_seller' && (
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Relatório de Comissões</h1>
@@ -1023,6 +1026,7 @@ export default function Commissions() {
             </Select>
           </div>
         </div>
+        )}
 
         {/* Central de Contas a Pagar: Relatório Financeiro de Comissões */}
         {isInternalFinances && (
@@ -1835,349 +1839,28 @@ export default function Commissions() {
         </div>
 
         {profile?.role === 'external_seller' ? (
-          <div className="space-y-6">
-            <Card className="bg-card border-border shadow-sm overflow-hidden border-t-4 border-t-emerald-500">
-              <CardHeader className="pb-3 bg-slate-500/[0.02] border-b border-border/60">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                  <div>
-                    <CardTitle className="text-base font-bold uppercase tracking-wider text-foreground flex items-center gap-2">
-                      <FileSpreadsheet className="h-5 w-5 text-emerald-500" />
-                      Planilha de Comissões e Vendas
-                    </CardTitle>
-                    <CardDescription className="text-xs">
-                      Controle mensal de recebimentos, histórico de notas fiscais e composição de comissões por venda.
-                    </CardDescription>
-                  </div>
-                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-xs py-1 self-start font-bold uppercase">
-                    Parceiro Ativo
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                {/* Spreadsheet Table Container */}
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead className="bg-slate-500/[0.04] dark:bg-slate-900/[0.4] font-mono text-[10px] sm:text-[11px] uppercase tracking-wider text-muted-foreground select-none">
-                      <tr className="border-b border-border">
-                        <th className="px-3 py-2 text-center w-10 border-r border-border">Seq</th>
-                        <th className="px-3 py-2 border-r border-border">Mês / Competência</th>
-                        <th className="px-3 py-2 text-right border-r border-border">Valor da Comissão</th>
-                        <th className="px-3 py-2 text-center border-r border-border">Nota Fiscal</th>
-                        <th className="px-3 py-2 text-center border-r border-border">Status</th>
-                        <th className="px-3 py-2 text-center w-36">Ações Rápidas</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {partnerPeriods.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground italic">
-                            Nenhum período de comissão registrado.
-                          </td>
-                        </tr>
-                      ) : (
-                        partnerPeriods.map((period, index) => {
-                          const isExpanded = !!expandedPartnerPeriodKeys[period.key];
-                          
-                          // Custom translation and color scheme for spreadsheet status
-                          const isCurrent = period.isCurrent;
-                          const isWaitingNF = period.status === 'waiting_nf';
-                          const isWaitingPayment = period.status === 'waiting_payment';
-                          const isPaid = period.status === 'paid';
-
-                          return (
-                            <React.Fragment key={period.key}>
-                              <tr 
-                                className={cn(
-                                  "hover:bg-slate-100/40 dark:hover:bg-slate-900/30 transition-colors border-b border-border font-medium cursor-pointer",
-                                  isCurrent ? "bg-blue-500/[0.02]" : "",
-                                  isExpanded ? "bg-slate-100/50 dark:bg-slate-900/40" : ""
-                                )}
-                                onClick={() => {
-                                  setExpandedPartnerPeriodKeys(prev => ({
-                                    ...prev,
-                                    [period.key]: !prev[period.key]
-                                  }));
-                                }}
-                              >
-                                {/* Index Column */}
-                                <td className="px-3 py-2.5 text-center text-muted-foreground font-mono select-none border-r border-border">
-                                  {index + 1}
-                                </td>
-
-                                {/* Competence Month */}
-                                <td className="px-3 py-2.5 text-foreground font-semibold flex items-center gap-1.5 border-r border-border">
-                                  {isExpanded ? (
-                                    <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
-                                  ) : (
-                                    <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
-                                  )}
-                                  <span>{period.label}</span>
-                                  {isCurrent && (
-                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-500 border-blue-500/20 shrink-0 select-none font-extrabold scale-[0.9] origin-left uppercase">
-                                      Mês Vigente
-                                    </span>
-                                  )}
-                                </td>
-
-                                {/* Commission Value */}
-                                <td className="px-3 py-2.5 text-right font-black font-mono text-emerald-600 dark:text-emerald-400 select-none border-r border-border">
-                                  R$ {period.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                </td>
-
-                                {/* NF Status */}
-                                <td className="px-3 py-2.5 text-center select-none border-r border-border">
-                                  {isCurrent ? (
-                                    <span className="text-[10px] text-muted-foreground italic font-normal">Mês em andamento</span>
-                                  ) : isWaitingNF ? (
-                                    <span className="text-[10px] text-orange-600 font-bold flex items-center justify-center gap-1">
-                                      <Clock className="h-3 w-3" /> Pendente de Envio
-                                    </span>
-                                  ) : (
-                                    <div className="flex items-center justify-center gap-1.5">
-                                      <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold">Enviada</span>
-                                      {period.nf_url && (
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            abrirDocumento(period.nf_url, 'Nota fiscal');
-                                          }}
-                                          className="text-[9.5px] p-0.5 text-primary hover:underline font-bold uppercase rounded flex items-center gap-0.5 shrink-0"
-                                        >
-                                          <Eye className="h-3 w-3" /> Ver
-                                        </button>
-                                      )}
-                                    </div>
-                                  )}
-                                </td>
-
-                                {/* Payment Status Badge */}
-                                <td className="px-3 py-2.5 text-center select-none border-r border-border">
-                                  <Badge className={cn(
-                                    "text-[9px] font-black uppercase tracking-wider px-2 py-0.5 scale-[0.95]",
-                                    isCurrent ? "bg-slate-500/10 text-slate-500 border-slate-500/20" :
-                                    isPaid ? "bg-green-500/10 text-green-500 border-green-500/20" :
-                                    isWaitingPayment ? "bg-blue-500/10 text-blue-500 border-blue-500/20" :
-                                    "bg-orange-500/10 text-orange-500 border-orange-500/20"
-                                  )}>
-                                    {isCurrent ? 'Em Andamento' :
-                                     isPaid ? 'Pago' :
-                                     isWaitingPayment ? 'Aguardando Pagamento Financeiro' :
-                                     'Aguardando NF'}
-                                  </Badge>
-                                </td>
-
-                                {/* Action Buttons */}
-                                <td className="px-3 py-2 whitespace-nowrap text-center">
-                                  {isCurrent ? (
-                                    <span className="text-[10px] text-muted-foreground italic">-</span>
-                                  ) : isWaitingNF ? (
-                                    <Button
-                                      size="sm"
-                                      className="bg-primary hover:bg-primary/90 text-[10px] h-7 px-2.5 font-bold uppercase"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setSelectedPartnerPeriod(period);
-                                        setIsPartnerNFDialogOpen(true);
-                                      }}
-                                    >
-                                      <Upload className="h-3 w-3 mr-1" /> Enviar NF
-                                    </Button>
-                                  ) : isPaid ? (
-                                    <span className="text-[10px] text-green-500 font-extrabold select-none flex items-center justify-center gap-1">
-                                      <Check className="h-3 w-3" /> Pago {(period.paid_at && period.paid_at !== 'null') ? `em ${new Date(period.paid_at).toLocaleDateString('pt-BR')}` : ''}
-                                    </span>
-                                  ) : (
-                                    <span className="text-[10px] text-blue-500 dark:text-blue-400 font-extrabold select-none">
-                                      Aguardando Pgto ⏳
-                                    </span>
-                                  )}
-                                </td>
-                              </tr>
-
-                              {/* Expanded Sales Detail Nested Row */}
-                              {isExpanded && (
-                                <tr className="bg-slate-500/[0.01] dark:bg-slate-900/[0.1]">
-                                  <td colSpan={6} className="px-4 py-3 p-1 sm:p-4 border-b border-border">
-                                    <div className="bg-white dark:bg-slate-950 rounded-xl border border-border/80 shadow-md p-3 sm:p-4 space-y-3">
-                                      <div className="flex items-center justify-between border-b border-dashed border-border pb-2">
-                                        <h5 className="text-[10px] sm:text-[11px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider flex items-center gap-1.5">
-                                          <Grid className="h-3.5 w-3.5 text-emerald-500" />
-                                          Composição da comissão - {period.label}
-                                        </h5>
-                                        <Badge className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-black text-[9px] uppercase px-2 py-0.5">
-                                          {ehMecanicaDias && period.month === 5 && period.year === 2026 ? "Simulação Detalhada" : `${period.commissions.length} Vendas Registradas`}
-                                        </Badge>
-                                      </div>
-
-                                      {/* Sub-table detail */}
-                                      {ehMecanicaDias && period.month === 5 && period.year === 2026 ? (
-                                        /* Simulated beautiful detail breakdown for Maio/2026 */
-                                        <div className="space-y-4">
-                                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                                            <div className="bg-slate-50 dark:bg-slate-900/60 p-2.5 rounded-lg border border-border/60 space-y-1">
-                                              <p className="text-[10px] uppercase font-black text-muted-foreground select-none">Dados do Cliente</p>
-                                              <p className="font-bold text-foreground text-sm">EUCAZIN LTDA</p>
-                                              <p className="text-[10px] text-muted-foreground">Araguacema - TO &bull; Pedido Faturamento #9414</p>
-                                            </div>
-                                            <div className="bg-slate-50 dark:bg-slate-900/60 p-2.5 rounded-lg border border-border/60 space-y-1">
-                                              <p className="text-[10px] uppercase font-black text-muted-foreground select-none">Resumo Financeiro</p>
-                                              <div className="flex justify-between font-mono font-semibold text-[11px]">
-                                                <span>Faturamento Total:</span>
-                                                <span>R$ 146.353,74</span>
-                                              </div>
-                                              <div className="flex justify-between font-mono font-bold text-[11px]">
-                                                <span>Base Comissionável:</span>
-                                                <span className="text-foreground">R$ 113.353,74</span>
-                                              </div>
-                                              <div className="flex justify-between font-mono font-black text-[11px] border-t border-dashed border-border pt-1">
-                                                <span>Taxa de Comissão:</span>
-                                                <span className="text-primary">2.00%</span>
-                                              </div>
-                                            </div>
-                                          </div>
-
-                                          <div className="overflow-x-auto rounded-lg border border-border">
-                                            <table className="w-full text-[10px] sm:text-xs text-left">
-                                              <thead className="bg-slate-100 dark:bg-slate-900 uppercase text-muted-foreground font-mono text-[9px]">
-                                                <tr className="divide-x divide-border border-b border-border">
-                                                  <th className="px-3 py-1.5 border-r border-border">Produto / Descrição</th>
-                                                  <th className="px-3 py-1.5 text-right w-24 border-r border-border">Valor Unitário</th>
-                                                  <th className="px-3 py-1.5 text-center w-12 border-r border-border">Qtd</th>
-                                                  <th className="px-3 py-1.5 text-right w-28 border-r border-border">Valor Total</th>
-                                                  <th className="px-3 py-1.5 text-center w-24">Regra Comercial</th>
-                                                </tr>
-                                              </thead>
-                                              <tbody className="divide-y divide-border">
-                                                <tr className="divide-x divide-border font-medium">
-                                                  <td className="px-3 py-2 font-bold text-foreground border-r border-border">CARREGADOR FRONTAL CFR600</td>
-                                                  <td className="px-3 py-2 text-right font-mono text-muted-foreground border-r border-border">R$ 87.988,00</td>
-                                                  <td className="px-3 py-2 text-center font-mono border-r border-border">1</td>
-                                                  <td className="px-3 py-2 text-right font-mono text-foreground font-bold border-r border-border">R$ 87.988,00</td>
-                                                  <td className="px-3 py-2 text-center text-emerald-600 font-extrabold select-none">Comissionável</td>
-                                                </tr>
-                                                <tr className="divide-x divide-border font-medium">
-                                                  <td className="px-3 py-2 font-bold text-foreground border-r border-border">ENGATE RAPIDO SINOMACH 937H</td>
-                                                  <td className="px-3 py-2 text-right font-mono text-muted-foreground border-r border-border">R$ 18.200,00</td>
-                                                  <td className="px-3 py-2 text-center font-mono border-r border-border">1</td>
-                                                  <td className="px-3 py-2 text-right font-mono text-foreground font-bold border-r border-border">R$ 18.200,00</td>
-                                                  <td className="px-3 py-2 text-center text-emerald-600 font-extrabold select-none">Comissionável</td>
-                                                </tr>
-                                                <tr className="divide-x divide-border font-medium">
-                                                  <td className="px-3 py-2 font-bold text-foreground border-r border-border">ADAPTACAO CONCHA SINOMACH 937H</td>
-                                                  <td className="px-3 py-2 text-right font-mono text-muted-foreground border-r border-border">R$ 7.165,74</td>
-                                                  <td className="px-3 py-2 text-center font-mono border-r border-border">1</td>
-                                                  <td className="px-3 py-2 text-right font-mono text-foreground font-bold border-r border-border">R$ 7.165,74</td>
-                                                  <td className="px-3 py-2 text-center text-emerald-600 font-extrabold select-none">Comissionável</td>
-                                                </tr>
-                                                <tr className="divide-x divide-border font-medium bg-muted/20">
-                                                  <td className="px-3 py-2 font-bold text-muted-foreground border-r border-border">KIT 3ª E 4ª FUNCAO</td>
-                                                  <td className="px-3 py-2 text-right font-mono text-muted-foreground border-r border-border">R$ 33.000,00</td>
-                                                  <td className="px-3 py-2 text-center font-mono border-r border-border">1</td>
-                                                  <td className="px-3 py-2 text-right font-mono text-muted-foreground border-r border-border">R$ 33.000,00</td>
-                                                  <td className="px-3 py-2 text-center text-rose-500 font-bold select-none italic">S/ Comissão</td>
-                                                </tr>
-                                              </tbody>
-                                            </table>
-                                          </div>
-                                        </div>
-                                      ) : (
-                                        /* General details mapped from actual database fields */
-                                        <div className="overflow-x-auto rounded-lg border border-border">
-                                          <table className="w-full text-[10px] sm:text-xs text-left">
-                                            <thead className="bg-slate-100 dark:bg-slate-900 uppercase text-muted-foreground font-mono text-[9px]">
-                                              <tr className="divide-x divide-border border-b border-border">
-                                                <th className="px-3 py-1.5 border-r border-border">Faturamento / Pedido</th>
-                                                <th className="px-3 py-1.5 border-r border-border">Cliente</th>
-                                                <th className="px-3 py-1.5 text-right w-28 border-r border-border">Valor Faturado</th>
-                                                <th className="px-3 py-1.5 text-right w-28 border-r border-border">Base de Comissão</th>
-                                                <th className="px-3 py-1.5 text-right w-28 text-emerald-600 dark:text-emerald-400 font-extrabold">Comissão Devida</th>
-                                              </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-border">
-                                              {period.commissions.length === 0 ? (
-                                                <tr>
-                                                  <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground italic">
-                                                    Nenhum pedido cadastrado no banco de dados para este período ainda.
-                                                  </td>
-                                                </tr>
-                                              ) : (
-                                                period.commissions.map(comm => {
-                                                  const ind = linkedIndications[comm.indication_id];
-                                                  const clientName = ind?.client_name || 'Cliente';
-                                                  const orderVal = ind?.sale_order_value || ind?.value || (comm.value / (profile?.commission_rate || 3) * 100);
-                                                  const comBase = ind?.base_commission_value || (comm.value / (profile?.commission_rate || 3) * 100);
-
-                                                  return (
-                                                    <tr key={comm.id} className="divide-x divide-border hover:bg-slate-55/60 transition-colors">
-                                                      <td className="px-3 py-2 font-bold text-foreground border-r border-border">
-                                                        #{ind?.sale_order_number || comm.id.slice(-6).toUpperCase()}
-                                                      </td>
-                                                      <td className="px-3 py-2 font-bold text-foreground truncate max-w-[120px] sm:max-w-none border-r border-border">
-                                                        {clientName}
-                                                      </td>
-                                                      <td className="px-3 py-2 text-right font-mono text-muted-foreground border-r border-border">
-                                                        R$ {orderVal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                      </td>
-                                                      <td className="px-3 py-2 text-right font-mono text-muted-foreground border-r border-border">
-                                                        R$ {comBase.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                      </td>
-                                                      <td className="px-3 py-2 text-right font-black font-mono text-emerald-650 dark:text-emerald-400">
-                                                        R$ {comm.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                      </td>
-                                                    </tr>
-                                                  );
-                                                })
-                                              )}
-                                            </tbody>
-                                          </table>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </td>
-                                </tr>
-                              )}
-                            </React.Fragment>
-                          );
-                        })
-                      )}
-                      
-                      {/* Unified footer row containing all required values matching user requirements */}
-                      <tr className="bg-slate-500/[0.04] dark:bg-slate-900/[0.4] font-bold text-[11px] border-t-2 border-border/80 text-foreground divide-x divide-border select-none">
-                        <td colSpan={2} className="px-4 py-4 uppercase font-black text-muted-foreground tracking-wider font-mono text-[9px]">
-                          Totais de Comissão Consolidada
-                        </td>
-                        <td className="px-3 py-4 text-right font-black font-mono text-emerald-600 dark:text-emerald-400 text-sm border-r border-border">
-                          R$ {partnerPeriods.reduce((acc, p) => acc + p.total, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </td>
-                        <td colSpan={3} className="px-4 py-4 text-left sm:text-right text-[10px] text-muted-foreground leading-relaxed font-medium">
-                          <div className="flex flex-col sm:flex-row sm:justify-end gap-2 sm:gap-4">
-                            <div>
-                              <span>Pago: </span>
-                              <span className="font-extrabold text-foreground font-mono">
-                                R$ {partnerPeriods.filter(p => p.status === 'paid').reduce((acc, p) => acc + p.total, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                              </span>
-                            </div>
-                            <div>
-                              <span>Pendente/Aguardando: </span>
-                              <span className="font-extrabold text-orange-600 font-mono">
-                                R$ {partnerPeriods.filter(p => p.status === 'waiting_nf' || p.status === 'waiting_payment').reduce((acc, p) => acc + p.total, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                              </span>
-                            </div>
-                            <div>
-                              <span>Em Andamento: </span>
-                              <span className="font-extrabold text-slate-500 font-mono">
-                                R$ {partnerPeriods.filter(p => p.status === 'in_progress').reduce((acc, p) => acc + p.total, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <MeusGanhos
+            periodos={partnerPeriods.map(p => {
+              // O status vem do extrato do mês; sem extrato, das próprias comissões. O mês corrente
+              // não vira "em andamento" quando a nota já foi enviada.
+              const st = p.statement?.status
+                || (p.commissions.length > 0 && p.commissions.every(c => c.status === 'paid') ? 'paid'
+                  : p.commissions.some(c => c.status === 'waiting_payment') ? 'waiting_payment'
+                  : (p.isCurrent ? null : p.status));
+              return {
+                key: p.key, month: p.month, year: p.year, label: p.label, total: p.total,
+                status: st, paid_at: p.paid_at || p.statement?.paid_at || null, nf_url: p.nf_url || null,
+                commissions: p.commissions,
+              };
+            })}
+            indicacoes={linkedIndications}
+            onEnviarNota={(per) => {
+              const original = partnerPeriods.find(x => x.key === per.key);
+              if (!original) return;
+              setSelectedPartnerPeriod(original);
+              setIsPartnerNFDialogOpen(true);
+            }}
+          />
         ) : (
           <div className={cn(
             "grid gap-2 md:gap-4",

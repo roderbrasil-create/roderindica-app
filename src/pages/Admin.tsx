@@ -426,7 +426,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
     { id: 'triagem', label: 'Triagem' },
     { id: 'comercial', label: 'Comercial' },
     { id: 'users', label: 'Usuários' },
-    { id: 'comissoes_ext', label: 'Minhas Comissões' },
+    { id: 'comissoes_ext', label: 'Meus ganhos' },
     { id: 'reports', label: 'Relatórios' },
     { id: 'profile', label: 'Minha Conta' },
   ];
