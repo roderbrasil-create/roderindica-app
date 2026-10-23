@@ -24,8 +24,8 @@ function linhasDoParagrafo(pdf: jsPDF, p: Paragrafo, larg: number, pt: number): 
     pdf.setFont('helvetica', tr.b ? 'bold' : 'normal');
     for (const parte of tr.t.split(/(\s+)/)) {
       if (!parte) continue;
-      // o espaço sozinho mede 0 no jsPDF: mede entre barras e desconta as barras
-      const w = pdf.getTextWidth(`|${parte}|`) - pdf.getTextWidth('||');
+      // sem kerning: os visualizadores não aplicam kerning ao desenhar, então medida = desenho
+      const w = pdf.getStringUnitWidth(parte, { doKerning: false }) * pt / 72 * 25.4;
       tokens.push({ t: parte, b: !!tr.b, w, esp: /^\s+$/.test(parte) });
     }
   }
