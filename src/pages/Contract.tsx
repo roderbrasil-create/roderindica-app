@@ -13,7 +13,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { FileText, CheckCircle2, User, MapPin, CreditCard, ArrowRight, Share2, Printer, LogOut, Loader2 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { maskPhone } from '../lib/masks';
-import { dataDaAssinatura } from '../lib/contratoAssinado';
+import { dataDaAssinatura, dadosDeExibicaoDoContrato } from '../lib/contratoAssinado';
 
 export default function Contract() {
   const { profile: currentProfile, logout, isImpersonating } = useAuth();
@@ -60,14 +60,19 @@ export default function Contract() {
         setViewProfile(currentProfile);
         setStep('contract');
       } else if (viewUid) {
-        const docRef = doc(db, 'users', viewUid);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const data = docSnap.data() as UserProfile;
-          setViewProfile(data);
-          setStep('contract'); // Admins go straight to contract
-        } else {
-          toast.error('Contrato não encontrado para este parceiro.');
+        try {
+          const docSnap = await getDoc(doc(db, 'users', viewUid));
+          if (docSnap.exists()) {
+            setViewProfile(docSnap.data() as UserProfile);
+            setStep('contract'); // Admins go straight to contract
+          } else {
+            toast.error('Contrato não encontrado para este parceiro.');
+            navigate('/');
+          }
+        } catch (err) {
+          // sem permissao ou sem rede: nunca cair num contrato vazio com botao de assinar
+          toast.error('Não foi possível abrir este contrato. Verifique a conexão ou a permissão.');
+          navigate('/');
         }
       } else if (currentProfile) {
         setViewProfile(currentProfile);
@@ -147,10 +152,12 @@ export default function Contract() {
   };
 
   const commissionRate = isPreview ? previewRate : (viewProfile?.commission_rate || 2);
-  const displayName = isPreview ? 'NOME DO PARCEIRO' : (step === 'contract' ? formData.name : viewProfile?.name);
-  const displayPix = isPreview ? 'CHAVE PIX AQUI' : (step === 'contract' ? (formData.pix_key || 'A PREENCHER NO PERFIL') : (viewProfile?.pix_key || 'A PREENCHER NO PERFIL'));
-  const displayEmail = isPreview ? 'EMAIL@EXEMPLO.COM' : (step === 'contract' ? (formData.email || 'A PREENCHER NO PERFIL') : (viewProfile?.email || 'A PREENCHER NO PERFIL'));
-  const displayPhone = isPreview ? '(00) 00000-0000' : (step === 'contract' ? formData.phone : viewProfile?.phone);
+  const somenteLeitura = modoLeitura || !!viewUid;
+  const dadosContrato = dadosDeExibicaoDoContrato({ isPreview, somenteLeitura, step, viewProfile, formData });
+  const displayName = dadosContrato.nome;
+  const displayPix = dadosContrato.pix;
+  const displayEmail = dadosContrato.email;
+  const displayPhone = dadosContrato.telefone;
 
   if (loading) {
     return (
@@ -436,7 +443,7 @@ export default function Contract() {
         </CardContent>
 
         <CardFooter className="flex flex-col gap-6 pt-6 print:hidden">
-          {!viewProfile?.contract_accepted && !isPreview && (
+          {!viewProfile?.contract_accepted && !isPreview && !somenteLeitura && (
             <>
               <div className="flex items-start space-x-3 bg-primary/5 p-4 rounded-lg border border-primary/10 w-full">
                 <Checkbox 
@@ -478,7 +485,7 @@ export default function Contract() {
             </>
           )}
 
-          {(viewProfile?.contract_accepted || isPreview) && (
+          {(viewProfile?.contract_accepted || isPreview || somenteLeitura) && (
             <Button variant="outline" className="w-full" onClick={() => navigate('/')}>
               Voltar para o App
             </Button>

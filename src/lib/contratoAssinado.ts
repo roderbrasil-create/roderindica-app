@@ -22,3 +22,29 @@ export function dataDaAssinatura(valor: unknown): string | null {
   if (isNaN(d.getTime())) return null;
   return d.toLocaleDateString('pt-BR');
 }
+
+const PENDENTE = 'A PREENCHER NO PERFIL';
+
+export interface DadosContratoEntrada {
+  isPreview: boolean;
+  /** modo leitura (?ver=1 ou ?uid=): os dados vem SEMPRE do perfil que esta sendo visto */
+  somenteLeitura: boolean;
+  step: 'data' | 'contract';
+  viewProfile?: { name?: string; email?: string; phone?: string; pix_key?: string } | null;
+  formData: { name: string; email: string; phone: string; pix_key: string };
+}
+
+/** Nome, e-mail, telefone e PIX que o contrato mostra. No modo leitura nunca le o
+ *  formulario (que fica vazio ali): era o que deixava o contrato em branco. */
+export function dadosDeExibicaoDoContrato(e: DadosContratoEntrada) {
+  if (e.isPreview) {
+    return { nome: 'NOME DO PARCEIRO', pix: 'CHAVE PIX AQUI', email: 'EMAIL@EXEMPLO.COM', telefone: '(00) 00000-0000' };
+  }
+  const f = e.somenteLeitura || e.step !== 'contract' ? e.viewProfile : e.formData;
+  return {
+    nome: f?.name || '',
+    pix: f?.pix_key || PENDENTE,
+    email: f?.email || PENDENTE,
+    telefone: f?.phone || '',
+  };
+}
