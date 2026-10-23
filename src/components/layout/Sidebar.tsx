@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { auth, db } from '../../lib/firebase';
+import { db } from '../../lib/firebase';
 import { updateDoc, doc, collection, query, where } from 'firebase/firestore';
 import { ouvirCompartilhado } from '../../lib/leiturasCompartilhadas';
 import { motion, AnimatePresence } from 'motion/react';
@@ -17,7 +17,6 @@ import {
   Users, 
   Filter, 
   Settings, 
-  LogOut,
   Trash2,
   ChevronLeft,
   Sun,
@@ -536,11 +535,6 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  const handleLogout = async () => {
-    await auth.signOut();
-    navigate('/login');
-  };
-
   return (
     <AnimatePresence>
       {/* Mobile Overlay */}
@@ -677,15 +671,6 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
               </div>
             </div>
             {/* modo escuro desligado: o app fica sempre no claro (pedido do Jeferson, 19/10/2026) */}
-            <Button 
-              variant="ghost" 
-              size="sm"
-              className="h-8 w-full justify-start text-sidebar-foreground/60 hover:text-red-400 hover:bg-red-500/10 transition-colors px-2 py-1 text-[11px]"
-              onClick={handleLogout}
-            >
-              <LogOut className="h-3.5 w-3.5 mr-2" />
-              <span className="text-[11px] font-medium">Sair da Conta</span>
-            </Button>
           </div>
           <EdgeStatus />
         </div>

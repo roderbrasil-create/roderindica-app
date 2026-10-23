@@ -4,6 +4,7 @@ import { Button } from '../ui/button';
 import { Menu, ChevronLeft, X, Eye, EyeOff, WifiOff, ExternalLink } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import NotificationBell from './NotificationBell';
+import ContaMenu from './ContaMenu';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePWA } from '../../contexts/PWAContext';
 import { AnimatePresence, motion } from 'motion/react';
@@ -16,7 +17,7 @@ const getPageTitle = (path: string, ehParceiro = false): string => {
   if (path === '/') return 'Painel de Controle';
   if (path === '/indicacoes/nova') return 'Nova Indicação';
   if (path === '/indicacoes') return 'Central de Negócios';
-  if (path === '/perfil') return 'Meu Perfil';
+  if (path === '/perfil') return 'Minha conta';
   if (path === '/catalogo') return 'Catálogo de Equipamentos';
   if (path === '/comissoes') return ehParceiro ? 'Meus ganhos' : 'Central de Comissões';
   if (path === '/triagem') return 'Triagem de Leads';
@@ -252,12 +253,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     }}
                   />
                 </div>
-                <span className="font-extrabold text-sm tracking-tight text-slate-800">Roder Indica</span>
+                <span className="font-extrabold text-sm tracking-tight text-slate-800">{location.pathname === '/perfil' ? 'Minha conta' : 'Roder Indica'}</span>
               </div>
             </div>
             
             <div className="flex items-center gap-2">
                {celular && <NotificationBell />}
+               {celular && <ContaMenu />}
             </div>
           </header>
         </div>
@@ -282,7 +284,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <span className="text-xs font-black uppercase tracking-wider text-muted-foreground">{getPageTitle(location.pathname, ehParceiro)}</span>
             </div>
           </div>
-          {!celular && <NotificationBell />}
+          {!celular && (
+            <div className="flex items-center gap-1">
+              <NotificationBell />
+              <ContaMenu />
+            </div>
+          )}
         </header>
 
         <main className={cn("flex-1 p-4 md:p-8 pt-16 md:pt-8 max-w-full mobile-safe-main", ehParceiro && !location.pathname.startsWith("/estoque") && !location.pathname.startsWith("/indicacoes/nova") && "pb-28 md:pb-8")}>
