@@ -199,3 +199,51 @@ test('TELA: Contract.tsx usa a mesma estrutura do PDF e os dois botões geram o 
   assert.match(f, /compartilharPdfContrato\(/);
   assert.doesNotMatch(f, /window\.print\(\)/);
 });
+
+// ---- valores longos sem espaço: nada passa da margem direita e nada é descartado
+function bboxDoPdf(c: ReturnType<typeof montarContrato>) {
+  const pdf = gerarContratoPdf(c);
+  const dir = mkdtempSync(join(tmpdir(), 'contrato-'));
+  try {
+    const arq = join(dir, 'c.pdf'), html = join(dir, 'b.html');
+    writeFileSync(arq, Buffer.from(pdf.output('arraybuffer')));
+    execFileSync('pdftotext', ['-bbox', arq, html]);
+    const x = readFileSync(html, 'utf8');
+    const palavras = [...x.matchAll(/xMin="([\d.]+)" yMin="([\d.]+)" xMax="([\d.]+)" yMax="([\d.]+)">([^<]*)</g)]
+      .map(m => ({ xMin: +m[1], xMax: +m[3], yMax: +m[4], t: m[5] }));
+    const paginas = (x.match(/<page /g) || []).length;
+    return { palavras, paginas };
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+}
+const MARGEM_DIR_PT = (210 - 20) * 72 / 25.4 + 1.5; // 538.6pt + tolerância
+const sem = (s: string) => s.replace(/&amp;/g, '&').replace(/\s+/g, '');
+
+for (const [rotulo, campos] of [
+  ['e-mail de 80', { email: 'a'.repeat(70) + '@ex.com.br' }],
+  ['e-mail de 120', { email: 'm'.repeat(108) + '@ex.com.br' }],
+  ['PIX longo', { pix: '0123456789abcdef'.repeat(8) }],
+  ['nome de 95', { nome: 'MARIA APARECIDA DA CONCEICAO DE OLIVEIRA SANTOS PEREIRA FIGUEIREDO JUNIOR NETO FILHO DA SILVA X'.slice(0, 95) }],
+  ['nome de 150', { nome: 'ANTONIO CARLOS DE ALMEIDA PRADO BARBOSA CAVALCANTI DE ALBUQUERQUE MELO NASCIMENTO FIGUEIREDO JUNIOR NETO FILHO DA SILVA SOUZA MOREIRA TEIXEIRA GOMES' }],
+  ['nome de 150 sem espaço', { nome: 'N'.repeat(150) }],
+] as [string, any][]) {
+  test(`PDF valor longo (${rotulo}): todo o texto aparece e nada passa da margem direita`, { skip: !temPdftotext }, () => {
+    const c = montarContrato({ ...base, ...campos });
+    const { palavras, paginas } = bboxDoPdf(c);
+    const tudo = sem(palavras.map(p => p.t).join(' '));
+    for (const campo of ['nome', 'email', 'pix'] as const) {
+      if (!campos[campo]) continue;
+      const v = String(campos[campo]);
+      // o valor aparece inteiro (as quebras só inserem linha, nunca tiram caractere); o nome sai em caixa alta
+      const esperado = sem(campo === 'nome' ? v.toUpperCase() : v);
+      const ocorrencias = tudo.split(esperado).length - 1;
+      assert.ok(ocorrencias >= (campo === 'nome' ? 2 : 1), `${rotulo}: ${campo} incompleto (${ocorrencias}x)`);
+    }
+    const estouro = palavras.filter(p => p.xMax > MARGEM_DIR_PT || p.xMin < 20 * 72 / 25.4 - 1.5);
+    assert.deepEqual(estouro, [], `${rotulo}: texto fora das margens`);
+    assert.ok(paginas <= 4, `páginas: ${paginas}`);
+  });
+}
+
+test('PDF caso normal continua com 3 páginas A4', { skip: !temPdftotext }, () => {
+  assert.equal(bboxDoPdf(montarContrato(base)).paginas, 3);
+});

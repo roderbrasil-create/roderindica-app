@@ -25,8 +25,16 @@ function linhasDoParagrafo(pdf: jsPDF, p: Paragrafo, larg: number, pt: number): 
     for (const parte of tr.t.split(/(\s+)/)) {
       if (!parte) continue;
       // sem kerning: os visualizadores não aplicam kerning ao desenhar, então medida = desenho
-      const w = pdf.getStringUnitWidth(parte, { doKerning: false }) * pt / 72 * 25.4;
-      tokens.push({ t: parte, b: !!tr.b, w, esp: /^\s+$/.test(parte) });
+      const esp = /^\s+$/.test(parte);
+      const mede = (x: string) => pdf.getStringUnitWidth(x, { doKerning: false }) * pt / 72 * 25.4;
+      if (esp || mede(parte) <= larg) { tokens.push({ t: parte, b: !!tr.b, w: mede(parte), esp }); continue; }
+      // palavra sozinha mais larga que a linha (e-mail, PIX, nome sem espaço): parte por caracteres
+      let pedaco = '';
+      for (const ch of Array.from(parte)) {
+        if (pedaco && mede(pedaco + ch) > larg) { tokens.push({ t: pedaco, b: !!tr.b, w: mede(pedaco), esp: false }); pedaco = ''; }
+        pedaco += ch;
+      }
+      if (pedaco) tokens.push({ t: pedaco, b: !!tr.b, w: mede(pedaco), esp: false });
     }
   }
   const linhas: Token[][] = [];
@@ -120,7 +128,14 @@ export function gerarContratoPdf(c: ContratoMontado): jsPDF {
   paragrafo(c.encerramentoAbertura, 4);
 
   // ---- cláusulas: título nunca fica sozinho no fim da página
-  const ALT_ASS = 46;
+  // nome do parceiro na assinatura: quantas linhas precisar, nunca descarta texto
+  const COL_W = LARG / 2 - 5;
+  const nomeLs = (() => {
+    pdf.setFont('helvetica', 'bold');
+    return linhasDoParagrafo(pdf, [{ t: (c.assinatura.parceiro.nome || '').toUpperCase(), b: true }], COL_W, 9)
+      .map(l => l.map(t => t.t).join(''));
+  })();
+  const ALT_ASS = 46 + Math.max(0, nomeLs.length - 1) * 4.2;
   c.clausulas.forEach((cl, idx) => {
     // última cláusula: se a assinatura não cabe junto dela, as duas vão juntas para a página seguinte
     // (assinatura nunca fica sozinha numa página sem nenhum texto do contrato acima)
@@ -162,9 +177,8 @@ export function gerarContratoPdf(c: ContratoMontado): jsPDF {
   y += 5;
   pdf.setTextColor(...COR_TEXTO); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(9);
   pdf.text(ass.roder.nome, colL + colW / 2, y, { align: 'center', maxWidth: colW });
-  const nomeLs = pdf.splitTextToSize((ass.parceiro.nome || '').toUpperCase(), colW) as string[];
-  nomeLs.slice(0, 2).forEach((t, i) => pdf.text(t, colR + colW / 2, y + i * 4.2, { align: 'center' }));
-  const dy = nomeLs.length > 1 ? 4.2 : 0;
+  nomeLs.forEach((t, i) => pdf.text(t, colR + colW / 2, y + i * 4.2, { align: 'center' }));
+  const dy = Math.max(0, nomeLs.length - 1) * 4.2;
   y += 4.5;
   pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8); pdf.setTextColor(...COR_SUAVE);
   pdf.text(ass.roder.cnpj, colL + colW / 2, y, { align: 'center' });
