@@ -345,6 +345,11 @@ export default function NegotiationCentral() {
     }
   }, [isOpen, registeredProducts, activeIndication?.id]);
 
+  // Hook ANTES do retorno antecipado abaixo: depois dele, abrir a venda mudava o número de hooks
+  // entre renders e derrubava a tela (React #310).
+  // Trava síncrona contra dois cliques no estorno (o estado loading só vale no próximo render)
+  const estornandoRef = useRef(false);
+
   if (!isOpen || !activeIndication) return null;
 
   const handleAddProductByCode = (code: string) => {
@@ -1081,8 +1086,6 @@ export default function NegotiationCentral() {
     return saved;
   };
 
-  // Trava síncrona contra dois cliques no estorno (o estado loading só vale no próximo render)
-  const estornandoRef = useRef(false);
   const handleUndoInvoiceDirect = async () => {
     if (!activeIndication || estornandoRef.current) return;
     if (!window.confirm(`Deseja realmente estornar o faturamento da venda de "${activeIndication.client_name}"? Isso moverá o status de volta para Negociação, reverterá a baixa de estoque automática e excluirá a comissão vinculada de forma definitiva.`)) return;

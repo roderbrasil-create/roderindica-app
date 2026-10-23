@@ -371,12 +371,16 @@ export default function Commissions() {
     if (!profile) return;
     // Forecast data
     const qAll = ['external_seller', 'vendedor_padrao'].includes(profile.role) 
-      ? query(collection(db, 'commissions'), where('external_seller_uid', '==', profile.uid), orderBy('year', 'desc'), orderBy('month', 'desc'))
+      ? query(collection(db, 'commissions'), where('external_seller_uid', '==', profile.uid))
       : query(collection(db, 'commissions'), orderBy('year', 'desc'), orderBy('month', 'desc'));
     
     getDocs(qAll).then(snap => {
-      setAllCommissions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Commission)));
-    });
+      // ordenação aqui: where + orderBy(year, month) exige índice composto, e sem ele a leitura
+      // falhava calada e a planilha do parceiro ficava vazia
+      const lista = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Commission));
+      lista.sort((a, b) => (b.year - a.year) || (b.month - a.month));
+      setAllCommissions(lista);
+    }).catch(err => console.error('Erro ao ler as comissões:', err));
 
     // Profiles - Load for all authenticated users to enable lookup
     if (profile) {
