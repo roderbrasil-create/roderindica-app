@@ -21,8 +21,10 @@ test('CONTRATO: sem taxa válida no perfil o contrato mostra 2%, nunca "undefine
 });
 
 test('CONTRATO: a tela usa o texto do perfil, sem número por extenso fixo', () => {
-  const c = fonte('src/pages/Contract.tsx');
+  // o texto agora nasce em montarContrato (lib), que a tela e o PDF compartilham
+  const c = fonte('src/pages/Contract.tsx') + fonte('src/lib/contratoParceria.ts');
   assert.match(c, /textoPercentualContrato\(/);
+  assert.match(fonte('src/pages/Contract.tsx'), /taxa: isPreview \? previewRate : viewProfile\?\.commission_rate/);
   assert.doesNotMatch(c, /commissionRate === 1/);
 });
 

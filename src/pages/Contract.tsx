@@ -13,8 +13,13 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { FileText, CheckCircle2, User, MapPin, CreditCard, ArrowRight, Share2, Printer, LogOut, Loader2 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { maskPhone } from '../lib/masks';
-import { textoPercentualContrato } from '../lib/percentualContrato';
-import { dataDaAssinatura, dadosDeExibicaoDoContrato } from '../lib/contratoAssinado';
+import { dadosDeExibicaoDoContrato } from '../lib/contratoAssinado';
+import { montarContrato, type Paragrafo } from '../lib/contratoParceria';
+import { gerarContratoPdf } from '../lib/contratoPdf';
+import { abrirPdfContrato, compartilharPdfContrato } from '../lib/compartilharContrato';
+
+// Trechos do contrato (texto + negrito) como JSX: a mesma estrutura que alimenta o PDF
+const trechos = (p: Paragrafo) => p.map((x, i) => (x.b ? <strong key={i}>{x.t}</strong> : <React.Fragment key={i}>{x.t}</React.Fragment>));
 
 export default function Contract() {
   const { profile: currentProfile, logout, isImpersonating } = useAuth();
@@ -143,22 +148,42 @@ export default function Contract() {
     }
   };
 
-  const handleShareWhatsApp = () => {
-    const text = `Olá! Segue o contrato de parceria da Roder Máquinas e Equipamentos.\n\nVisualize aqui: ${window.location.href}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  const gerarPdf = (): Blob => gerarContratoPdf(contrato).output('blob');
+
+  // Os dois botões geram o PDF NA HORA do toque (síncrono) e entregam: o iPhone só deixa abrir/compartilhar
+  // dentro do gesto do usuário.
+  const handlePrint = async () => {
+    try {
+      const r = await abrirPdfContrato(gerarPdf(), contrato.assinatura.parceiro.nome);
+      if (r === 'baixado') toast.success('PDF do contrato baixado.');
+    } catch (e) {
+      toast.error('Não foi possível gerar o PDF do contrato.');
+    }
   };
 
-  const handlePrint = () => {
-    window.print();
+  const handleShareWhatsApp = async () => {
+    try {
+      const r = await compartilharPdfContrato(gerarPdf(), contrato.assinatura.parceiro.nome);
+      if (r === 'baixado-whatsapp') toast.success('PDF baixado. Anexe o arquivo na conversa do WhatsApp.');
+    } catch (e) {
+      toast.error('Não foi possível gerar o PDF do contrato.');
+    }
   };
 
-  const textoComissao = textoPercentualContrato(isPreview ? previewRate : viewProfile?.commission_rate);
   const somenteLeitura = modoLeitura || !!viewUid;
   const dadosContrato = dadosDeExibicaoDoContrato({ isPreview, somenteLeitura, step, viewProfile, formData });
   const displayName = dadosContrato.nome;
   const displayPix = dadosContrato.pix;
   const displayEmail = dadosContrato.email;
   const displayPhone = dadosContrato.telefone;
+  const contrato = montarContrato({
+    nome: displayName, email: displayEmail, telefone: displayPhone, pix: displayPix,
+    mostrarPix: currentProfile?.is_commissionable !== false,
+    taxa: isPreview ? previewRate : viewProfile?.commission_rate,
+    aceito: !!(viewProfile?.contract_accepted || accepted),
+    dataAceite: viewProfile?.contract_accepted_at,
+    jaGravado: !!viewProfile?.contract_accepted,
+  });
 
   if (loading) {
     return (
@@ -281,7 +306,7 @@ export default function Contract() {
             RODER MÁQUINAS E EQUIPAMENTOS
           </p>
           
-          {(isPreview || viewUid) && (
+          {(isPreview || viewUid || modoLeitura) && (
             <div className="flex justify-center gap-2 print:hidden">
               <Button variant="outline" size="sm" onClick={handlePrint} className="text-xs">
                 <Printer className="h-3 w-3 mr-1" /> Imprimir / PDF
@@ -297,145 +322,46 @@ export default function Contract() {
           <ScrollArea className="h-[500px] w-full rounded-md border border-border p-8 bg-white print:h-auto print:p-0 print:border-none">
             <div className="space-y-6 text-sm leading-relaxed text-black">
               <section className="space-y-2">
-                <h3 className="font-black uppercase text-xs tracking-widest text-primary print:text-black">Instrumento Particular de Parceria Comercial</h3>
-                <p className="text-[10px] text-muted-foreground">Versão 2024.4 - Atualizado em 08/05/2026</p>
-                <p>
-                  Pelo presente instrumento particular, de um lado <strong>RODER MÁQUINAS E EQUIPAMENTOS</strong>, inscrita no CNPJ sob nº 05.420.841/0001-71, com sede em Pardinho/SP, doravante denominada <strong>RODER</strong>, 
-                  e de outro lado o <strong>PARCEIRO INDICADOR</strong>, abaixo qualificado:
-                </p>
+                <h3 className="font-black uppercase text-xs tracking-widest text-primary print:text-black">{contrato.tituloInstrumento}</h3>
+                <p className="text-[10px] text-muted-foreground">{contrato.versao}</p>
+                <p>{trechos(contrato.abertura)}</p>
                 <div className="p-4 bg-muted/20 border border-border rounded space-y-1 text-xs">
-                  <p><strong>NOME:</strong> {displayName}</p>
-                  <p><strong>E-MAIL:</strong> {displayEmail}</p>
-                  <p><strong>TELEFONE:</strong> {displayPhone}</p>
-                  {currentProfile?.is_commissionable !== false && (
-                    <p><strong>CHAVE PIX PARA PAGAMENTO:</strong> {displayPix}</p>
-                  )}
+                  {contrato.qualificacao.map(q => (
+                    <p key={q.rotulo}><strong>{q.rotulo}:</strong> {q.valor}</p>
+                  ))}
                 </div>
-                <p>Resolvem celebrar o presente contrato de parceria comercial conforme as cláusulas abaixo:</p>
+                <p>{trechos(contrato.encerramentoAbertura)}</p>
               </section>
 
-              <section className="space-y-2">
-                <h3 className="font-black uppercase text-xs tracking-widest text-primary print:text-black">CLÁUSULA 1ª – DO OBJETO</h3>
-                <p>
-                  1.1. O presente contrato tem por objeto a intermediação de vendas de equipamentos da <strong>RODER</strong> pelo <strong>PARCEIRO INDICADOR</strong>, através do sistema de indicações via aplicativo.
-                </p>
-              </section>
-
-              <section className="space-y-2">
-                <h3 className="font-black uppercase text-xs tracking-widest text-primary print:text-black">CLÁUSULA 2ª – DAS COMISSÕES E BASE DE CÁLCULO</h3>
-                <p>
-                  2.1. O <strong>PARCEIRO INDICADOR</strong> fará jus a uma comissão de <strong>{textoComissao}</strong> sobre o <strong>VALOR BASE DE TABELA</strong> do equipamento vendido.
-                </p>
-                <p>
-                  2.2. <strong>Base de Cálculo:</strong> A comissão incide exclusivamente sobre o valor bruto de tabela do equipamento (Roder ou FAE).
-                </p>
-                <p>
-                  2.3. <strong>Exclusões:</strong> Estão expressamente excluídos da base de cálculo os valores de: kits de instalação, suportes, adaptadores, componentes hidráulicos, mão de obra, serviços técnicos, acessórios e frete.
-                </p>
-              </section>
-
-              <section className="space-y-2">
-                <h3 className="font-black uppercase text-xs tracking-widest text-primary print:text-black">CLÁUSULA 3ª – DA VALIDADE DAS PROPOSTAS E RENOVAÇÃO</h3>
-                <p>
-                  3.1. <strong>Prazo de Validade:</strong> Cada orçamento terá validade de <strong>60 (sessenta) dias corridos</strong>, contados a partir do upload do orçamento no aplicativo.
-                </p>
-                <p>
-                  3.2. <strong>Cancelamento Automático:</strong> Após 60 dias sem fechamento, a proposta é automaticamente cancelada pelo sistema.
-                </p>
-                <p>
-                  3.3. <strong>Renovação:</strong> Para reativar uma proposta vencida, o <strong>PARCEIRO INDICADOR</strong> deve solicitar uma atualização de preços e anexar prova de interesse atual do cliente (print ou áudio).
-                </p>
-                <p>
-                  3.4. <strong>Regra de Relacionamento (Bypass):</strong> Se o cliente procurar a <strong>RODER</strong> diretamente após o vencimento dos 60 dias para atualizar o orçamento, sem passar pelo indicador, a comissão deixará de ser devida ao <strong>PARCEIRO INDICADOR</strong>.
-                </p>
-              </section>
-
-              <section className="space-y-2">
-                <h3 className="font-black uppercase text-xs tracking-widest text-primary print:text-black">CLÁUSULA 4ª – DOS CRITÉRIOS DE ELEGIBILIDADE (PROTEÇÃO DE LEADS)</h3>
-                <p>
-                  4.1. <strong>Regra de Oferta Aberta:</strong> A aceitação da indicação depende da inexistência de negociações ou orçamentos em aberto para o cliente na plataforma <strong>RODER INDICA</strong> ou no <strong>CRM AGENDOR</strong> da empresa.
-                </p>
-                <p>
-                  4.2. <strong>Ineligibilidade por Negociação Ativa:</strong> Caso Luana verifique que já existe uma oferta ou negociação em aberto com o cliente nos últimos <strong>60 (sessenta) dias</strong>, a indicação não será aceita. O indicador receberá a mensagem de que o cliente já está em negociação direta com a empresa.
-                </p>
-                <p>
-                  4.3. <strong>Elegibilidade por Inatividade ou Novo Produto:</strong> A indicação será aceita normalmente se: (a) Não houver oferta aberta nos últimos 60 dias; ou (b) Tratar-se de uma indicação para um equipamento significativamente diferente do que já está em negociação, <strong>desde que realizada pelo mesmo parceiro indicador</strong>.
-                </p>
-                <p>
-                  4.4. <strong>Encaminhamento Preferencial:</strong> Caso o cliente já esteja cadastrado no CRM com uma vendedora interna responsável, a indicação aceita será obrigatoriamente encaminhada para a mesma vendedora, mantendo a continuidade do atendimento.
-                </p>
-                <p>
-                  4.5. <strong>Proteção contra Multi-Indicadores:</strong> Caso outro parceiro indicador realize uma indicação para um cliente que já possua negociação ativa ou orçamento aberto (dentro do prazo de 60 dias), independentemente do equipamento indicado, a indicação deste segundo parceiro será recusada em favor do atendimento já iniciado e do primeiro indicador validado.
-                </p>
-              </section>
-
-              <section className="space-y-2">
-                <h3 className="font-black uppercase text-xs tracking-widest text-primary print:text-black">CLÁUSULA 5ª – DA RECORRÊNCIA E RESPONSABILIDADE</h3>
-                <p>
-                  5.1. A primeira venda da indicação validada será integralmente comissionada ao <strong>PARCEIRO INDICADOR</strong>.
-                </p>
-                <p>
-                  5.2. O <strong>PARCEIRO INDICADOR</strong> não é um vendedor fixo responsável pela conta do cliente.
-                </p>
-                <p>
-                  5.3. <strong>Vendas Futuras:</strong> Para receber comissões em novas vendas para o mesmo cliente, o <strong>PARCEIRO INDICADOR</strong> deve abrir uma nova solicitação no aplicativo. Se o cliente procurar a <strong>RODER</strong> diretamente para novas compras, entende-se que ele deseja atendimento direto, e nenhuma comissão será devida ao indicador.
-                </p>
-              </section>
-
-              <section className="space-y-2">
-                <h3 className="font-black uppercase text-xs tracking-widest text-primary print:text-black">CLÁUSULA 6ª – DO CICLO DE FATURAMENTO E PAGAMENTO</h3>
-                <p>
-                  6.1. <strong>Período de Apuração:</strong> As comissões serão somadas com base nas vendas efetivadas do dia 01 ao último dia do mês anterior.
-                </p>
-                <p>
-                  6.2. <strong>Relatório Mensal:</strong> No dia 01 de cada mês, o <strong>PARCEIRO INDICADOR</strong> receberá via aplicativo um relatório com os valores das comissões apuradas.
-                </p>
-                <p>
-                  6.3. <strong>Nota Fiscal:</strong> Com base no relatório, o <strong>PARCEIRO INDICADOR</strong> deverá emitir a Nota Fiscal de Prestação de Serviços e realizar o carregamento (upload) no aplicativo impreterivelmente até o dia <strong>05 do mês vigente</strong>.
-                </p>
-                <p>
-                  6.4. <strong>Consequência de Atraso:</strong> Ao descumprir o prazo de envio da Nota Fiscal até o dia 05, o referido pagamento será automaticamente postergado para o ciclo de pagamento do mês subsequente, condicionado ao envio da mesma.
-                </p>
-                <p>
-                  6.5. <strong>Pagamento:</strong> Após o recebimento e validação da Nota Fiscal via aplicativo, o financeiro da <strong>RODER</strong> realizará o pagamento via PIX na chave cadastrada até o dia <strong>07 do mês</strong> (se o dia 07 cair em sábado, domingo ou feriado, o pagamento será feito no próximo dia útil), desde que o prazo da cláusula 6.3 tenha sido respeitado.
-                </p>
-                <p>
-                  6.6. <strong>Comprovante:</strong> O financeiro anexará o comprovante de pagamento diretamente no aplicativo para consulta do <strong>PARCEIRO INDICADOR</strong>.
-                </p>
-              </section>
-
-              <section className="space-y-2">
-                <h3 className="font-black uppercase text-xs tracking-widest text-primary print:text-black">CLÁUSULA 7ª – DISPOSIÇÕES GERAIS</h3>
-                <p>
-                  7.1. <strong>Confidencialidade:</strong> O <strong>PARCEIRO INDICADOR</strong> obriga-se a manter sigilo sobre tabelas de preços e dados estratégicos da <strong>RODER</strong>.
-                </p>
-                <p>
-                  7.2. <strong>LGPD:</strong> As partes declaram conformidade com a Lei Geral de Proteção de Dados no tratamento das informações de clientes.
-                </p>
-              </section>
+              {contrato.clausulas.map(cl => (
+                <section key={cl.titulo} className="space-y-2">
+                  <h3 className="font-black uppercase text-xs tracking-widest text-primary print:text-black">{cl.titulo}</h3>
+                  {cl.paragrafos.map((p, i) => <p key={i}>{trechos(p)}</p>)}
+                </section>
+              ))}
 
               <div className="contrato-assinatura pt-12 border-t border-border/50 text-center space-y-8">
                 <div className="grid grid-cols-2 gap-8">
                   <div className="space-y-2">
                     <div className="border-b border-black h-12 flex items-end justify-center pb-1">
-                      <span className="text-[9px] italic text-muted-foreground uppercase font-bold">Assinado Digitalmente via App</span>
+                      <span className="text-[9px] italic text-muted-foreground uppercase font-bold">{contrato.assinatura.roder.rotulo}</span>
                     </div>
-                    <p className="text-[10px] font-black uppercase">RODER MÁQUINAS E EQUIPAMENTOS</p>
-                    <p className="text-[8px] text-muted-foreground">CNPJ: 05.420.841/0001-71</p>
+                    <p className="text-[10px] font-black uppercase">{contrato.assinatura.roder.nome}</p>
+                    <p className="text-[8px] text-muted-foreground">{contrato.assinatura.roder.cnpj}</p>
                   </div>
                   <div className="space-y-2">
                     <div className="border-b border-black h-12 flex items-end justify-center pb-1">
-                      {viewProfile?.contract_accepted || accepted ? (
+                      {contrato.assinatura.parceiro.assinado ? (
                         <div className="flex flex-col items-center">
-                          <span className="text-[9px] italic font-bold text-primary">ASSINADO DIGITALMENTE</span>
-                          <span className="text-[8px] text-muted-foreground">EM {dataDaAssinatura(viewProfile?.contract_accepted_at) ?? (viewProfile?.contract_accepted ? 'DATA NÃO REGISTRADA' : new Date().toLocaleDateString('pt-BR'))}</span>
+                          <span className="text-[9px] italic font-bold text-primary">{contrato.assinatura.parceiro.linha1}</span>
+                          <span className="text-[8px] text-muted-foreground">{contrato.assinatura.parceiro.linha2}</span>
                         </div>
                       ) : (
-                        <span className="text-[9px] text-muted-foreground uppercase font-bold">Aguardando Assinatura</span>
+                        <span className="text-[9px] text-muted-foreground uppercase font-bold">{contrato.assinatura.parceiro.linha1}</span>
                       )}
                     </div>
-                    <p className="text-[10px] font-black uppercase">{displayName}</p>
-                    <p className="text-[8px] text-muted-foreground">PARCEIRO INDICADOR</p>
+                    <p className="text-[10px] font-black uppercase">{contrato.assinatura.parceiro.nome}</p>
+                    <p className="text-[8px] text-muted-foreground">{contrato.assinatura.parceiro.papel}</p>
                   </div>
                 </div>
               </div>
