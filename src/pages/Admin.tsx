@@ -1573,6 +1573,9 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
             if (r === 'aberto') toast.success('WhatsApp aberto com a senha cadastrada!');
             else avisarSemAbrir(url, msg, r === 'copiado');
           }
+        } else if (shareAfterward) {
+          // e-mail sem cadastro na lista: não há para quem montar o convite
+          toast.warning('Senha definida, mas esse e-mail não está na lista de usuários. O convite não foi montado.');
         }
 
         // Small delay before closing to avoid React/DOM race conditions with sonner toast
@@ -1592,6 +1595,8 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
       console.error("[PWD-SET] Client-side error:", error);
       toast.error('Erro ao processar: ' + (error.message || 'Erro inesperado'), { id: toastId });
     } finally {
+      // qualquer saída que não entregou o convite não deixa aba em branco aberta
+      try { janelaWhats?.close(); } catch { /* já fechada */ }
       const checkLoading = setTimeout(() => {
         setIsSettingPassword(false);
       }, 500);
