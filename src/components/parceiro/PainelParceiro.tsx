@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, getDocs, getDoc, doc, onSnapshot, query, where, limit } from 'firebase/firestore';
+import { collection, getDocs, getDoc, doc, onSnapshot, query, where, limit, or } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { type TipoMaquina } from '../../lib/instalacao';
 import { montarProntaEntrega } from '../../lib/prontaEntrega';
 import { Package, Loader2 } from 'lucide-react';
 import { cn, getApiBaseUrl } from '../../lib/utils';
+import { filtrosDoParceiro } from '../../lib/filtrosParceiro';
+import { somaAReceber } from '../../lib/vinculoParceiro';
 
 // Tela inicial do PARCEIRO (indicador, vendedor parceiro, operador, dono de oficina).
 // Aprovada pelo Jeferson em 18/10/2026: vitrine que dá vontade de indicar, e não central de controle.
@@ -113,7 +115,7 @@ async function fotoParaEnviar(src: string | undefined, nome: string): Promise<Fi
 }
 
 export default function PainelParceiro() {
-  const { profile, isRegionalSeller, isImpersonating } = useAuth();
+  const { profile, realProfile, isRegionalSeller, isImpersonating } = useAuth();
   const navigate = useNavigate();
   const [produtos, setProdutos] = useState<any[]>([]);
   const [estoque, setEstoque] = useState<any[]>([]);
@@ -135,13 +137,17 @@ export default function PainelParceiro() {
 
   useEffect(() => {
     if (!profile?.uid) return;
-    const u1 = onSnapshot(query(collection(db, 'indications'), where('external_seller_uid', '==', profile.uid), limit(200)),
+    // mesma busca da tela Indicações (uid em todos os campos de dono, mais o e-mail), para a tela
+    // inicial e a lista nunca discordarem
+    const filtros = filtrosDoParceiro(profile, realProfile);
+    const buscaIndicacoes = filtros.length > 1 ? or(...filtros) : where('external_seller_uid', '==', profile.uid);
+    const u1 = onSnapshot(query(collection(db, 'indications'), buscaIndicacoes, limit(200)),
       s => setIndicacoes(s.docs.map(d => ({ id: d.id, ...d.data() }))), () => {});
     const u2 = isRegionalSeller ? () => {} : onSnapshot(query(collection(db, 'commissions'), where('external_seller_uid', '==', profile.uid)),
       s => { setErroComissoes(false); setComissoes(s.docs.map(d => ({ id: d.id, ...d.data() }))); },
       (e) => { console.error('Erro ao ler comissões do parceiro:', e); setErroComissoes(true); });
     return () => { u1(); u2(); };
-  }, [profile?.uid, isRegionalSeller]);
+  }, [profile?.uid, profile?.email, realProfile?.uid, isRegionalSeller]);
 
   // Pronta entrega: a mesma lista do Consultor (src/lib/prontaEntrega.ts)
   const prontaEntrega = useMemo(() => montarProntaEntrega(estoque, produtos), [estoque, produtos]);
@@ -171,7 +177,7 @@ export default function PainelParceiro() {
     window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, '_blank');
   };
 
-  const aReceber = useMemo(() => comissoes.filter(c => c.status !== 'paid').reduce((s, c) => s + (Number(c.value) || 0), 0), [comissoes]);
+  const aReceber = useMemo(() => somaAReceber(comissoes), [comissoes]);
   // respeita o que o administrador desligou para este parceiro em Usuários (mesma regra do menu)
   const mostraGanhos = !isRegionalSeller && profile?.permissions?.sidebar?.comissoes_ext !== false;
 
@@ -309,6 +315,11 @@ export default function PainelParceiro() {
           {ultimas.length === 0 ? (
             <div className="bg-white rounded-[14px] px-3.5 py-3 text-[13.5px] text-[#5E6672]">
               Você ainda não tem indicações. Toque em <b className="text-[#1B1E22]">Indicar</b> ou envie um equipamento pelo WhatsApp: o pedido do cliente fica no seu nome.
+              {isImpersonating && (
+                <span className="block mt-2 text-[12px] text-[#B45309]">
+                  Aviso ao administrador: nada está ligado ao código {profile?.uid}. Se a venda existe na Central de Negociações, ela está em outro cadastro deste parceiro. Use "Trocar Indicador" ou o Diagnóstico de comissão (Configurações) para ligar a indicação e a comissão a este cadastro.
+                </span>
+              )}
             </div>
           ) : (
             <div className="flex flex-col gap-2">
