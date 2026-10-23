@@ -322,9 +322,10 @@ export default function Commissions() {
     if (['external_seller', 'vendedor_padrao'].includes(profile.role)) {
       qStatements = query(
         collection(db, 'monthly_statements'),
-        where('seller_uid', '==', profile.uid),
-        where('month', '==', selectedMonth),
-        where('year', '==', selectedYear)
+        // todos os extratos do parceiro, de todos os meses (a tela Meus ganhos não tem mais filtro
+        // de mês); sem orderBy, para não pedir índice composto. A regra do Firestore já limita
+        // a leitura ao seller_uid dele.
+        where('seller_uid', '==', profile.uid)
       );
 
       // Fetch potential commissions (Negotiating leads with base_commission_value)
