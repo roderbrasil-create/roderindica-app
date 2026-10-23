@@ -77,6 +77,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Switch } from '../components/ui/switch';
 import { Link, useNavigate } from 'react-router-dom';
 import { getApiBaseUrl } from '../lib/utils';
+import { linkWhatsConvite, montarMensagemConvite, entregarConvite } from '../lib/convitePorWhatsapp';
 
 import { maskPhone, maskCpfCnpj } from '../lib/masks';
 import { textoLinkParceiro } from '../lib/consultorIndicar';
@@ -1468,75 +1469,28 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
     }
   };
 
+  // Abre o WhatsApp com o convite. Em toque direto (sem await antes) o window.open funciona; se o
+  // navegador bloquear, copia a mensagem e dá um botão para tentar de novo.
+  const avisarSemAbrir = (url: string, mensagem: string, copiou: boolean) => {
+    toast.warning(copiou
+      ? 'Não consegui abrir o WhatsApp sozinho. A mensagem foi copiada: toque para abrir e cole.'
+      : 'Não consegui abrir o WhatsApp. Copie a mensagem da prévia e envie na mão.', {
+      duration: 20000,
+      action: { label: 'Abrir WhatsApp', onClick: () => { window.location.href = url; } },
+    });
+  };
+
   const openWhatsAppUrl = (phone: string | undefined, message: string) => {
-    let cleanPhone = phone?.replace(/\D/g, '') || '';
-    if (cleanPhone && !cleanPhone.startsWith('55') && (cleanPhone.length === 10 || cleanPhone.length === 11)) {
-      cleanPhone = `55${cleanPhone}`;
+    const url = linkWhatsConvite(phone, message);
+    const w = window.open(url, '_blank');
+    if (!w) {
+      void entregarConvite({ janela: null, url, mensagem: message, copiar: (t) => navigator.clipboard.writeText(t) })
+        .then(r => avisarSemAbrir(url, message, r === 'copiado'));
     }
-    const encodedMessage = encodeURIComponent(message);
-    const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
-    window.open(whatsappUrl, '_blank');
   };
 
-  const buildWhatsAppInviteMessage = (user: UserProfile, password?: string, includePassword?: boolean) => {
-    const appUrl = window.location.origin;
-    const roleName = user.role === 'admin' ? 'Administrador' : 
-                     user.role === 'manager' ? 'Gerente Comercial' : 
-                     user.role === 'internal_seller' ? 'Vendedora Interna' :
-                     user.role === 'triagem' ? 'Triagem' :
-                     user.role === 'financial' ? 'Financeiro' :
-                     user.role === 'vendedor_padrao' ? 'Vendedor Padrão' : 'Vendedor Externo';
-
-    const isMobileOnly = user.email?.endsWith('@mobile.roder.com.br');
-    const isGoogle = user.email?.endsWith('@gmail.com') || 
-                     user.email?.endsWith('@roderbrasil.com.br') || 
-                     user.email?.endsWith('@roder.com.br');
-
-    // Effective password from explicit parameter or registered profile
-    const effectivePassword = (password !== undefined ? password : user.initial_password)?.trim();
-    const hasRegisteredPassword = !!effectivePassword && (includePassword !== false);
-
-    let loginMethodInfo = '';
-    let instructions = '';
-
-    if (isMobileOnly) {
-      loginMethodInfo = `📲 *Acesso via WhatsApp:*\n` +
-                        `• *Número de Telefone:* ${user.phone}`;
-      instructions = `1. Ao abrir o link do App, selecione a opção *"Acesso via WhatsApp"*.\n` +
-                     `2. Digite o seu número (${user.phone}) e clique em entrar.`;
-    } else if (hasRegisteredPassword) {
-      // User has a registered password: instruct login with email and password
-      loginMethodInfo = `🔑 *Dados de Acesso (Login e Senha):*\n` +
-                        `• *E-mail:* ${user.email}\n` +
-                        `• *Senha de Acesso:* ${effectivePassword}`;
-      instructions = `1. Ao abrir o link do App, selecione a opção *"E-mail e Senha"*.\n` +
-                     `2. Digite o seu e-mail (*${user.email}*) e a senha cadastrada informada acima (*${effectivePassword}*).\n` +
-                     `3. Clique no botão *"Entrar"* para acessar o sistema.`;
-      if (isGoogle) {
-        instructions += `\n\n💡 *Opção alternativa:* Se preferir, você também pode clicar no botão *"Google"* usando sua conta ${user.email}.`;
-      }
-    } else if (isGoogle) {
-      loginMethodInfo = `📧 *Acesso via Google:*\n` +
-                        `• *Conta Google:* ${user.email}`;
-      instructions = `1. Ao abrir o link do App, clique no botão *"Google"*.\n` +
-                     `2. Entre com sua conta ${user.email}.`;
-    } else {
-      loginMethodInfo = `📧 *Acesso via E-mail:*\n` +
-                        `• *E-mail:* ${user.email}`;
-      instructions = `1. Ao abrir o link do App, selecione a opção *"E-mail e Senha"*.\n` +
-                     `2. Digite o seu e-mail (*${user.email}*).\n` +
-                     `3. Caso ainda não tenha uma senha cadastrada, clique no link *"Esqueci minha senha"* para criá-la.`;
-    }
-
-    return `Olá *${user.name}*!\n\n` +
-      `Você foi cadastrado no sistema *RODER Indica V2* como *${roleName}*.\n\n` +
-      `🔗 *Link do App:* ${appUrl}\n\n` +
-      `${loginMethodInfo}\n\n` +
-      `*Instruções para o seu acesso:* \n` +
-      `${instructions}\n\n` +
-      `📌 *Dica:* No celular, toque no ícone de compartilhar e selecione "Adicionar à Tela de Início" para instalar o App.\n\n` +
-      `Qualquer dúvida, fale com a Luana!`;
-  };
+  const buildWhatsAppInviteMessage = (user: UserProfile, password?: string, includePassword?: boolean) =>
+    montarMensagemConvite(user, window.location.origin, password, includePassword);
 
   // Senha da conta de login pelo servidor, mandando o código do cadastro (o servidor recusa e-mail
   // com dois cadastros sem ele). O resultado vai para a tela: recusa e "vai precisar entrar de novo".
@@ -1563,6 +1517,10 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
       toast.error('Informe um e-mail válido e uma senha com pelo menos 6 caracteres.');
       return;
     }
+
+    // Quando vai compartilhar, a janela abre já no toque (depois dos awaits o Safari bloqueia).
+    let janelaWhats: Window | null = null;
+    if (shareAfterward) { try { janelaWhats = window.open('', '_blank'); } catch { janelaWhats = null; } }
 
     setIsSettingPassword(true);
     const toastId = toast.loading(`Definindo senha para ${passwordForUser.email}...`);
@@ -1609,8 +1567,11 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
 
           if (shareAfterward) {
             const msg = buildWhatsAppInviteMessage(targetUser, passwordForUser.password, true);
-            openWhatsAppUrl(targetUser.phone, msg);
-            toast.success('WhatsApp aberto com a senha cadastrada!');
+            const url = linkWhatsConvite(targetUser.phone, msg);
+            const r = await entregarConvite({ janela: janelaWhats, url, mensagem: msg, copiar: (t) => navigator.clipboard.writeText(t) });
+            janelaWhats = null;
+            if (r === 'aberto') toast.success('WhatsApp aberto com a senha cadastrada!');
+            else avisarSemAbrir(url, msg, r === 'copiado');
           }
         }
 
@@ -1622,10 +1583,12 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
         }, 100);
         return; // Success handled
       } else {
+        try { janelaWhats?.close(); } catch { /* já fechada */ }
         console.error("[PWD-SET] API returned error:", data);
         toast.error('Erro: ' + (data.error || 'Erro desconhecido'), { id: toastId });
       }
     } catch (error: any) {
+      try { janelaWhats?.close(); } catch { /* já fechada */ }
       console.error("[PWD-SET] Client-side error:", error);
       toast.error('Erro ao processar: ' + (error.message || 'Erro inesperado'), { id: toastId });
     } finally {
@@ -1648,6 +1611,9 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
 
   const handleConfirmShareWithPassword = async () => {
     if (!shareUserModal) return;
+    // A janela abre AGORA, dentro do toque. Depois dos awaits (salvar senha) o Safari do iPhone bloqueia.
+    let janela: Window | null = null;
+    try { janela = window.open('', '_blank'); } catch { janela = null; }
     setIsSharingViaWhatsApp(true);
 
     try {
@@ -1656,25 +1622,27 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
 
       // If a password was informed/changed, save it in Firestore and sync with Firebase Auth
       if (shouldSavePwd && trimmedPwd !== shareUserModal.initial_password) {
-        // 1. Update Firestore
         await updateDoc(doc(db, 'users', shareUserModal.uid), {
           initial_password: trimmedPwd,
           updated_at: new Date().toISOString()
         });
-
-        // 2. Sync with Firebase Auth
         if (shareUserModal.email) await sincronizarSenhaNoLogin(shareUserModal.email, trimmedPwd, shareUserModal.uid);
-
-        // Update local state
         setUsers(prev => prev.map(u => u.uid === shareUserModal.uid ? { ...u, initial_password: trimmedPwd } : u));
         toast.success('Senha salva e vinculada ao perfil do usuário!');
       }
 
+      // mesma função e mesmos argumentos da prévia: o que vai é o que aparece
       const msg = buildWhatsAppInviteMessage(shareUserModal, trimmedPwd, shareIncludePassword && trimmedPwd.length > 0);
-      openWhatsAppUrl(shareUserModal.phone, msg);
-      setShareUserModal(null);
-      toast.success('WhatsApp aberto com a mensagem de convite!');
+      const url = linkWhatsConvite(shareUserModal.phone, msg);
+      const r = await entregarConvite({ janela, url, mensagem: msg, copiar: (t) => navigator.clipboard.writeText(t) });
+      if (r === 'aberto') {
+        toast.success('WhatsApp aberto com a mensagem de convite!');
+        setShareUserModal(null);
+      } else {
+        avisarSemAbrir(url, msg, r === 'copiado');
+      }
     } catch (err: any) {
+      try { janela?.close(); } catch { /* já fechada */ }
       toast.error('Erro ao processar: ' + err.message);
     } finally {
       setIsSharingViaWhatsApp(false);
