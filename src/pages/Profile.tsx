@@ -12,6 +12,7 @@ import { usePWA } from '../contexts/PWAContext';
 import { User, Mail, Phone, MapPin, CreditCard, FileText, CheckCircle2, AlertCircle, Smartphone, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { maskPhone, maskCpfCnpj } from '../lib/masks';
+import { enderecoDoContratoAssinado, dataDaAssinatura } from '../lib/contratoAssinado';
 
 export default function Profile() {
   const { profile, isAdmin, isExternalSeller } = useAuth();
@@ -313,9 +314,9 @@ export default function Profile() {
                         <span className="text-sm font-bold">Contrato Assinado</span>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Assinado em: {new Date(profile.contract_accepted_at!).toLocaleDateString()}
+                        {dataDaAssinatura(profile.contract_accepted_at) ? `Assinado em: ${dataDaAssinatura(profile.contract_accepted_at)}` : 'Assinado'}
                       </p>
-                      <Button variant="outline" className="w-full gap-2" onClick={() => navigate('/contrato')}>
+                      <Button variant="outline" className="w-full gap-2" onClick={() => navigate(enderecoDoContratoAssinado(profile.uid))}>
                         <FileText className="h-4 w-4" /> Visualizar Contrato
                       </Button>
                     </div>

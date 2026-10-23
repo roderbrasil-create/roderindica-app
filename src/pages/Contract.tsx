@@ -13,6 +13,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { FileText, CheckCircle2, User, MapPin, CreditCard, ArrowRight, Share2, Printer, LogOut, Loader2 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { maskPhone } from '../lib/masks';
+import { dataDaAssinatura } from '../lib/contratoAssinado';
 
 export default function Contract() {
   const { profile: currentProfile, logout, isImpersonating } = useAuth();
@@ -41,6 +42,9 @@ export default function Contract() {
 
   const isPreview = searchParams.get('preview') === 'true';
   const viewUid = searchParams.get('uid');
+  // Modo leitura do proprio parceiro (botao "Visualizar Contrato" do Minha Conta).
+  // Sem isso a tela mandava quem ja assinou direto para a inicial.
+  const modoLeitura = searchParams.get('ver') === '1';
   const previewRate = searchParams.get('rate') ? parseFloat(searchParams.get('rate')!) : 2;
 
   useEffect(() => {
@@ -51,16 +55,23 @@ export default function Contract() {
     }
 
     const loadProfile = async () => {
-      if (viewUid) {
+      if (viewUid && currentProfile && viewUid === currentProfile.uid) {
+        // o proprio perfil ja esta em memoria: nao depende de nova leitura nem de regra
+        setViewProfile(currentProfile);
+        setStep('contract');
+      } else if (viewUid) {
         const docRef = doc(db, 'users', viewUid);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           const data = docSnap.data() as UserProfile;
           setViewProfile(data);
           setStep('contract'); // Admins go straight to contract
+        } else {
+          toast.error('Contrato não encontrado para este parceiro.');
         }
       } else if (currentProfile) {
         setViewProfile(currentProfile);
+        if (modoLeitura && currentProfile.contract_accepted) setStep('contract');
         setFormData({
           name: currentProfile.name || '',
           email: currentProfile.email || '',
@@ -72,13 +83,13 @@ export default function Contract() {
         });
         
         // If already accepted and not a specific view, redirect
-        if (currentProfile.contract_accepted && !isPreview && !viewUid) {
+        if (currentProfile.contract_accepted && !isPreview && !viewUid && !modoLeitura) {
           navigate('/');
         }
       }
     };
     loadProfile();
-  }, [currentProfile, viewUid, isPreview, navigate]);
+  }, [currentProfile, viewUid, isPreview, modoLeitura, navigate]);
 
   const handleSaveData = async () => {
     if (!formData.name || !formData.phone) {
@@ -409,7 +420,7 @@ export default function Contract() {
                       {viewProfile?.contract_accepted || accepted ? (
                         <div className="flex flex-col items-center">
                           <span className="text-[9px] italic font-bold text-primary">ASSINADO DIGITALMENTE</span>
-                          <span className="text-[8px] text-muted-foreground">EM {viewProfile?.contract_accepted_at ? new Date(viewProfile.contract_accepted_at).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR')}</span>
+                          <span className="text-[8px] text-muted-foreground">EM {dataDaAssinatura(viewProfile?.contract_accepted_at) ?? (viewProfile?.contract_accepted ? 'DATA NÃO REGISTRADA' : new Date().toLocaleDateString('pt-BR'))}</span>
                         </div>
                       ) : (
                         <span className="text-[9px] text-muted-foreground uppercase font-bold">Aguardando Assinatura</span>
