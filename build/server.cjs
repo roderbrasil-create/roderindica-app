@@ -1458,6 +1458,40 @@ var REGRA_ENVIO_EQUIPAMENTO = `REGRA DE ENVIO DO EQUIPAMENTO AO CLIENTE (vale pa
 - Responda curto: cite o equipamento, diga que o bot\xE3o "Enviar ao cliente" manda a foto com o link e, se faltar saber qual \xE9 o equipamento, pergunte s\xF3 isso.
 - S\xF3 fale em ficha em PDF e s\xF3 mostre o link da ficha quando o vendedor pedir a ficha de forma expl\xEDcita (palavras como ficha, ficha t\xE9cnica, PDF).`;
 
+// src/lib/observacaoParceiro.ts
+var TIPO_OBSERVACAO_PARCEIRO = "partner_note";
+function idObservacaoParceiro(indicacaoId) {
+  return `obs-parceiro-${indicacaoId || "sem-id"}`;
+}
+var dataValida = (v) => !!v && !Number.isNaN(new Date(v).getTime());
+function autorObservacaoParceiro(ind) {
+  const nome = (ind.created_by_name || "").trim() || (ind.external_seller_name || "").trim();
+  return nome || "Parceiro indicador";
+}
+function entradaObservacaoParceiro(ind) {
+  if (!ind) return null;
+  const texto2 = String(ind.description ?? "").replace(/\r\n?/g, "\n").trim();
+  if (!texto2) return null;
+  return {
+    id: idObservacaoParceiro(ind.id),
+    type: TIPO_OBSERVACAO_PARCEIRO,
+    author_name: autorObservacaoParceiro(ind),
+    // sem data na indicação a entrada ainda aparece, mas vai para o começo (data vazia ordena primeiro)
+    created_at: dataValida(ind.created_at) ? String(ind.created_at) : "",
+    content: texto2,
+    attachments: []
+  };
+}
+function temObservacaoGravada(historico, indicacaoId) {
+  const id = idObservacaoParceiro(indicacaoId);
+  return (historico || []).some((e) => e && (e.id === id || e.type === TIPO_OBSERVACAO_PARCEIRO));
+}
+function entradaParaGravar(ind) {
+  const e = entradaObservacaoParceiro(ind);
+  if (!e || !ind) return null;
+  return temObservacaoGravada(ind.negotiation_history, ind.id) ? null : e;
+}
+
 // src/lib/destocadorDth.ts
 var SPECS_DTH240B = {
   diametro_corte: "660",
@@ -5489,7 +5523,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-23d venda-finalizada-comissoes";
+  const RELEASE_LABEL = "2026-10-23e observacao-parceiro-convite";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -10123,7 +10157,7 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
             status: "negotiating",
             updated_at: (/* @__PURE__ */ new Date()).toISOString(),
             duplicate_reviewed: true,
-            negotiation_history: [...indData.negotiation_history || [], historyEntry]
+            negotiation_history: [...indData.negotiation_history || [], ...entradaParaGravar(indData) ? [entradaParaGravar(indData)] : [], historyEntry]
           });
           await db.collection("notifications").add({
             user_uid: chosenSeller.uid,
