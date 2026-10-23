@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { historicoComObservacao, ROTULO_OBSERVACAO_PARCEIRO } from '../../lib/observacaoParceiro';
 import { motion, AnimatePresence, useDragControls } from 'motion/react';
 import {
   ChevronDown, 
@@ -462,6 +463,9 @@ export default function NegotiationCentral() {
     masked = masked.replace(/Valor da comissão: R\$\s?[\d.,]+/ig, "Valor da comissão: [Acesso Restrito]");
     return masked;
   };
+
+  // histórico gravado + a observação do parceiro derivada da própria indicação (não escreve no banco)
+  const historicoExibido = historicoComObservacao(activeIndication as any) as NonNullable<typeof activeIndication>['negotiation_history'] & any[];
 
   const hasExternalSeller = !!activeIndication?.external_seller_uid && !isInternalIndicator;
   const totalCommissionable = commissionedProducts.reduce((acc, curr) => acc + ((curr.is_commissionable !== false ? curr.base_value : 0) * curr.quantity), 0);
@@ -2276,7 +2280,7 @@ export default function NegotiationCentral() {
                           Linha do Tempo de Atendimento
                         </h4>
                         <Badge variant="outline" className="text-[8px] font-bold uppercase border-primary/20 text-primary">
-                          {activeIndication.negotiation_history?.length || 0} Registros
+                          {historicoExibido.length} Registros
                         </Badge>
                       </div>
 
@@ -2317,8 +2321,8 @@ export default function NegotiationCentral() {
                     
                     <div className="p-2 lg:p-3 overflow-y-auto flex-1">
                       <div className="space-y-1.5">
-                        {activeIndication.negotiation_history
-                          ?.slice()
+                        {historicoExibido
+                          .slice()
                           .reverse()
                           .filter((entry) => {
                             if (timelineFilter === 'agendor') return entry.author_name?.toLowerCase().includes('agendor') || entry.content?.includes('[AGENDOR]');
@@ -2332,8 +2336,8 @@ export default function NegotiationCentral() {
                             return (
                           <details key={entry.id || `hist-${idx}-${entry.created_at || ''}`} className="group bg-white dark:bg-slate-900 rounded-lg border border-border/60 open:border-primary/30">
                             <summary className="list-none cursor-pointer px-2.5 py-2 flex items-center gap-2 min-w-0">
-                              <span className={cn("h-2 w-2 rounded-full shrink-0", entry.type === 'system' || entry.type === 'status_change' ? "bg-slate-400" : entry.type === 'note' ? "bg-primary" : "bg-blue-500")} />
-                              <span className="flex-1 min-w-0 truncate text-[12px] text-slate-800 dark:text-slate-200 group-open:whitespace-normal">{firstLine}</span>
+                              <span className={cn("h-2 w-2 rounded-full shrink-0", entry.type === 'partner_note' ? "bg-amber-500" : entry.type === 'system' || entry.type === 'status_change' ? "bg-slate-400" : entry.type === 'note' ? "bg-primary" : "bg-blue-500")} />
+                              <span className="flex-1 min-w-0 truncate text-[12px] text-slate-800 dark:text-slate-200 group-open:whitespace-normal">{entry.type === 'partner_note' && <strong className="mr-1 text-amber-700 dark:text-amber-400">{ROTULO_OBSERVACAO_PARCEIRO}:</strong>}{firstLine}</span>
                               {nAtt > 0 && <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />}
                               <span className="text-[10px] text-muted-foreground shrink-0 whitespace-nowrap">{entry.created_at ? format(new Date(entry.created_at), "dd/MM", { locale: ptBR }) : ''} · {(entry.author_name || '').split(' ')[0]}</span>
                             </summary>
@@ -2395,7 +2399,7 @@ export default function NegotiationCentral() {
                             );
                           })}
                         
-                        {!activeIndication.negotiation_history?.length && (
+                        {!historicoExibido.length && (
                           <div className="flex flex-col items-center justify-center py-12 text-muted-foreground opacity-50">
                             <History className="h-10 w-10 mb-2" />
                             <p className="text-xs font-bold uppercase tracking-wider">Nenhum histórico registrado</p>

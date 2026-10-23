@@ -38,6 +38,7 @@ import { getStorage } from 'firebase-admin/storage';
 import { ACCESSORIES_DATA, INSTALLATION_KITS } from "./src/constants.js";
 import { donoDoLinkCurto } from "./server/linkCurtoDono";
 import { REGRA_ENVIO_EQUIPAMENTO } from "./src/lib/pedidoEnvio";
+import { entradaParaGravar } from "./src/lib/observacaoParceiro";
 import { comDestocadorDthCorrigido, modeloParaEnvio } from "./src/lib/destocadorDth";
 import { REGRA_KIT_CONFIRMACAO, TEXTO_CMF_CAT320, RESSALVA_KIT, instrucaoAmostra, videoAmostraDe } from "./src/lib/confirmacaoMaquina";
 import { registrarConsultorParceiro, BUCKETS_VIDEO } from "./server/consultorParceiro";
@@ -5547,7 +5548,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
             status: 'negotiating',
             updated_at: new Date().toISOString(),
             duplicate_reviewed: true,
-            negotiation_history: [...(indData.negotiation_history || []), historyEntry]
+            negotiation_history: [...(indData.negotiation_history || []), ...(entradaParaGravar(indData) ? [entradaParaGravar(indData)] : []), historyEntry]
           });
 
           // Create in-app notification for the seller

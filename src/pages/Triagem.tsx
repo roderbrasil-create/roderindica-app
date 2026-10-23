@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { entradaParaGravar } from '../lib/observacaoParceiro';
 import Layout from '../components/layout/Layout';
-import { collection, query, where, onSnapshot, orderBy, doc, updateDoc, getDocs, addDoc, getDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, doc, updateDoc, getDocs, addDoc, getDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Indication, UserProfile } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -312,7 +313,9 @@ export default function Triagem() {
         internal_seller_email: sellerEmail || null,
         status: 'negotiating',
         updated_at: new Date().toISOString(),
-        duplicate_reviewed: true
+        duplicate_reviewed: true,
+        // observação do parceiro na linha do tempo (só entra se ainda não existe)
+        ...(entradaParaGravar(selectedIndication as any) ? { negotiation_history: arrayUnion(entradaParaGravar(selectedIndication as any)) } : {})
       });
 
       // (os e-mails saem uma vez só, mais abaixo: antes saíam aqui E lá, e todo mundo recebia dois)

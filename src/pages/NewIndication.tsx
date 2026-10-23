@@ -1,4 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { entradaObservacaoParceiro } from '../lib/observacaoParceiro';
+
+// Entrada "Observação do parceiro" gravada junto com a indicação (lista vazia quando não há texto)
+const obsParceiroEntrada = (id: string, descricao: string, parceiro: string | undefined, criadoEm: string) => {
+  const e = entradaObservacaoParceiro({ id, description: descricao, created_at: criadoEm, created_by_name: parceiro, external_seller_name: parceiro });
+  return e ? [e] : [];
+};
 import Layout from '../components/layout/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { db, storage, handleFirestoreError, OperationType } from '../lib/firebase';
@@ -1189,7 +1196,7 @@ export default function NewIndication() {
           media_urls: [],
           media_upload_status: files.length > 0 ? 'queued' : 'none',
           status: 'pending',
-          negotiation_history: [initialHistoryEntry],
+          negotiation_history: [initialHistoryEntry, ...obsParceiroEntrada(tempId, formData.description, profile?.name, initialHistoryEntry.created_at)],
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           protection_expires_at: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
@@ -1334,7 +1341,7 @@ export default function NewIndication() {
         media_urls: [], 
         media_upload_status: files.length > 0 ? 'uploading' : 'none',
         status: 'pending',
-        negotiation_history: [initialHistoryEntry],
+        negotiation_history: [initialHistoryEntry, ...obsParceiroEntrada(indicationId, formData.description, profile?.name, initialHistoryEntry.created_at)],
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         protection_expires_at: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
