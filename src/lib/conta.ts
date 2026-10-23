@@ -52,3 +52,9 @@ export function rotuloDoPerfil(f: { isAdmin?: boolean; isManager?: boolean; isTr
   if (f.isFinancial) return 'Financeiro';
   return (role || '').replace(/_/g, ' ');
 }
+
+/** Formulário depois que o perfil gravado mudou: com edição pendente, mantém o que a pessoa
+ *  digitou (não apaga); sem edição pendente, acompanha o perfil novo. */
+export function formularioAposPerfil(atual: DadosConta, originalAnterior: DadosConta, originalNovo: DadosConta): DadosConta {
+  return houveAlteracao(atual, originalAnterior) ? atual : originalNovo;
+}

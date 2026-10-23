@@ -11,7 +11,7 @@ import { Plus, Minus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { maskPhone, maskCpfCnpj } from '../lib/masks';
 import { enderecoDoContratoAssinado, dataDaAssinatura } from '../lib/contratoAssinado';
-import { dadosDoPerfil, houveAlteracao } from '../lib/conta';
+import { dadosDoPerfil, houveAlteracao, formularioAposPerfil } from '../lib/conta';
 import { useEhParceiro } from '../components/parceiro/NavParceiro';
 
 const cartao = 'bg-card border border-border rounded-2xl p-4 shadow-sm';
@@ -31,11 +31,23 @@ export default function Profile() {
   const original = useMemo(() => dadosDoPerfil(profile), [profile]);
   const [formData, setFormData] = useState(original);
 
+  // perfil atualizado durante a edição não apaga o que a pessoa digitou
+  const originalAnterior = React.useRef(original);
   React.useEffect(() => {
-    if (profile) setFormData(dadosDoPerfil(profile));
-  }, [profile]);
+    if (!profile) return;
+    const anterior = originalAnterior.current;
+    originalAnterior.current = original;
+    setFormData(atual => formularioAposPerfil(atual, anterior, original));
+  }, [profile, original]);
 
   const alterado = houveAlteracao(formData, original);
+
+  // enquanto a barra de salvar aparece, o botão flutuante do consultor sobe acima dela
+  React.useEffect(() => {
+    if (!alterado) return;
+    document.body.setAttribute('data-barra-salvar', '1');
+    return () => document.body.removeAttribute('data-barra-salvar');
+  }, [alterado]);
 
   const [emailSettings, setEmailSettings] = useState({
     provider: 'resend',
@@ -210,6 +222,14 @@ export default function Profile() {
       </div>
 
       {/* barra de salvar: só com alteração. No celular fica acima da barra de baixo do parceiro e respeita a área segura */}
+      {alterado && (
+        <style>{`
+          body[data-barra-salvar] .roder-botao-consultor { bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important; }
+          @media (max-width: 767.98px) {
+            body[data-barra-salvar] .roder-botao-consultor { bottom: calc(${ehParceiro ? 152 : 88}px + env(safe-area-inset-bottom, 0px)) !important; }
+          }
+        `}</style>
+      )}
       {alterado && (
         <div
           className={`fixed left-0 right-0 md:left-56 z-[45] bg-card border-t border-border shadow-[0_-4px_14px_rgba(0,0,0,0.08)] px-4 pt-2.5 flex gap-2.5 md:pb-3 ${ehParceiro ? 'bottom-[calc(64px+env(safe-area-inset-bottom,0px))] pb-2.5 md:bottom-0' : 'bottom-0 pb-[calc(10px+env(safe-area-inset-bottom,0px))]'}`}

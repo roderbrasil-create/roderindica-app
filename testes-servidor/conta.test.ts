@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { dadosDoPerfil, houveAlteracao, rotuloDoPerfil } from '../src/lib/conta.ts';
+import { dadosDoPerfil, houveAlteracao, rotuloDoPerfil, formularioAposPerfil } from '../src/lib/conta.ts';
 
 const perfil = { name: 'Rafael', email: 'a@b.com', phone: '35972430000', cpf_cnpj: '68261835000139', company_name: 'MAQLOC', city: 'Lavras', state: 'MG', pix_key: '68261835000139' };
 
@@ -31,4 +31,18 @@ test('SAIR DA CONTA: saiu do menu lateral e mora no ícone da conta, com confirm
   assert.doesNotMatch(perfilTsx, /Sair da Conta/i);
   assert.match(menu, /Quer mesmo sair da conta\?/);
   assert.match(menu, /stopImpersonation/);
+});
+
+test('PERFIL ATUALIZADO NA EDIÇÃO: não apaga o que a pessoa digitou; sem edição, acompanha o perfil', () => {
+  const o1 = dadosDoPerfil(perfil);
+  const o2 = dadosDoPerfil({ ...perfil, city: 'Varginha' });
+  const digitado = { ...o1, name: 'Novo nome' };
+  assert.equal(formularioAposPerfil(digitado, o1, o2), digitado);
+  assert.deepEqual(formularioAposPerfil(o1, o1, o2), o2);
+});
+
+test('SALVAR FIXO: o botão do consultor sobe acima da barra enquanto ela aparece', () => {
+  const f = readFileSync(new URL('../src/pages/Profile.tsx', import.meta.url), 'utf8');
+  assert.match(f, /data-barra-salvar/);
+  assert.match(f, /removeAttribute\('data-barra-salvar'\)/);
 });
