@@ -4807,6 +4807,17 @@ async function garantirEmailsLigados(db2, agora = /* @__PURE__ */ new Date()) {
 // src/lib/crmIntegracao.ts
 var CRM_URL_PADRAO = "https://roder-vision.lovable.app/api/public/hooks/crm-entrada";
 var STATUS_ENVIAVEIS = ["pending", "triagem", "negotiating"];
+var STATUS_DA_CARGA = [...STATUS_ENVIAVEIS, "sold"];
+var STATUS_INDICA = {
+  pending: "pendente",
+  triagem: "triagem",
+  negotiating: "em_negociacao",
+  sold: "vendido",
+  archived: "arquivado",
+  cancelled: "cancelado"
+};
+var UIDS_SEM_PARCEIRO = ["client_referral", "direct_factory", "public_request", "anonymous"];
+var temParceiroDeVerdade = (ind) => !!ind?.external_seller_uid && !UIDS_SEM_PARCEIRO.includes(String(ind.external_seller_uid));
 var MAX_TENTATIVAS_ENVIO = 10;
 var ATRASO_BASE_MS = 60 * 1e3;
 var ATRASO_TETO_MS = 6 * 60 * 60 * 1e3;
@@ -4848,11 +4859,11 @@ function planoDeFalha(tentativasAntes, agora) {
   return { tentativas, desistiu: false, proxima: new Date(agora.getTime() + atrasoDaTentativa(tentativas)).toISOString() };
 }
 var vazio = (v) => !String(v ?? "").trim();
-function baseEnviavel(ind) {
+function baseEnviavel(ind, statusAceitos = STATUS_ENVIAVEIS) {
   if (!ind) return "inexistente";
   if (ind.crm_enviado_em) return "ja_enviada";
   if (ind.crm_desistiu_em) return "desistiu";
-  if (!STATUS_ENVIAVEIS.includes(String(ind.status || ""))) return "status_nao_envia";
+  if (!statusAceitos.includes(String(ind.status || ""))) return "status_nao_envia";
   if (ind.creator_type === "visitor") return "conversa_do_consultor";
   if (vazio(ind.client_name)) return "sem_cliente";
   return null;
@@ -4868,9 +4879,11 @@ function motivoNaoEnviarNoLaco(ind, o) {
   return null;
 }
 function motivoNaoEnviarNaCarga(ind, o) {
-  const b = baseEnviavel(ind);
+  const b = baseEnviavel(ind, STATUS_DA_CARGA);
   if (b) return b;
-  if (String(ind.status) !== "negotiating") return "vai_como_nova";
+  if (String(ind.status) === "sold") {
+    if (!temParceiroDeVerdade(ind)) return "venda_direta";
+  } else if (String(ind.status) !== "negotiating") return "vai_como_nova";
   if (reservada(ind, o.agora)) return "reservada";
   return null;
 }
@@ -4957,6 +4970,7 @@ ${obs}`.trim();
     },
     criado_em: dataValida2(ind.created_at) ? new Date(ind.created_at).toISOString() : (/* @__PURE__ */ new Date()).toISOString()
   };
+  if (STATUS_INDICA[String(ind.status)]) payload.status_indica = STATUS_INDICA[String(ind.status)];
   if (opcoes.notificarEmail) payload.notificar_email = opcoes.notificarEmail;
   return payload;
 }
@@ -4968,6 +4982,11 @@ function numeroDoCrm(v) {
   if (!s) return null;
   const n = s.includes(",") ? Number(s.replace(/\./g, "").replace(",", ".")) : Number(s);
   return Number.isFinite(n) ? n : null;
+}
+function valorOpcionalDoCrm(v) {
+  if (v === void 0 || v === null || String(v).trim() === "") return void 0;
+  const n = numeroDoCrm(v);
+  return n === null ? NaN : n;
 }
 function diaDoCrm(v) {
   const s = String(v ?? "").trim();
@@ -5026,7 +5045,10 @@ function decidirFaturamento(o) {
   const comParceiro = !!uid && !UIDS_DE_SISTEMA.includes(uid);
   if (itens.some((i) => i.ambiguo)) motivos.push("N\xE3o d\xE1 para saber se o valor dos itens \xE9 unit\xE1rio ou o total da linha.");
   const soma = emCentavos(itens.reduce((a, i) => a + i.base_value * i.quantity, 0));
-  if (o.totalPedido !== void 0 && o.totalPedido !== null && Math.abs(soma - o.totalPedido) > 0.05) motivos.push("A soma dos itens n\xE3o bate com o total do pedido.");
+  const invalido = (v) => v !== void 0 && v !== null && (!Number.isFinite(v) || v < 0);
+  if (invalido(o.desconto) || invalido(o.frete)) motivos.push("Desconto ou frete do pedido inv\xE1lido (negativo ou n\xE3o num\xE9rico).");
+  const esperado = soma - (invalido(o.desconto) ? 0 : o.desconto ?? 0) + (invalido(o.frete) ? 0 : o.frete ?? 0);
+  if (o.totalPedido !== void 0 && o.totalPedido !== null && Math.abs(esperado - o.totalPedido) > 0.05) motivos.push("A soma dos itens (com desconto e frete) n\xE3o bate com o total do pedido.");
   if (comParceiro && !o.parceiro) motivos.push("O parceiro ligado \xE0 indica\xE7\xE3o n\xE3o existe mais no cadastro.");
   const recebeComissao = comParceiro && !!o.parceiro && papelComissionavel(o.parceiro.role);
   if (recebeComissao) {
@@ -5058,7 +5080,7 @@ var EVENTOS_CRM = [
   "negocio.ganho",
   "negocio.perdido"
 ];
-var CAMPOS_DO_TOPO = ["pedido_numero", "numero", "cnpj", "data_pedido", "previsao_entrega", "data_faturamento", "nota_fiscal", "valor_total", "total", "itens", "motivo", "etapa", "vendedora", "vendedora_nome", "vendedora_email", "vendedora_uid", "valor", "data", "numero_orcamento"];
+var CAMPOS_DO_TOPO = ["pedido_numero", "numero", "cnpj", "data_pedido", "previsao_entrega", "data_faturamento", "nota_fiscal", "valor_total", "total", "itens", "motivo", "etapa", "vendedora", "vendedora_nome", "vendedora_email", "vendedora_uid", "valor", "data", "numero_orcamento", "desconto", "frete"];
 function mesclarDadosCrm(corpo) {
   const out = {};
   if (corpo && typeof corpo === "object") {
@@ -5338,7 +5360,9 @@ function planejarFaturadoBase(ind, ev, ctx, base) {
     comissaoExistente: ctx.comissaoExistente,
     entrega,
     agora,
-    totalPedido: numeroDoCrm(d.valor_total ?? d.total)
+    totalPedido: numeroDoCrm(d.valor_total ?? d.total),
+    desconto: valorOpcionalDoCrm(d.desconto),
+    frete: valorOpcionalDoCrm(d.frete)
   });
   if (dec.tipo === "ja_faturada") return ignorado(ind.status === "sold" ? "ja_faturada" : "comissao_ja_existe");
   const cnpjCampo = !ind.client_cnpj || /n[ãa]o informado/i.test(String(ind.client_cnpj)) ? String(d.cnpj ?? "").replace(/\D/g, "") || null : null;
@@ -5744,9 +5768,7 @@ var num = (v) => {
   return Number.isFinite(n) ? n : 0;
 };
 var arred = (n) => Math.round(n * 100) / 100;
-function montarComissao(c, commId, ind, pedidoEnviado) {
-  const pedido = String(pedidoEnviado || ind?.sale_order_number || "").trim();
-  if (!pedido) return null;
+function baseEPercentual(c) {
   const valor = num(c.value);
   if (!(valor >= 0)) return null;
   const taxa = num(c.rate_applied);
@@ -5760,18 +5782,54 @@ function montarComissao(c, commId, ind, pedidoEnviado) {
   let pct = taxa;
   if (!(pct > 0)) pct = valor > 0 ? arred(valor / base * 100) : 0;
   if (!(pct > 0)) return null;
+  return { base: arred(base), pct, valor: arred(valor) };
+}
+function montarComissao(c, commId, ind, pedidoEnviado) {
+  const pedido = String(pedidoEnviado || ind?.sale_order_number || "").trim();
+  if (!pedido) return null;
+  const bp = baseEPercentual(c);
+  if (!bp) return null;
   return {
     tipo: "comissao",
     id_externo: String(c.indication_id || commId),
     pedido_numero: pedido,
     // só o parceiro e o pedido: nada de vendedor interno nem de desconto
     parceiro: { id: String(c.external_seller_uid || ""), nome: String(c.external_seller_name || ind?.external_seller_name || "") },
-    valor_equipamento: arred(base),
-    percentual: pct,
-    valor_comissao: arred(valor),
+    valor_equipamento: bp.base,
+    percentual: bp.pct,
+    valor_comissao: bp.valor,
     calculada_em: Number.isFinite(ms(c.created_at)) ? new Date(c.created_at).toISOString() : (/* @__PURE__ */ new Date()).toISOString(),
     previsao_pagamento: c.month && c.year ? previsaoDePagamento(Number(c.month), Number(c.year)) : ""
   };
+}
+function montarVendaParaCarga(ind, comissao) {
+  const out = {};
+  const pedido = String(ind?.sale_order_number ?? "").trim();
+  if (pedido) out.pedido_numero = pedido;
+  const dataPedido = diaDoCrm(ind?.sale_order_date) || diaDoCrm(ind?.sale_date);
+  if (dataPedido) out.data_pedido = dataPedido;
+  const fat = diaDoCrm(ind?.crm_faturado_em) || diaDoCrm(ind?.sale_date);
+  if (fat) out.data_faturamento = fat;
+  const entrega = diaDoCrm(ind?.delivery_date);
+  if (entrega) out.previsao_entrega = entrega;
+  const total = num(ind?.sale_value);
+  if (total > 0) out.valor_total = arred(total);
+  const prods = Array.isArray(ind?.commissioned_products) && ind.commissioned_products.length ? ind.commissioned_products : [];
+  const brutos = prods.length ? prods.map((p) => ({ codigo: p.code, nome: p.name, quantidade: p.quantity, valor: p.base_value })) : (Array.isArray(ind?.items) ? ind.items : []).map((p) => ({ codigo: p.code, nome: p.product_name, quantidade: p.quantity, valor: p.price }));
+  const itens = brutos.filter((i) => String(i.nome ?? "").trim() && num(i.valor) > 0).map((i) => ({ ...String(i.codigo ?? "").trim() ? { codigo: String(i.codigo).trim() } : {}, nome: String(i.nome).trim().slice(0, 200), quantidade: num(i.quantidade) > 0 ? num(i.quantidade) : 1, valor: arred(num(i.valor)) }));
+  if (itens.length) out.itens = itens;
+  const bp = comissao ? baseEPercentual(comissao) : null;
+  if (comissao && bp) {
+    const c = { valor_equipamento: bp.base, percentual: bp.pct, valor_comissao: bp.valor };
+    if (Number.isFinite(ms(comissao.created_at))) c.calculada_em = new Date(comissao.created_at).toISOString();
+    if (comissao.month && comissao.year) c.previsao_pagamento = previsaoDePagamento(Number(comissao.month), Number(comissao.year));
+    if (comissao.status === "paid") {
+      const q = comissao.paid_at || comissao.updated_at;
+      if (Number.isFinite(ms(q))) c.paga_em = new Date(q).toISOString();
+    }
+    out.comissao = c;
+  }
+  return out;
 }
 var assinaturaDaComissao = (p) => `${p.pedido_numero}|${p.valor_equipamento}|${p.percentual}|${p.valor_comissao}`;
 function montarComissaoPaga(c, commId, ind, pedidoEnviado) {
@@ -5973,13 +6031,13 @@ async function cargaInicialCrm(deps, o = {}) {
   const agora = deps.agora ? deps.agora() : /* @__PURE__ */ new Date();
   const log = deps.log || console.log;
   const corte = await corteDaCarga(deps, !o.simulacao);
-  const s = await deps.db.collection("indications").where("status", "in", STATUS_ENVIAVEIS).get();
+  const s = await deps.db.collection("indications").where("status", "in", STATUS_DA_CARGA).get();
   const elegiveis = [];
   const porMotivo = {};
   for (const d of s.docs) {
     const data = d.data() || {};
     let m = motivoNaoEnviarNaCarga(data, { agora });
-    if (!m && corte && valida(data.created_at) && new Date(data.created_at).getTime() >= new Date(corte).getTime()) m = "depois_do_corte";
+    if (!m && corte && data.status === "negotiating" && valida(data.created_at) && new Date(data.created_at).getTime() >= new Date(corte).getTime()) m = "depois_do_corte";
     if (m) {
       porMotivo[m] = (porMotivo[m] || 0) + 1;
       continue;
@@ -5991,7 +6049,7 @@ async function cargaInicialCrm(deps, o = {}) {
   elegiveis.forEach((e) => {
     porStatus[e.status] = (porStatus[e.status] || 0) + 1;
   });
-  if (o.simulacao) return { ok: true, simulacao: true, elegiveis: elegiveis.length, por_status: porStatus, descartadas: porMotivo, corte, pendentes_novas: porMotivo.vai_como_nova || 0 };
+  if (o.simulacao) return { ok: true, simulacao: true, elegiveis: elegiveis.length, por_status: porStatus, descartadas: porMotivo, corte, pendentes_novas: porMotivo.vai_como_nova || 0, em_negociacao: porStatus.negotiating || 0, vendidas: porStatus.sold || 0, total_carga: elegiveis.length, proximo_lote: Math.min(elegiveis.length, Math.min(Math.max(Math.floor(o.limite || 200), 1), MAX_ITENS_CARGA)), vendas_diretas_fora: porMotivo.venda_direta || 0 };
   const limite = Math.min(Math.max(Math.floor(o.limite || 200), 1), MAX_ITENS_CARGA);
   const lote = elegiveis.slice(0, limite);
   const lr = await enviarLoteComoCarga(deps, lote.map((e) => e.id), { backoff: false });
@@ -6024,7 +6082,17 @@ async function enviarLoteComoCarga(deps, ids, o) {
         parceiros.set(uid, null);
       }
     }
-    itens.push(montarPayloadIndicacao(r2, id, parceiros.get(uid) || null, { jaEmNegociacao: r2.status === "negotiating" }));
+    const item = montarPayloadIndicacao(r2, id, parceiros.get(uid) || null, { jaEmNegociacao: r2.status === "negotiating" });
+    if (r2.status === "sold") {
+      let com = null;
+      try {
+        const q = await deps.db.collection("commissions").where("indication_id", "==", id).get();
+        com = q.docs.length ? q.docs[0].data() : null;
+      } catch {
+      }
+      Object.assign(item, montarVendaParaCarga(r2, com));
+    }
+    itens.push(item);
     reservadas.push({ id, ind: r2 });
   }
   const zero = { recebidos: 0, vinculados: 0, repetidos: 0, ignorados: 0 };
@@ -6065,6 +6133,13 @@ async function enviarLoteComoCarga(deps, ids, o) {
     await ref.update({ crm_enviado_em: nowIso, crm_id: null, crm_carga_inicial: true, crm_reservado_ate: null, crm_ultimo_erro: null, crm_proxima_tentativa_em: null, crm_falhas_transporte: 0 });
     resultados.push({ id: x.id, resultado: "enviada" });
     enviadas++;
+    if (x.ind.status === "sold") {
+      try {
+        const q = await deps.db.collection("commissions").where("indication_id", "==", x.id).get();
+        for (const c of q.docs) if ((c.data() || {}).crm_nao_aplica_em) await deps.db.collection("commissions").doc(c.id).update({ crm_nao_aplica_em: null, crm_aguardando_paga: true });
+      } catch {
+      }
+    }
   }
   const n = (v, padrao = 0) => Number.isFinite(Number(v)) ? Number(v) : padrao;
   const resumo = { recebidos: n(r.json?.recebidos, reservadas.length), vinculados: n(r.json?.vinculados), repetidos: n(r.json?.repetidos), ignorados: n(r.json?.ignorados) };
@@ -6388,6 +6463,9 @@ function registrarRotasAdminCrm(app, deps) {
         pendentes_da_carga: sim && sim.ok ? sim.elegiveis : null,
         pendentes_como_novas: sim && sim.ok ? sim.pendentes_novas : null,
         desistiram,
+        carga_em_negociacao: sim && sim.ok ? sim.em_negociacao : null,
+        carga_vendidas: sim && sim.ok ? sim.vendidas : null,
+        carga_total: sim && sim.ok ? sim.total_carga : null,
         alerta_transporte: cfgDoc.alerta_transporte || null,
         carga_inicial_em: cfgDoc.carga_inicial_em || null
       });
@@ -7152,7 +7230,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-24a integracao-crm";
+  const RELEASE_LABEL = "2026-10-24b integracao-crm-vendidas";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
