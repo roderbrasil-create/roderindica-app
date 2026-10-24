@@ -93,22 +93,28 @@ function reservada(ind: any, agora: Date): boolean {
   return dataValida(ind.crm_reservado_ate) && new Date(ind.crm_reservado_ate).getTime() > agora.getTime();
 }
 
-// Laço de 1 minuto: só indicações criadas DEPOIS da virada (o passado vai pela carga inicial).
+// Laço: manda como indicação NOVA (com triagem no CRM) tudo o que não foi na carga inicial.
+//  - pending e triagem: sempre, de qualquer idade (decisão de 24/10/2026: só as já aceitas vão na carga);
+//  - negotiating: só as criadas depois do corte (carga_inicial_em ou ativo_desde). As anteriores são da carga.
 export function motivoNaoEnviarNoLaco(ind: any, o: { ativoDesde: string | null; agora: Date }): string | null {
   const b = baseEnviavel(ind);
   if (b) return b;
-  if (!o.ativoDesde) return 'sem_data_de_virada';
-  if (!dataValida(ind.created_at)) return 'sem_data_de_criacao';
-  if (new Date(ind.created_at).getTime() < new Date(o.ativoDesde).getTime()) return 'anterior_a_virada';
+  if (String(ind.status) === 'negotiating') {
+    if (!o.ativoDesde) return 'sem_data_de_virada';
+    if (!dataValida(ind.created_at)) return 'sem_data_de_criacao';
+    if (new Date(ind.created_at).getTime() < new Date(o.ativoDesde).getTime()) return 'anterior_a_virada';
+  }
   if (reservada(ind, o.agora)) return 'reservada';
   if (dataValida(ind.crm_proxima_tentativa_em) && new Date(ind.crm_proxima_tentativa_em).getTime() > o.agora.getTime()) return 'aguardando_nova_tentativa';
   return null;
 }
 
-// Carga inicial: qualquer indicação aberta ainda não enviada, independente da data.
+// Carga inicial: SÓ as já aceitas (negotiating) ainda não enviadas, independente da data. Pending e
+// triagem não entram: vão pelo laço como indicação nova.
 export function motivoNaoEnviarNaCarga(ind: any, o: { agora: Date }): string | null {
   const b = baseEnviavel(ind);
   if (b) return b;
+  if (String(ind.status) !== 'negotiating') return 'vai_como_nova';
   if (reservada(ind, o.agora)) return 'reservada';
   return null;
 }
@@ -119,6 +125,8 @@ export function triagemEhDoCrm(ind: any, c: Pick<ConfigCrm, 'ativo' | 'ativoDesd
   if (!c.ativo) return false;
   if (ind?.crm_enviado_em) return true;
   if (ind?.crm_desistiu_em) return false;
+  // Ainda não enviada: o robô só espera as que nasceram depois da virada (o laço manda em instantes).
+  // As antigas que ainda não foram enviadas seguem no fluxo de antes até irem ao CRM.
   return !!c.ativoDesde && dataValida(ind?.created_at) && new Date(ind.created_at).getTime() >= new Date(c.ativoDesde).getTime();
 }
 

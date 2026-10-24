@@ -4,10 +4,10 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { processarEventoCrm, tratarRequisicaoCrm } from '../server/crmEventos.ts';
 import { assinarCrm } from '../server/crmAssinatura.ts';
-import { rodarAtualizacoesCrm, rodarComissoesCrm, rodarFilaCrm, cargaInicialCrm, garantirDataDaVirada } from '../server/crmEntrada.ts';
+import { rodarAtualizacoesCrm, rodarComissoesCrm, rodarFilaCrm, cargaInicialCrm, garantirDataDaVirada, reativarDesistidasCrm } from '../server/crmEntrada.ts';
 import { lerConfigCrm } from '../src/lib/crmIntegracao.ts';
 import { mesclarDadosCrm } from '../src/lib/crmEventos.ts';
-import { entradasPendentesDoParceiro, montarAtualizacao, montarComissao, montarComissaoPaga, referenciaStorage, tipoDoAnexo, idMensagemCrm } from '../src/lib/crmFase2.ts';
+import { entradasPendentesDoParceiro, entradasParaIgnorar, montarAtualizacao, montarComissao, montarComissaoPaga, referenciaStorage, tipoDoAnexo, idMensagemCrm } from '../src/lib/crmFase2.ts';
 import { bancoFalsoCrm, arrayUnionFalso } from './fixtures/bancoFalsoCrm.ts';
 
 const AGORA = new Date('2026-10-28T15:00:00Z');
@@ -114,6 +114,7 @@ function ambEnviar(env: Record<string, string>, indicacoes: Record<string, any>,
     db, fetchFn, agora: () => agora, log: () => {}, arrayUnion: arrayUnionFalso,
     config: () => lerConfigCrm(env),
     assinarAnexo: async (u: string) => ({ url: `${u}&assinada=1`, tamanho: 1000 }),
+    bucketProprio: 'proprio',
   };
   return { db, deps, chamadas, avancar: (ms: number) => { agora = new Date(agora.getTime() + ms); } };
 }
@@ -121,7 +122,7 @@ const ENV_ON = { CRM_ATIVO: '1', CRM_CHAVE: CHAVE, CRM_URL: 'http://localhost:9/
 
 test('CARGA INICIAL: um POST { tipo, itens }, resumo do CRM devolvido, lote de até 500', async () => {
   const many: Record<string, any> = {};
-  for (let k = 0; k < 520; k++) many[`i${k}`] = { client_name: `C${k}`, status: 'pending', created_at: '2026-09-01T00:00:00Z', external_seller_uid: 'p1', external_seller_name: 'Maria' };
+  for (let k = 0; k < 520; k++) many[`i${k}`] = { client_name: `C${k}`, status: 'negotiating', created_at: '2026-09-01T00:00:00Z', external_seller_uid: 'p1', external_seller_name: 'Maria' };
   const a = ambEnviar({ CRM_CHAVE: CHAVE, CRM_URL: 'http://localhost:9/crm' }, many, {}, [{ status: 200, corpo: { ok: true, recebidos: 500, vinculados: 3, repetidos: 1, ignorados: 2 } }]);
   const r: any = await cargaInicialCrm(a.deps, { limite: 9999 });
   assert.equal(a.chamadas.length, 1);
@@ -132,50 +133,104 @@ test('CARGA INICIAL: um POST { tipo, itens }, resumo do CRM devolvido, lote de a
   assert.equal(r.enviadas, 500); assert.equal(r.restantes, 20);
 });
 
-test('CARGA INICIAL: falha do CRM não marca nada como enviado e entra no backoff', async () => {
-  const a = ambEnviar({ CRM_CHAVE: CHAVE, CRM_URL: 'http://localhost:9/crm' }, { a: { client_name: 'A', status: 'pending', created_at: '2026-09-01T00:00:00Z' } }, {}, [{ status: 500 }]);
-  const r: any = await cargaInicialCrm(a.deps, {});
-  assert.equal(r.enviadas, 0); assert.equal(r.falhas, 1);
-  assert.equal(a.db.dados.indications.a.crm_enviado_em, undefined);
-  assert.equal(a.db.dados.indications.a.crm_tentativas, 1);
+test('CARGA INICIAL: transporte, 401, 403, 429 e 5xx não contam tentativa nem desistem, mesmo repetindo 15 vezes', async () => {
+  for (const resp of [{ status: 500 }, { status: 401 }, { status: 403 }, { status: 429 }, new Error('ECONNRESET')]) {
+    const a = ambEnviar({ CRM_CHAVE: CHAVE, CRM_URL: 'http://localhost:9/crm' }, { a: { client_name: 'A', status: 'negotiating', created_at: '2026-09-01T00:00:00Z' } }, {}, [resp]);
+    for (let k = 0; k < 15; k++) { a.avancar(5 * 60 * 1000); const r: any = await cargaInicialCrm(a.deps, {}); assert.equal(r.enviadas, 0); }
+    const x = a.db.dados.indications.a;
+    assert.equal(x.crm_enviado_em, undefined); assert.equal(x.crm_tentativas, undefined); assert.equal(x.crm_desistiu_em, undefined);
+    assert.equal(x.crm_reservado_ate, null, 'solta a reserva');
+    assert.equal(a.chamadas.length, 15, 'sempre tenta de novo');
+  }
 });
 
-test('VIRADA: carga grava o corte; o laço começa nesse corte e envia como NOVA o que nasceu entre a carga e o CRM_ATIVO=1', async () => {
-  const antes = { client_name: 'Antiga', status: 'pending', created_at: '2026-10-24T09:00:00Z' };
-  const a = ambEnviar({ CRM_CHAVE: CHAVE, CRM_URL: 'http://localhost:9/crm' }, { antiga: antes });
+test('CARGA INICIAL: só a recusa POR ITEM (ok:false) conta tentativa; os outros itens do lote ficam enviados', async () => {
+  const mk = () => ({ client_name: 'X', status: 'negotiating', created_at: '2026-09-01T00:00:00Z' });
+  const a = ambEnviar({ CRM_CHAVE: CHAVE, CRM_URL: 'http://localhost:9/crm' }, { bom: mk(), ruim: mk() }, {}, [{ status: 200, corpo: { ok: true, resultados: [{ id_externo: 'bom', ok: true }, { id_externo: 'ruim', ok: false }] } }]);
+  const r: any = await cargaInicialCrm(a.deps, {});
+  assert.equal(r.enviadas, 1);
+  assert.ok(a.db.dados.indications.bom.crm_enviado_em);
+  assert.equal(a.db.dados.indications.ruim.crm_enviado_em, undefined);
+  assert.equal(a.db.dados.indications.ruim.crm_tentativas, 1);
+});
+
+test('REATIVAR: a ação de admin zera a desistência das indicações e comissões', async () => {
+  const a = ambEnviar(ENV_ON, {
+    d: { client_name: 'D', status: 'pending', created_at: '2026-10-27T00:00:00Z', crm_desistiu_em: '2026-10-27T05:00:00Z', crm_tentativas: 10, crm_ultimo_erro: 'HTTP 500', crm_atu_falha_h1: { n: 3 }, crm_atualizacoes_desistiu: ['h1'] },
+    ok: { client_name: 'O', status: 'pending', created_at: '2026-10-27T00:00:00Z' },
+  }, { commissions: { c1: { crm_desistiu_em: 'x', crm_comissao_tentativas: 10 } } });
+  const r = await reativarDesistidasCrm(a.deps);
+  assert.deepEqual(r, { indicacoes: 1, comissoes: 1 });
+  const d = a.db.dados.indications.d;
+  assert.equal(d.crm_desistiu_em, null); assert.equal(d.crm_tentativas, 0); assert.deepEqual(d.crm_atualizacoes_desistiu, []); assert.equal(d.crm_atu_falha_h1, null);
+  assert.equal(a.db.dados.commissions.c1.crm_desistiu_em, null);
+  const f = await rodarFilaCrm(a.deps);
+  assert.ok(f.resultados.some(x => x.id === 'd' && x.resultado === 'enviada'));
+});
+
+test('LAÇO: pending e triagem velhas vão como NOVAS de qualquer idade (sem janela de 72 h), em lotes por rodada', async () => {
+  const velhas: Record<string, any> = {};
+  for (let k = 0; k < 25; k++) velhas[`v${k}`] = { client_name: `V${k}`, status: k % 2 ? 'triagem' : 'pending', created_at: `2025-0${1 + (k % 9)}-10T00:00:00Z` };
+  const a = ambEnviar(ENV_ON, { ...velhas, neg: { client_name: 'N', status: 'negotiating', created_at: '2025-03-01T00:00:00Z' } });
+  const r1 = await rodarFilaCrm(a.deps);
+  assert.equal(r1.resultados.length, 20, 'teto por rodada');
+  assert.ok(a.chamadas.every(c => c.corpo.tipo === undefined && !/Já estava/.test(c.corpo.observacao)));
+  a.avancar(60 * 1000);
+  const r2 = await rodarFilaCrm(a.deps);
+  assert.equal(r2.resultados.length, 5, 'sobrou fila: varre de novo no minuto seguinte');
+  assert.equal(a.db.dados.indications.neg.crm_enviado_em, undefined, 'a em negociação anterior ao corte é da carga');
+  assert.equal(r1.resultados.concat(r2.resultados).every(x => x.resultado === 'enviada'), true);
+});
+
+test('LAÇO: negociação criada depois do corte é achada sem janela de 72 h e leva o aviso "Já estava em negociação"', async () => {
+  const env = { CRM_ATIVO: '1', CRM_CHAVE: CHAVE, CRM_URL: 'http://localhost:9/crm', CRM_ATIVO_DESDE: '2026-10-20T00:00:00.000Z' };
+  const a = ambEnviar(env, { n1: { client_name: 'N', status: 'negotiating', internal_seller_name: 'Heloisa', created_at: '2026-10-21T00:00:00Z' } });
+  await rodarFilaCrm(a.deps);
+  assert.equal(a.chamadas.length, 1);
+  assert.match(a.chamadas[0].corpo.observacao, /^\[Já estava em negociação no Roder Indica com Heloisa\]/);
+});
+
+test('VIRADA: carga grava o corte; o laço usa esse corte como ativo_desde; o que nasceu depois da carga vai como NOVA', async () => {
+  const a = ambEnviar({ CRM_CHAVE: CHAVE, CRM_URL: 'http://localhost:9/crm' }, { antiga: { client_name: 'Antiga', status: 'negotiating', created_at: '2026-10-24T09:00:00Z' } });
   await cargaInicialCrm(a.deps, {});
   const corte = a.db.dados.settings.crm_integracao.carga_inicial_em;
   assert.equal(corte, AGORA.toISOString());
-  // nasce depois da carga, antes de ligar
   a.avancar(60 * 60 * 1000);
   a.db.dados.indications.nova = { client_name: 'Nova', status: 'pending', created_at: new Date(AGORA.getTime() + 1800000).toISOString() };
-  // segunda carga (retentativa) NÃO leva a nova: ela é do laço
+  a.db.dados.indications.nova2 = { client_name: 'Nova2', status: 'negotiating', internal_seller_name: 'Heloisa', created_at: new Date(AGORA.getTime() + 1900000).toISOString() };
   const sim: any = await cargaInicialCrm(a.deps, { simulacao: true });
-  assert.equal(sim.elegiveis, 0);
-  // liga
+  assert.equal(sim.elegiveis, 0, 'carga repetida não leva o que nasceu depois do corte');
   a.deps.config = () => lerConfigCrm({ CRM_ATIVO: '1', CRM_CHAVE: CHAVE, CRM_URL: 'http://localhost:9/crm' });
   assert.equal(await garantirDataDaVirada(a.deps), corte);
   const f = await rodarFilaCrm(a.deps);
-  assert.deepEqual(f.resultados.map(x => x.id), ['nova']);
-  assert.equal(a.chamadas.at(-1)!.corpo.id_externo, 'nova');
-  assert.equal(a.chamadas.at(-1)!.corpo.tipo, undefined, 'indicação nova vai no formato normal');
+  assert.deepEqual(f.resultados.map(x => x.id).sort(), ['nova', 'nova2']);
+  assert.match(a.chamadas.at(-1)!.corpo.observacao, /Já estava em negociação/);
 });
 
 // ---------- Fase 2: atualização do parceiro ----------
-const entrada = (id: string, extra: any = {}) => ({ id, content: 'Falei com o cliente', author_name: 'Maria Parceira', author_role: 'external_seller', created_at: '2026-10-28T10:00:00Z', ...extra });
+const entrada = (id: string, extra: any = {}) => ({ id, type: 'note', content: 'Falei com o cliente', author_name: 'Maria Parceira', author_uid: 'p1', created_at: '2026-10-28T10:00:00Z', ...extra });
 
-test('ATUALIZAÇÃO: só entra o que o parceiro escreveu depois do envio; nada do CRM, da abertura ou de vendedora interna', () => {
+test('ATUALIZAÇÃO: só nota (note/whatsapp) do parceiro por author_uid; nada do CRM, automático, de outra pessoa ou anterior ao envio', () => {
   const i = ind({ negotiation_history: [
     entrada('h1'),
+    entrada('wa', { type: 'whatsapp' }),
     entrada('antes', { created_at: '2026-10-27T09:00:00Z' }),
-    entrada('crm-ev1', { author_name: 'CRM Roder' }),
-    entrada('obs-parceiro-1'),
-    entrada('interna', { author_name: 'Heloisa Laira', author_role: 'internal_seller' }),
+    entrada('crm-ev1', { author_name: 'CRM Roder', author_uid: undefined }),
+    entrada('obs-parceiro-1', { type: 'partner_note' }),
+    entrada('sistema1', { type: 'system', author_uid: 'p1', content: 'Dados da negociação atualizados via Central Flutuante.' }),
+    entrada('anexo-orc', { type: 'system', content: 'Orçamento anexado: x.pdf' }),
+    entrada('status', { type: 'status_change' }),
+    entrada('interna', { author_name: 'Heloisa Laira', author_uid: 'v1' }),
+    entrada('mesmo-nome-outro-uid', { author_uid: 'outro' }),
+    entrada('antiga-nome-igual', { author_uid: undefined }),
+    entrada('antiga-nome-parecido', { author_uid: undefined, author_name: 'maria parceira' }),
     entrada('vazia', { content: '' }),
     entrada('so-anexo', { content: '', attachments: [{ url: 'https://x/y.jpg', name: 'y.jpg' }] }),
   ] });
-  assert.deepEqual(entradasPendentesDoParceiro(i).map(e => e.id), ['h1', 'so-anexo']);
-  assert.deepEqual(entradasPendentesDoParceiro({ ...i, crm_atualizacoes_enviadas: ['h1'] }).map(e => e.id), ['so-anexo']);
+  assert.deepEqual(entradasPendentesDoParceiro(i).map(e => e.id), ['h1', 'wa', 'antiga-nome-igual', 'so-anexo']);
+  assert.deepEqual(entradasParaIgnorar(i).sort(), ['antiga-nome-parecido', 'interna', 'mesmo-nome-outro-uid']);
+  assert.deepEqual(entradasPendentesDoParceiro({ ...i, crm_atualizacoes_enviadas: ['h1'] }).map(e => e.id), ['wa', 'antiga-nome-igual', 'so-anexo']);
+  assert.deepEqual(entradasParaIgnorar({ ...i, crm_atualizacoes_ignoradas: ['interna', 'mesmo-nome-outro-uid', 'antiga-nome-parecido'] }), []);
 });
 
 test('ATUALIZAÇÃO: payload com id_mensagem estável e tipos de anexo', () => {
@@ -190,10 +245,13 @@ test('ATUALIZAÇÃO: payload com id_mensagem estável e tipos de anexo', () => {
   assert.equal(referenciaStorage('https://exemplo.com/x.jpg'), null);
 });
 
-test('ATUALIZAÇÃO: envia uma vez, assina a URL do Storage, limita a 10 anexos e avisa do data: URL', async () => {
-  const anexos = Array.from({ length: 12 }, (_, k) => ({ name: `f${k}.jpg`, url: `https://firebasestorage.googleapis.com/v0/b/b/o/f${k}.jpg?alt=media` }));
-  anexos.push({ name: 'local.jpg', url: 'data:image/jpeg;base64,AAAA' } as any);
+const urlB = (bucket: string, nome: string) => `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${nome}?alt=media`;
+
+test('ATUALIZAÇÃO: envia uma vez; assina só URL do bucket próprio; limita a 10; avisa de data:, de outro bucket e de arquivo > 20 MB', async () => {
+  const anexos: any[] = Array.from({ length: 11 }, (_, k) => ({ name: `f${k}.jpg`, url: urlB('proprio', `f${k}.jpg`) }));
+  anexos.push({ name: 'local.jpg', url: 'data:image/jpeg;base64,AAAA' });
   const a = ambEnviar(ENV_ON, { ind1: ind({ negotiation_history: [entrada('h1', { attachments: anexos })] }) });
+  (a.deps as any).bucketProprio = 'proprio';
   const r = await rodarAtualizacoesCrm(a.deps);
   assert.equal(r.enviadas, 1);
   const c = a.chamadas[0].corpo;
@@ -203,13 +261,40 @@ test('ATUALIZAÇÃO: envia uma vez, assina a URL do Storage, limita a 10 anexos 
   assert.deepEqual(a.db.dados.indications.ind1.crm_atualizacoes_enviadas, ['h1']);
   await rodarAtualizacoesCrm(a.deps);
   assert.equal(a.chamadas.length, 1, 'não reenvia');
+
+  const b = ambEnviar(ENV_ON, { ind1: ind({ negotiation_history: [entrada('h2', { attachments: [
+    { name: 'alheio.jpg', url: urlB('outro-bucket', 'alheio.jpg') },
+    { name: 'site.jpg', url: 'https://exemplo.com/x.jpg' },
+    { name: 'grande.mp4', url: urlB('proprio', 'grande.mp4') },
+    { name: 'sem-conferir.jpg', url: urlB('proprio', 'sem-conferir.jpg') },
+    { name: 'ok.jpg', url: urlB('proprio', 'ok.jpg') },
+  ] })] }) });
+  (b.deps as any).bucketProprio = 'proprio';
+  (b.deps as any).assinarAnexo = async (u: string) => {
+    if (u.includes('grande')) return { url: u, tamanho: 21 * 1024 * 1024 };
+    if (u.includes('sem-conferir')) throw new Error('metadata falhou');
+    return { url: undefined, tamanho: 1000 }; // assinatura falhou, tamanho conferido: vai a URL original
+  };
+  await rodarAtualizacoesCrm(b.deps);
+  const cb = b.chamadas[0].corpo;
+  assert.deepEqual(cb.anexos.map((x: any) => x.nome), ['ok.jpg']);
+  assert.equal(cb.anexos[0].url, urlB('proprio', 'ok.jpg'));
+  for (const nome of ['alheio.jpg', 'site.jpg', 'grande.mp4', 'sem-conferir.jpg']) assert.ok(cb.texto.includes(nome), nome);
 });
 
-test('ATUALIZAÇÃO: falha entra no backoff por entrada e a próxima rodada espera; indicação fora do CRM não envia', async () => {
+test('ATUALIZAÇÃO: nota de outra pessoa recebe a marca de ignorada (uma vez) e não é enviada; fora do CRM nada é lido', async () => {
   const a = ambEnviar(ENV_ON, {
-    ind1: ind({ negotiation_history: [entrada('h1')] }),
+    ind1: ind({ negotiation_history: [entrada('i1', { author_name: 'Heloisa Laira', author_uid: 'v1' }), entrada('h1')] }),
     fora: ind({ crm_enviado_em: undefined, negotiation_history: [entrada('h2')] }),
-  }, {}, [{ status: 500 }, { status: 200 }]);
+  });
+  await rodarAtualizacoesCrm(a.deps);
+  assert.deepEqual(a.chamadas.map(c => c.corpo.id_mensagem), ['ind1:h1']);
+  assert.deepEqual(a.db.dados.indications.ind1.crm_atualizacoes_ignoradas, ['i1']);
+  assert.equal(a.db.dados.indications.fora.crm_atualizacoes_ignoradas, undefined);
+});
+
+test('ATUALIZAÇÃO: falha entra no backoff por entrada e a próxima rodada espera', async () => {
+  const a = ambEnviar(ENV_ON, { ind1: ind({ negotiation_history: [entrada('h1')] }) }, {}, [{ status: 500 }, { status: 200 }]);
   const r1 = await rodarAtualizacoesCrm(a.deps);
   assert.equal(r1.falhas, 1); assert.equal(a.chamadas.length, 1);
   await rodarAtualizacoesCrm(a.deps);
@@ -222,27 +307,35 @@ test('ATUALIZAÇÃO: falha entra no backoff por entrada e a próxima rodada espe
 
 // ---------- Fase 2: comissão ----------
 const COM = (o: any = {}) => ({
-  indication_id: 'ind1', external_seller_uid: 'p1', external_seller_name: 'Maria Parceira', value: 3000, base_value_used: 100000,
-  gross_commissionable_value: 100000, rate_applied: 3, status: 'waiting_nf', month: 11, year: 2026, created_at: '2026-10-28T12:00:00Z',
-  discount_applied: 500, discount_percentage: 0.5, ...o,
+  indication_id: 'ind1', external_seller_uid: 'p1', external_seller_name: 'Maria Parceira', value: 2000, base_value_used: 100000,
+  gross_commissionable_value: 105000, rate_applied: 2, status: 'waiting_nf', month: 11, year: 2026, created_at: '2026-10-28T12:00:00Z',
+  discount_applied: 5000, discount_percentage: 4.76, ...o,
 });
+const INDV = (o: any = {}) => ind({ sale_order_number: 'PV-77', status: 'sold', ...o });
 
-test('COMISSÃO: payload só com pedido e parceiro (nada de desconto nem vendedor interno)', () => {
-  const p: any = montarComissao(COM(), 'c1', ind({ sale_order_number: 'PV-77', internal_seller_name: 'Heloisa' }));
+test('COMISSÃO: valor_equipamento é a base comissionável (sem desconto), percentual em pontos, nada de desconto ou vendedor interno', () => {
+  const p: any = montarComissao(COM(), 'c1', INDV({ internal_seller_name: 'Heloisa' }));
   assert.deepEqual(p, {
     tipo: 'comissao', id_externo: 'ind1', pedido_numero: 'PV-77', parceiro: { id: 'p1', nome: 'Maria Parceira' },
-    valor_equipamento: 100000, percentual: 3, valor_comissao: 3000, calculada_em: '2026-10-28T12:00:00.000Z', previsao_pagamento: '2026-11-07',
+    valor_equipamento: 100000, percentual: 2, valor_comissao: 2000, calculada_em: '2026-10-28T12:00:00.000Z', previsao_pagamento: '2026-11-07',
   });
-  assert.ok(!/desconto|Heloisa|discount/i.test(JSON.stringify(p)));
-  const q = montarComissaoPaga(COM({ status: 'paid', updated_at: '2026-11-06T10:00:00Z' }), 'c1', ind({ sale_order_number: 'PV-77' }));
+  assert.equal(p.valor_equipamento * p.percentual / 100, p.valor_comissao);
+  assert.ok(!/desconto|Heloisa|discount|105000/i.test(JSON.stringify(p)));
+  assert.equal(montarComissao(COM({ rate_applied: 0 }), 'c1', INDV())!.percentual, 2, 'taxa ausente: calcula de valor/base');
+  assert.equal(montarComissao(COM({ rate_applied: undefined }), 'c1', INDV())!.percentual, 2);
+  assert.equal(montarComissao(COM({ rate_applied: 0, value: 0 }), 'c1', INDV()), null, 'sem como saber o percentual: espera');
+  assert.equal(montarComissao(COM({ base_value_used: 0 }), 'c1', INDV()), null);
+  assert.equal(montarComissao(COM(), 'c1', ind({ sale_order_number: '  ' })), null, 'sem número do pedido: espera');
+  const q = montarComissaoPaga(COM({ status: 'paid', updated_at: '2026-11-06T10:00:00Z' }), 'c1', INDV());
   assert.deepEqual(q, { tipo: 'comissao_paga', id_externo: 'ind1', pedido_numero: 'PV-77', paga_em: '2026-11-06T10:00:00.000Z' });
 });
 
 test('COMISSÃO: envia "comissao" uma vez; ao pagar envia "comissao_paga" uma vez; marcas na comissão', async () => {
-  const a = ambEnviar(ENV_ON, { ind1: ind({ sale_order_number: 'PV-77', status: 'sold' }) }, { commissions: { c1: COM() } });
+  const a = ambEnviar(ENV_ON, { ind1: INDV() }, { commissions: { c1: COM() } });
   const r = await rodarComissoesCrm(a.deps);
   assert.equal(r.enviadas, 1);
   assert.equal(a.chamadas[0].corpo.tipo, 'comissao');
+  assert.equal(a.db.dados.commissions.c1.crm_aguardando_paga, true);
   await rodarComissoesCrm(a.deps);
   assert.equal(a.chamadas.length, 1, 'idempotente');
   a.db.dados.commissions.c1.status = 'paid'; a.db.dados.commissions.c1.updated_at = '2026-11-06T10:00:00Z';
@@ -251,13 +344,43 @@ test('COMISSÃO: envia "comissao" uma vez; ao pagar envia "comissao_paga" uma ve
   await rodarComissoesCrm(a.deps);
   assert.equal(a.chamadas.length, 2);
   assert.ok(a.db.dados.commissions.c1.crm_comissao_enviada_em && a.db.dados.commissions.c1.crm_paga_enviada_em);
+  assert.equal(a.db.dados.commissions.c1.crm_aguardando_paga, false);
 });
 
-test('COMISSÃO: indicação que nunca foi ao CRM não envia; falha faz backoff e a "paga" espera a "comissao"', async () => {
-  const a = ambEnviar(ENV_ON, { ind1: ind({ crm_enviado_em: undefined }) }, { commissions: { c1: COM() } });
+test('COMISSÃO: corrigida depois do envio, reenvia "comissao" atualizada (mesmo id_externo e pedido)', async () => {
+  const a = ambEnviar(ENV_ON, { ind1: INDV() }, { commissions: { c1: COM() } });
   await rodarComissoesCrm(a.deps);
-  assert.equal(a.chamadas.length, 0);
-  const b = ambEnviar(ENV_ON, { ind1: ind() }, { commissions: { c1: COM({ status: 'paid' }) } }, [{ status: 500 }, { status: 200 }]);
+  a.db.dados.commissions.c1.value = 3000; a.db.dados.commissions.c1.rate_applied = 3;
+  await rodarComissoesCrm(a.deps);
+  assert.equal(a.chamadas.length, 2);
+  assert.equal(a.chamadas[1].corpo.valor_comissao, 3000); assert.equal(a.chamadas[1].corpo.percentual, 3);
+  assert.equal(a.chamadas[1].corpo.id_externo, a.chamadas[0].corpo.id_externo); assert.equal(a.chamadas[1].corpo.pedido_numero, a.chamadas[0].corpo.pedido_numero);
+});
+
+test('COMISSÃO: sem número de pedido espera; indicação que nunca foi ao CRM recebe crm_nao_aplica_em e não é lida de novo', async () => {
+  const a = ambEnviar(ENV_ON, { ind1: ind({ status: 'sold', sale_order_number: '' }) }, { commissions: { c1: COM() } });
+  await rodarComissoesCrm(a.deps);
+  assert.equal(a.chamadas.length, 0); assert.equal(a.db.dados.commissions.c1.crm_enviado_em, undefined); assert.equal(a.db.dados.commissions.c1.crm_comissao_enviada_em, undefined);
+  a.db.dados.indications.ind1.sale_order_number = 'PV-1';
+  await rodarComissoesCrm(a.deps);
+  assert.equal(a.chamadas.length, 1, 'quando o pedido chega, envia');
+  const b = ambEnviar(ENV_ON, { ind1: ind({ crm_enviado_em: undefined, status: 'sold', sale_order_number: 'PV-1' }) }, { commissions: { c1: COM() } });
+  await rodarComissoesCrm(b.deps);
+  assert.equal(b.chamadas.length, 0); assert.ok(b.db.dados.commissions.c1.crm_nao_aplica_em);
+});
+
+test('COMISSÃO: com mais de 300 comissões as mais NOVAS são lidas primeiro; "paga" antiga é achada pela marca, sem janela de dias', async () => {
+  const com: Record<string, any> = {};
+  for (let k = 0; k < 320; k++) com[`x${k}`] = COM({ indication_id: 'ind1', crm_nao_aplica_em: 'x', created_at: `2026-0${1 + (k % 9)}-${String(10 + (k % 18))}T00:00:00Z` });
+  com.nova = COM({ created_at: '2026-10-28T12:00:00Z', value: 2000 });
+  com.antigaPaga = COM({ created_at: '2025-01-05T12:00:00Z', status: 'paid', updated_at: '2025-02-06T10:00:00Z', crm_comissao_enviada_em: '2025-01-06T00:00:00Z', crm_aguardando_paga: true });
+  const a = ambEnviar(ENV_ON, { ind1: INDV() }, { commissions: com });
+  await rodarComissoesCrm(a.deps);
+  assert.deepEqual(a.chamadas.map(c => c.corpo.tipo).sort(), ['comissao', 'comissao_paga']);
+});
+
+test('COMISSÃO: falha faz backoff e a "paga" espera a "comissao"', async () => {
+  const b = ambEnviar(ENV_ON, { ind1: INDV() }, { commissions: { c1: COM({ status: 'paid' }) } }, [{ status: 500 }, { status: 200 }]);
   await rodarComissoesCrm(b.deps);
   assert.equal(b.chamadas.length, 1, 'a paga não passa na frente da comissao que falhou');
   assert.equal(b.db.dados.commissions.c1.crm_comissao_tentativas, 1);
@@ -266,4 +389,14 @@ test('COMISSÃO: indicação que nunca foi ao CRM não envia; falha faz backoff 
   b.avancar(2 * 60 * 1000);
   await rodarComissoesCrm(b.deps);
   assert.deepEqual(b.chamadas.map(c => c.corpo.tipo), ['comissao', 'comissao', 'comissao_paga']);
+});
+
+test('MENSAGEM: só vale como vendedora se começar com "Em atendimento por"; senão texto genérico', async () => {
+  const a = ambReceber(ind({ status: 'pending' }));
+  await a.enviar(base('indicacao.aceita', { mensagem: 'Cliente de Sinop, fale com Carlos Silva' }));
+  assert.equal(a.get().internal_seller_name, undefined);
+  assert.deepEqual(textos(a), ['Em atendimento']);
+  const b = ambReceber(ind({ status: 'pending' }));
+  await b.enviar(base('indicacao.aceita', { mensagem: 'Em atendimento por Heloisa Laira', dados: { vendedora: 'Fulana Nova' } }));
+  assert.equal(b.get().internal_seller_name, 'Fulana Nova', 'dados.vendedora prevalece');
 });

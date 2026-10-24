@@ -65,9 +65,12 @@ test('SELEÇÃO do laço: só aberta, criada depois da virada, ainda não enviad
   assert.equal(motivoNaoEnviarNoLaco(indBase({ status: 'negotiating' }), o), null);
   assert.equal(motivoNaoEnviarNoLaco(indBase({ crm_enviado_em: '2026-10-27T14:01:00Z' }), o), 'ja_enviada');
   for (const status of ['sold', 'cancelled', 'archived', 'new']) assert.equal(motivoNaoEnviarNoLaco(indBase({ status }), o), 'status_nao_envia', status);
-  assert.equal(motivoNaoEnviarNoLaco(indBase({ created_at: '2026-10-20T10:00:00Z' }), o), 'anterior_a_virada');
-  assert.equal(motivoNaoEnviarNoLaco(indBase({ created_at: undefined }), o), 'sem_data_de_criacao');
-  assert.equal(motivoNaoEnviarNoLaco(indBase(), { ativoDesde: null, agora: AGORA }), 'sem_data_de_virada');
+  // pending/triagem vão como indicação nova de QUALQUER idade; só a negotiating respeita o corte (as antigas são da carga)
+  assert.equal(motivoNaoEnviarNoLaco(indBase({ created_at: '2026-10-20T10:00:00Z' }), o), null);
+  assert.equal(motivoNaoEnviarNoLaco(indBase({ status: 'triagem', created_at: '2020-01-01T00:00:00Z' }), o), null);
+  assert.equal(motivoNaoEnviarNoLaco(indBase({ status: 'negotiating', created_at: '2026-10-20T10:00:00Z' }), o), 'anterior_a_virada');
+  assert.equal(motivoNaoEnviarNoLaco(indBase({ status: 'negotiating', created_at: undefined }), o), 'sem_data_de_criacao');
+  assert.equal(motivoNaoEnviarNoLaco(indBase({ status: 'negotiating' }), { ativoDesde: null, agora: AGORA }), 'sem_data_de_virada');
   assert.equal(motivoNaoEnviarNoLaco(indBase({ crm_proxima_tentativa_em: '2026-10-27T15:10:00Z' }), o), 'aguardando_nova_tentativa');
   assert.equal(motivoNaoEnviarNoLaco(indBase({ crm_proxima_tentativa_em: '2026-10-27T14:50:00Z' }), o), null);
   assert.equal(motivoNaoEnviarNoLaco(indBase({ crm_reservado_ate: '2026-10-27T15:02:00Z' }), o), 'reservada');
@@ -76,9 +79,11 @@ test('SELEÇÃO do laço: só aberta, criada depois da virada, ainda não enviad
   assert.equal(motivoNaoEnviarNoLaco(indBase({ client_name: '  ' }), o), 'sem_cliente');
 });
 
-test('SELEÇÃO da carga: ignora a data de criação, mas nunca vendidas nem já enviadas', () => {
+test('SELEÇÃO da carga: só as em negociação, de qualquer data; pending e triagem vão como novas; nunca vendidas nem já enviadas', () => {
   const o = { agora: AGORA };
-  assert.equal(motivoNaoEnviarNaCarga(indBase({ created_at: '2025-01-01T00:00:00Z' }), o), null);
+  assert.equal(motivoNaoEnviarNaCarga(indBase({ status: 'negotiating', created_at: '2025-01-01T00:00:00Z' }), o), null);
+  assert.equal(motivoNaoEnviarNaCarga(indBase({ created_at: '2025-01-01T00:00:00Z' }), o), 'vai_como_nova');
+  assert.equal(motivoNaoEnviarNaCarga(indBase({ status: 'triagem' }), o), 'vai_como_nova');
   assert.equal(motivoNaoEnviarNaCarga(indBase({ status: 'sold' }), o), 'status_nao_envia');
   assert.equal(motivoNaoEnviarNaCarga(indBase({ crm_enviado_em: 'x' }), o), 'ja_enviada');
 });
@@ -119,10 +124,10 @@ function ambiente(env: Record<string, string>, ind: Record<string, any>, respost
 const ENV = { CRM_ATIVO: '1', CRM_CHAVE: CHAVE_TESTE, CRM_URL: 'http://localhost:9/crm', CRM_ATIVO_DESDE: DESDE };
 
 test('INTERRUPTOR DESLIGADO: o laço e as rotinas da fase 2 não enviam nada; a carga só exige a chave', async () => {
-  const sem = ambiente({}, { i1: indBase() }, [{ status: 200 }]);
+  const sem = ambiente({}, { i1: indBase({ status: 'negotiating' }) }, [{ status: 200 }]);
   const c0: any = await cargaInicialCrm(sem.deps, {});
   assert.equal(c0.ok, false); assert.equal(sem.chamadas.length, 0, 'sem chave a carga não envia');
-  const a = ambiente({ CRM_CHAVE: CHAVE_TESTE, CRM_URL: 'http://localhost:9/crm' }, { i1: indBase() }, [{ status: 200 }]);
+  const a = ambiente({ CRM_CHAVE: CHAVE_TESTE, CRM_URL: 'http://localhost:9/crm' }, { i1: indBase({ status: 'negotiating' }) }, [{ status: 200 }]);
   assert.equal((await rodarFilaCrm(a.deps)).pulado, 'integracao_desligada');
   assert.equal((await rodarAtualizacoesCrm(a.deps)).pulado, 'integracao_desligada');
   assert.equal((await rodarComissoesCrm(a.deps)).pulado, 'integracao_desligada');
@@ -138,7 +143,7 @@ test('INTERRUPTOR DESLIGADO: o laço e as rotinas da fase 2 não enviam nada; a 
 });
 
 test('LAÇO: envia a nova com a chave no cabeçalho e marca crm_enviado_em/crm_id; a segunda rodada não reenvia', async () => {
-  const a = ambiente(ENV, { i1: indBase(), velha: indBase({ created_at: '2026-10-01T00:00:00Z' }), vendida: indBase({ status: 'sold' }) }, [{ status: 200, corpo: { ok: true, id: 'crm-77' } }]);
+  const a = ambiente(ENV, { i1: indBase(), velha: indBase({ status: 'negotiating', created_at: '2026-10-01T00:00:00Z' }), vendida: indBase({ status: 'sold' }) }, [{ status: 200, corpo: { ok: true, id: 'crm-77' } }]);
   const r = await rodarFilaCrm(a.deps);
   assert.deepEqual(r.resultados.map(x => [x.id, x.resultado]), [['i1', 'enviada']]);
   assert.equal(a.chamadas.length, 1);
@@ -148,7 +153,7 @@ test('LAÇO: envia a nova com a chave no cabeçalho e marca crm_enviado_em/crm_i
   assert.equal(corpo.id_externo, 'i1'); assert.equal(corpo.parceiro.id, 'p1'); assert.equal(corpo.parceiro.email, 'maria@x.com');
   assert.equal(a.db.dados.indications.i1.crm_id, 'crm-77');
   assert.ok(a.db.dados.indications.i1.crm_enviado_em);
-  assert.equal(a.db.dados.indications.velha.crm_enviado_em, undefined, 'o passado só vai pela carga inicial');
+  assert.equal(a.db.dados.indications.velha.crm_enviado_em, undefined, 'a em negociação anterior ao corte só vai pela carga inicial');
   await rodarFilaCrm(a.deps);
   assert.equal(a.chamadas.length, 1, 'não duplica');
 });
@@ -190,7 +195,7 @@ test('CONSULTA SEM ÍNDICE COMPOSTO: acha indicação sem nenhum campo crm_* (ca
 
 test('DATA DA VIRADA: sem env nem settings, o laço grava o momento da primeira rodada uma vez e não reenvia o passado', async () => {
   const env = { CRM_ATIVO: '1', CRM_CHAVE: CHAVE_TESTE, CRM_URL: 'http://localhost:9/crm' };
-  const a = ambiente(env, { antiga: indBase({ created_at: '2026-10-20T00:00:00Z' }) }, [{ status: 200 }]);
+  const a = ambiente(env, { antiga: indBase({ status: 'negotiating', created_at: '2026-10-20T00:00:00Z' }) }, [{ status: 200 }]);
   await rodarFilaCrm(a.deps);
   assert.equal(a.chamadas.length, 0);
   assert.equal(a.db.dados.settings.crm_integracao.ativo_desde, AGORA.toISOString());
@@ -199,14 +204,16 @@ test('DATA DA VIRADA: sem env nem settings, o laço grava o momento da primeira 
   assert.equal(a.db.dados.settings.crm_integracao.ativo_desde, AGORA.toISOString(), 'não muda depois');
 });
 
-test('CARGA INICIAL: simulação conta, envio em lote manda cada uma uma vez, vendidas ficam de fora, idempotente', async () => {
+test('CARGA INICIAL: só as em negociação, em lote; pending e triagem ficam para o laço; vendidas fora; idempotente', async () => {
+  const neg = (o: any = {}) => indBase({ status: 'negotiating', internal_seller_name: 'Heloisa', ...o });
   const ind = {
-    a: indBase({ created_at: '2026-09-01T00:00:00Z' }), b: indBase({ status: 'negotiating', internal_seller_name: 'Heloisa', created_at: '2026-09-02T00:00:00Z' }),
-    c: indBase({ status: 'triagem', created_at: '2026-09-03T00:00:00Z' }), v: indBase({ status: 'sold' }), x: indBase({ status: 'cancelled' }), ja: indBase({ crm_enviado_em: 'x' }),
+    a: neg({ created_at: '2026-09-01T00:00:00Z' }), b: neg({ created_at: '2026-09-02T00:00:00Z' }), c: neg({ created_at: '2026-09-03T00:00:00Z' }),
+    p: indBase({ created_at: '2026-09-04T00:00:00Z' }), t: indBase({ status: 'triagem', created_at: '2026-09-05T00:00:00Z' }),
+    v: indBase({ status: 'sold' }), x: indBase({ status: 'cancelled' }), ja: neg({ crm_enviado_em: 'x' }),
   };
   const a = ambiente(ENV, ind, [{ status: 200 }]);
   const sim: any = await cargaInicialCrm(a.deps, { simulacao: true });
-  assert.equal(sim.elegiveis, 3); assert.deepEqual(sim.por_status, { pending: 1, negotiating: 1, triagem: 1 });
+  assert.equal(sim.elegiveis, 3); assert.deepEqual(sim.por_status, { negotiating: 3 }); assert.equal(sim.pendentes_novas, 2);
   assert.equal(a.chamadas.length, 0);
   const lote1: any = await cargaInicialCrm(a.deps, { limite: 2 });
   assert.equal(lote1.enviadas, 2); assert.equal(lote1.restantes, 1);
@@ -219,6 +226,6 @@ test('CARGA INICIAL: simulação conta, envio em lote manda cada uma uma vez, ve
   assert.ok(corpos.every(c => c.tipo === 'carga_inicial' && Array.isArray(c.itens)));
   const enviados = corpos.flatMap(c => c.itens);
   assert.equal(enviados.length, 3);
-  assert.match(enviados.find(e => e.id_externo === 'b').observacao, /Já estava em negociação/);
-  assert.equal(enviados.every(e => !e.notificar_email), true, 'carga não dispara e-mail de novo lead');
+  assert.ok(enviados.every(e => /Já estava em negociação/.test(e.observacao) && !e.notificar_email));
+  assert.equal(a.db.dados.indications.p.crm_enviado_em, undefined);
 });

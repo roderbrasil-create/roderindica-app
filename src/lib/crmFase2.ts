@@ -10,25 +10,43 @@ const norm = (v: any) => String(v ?? '').normalize('NFD').replace(/[̀-ͯ]/g, ''
 const ms = (v: any) => { const t = Date.parse(String(v ?? '')); return Number.isFinite(t) ? t : NaN; };
 
 // ---------- Atualização do parceiro ----------
-// Entrada do parceiro na linha do tempo, feita DEPOIS de a indicação ir ao CRM. Fora: o que veio do próprio
-// CRM (sem eco), a observação inicial (já vai na observacao da indicação) e a entrada virtual de abertura.
-export function ehEntradaDoParceiro(ind: any, e: any): boolean {
-  if (!e || typeof e !== 'object' || !e.id) return false;
-  if (e.author_name === AUTOR_CRM || String(e.id).startsWith('crm-')) return false;
-  if (String(e.id).startsWith('obs-parceiro-') || e.type === 'partner_note' || e.id === 'initial_virtual') return false;
-  if (!(ms(e.created_at) > ms(ind.crm_enviado_em))) return false;
-  if (!parceiroEhPessoa(ind)) return false;
-  if (e.author_role === 'external_seller') return true;
-  if (e.author_uid && String(e.author_uid) === String(ind.external_seller_uid)) return true;
-  return !!e.author_name && !!ind.external_seller_name && norm(e.author_name) === norm(ind.external_seller_name);
+// Só vai ao CRM nota que o PARCEIRO escreveu na linha do tempo (type note ou whatsapp) depois do envio da
+// indicação. Quem escreveu é provado por author_uid === external_seller_uid (gravado pelo app a partir de 24/10/2026).
+// Nota antiga, sem author_uid, só vale se o nome bater EXATAMENTE com o do parceiro. Nunca vão: entradas do
+// próprio CRM (sem eco), a observação da abertura, entradas automáticas do sistema e notas de outras pessoas.
+export const TIPOS_DE_NOTA_DO_PARCEIRO = ['note', 'whatsapp'];
+
+export type ClasseEntrada = 'enviar' | 'ignorar' | 'fora';
+
+export function classificarEntrada(ind: any, e: any): ClasseEntrada {
+  if (!e || typeof e !== 'object' || !e.id) return 'fora';
+  if (e.author_name === AUTOR_CRM || String(e.id).startsWith('crm-')) return 'fora';
+  if (String(e.id).startsWith('obs-parceiro-') || e.id === 'initial_virtual') return 'fora';
+  if (!TIPOS_DE_NOTA_DO_PARCEIRO.includes(String(e.type))) return 'fora';
+  if (!(ms(e.created_at) > ms(ind.crm_enviado_em))) return 'fora';
+  if (!parceiroEhPessoa(ind)) return 'fora';
+  if (!(String(e.content ?? '').trim() || (Array.isArray(e.attachments) && e.attachments.length))) return 'fora';
+  const dono = String(ind.external_seller_uid);
+  if (e.author_uid) return String(e.author_uid) === dono ? 'enviar' : 'ignorar';
+  const nome = String(ind.external_seller_name ?? '').trim();
+  return nome && String(e.author_name ?? '').trim() === nome ? 'enviar' : 'ignorar';
 }
 
+export const ehEntradaDoParceiro = (ind: any, e: any) => classificarEntrada(ind, e) === 'enviar';
+
+const conjunto = (v: any) => new Set<string>(Array.isArray(v) ? v.map(String) : []);
+
 export function entradasPendentesDoParceiro(ind: any): any[] {
-  const enviadas = new Set<string>(Array.isArray(ind.crm_atualizacoes_enviadas) ? ind.crm_atualizacoes_enviadas : []);
-  const desistiu = new Set<string>(Array.isArray(ind.crm_atualizacoes_desistiu) ? ind.crm_atualizacoes_desistiu : []);
+  const fora = new Set([...conjunto(ind.crm_atualizacoes_enviadas), ...conjunto(ind.crm_atualizacoes_desistiu), ...conjunto(ind.crm_atualizacoes_ignoradas)]);
   const hist: any[] = Array.isArray(ind.negotiation_history) ? ind.negotiation_history : [];
-  return hist.filter(e => ehEntradaDoParceiro(ind, e) && !enviadas.has(String(e.id)) && !desistiu.has(String(e.id))
-    && (String(e.content ?? '').trim() || (Array.isArray(e.attachments) && e.attachments.length)));
+  return hist.filter(e => classificarEntrada(ind, e) === 'enviar' && !fora.has(String(e.id)));
+}
+
+// Notas candidatas que não são do parceiro: recebem a marca crm_atualizacoes_ignoradas para não serem reavaliadas.
+export function entradasParaIgnorar(ind: any): string[] {
+  const marcadas = conjunto(ind.crm_atualizacoes_ignoradas);
+  const hist: any[] = Array.isArray(ind.negotiation_history) ? ind.negotiation_history : [];
+  return hist.filter(e => classificarEntrada(ind, e) === 'ignorar' && !marcadas.has(String(e.id))).map(e => String(e.id));
 }
 
 // id estável derivado do id da entrada: reenviar a mesma entrada nunca duplica no CRM
@@ -79,28 +97,49 @@ const d2 = (n: number) => String(n).padStart(2, '0');
 // A comissão do mês M é paga em M (relatório do dia 1, nota até o dia 5, pagamento até o dia 7)
 export const previsaoDePagamento = (month: number, year: number) => `${year}-${d2(month)}-07`;
 
+const num = (v: any) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+const arred = (n: number) => Math.round(n * 100) / 100;
+
+// Retorna null quando ainda não dá para mandar (sem número de pedido, sem base ou sem percentual conhecido):
+// a rotina espera e tenta de novo, em vez de mandar zero ao CRM.
+// `percentual` vai em PONTOS percentuais (2 = 2%); valor_equipamento é a base comissionável usada no cálculo
+// (já sem o desconto), então valor_comissao = valor_equipamento x percentual / 100.
 export function montarComissao(c: any, commId: string, ind: any) {
-  const idInd = String(c.indication_id || commId);
+  const pedido = String(ind?.sale_order_number ?? '').trim();
+  if (!pedido) return null;
+  const valor = num(c.value);
+  const base = num(c.base_value_used) || num(c.commissionable_value) || num(c.base_commission_value);
+  if (!(base > 0) || !(valor >= 0)) return null;
+  let pct = num(c.rate_applied);
+  if (!(pct > 0)) pct = valor > 0 ? arred((valor / base) * 100) : 0;
+  if (!(pct > 0)) return null;
   return {
     tipo: 'comissao' as const,
-    id_externo: idInd,
-    pedido_numero: String(ind?.sale_order_number ?? ''),
+    id_externo: String(c.indication_id || commId),
+    pedido_numero: pedido,
     // só o parceiro e o pedido: nada de vendedor interno nem de desconto
     parceiro: { id: String(c.external_seller_uid || ''), nome: String(c.external_seller_name || ind?.external_seller_name || '') },
-    valor_equipamento: Number(c.gross_commissionable_value ?? c.base_value_used) || 0,
-    percentual: Number(c.rate_applied) || 0,
-    valor_comissao: Number(c.value) || 0,
+    valor_equipamento: arred(base),
+    percentual: pct,
+    valor_comissao: arred(valor),
     calculada_em: Number.isFinite(ms(c.created_at)) ? new Date(c.created_at).toISOString() : new Date().toISOString(),
     previsao_pagamento: c.month && c.year ? previsaoDePagamento(Number(c.month), Number(c.year)) : '',
   };
 }
 
+// Resumo do que o CRM recebeu: se a comissão for corrigida depois, a assinatura muda e a rotina reenvia
+// o tipo "comissao" atualizado (mesmo id_externo + pedido_numero).
+export const assinaturaDaComissao = (p: { pedido_numero: string; valor_equipamento: number; percentual: number; valor_comissao: number }) =>
+  `${p.pedido_numero}|${p.valor_equipamento}|${p.percentual}|${p.valor_comissao}`;
+
 export function montarComissaoPaga(c: any, commId: string, ind: any) {
+  const pedido = String(ind?.sale_order_number ?? '').trim();
+  if (!pedido) return null;
   const quando = c.paid_at || c.updated_at;
   return {
     tipo: 'comissao_paga' as const,
     id_externo: String(c.indication_id || commId),
-    pedido_numero: String(ind?.sale_order_number ?? ''),
+    pedido_numero: pedido,
     paga_em: Number.isFinite(ms(quando)) ? new Date(quando).toISOString() : new Date().toISOString(),
   };
 }

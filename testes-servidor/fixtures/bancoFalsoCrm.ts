@@ -46,7 +46,7 @@ export function bancoFalsoCrm(inicial: Record<string, Record<string, any>> = {})
     get: async () => {
       let ids = Object.keys(col(n)).filter(id => f.every(([c, op, v]) => {
         const d = col(n)[id];
-        return op === '==' ? d[c] === v : op === 'in' ? v.includes(d[c]) : op === '>=' ? (d[c] !== undefined && d[c] >= v) : false;
+        return op === '==' ? d[c] === v : op === 'in' ? v.includes(d[c]) : op === '>=' ? (d[c] !== undefined && d[c] >= v) : op === '>' ? (d[c] !== undefined && d[c] > v) : false;
       }));
       if (ord) {
         // como o Firestore: documento sem o campo do orderBy não aparece

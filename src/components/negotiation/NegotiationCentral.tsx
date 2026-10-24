@@ -1256,6 +1256,8 @@ export default function NegotiationCentral() {
         id: Math.random().toString(36).substring(2, 11),
         type: 'note' as const,
         author_name: profile?.name || 'Sistema',
+        // uid de quem escreveu: é como o envio ao CRM sabe que a nota é do parceiro indicador
+        ...(profile?.uid ? { author_uid: profile.uid } : {}),
         created_at: new Date().toISOString(),
         content: formattedNote,
         attachments

@@ -36,6 +36,12 @@ export function textoDaMensagem(ev: { mensagem?: string }, prefixo?: RegExp): st
   return prefixo ? m.replace(prefixo, '').trim() : m;
 }
 
+// A mensagem só vale como fonte da vendedora quando começa com "Em atendimento por"; qualquer outro texto é ignorado.
+export function vendedoraDaMensagem(ev: { mensagem?: string }): string {
+  const m = String(ev.mensagem ?? '').replace(/\s+/g, ' ').trim().match(/^Em atendimento por\s+(.+)$/i);
+  return m ? m[1].trim() : '';
+}
+
 export const AUTOR_CRM = 'CRM Roder';
 export const SESSENTA_DIAS_MS = 60 * 24 * 60 * 60 * 1000;
 
@@ -148,7 +154,7 @@ export const parceiroEhPessoa = (ind: any) => !!ind.external_seller_uid && !UIDS
 function nomeDaVendedora(ev: EventoCrm, ctx: ContextoEvento): string {
   const d = dados(ev);
   const v = d.vendedora ?? d.vendedora_nome ?? d.responsavel;
-  const doEvento = (typeof v === 'string' ? v : v?.nome ?? v?.name ?? '') || textoDaMensagem(ev, /^Em atendimento por\s+/i);
+  const doEvento = (typeof v === 'string' ? v : v?.nome ?? v?.name ?? '') || vendedoraDaMensagem(ev);
   return curto(ctx.vendedora?.name || doEvento, 80);
 }
 
@@ -176,7 +182,7 @@ export function planejarEvento(ind: any, ev: EventoCrm, ctx: ContextoEvento): Pl
       if (nivel >= 2) return ignorado('status_nao_regride');
       if (nivel === 9) return ignorado('indicacao_encerrada');
       const vend = nomeDaVendedora(ev, ctx);
-      const texto = vend ? `Em atendimento por ${vend}` : 'Em atendimento pela equipe comercial da Roder';
+      const texto = vend ? `Em atendimento por ${vend}` : 'Em atendimento';
       if (nivel === 1) {
         // já em negociação: só completa a vendedora se ainda não havia nenhuma
         if (ind.internal_seller_name || !vend) return ignorado('ja_em_negociacao');

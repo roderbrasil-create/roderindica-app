@@ -99,6 +99,7 @@ export interface Indication {
     type: 'note' | 'whatsapp' | 'system' | 'status_change' | 'call' | 'meeting' | 'new_quote' | 'discount' | 'sold';
     content: string;
     author_name: string;
+    author_uid?: string; // uid de quem escreveu (notas novas); o envio ao CRM usa para reconhecer o parceiro
     created_at: string;
     attachments?: { name: string; url: string }[];
   }[];

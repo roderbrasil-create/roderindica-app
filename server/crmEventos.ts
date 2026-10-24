@@ -9,7 +9,7 @@
 //   400 corpo que não é JSON ou sem id, evento e id_externo
 //   200 aplicado, ignorado (com o motivo) ou repetido; erro transitório do banco: 500
 import { podeReceberDoCrm, type ConfigCrm } from '../src/lib/crmIntegracao';
-import { EVENTOS_CRM, idSeguroEvento, mesclarDadosCrm, textoDaMensagem, parceiroEhPessoa, planejarEvento, type EventoCrm, type Plano } from '../src/lib/crmEventos';
+import { EVENTOS_CRM, idSeguroEvento, mesclarDadosCrm, textoDaMensagem, vendedoraDaMensagem, parceiroEhPessoa, planejarEvento, type EventoCrm, type Plano } from '../src/lib/crmEventos';
 import { normalizarItensCrm } from '../src/lib/crmFaturamento';
 import { verificarAssinaturaCrm } from './crmAssinatura';
 
@@ -160,7 +160,7 @@ export async function processarEventoCrm(deps: DepsEventosCrm, ev: EventoCrm): P
   // Contexto fora da transação (leituras que não dependem da versão atual da indicação)
   const d = ev.dados && typeof ev.dados === 'object' ? ev.dados : {};
   const parceiro = parceiroEhPessoa(indPrevia) ? ((await db.collection('users').doc(donoUid).get()).data() || null) : null;
-  const vendedora = ev.evento === 'indicacao.aceita' ? await resolverVendedora(db, { ...d, ...(d.vendedora || d.vendedora_nome ? {} : { vendedora_nome: textoDaMensagem(ev, /^Em atendimento por\s+/i) }) }) : null;
+  const vendedora = ev.evento === 'indicacao.aceita' ? await resolverVendedora(db, { ...d, ...(d.vendedora || d.vendedora_nome ? {} : { vendedora_nome: vendedoraDaMensagem(ev) }) }) : null;
   const textoLivre = ['indicacao.recusada', 'negocio.perdido', 'negocio.etapa'].includes(ev.evento);
   const nomesOutrosParceiros = textoLivre ? await nomesDeOutrosParceiros(db, donoUid) : [];
   const catalogo = ['pedido.lancado', 'pedido.faturado'].includes(ev.evento) ? await catalogoDosItens(db, d.itens) : {};
