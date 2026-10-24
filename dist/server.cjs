@@ -1757,8 +1757,8 @@ function validarCnpj(texto2) {
     return r < 2 ? 0 : 11 - r;
   };
   const d1 = calc(d.slice(0, 12), [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
-  const d2 = calc(d.slice(0, 12) + d1, [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
-  if (d1 !== Number(d[12]) || d2 !== Number(d[13])) return { ok: false };
+  const d22 = calc(d.slice(0, 12) + d1, [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+  if (d1 !== Number(d[12]) || d22 !== Number(d[13])) return { ok: false };
   return { ok: true, digitos: d, formatado: `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}` };
 }
 
@@ -1954,7 +1954,7 @@ function criarRotasConsultorParceiro(deps) {
     }));
     await lote.commit();
   }
-  async function enviarEmails(dados, dono) {
+  async function enviarEmails(dados2, dono) {
     if (!deps.enviarEmail) return;
     const obrigatorios = ["gislene@roderbrasil.com.br", "contato@roderbrasil.com.br", "roderbrasil@gmail.com", "luana@roderbrasil.com.br"];
     let config2 = {};
@@ -1965,11 +1965,11 @@ function criarRotasConsultorParceiro(deps) {
     }
     const lista = String(Array.isArray(config2.manager_emails) ? config2.manager_emails.join(",") : config2.manager_emails || "").split(",").map((e) => e.trim()).filter(Boolean);
     for (const e of obrigatorios) if (!lista.map((x) => x.toLowerCase()).includes(e)) lista.push(e);
-    const corte = dados.client_location.lastIndexOf(" - ");
-    const cidade = corte >= 0 ? dados.client_location.slice(0, corte) : dados.client_location;
-    const uf = corte >= 0 ? dados.client_location.slice(corte + 3) : "";
-    const produto = dados.items?.[0]?.product_name || "Equipamento";
-    const assunto = `\u{1F525} NOVO LEAD CADASTRADO: ${dados.client_name} (via ${dono.nome})`;
+    const corte = dados2.client_location.lastIndexOf(" - ");
+    const cidade = corte >= 0 ? dados2.client_location.slice(0, corte) : dados2.client_location;
+    const uf = corte >= 0 ? dados2.client_location.slice(corte + 3) : "";
+    const produto = dados2.items?.[0]?.product_name || "Equipamento";
+    const assunto = `\u{1F525} NOVO LEAD CADASTRADO: ${dados2.client_name} (via ${dono.nome})`;
     const html = `
       <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 8px; overflow: hidden;">
         <div style="background-color: #f97316; color: white; padding: 20px; text-align: center;">
@@ -1978,14 +1978,14 @@ function criarRotasConsultorParceiro(deps) {
         </div>
         <div style="padding: 24px;">
           <div style="background-color: #fdf2f7; border-left: 4px solid #f97316; padding: 15px; margin-bottom: 20px;">
-            <p style="margin: 0; font-weight: bold; color: #7c2d12; font-size: 16px;">CLIENTE: ${escHtml(dados.client_name)}</p>
+            <p style="margin: 0; font-weight: bold; color: #7c2d12; font-size: 16px;">CLIENTE: ${escHtml(dados2.client_name)}</p>
           </div>
           <table style="width: 100%; border-collapse: collapse;">
             <tr><td style="padding: 8px 0; color: #666; width: 140px;">Origem / Indicador:</td><td style="padding: 8px 0; font-weight: bold; color: #f97316;">${escHtml(dono.nome)}</td></tr>
             <tr><td style="padding: 8px 0; color: #666;">Canal:</td><td style="padding: 8px 0; font-weight: bold;">Conversa do Consultor Roder</td></tr>
-            <tr><td style="padding: 8px 0; color: #666;">WhatsApp Cliente:</td><td style="padding: 8px 0; font-weight: bold;">${escHtml(dados.client_phone)}</td></tr>
+            <tr><td style="padding: 8px 0; color: #666;">WhatsApp Cliente:</td><td style="padding: 8px 0; font-weight: bold;">${escHtml(dados2.client_phone)}</td></tr>
             <tr><td style="padding: 8px 0; color: #666;">Cidade/UF:</td><td style="padding: 8px 0;">${escHtml(cidade)}/${escHtml(uf)}</td></tr>
-            ${dados.client_cnpj ? `<tr><td style="padding: 8px 0; color: #666;">CNPJ:</td><td style="padding: 8px 0;">${escHtml(dados.client_cnpj)}</td></tr>` : ""}
+            ${dados2.client_cnpj ? `<tr><td style="padding: 8px 0; color: #666;">CNPJ:</td><td style="padding: 8px 0;">${escHtml(dados2.client_cnpj)}</td></tr>` : ""}
             <tr><td style="padding: 8px 0; color: #666;">Equipamento:</td><td style="padding: 8px 0; color: #f97316; font-weight: bold;">${escHtml(produto)}</td></tr>
           </table>
           <div style="margin-top: 30px; text-align: center;">
@@ -1998,7 +1998,7 @@ function criarRotasConsultorParceiro(deps) {
       const htmlParceiro = `
         <div style="font-family: sans-serif; color: #333;">
           <h2 style="color: #eab308;">Ol\xE1 ${escHtml(dono.nome)},</h2>
-          <p>Recebemos com sucesso a sua indica\xE7\xE3o para <strong>${escHtml(dados.client_name)}</strong>.</p>
+          <p>Recebemos com sucesso a sua indica\xE7\xE3o para <strong>${escHtml(dados2.client_name)}</strong>.</p>
           <p>Nossa equipe comercial j\xE1 foi notificada. Em breve, um de nossos vendedores entrar\xE1 em contato para dar continuidade ao atendimento.</p>
           <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #eab308;">
             <p style="margin: 0;"><strong>Equipamento:</strong> ${escHtml(produto)}</p>
@@ -2008,7 +2008,7 @@ function criarRotasConsultorParceiro(deps) {
           <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
           <p style="font-size: 12px; color: #666;">Atenciosamente,<br>Equipe Roder M\xE1quinas</p>
         </div>`;
-      envios.push(deps.enviarEmail(dono.email, `Confirma\xE7\xE3o de Recebimento: Sua indica\xE7\xE3o de ${dados.client_name}`, htmlParceiro));
+      envios.push(deps.enviarEmail(dono.email, `Confirma\xE7\xE3o de Recebimento: Sua indica\xE7\xE3o de ${dados2.client_name}`, htmlParceiro));
     }
     await Promise.allSettled(envios);
   }
@@ -2019,8 +2019,8 @@ function criarRotasConsultorParceiro(deps) {
       if ("erro" in dono) return res.status(dono.erro).json({ error: dono.msg });
       if (passouLimite(`consind-h:${dono.uid}`, LIMITE_INDICACAO_HORA, 60 * 60 * 1e3)) return res.status(429).json({ error: "Muitas indica\xE7\xF5es seguidas. Espere um pouco." });
       const b = req.body || {};
-      const cliente = limpaTexto(b.cliente, 120);
-      if (cliente.length < 2) return res.status(400).json({ error: "Informe o nome do cliente ou da fazenda." });
+      const cliente2 = limpaTexto(b.cliente, 120);
+      if (cliente2.length < 2) return res.status(400).json({ error: "Informe o nome do cliente ou da fazenda." });
       const tel = validarTelefoneBR(String(b.telefone || ""));
       if (!tel.ok) return res.status(400).json({ error: "Telefone inv\xE1lido. Use DDD e n\xFAmero." });
       const local = lerCidadeUf(String(b.cidade || ""));
@@ -2048,9 +2048,9 @@ function criarRotasConsultorParceiro(deps) {
       const ref = db2.collection("indications").doc();
       const localizacao = `${local.cidade} - ${local.uf}`;
       const descricao = "Indica\xE7\xE3o feita pela conversa do Consultor Roder." + (!equip.pid ? " Equipamento escrito pelo indicador." : !equip.mid ? " Modelo a definir com a Roder." : "");
-      const dados = {
-        client_name: cliente,
-        client_person_name: cliente,
+      const dados2 = {
+        client_name: cliente2,
+        client_person_name: cliente2,
         client_phone: tel.formatado,
         client_email: "",
         client_cnpj: cnpj,
@@ -2094,7 +2094,7 @@ function criarRotasConsultorParceiro(deps) {
 
 SOLICITA\xC7\xC3O: 1x ${equip.nome}
 
-CLIENTE: ${cliente} | ${tel.formatado} | ${localizacao}${cnpj ? ` | CNPJ ${cnpj}` : ""}`,
+CLIENTE: ${cliente2} | ${tel.formatado} | ${localizacao}${cnpj ? ` | CNPJ ${cnpj}` : ""}`,
           attachments: []
         }],
         created_at: iso,
@@ -2103,14 +2103,14 @@ CLIENTE: ${cliente} | ${tel.formatado} | ${localizacao}${cnpj ? ` | CNPJ ${cnpj}
         origem: "consultor",
         origem_via: dono.via
       };
-      if (equip.pid) dados.product_id = equip.pid;
-      if (equip.mid) dados.model_id = equip.mid;
-      await ref.set(dados);
+      if (equip.pid) dados2.product_id = equip.pid;
+      if (equip.mid) dados2.model_id = equip.mid;
+      await ref.set(dados2);
       res.json({ ok: true, id: ref.id });
       (async () => {
-        await avisarGestao("Nova Indica\xE7\xE3o Recebida", `${dono.nome || "Parceiro"} enviou uma nova indica\xE7\xE3o para ${cliente} pela conversa do consultor.`).catch(() => {
+        await avisarGestao("Nova Indica\xE7\xE3o Recebida", `${dono.nome || "Parceiro"} enviou uma nova indica\xE7\xE3o para ${cliente2} pela conversa do consultor.`).catch(() => {
         });
-        await enviarEmails(dados, dono).catch(() => {
+        await enviarEmails(dados2, dono).catch(() => {
         });
       })();
     } catch {
@@ -2692,14 +2692,14 @@ function montarConvite(nome) {
   const pn = primeiroNome(nome);
   const saudacao = pn ? `Ol\xE1, ${pn}!` : "Ol\xE1!";
   const abertura = "O Consultor T\xE9cnico Roder est\xE1 liberado para o comercial. Use no dia a dia, direto do celular ou do computador.";
-  const entrada = "Na primeira vez, entre com o seu e-mail cadastrado na Roder. Depois disso o aparelho fica liberado.";
+  const entrada2 = "Na primeira vez, entre com o seu e-mail cadastrado na Roder. Depois disso o aparelho fica liberado.";
   const texto2 = [
     saudacao,
     "",
     abertura,
     "",
     `Abrir: ${LINK_CONSULTOR_EQUIPE}`,
-    entrada,
+    entrada2,
     "",
     "Para que serve:",
     ...USOS.map((u) => `- ${u}`),
@@ -2713,7 +2713,7 @@ function montarConvite(nome) {
 <p style="font-size:17px;font-weight:bold;margin:0 0 10px">${esc(saudacao)}</p>
 <p style="margin:0 0 14px">${esc(abertura)}</p>
 <p style="margin:0 0 6px"><a href="${LINK_CONSULTOR_EQUIPE}" style="display:inline-block;background:#facc15;color:#000;font-weight:bold;text-decoration:none;padding:12px 22px;border-radius:8px">Abrir o Consultor</a></p>
-<p style="margin:0 0 18px;font-size:13px;color:#555">${esc(entrada)}</p>
+<p style="margin:0 0 18px;font-size:13px;color:#555">${esc(entrada2)}</p>
 <p style="margin:0 0 6px;font-weight:bold">Para que serve</p>
 <ul style="margin:0 0 18px;padding-left:20px">${USOS.map((u) => `<li>${esc(u)}</li>`).join("")}</ul>
 <p style="margin:0 0 6px;font-weight:bold">Como deixar como aplicativo</p>
@@ -2885,10 +2885,10 @@ var BLOQUEADOS_V6 = new import_net.default.BlockList();
   ]) BLOQUEADOS_V6.addSubnet(ip, bits, "ipv6");
 })();
 function ipBloqueado(ip) {
-  const limpo = String(ip || "").replace(/^\[|\]$/g, "").split("%")[0];
-  const tipo = import_net.default.isIP(limpo);
-  if (tipo === 4) return BLOQUEADOS_V4.check(limpo, "ipv4");
-  if (tipo === 6) return BLOQUEADOS_V6.check(limpo, "ipv6");
+  const limpo2 = String(ip || "").replace(/^\[|\]$/g, "").split("%")[0];
+  const tipo = import_net.default.isIP(limpo2);
+  if (tipo === 4) return BLOQUEADOS_V4.check(limpo2, "ipv4");
+  if (tipo === 6) return BLOQUEADOS_V6.check(limpo2, "ipv6");
   return true;
 }
 function fonteDaFoto(u, site, buckets) {
@@ -3119,8 +3119,8 @@ function criarImagemPrevia(deps) {
     try {
       if (f.tipo === "banco") {
         const snap = await deps.db.collection("app_files").doc(f.id).get();
-        const dados = String(snap.exists && snap.data()?.data || "");
-        const m = dados.match(/^data:image\/[a-z0-9.+-]+;base64,(.+)$/is);
+        const dados2 = String(snap.exists && snap.data()?.data || "");
+        const m = dados2.match(/^data:image\/[a-z0-9.+-]+;base64,(.+)$/is);
         return m ? Buffer.from(m[1], "base64") : null;
       }
       if (f.tipo === "storage") return await deps.lerStorage(f.bucket, f.caminho);
@@ -3585,9 +3585,9 @@ var CAMPOS_DO_PRE_CADASTRO = [
   "created_at",
   "permissions"
 ];
-function camposDoPreCadastro(dados) {
+function camposDoPreCadastro(dados2) {
   const saida = {};
-  for (const k of CAMPOS_DO_PRE_CADASTRO) if (dados && dados[k] !== void 0) saida[k] = dados[k];
+  for (const k of CAMPOS_DO_PRE_CADASTRO) if (dados2 && dados2[k] !== void 0) saida[k] = dados2[k];
   return saida;
 }
 async function escolherPreCadastros(p) {
@@ -3689,9 +3689,13 @@ function mesDaComissao(dataEntrega, agora = /* @__PURE__ */ new Date()) {
   return mesAtual === 12 ? { month: 1, year: anoAtual + 1 } : { month: mesAtual + 1, year: anoAtual };
 }
 var UIDS_DE_SISTEMA = ["client_referral", "direct_factory", "public_request", "anonymous"];
-
-// server/diagnosticoComissao.ts
-var temMarcaDeEstorno = (ind) => !!ind?.estornado_em;
+var NOME_SEM_PARCEIRO = /^(solicita[çc][ãa]o direta|venda direta|cliente:)|\(f[áa]brica\)\s*$/i;
+function temParceiroSemUid(ind) {
+  if (!ind || String(ind.external_seller_uid || "").trim()) return false;
+  const nome = String(ind.external_seller_name || ind.indicator_name || "").trim();
+  if (nome && NOME_SEM_PARCEIRO.test(nome)) return false;
+  return !!(nome || String(ind.external_seller_email || "").trim() || ind.indicator_uid);
+}
 var temEstornoNoHistorico = (ind) => {
   const h = Array.isArray(ind?.negotiation_history) ? ind.negotiation_history : [];
   const ultimo = (re) => h.reduce((m, x) => re.test(String(x?.content || "")) ? Math.max(m, Date.parse(x?.created_at) || 0) : m, -Infinity);
@@ -3700,12 +3704,23 @@ var temEstornoNoHistorico = (ind) => {
   const faturou = ultimo(/^VENDA FINALIZADA/i);
   return !(faturou !== -Infinity && faturou > estorno);
 };
+var emCentavos = (v) => Math.round((Number(v) + Number.EPSILON) * 100) / 100;
+function calcularComissaoCentavos(produtos, descontoReais, taxa) {
+  const c = calcularComissao(produtos, descontoReais, taxa);
+  const baseBruta = emCentavos(c.baseBruta);
+  const desconto = emCentavos(c.desconto);
+  const base = emCentavos(baseBruta - desconto);
+  return { ...c, baseBruta, desconto, base, valor: emCentavos(base * (taxa / 100)) };
+}
+
+// server/diagnosticoComissao.ts
+var temMarcaDeEstorno = (ind) => !!ind?.estornado_em;
 var normalizar = (v) => String(v ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9@._]+/g, " ").replace(/\s+/g, " ").trim();
 function nomeContido(a, b) {
   if (!a || !b || a === b) return false;
-  const [curto, longo] = a.length <= b.length ? [a, b] : [b, a];
-  if (curto.length < 3) return false;
-  return ` ${longo} `.includes(` ${curto} `);
+  const [curto2, longo] = a.length <= b.length ? [a, b] : [b, a];
+  if (curto2.length < 3) return false;
+  return ` ${longo} `.includes(` ${curto2} `);
 }
 function nomeCasa(nome, termoNormalizado) {
   const n = normalizar(nome);
@@ -4491,7 +4506,7 @@ async function conciliarComissoes(deps, origem = "di\xE1ria") {
     }
     const comms = comissoesPorInd.get(indId) || [];
     const uidInd = String(ind.external_seller_uid || "");
-    const cliente = String(ind.client_name || "");
+    const cliente2 = String(ind.client_name || "");
     quandoAtual = ind.updated_at || ind.sale_date;
     if (!uidInd || UIDS_DE_SISTEMA.includes(uidInd)) continue;
     if (ind.status !== "sold") continue;
@@ -4512,7 +4527,7 @@ async function conciliarComissoes(deps, origem = "di\xE1ria") {
               achada = pelaNomeUnica;
               porEmailOuNome = "nome";
             } else {
-              travar({ indicacao_id: indId, cliente, parceiro: nomeDe(atual), motivo: `A venda est\xE1 num cadastro provis\xF3rio (${atual.doc_id}) e s\xF3 o nome bate com a conta ${pelaNomeUnica.doc_id} (sem e-mail e sem telefone em comum). Nome igual pode ser outra pessoa. Use "Trocar Indicador" para confirmar.` });
+              travar({ indicacao_id: indId, cliente: cliente2, parceiro: nomeDe(atual), motivo: `A venda est\xE1 num cadastro provis\xF3rio (${atual.doc_id}) e s\xF3 o nome bate com a conta ${pelaNomeUnica.doc_id} (sem e-mail e sem telefone em comum). Nome igual pode ser outra pessoa. Use "Trocar Indicador" para confirmar.` });
               continue;
             }
           }
@@ -4524,12 +4539,12 @@ async function conciliarComissoes(deps, origem = "di\xE1ria") {
         if (candidata) {
           const nomeConta = normalizar(candidata.name);
           if (nomeConta && nomeInd && (nomeConta === nomeInd || nomeContido(nomeConta, nomeInd))) achada = candidata;
-          else travar({ indicacao_id: indId, cliente, parceiro: ind.external_seller_name || uidInd, motivo: `A venda est\xE1 ligada a um c\xF3digo que n\xE3o existe mais, e o e-mail ${email} da indica\xE7\xE3o \xE9 de ${candidata.name || "outra conta"}, com nome diferente de ${ind.external_seller_name || "o da indica\xE7\xE3o"}. Pode ser o e-mail de um parceiro anterior. Use "Trocar Indicador" na tela de Indica\xE7\xF5es.` });
+          else travar({ indicacao_id: indId, cliente: cliente2, parceiro: ind.external_seller_name || uidInd, motivo: `A venda est\xE1 ligada a um c\xF3digo que n\xE3o existe mais, e o e-mail ${email} da indica\xE7\xE3o \xE9 de ${candidata.name || "outra conta"}, com nome diferente de ${ind.external_seller_name || "o da indica\xE7\xE3o"}. Pode ser o e-mail de um parceiro anterior. Use "Trocar Indicador" na tela de Indica\xE7\xF5es.` });
           if (!achada) continue;
         } else if (!email) {
           const pelaNomeUnica = porNome(nomeInd);
           if (pelaNomeUnica) {
-            travar({ indicacao_id: indId, cliente, parceiro: ind.external_seller_name || uidInd, motivo: `A venda est\xE1 ligada a um c\xF3digo que n\xE3o existe mais, e s\xF3 o nome bate com a conta ${pelaNomeUnica.doc_id} (a indica\xE7\xE3o n\xE3o tem e-mail nem telefone para confirmar). Nome igual pode ser outra pessoa. Use "Trocar Indicador" para confirmar.` });
+            travar({ indicacao_id: indId, cliente: cliente2, parceiro: ind.external_seller_name || uidInd, motivo: `A venda est\xE1 ligada a um c\xF3digo que n\xE3o existe mais, e s\xF3 o nome bate com a conta ${pelaNomeUnica.doc_id} (a indica\xE7\xE3o n\xE3o tem e-mail nem telefone para confirmar). Nome igual pode ser outra pessoa. Use "Trocar Indicador" para confirmar.` });
             continue;
           }
         }
@@ -4540,7 +4555,7 @@ async function conciliarComissoes(deps, origem = "di\xE1ria") {
       } else if (!atual) {
         const email = String(ind.external_seller_email || "").trim();
         const porque = email ? `O e-mail ${email} da indica\xE7\xE3o n\xE3o est\xE1 em nenhuma conta (ou est\xE1 em mais de uma), e o nome n\xE3o \xE9 usado quando h\xE1 e-mail, para n\xE3o levar a venda a um hom\xF4nimo.` : "N\xE3o h\xE1 uma conta s\xF3 com o mesmo nome (zero contas ou mais de uma).";
-        travar({ indicacao_id: indId, cliente, parceiro: ind.external_seller_name || uidInd, motivo: `A venda est\xE1 ligada a um c\xF3digo que n\xE3o existe mais. ${porque} Use "Trocar Indicador" na tela de Indica\xE7\xF5es.` });
+        travar({ indicacao_id: indId, cliente: cliente2, parceiro: ind.external_seller_name || uidInd, motivo: `A venda est\xE1 ligada a um c\xF3digo que n\xE3o existe mais. ${porque} Use "Trocar Indicador" na tela de Indica\xE7\xF5es.` });
         continue;
       }
     }
@@ -4550,16 +4565,16 @@ async function conciliarComissoes(deps, origem = "di\xE1ria") {
     let mexiAgora = false;
     if (uidInd !== destUid || fora.length) {
       if (ehProvisorio(destino.doc_id)) {
-        if (fora.length) travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: `A venda est\xE1 num cadastro provis\xF3rio (${destino.doc_id}) que n\xE3o achou conta definitiva \xFAnica, mas a comiss\xE3o est\xE1 em outra conta (${fora[0].external_seller_name || fora[0].external_seller_uid}). N\xE3o foi mexida: lev\xE1-la para um provis\xF3rio faria o dinheiro sumir do painel do parceiro. Use "Trocar Indicador" e escolha a conta certa.` });
+        if (fora.length) travar({ indicacao_id: indId, cliente: cliente2, parceiro: nomeDest, motivo: `A venda est\xE1 num cadastro provis\xF3rio (${destino.doc_id}) que n\xE3o achou conta definitiva \xFAnica, mas a comiss\xE3o est\xE1 em outra conta (${fora[0].external_seller_name || fora[0].external_seller_uid}). N\xE3o foi mexida: lev\xE1-la para um provis\xF3rio faria o dinheiro sumir do painel do parceiro. Use "Trocar Indicador" e escolha a conta certa.` });
         continue;
       }
       if (!recebe(destino)) {
-        if (fora.length) travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: `A comiss\xE3o est\xE1 em outro c\xF3digo, mas ${nomeDest} ${papelQueRecebe(destino.role) ? `est\xE1 com o cadastro ${destino.status}` : "\xE9 da equipe Roder"} e n\xE3o recebe comiss\xE3o.` });
+        if (fora.length) travar({ indicacao_id: indId, cliente: cliente2, parceiro: nomeDest, motivo: `A comiss\xE3o est\xE1 em outro c\xF3digo, mas ${nomeDest} ${papelQueRecebe(destino.role) ? `est\xE1 com o cadastro ${destino.status}` : "\xE9 da equipe Roder"} e n\xE3o recebe comiss\xE3o.` });
         continue;
       }
       const presa = comms.find((c) => travadoPorStatus(c.status));
       if (presa) {
-        travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: `A comiss\xE3o de ${brl2(Number(presa.value) || 0)} j\xE1 est\xE1 ${presa.status === "paid" ? "paga" : "aguardando pagamento"} na conta ${presa.external_seller_name || presa.external_seller_uid}. N\xE3o foi mexida: a nota fiscal e o pagamento s\xE3o dessa conta. Acerte com o financeiro.` });
+        travar({ indicacao_id: indId, cliente: cliente2, parceiro: nomeDest, motivo: `A comiss\xE3o de ${brl2(Number(presa.value) || 0)} j\xE1 est\xE1 ${presa.status === "paid" ? "paga" : "aguardando pagamento"} na conta ${presa.external_seller_name || presa.external_seller_uid}. N\xE3o foi mexida: a nota fiscal e o pagamento s\xE3o dessa conta. Acerte com o financeiro.` });
         continue;
       }
       try {
@@ -4567,16 +4582,16 @@ async function conciliarComissoes(deps, origem = "di\xE1ria") {
         const valor = Math.round(fora.reduce((a, c) => a + (Number(c.value) || 0), 0) * 100) / 100;
         const de = fora[0]?.external_seller_uid || uidInd;
         const deNome = fora[0]?.external_seller_name || atual && atual.name || ind.external_seller_name || null;
-        res.movidas.push({ indicacao_id: indId, cliente, parceiro: nomeDest, de_uid: de || null, de_nome: deNome, para_uid: destUid, comissoes: fora.length, valor, motivo });
-        log(`[CORRECAO-COMISSAO] ${cliente || indId}: ${fora.length} comiss\xE3o(\xF5es) de ${brl2(valor)} de ${deNome || de} (${de}) para ${nomeDest} (${destUid}); ${motivo}.`);
+        res.movidas.push({ indicacao_id: indId, cliente: cliente2, parceiro: nomeDest, de_uid: de || null, de_nome: deNome, para_uid: destUid, comissoes: fora.length, valor, motivo });
+        log(`[CORRECAO-COMISSAO] ${cliente2 || indId}: ${fora.length} comiss\xE3o(\xF5es) de ${brl2(valor)} de ${deNome || de} (${de}) para ${nomeDest} (${destUid}); ${motivo}.`);
         comms.forEach((c) => {
           c.external_seller_uid = destUid;
           c.transferencia_pendente = null;
         });
         mexiAgora = true;
       } catch (e) {
-        if (e?.status === 409) travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: e.message });
-        else res.erros.push(`${cliente || indId}: ${e?.message || e}`);
+        if (e?.status === 409) travar({ indicacao_id: indId, cliente: cliente2, parceiro: nomeDest, motivo: e.message });
+        else res.erros.push(`${cliente2 || indId}: ${e?.message || e}`);
         continue;
       }
     }
@@ -4585,7 +4600,7 @@ async function conciliarComissoes(deps, origem = "di\xE1ria") {
         try {
           await c.ref.update({ transferencia_pendente: null, updated_at: agora.toISOString() });
         } catch (e) {
-          res.erros.push(`${cliente || indId}: n\xE3o limpei a marca de primeiro acesso: ${e?.message || e}`);
+          res.erros.push(`${cliente2 || indId}: n\xE3o limpei a marca de primeiro acesso: ${e?.message || e}`);
         }
       }
     }
@@ -4593,7 +4608,7 @@ async function conciliarComissoes(deps, origem = "di\xE1ria") {
       const emailD = String(destino.email || "").toLowerCase().trim();
       const nomeD = normalizar(destino.name);
       const repetida = definitivas.find((u) => u.doc_id !== destino.doc_id && (emailD && String(u.email || "").toLowerCase().trim() === emailD || nomeD && normalizar(u.name) === nomeD));
-      if (repetida) travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: `${nomeDest} tem duas contas (${destino.doc_id} e ${repetida.doc_id}, mesmo e-mail ou nome). A venda e a comiss\xE3o est\xE3o em ${destino.doc_id}. Se ele entra pela outra, o painel mostra R$ 0,00: confirme com ele a conta certa e use "Trocar Indicador".` });
+      if (repetida) travar({ indicacao_id: indId, cliente: cliente2, parceiro: nomeDest, motivo: `${nomeDest} tem duas contas (${destino.doc_id} e ${repetida.doc_id}, mesmo e-mail ou nome). A venda e a comiss\xE3o est\xE3o em ${destino.doc_id}. Se ele entra pela outra, o painel mostra R$ 0,00: confirme com ele a conta certa e use "Trocar Indicador".` });
     }
     if (ind.status !== "sold" || comms.length || !recebe(destino)) continue;
     let noHistorico = false;
@@ -4601,30 +4616,30 @@ async function conciliarComissoes(deps, origem = "di\xE1ria") {
       const f = await db2.collection("indications").doc(indId).get();
       noHistorico = temEstornoNoHistorico(f.exists ? f.data() : null);
     } catch (e) {
-      res.erros.push(`${cliente || indId}: n\xE3o consegui ler o hist\xF3rico: ${e?.message || e}`);
+      res.erros.push(`${cliente2 || indId}: n\xE3o consegui ler o hist\xF3rico: ${e?.message || e}`);
       continue;
     }
     if (temMarcaDeEstorno(ind) || noHistorico) {
-      travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: noHistorico ? "Venda faturada sem comiss\xE3o, mas esta indica\xE7\xE3o j\xE1 foi estornada antes e a comiss\xE3o foi apagada de prop\xF3sito. N\xE3o \xE9 lan\xE7ada sozinha. Se for devida, gere pelo Diagn\xF3stico de comiss\xE3o." : "Estorno incompleto: o estorno foi come\xE7ado (a comiss\xE3o pode ter sido apagada) mas a venda continua faturada. Refa\xE7a o estorno na tela de Indica\xE7\xF5es. N\xE3o \xE9 lan\xE7ada comiss\xE3o sozinha." });
+      travar({ indicacao_id: indId, cliente: cliente2, parceiro: nomeDest, motivo: noHistorico ? "Venda faturada sem comiss\xE3o, mas esta indica\xE7\xE3o j\xE1 foi estornada antes e a comiss\xE3o foi apagada de prop\xF3sito. N\xE3o \xE9 lan\xE7ada sozinha. Se for devida, gere pelo Diagn\xF3stico de comiss\xE3o." : "Estorno incompleto: o estorno foi come\xE7ado (a comiss\xE3o pode ter sido apagada) mas a venda continua faturada. Refa\xE7a o estorno na tela de Indica\xE7\xF5es. N\xE3o \xE9 lan\xE7ada comiss\xE3o sozinha." });
       continue;
     }
     const dataVenda = Date.parse(String(ind.sale_date || "").slice(0, 10) + "T12:00:00-03:00");
     const dias = Number.isFinite(dataVenda) ? (agora.getTime() - dataVenda) / 864e5 : Infinity;
     if (dias > DIAS_PARA_GERAR) {
-      travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: `Venda faturada sem comiss\xE3o, com pedido de ${ind.sale_date ? String(ind.sale_date).slice(0, 10).split("-").reverse().join("/") : "data desconhecida"}: antiga demais para lan\xE7ar sozinha (mais de ${DIAS_PARA_GERAR} dias). Se a comiss\xE3o \xE9 devida, gere pelo Diagn\xF3stico de comiss\xE3o.` });
+      travar({ indicacao_id: indId, cliente: cliente2, parceiro: nomeDest, motivo: `Venda faturada sem comiss\xE3o, com pedido de ${ind.sale_date ? String(ind.sale_date).slice(0, 10).split("-").reverse().join("/") : "data desconhecida"}: antiga demais para lan\xE7ar sozinha (mais de ${DIAS_PARA_GERAR} dias). Se a comiss\xE3o \xE9 devida, gere pelo Diagn\xF3stico de comiss\xE3o.` });
       continue;
     }
     if (!(Number(ind.commission_rate_applied) > 0) || typeof ind.discount_amount !== "number") {
-      travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: "Venda faturada sem comiss\xE3o, e o faturamento n\xE3o gravou taxa de comiss\xE3o e desconto (foi faturada sem parceiro, ou o desconto \xE9 desconhecido). N\xE3o \xE9 lan\xE7ada sozinha, para n\xE3o pagar a mais. Confira o desconto e gere pelo Diagn\xF3stico de comiss\xE3o." });
+      travar({ indicacao_id: indId, cliente: cliente2, parceiro: nomeDest, motivo: "Venda faturada sem comiss\xE3o, e o faturamento n\xE3o gravou taxa de comiss\xE3o e desconto (foi faturada sem parceiro, ou o desconto \xE9 desconhecido). N\xE3o \xE9 lan\xE7ada sozinha, para n\xE3o pagar a mais. Confira o desconto e gere pelo Diagn\xF3stico de comiss\xE3o." });
       continue;
     }
     const calc = calcularComissao(ind.commissioned_products || [], ind.discount_amount, Number(ind.commission_rate_applied));
     if (calc.valor <= 0) {
-      travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: "Venda faturada sem comiss\xE3o, e os produtos da indica\xE7\xE3o n\xE3o d\xE3o base de comiss\xE3o (sem produto ou s\xF3 kit, frete e instala\xE7\xE3o). Vincule os produtos vendidos." });
+      travar({ indicacao_id: indId, cliente: cliente2, parceiro: nomeDest, motivo: "Venda faturada sem comiss\xE3o, e os produtos da indica\xE7\xE3o n\xE3o d\xE3o base de comiss\xE3o (sem produto ou s\xF3 kit, frete e instala\xE7\xE3o). Vincule os produtos vendidos." });
       continue;
     }
     if (typeof ind.commission_value === "number" && ind.commission_value > 0 && Math.abs(ind.commission_value - calc.valor) > 0.01) {
-      travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: `valor recalculado difere do gravado no faturamento (recalculado ${brl2(calc.valor)}, gravado ${brl2(ind.commission_value)}). N\xE3o foi lan\xE7ada sozinha. Confira e gere pelo Diagn\xF3stico de comiss\xE3o.` });
+      travar({ indicacao_id: indId, cliente: cliente2, parceiro: nomeDest, motivo: `valor recalculado difere do gravado no faturamento (recalculado ${brl2(calc.valor)}, gravado ${brl2(ind.commission_value)}). N\xE3o foi lan\xE7ada sozinha. Confira e gere pelo Diagn\xF3stico de comiss\xE3o.` });
       continue;
     }
     const mesDela = mesDaComissao(ind.delivery_date, agora);
@@ -4637,7 +4652,7 @@ async function conciliarComissoes(deps, origem = "di\xE1ria") {
       return doParceiro && (c._indicacao_apagada ? mesmoValor : mesmoDia || mesmoValor);
     });
     if (parecida) {
-      travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: `Venda faturada sem comiss\xE3o ligada a ela, mas existe uma comiss\xE3o antiga sem v\xEDnculo com indica\xE7\xE3o (${brl2(Number(parecida.value) || 0)}, ${parecida.external_seller_name || parecida.external_seller_uid}) que pode ser desta venda. N\xE3o foi lan\xE7ada outra, para n\xE3o pagar duas vezes. Confira no Diagn\xF3stico de comiss\xE3o.` });
+      travar({ indicacao_id: indId, cliente: cliente2, parceiro: nomeDest, motivo: `Venda faturada sem comiss\xE3o ligada a ela, mas existe uma comiss\xE3o antiga sem v\xEDnculo com indica\xE7\xE3o (${brl2(Number(parecida.value) || 0)}, ${parecida.external_seller_name || parecida.external_seller_uid}) que pode ser desta venda. N\xE3o foi lan\xE7ada outra, para n\xE3o pagar duas vezes. Confira no Diagn\xF3stico de comiss\xE3o.` });
       continue;
     }
     const mexida = Date.parse(ind.updated_at || "");
@@ -4647,24 +4662,24 @@ async function conciliarComissoes(deps, origem = "di\xE1ria") {
     try {
       fechTravado = await fechamentoTravado2(destUid, mes.month, mes.year);
     } catch (e) {
-      res.erros.push(`${cliente || indId}: n\xE3o consegui ler o fechamento: ${e?.message || e}`);
+      res.erros.push(`${cliente2 || indId}: n\xE3o consegui ler o fechamento: ${e?.message || e}`);
       continue;
     }
     if (fechTravado) {
-      travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: `Venda faturada sem comiss\xE3o, mas o fechamento de ${String(mes.month).padStart(2, "0")}/${mes.year} de ${nomeDest} j\xE1 est\xE1 pago ou aguardando pagamento. Acerte com o financeiro.` });
+      travar({ indicacao_id: indId, cliente: cliente2, parceiro: nomeDest, motivo: `Venda faturada sem comiss\xE3o, mas o fechamento de ${String(mes.month).padStart(2, "0")}/${mes.year} de ${nomeDest} j\xE1 est\xE1 pago ou aguardando pagamento. Acerte com o financeiro.` });
       continue;
     }
     if (res.criadas.length >= MAX_CRIADAS_POR_RODADA) {
-      res.adiadas.push({ indicacao_id: indId, cliente, parceiro: nomeDest });
+      res.adiadas.push({ indicacao_id: indId, cliente: cliente2, parceiro: nomeDest });
       continue;
     }
     try {
       const r = await gerarComissao(deps, indId, AUTOR, void 0, { geradoPor: "correcao_automatica", textoHistorico: "COMISS\xC3O LAN\xC7ADA PELA CORRE\xC7\xC3O AUTOM\xC1TICA", semAvisoFinanceiro: true, usarTaxaGravada: true, recusarEstornada: true });
-      res.criadas.push({ indicacao_id: indId, cliente, parceiro: r.parceiro, valor: r.valor, month: r.month, year: r.year });
-      log(`[CORRECAO-COMISSAO] ${cliente || indId}: comiss\xE3o de ${brl2(r.valor)} lan\xE7ada para ${r.parceiro} (${destUid}), pagamento em ${String(r.month).padStart(2, "0")}/${r.year}.`);
+      res.criadas.push({ indicacao_id: indId, cliente: cliente2, parceiro: r.parceiro, valor: r.valor, month: r.month, year: r.year });
+      log(`[CORRECAO-COMISSAO] ${cliente2 || indId}: comiss\xE3o de ${brl2(r.valor)} lan\xE7ada para ${r.parceiro} (${destUid}), pagamento em ${String(r.month).padStart(2, "0")}/${r.year}.`);
     } catch (e) {
-      if (e?.status === 409) travar({ indicacao_id: indId, cliente, parceiro: nomeDest, motivo: e.message });
-      else res.erros.push(`${cliente || indId}: ${e?.message || e}`);
+      if (e?.status === 409) travar({ indicacao_id: indId, cliente: cliente2, parceiro: nomeDest, motivo: e.message });
+      else res.erros.push(`${cliente2 || indId}: ${e?.message || e}`);
     }
   }
   res.travadas_total = todasTravadas.length;
@@ -4694,9 +4709,9 @@ async function conciliarComTrava(deps, origem) {
   const agora = () => deps.agora ? deps.agora() : /* @__PURE__ */ new Date();
   const trava = db2.collection("cron_locks").doc(DOC_TRAVA2);
   const dono = (0, import_node_crypto2.randomUUID)();
-  const dados = (extra = {}) => ({ job: "conciliacao_comissao", origem, owner_id: dono, started_at: agora().toISOString(), ...extra });
+  const dados2 = (extra = {}) => ({ job: "conciliacao_comissao", origem, owner_id: dono, started_at: agora().toISOString(), ...extra });
   try {
-    await trava.create(dados());
+    await trava.create(dados2());
   } catch (e) {
     if (e?.code !== 6) {
       console.error("[CORRECAO-COMISSAO] N\xE3o consegui criar a trava:", e?.message);
@@ -4707,7 +4722,7 @@ async function conciliarComTrava(deps, origem) {
       const t = atual.exists ? atual.data() || {} : {};
       const velha = !atual.exists || !t.started_at || agora().getTime() - new Date(t.started_at).getTime() > TRAVA_VELHA_MS;
       if (!velha) return false;
-      tx.set(trava, dados({ retomada: true }));
+      tx.set(trava, dados2({ retomada: true }));
       return true;
     }).catch(() => false);
     if (!retomou) {
@@ -4787,6 +4802,1618 @@ async function garantirEmailsLigados(db2, agora = /* @__PURE__ */ new Date()) {
     console.error("[EMAILS-LIGADOS] N\xE3o consegui conferir os avisos por e-mail:", e?.message);
     return "erro";
   }
+}
+
+// src/lib/crmIntegracao.ts
+var CRM_URL_PADRAO = "https://roder-vision.lovable.app/api/public/hooks/crm-entrada";
+var STATUS_ENVIAVEIS = ["pending", "triagem", "negotiating"];
+var MAX_TENTATIVAS_ENVIO = 10;
+var ATRASO_BASE_MS = 60 * 1e3;
+var ATRASO_TETO_MS = 6 * 60 * 60 * 1e3;
+var RESERVA_ENVIO_MS = 3 * 60 * 1e3;
+function urlAceita(v) {
+  try {
+    const u = new URL(v);
+    if (u.protocol === "https:") return true;
+    return u.protocol === "http:" && (u.hostname === "localhost" || u.hostname === "127.0.0.1");
+  } catch {
+    return false;
+  }
+}
+var dataValida2 = (v) => typeof v === "string" && !!v && !Number.isNaN(new Date(v).getTime());
+function lerConfigCrm(env, settings) {
+  const url = String(env.CRM_URL || "").trim() || CRM_URL_PADRAO;
+  const desdeEnv = String(env.CRM_ATIVO_DESDE || "").trim();
+  const desde = dataValida2(desdeEnv) ? new Date(desdeEnv).toISOString() : dataValida2(settings?.ativo_desde) ? new Date(String(settings.ativo_desde)).toISOString() : null;
+  return {
+    ativo: String(env.CRM_ATIVO || "").trim() === "1",
+    url,
+    chave: String(env.CRM_CHAVE || "").trim(),
+    segredo: String(env.CRM_SEGREDO || ""),
+    ativoDesde: desde,
+    notificarEmail: String(env.CRM_NOTIFICAR_EMAIL || "").trim() || null,
+    urlValida: urlAceita(url)
+  };
+}
+var podeCargaAoCrm = (c) => !!c.chave && c.urlValida;
+var podeEnviarAoCrm = (c) => c.ativo && !!c.chave && c.urlValida;
+var podeReceberDoCrm = (c) => c.ativo && !!c.segredo;
+function atrasoDaTentativa(tentativas) {
+  const n = Math.max(1, Math.floor(tentativas) || 1);
+  return Math.min(ATRASO_BASE_MS * 2 ** (n - 1), ATRASO_TETO_MS);
+}
+function planoDeFalha(tentativasAntes, agora) {
+  const tentativas = (Number(tentativasAntes) || 0) + 1;
+  if (tentativas >= MAX_TENTATIVAS_ENVIO) return { tentativas, desistiu: true, proxima: null };
+  return { tentativas, desistiu: false, proxima: new Date(agora.getTime() + atrasoDaTentativa(tentativas)).toISOString() };
+}
+var vazio = (v) => !String(v ?? "").trim();
+function baseEnviavel(ind) {
+  if (!ind) return "inexistente";
+  if (ind.crm_enviado_em) return "ja_enviada";
+  if (ind.crm_desistiu_em) return "desistiu";
+  if (!STATUS_ENVIAVEIS.includes(String(ind.status || ""))) return "status_nao_envia";
+  if (ind.creator_type === "visitor") return "conversa_do_consultor";
+  if (vazio(ind.client_name)) return "sem_cliente";
+  return null;
+}
+function reservada(ind, agora) {
+  return dataValida2(ind.crm_reservado_ate) && new Date(ind.crm_reservado_ate).getTime() > agora.getTime();
+}
+function motivoNaoEnviarNoLaco(ind, o) {
+  const b = baseEnviavel(ind);
+  if (b) return b;
+  if (reservada(ind, o.agora)) return "reservada";
+  if (dataValida2(ind.crm_proxima_tentativa_em) && new Date(ind.crm_proxima_tentativa_em).getTime() > o.agora.getTime()) return "aguardando_nova_tentativa";
+  return null;
+}
+function motivoNaoEnviarNaCarga(ind, o) {
+  const b = baseEnviavel(ind);
+  if (b) return b;
+  if (String(ind.status) !== "negotiating") return "vai_como_nova";
+  if (reservada(ind, o.agora)) return "reservada";
+  return null;
+}
+var HORAS_ATE_O_ROBO_REASSUMIR = 24;
+var FALHAS_DE_TRANSPORTE_ATE_O_ROBO_REASSUMIR = 20;
+function triagemEhDoCrm(ind, c, agora = /* @__PURE__ */ new Date()) {
+  if (!c.ativo) return false;
+  if (ind?.crm_enviado_em) return true;
+  if (ind?.crm_desistiu_em) return false;
+  if (!c.chave || !c.urlValida) return false;
+  if (baseEnviavel(ind) !== null) return false;
+  if ((Number(ind?.crm_falhas_transporte) || 0) > FALHAS_DE_TRANSPORTE_ATE_O_ROBO_REASSUMIR) return false;
+  const marcos = [ind?.created_at, c.ativoDesde].filter(dataValida2).map((v) => new Date(v).getTime());
+  if (marcos.length) {
+    const desde = Math.max(...marcos);
+    if (agora.getTime() - desde > HORAS_ATE_O_ROBO_REASSUMIR * 60 * 60 * 1e3) return false;
+  }
+  return true;
+}
+var PLACEHOLDER = /^(n[ãa]o informad[oa]|n\/?a|a definir|-+)$/i;
+var limpo = (v, max = 300) => {
+  const s = String(v ?? "").replace(/\s+/g, " ").trim();
+  return !s || PLACEHOLDER.test(s) ? "" : s.slice(0, max);
+};
+function separarCidadeUf(local) {
+  const s = limpo(local, 120);
+  const m = s.match(/^(.*?)\s*[-/,]\s*([A-Za-z]{2})$/);
+  if (m && m[1]) return { cidade: m[1].trim(), uf: m[2].toUpperCase() };
+  return { cidade: s, uf: "" };
+}
+function documentoSoDigitos(v) {
+  const d = String(v ?? "").replace(/\D/g, "");
+  return d.length === 11 || d.length === 14 ? d : "";
+}
+function produtoDeInteresse(ind) {
+  const itens = Array.isArray(ind.items) ? ind.items : [];
+  const nomes = itens.map((i) => {
+    const n = limpo(i?.product_name, 120);
+    const q = Number(i?.quantity) || 1;
+    return n ? q > 1 ? `${q}x ${n}` : n : "";
+  }).filter(Boolean);
+  if (nomes.length) return nomes.join(", ").slice(0, 400);
+  return limpo(ind.product_name || ind.base_machine, 200);
+}
+function observacao(ind) {
+  const partes = [];
+  const desc = String(ind.description ?? "").replace(/\r\n?/g, "\n").trim();
+  if (desc) partes.push(desc);
+  const maq = limpo(ind.base_machine, 120);
+  if (maq && !/^a definir$/i.test(maq)) partes.push(`M\xE1quina base: ${maq}${limpo(ind.machine_details, 200) ? ` (${limpo(ind.machine_details, 200)})` : ""}`);
+  const o = ind.options || {};
+  const extras = [o.complete_installation && "instala\xE7\xE3o completa", o.kit_hydraulic && "kit hidr\xE1ulico", o.with_freight && "com frete", o.only_equipment && "s\xF3 equipamento"].filter(Boolean);
+  if (extras.length) partes.push(`Op\xE7\xF5es: ${extras.join(", ")}`);
+  if (ind.is_export) partes.push(`Exporta\xE7\xE3o${limpo(ind.export_country, 60) ? `: ${limpo(ind.export_country, 60)}` : ""}`);
+  return partes.join("\n").slice(0, 3e3);
+}
+function montarPayloadIndicacao(ind, idIndicacao, parceiro, opcoes = {}) {
+  const { cidade, uf } = separarCidadeUf(ind.client_location);
+  const pessoa = limpo(ind.client_person_name, 160);
+  const nomeCliente = limpo(ind.client_name, 160);
+  let obs = observacao(ind);
+  if (opcoes.jaEmNegociacao) {
+    const quem = limpo(ind.internal_seller_name, 80);
+    obs = `[J\xE1 estava em negocia\xE7\xE3o no Roder Indica${quem ? ` com ${quem}` : ""}]
+${obs}`.trim();
+  }
+  const uid = limpo(ind.external_seller_uid, 128);
+  const payload = {
+    id_externo: String(idIndicacao),
+    nome: pessoa || nomeCliente,
+    empresa: limpo(ind.client_company_name || ind.company_name, 160) || nomeCliente,
+    cnpj: documentoSoDigitos(ind.client_cnpj),
+    telefone: limpo(ind.client_phone, 40),
+    email: limpo(ind.client_email, 160),
+    cidade,
+    uf,
+    produto: produtoDeInteresse(ind),
+    observacao: obs,
+    parceiro: {
+      id: uid || null,
+      nome: limpo(parceiro?.name, 160) || limpo(ind.external_seller_name, 160),
+      telefone: limpo(parceiro?.phone, 40),
+      email: limpo(parceiro?.email, 160) || limpo(ind.external_seller_email, 160)
+    },
+    criado_em: dataValida2(ind.created_at) ? new Date(ind.created_at).toISOString() : (/* @__PURE__ */ new Date()).toISOString()
+  };
+  if (opcoes.notificarEmail) payload.notificar_email = opcoes.notificarEmail;
+  return payload;
+}
+
+// src/lib/crmFaturamento.ts
+function numeroDoCrm(v) {
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  const s = String(v ?? "").trim().replace(/[^\d.,-]/g, "");
+  if (!s) return null;
+  const n = s.includes(",") ? Number(s.replace(/\./g, "").replace(",", ".")) : Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+function diaDoCrm(v) {
+  const s = String(v ?? "").trim();
+  if (!s) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+}
+function normalizarItensCrm(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  for (const i of raw) {
+    if (!i || typeof i !== "object") continue;
+    const code = String(i.codigo ?? i.code ?? i.sku ?? "").trim().slice(0, 60);
+    const name = String(i.nome ?? i.name ?? i.descricao ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
+    if (!code && !name) continue;
+    const qRaw = numeroDoCrm(i.quantidade ?? i.quantity ?? i.qtd);
+    const quantity = qRaw !== null && qRaw > 0 ? qRaw : 1;
+    let unit = numeroDoCrm(i.valor_unitario ?? i.valor ?? i.preco ?? i.value);
+    if (unit === null) {
+      const total = numeroDoCrm(i.valor_total);
+      unit = total !== null ? total / quantity : 0;
+    }
+    const totalLinha = numeroDoCrm(i.valor_total);
+    const ambiguo = quantity > 1 && totalLinha !== null && numeroDoCrm(i.valor_unitario ?? i.valor ?? i.preco ?? i.value) === totalLinha;
+    out.push({ code, name, quantity, base_value: emCentavos(Math.max(unit, 0)), ...ambiguo ? { ambiguo: true } : {} });
+  }
+  return out;
+}
+function classificarItem(item, anteriores, catalogo) {
+  if (!itemComissionavel({ code: item.code, name: item.name })) return { ...item, is_commissionable: false, regra: "excluido" };
+  const ant = item.code ? (anteriores || []).find((a) => a && String(a.code || "").trim() === item.code && typeof a.is_commissionable === "boolean") : void 0;
+  if (ant) return { ...item, is_commissionable: ant.is_commissionable, regra: "indicacao" };
+  const cat = item.code ? catalogo[item.code] : void 0;
+  if (cat) return { ...item, is_commissionable: cat.is_commissionable !== false, regra: "catalogo" };
+  return { ...item, regra: "sem_regra" };
+}
+function classificarItensCrm(brutos, anteriores, catalogo) {
+  return normalizarItensCrm(brutos).map((i) => classificarItem(i, anteriores, catalogo));
+}
+function temEstorno(ind) {
+  return !!ind?.estornado_em || temEstornoNoHistorico(ind);
+}
+function decidirFaturamento(o) {
+  const { ind } = o;
+  if (ind.status === "sold" || o.comissaoExistente) return { tipo: "ja_faturada" };
+  const itens = normalizarItensCrm(o.itensBrutos).map((i) => classificarItem(i, ind.commissioned_products || [], o.catalogo));
+  const motivos = [];
+  const semRegra = itens.filter((i) => i.regra === "sem_regra").map((i) => i.code || i.name);
+  if (temEstorno(ind)) motivos.push("A indica\xE7\xE3o teve o faturamento estornado. A comiss\xE3o n\xE3o \xE9 recriada sozinha.");
+  if (temParceiroSemUid(ind)) motivos.push("A indica\xE7\xE3o tem cara de parceiro, mas n\xE3o est\xE1 ligada ao cadastro dele.");
+  const uid = String(ind.external_seller_uid || "");
+  const comParceiro = !!uid && !UIDS_DE_SISTEMA.includes(uid);
+  if (itens.some((i) => i.ambiguo)) motivos.push("N\xE3o d\xE1 para saber se o valor dos itens \xE9 unit\xE1rio ou o total da linha.");
+  const soma = emCentavos(itens.reduce((a, i) => a + i.base_value * i.quantity, 0));
+  if (o.totalPedido !== void 0 && o.totalPedido !== null && Math.abs(soma - o.totalPedido) > 0.05) motivos.push("A soma dos itens n\xE3o bate com o total do pedido.");
+  if (comParceiro && !o.parceiro) motivos.push("O parceiro ligado \xE0 indica\xE7\xE3o n\xE3o existe mais no cadastro.");
+  const recebeComissao = comParceiro && !!o.parceiro && papelComissionavel(o.parceiro.role);
+  if (recebeComissao) {
+    if (!itens.length) motivos.push("O CRM n\xE3o mandou itens no pedido faturado.");
+    if (semRegra.length) motivos.push(`Itens sem regra de comiss\xE3o: ${semRegra.join(", ")}.`);
+  }
+  const produtos = itens.map((i) => ({ code: i.code, name: i.name, quantity: i.quantity, base_value: i.base_value, is_commissionable: i.is_commissionable }));
+  const taxa = taxaDoParceiro(o.parceiro);
+  const calc = calcularComissaoCentavos(produtos, 0, taxa);
+  if (recebeComissao && !motivos.length) {
+    if (calc.baseBruta <= 0) motivos.push("Nenhum item do pedido conta para a comiss\xE3o (a base daria zero).");
+    else if (calc.valor <= 0) motivos.push("A comiss\xE3o daria zero.");
+  }
+  if (motivos.length) return { tipo: "conferencia", motivos, itensSemRegra: semRegra, itens };
+  if (!recebeComissao) return { tipo: "sem_comissao", itens };
+  return { tipo: "comissao", itens, taxa, calc, mes: mesDaComissao(o.entrega || void 0, o.agora), parceiroNome: o.parceiro?.name || ind.external_seller_name || "Parceiro" };
+}
+
+// src/lib/crmEventos.ts
+var EVENTOS_CRM = [
+  "indicacao.recebida",
+  "indicacao.aceita",
+  "indicacao.recusada",
+  "indicacao.vinculada",
+  "negocio.etapa",
+  "proposta.enviada",
+  "pedido.lancado",
+  "pedido.faturado",
+  "negocio.ganho",
+  "negocio.perdido"
+];
+var CAMPOS_DO_TOPO = ["pedido_numero", "numero", "cnpj", "data_pedido", "previsao_entrega", "data_faturamento", "nota_fiscal", "valor_total", "total", "itens", "motivo", "etapa", "vendedora", "vendedora_nome", "vendedora_email", "vendedora_uid", "valor", "data", "numero_orcamento"];
+function mesclarDadosCrm(corpo) {
+  const out = {};
+  if (corpo && typeof corpo === "object") {
+    for (const k of CAMPOS_DO_TOPO) if (corpo[k] !== void 0 && corpo[k] !== null) out[k] = corpo[k];
+  }
+  if (corpo?.dados && typeof corpo.dados === "object") {
+    for (const [k, v] of Object.entries(corpo.dados)) if (v !== void 0 && v !== null) out[k] = v;
+  }
+  return out;
+}
+function textoDaMensagem(ev, prefixo) {
+  const m = String(ev.mensagem ?? "").replace(/\s+/g, " ").trim();
+  return prefixo ? m.replace(prefixo, "").trim() : m;
+}
+function vendedoraDaMensagem(ev) {
+  const m = String(ev.mensagem ?? "").replace(/\s+/g, " ").trim().match(/^Em atendimento por\s+(.+)$/i);
+  return m ? m[1].trim() : "";
+}
+var AUTOR_CRM = "CRM Roder";
+var SESSENTA_DIAS_MS = 60 * 24 * 60 * 60 * 1e3;
+function nivelDoStatus(status) {
+  const s = String(status || "");
+  if (s === "negotiating") return 1;
+  if (s === "sold") return 2;
+  if (s === "cancelled" || s === "archived" || s === "lost") return 9;
+  return 0;
+}
+var normalizar2 = (v) => String(v ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+var CITA_PARCEIRO = /\b(parceiros?|indicadors?|indicadas?|indicados?|indicou|indicacao\s+d[eao]|representantes?|outra\s+pessoa|outro\s+vendedor)\b/;
+var DADO_INTERNO = /@|comiss|%|r\$|\d{8,}/;
+var PALAVRAS_COMUNS = /* @__PURE__ */ new Set(["ltda", "eireli", "agro", "agricola", "florestal", "madeiras", "madeireira", "servicos", "transportes", "comercio", "maquinas", "equipamentos", "empresa", "grupo", "industria", "construtora", "locadora", "cliente", "preco", "prazo"]);
+var MOTIVO_GENERICO_RECUSA = "Indica\xE7\xE3o n\xE3o aceita pela Roder.";
+var MOTIVO_GENERICO_PERDA = "Neg\xF3cio n\xE3o conclu\xEDdo.";
+function textoSeguroParaParceiro(texto2, generico, outrosParceiros = [], max = 140) {
+  const bruto = String(texto2 ?? "").replace(/\s+/g, " ").trim();
+  if (!bruto) return generico;
+  const n = normalizar2(bruto);
+  if (CITA_PARCEIRO.test(n) || DADO_INTERNO.test(bruto.toLowerCase())) return generico;
+  const cercado = ` ${n} `;
+  for (const nome of outrosParceiros) {
+    const nn = normalizar2(nome);
+    if (nn.length >= 3 && cercado.includes(` ${nn} `)) return generico;
+    for (const t of nn.split(" ")) if (t.length >= 4 && !PALAVRAS_COMUNS.has(t) && cercado.includes(` ${t} `)) return generico;
+  }
+  return bruto.length > max ? `${bruto.slice(0, max - 1).trimEnd()}\u2026` : bruto;
+}
+function idSeguroEvento(id) {
+  const s = String(id);
+  if (/^[A-Za-z0-9_-]{1,100}$/.test(s)) return s;
+  let h1 = 3735928559, h2 = 1103547991;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 2654435761);
+    h2 = Math.imul(h2 ^ c, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ h1 >>> 16, 2246822507) ^ Math.imul(h2 ^ h2 >>> 13, 3266489909);
+  h2 = Math.imul(h2 ^ h2 >>> 16, 2246822507) ^ Math.imul(h1 ^ h1 >>> 13, 3266489909);
+  return `h${(h2 >>> 0).toString(16).padStart(8, "0")}${(h1 >>> 0).toString(16).padStart(8, "0")}${s.length.toString(16)}`;
+}
+var idSeguro = idSeguroEvento;
+function dataDoEvento(ev, agora) {
+  const emTexto = ev.em && /^\d{4}-\d{2}-\d{2}$/.test(String(ev.em).trim()) ? `${String(ev.em).trim()}T12:00:00-03:00` : ev.em;
+  const t = emTexto ? new Date(emTexto).getTime() : NaN;
+  if (!Number.isFinite(t) || t > agora.getTime() + 60 * 60 * 1e3) return agora.toISOString();
+  return new Date(t).toISOString();
+}
+function entrada(ev, agora, content, type = "system", sufixo = "") {
+  return { id: `crm-${idSeguro(ev.id)}${sufixo}`, type, content, author_name: AUTOR_CRM, created_at: dataDoEvento(ev, agora), attachments: [] };
+}
+var jaAplicado = (ind, ev) => {
+  const prefixo = `crm-${idSeguro(ev.id)}`;
+  if (ind.crm_ultimo_evento_id === ev.id) return true;
+  return (Array.isArray(ind.negotiation_history) ? ind.negotiation_history : []).some((e) => typeof e?.id === "string" && (e.id === prefixo || e.id.startsWith(`${prefixo}-`)));
+};
+var ignorado = (motivo) => ({ resultado: "ignorado", motivo, campos: {}, historico: [], notificacoes: [] });
+var dados = (ev) => ev.dados && typeof ev.dados === "object" ? ev.dados : {};
+var curto = (v, max = 120) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, max);
+var brData = (dia) => dia ? dia.split("-").reverse().join("/") : "";
+var cliente = (ind) => curto(ind.client_name, 80) || "cliente";
+var UIDS_SISTEMA = ["client_referral", "direct_factory", "public_request", "anonymous"];
+var parceiroEhPessoa = (ind) => !!ind.external_seller_uid && !UIDS_SISTEMA.includes(String(ind.external_seller_uid));
+function nomeDaVendedora(ev, ctx) {
+  const d = dados(ev);
+  const v = d.vendedora ?? d.vendedora_nome ?? d.responsavel;
+  const doEvento = (typeof v === "string" ? v : v?.nome ?? v?.name ?? "") || vendedoraDaMensagem(ev);
+  return curto(ctx.vendedora?.name || doEvento, 80);
+}
+function planejarEvento(ind, ev, ctx) {
+  const nome = String(ev.evento || "");
+  if (!EVENTOS_CRM.includes(nome)) return ignorado("evento_desconhecido");
+  if (jaAplicado(ind, ev)) return ignorado("ja_aplicado");
+  const agora = ctx.agora;
+  const nowIso = agora.toISOString();
+  const nivel = nivelDoStatus(ind.status);
+  const d = dados(ev);
+  const base = { updated_at: nowIso, crm_ultimo_evento_id: ev.id, crm_ultimo_evento: nome, crm_ultimo_evento_em: dataDoEvento(ev, agora) };
+  const ehPessoa = parceiroEhPessoa(ind);
+  const paraParceiro = (titulo, mensagem, tipo = "info") => ehPessoa ? [{ para: "parceiro", titulo, mensagem, tipo }] : [];
+  switch (nome) {
+    case "indicacao.recebida":
+      return { resultado: "aplicado", campos: { crm_ultimo_evento_id: ev.id, crm_ultimo_evento: nome, crm_ultimo_evento_em: base.crm_ultimo_evento_em }, historico: [entrada(ev, agora, "Indica\xE7\xE3o recebida")], notificacoes: [] };
+    case "indicacao.aceita": {
+      if (nivel >= 2) return ignorado("status_nao_regride");
+      if (nivel === 9) return ignorado("indicacao_encerrada");
+      const vend = nomeDaVendedora(ev, ctx);
+      const texto2 = vend ? `Em atendimento por ${vend}` : "Em atendimento";
+      if (nivel === 1) {
+        if (ind.internal_seller_name || !vend) return ignorado("ja_em_negociacao");
+        return {
+          resultado: "aplicado",
+          campos: { ...base, internal_seller_name: vend, ...ctx.vendedora?.uid ? { internal_seller_uid: ctx.vendedora.uid, internal_seller_email: ctx.vendedora.email || null } : {} },
+          historico: [entrada(ev, agora, texto2)],
+          notificacoes: []
+        };
+      }
+      const campos = {
+        ...base,
+        status: "negotiating",
+        duplicate_reviewed: true,
+        crm_aceita_em: dataDoEvento(ev, agora)
+      };
+      if (vend) {
+        campos.internal_seller_name = vend;
+        if (ctx.vendedora?.uid) {
+          campos.internal_seller_uid = ctx.vendedora.uid;
+          campos.internal_seller_email = ctx.vendedora.email || null;
+        } else if (ind.internal_seller_uid && normalizar2(ind.internal_seller_name) !== normalizar2(vend)) {
+          campos.internal_seller_uid = null;
+          campos.internal_seller_email = null;
+        }
+      }
+      if (!ind.protection_expires_at) campos.protection_expires_at = new Date(agora.getTime() + SESSENTA_DIAS_MS).toISOString();
+      const notificacoes = [
+        ...ctx.vendedora?.uid ? [{ para: "vendedora", titulo: "Novo Lead Atribu\xEDdo", mensagem: `Voc\xEA recebeu um novo lead: ${cliente(ind)}`, tipo: "info" }] : [],
+        ...paraParceiro("Lead em Atendimento", `Sua indica\xE7\xE3o para ${cliente(ind)} foi aceita e est\xE1 em atendimento${vend ? ` por ${vend}` : ""}.`, "success")
+      ];
+      return { resultado: "aplicado", campos, historico: [entrada(ev, agora, texto2, "status_change")], notificacoes };
+    }
+    case "indicacao.recusada": {
+      if (nivel >= 1) return ignorado(nivel === 9 ? "indicacao_encerrada" : "status_nao_regride");
+      const motivo = textoSeguroParaParceiro(d.motivo ?? textoDaMensagem(ev), MOTIVO_GENERICO_RECUSA, ctx.nomesOutrosParceiros);
+      return {
+        resultado: "aplicado",
+        campos: { ...base, status: "archived", cancellation_reason: "Indica\xE7\xE3o n\xE3o aceita", cancellation_details: motivo },
+        historico: [entrada(ev, agora, `Indica\xE7\xE3o recusada: ${motivo}`, "status_change")],
+        notificacoes: paraParceiro("Lead Arquivado", `Sua indica\xE7\xE3o para ${cliente(ind)} n\xE3o foi aceita. Motivo: ${motivo}`, "warning")
+      };
+    }
+    case "indicacao.vinculada": {
+      if (nivel >= 2) return ignorado("status_nao_regride");
+      if (nivel === 9) return ignorado("indicacao_encerrada");
+      if (nivel === 1) return ignorado("ja_em_negociacao");
+      const campos = { ...base, status: "negotiating", duplicate_reviewed: true, crm_aceita_em: dataDoEvento(ev, agora) };
+      if (!ind.protection_expires_at) campos.protection_expires_at = new Date(agora.getTime() + SESSENTA_DIAS_MS).toISOString();
+      return {
+        resultado: "aplicado",
+        campos,
+        historico: [entrada(ev, agora, "Cliente j\xE1 atendido pela Roder: indica\xE7\xE3o em negocia\xE7\xE3o", "status_change")],
+        notificacoes: paraParceiro("Lead em Atendimento", `Sua indica\xE7\xE3o para ${cliente(ind)} est\xE1 em negocia\xE7\xE3o.`, "success")
+      };
+    }
+    case "negocio.etapa": {
+      if (nivel === 9) return ignorado("indicacao_encerrada");
+      const etapa = textoSeguroParaParceiro(d.etapa ?? d.nome ?? textoDaMensagem(ev), "", ctx.nomesOutrosParceiros, 80);
+      if (!etapa) return ignorado("etapa_sem_nome");
+      return { resultado: "aplicado", campos: { ...base, crm_etapa: etapa }, historico: [entrada(ev, agora, `Etapa: ${etapa}`)], notificacoes: [] };
+    }
+    case "proposta.enviada": {
+      if (nivel >= 2) return ignorado("status_nao_regride");
+      if (nivel === 9) return ignorado("indicacao_encerrada");
+      const numero2 = curto(d.numero ?? d.numero_orcamento ?? d.orcamento_numero, 40);
+      const dia = diaDoCrm(d.data ?? d.data_orcamento);
+      const valor = numeroDoCrm(d.valor ?? d.valor_total);
+      const campos = { ...base, budget_loaded: true };
+      if (numero2) campos.budget_number = numero2;
+      if (dia) campos.budget_date = dia;
+      if (valor !== null && valor >= 0) campos.gross_budget_value = valor;
+      const enviadoMs = new Date(dataDoEvento(ev, agora)).getTime();
+      const candidata = enviadoMs + SESSENTA_DIAS_MS;
+      const atual = ind.protection_expires_at ? new Date(ind.protection_expires_at).getTime() : 0;
+      if (!(atual > candidata)) {
+        campos.budget_sent_at = new Date(enviadoMs).toISOString();
+        campos.protection_expires_at = new Date(candidata).toISOString();
+      } else if (!ind.budget_sent_at) campos.budget_sent_at = new Date(enviadoMs).toISOString();
+      const primeira = !ind.budget_loaded;
+      return {
+        resultado: "aplicado",
+        campos,
+        historico: [entrada(ev, agora, numero2 ? `Or\xE7amento enviado (n\xBA ${numero2})` : "Or\xE7amento enviado")],
+        notificacoes: primeira ? paraParceiro("Or\xE7amento em Andamento", `Um or\xE7amento foi enviado para o cliente ${cliente(ind)}.`, "info") : []
+      };
+    }
+    case "pedido.lancado": {
+      if (nivel >= 2) return ignorado("status_nao_regride");
+      if (nivel === 9) return ignorado("indicacao_encerrada");
+      const numero2 = curto(d.pedido_numero ?? d.numero ?? d.numero_pedido, 40);
+      const itens = classificar(d.itens, ind, ctx);
+      const campos = { ...base };
+      if (numero2) campos.sale_order_number = numero2;
+      const dia = diaDoCrm(d.data ?? d.data_pedido);
+      if (dia) campos.sale_order_date = dia;
+      const entrega = diaDoCrm(d.previsao_entrega);
+      if (entrega) campos.delivery_date = entrega;
+      if (itens.length) {
+        campos.commissioned_products = produtosGravaveis(itens);
+        campos.sale_value = totalDosItens(itens);
+      }
+      return { resultado: "aplicado", campos, historico: [entrada(ev, agora, numero2 ? `Pedido de venda lan\xE7ado (n\xBA ${numero2})` : "Pedido de venda lan\xE7ado")], notificacoes: [] };
+    }
+    case "pedido.faturado":
+      return planejarFaturado(ind, ev, ctx, base);
+    case "negocio.ganho": {
+      if (nivel === 9) return ignorado("indicacao_encerrada");
+      const valor = numeroDoCrm(d.valor ?? d.valor_total);
+      return {
+        resultado: "aplicado",
+        // não cria comissão e não muda o status: quem fatura é o pedido.faturado
+        campos: { ...base, crm_ganho_em: dataDoEvento(ev, agora), ...valor !== null && valor >= 0 ? { crm_ganho_valor: valor } : {} },
+        historico: [entrada(ev, agora, "Neg\xF3cio fechado")],
+        notificacoes: []
+      };
+    }
+    case "negocio.perdido": {
+      if (nivel >= 2) return ignorado("status_nao_regride");
+      if (nivel === 9) return ignorado("indicacao_encerrada");
+      const motivo = textoSeguroParaParceiro(d.motivo ?? textoDaMensagem(ev, /^Negocia[çc][ãa]o encerrada:?\s*/i), MOTIVO_GENERICO_PERDA, ctx.nomesOutrosParceiros);
+      return {
+        resultado: "aplicado",
+        campos: { ...base, status: "cancelled", cancellation_reason: motivo, cancellation_details: "Neg\xF3cio encerrado no CRM da Roder.", crm_perdido_em: dataDoEvento(ev, agora) },
+        historico: [entrada(ev, agora, `Negocia\xE7\xE3o encerrada: ${motivo}`, "status_change")],
+        notificacoes: paraParceiro("Indica\xE7\xE3o Cancelada", `A negocia\xE7\xE3o com ${cliente(ind)} foi encerrada. Motivo: ${motivo}`, "warning")
+      };
+    }
+  }
+}
+function classificar(brutos, ind, ctx) {
+  return classificarItensCrm(brutos, ind.commissioned_products || [], ctx.catalogo);
+}
+function produtosGravaveis(itens) {
+  return itens.map((i) => ({
+    code: i.code,
+    name: i.name,
+    quantity: i.quantity,
+    base_value: i.base_value,
+    ...typeof i.is_commissionable === "boolean" ? { is_commissionable: i.is_commissionable } : {}
+  }));
+}
+var totalDosItens = (itens) => emCentavos(itens.reduce((a, i) => a + i.base_value * i.quantity, 0));
+function opcoesDosItens(ind, itens) {
+  const atual = ind.options || { complete_installation: false, kit_hydraulic: false, with_freight: false };
+  const instal = itens.some((p) => /instalacao|instalação|montagem|entrega/i.test(p.name));
+  const kit = itens.some((p) => /kit|hidraulico|hidráulico|funcao|função|valvula|válvula/i.test(p.name) || p.code.startsWith("9000"));
+  const frete = itens.some((p) => /frete|transporte|deslocamento/i.test(p.name));
+  return { ...atual, complete_installation: !!atual.complete_installation || instal, kit_hydraulic: !!atual.kit_hydraulic || kit, with_freight: !!atual.with_freight || frete };
+}
+function planejarFaturado(ind, ev, ctx, base) {
+  const p = planejarFaturadoBase(ind, ev, ctx, base);
+  if (p.resultado === "aplicado" && ind.faturamento_aguardando_conferencia === true && p.campos.commissioned_products && (ind.commissioned_products?.length || ind.sale_value)) {
+    p.substituiu = { evento_anterior: ind.crm_ultimo_evento_id ?? null, sale_order_number: ind.sale_order_number ?? null, sale_value: ind.sale_value ?? null, commissioned_products: ind.commissioned_products ?? [] };
+  }
+  return p;
+}
+function planejarFaturadoBase(ind, ev, ctx, base) {
+  const agora = ctx.agora;
+  const nivel = nivelDoStatus(ind.status);
+  if (nivel === 9) return ignorado("indicacao_encerrada");
+  const d = dados(ev);
+  const numero2 = curto(d.pedido_numero ?? d.numero ?? d.numero_pedido, 40);
+  const diaPedido = diaDoCrm(d.data_pedido ?? d.data) || diaDoCrm(dataDoEvento(ev, agora));
+  const diaFaturamento = diaDoCrm(d.data_faturamento);
+  const entrega = diaDoCrm(d.previsao_entrega);
+  const dec = decidirFaturamento({
+    ind,
+    parceiro: ctx.parceiro,
+    itensBrutos: d.itens,
+    catalogo: ctx.catalogo,
+    comissaoExistente: ctx.comissaoExistente,
+    entrega,
+    agora,
+    totalPedido: numeroDoCrm(d.valor_total ?? d.total)
+  });
+  if (dec.tipo === "ja_faturada") return ignorado(ind.status === "sold" ? "ja_faturada" : "comissao_ja_existe");
+  const cnpjCampo = !ind.client_cnpj || /n[ãa]o informado/i.test(String(ind.client_cnpj)) ? String(d.cnpj ?? "").replace(/\D/g, "") || null : null;
+  if (dec.tipo === "conferencia") {
+    const estornada = !!ind.estornado_em;
+    const itens2 = dec.itens;
+    const campos2 = {
+      ...base,
+      faturamento_aguardando_conferencia: true,
+      faturamento_conferencia_em: agora.toISOString(),
+      faturamento_conferencia_motivo: estornada ? "Faturamento estornado; conferir antes de faturar de novo." : dec.itensSemRegra.length ? "Itens do pedido sem regra de comiss\xE3o." : "Faturamento do CRM precisa de confer\xEAncia."
+    };
+    if (!estornada) {
+      if (numero2) campos2.sale_order_number = numero2;
+      campos2.sale_order_date = diaPedido;
+      if (entrega) campos2.delivery_date = entrega;
+      if (itens2.length) {
+        campos2.commissioned_products = produtosGravaveis(itens2);
+        campos2.sale_value = totalDosItens(itens2);
+      }
+      if (cnpjCampo) campos2.client_cnpj = cnpjCampo;
+    }
+    return {
+      resultado: "aplicado",
+      campos: campos2,
+      historico: [],
+      // o parceiro não vê nada: é conferência interna
+      notificacoes: [{ para: "gestao", titulo: "Faturamento aguardando confer\xEAncia", mensagem: `O CRM faturou o pedido ${numero2 || "s/n"} de ${cliente(ind)}, mas n\xE3o d\xE1 para lan\xE7ar a comiss\xE3o sozinho. ${dec.motivos[0]}`, tipo: "warning" }],
+      conferencia: { motivos: dec.motivos, itensSemRegra: dec.itensSemRegra }
+    };
+  }
+  const itens = dec.itens;
+  const total = totalDosItens(itens);
+  const c = dec.tipo === "comissao" ? dec : null;
+  const comissao = !!c;
+  const campos = {
+    ...base,
+    status: "sold",
+    sale_value: total,
+    discount_percentage: 0,
+    discount_amount: 0,
+    commission_value: c ? c.calc.valor : 0,
+    commission_rate_applied: c ? c.taxa : 0,
+    commissionable_value: c ? c.calc.base : 0,
+    standard_seller_commission_value: 0,
+    sale_date: diaPedido,
+    sale_order_date: diaPedido,
+    items: itens.map((i) => ({ product_name: i.name, quantity: i.quantity, price: i.base_value, code: i.code })),
+    commissioned_products: produtosGravaveis(itens),
+    options: opcoesDosItens(ind, itens),
+    faturamento_aguardando_conferencia: false,
+    crm_faturado_em: diaFaturamento || diaDoCrm(dataDoEvento(ev, agora)),
+    ...curto(d.nota_fiscal, 40) ? { crm_nota_fiscal: curto(d.nota_fiscal, 40) } : {}
+  };
+  if (numero2) campos.sale_order_number = numero2;
+  if (entrega) campos.delivery_date = entrega;
+  if (cnpjCampo) campos.client_cnpj = cnpjCampo;
+  if (comissao && !ind.finance_notice_sent_at) {
+    campos.finance_notice_pending = true;
+    campos.finance_notice_due_at = new Date(agora.getTime() + 2 * 24 * 60 * 60 * 1e3).toISOString();
+  }
+  const nomePessoa = cliente(ind);
+  const plano = {
+    resultado: "aplicado",
+    campos,
+    // começa com "VENDA FINALIZADA" porque o diagnóstico de comissão usa esse início para ordenar faturamento e estorno
+    historico: [entrada(ev, agora, comissao ? `VENDA FINALIZADA! Data do Pedido: ${brData(diaPedido)}. Venda conclu\xEDda, comiss\xE3o liberada.` : `VENDA FINALIZADA! Data do Pedido: ${brData(diaPedido)}.`, "status_change")],
+    notificacoes: [
+      ...comissao && parceiroEhPessoa(ind) ? [{ para: "parceiro", titulo: "Venda conclu\xEDda", mensagem: `Venda conclu\xEDda, comiss\xE3o liberada. Cliente: ${nomePessoa}.`, tipo: "success" }] : [],
+      { para: "gestao", titulo: "Venda Realizada", mensagem: `O CRM faturou a venda de ${nomePessoa}${numero2 ? ` (pedido ${numero2})` : ""}.`, tipo: "success" }
+    ]
+  };
+  if (c) {
+    plano.comissao = {
+      indication_id: ev.id_externo,
+      external_seller_uid: String(ind.external_seller_uid),
+      external_seller_name: c.parceiroNome,
+      value: c.calc.valor,
+      base_value_used: c.calc.base,
+      gross_commissionable_value: c.calc.baseBruta,
+      discount_applied: 0,
+      discount_percentage: 0,
+      rate_applied: c.taxa,
+      status: "waiting_nf",
+      month: c.mes.month,
+      year: c.mes.year,
+      sale_date: diaPedido,
+      created_at: agora.toISOString(),
+      generated_by: "crm"
+    };
+  }
+  return plano;
+}
+
+// server/crmAssinatura.ts
+var import_node_crypto3 = require("node:crypto");
+var TOLERANCIA_RELOGIO_MS = 5 * 60 * 1e3;
+function assinarCrm(segredo, timestamp, corpo) {
+  const mac = (0, import_node_crypto3.createHmac)("sha256", segredo);
+  mac.update(`${timestamp}.`);
+  mac.update(typeof corpo === "string" ? Buffer.from(corpo, "utf8") : corpo);
+  return `sha256=${mac.digest("hex")}`;
+}
+function timestampEmMs(ts) {
+  const s = String(ts || "").trim();
+  if (!s) return null;
+  if (/^\d+$/.test(s)) {
+    const n = Number(s);
+    return s.length <= 11 ? n * 1e3 : n;
+  }
+  const t = new Date(s).getTime();
+  return Number.isFinite(t) ? t : null;
+}
+function verificarAssinaturaCrm(o) {
+  if (!o.segredo) return { ok: false, status: 503, motivo: "segredo_nao_configurado" };
+  const ts = String(o.timestamp || "").trim();
+  const sig = String(o.assinatura || "").trim();
+  if (!ts || !sig) return { ok: false, status: 401, motivo: "cabecalhos_ausentes" };
+  const ms2 = timestampEmMs(ts);
+  if (ms2 === null) return { ok: false, status: 401, motivo: "timestamp_invalido" };
+  const agora = (o.agora || /* @__PURE__ */ new Date()).getTime();
+  if (Math.abs(agora - ms2) > (o.toleranciaMs ?? TOLERANCIA_RELOGIO_MS)) return { ok: false, status: 401, motivo: "timestamp_fora_da_janela" };
+  const esperado = Buffer.from(assinarCrm(o.segredo, ts, o.corpo), "utf8");
+  const recebido = Buffer.from(sig.toLowerCase().startsWith("sha256=") ? `sha256=${sig.slice(7).toLowerCase()}` : sig, "utf8");
+  if (esperado.length !== recebido.length || !(0, import_node_crypto3.timingSafeEqual)(esperado, recebido)) return { ok: false, status: 401, motivo: "assinatura_invalida" };
+  return { ok: true };
+}
+
+// server/crmEventos.ts
+var ID_SIMPLES = /^[A-Za-z0-9_-]{1,128}$/;
+var docIdEvento = idSeguroEvento;
+var EVENTOS_COM_VINCULO = ["pedido.faturado", "pedido.lancado", "negocio.ganho", "negocio.perdido", "indicacao.aceita", "indicacao.recusada"];
+var norm = (v) => String(v ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9@._]+/g, " ").trim();
+var PAPEIS_GESTAO_VENDA = ["admin", "manager"];
+var PAPEIS_CONFERENCIA = ["admin", "manager", "financial", "finance"];
+async function catalogoDosItens(db2, itensBrutos) {
+  const codigos = Array.from(new Set(normalizarItensCrm(itensBrutos).map((i) => i.code).filter(Boolean)));
+  const out = {};
+  for (const code of codigos) {
+    const s = await db2.collection("registered_products").where("code", "==", code).get();
+    if (!s.empty) {
+      const flags = s.docs.map((d) => (d.data() || {}).is_commissionable);
+      out[code] = { is_commissionable: flags.includes(false) ? false : void 0 };
+    }
+  }
+  return out;
+}
+async function nomesDeOutrosParceiros(db2, uidDoDono) {
+  const s = await db2.collection("users").where("role", "==", "external_seller").get();
+  return s.docs.filter((d) => d.id !== uidDoDono).map((d) => String(d.data()?.name || "")).filter(Boolean);
+}
+async function resolverVendedora(db2, d) {
+  const v = d?.vendedora ?? d?.vendedora_nome ?? d?.responsavel;
+  const nome = String(typeof v === "string" ? v : v?.nome ?? v?.name ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
+  const email = String(d?.vendedora_email ?? (typeof v === "object" ? v?.email : "") ?? "").trim().toLowerCase();
+  const uid = String(d?.vendedora_uid ?? (typeof v === "object" ? v?.uid : "") ?? "").trim();
+  const dePerfil = (id, u) => ({ uid: id, name: String(u?.name || nome), email: u?.email || null });
+  if (uid && ID_SIMPLES.test(uid)) {
+    const s = await db2.collection("users").doc(uid).get();
+    if (s.exists && s.data()?.status !== "inactive") return dePerfil(s.id, s.data());
+  }
+  if (email) {
+    const s = await db2.collection("users").where("email", "==", email).get();
+    const achado = s.docs.find((x) => x.data()?.status !== "inactive");
+    if (achado) return dePerfil(achado.id, achado.data());
+  }
+  if (nome) {
+    const alvo = norm(nome);
+    const s = await db2.collection("users").where("role", "==", "internal_seller").get();
+    const achados = s.docs.filter((x) => norm(x.data()?.name) === alvo && x.data()?.status !== "inactive");
+    if (achados.length === 1) return dePerfil(achados[0].id, achados[0].data());
+    return { name: nome };
+  }
+  return null;
+}
+async function usuariosPorPapel(db2, papeis) {
+  const s = await db2.collection("users").where("role", "in", papeis).get();
+  return s.docs.filter((d) => (d.data()?.status ?? "active") === "active").map((d) => d.id);
+}
+async function enviarNotificacoes(deps, ind, plano, vendedoraUid, agora) {
+  const { db: db2 } = deps;
+  const link = "/indicacoes";
+  for (const n of plano.notificacoes) {
+    try {
+      const destinos = n.para === "parceiro" ? [String(ind.external_seller_uid || "")] : n.para === "vendedora" ? [String(vendedoraUid || "")] : await usuariosPorPapel(db2, plano.conferencia ? PAPEIS_CONFERENCIA : PAPEIS_GESTAO_VENDA);
+      for (const uid of Array.from(new Set(destinos.filter(Boolean)))) {
+        await db2.collection("notifications").add({ user_uid: uid, title: n.titulo, message: n.mensagem, type: n.tipo, read: false, link, created_at: agora.toISOString(), origem: "crm" });
+      }
+    } catch (e) {
+      (deps.log || console.error)("[CRM-EVENTOS] Notifica\xE7\xE3o n\xE3o enviada:", e?.message);
+    }
+  }
+}
+async function processarEventoCrm(deps, ev) {
+  const { db: db2 } = deps;
+  const log = deps.log || console.log;
+  const agora = deps.agora ? deps.agora() : /* @__PURE__ */ new Date();
+  const eventoRef = db2.collection("crm_eventos").doc(docIdEvento(ev.id));
+  const anterior = await eventoRef.get();
+  if (anterior.exists && anterior.data()?.processado_em) return { status: 200, body: { ok: true, duplicado: true } };
+  const registrar = async (resultado, motivo, plano2) => {
+    let dadosGravados = null;
+    try {
+      const j = JSON.stringify(ev.dados ?? null);
+      dadosGravados = j.length > 2e4 ? `${j.slice(0, 2e4)}\u2026` : j;
+    } catch {
+    }
+    const final = resultado === "ignorado" && motivo === "ja_aplicado" ? "aplicado" : resultado;
+    const doc = {
+      id: ev.id,
+      evento: ev.evento,
+      id_externo: ev.id_externo,
+      parceiro_id: ev.parceiro_id ?? null,
+      resultado: final,
+      motivo: motivo ?? null,
+      processado_em: agora.toISOString(),
+      em: ev.em ?? null,
+      dados: dadosGravados,
+      ...plano2?.conferencia ? { conferencia: plano2.conferencia } : {},
+      ...plano2?.substituiu ? { substituiu: plano2.substituiu } : {}
+    };
+    try {
+      await eventoRef.create(doc);
+    } catch (e) {
+      if (!(e?.code === 6 || /ALREADY_EXISTS|already exists/i.test(String(e?.message)))) throw e;
+      const atual = (await eventoRef.get()).data() || {};
+      if (atual.resultado === "aplicado" || final === "ignorado") return;
+      await eventoRef.set(doc);
+    }
+  };
+  if (!EVENTOS_CRM.includes(ev.evento)) {
+    await registrar("ignorado", "evento_desconhecido");
+    return { status: 200, body: { ok: true, resultado: "ignorado", motivo: "evento_desconhecido" } };
+  }
+  const indRef = db2.collection("indications").doc(ev.id_externo);
+  const previa = await indRef.get();
+  if (!previa.exists) {
+    await registrar("ignorado", "indicacao_nao_encontrada");
+    log(`[CRM-EVENTOS] ${ev.evento} ${ev.id}: indica\xE7\xE3o ${ev.id_externo} n\xE3o existe.`);
+    return { status: 200, body: { ok: true, resultado: "ignorado", motivo: "indicacao_nao_encontrada" } };
+  }
+  const indPrevia = previa.data() || {};
+  const donoUid = String(indPrevia.external_seller_uid || "");
+  const parceiroDoEvento = String(ev.parceiro_id ?? "");
+  const diverge = EVENTOS_COM_VINCULO.includes(ev.evento) ? parceiroDoEvento !== donoUid : !!(parceiroDoEvento && donoUid && parceiroDoEvento !== donoUid);
+  if (diverge) {
+    await registrar("ignorado", "parceiro_diferente");
+    log(`[CRM-EVENTOS] ${ev.evento} ${ev.id}: parceiro_id do evento difere do da indica\xE7\xE3o ${ev.id_externo}.`);
+    return { status: 200, body: { ok: true, resultado: "ignorado", motivo: "parceiro_diferente" } };
+  }
+  const d = ev.dados && typeof ev.dados === "object" ? ev.dados : {};
+  const parceiro = parceiroEhPessoa(indPrevia) ? (await db2.collection("users").doc(donoUid).get()).data() || null : null;
+  const vendedora = ev.evento === "indicacao.aceita" ? await resolverVendedora(db2, { ...d, ...d.vendedora || d.vendedora_nome ? {} : { vendedora_nome: vendedoraDaMensagem(ev) } }) : null;
+  const textoLivre = ["indicacao.recusada", "negocio.perdido", "negocio.etapa"].includes(ev.evento);
+  const nomesOutrosParceiros = textoLivre ? await nomesDeOutrosParceiros(db2, donoUid) : [];
+  const catalogo = ["pedido.lancado", "pedido.faturado"].includes(ev.evento) ? await catalogoDosItens(db2, d.itens) : {};
+  const commRef = db2.collection("commissions").doc(ev.id_externo);
+  const feito = await db2.runTransaction(async (tx) => {
+    const s = await tx.get(indRef);
+    if (!s.exists) return { plano: null, ind: null };
+    const ind2 = { id: s.id, ...s.data() };
+    let comissaoExistente = false;
+    if (ev.evento === "pedido.faturado") {
+      const c = await tx.get(commRef);
+      const legado = await tx.get(db2.collection("commissions").where("indication_id", "==", ev.id_externo));
+      comissaoExistente = c.exists || !legado.empty;
+    }
+    const plano2 = planejarEvento(ind2, ev, { agora, parceiro, vendedora, nomesOutrosParceiros, catalogo, comissaoExistente });
+    if (plano2.resultado === "aplicado") {
+      tx.update(indRef, {
+        ...plano2.campos,
+        ...plano2.historico.length ? { negotiation_history: deps.arrayUnion(...plano2.historico) } : {}
+      });
+      if (plano2.comissao) tx.set(commRef, plano2.comissao);
+    }
+    return { plano: plano2, ind: ind2 };
+  });
+  if (!feito.plano) {
+    await registrar("ignorado", "indicacao_nao_encontrada");
+    return { status: 200, body: { ok: true, resultado: "ignorado", motivo: "indicacao_nao_encontrada" } };
+  }
+  const { plano, ind } = feito;
+  if (plano.resultado === "aplicado") await enviarNotificacoes(deps, ind, plano, vendedora?.uid, agora);
+  else log(`[CRM-EVENTOS] ${ev.evento} ${ev.id} ignorado (${plano.motivo}) na indica\xE7\xE3o ${ev.id_externo}.`);
+  await registrar(plano.resultado, plano.motivo, plano);
+  return { status: 200, body: { ok: true, resultado: plano.resultado, ...plano.motivo ? { motivo: plano.motivo } : {}, ...plano.conferencia ? { aguardando_conferencia: true } : {} } };
+}
+async function tratarRequisicaoCrm(deps, req) {
+  const cfg = deps.config();
+  if (!podeReceberDoCrm(cfg)) return { status: 503, body: { ok: false, error: "Integra\xE7\xE3o com o CRM desligada ou sem segredo configurado." } };
+  const h = (n) => {
+    const v = req.headers[n];
+    return Array.isArray(v) ? v[0] : v;
+  };
+  const ver = verificarAssinaturaCrm({ segredo: cfg.segredo, timestamp: h("x-roder-timestamp"), assinatura: h("x-roder-assinatura"), corpo: req.corpo, agora: deps.agora ? deps.agora() : void 0 });
+  if (!ver.ok) return { status: ver.status, body: { ok: false, error: "Assinatura inv\xE1lida." } };
+  let json;
+  try {
+    json = JSON.parse(req.corpo.toString("utf8"));
+  } catch {
+    return { status: 400, body: { ok: false, error: "Corpo n\xE3o \xE9 JSON." } };
+  }
+  const id = typeof json?.id === "string" ? json.id.trim() : "";
+  const evento = typeof json?.evento === "string" ? json.evento.trim() : "";
+  const idExterno = typeof json?.id_externo === "string" ? json.id_externo.trim() : "";
+  if (!id || id.length > 200 || !evento || !ID_SIMPLES.test(idExterno)) return { status: 400, body: { ok: false, error: "Faltam id, evento ou id_externo v\xE1lidos." } };
+  try {
+    return await processarEventoCrm(deps, {
+      id,
+      evento,
+      id_externo: idExterno,
+      em: typeof json.em === "string" ? json.em : void 0,
+      parceiro_id: json.parceiro_id == null ? null : String(json.parceiro_id),
+      status: typeof json.status === "string" ? json.status : void 0,
+      mensagem: typeof json.mensagem === "string" ? json.mensagem.slice(0, 500) : void 0,
+      dados: mesclarDadosCrm(json)
+    });
+  } catch (e) {
+    (deps.log || console.error)("[CRM-EVENTOS] Erro ao processar:", e?.message);
+    return { status: 500, body: { ok: false, error: "Erro ao processar. Reenvie." } };
+  }
+}
+function registrarRotaEventosCrm(app, express2, deps) {
+  app.post("/api/crm/eventos", express2.raw({ type: () => true, limit: "2mb" }), async (req, res) => {
+    const r = await tratarRequisicaoCrm(deps, { headers: req.headers, corpo: Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0) });
+    res.setHeader("Cache-Control", "no-store");
+    res.status(r.status).json(r.body);
+  });
+}
+
+// src/lib/crmFase2.ts
+var MAX_ANEXOS = 10;
+var MAX_ANEXO_BYTES = 20 * 1024 * 1024;
+var ms = (v) => {
+  const t = Date.parse(String(v ?? ""));
+  return Number.isFinite(t) ? t : NaN;
+};
+var TIPOS_DE_NOTA_DO_PARCEIRO = ["note", "whatsapp"];
+function classificarEntrada(ind, e) {
+  if (!e || typeof e !== "object" || !e.id) return "fora";
+  if (e.author_name === AUTOR_CRM || String(e.id).startsWith("crm-")) return "fora";
+  if (String(e.id).startsWith("obs-parceiro-") || e.id === "initial_virtual") return "fora";
+  if (!TIPOS_DE_NOTA_DO_PARCEIRO.includes(String(e.type))) return "fora";
+  if (!(ms(e.created_at) > ms(ind.crm_enviado_em))) return "fora";
+  if (!parceiroEhPessoa(ind)) return "fora";
+  if (!(String(e.content ?? "").trim() || Array.isArray(e.attachments) && e.attachments.length)) return "fora";
+  const dono = String(ind.external_seller_uid);
+  if (e.author_uid) return String(e.author_uid) === dono ? "enviar" : "ignorar";
+  const nome = String(ind.external_seller_name ?? "").trim();
+  return nome && String(e.author_name ?? "").trim() === nome ? "enviar" : "ignorar";
+}
+var conjunto = (v) => new Set(Array.isArray(v) ? v.map(String) : []);
+function entradasPendentesDoParceiro(ind) {
+  const fora = /* @__PURE__ */ new Set([...conjunto(ind.crm_atualizacoes_enviadas), ...conjunto(ind.crm_atualizacoes_desistiu), ...conjunto(ind.crm_atualizacoes_ignoradas)]);
+  const hist = Array.isArray(ind.negotiation_history) ? ind.negotiation_history : [];
+  return hist.filter((e) => classificarEntrada(ind, e) === "enviar" && !fora.has(String(e.id)));
+}
+function entradasParaIgnorar(ind) {
+  const marcadas = conjunto(ind.crm_atualizacoes_ignoradas);
+  const hist = Array.isArray(ind.negotiation_history) ? ind.negotiation_history : [];
+  return hist.filter((e) => classificarEntrada(ind, e) === "ignorar" && !marcadas.has(String(e.id))).map((e) => String(e.id));
+}
+var idMensagemCrm = (indId, entradaId) => `${indId}:${entradaId}`;
+function tipoDoAnexo(a) {
+  const nome = String(a?.name || "").toLowerCase();
+  const url = String(a?.url || "").split("?")[0].toLowerCase();
+  const alvo = `${nome} ${url}`;
+  if (/^data:audio\//.test(String(a?.url || "")) || /\.(webm|mp3|m4a|ogg|oga|wav|aac|opus|amr)(\s|$)/.test(alvo) || /(^|[^a-z])(audio|áudio)/.test(nome)) return "audio";
+  if (/^data:image\//.test(String(a?.url || "")) || /\.(jpe?g|png|gif|webp|heic|heif|bmp)(\s|$)/.test(alvo)) return "imagem";
+  return "arquivo";
+}
+function referenciaStorage(url) {
+  try {
+    const u = new URL(url);
+    if (u.hostname === "firebasestorage.googleapis.com") {
+      const m = u.pathname.match(/^\/v0\/b\/([^/]+)\/o\/(.+)$/);
+      if (m) return { bucket: m[1], caminho: decodeURIComponent(m[2]) };
+    }
+    if (u.hostname === "storage.googleapis.com") {
+      const [, bucket, ...resto] = u.pathname.split("/");
+      if (bucket && resto.length) return { bucket, caminho: decodeURIComponent(resto.join("/")) };
+    }
+  } catch {
+  }
+  return null;
+}
+function montarAtualizacao(ind, indId, e, anexos, observacoes = []) {
+  const texto2 = [String(e.content ?? "").trim(), ...observacoes].filter(Boolean).join("\n").slice(0, 5e3);
+  return {
+    tipo: "atualizacao",
+    id_externo: indId,
+    id_mensagem: idMensagemCrm(indId, String(e.id)),
+    texto: texto2,
+    autor: String(e.author_name || ind.external_seller_name || "Parceiro").slice(0, 120),
+    criado_em: Number.isFinite(ms(e.created_at)) ? new Date(e.created_at).toISOString() : (/* @__PURE__ */ new Date()).toISOString(),
+    anexos: anexos.slice(0, MAX_ANEXOS)
+  };
+}
+var d2 = (n) => String(n).padStart(2, "0");
+var previsaoDePagamento = (month, year) => `${year}-${d2(month)}-07`;
+var num = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
+var arred = (n) => Math.round(n * 100) / 100;
+function montarComissao(c, commId, ind, pedidoEnviado) {
+  const pedido = String(pedidoEnviado || ind?.sale_order_number || "").trim();
+  if (!pedido) return null;
+  const valor = num(c.value);
+  if (!(valor >= 0)) return null;
+  const taxa = num(c.rate_applied);
+  const coerente = (b) => b > 0 && taxa > 0 && Math.abs(b * taxa / 100 - valor) <= 0.01;
+  let base = num(c.base_value_used);
+  if (!(base > 0)) {
+    base = [num(c.commissionable_value), num(c.base_commission_value)].find(coerente) || 0;
+    if (!(base > 0) && taxa > 0 && valor > 0) base = arred(valor / (taxa / 100));
+  }
+  if (!(base > 0)) return null;
+  let pct = taxa;
+  if (!(pct > 0)) pct = valor > 0 ? arred(valor / base * 100) : 0;
+  if (!(pct > 0)) return null;
+  return {
+    tipo: "comissao",
+    id_externo: String(c.indication_id || commId),
+    pedido_numero: pedido,
+    // só o parceiro e o pedido: nada de vendedor interno nem de desconto
+    parceiro: { id: String(c.external_seller_uid || ""), nome: String(c.external_seller_name || ind?.external_seller_name || "") },
+    valor_equipamento: arred(base),
+    percentual: pct,
+    valor_comissao: arred(valor),
+    calculada_em: Number.isFinite(ms(c.created_at)) ? new Date(c.created_at).toISOString() : (/* @__PURE__ */ new Date()).toISOString(),
+    previsao_pagamento: c.month && c.year ? previsaoDePagamento(Number(c.month), Number(c.year)) : ""
+  };
+}
+var assinaturaDaComissao = (p) => `${p.pedido_numero}|${p.valor_equipamento}|${p.percentual}|${p.valor_comissao}`;
+function montarComissaoPaga(c, commId, ind, pedidoEnviado) {
+  const pedido = String(pedidoEnviado || ind?.sale_order_number || "").trim();
+  if (!pedido) return null;
+  const quando = c.paid_at || c.updated_at;
+  return {
+    tipo: "comissao_paga",
+    id_externo: String(c.indication_id || commId),
+    pedido_numero: pedido,
+    paga_em: Number.isFinite(ms(quando)) ? new Date(quando).toISOString() : (/* @__PURE__ */ new Date()).toISOString()
+  };
+}
+
+// server/crmEntrada.ts
+var DOC_CONFIG_CRM = "crm_integracao";
+var TIMEOUT_ENVIO_MS = 15e3;
+var MAX_POR_RODADA = 20;
+var JANELA_DO_LACO_MS = 72 * 60 * 60 * 1e3;
+var LIMITE_DO_LACO = 500;
+async function garantirDataDaVirada(deps) {
+  const cfg = deps.config();
+  if (cfg.ativoDesde) return cfg.ativoDesde;
+  if (!cfg.ativo) return null;
+  const ref = deps.db.collection("settings").doc(DOC_CONFIG_CRM);
+  const agora = (deps.agora ? deps.agora() : /* @__PURE__ */ new Date()).toISOString();
+  return deps.db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const d = snap.exists ? snap.data() || {} : {};
+    if (valida(d.ativo_desde)) return new Date(d.ativo_desde).toISOString();
+    const v = valida(d.carga_inicial_em) ? new Date(d.carga_inicial_em).toISOString() : agora;
+    tx.set(ref, { ativo_desde: v }, { merge: true });
+    return v;
+  });
+}
+var valida = (v) => !!v && !Number.isNaN(new Date(v).getTime());
+async function lerDataDaVirada(db2) {
+  const s = await db2.collection("settings").doc(DOC_CONFIG_CRM).get();
+  const v = s.exists ? s.data()?.ativo_desde : null;
+  return v && !Number.isNaN(new Date(v).getTime()) ? new Date(v).toISOString() : null;
+}
+async function enviarIndicacaoAoCrm(deps, indId, ctx) {
+  const { db: db2 } = deps;
+  const cfg = deps.config();
+  const agora = () => deps.agora ? deps.agora() : /* @__PURE__ */ new Date();
+  const log = deps.log || console.log;
+  if (!podeEnviarAoCrm(cfg)) return { id: indId, resultado: "pulada", motivo: "integracao_desligada" };
+  const ref = db2.collection("indications").doc(indId);
+  const reservada2 = await db2.runTransaction(async (tx) => {
+    const s = await tx.get(ref);
+    if (!s.exists) return null;
+    const ind2 = s.data();
+    const motivo = ctx.modo === "laco" ? motivoNaoEnviarNoLaco(ind2, { ativoDesde: ctx.ativoDesde, agora: agora() }) : motivoNaoEnviarNaCarga(ind2, { agora: agora() });
+    if (motivo) return { motivo };
+    tx.update(ref, { crm_reservado_ate: new Date(agora().getTime() + RESERVA_ENVIO_MS).toISOString() });
+    return { ind: ind2 };
+  });
+  if (!reservada2) return { id: indId, resultado: "pulada", motivo: "inexistente" };
+  if ("motivo" in reservada2) return { id: indId, resultado: "pulada", motivo: reservada2.motivo };
+  const ind = reservada2.ind;
+  let parceiro = null;
+  const uid = String(ind.external_seller_uid || "");
+  if (uid) {
+    try {
+      parceiro = (await db2.collection("users").doc(uid).get()).data() || null;
+    } catch {
+    }
+  }
+  const payload = montarPayloadIndicacao(ind, indId, parceiro, {
+    // O aviso por e-mail do CRM só vale para indicação realmente NOVA (criada em ou depois da virada).
+    // Antigas e sobras enviadas pelo laço vão sem aviso, para não gerar e-mail em massa na virada.
+    notificarEmail: ctx.modo === "laco" && valida(ind.created_at) && !!ctx.ativoDesde && new Date(ind.created_at).getTime() >= new Date(ctx.ativoDesde).getTime() ? cfg.notificarEmail : null,
+    jaEmNegociacao: ind.status === "negotiating"
+  });
+  const r = await postarCrm(deps, payload, TIMEOUT_ENVIO_MS);
+  if (r.ok) {
+    const crmId = r.json && r.json.id != null ? String(r.json.id) : null;
+    await ref.update({ crm_enviado_em: agora().toISOString(), crm_id: crmId, crm_reservado_ate: null, crm_ultimo_erro: null, crm_proxima_tentativa_em: null, crm_falhas_transporte: 0 });
+    return { id: indId, resultado: "enviada", status: r.status };
+  }
+  if (r.transitorio) {
+    const t = planoDeTransporte(Number(ind.crm_falhas_transporte) || 0, agora());
+    await ref.update({ crm_falhas_transporte: t.falhas, crm_ultimo_erro: r.erro, crm_ultima_tentativa_em: agora().toISOString(), crm_reservado_ate: null, crm_proxima_tentativa_em: t.proxima });
+    return { id: indId, resultado: "falhou", motivo: r.erro, status: r.status };
+  }
+  const falha = planoDeFalha(Number(ind.crm_tentativas) || 0, agora());
+  await ref.update({
+    crm_tentativas: falha.tentativas,
+    crm_ultimo_erro: r.erro,
+    crm_ultima_tentativa_em: agora().toISOString(),
+    crm_reservado_ate: null,
+    crm_proxima_tentativa_em: falha.proxima,
+    ...falha.desistiu ? { crm_desistiu_em: agora().toISOString() } : {}
+  });
+  return { id: indId, resultado: falha.desistiu ? "desistiu" : "falhou", motivo: r.erro, status: r.status };
+}
+var emExecucao = false;
+var JANELA_RECENTE_MS = 72 * 60 * 60 * 1e3;
+var VARREDURA_COMPLETA_MS = 15 * 60 * 1e3;
+var PAGINAS_MAX = 6;
+var varredura = /* @__PURE__ */ new WeakMap();
+async function paginarPorData(db2, desde) {
+  const docs = [];
+  let q = db2.collection("indications").where("created_at", ">=", desde).orderBy("created_at").limit(LIMITE_DO_LACO);
+  for (let pg = 0; pg < PAGINAS_MAX; pg++) {
+    const s = await q.get();
+    docs.push(...s.docs);
+    if (s.docs.length < LIMITE_DO_LACO) break;
+    q = db2.collection("indications").where("created_at", ">=", desde).orderBy("created_at").startAfter(s.docs[s.docs.length - 1]).limit(LIMITE_DO_LACO);
+  }
+  return docs;
+}
+async function listarCandidatasDoLaco(db2, ativoDesde, agora, completa = false) {
+  const recente = new Date(agora.getTime() - JANELA_RECENTE_MS).toISOString();
+  const docs = await paginarPorData(db2, recente);
+  if (completa) {
+    const s = await db2.collection("indications").where("status", "in", STATUS_ENVIAVEIS).get();
+    docs.push(...s.docs);
+  }
+  const vistos = /* @__PURE__ */ new Set();
+  const achadas = [];
+  for (const d of docs) {
+    if (vistos.has(d.id)) continue;
+    vistos.add(d.id);
+    const data = d.data() || {};
+    if (!motivoNaoEnviarNoLaco(data, { ativoDesde, agora })) achadas.push({ id: d.id, data });
+  }
+  achadas.sort((x, y) => String(x.data.created_at || "").localeCompare(String(y.data.created_at || "")));
+  return achadas;
+}
+var MAX_HISTORICO_POR_RODADA = 100;
+async function marcarCargaInicialFeita(deps, agora) {
+  try {
+    const ref = deps.db.collection("settings").doc(DOC_CONFIG_CRM);
+    await deps.db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const d = snap.exists ? snap.data() || {} : {};
+      if (!valida(d.carga_inicial_em)) tx.set(ref, { carga_inicial_em: agora.toISOString() }, { merge: true });
+    });
+  } catch {
+  }
+}
+async function rodarFilaCrm(deps) {
+  const cfg = deps.config();
+  if (!podeEnviarAoCrm(cfg)) return { pulado: "integracao_desligada", resultados: [] };
+  if (emExecucao) return { pulado: "rodada_anterior_em_andamento", resultados: [] };
+  emExecucao = true;
+  try {
+    const desde = await garantirDataDaVirada(deps);
+    if (!desde) return { pulado: "sem_data_de_virada", resultados: [] };
+    const agora = deps.agora ? deps.agora() : /* @__PURE__ */ new Date();
+    const est = varredura.get(deps.db) || { proxima: 0, sobrou: false };
+    const completa = est.sobrou || agora.getTime() >= est.proxima;
+    const candidatas = await listarCandidatasDoLaco(deps.db, desde, agora, completa);
+    const corte = new Date(desde).getTime();
+    const historicas = candidatas.filter((c) => String(c.data.status) === "negotiating" && !(valida(c.data.created_at) && new Date(c.data.created_at).getTime() >= corte));
+    const idsHist = new Set(historicas.map((c) => c.id));
+    const normais = candidatas.filter((c) => !idsHist.has(c.id));
+    const sobrou = normais.length > MAX_POR_RODADA || historicas.length > MAX_HISTORICO_POR_RODADA;
+    if (completa) varredura.set(deps.db, { proxima: agora.getTime() + VARREDURA_COMPLETA_MS, sobrou });
+    else if (est.sobrou) varredura.set(deps.db, { ...est, sobrou });
+    const resultados = [];
+    for (const c of normais.slice(0, MAX_POR_RODADA)) {
+      resultados.push(await enviarIndicacaoAoCrm(deps, c.id, { modo: "laco", ativoDesde: desde }));
+    }
+    let historicoConcluido = completa && historicas.length === 0;
+    if (historicas.length) {
+      const lr = await enviarLoteComoCarga(deps, historicas.slice(0, MAX_HISTORICO_POR_RODADA).map((c) => c.id), { backoff: true });
+      resultados.push(...lr.resultados);
+      historicoConcluido = completa && historicas.length <= MAX_HISTORICO_POR_RODADA && lr.resultados.length === historicas.length && lr.resultados.every((x) => x.resultado === "enviada");
+    }
+    if (historicoConcluido) await marcarCargaInicialFeita(deps, agora);
+    return { resultados };
+  } finally {
+    emExecucao = false;
+  }
+}
+var MAX_ITENS_CARGA = 500;
+async function corteDaCarga(deps, gravar) {
+  const ref = deps.db.collection("settings").doc(DOC_CONFIG_CRM);
+  const agora = (deps.agora ? deps.agora() : /* @__PURE__ */ new Date()).toISOString();
+  if (deps.config().ativoDesde && valida(deps.config().ativoDesde)) return new Date(deps.config().ativoDesde).toISOString();
+  if (!gravar) {
+    const d = (await ref.get()).data() || {};
+    return valida(d.ativo_desde) ? new Date(d.ativo_desde).toISOString() : valida(d.carga_inicial_em) ? new Date(d.carga_inicial_em).toISOString() : null;
+  }
+  return deps.db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const d = snap.exists ? snap.data() || {} : {};
+    if (valida(d.ativo_desde)) return new Date(d.ativo_desde).toISOString();
+    if (valida(d.carga_inicial_em)) return new Date(d.carga_inicial_em).toISOString();
+    tx.set(ref, { carga_inicial_em: agora }, { merge: true });
+    return agora;
+  });
+}
+async function cargaInicialCrm(deps, o = {}) {
+  const cfg = deps.config();
+  if (!o.simulacao && !podeCargaAoCrm(cfg)) return { ok: false, status: 409, error: "Configure CRM_CHAVE (e confira CRM_URL) antes de enviar. Use a simula\xE7\xE3o para s\xF3 contar." };
+  const agora = deps.agora ? deps.agora() : /* @__PURE__ */ new Date();
+  const log = deps.log || console.log;
+  const corte = await corteDaCarga(deps, !o.simulacao);
+  const s = await deps.db.collection("indications").where("status", "in", STATUS_ENVIAVEIS).get();
+  const elegiveis = [];
+  const porMotivo = {};
+  for (const d of s.docs) {
+    const data = d.data() || {};
+    let m = motivoNaoEnviarNaCarga(data, { agora });
+    if (!m && corte && valida(data.created_at) && new Date(data.created_at).getTime() >= new Date(corte).getTime()) m = "depois_do_corte";
+    if (m) {
+      porMotivo[m] = (porMotivo[m] || 0) + 1;
+      continue;
+    }
+    elegiveis.push({ id: d.id, status: String(data.status), criada: String(data.created_at || "") });
+  }
+  elegiveis.sort((a, b) => a.criada.localeCompare(b.criada));
+  const porStatus = {};
+  elegiveis.forEach((e) => {
+    porStatus[e.status] = (porStatus[e.status] || 0) + 1;
+  });
+  if (o.simulacao) return { ok: true, simulacao: true, elegiveis: elegiveis.length, por_status: porStatus, descartadas: porMotivo, corte, pendentes_novas: porMotivo.vai_como_nova || 0 };
+  const limite = Math.min(Math.max(Math.floor(o.limite || 200), 1), MAX_ITENS_CARGA);
+  const lote = elegiveis.slice(0, limite);
+  const lr = await enviarLoteComoCarga(deps, lote.map((e) => e.id), { backoff: false });
+  if (!lr.tentadas) return { ok: true, simulacao: false, elegiveis: elegiveis.length, tentadas: 0, enviadas: 0, falhas: 0, restantes: elegiveis.length, resumo: lr.resumo };
+  if ("erro" in lr && lr.erro !== void 0) return { ok: true, simulacao: false, elegiveis: elegiveis.length, tentadas: lr.tentadas, enviadas: 0, falhas: lr.tentadas, restantes: elegiveis.length, erro: lr.erro, resumo: lr.resumo };
+  return { ok: true, simulacao: false, elegiveis: elegiveis.length, tentadas: lr.tentadas, enviadas: lr.enviadas, falhas: lr.tentadas - lr.enviadas, restantes: Math.max(elegiveis.length - lr.enviadas, 0), resumo: lr.resumo };
+}
+async function enviarLoteComoCarga(deps, ids, o) {
+  const agora = deps.agora ? deps.agora() : /* @__PURE__ */ new Date();
+  const log = deps.log || console.log;
+  const itens = [];
+  const reservadas = [];
+  const parceiros = /* @__PURE__ */ new Map();
+  for (const id of ids) {
+    const ref = deps.db.collection("indications").doc(id);
+    const r2 = await deps.db.runTransaction(async (tx) => {
+      const sn = await tx.get(ref);
+      if (!sn.exists) return null;
+      const ind = sn.data();
+      if (motivoNaoEnviarNaCarga(ind, { agora })) return null;
+      tx.update(ref, { crm_reservado_ate: new Date(agora.getTime() + RESERVA_ENVIO_MS).toISOString() });
+      return ind;
+    });
+    if (!r2) continue;
+    const uid = String(r2.external_seller_uid || "");
+    if (uid && !parceiros.has(uid)) {
+      try {
+        parceiros.set(uid, (await deps.db.collection("users").doc(uid).get()).data() || null);
+      } catch {
+        parceiros.set(uid, null);
+      }
+    }
+    itens.push(montarPayloadIndicacao(r2, id, parceiros.get(uid) || null, { jaEmNegociacao: r2.status === "negotiating" }));
+    reservadas.push({ id, ind: r2 });
+  }
+  const zero = { recebidos: 0, vinculados: 0, repetidos: 0, ignorados: 0 };
+  if (!itens.length) return { tentadas: 0, enviadas: 0, resumo: zero, resultados: [] };
+  const r = await postarCrm(deps, { tipo: "carga_inicial", itens });
+  const nowIso = agora.toISOString();
+  const resultados = [];
+  if (!r.ok) {
+    for (const x of reservadas) {
+      const t = planoDeTransporte(Number(x.ind.crm_falhas_transporte) || 0, agora);
+      await deps.db.collection("indications").doc(x.id).update({
+        crm_reservado_ate: null,
+        ...o.backoff ? { crm_falhas_transporte: t.falhas, crm_proxima_tentativa_em: t.proxima, crm_ultimo_erro: r.erro, crm_ultima_tentativa_em: nowIso } : {}
+      });
+      resultados.push({ id: x.id, resultado: "falhou", motivo: r.erro, status: r.status });
+    }
+    if (r.status === 401 || r.status === 403) log("[CRM-CARGA] O CRM recusou a chave (CRM_CHAVE).");
+    return { tentadas: reservadas.length, enviadas: 0, erro: r.erro, resumo: zero, resultados };
+  }
+  const porItem = Array.isArray(r.json?.resultados) ? r.json.resultados : null;
+  const recusados = new Set(porItem ? porItem.filter((x) => x && x.ok === false).map((x) => String(x.id_externo)) : []);
+  let enviadas = 0;
+  for (const x of reservadas) {
+    const ref = deps.db.collection("indications").doc(x.id);
+    if (recusados.has(x.id)) {
+      const f = planoDeFalha(Number(x.ind.crm_tentativas) || 0, agora);
+      await ref.update({
+        crm_tentativas: f.tentativas,
+        crm_ultimo_erro: "recusada pelo CRM na carga",
+        crm_ultima_tentativa_em: nowIso,
+        crm_reservado_ate: null,
+        crm_proxima_tentativa_em: f.proxima,
+        ...f.desistiu ? { crm_desistiu_em: nowIso } : {}
+      });
+      resultados.push({ id: x.id, resultado: f.desistiu ? "desistiu" : "falhou", motivo: "recusada" });
+      continue;
+    }
+    await ref.update({ crm_enviado_em: nowIso, crm_id: null, crm_carga_inicial: true, crm_reservado_ate: null, crm_ultimo_erro: null, crm_proxima_tentativa_em: null, crm_falhas_transporte: 0 });
+    resultados.push({ id: x.id, resultado: "enviada" });
+    enviadas++;
+  }
+  const n = (v, padrao = 0) => Number.isFinite(Number(v)) ? Number(v) : padrao;
+  const resumo = { recebidos: n(r.json?.recebidos, reservadas.length), vinculados: n(r.json?.vinculados), repetidos: n(r.json?.repetidos), ignorados: n(r.json?.ignorados) };
+  return { tentadas: reservadas.length, enviadas, resumo, resultados };
+}
+var falhaDeTransporte = (status, erroRede) => erroRede || status === 0 || [401, 403, 408, 429].includes(status) || status >= 500;
+function planoDeTransporte(falhasAntes, agora) {
+  const falhas = (Number(falhasAntes) || 0) + 1;
+  return { falhas, proxima: new Date(agora.getTime() + atrasoDaTentativa(falhas)).toISOString() };
+}
+var saude = /* @__PURE__ */ new WeakMap();
+async function registrarSaude(deps, r) {
+  try {
+    const est = saude.get(deps.db) || { seguidas: 0, limpo: false };
+    const ref = deps.db.collection("settings").doc(DOC_CONFIG_CRM);
+    if (r.transitorio) {
+      est.seguidas++;
+      est.limpo = false;
+      saude.set(deps.db, est);
+      const motivo = r.status === 401 || r.status === 403 ? `CRM recusou a chave (${r.status}). Confira a CRM_CHAVE.` : r.status ? `CRM com problema (HTTP ${r.status}).` : "Sem conex\xE3o com o CRM.";
+      await ref.set({ alerta_transporte: { em: (deps.agora ? deps.agora() : /* @__PURE__ */ new Date()).toISOString(), seguidas: est.seguidas, motivo } }, { merge: true });
+    } else if (!est.limpo) {
+      est.seguidas = 0;
+      est.limpo = true;
+      saude.set(deps.db, est);
+      await ref.set({ alerta_transporte: null }, { merge: true });
+    }
+  } catch {
+  }
+}
+async function postarCrm(deps, corpo, timeoutMs = 6e4) {
+  const cfg = deps.config();
+  let status = 0;
+  let texto2 = "";
+  let erroRede = "";
+  try {
+    const f = deps.fetchFn || ((url, init) => fetch(url, init));
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const r2 = await f(cfg.url, { method: "POST", headers: { "Content-Type": "application/json", "x-roder-chave": cfg.chave }, body: JSON.stringify(corpo), signal: ctrl.signal });
+      status = r2.status;
+      texto2 = await r2.text().catch(() => "");
+    } finally {
+      clearTimeout(t);
+    }
+  } catch (e) {
+    erroRede = e?.name === "AbortError" ? "tempo esgotado" : String(e?.message || "falha de rede").slice(0, 120);
+  }
+  let json = null;
+  try {
+    json = JSON.parse(texto2);
+  } catch {
+  }
+  const ok = status >= 200 && status < 300 && json?.ok !== false;
+  const transitorio = !ok && falhaDeTransporte(status, !!erroRede);
+  const r = { ok, status, json, erro: ok ? "" : (erroRede || `HTTP ${status}`).slice(0, 160), transitorio };
+  await registrarSaude(deps, r);
+  return r;
+}
+var atualizacoesEmExecucao = false;
+var MAX_ATUALIZACOES_POR_RODADA = 30;
+var MAX_COMISSOES_POR_RODADA = 30;
+async function prepararAnexos(deps, e) {
+  const anexos = [];
+  const avisos = [];
+  const lista = Array.isArray(e.attachments) ? e.attachments : [];
+  for (const a of lista.slice(0, MAX_ANEXOS)) {
+    const url = String(a?.url || "");
+    const nome = String(a?.name || "arquivo").slice(0, 160);
+    if (!/^https:\/\//.test(url)) {
+      avisos.push(`[Anexo "${nome}" n\xE3o enviado: est\xE1 guardado s\xF3 no aparelho]`);
+      continue;
+    }
+    const ref = referenciaStorage(url);
+    if (!ref || !deps.bucketProprio || ref.bucket !== deps.bucketProprio || !deps.assinarAnexo) {
+      avisos.push(`[Anexo "${nome}" n\xE3o enviado: arquivo fora do armazenamento do Roder Indica]`);
+      continue;
+    }
+    let r = null;
+    try {
+      r = await deps.assinarAnexo(url);
+    } catch {
+      r = null;
+    }
+    if (!r || r.tamanho === void 0) {
+      avisos.push(`[Anexo "${nome}" n\xE3o enviado: n\xE3o foi poss\xEDvel conferir o arquivo]`);
+      continue;
+    }
+    if (r.tamanho > MAX_ANEXO_BYTES) {
+      avisos.push(`[Anexo "${nome}" n\xE3o enviado: passa de 20 MB]`);
+      continue;
+    }
+    anexos.push({ url: r.url || url, tipo: tipoDoAnexo({ name: nome, url }), nome });
+  }
+  if (lista.length > MAX_ANEXOS) avisos.push(`[${lista.length - MAX_ANEXOS} anexo(s) al\xE9m do limite de ${MAX_ANEXOS} n\xE3o enviado(s)]`);
+  return { anexos, avisos };
+}
+async function paginar(consultaBase, tamanho, paginas) {
+  const docs = [];
+  let q = consultaBase().limit(tamanho);
+  for (let pg = 0; pg < paginas; pg++) {
+    const s = await q.get();
+    docs.push(...s.docs);
+    if (s.docs.length < tamanho) break;
+    q = consultaBase().startAfter(s.docs[s.docs.length - 1]).limit(tamanho);
+  }
+  return docs;
+}
+var TETO_VARREDURA_COMPLETA = 2e3;
+var VARREDURA_ATUALIZACOES_MS = 6 * 60 * 60 * 1e3;
+var SOBREPOSICAO_MS = 30 * 60 * 1e3;
+var ultimaVarreduraAtu = /* @__PURE__ */ new WeakMap();
+async function rodarAtualizacoesCrm(deps) {
+  const cfg = deps.config();
+  if (!podeEnviarAoCrm(cfg)) return { pulado: "integracao_desligada", enviadas: 0, falhas: 0 };
+  if (atualizacoesEmExecucao) return { pulado: "rodada_anterior_em_andamento", enviadas: 0, falhas: 0 };
+  atualizacoesEmExecucao = true;
+  try {
+    const agora = deps.agora ? deps.agora() : /* @__PURE__ */ new Date();
+    const uniao = deps.arrayUnion || ((...v) => v);
+    const est = ultimaVarreduraAtu.get(deps.db) || { completa: 0, rodada: 0 };
+    const completa = agora.getTime() - est.completa >= VARREDURA_ATUALIZACOES_MS;
+    let docs;
+    if (completa) {
+      docs = await paginar(() => deps.db.collection("indications").where("crm_enviado_em", ">", "").orderBy("crm_enviado_em", "desc"), 500, TETO_VARREDURA_COMPLETA / 500);
+    } else {
+      const desde = new Date(est.rodada - SOBREPOSICAO_MS).toISOString();
+      docs = await paginar(() => deps.db.collection("indications").where("updated_at", ">=", desde).orderBy("updated_at"), 500, 4);
+      const retentar = await deps.db.collection("indications").where("crm_atu_retry", ">", "").get();
+      const ja = new Set(docs.map((x) => x.id));
+      for (const x of retentar.docs) if (!ja.has(x.id)) docs.push(x);
+    }
+    let enviadas = 0;
+    let falhas = 0;
+    let feitas = 0;
+    for (const d of docs) {
+      const ind = d.data() || {};
+      if (!ind.crm_enviado_em || !STATUS_ENVIAVEIS.includes(String(ind.status))) continue;
+      const ref = deps.db.collection("indications").doc(d.id);
+      const ignorar = entradasParaIgnorar(ind);
+      if (ignorar.length) await ref.update({ crm_atualizacoes_ignoradas: uniao(...ignorar) });
+      let proximaRetentativa = null;
+      for (const e of entradasPendentesDoParceiro(ind)) {
+        const falha = ind[`crm_atu_falha_${e.id}`];
+        if (falha?.proxima && new Date(falha.proxima).getTime() > agora.getTime()) {
+          proximaRetentativa = proximaRetentativa && proximaRetentativa < falha.proxima ? proximaRetentativa : falha.proxima;
+          continue;
+        }
+        if (feitas >= MAX_ATUALIZACOES_POR_RODADA) return { enviadas, falhas };
+        feitas++;
+        const { anexos, avisos } = await prepararAnexos(deps, e);
+        const r = await postarCrm(deps, montarAtualizacao(ind, d.id, e, anexos, avisos));
+        if (r.ok) {
+          await ref.update({ crm_atualizacoes_enviadas: uniao(String(e.id)) });
+          enviadas++;
+        } else if (r.transitorio) {
+          const t = planoDeTransporte(Number(falha?.t) || 0, agora);
+          await ref.update({ [`crm_atu_falha_${e.id}`]: { n: Number(falha?.n) || 0, t: t.falhas, proxima: t.proxima, erro: r.erro }, crm_atu_retry: t.proxima });
+          proximaRetentativa = t.proxima;
+          falhas++;
+        } else {
+          const f = planoDeFalha(Number(falha?.n) || 0, agora);
+          await ref.update({
+            [`crm_atu_falha_${e.id}`]: { n: f.tentativas, t: Number(falha?.t) || 0, proxima: f.proxima, erro: r.erro },
+            ...f.desistiu ? { crm_atualizacoes_desistiu: uniao(String(e.id)) } : { crm_atu_retry: f.proxima }
+          });
+          if (!f.desistiu) proximaRetentativa = f.proxima;
+          falhas++;
+        }
+      }
+      if (ind.crm_atu_retry && !proximaRetentativa) await ref.update({ crm_atu_retry: null });
+    }
+    ultimaVarreduraAtu.set(deps.db, { completa: completa ? agora.getTime() : est.completa, rodada: agora.getTime() });
+    return { enviadas, falhas };
+  } finally {
+    atualizacoesEmExecucao = false;
+  }
+}
+var comissoesEmExecucao = false;
+var JANELA_COMISSOES_MS = 14 * 24 * 60 * 60 * 1e3;
+var camposDaComissao = (c) => `${Number(c.value) || 0}|${Number(c.base_value_used) || 0}|${Number(c.rate_applied) || 0}|${Number(c.commissionable_value) || 0}|${Number(c.base_commission_value) || 0}`;
+async function rodarComissoesCrm(deps) {
+  const cfg = deps.config();
+  if (!podeEnviarAoCrm(cfg)) return { pulado: "integracao_desligada", enviadas: 0, falhas: 0 };
+  if (comissoesEmExecucao) return { pulado: "rodada_anterior_em_andamento", enviadas: 0, falhas: 0 };
+  comissoesEmExecucao = true;
+  try {
+    const agora = deps.agora ? deps.agora() : /* @__PURE__ */ new Date();
+    const desde = new Date(agora.getTime() - JANELA_COMISSOES_MS).toISOString();
+    const col = () => deps.db.collection("commissions");
+    const fontes = await Promise.all([
+      col().where("crm_aguardando_paga", "==", true).get(),
+      col().orderBy("created_at", "desc").limit(100).get(),
+      col().where("created_at", ">=", desde).orderBy("created_at", "desc").limit(300).get(),
+      col().where("updated_at", ">=", desde).orderBy("updated_at", "desc").limit(300).get()
+    ]);
+    const vistos = /* @__PURE__ */ new Set();
+    const docs = [];
+    for (const f of fontes) for (const d of f.docs) if (!vistos.has(d.id)) {
+      vistos.add(d.id);
+      docs.push(d);
+    }
+    let enviadas = 0;
+    let falhas = 0;
+    const inds = /* @__PURE__ */ new Map();
+    for (const d of docs) {
+      const c = d.data() || {};
+      if (c.crm_nao_aplica_em || c.crm_desistiu_em) continue;
+      if (c.crm_comissao_enviada_em && (c.status !== "paid" || c.crm_paga_enviada_em) && c.crm_comissao_campos === camposDaComissao(c)) continue;
+      const ref = deps.db.collection("commissions").doc(d.id);
+      const idInd = String(c.indication_id || d.id);
+      if (!inds.has(idInd)) inds.set(idInd, (await deps.db.collection("indications").doc(idInd).get()).data() || null);
+      const ind = inds.get(idInd);
+      if (!ind || !ind.crm_enviado_em && !STATUS_ENVIAVEIS.includes(String(ind.status))) {
+        await ref.update({ crm_nao_aplica_em: agora.toISOString() });
+        continue;
+      }
+      if (!ind.crm_enviado_em) continue;
+      const pedidoEnviado = String(c.crm_comissao_pedido_numero || "").trim() || void 0;
+      const pedidoAtual = String(ind.sale_order_number ?? "").trim();
+      if (pedidoEnviado && pedidoAtual && pedidoAtual !== pedidoEnviado && c.crm_pedido_divergente_registrado !== pedidoAtual) {
+        await deps.db.collection("indications").doc(idInd).update({
+          negotiation_history: (deps.arrayUnion || ((...v) => v))({
+            id: `crm-pedido-divergiu-${d.id}-${pedidoAtual}`.replace(/[^A-Za-z0-9_-]/g, "_"),
+            type: "system",
+            author_name: "Sistema",
+            created_at: agora.toISOString(),
+            content: `O n\xFAmero do pedido mudou para ${pedidoAtual} depois de a comiss\xE3o ir ao CRM. O CRM segue com o n\xFAmero ${pedidoEnviado}.`
+          })
+        });
+        await ref.update({ crm_pedido_divergente_registrado: pedidoAtual });
+        c.crm_pedido_divergente_registrado = pedidoAtual;
+      }
+      const pComissao = montarComissao(c, d.id, ind, pedidoEnviado);
+      const assinatura = pComissao ? assinaturaDaComissao(pComissao) : "";
+      const comissaoPendente = !!pComissao && (!c.crm_comissao_enviada_em || !!c.crm_comissao_assinatura && c.crm_comissao_assinatura !== assinatura);
+      const pPaga = c.status === "paid" && !c.crm_paga_enviada_em ? montarComissaoPaga(c, d.id, ind, pedidoEnviado) : null;
+      const passos = [];
+      if (comissaoPendente) passos.push({ corpo: pComissao, tent: "crm_comissao_tentativas", trans: "crm_comissao_transporte", prox: "crm_comissao_proxima", ok: { crm_comissao_enviada_em: agora.toISOString(), crm_comissao_assinatura: assinatura, crm_comissao_campos: camposDaComissao(c), crm_comissao_pedido_numero: pedidoEnviado || pComissao.pedido_numero, crm_comissao_proxima: null, crm_aguardando_paga: true } });
+      if (pPaga && (c.crm_comissao_enviada_em || comissaoPendente)) passos.push({ corpo: pPaga, tent: "crm_paga_tentativas", trans: "crm_paga_transporte", prox: "crm_paga_proxima", ok: { crm_paga_enviada_em: agora.toISOString(), crm_paga_proxima: null, crm_aguardando_paga: false } });
+      if (!passos.length && c.crm_comissao_enviada_em && pComissao && c.crm_comissao_campos !== camposDaComissao(c)) await ref.update({ crm_comissao_campos: camposDaComissao(c) });
+      for (const p of passos) {
+        if (enviadas + falhas >= MAX_COMISSOES_POR_RODADA) return { enviadas, falhas };
+        if (c[p.prox] && new Date(c[p.prox]).getTime() > agora.getTime()) break;
+        const r = await postarCrm(deps, p.corpo);
+        if (r.ok) {
+          await ref.update(p.ok);
+          enviadas++;
+        } else if (r.transitorio) {
+          const t = planoDeTransporte(Number(c[p.trans]) || 0, agora);
+          await ref.update({ [p.trans]: t.falhas, [p.prox]: t.proxima, crm_ultimo_erro: r.erro });
+          falhas++;
+          break;
+        } else {
+          const f = planoDeFalha(Number(c[p.tent]) || 0, agora);
+          await ref.update({ [p.tent]: f.tentativas, [p.prox]: f.proxima, crm_ultimo_erro: r.erro, ...f.desistiu ? { crm_desistiu_em: agora.toISOString() } : {} });
+          falhas++;
+          break;
+        }
+      }
+    }
+    return { enviadas, falhas };
+  } finally {
+    comissoesEmExecucao = false;
+  }
+}
+async function reativarDesistidasCrm(deps) {
+  const ind = await deps.db.collection("indications").where("crm_desistiu_em", ">", "").get();
+  for (const d of ind.docs) {
+    const x = d.data() || {};
+    const limpar = {
+      crm_desistiu_em: null,
+      crm_tentativas: 0,
+      crm_proxima_tentativa_em: null,
+      crm_ultimo_erro: null,
+      crm_reservado_ate: null
+    };
+    if (Array.isArray(x.crm_atualizacoes_desistiu)) limpar.crm_atualizacoes_desistiu = [];
+    for (const k of Object.keys(x)) if (k.startsWith("crm_atu_falha_")) limpar[k] = null;
+    await deps.db.collection("indications").doc(d.id).update(limpar);
+  }
+  const com = await deps.db.collection("commissions").where("crm_desistiu_em", ">", "").get();
+  for (const d of com.docs) {
+    await deps.db.collection("commissions").doc(d.id).update({
+      crm_desistiu_em: null,
+      crm_comissao_tentativas: 0,
+      crm_comissao_transporte: 0,
+      crm_comissao_proxima: null,
+      crm_paga_tentativas: 0,
+      crm_paga_transporte: 0,
+      crm_paga_proxima: null,
+      crm_ultimo_erro: null
+    });
+  }
+  return { indicacoes: ind.docs.length, comissoes: com.docs.length };
+}
+function registrarRotasAdminCrm(app, deps) {
+  app.get("/api/admin/crm/estado", async (req, res) => {
+    if (!await deps.exigirAdmin(req, res)) return;
+    try {
+      const cfg = deps.config();
+      const desde = await lerDataDaVirada(deps.db) || cfg.ativoDesde;
+      let host = "";
+      try {
+        host = new URL(cfg.url).host;
+      } catch {
+      }
+      const sim = await cargaInicialCrm(deps, { simulacao: true });
+      const cfgDoc = (await deps.db.collection("settings").doc(DOC_CONFIG_CRM).get()).data() || {};
+      const desistiram = (await deps.db.collection("indications").where("crm_desistiu_em", ">", "").get()).docs.length;
+      return res.json({
+        ok: true,
+        ativo: cfg.ativo,
+        tem_chave: !!cfg.chave,
+        tem_segredo: !!cfg.segredo,
+        destino: host,
+        url_valida: cfg.urlValida,
+        ativo_desde: desde,
+        pode_carga: podeCargaAoCrm(cfg),
+        pendentes_da_carga: sim && sim.ok ? sim.elegiveis : null,
+        pendentes_como_novas: sim && sim.ok ? sim.pendentes_novas : null,
+        desistiram,
+        alerta_transporte: cfgDoc.alerta_transporte || null,
+        carga_inicial_em: cfgDoc.carga_inicial_em || null
+      });
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e?.message || "Erro." });
+    }
+  });
+  app.post("/api/admin/crm/carga-inicial", async (req, res) => {
+    if (!await deps.exigirAdmin(req, res)) return;
+    try {
+      const r = await cargaInicialCrm(deps, { simulacao: req.body?.simulacao === true, limite: Number(req.body?.limite) || void 0 });
+      return res.status(r.ok ? 200 : r.status).json(r);
+    } catch (e) {
+      (deps.log || console.error)("[CRM-CARGA] Erro:", e?.message);
+      return res.status(500).json({ ok: false, error: "N\xE3o consegui concluir a carga. Tente de novo." });
+    }
+  });
+  app.post("/api/admin/crm/reativar", async (req, res) => {
+    if (!await deps.exigirAdmin(req, res)) return;
+    try {
+      return res.json({ ok: true, ...await reativarDesistidasCrm(deps) });
+    } catch (e) {
+      (deps.log || console.error)("[CRM-REATIVAR] Erro:", e?.message);
+      return res.status(500).json({ ok: false, error: "N\xE3o consegui reativar. Tente de novo." });
+    }
+  });
 }
 
 // server/relatoriosComissao.ts
@@ -5303,9 +6930,9 @@ try {
   console.warn("[FIREBASE-ADMIN] Could not load firebase-applet-config.json:", e.message);
 }
 function fixConsultantImages(text, index) {
-  const norm = (v) => String(v || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const norm2 = (v) => String(v || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const STOP = /* @__PURE__ */ new Set(["de", "da", "do", "das", "dos", "para", "com", "e", "o", "a", "roder", "modelo", "equipamento", "foto", "imagem"]);
-  const tokens = (v) => norm(v).split(/[^a-z0-9]+/).filter((t) => t.length >= 2 && !STOP.has(t));
+  const tokens = (v) => norm2(v).split(/[^a-z0-9]+/).filter((t) => t.length >= 2 && !STOP.has(t));
   const knownUrls = new Set(index.map((i) => i.url));
   let shown = 0;
   const used = /* @__PURE__ */ new Set();
@@ -5510,6 +7137,8 @@ async function startServer() {
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "Cache-Control", "Pragma"]
   }));
+  const configCrm = () => lerConfigCrm(process.env);
+  registrarRotaEventosCrm(app, import_express.default, { db, arrayUnion: (...v) => import_firebase_admin.default.firestore.FieldValue.arrayUnion(...v), config: configCrm });
   app.use(import_express.default.json({ limit: "50mb" }));
   app.use("/api/", (_req, res, next) => {
     res.setHeader("Cache-Control", "no-store");
@@ -5523,7 +7152,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-23h minha-conta-parceiro";
+  const RELEASE_LABEL = "2026-10-24a integracao-crm";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -6187,6 +7816,7 @@ Retorne um array JSON no formato exato:
     }
     return q;
   }
+  registrarRotasAdminCrm(app, { db, config: configCrm, exigirAdmin, arrayUnion: (...v) => import_firebase_admin.default.firestore.FieldValue.arrayUnion(...v) });
   registrarDiagnosticoComissao(app, { db, exigirAdmin, exigirGestao: exigirGestaoComissao, arrayUnion: (...v) => import_firebase_admin.default.firestore.FieldValue.arrayUnion(...v) });
   registrarCorrecoesAutomaticas(app, { db, exigirAdmin });
   registrarConviteConsultor(app, {
@@ -9191,8 +10821,8 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       const id = String(req.params.id || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
       if (!id) return res.status(400).send("Foto inv\xE1lida");
       const snap = await db.collection("app_files").doc(id).get();
-      const dados = String(snap.exists && snap.data()?.data || "");
-      const m = dados.match(/^data:(image\/(?:jpeg|png|webp|gif));base64,(.+)$/s);
+      const dados2 = String(snap.exists && snap.data()?.data || "");
+      const m = dados2.match(/^data:(image\/(?:jpeg|png|webp|gif));base64,(.+)$/s);
       if (!m) return res.status(404).send("Foto n\xE3o encontrada");
       res.setHeader("Content-Type", m[1]);
       res.setHeader("Cache-Control", "public, max-age=604800");
@@ -9884,6 +11514,51 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       console.error("[FINANCE-NOTICE] Erro:", e?.message);
     }
   }, { timezone: "America/Sao_Paulo" });
+  const bucketProprioCrm = () => config.storageBucket || `${config.projectId}.appspot.com`;
+  const assinarAnexoCrm = async (url) => {
+    const ref = referenciaStorage(url);
+    if (!ref || ref.bucket !== bucketProprioCrm()) return null;
+    const arq = (0, import_storage.getStorage)(adminApp).bucket(ref.bucket).file(ref.caminho);
+    const [meta] = await arq.getMetadata();
+    const tamanho = Number(meta?.size);
+    if (!Number.isFinite(tamanho)) return null;
+    let assinada;
+    try {
+      [assinada] = await arq.getSignedUrl({ action: "read", expires: Date.now() + 24 * 60 * 60 * 1e3 });
+    } catch {
+    }
+    return { url: assinada, tamanho };
+  };
+  const depsFase2Crm = () => ({ db, config: configCrm, assinarAnexo: assinarAnexoCrm, bucketProprio: bucketProprioCrm(), arrayUnion: (...v) => import_firebase_admin.default.firestore.FieldValue.arrayUnion(...v) });
+  import_node_cron.default.schedule("*/10 * * * *", async () => {
+    if (!configCrm().ativo) return;
+    try {
+      const a = await rodarAtualizacoesCrm(depsFase2Crm());
+      if (a.enviadas || a.falhas) console.log(`[CRM-FASE2] atualiza\xE7\xF5es ${a.enviadas}/${a.falhas} (ok/falha).`);
+    } catch (e) {
+      console.error("[CRM-FASE2] Erro nas atualiza\xE7\xF5es:", e?.message);
+    }
+  }, { timezone: "America/Sao_Paulo" });
+  import_node_cron.default.schedule("*/5 * * * *", async () => {
+    if (!configCrm().ativo) return;
+    try {
+      const c = await rodarComissoesCrm(depsFase2Crm());
+      if (c.enviadas || c.falhas) console.log(`[CRM-FASE2] comiss\xF5es ${c.enviadas}/${c.falhas} (ok/falha).`);
+    } catch (e) {
+      console.error("[CRM-FASE2] Erro nas comiss\xF5es:", e?.message);
+    }
+  }, { timezone: "America/Sao_Paulo" });
+  import_node_cron.default.schedule("* * * * *", async () => {
+    if (!configCrm().ativo) return;
+    try {
+      const r = await rodarFilaCrm({ db, config: configCrm });
+      const enviadas = r.resultados.filter((x) => x.resultado === "enviada").length;
+      const falhas = r.resultados.filter((x) => x.resultado === "falhou" || x.resultado === "desistiu").length;
+      if (enviadas || falhas) console.log(`[CRM-ENVIO] ${enviadas} enviada(s), ${falhas} falha(s).`);
+    } catch (e) {
+      console.error("[CRM-ENVIO] Erro na rodada:", e?.message);
+    }
+  }, { timezone: "America/Sao_Paulo" });
   import_node_cron.default.schedule("10 3 * * *", async () => {
     const jobName = "auto_cancel_60d";
     const dayKey = (/* @__PURE__ */ new Date()).toLocaleDateString("en-CA", { timeZone: BR_TIMEZONE });
@@ -10117,8 +11792,11 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
         console.warn("[Schedule] No available internal sellers to receive auto-assigned leads.");
         return;
       }
+      const cfgCrm = configCrm();
+      const crmDesde = cfgCrm.ativo ? cfgCrm.ativoDesde || await lerDataDaVirada(db).catch(() => null) : null;
       for (const docRef of pendingSnap.docs) {
         const indData = { id: docRef.id, ...docRef.data() };
+        if (triagemEhDoCrm(indData, { ...cfgCrm, ativoDesde: crmDesde }, now)) continue;
         const createdAt = new Date(indData.created_at || now.toISOString());
         const slaExpirationDate = calculateSlaExpiration(createdAt, 4);
         if (now >= slaExpirationDate) {
@@ -10418,7 +12096,7 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       }
     }
     try {
-      const normalizar2 = (v) => String(v || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+      const normalizar3 = (v) => String(v || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
       const parceiros = await db.collection("users").where("role", "in", ["external_seller", "vendedor_padrao"]).get();
       const porNome = /* @__PURE__ */ new Map();
       const porEmail = /* @__PURE__ */ new Map();
@@ -10426,7 +12104,7 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       parceiros.docs.forEach((u) => {
         const d = u.data();
         const uid = String(d.uid || u.id);
-        const nome = normalizar2(d.name);
+        const nome = normalizar3(d.name);
         const email = String(d.email || "").toLowerCase().trim();
         if (email) {
           emailDe.set(uid, email);
@@ -10446,8 +12124,8 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       let lote = db.batch();
       let noLote = 0;
       const n = { porEmail: 0, porNome: 0, emailMinusculo: 0, ambiguo: 0, semPar: 0 };
-      const gravar = async (ref, dados) => {
-        lote.update(ref, dados);
+      const gravar = async (ref, dados2) => {
+        lote.update(ref, dados2);
         noLote++;
         if (noLote >= 400) {
           await lote.commit();
@@ -10457,11 +12135,11 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       };
       for (const d of indicacoes.docs) {
         const ind = d.data();
-        const dados = {};
+        const dados2 = {};
         const emailGravado = typeof ind.external_seller_email === "string" ? ind.external_seller_email : "";
         const emailMin = emailGravado.toLowerCase().trim();
         if (emailGravado && emailGravado !== emailMin) {
-          dados.external_seller_email = emailMin;
+          dados2.external_seller_email = emailMin;
           n.emailMinusculo++;
         }
         const temUid = typeof ind.external_seller_uid === "string" && ind.external_seller_uid.trim() !== "";
@@ -10472,7 +12150,7 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
             const candidatos = /* @__PURE__ */ new Set();
             let ambiguo = false;
             for (const campo of ["external_seller_name", "indicator_name"]) {
-              const nome = normalizar2(ind[campo]);
+              const nome = normalizar3(ind[campo]);
               if (!nome || !porNome.has(nome)) continue;
               const s = porNome.get(nome);
               if (s.size > 1) ambiguo = true;
@@ -10485,11 +12163,11 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
             else if (ind.external_seller_name || ind.indicator_name) n.semPar++;
           }
           if (uid) {
-            dados.external_seller_uid = uid;
-            if (!emailMin && emailDe.get(uid)) dados.external_seller_email = emailDe.get(uid);
+            dados2.external_seller_uid = uid;
+            if (!emailMin && emailDe.get(uid)) dados2.external_seller_email = emailDe.get(uid);
           }
         }
-        if (Object.keys(dados).length) await gravar(d.ref, dados);
+        if (Object.keys(dados2).length) await gravar(d.ref, dados2);
       }
       if (noLote > 0) await lote.commit();
       await trava.set({ finished_at: (/* @__PURE__ */ new Date()).toISOString(), ...n }, { merge: true });
