@@ -9,22 +9,14 @@
 // leva a comissão para o parceiro da indicação sozinha, e o que ela não pode mexer aparece aqui.
 // Separado do server.ts para o teste rodar com um Firestore em memória.
 import {
-  calcularComissao, mesDaComissao, diaEmBrasilia, papelComissionavel, taxaDoParceiro, baseBrutaDosProdutos, itemComissionavel, UIDS_DE_SISTEMA,
+  calcularComissao, mesDaComissao, temEstornoNoHistorico, diaEmBrasilia, papelComissionavel, taxaDoParceiro, baseBrutaDosProdutos, itemComissionavel, UIDS_DE_SISTEMA,
 } from '../src/lib/calculoComissao';
 export { UIDS_DE_SISTEMA };
 
 // Indicação que já teve o faturamento estornado: marca nova (estornado_em) ou linha do histórico
 export const temMarcaDeEstorno = (ind: any) => !!ind?.estornado_em;
-// O estorno só vale como bloqueio se for mais recente que o último faturamento: venda refaturada
-// depois do estorno pode ganhar a comissão que faltar.
-export const temEstornoNoHistorico = (ind: any) => {
-  const h: any[] = Array.isArray(ind?.negotiation_history) ? ind.negotiation_history : [];
-  const ultimo = (re: RegExp) => h.reduce((m, x) => re.test(String(x?.content || '')) ? Math.max(m, Date.parse(x?.created_at) || 0) : m, -Infinity);
-  const estorno = ultimo(/^ESTORNO DE FATURAMENTO/i);
-  if (estorno === -Infinity) return false;
-  const faturou = ultimo(/^VENDA FINALIZADA/i);
-  return !(faturou !== -Infinity && faturou > estorno);
-};
+// (a regra mora em src/lib/calculoComissao.ts para o CRM usar a mesma)
+export { temEstornoNoHistorico };
 
 export const normalizar = (v: any) => String(v ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '')
   .toLowerCase().replace(/[^a-z0-9@._]+/g, ' ').replace(/\s+/g, ' ').trim();

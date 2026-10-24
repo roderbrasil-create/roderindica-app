@@ -94,3 +94,27 @@ export function temParceiroSemUid(ind: any): boolean {
   if (nome && NOME_SEM_PARCEIRO.test(nome)) return false;
   return !!(nome || String(ind.external_seller_email || '').trim() || ind.indicator_uid);
 }
+
+// O estorno só vale como bloqueio se for mais recente que o último faturamento: venda refaturada
+// depois do estorno pode ganhar a comissão que faltar.
+export const temEstornoNoHistorico = (ind: any) => {
+  const h: any[] = Array.isArray(ind?.negotiation_history) ? ind.negotiation_history : [];
+  const ultimo = (re: RegExp) => h.reduce((m, x) => re.test(String(x?.content || '')) ? Math.max(m, Date.parse(x?.created_at) || 0) : m, -Infinity);
+  const estorno = ultimo(/^ESTORNO DE FATURAMENTO/i);
+  if (estorno === -Infinity) return false;
+  const faturou = ultimo(/^VENDA FINALIZADA/i);
+  return !(faturou !== -Infinity && faturou > estorno);
+};
+
+
+// Centavos: o caminho do CRM arredonda cada valor monetário a 2 casas (base 166809 x 2% = 3336.18, e não
+// 3336.1800000000003). A tela de Indicações continua com calcularComissao sem arredondar, para não
+// mudar nenhum número que já existe; este é um acréscimo, não uma troca.
+export const emCentavos = (v: number) => Math.round((Number(v) + Number.EPSILON) * 100) / 100;
+export function calcularComissaoCentavos(produtos: ProdutoComissao[] | undefined | null, descontoReais: number, taxa: number): ResultadoComissao {
+  const c = calcularComissao(produtos, descontoReais, taxa);
+  const baseBruta = emCentavos(c.baseBruta);
+  const desconto = emCentavos(c.desconto);
+  const base = emCentavos(baseBruta - desconto);
+  return { ...c, baseBruta, desconto, base, valor: emCentavos(base * (taxa / 100)) };
+}

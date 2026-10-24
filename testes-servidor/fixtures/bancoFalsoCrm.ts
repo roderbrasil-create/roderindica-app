@@ -34,7 +34,7 @@ export function bancoFalsoCrm(inicial: Record<string, Record<string, any>> = {})
       get: async () => snapDoc(n, did),
       set: async (v: any, o?: any) => { if (falhas.vezes > 0 && falhas.colecao === n) { falhas.vezes--; throw new Error('banco fora do ar'); } col(n)[did] = o?.merge ? aplicar(col(n)[did], v) : aplicar({}, v); },
       update: async (v: any) => { if (!(did in col(n))) throw new Error('não existe'); col(n)[did] = aplicar(col(n)[did], v); },
-      create: async (v: any) => { if (did in col(n)) throw Object.assign(new Error('ALREADY_EXISTS'), { code: 6 }); col(n)[did] = aplicar({}, v); },
+      create: async (v: any) => { if (falhas.vezes > 0 && falhas.colecao === n) { falhas.vezes--; throw new Error('banco fora do ar'); } if (did in col(n)) throw Object.assign(new Error('ALREADY_EXISTS'), { code: 6 }); col(n)[did] = aplicar({}, v); },
       delete: async () => { delete col(n)[did]; },
     };
   }
@@ -46,7 +46,7 @@ export function bancoFalsoCrm(inicial: Record<string, Record<string, any>> = {})
     get: async () => {
       let ids = Object.keys(col(n)).filter(id => f.every(([c, op, v]) => {
         const d = col(n)[id];
-        return op === '==' ? d[c] === v : op === 'in' ? v.includes(d[c]) : false;
+        return op === '==' ? d[c] === v : op === 'in' ? v.includes(d[c]) : op === '>=' ? (d[c] !== undefined && d[c] >= v) : false;
       }));
       if (ord) {
         // como o Firestore: documento sem o campo do orderBy não aparece

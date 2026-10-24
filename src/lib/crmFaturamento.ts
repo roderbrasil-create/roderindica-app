@@ -2,11 +2,12 @@
 // quando NÃO dá para decidir sozinho. Parte pura; a conta em si é a de src/lib/calculoComissao.ts
 // (a mesma do botão Faturar da tela de Indicações), então os dois caminhos nunca divergem.
 import {
-  calcularComissao, itemComissionavel, mesDaComissao, papelComissionavel, taxaDoParceiro, temParceiroSemUid, UIDS_DE_SISTEMA,
+  calcularComissaoCentavos, emCentavos, itemComissionavel, mesDaComissao, papelComissionavel, taxaDoParceiro, temEstornoNoHistorico, temParceiroSemUid, UIDS_DE_SISTEMA,
   type ProdutoComissao,
 } from './calculoComissao';
 
-export type ItemCrm = { code: string; name: string; quantity: number; base_value: number };
+// ambiguo: o item veio com valor_total igual a valor e quantidade maior que 1 (não dá para saber se é unitário ou da linha)
+export type ItemCrm = { code: string; name: string; quantity: number; base_value: number; ambiguo?: boolean };
 
 // "1.234,56" (pt-BR) ou 1234.56
 export function numeroDoCrm(v: any): number | null {
@@ -46,7 +47,9 @@ export function normalizarItensCrm(raw: any): ItemCrm[] {
       const total = numeroDoCrm(i.valor_total);
       unit = total !== null ? total / quantity : 0;
     }
-    out.push({ code, name, quantity, base_value: Math.max(unit, 0) });
+    const totalLinha = numeroDoCrm(i.valor_total);
+    const ambiguo = quantity > 1 && totalLinha !== null && numeroDoCrm(i.valor_unitario ?? i.valor ?? i.preco ?? i.value) === totalLinha;
+    out.push({ code, name, quantity, base_value: emCentavos(Math.max(unit, 0)), ...(ambiguo ? { ambiguo: true } : {}) });
   }
   return out;
 }
@@ -82,11 +85,12 @@ export type DecisaoFaturamento =
   | { tipo: 'sem_comissao'; itens: ItemClassificado[] }
   | {
     tipo: 'comissao'; itens: ItemClassificado[]; taxa: number;
-    calc: ReturnType<typeof calcularComissao>; mes: { month: number; year: number };
+    calc: ReturnType<typeof calcularComissaoCentavos>; mes: { month: number; year: number };
     parceiroNome: string;
   };
 
-export function temEstorno(ind: any): boolean { return !!ind?.estornado_em; }
+// Estorno gravado na indicação OU só no histórico (estorno antigo): nunca ganha comissão nova por evento do CRM.
+export function temEstorno(ind: any): boolean { return !!ind?.estornado_em || temEstornoNoHistorico(ind); }
 
 export function decidirFaturamento(o: {
   ind: any;
@@ -94,6 +98,7 @@ export function decidirFaturamento(o: {
   itensBrutos: any;                // dados.itens do evento
   catalogo: Record<string, { is_commissionable?: boolean }>;
   comissaoExistente: boolean;      // commissions/{id} ou comissão antiga com indication_id
+  totalPedido?: number | null;     // total do pedido, quando o CRM manda: tem de bater com a soma dos itens
   entrega: string;                 // previsão de entrega (AAAA-MM-DD ou vazio)
   agora: Date;
 }): DecisaoFaturamento {
@@ -110,6 +115,11 @@ export function decidirFaturamento(o: {
 
   const uid = String(ind.external_seller_uid || '');
   const comParceiro = !!uid && !UIDS_DE_SISTEMA.includes(uid);
+  // Dinheiro: se o valor do item pode ser o total da linha, ou a soma não fecha com o total do pedido, a
+  // comissão sairia errada. Conferência, sem comissão.
+  if (itens.some(i => i.ambiguo)) motivos.push('Não dá para saber se o valor dos itens é unitário ou o total da linha.');
+  const soma = emCentavos(itens.reduce((a, i) => a + i.base_value * i.quantity, 0));
+  if (o.totalPedido !== undefined && o.totalPedido !== null && Math.abs(soma - o.totalPedido) > 0.05) motivos.push('A soma dos itens não bate com o total do pedido.');
   if (comParceiro && !o.parceiro) motivos.push('O parceiro ligado à indicação não existe mais no cadastro.');
   const recebeComissao = comParceiro && !!o.parceiro && papelComissionavel(o.parceiro.role);
   // Regra de item só importa quando há comissão a calcular; venda sem parceiro comissionável é só venda.
@@ -120,7 +130,7 @@ export function decidirFaturamento(o: {
 
   const produtos: ProdutoComissao[] = itens.map(i => ({ code: i.code, name: i.name, quantity: i.quantity, base_value: i.base_value, is_commissionable: i.is_commissionable }));
   const taxa = taxaDoParceiro(o.parceiro);
-  const calc = calcularComissao(produtos, 0, taxa);
+  const calc = calcularComissaoCentavos(produtos, 0, taxa);
   if (recebeComissao && !motivos.length) {
     if (calc.baseBruta <= 0) motivos.push('Nenhum item do pedido conta para a comissão (a base daria zero).');
     else if (calc.valor <= 0) motivos.push('A comissão daria zero.');

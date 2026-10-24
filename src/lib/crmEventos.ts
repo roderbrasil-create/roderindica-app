@@ -10,6 +10,7 @@
 //  - nunca se grava nem se mostra texto que cite outro parceiro, percentual de comissão ou contato;
 //  - a comissão só nasce quando TODOS os itens têm regra (src/lib/crmFaturamento.ts); senão a
 //    indicação fica "aguardando conferência" e a equipe decide.
+import { emCentavos } from './calculoComissao';
 import { classificarItensCrm, decidirFaturamento, diaDoCrm, numeroDoCrm, type DecisaoFaturamento, type ItemClassificado } from './crmFaturamento';
 
 export const EVENTOS_CRM = [
@@ -34,6 +35,8 @@ export type Plano = {
   notificacoes: NotificacaoCrm[];
   comissao?: Record<string, any>;     // documento commissions/{id da indicação}
   conferencia?: { motivos: string[]; itensSemRegra: string[] };
+  // só para o log interno (crm_eventos): o que este evento substituiu
+  substituiu?: Record<string, any>;
 };
 
 export type ContextoEvento = {
@@ -61,6 +64,8 @@ const normalizar = (v: any) => String(v ?? '').normalize('NFD').replace(/[̀-ͯ]
 const CITA_PARCEIRO = /\b(parceiros?|indicadors?|indicadas?|indicados?|indicou|indicacao\s+d[eao]|representantes?|outra\s+pessoa|outro\s+vendedor)\b/;
 const DADO_INTERNO = /@|comiss|%|r\$|\d{8,}/;
 
+const PALAVRAS_COMUNS = new Set(['ltda', 'eireli', 'agro', 'agricola', 'florestal', 'madeiras', 'madeireira', 'servicos', 'transportes', 'comercio', 'maquinas', 'equipamentos', 'empresa', 'grupo', 'industria', 'construtora', 'locadora', 'cliente', 'preco', 'prazo']);
+
 export const MOTIVO_GENERICO_RECUSA = 'Indicação não aceita pela Roder.';
 export const MOTIVO_GENERICO_PERDA = 'Negócio não concluído.';
 
@@ -76,12 +81,25 @@ export function textoSeguroParaParceiro(texto: any, generico: string, outrosParc
   for (const nome of outrosParceiros) {
     const nn = normalizar(nome);
     if (nn.length >= 3 && cercado.includes(` ${nn} `)) return generico;
+    // primeiro nome ou sobrenome de outro parceiro, com 4+ letras (menos palavras comuns de empresa)
+    for (const t of nn.split(' ')) if (t.length >= 4 && !PALAVRAS_COMUNS.has(t) && cercado.includes(` ${t} `)) return generico;
   }
   return bruto.length > max ? `${bruto.slice(0, max - 1).trimEnd()}…` : bruto;
 }
 
 // ---------- Auxiliares ----------
-const idSeguro = (id: string) => String(id).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 80);
+// Id do evento usado em chaves (documento e linha do histórico). Id comum passa como veio; qualquer outro
+// ('.', '..', com barra, espaço, muito longo) vira um hash, para nunca colidir nem falhar na gravação.
+export function idSeguroEvento(id: string): string {
+  const s = String(id);
+  if (/^[A-Za-z0-9_-]{1,100}$/.test(s)) return s;
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return `h${(h2 >>> 0).toString(16).padStart(8, '0')}${(h1 >>> 0).toString(16).padStart(8, '0')}${s.length.toString(16)}`;
+}
+const idSeguro = idSeguroEvento;
 
 function dataDoEvento(ev: EventoCrm, agora: Date): string {
   const t = ev.em ? new Date(ev.em).getTime() : NaN;
@@ -279,7 +297,7 @@ export function produtosGravaveis(itens: ItemClassificado[]) {
     ...(typeof i.is_commissionable === 'boolean' ? { is_commissionable: i.is_commissionable } : {}),
   }));
 }
-const totalDosItens = (itens: ItemClassificado[]) => itens.reduce((a, i) => a + i.base_value * i.quantity, 0);
+const totalDosItens = (itens: ItemClassificado[]) => emCentavos(itens.reduce((a, i) => a + i.base_value * i.quantity, 0));
 
 // ---------- pedido.faturado ----------
 function opcoesDosItens(ind: any, itens: ItemClassificado[]) {
@@ -290,7 +308,17 @@ function opcoesDosItens(ind: any, itens: ItemClassificado[]) {
   return { ...atual, complete_installation: !!atual.complete_installation || instal, kit_hydraulic: !!atual.kit_hydraulic || kit, with_freight: !!atual.with_freight || frete };
 }
 
+// Faturado repetido (id diferente) enquanto a indicação espera conferência: vale o último, e o que ele
+// substituiu vai para o log interno (crm_eventos), nunca some em silêncio.
 function planejarFaturado(ind: any, ev: EventoCrm, ctx: ContextoEvento, base: Record<string, any>): Plano {
+  const p = planejarFaturadoBase(ind, ev, ctx, base);
+  if (p.resultado === 'aplicado' && ind.faturamento_aguardando_conferencia === true && p.campos.commissioned_products && (ind.commissioned_products?.length || ind.sale_value)) {
+    p.substituiu = { evento_anterior: ind.crm_ultimo_evento_id ?? null, sale_order_number: ind.sale_order_number ?? null, sale_value: ind.sale_value ?? null, commissioned_products: ind.commissioned_products ?? [] };
+  }
+  return p;
+}
+
+function planejarFaturadoBase(ind: any, ev: EventoCrm, ctx: ContextoEvento, base: Record<string, any>): Plano {
   const agora = ctx.agora;
   const nivel = nivelDoStatus(ind.status);
   if (nivel === 9) return ignorado('indicacao_encerrada');
@@ -302,6 +330,7 @@ function planejarFaturado(ind: any, ev: EventoCrm, ctx: ContextoEvento, base: Re
 
   const dec: DecisaoFaturamento = decidirFaturamento({
     ind, parceiro: ctx.parceiro, itensBrutos: d.itens, catalogo: ctx.catalogo, comissaoExistente: ctx.comissaoExistente, entrega, agora,
+    totalPedido: numeroDoCrm(d.valor_total ?? d.total),
   });
   if (dec.tipo === 'ja_faturada') return ignorado(ind.status === 'sold' ? 'ja_faturada' : 'comissao_ja_existe');
 

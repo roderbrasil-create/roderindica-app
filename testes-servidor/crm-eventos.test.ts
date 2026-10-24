@@ -256,7 +256,7 @@ test('FATURADO: não recria comissão existente nem sobrescreve; estornada não 
 
 test('FATURADO sem parceiro (venda direta): vira sold sem comissão e sem exigir regra de item', async () => {
   const a = amb(ind({ status: 'negotiating', external_seller_uid: 'direct_factory', external_seller_name: 'Venda Direta' }));
-  await a.rodar(ev('pedido.faturado', FAT(), { parceiro_id: null }));
+  await a.rodar(ev('pedido.faturado', FAT(), { parceiro_id: 'direct_factory' }));
   assert.equal(a.get().status, 'sold'); assert.equal(a.get().commission_value, 0);
   assert.deepEqual(a.db.dados.commissions ?? {}, {});
   assert.equal(a.notificacoes().filter(n => n.user_uid === 'direct_factory').length, 0);
@@ -328,4 +328,108 @@ test('FUNÇÕES PURAS: normalização de itens, números e datas do CRM', () => 
   assert.equal(classificarItem({ code: 'Z', name: 'x', quantity: 1, base_value: 1 }, [], { Z: { is_commissionable: false } }).is_commissionable, false);
   const p = planejarEvento(ind(), { id: 'q', evento: 'indicacao.recebida', id_externo: 'ind1' }, { agora: AGORA, parceiro: null, vendedora: null, nomesOutrosParceiros: [], catalogo: {}, comissaoExistente: false });
   assert.equal(p.resultado, 'aplicado');
+});
+
+// ---------- Correções da revisão ----------
+import { temEstorno } from '../src/lib/crmFaturamento.ts';
+import { idSeguroEvento } from '../src/lib/crmEventos.ts';
+import { calcularComissaoCentavos } from '../src/lib/calculoComissao.ts';
+
+test('ESTORNO só no histórico (sem estornado_em) também bloqueia a comissão do CRM', async () => {
+  const historico = [{ id: 'h1', type: 'status_change', content: 'ESTORNO DE FATURAMENTO: desfeito', author_name: 'x', created_at: '2026-10-01T10:00:00Z' }];
+  assert.equal(temEstorno(ind({ negotiation_history: historico })), true);
+  const refaturada = [...historico, { id: 'h2', type: 'status_change', content: 'VENDA FINALIZADA! x', author_name: 'x', created_at: '2026-10-02T10:00:00Z' }];
+  assert.equal(temEstorno(ind({ negotiation_history: refaturada })), false);
+  const a = amb(ind({ status: 'negotiating', negotiation_history: historico }), catalogoOk);
+  const r = await a.rodar(ev('pedido.faturado', FAT()));
+  assert.equal(r.body.aguardando_conferencia, true);
+  assert.deepEqual(a.db.dados.commissions ?? {}, {});
+  assert.equal(a.get().status, 'negotiating');
+});
+
+test('VÍNCULO: eventos de dinheiro/status exigem parceiro_id presente e igual; ausente ou diferente é ignorado com 200', async () => {
+  for (const e of ['pedido.faturado', 'pedido.lancado', 'negocio.ganho', 'negocio.perdido', 'indicacao.aceita', 'indicacao.recusada']) {
+    for (const parceiro_id of [null, 'p2']) {
+      const a = amb(ind({ status: e.startsWith('indicacao') ? 'pending' : 'negotiating' }), catalogoOk);
+      const r = await a.rodar(ev(e, FAT(), { parceiro_id }));
+      assert.equal(r.status, 200); assert.equal(r.body.motivo, 'parceiro_diferente', `${e} ${parceiro_id}`);
+      assert.deepEqual(a.get().negotiation_history, []);
+    }
+  }
+  // eventos informativos continuam aceitos sem parceiro_id
+  const b = amb(); await b.rodar(ev('indicacao.recebida', {}, { parceiro_id: null }));
+  assert.equal(b.get().negotiation_history.length, 1);
+});
+
+test('VALOR ambíguo ou total que não fecha: conferência, sem comissão', async () => {
+  const ambiguo = [{ codigo: '1000.0001', nome: 'CMF', quantidade: 2, valor: 360000, valor_total: 360000 }];
+  const a = amb(ind({ status: 'negotiating' }), catalogoOk);
+  assert.equal((await a.rodar(ev('pedido.faturado', FAT(ambiguo)))).body.aguardando_conferencia, true);
+  assert.deepEqual(a.db.dados.commissions ?? {}, {});
+  const b = amb(ind({ status: 'negotiating' }), catalogoOk);
+  assert.equal((await b.rodar(ev('pedido.faturado', { ...FAT(), valor_total: 999 }))).body.aguardando_conferencia, true);
+  // total que fecha (195500 = 180000 + 12000 + 3500) passa; valor_total de linha coerente (valor unitário diferente do total) também
+  const c = amb(ind({ status: 'negotiating' }), catalogoOk);
+  assert.equal((await c.rodar(ev('pedido.faturado', { ...FAT(), valor_total: 195500 }))).body.resultado, 'aplicado');
+  assert.equal(c.get().status, 'sold');
+  const d = amb(ind({ status: 'negotiating' }), catalogoOk);
+  await d.rodar(ev('pedido.faturado', FAT([{ codigo: '1000.0001', nome: 'CMF', quantidade: 2, valor: 90000, valor_total: 180000 }])));
+  assert.equal(d.get().status, 'sold'); assert.equal(d.get().commission_value, 5400);
+});
+
+test('CENTAVOS: base 166809 x 2% = 3336.18 exato, e a conta da tela não muda', () => {
+  const prod = [{ code: '1', name: 'x', quantity: 1, base_value: 166809 }];
+  assert.equal(calcularComissaoCentavos(prod, 0, 2).valor, 3336.18);
+  assert.equal(calcularComissaoCentavos([{ code: '1', name: 'x', quantity: 3, base_value: 33.335 }], 0, 3).valor, 3);
+  assert.equal(calcularComissao(prod, 0, 2).valor, 166809 * 0.02, 'a função da tela segue sem arredondar');
+});
+
+test('ID do evento: ".", "..", barra, espaço e ids longos não falham e não colidem', async () => {
+  assert.equal(idSeguroEvento('abc-1_X'), 'abc-1_X');
+  const ids = ['.', '..', 'a/b', 'a b', 'x'.repeat(300), 'a/b ', 'é'];
+  const saidas = ids.map(idSeguroEvento);
+  assert.equal(new Set(saidas).size, ids.length);
+  for (const s of saidas) assert.match(s, /^[A-Za-z0-9_-]{1,100}$/);
+  const a = amb();
+  for (const id of ['.', '..', 'a/b']) {
+    const r = await a.rodar({ id, evento: 'indicacao.recebida', em: '2026-10-28T14:00:00Z', id_externo: 'ind1', parceiro_id: 'p1', dados: {} });
+    assert.equal(r.status, 200);
+  }
+  assert.equal(a.get().negotiation_history.length, 3);
+});
+
+test('REGISTRO do evento: "aplicado" nunca é sobrescrito por "ignorado"; reprocesso de algo aplicado conta como aplicado', async () => {
+  const a = amb();
+  const e = ev('indicacao.recebida');
+  await a.rodar(e);
+  const chave = Object.keys(a.db.dados.crm_eventos)[0];
+  assert.equal(a.db.dados.crm_eventos[chave].resultado, 'aplicado');
+  // corrida: o registro some e o mesmo evento chega de novo
+  delete a.db.dados.crm_eventos[chave];
+  await a.rodar(e);
+  assert.equal(a.db.dados.crm_eventos[chave].resultado, 'aplicado');
+  // um ignorado concorrente não troca o aplicado já gravado
+  const ref = a.db.collection('crm_eventos').doc(chave);
+  await a.rodar({ ...e, id: e.id });
+  assert.equal((await ref.get()).data().resultado, 'aplicado');
+});
+
+test('NOME de outro parceiro por primeiro nome (4+ letras) também é barrado; palavra comum de empresa não', () => {
+  assert.equal(textoSeguroParaParceiro('O Carlos já está atendendo', 'g', ['Carlos Concorrente']), 'g');
+  assert.equal(textoSeguroParaParceiro('Falou com Concorrente', 'g', ['Carlos Concorrente']), 'g');
+  assert.equal(textoSeguroParaParceiro('Cliente do setor florestal', 'g', ['Madeiras Florestal Ltda']), 'Cliente do setor florestal');
+  assert.equal(textoSeguroParaParceiro('Sem verba agora', 'g', ['Ana Lima']), 'Sem verba agora');
+});
+
+test('FATURADO repetido em conferência: vale o último e o anterior vai para o log interno', async () => {
+  const a = amb(ind({ status: 'negotiating' }));  // sem catálogo: conferência
+  await a.rodar(ev('pedido.faturado', FAT()));
+  const primeiro = structuredClone(a.get().commissioned_products);
+  const outro = ev('pedido.faturado', FAT([{ codigo: 'Z1', nome: 'Outra peça', quantidade: 1, valor: 500 }]));
+  await a.rodar(outro);
+  assert.equal(a.get().commissioned_products[0].code, 'Z1');
+  assert.deepEqual(a.get().negotiation_history, [], 'o parceiro não vê');
+  const log = a.db.dados.crm_eventos[outro.id];
+  assert.deepEqual(log.substituiu.commissioned_products, primeiro);
+  assert.equal(log.substituiu.sale_value, 195500);
 });

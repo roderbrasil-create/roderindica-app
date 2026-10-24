@@ -19,8 +19,8 @@ Nenhum valor fica no código.
 
 ## Indica para CRM (nova indicação)
 
-- Laço de 1 minuto no servidor (`server/crmEntrada.ts`, agendado em `server.ts`). Lê as indicações criadas nas últimas
-  72 horas, nunca antes da data da virada, ordenadas por `created_at` e filtra em memória (sem índice composto,
+- Laço de 1 minuto no servidor (`server/crmEntrada.ts`, agendado em `server.ts`). Lê (`where created_at >= janela orderBy created_at`, até 500) as indicações criadas nas últimas
+  72 horas, nunca antes da data da virada, e filtra em memória (sem índice composto,
   porque `== null` não casa campo inexistente).
 - Envia `POST CRM_URL` com `x-roder-chave`. Corpo: `id_externo` (id do doc em `indications`), `nome`, `empresa`, `cnpj`,
   `telefone`, `email`, `cidade`, `uf`, `produto`, `observacao`, `parceiro {id (uid), nome, telefone, email}`, `criado_em`.
@@ -42,6 +42,10 @@ O timestamp pode ser segundos, milissegundos ou ISO, e é usado exatamente como 
   inválido; 200 aplicado, ignorado (com `motivo`) ou repetido; 500 erro transitório (o CRM reenvia).
 - Idempotente: cada `id` processado fica em `crm_eventos/{id}` (com resultado e dados, só o servidor lê). As linhas do
   histórico também têm id fixo `crm-{id do evento}`, então um reprocessamento nunca duplica.
+- `parceiro_id` é obrigatório e tem de ser o uid da indicação em `pedido.faturado`, `pedido.lancado`, `negocio.ganho`,
+  `negocio.perdido`, `indicacao.aceita` e `indicacao.recusada`; ausente ou diferente é ignorado (200, motivo `parceiro_diferente`).
+- Estorno também vale quando está só no histórico ("ESTORNO DE FATURAMENTO"): nunca ganha comissão nova pelo CRM.
+- Um `pedido.faturado` novo enquanto a indicação espera conferência vale como o último; o anterior fica em `crm_eventos/{id}.substituiu`.
 - Evento que regrediria o status é ignorado e fica só no log. Evento para `id_externo` inexistente ou com `parceiro_id`
   diferente do da indicação também (200 com o motivo).
 
@@ -65,7 +69,10 @@ O parceiro nunca vê percentual de comissão.
 ### pedido.faturado e a comissão
 
 `dados`: `numero`, `cnpj`, `data_pedido`, `data_faturamento`, `previsao_entrega`, `itens [{codigo, nome, quantidade, valor}]`.
-`valor` é o valor UNITÁRIO (se vier só `valor_total`, o Indica divide pela quantidade).
+`valor` é o valor UNITÁRIO de cada item (se vier só `valor_total` no item, o Indica divide pela quantidade).
+Vai para conferência, sem comissão, o pedido em que `valor_total` do item é igual a `valor` com quantidade maior que 1
+(ambíguo), ou em que a soma de quantidade x valor não bate com o `valor_total` (ou `total`) do pedido, quando ele vier.
+Valores são arredondados em centavos no caminho do CRM (base 166809 x 2% = 3336,18).
 
 Mesma conta de `src/lib/calculoComissao.ts`: taxa do cadastro do parceiro (`taxaDoParceiro`, padrão 2%), kit 9000 e
 serviços (frete, montagem, instalação...) fora da base, mês de pagamento por `mesDaComissao(previsao_entrega)`,

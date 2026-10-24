@@ -21,8 +21,7 @@ export const DOC_CONFIG_CRM = 'crm_integracao';
 const TIMEOUT_ENVIO_MS = 15000;
 const MAX_POR_RODADA = 20;
 const JANELA_DO_LACO_MS = 72 * 60 * 60 * 1000;
-const POR_PAGINA = 100;
-const MAX_PAGINAS = 5;
+const LIMITE_DO_LACO = 500;
 
 export type ResultadoEnvio = { id: string; resultado: 'enviada' | 'falhou' | 'desistiu' | 'pulada'; motivo?: string; status?: number };
 
@@ -144,25 +143,15 @@ let emExecucao = false;
 // inexistente, e é exatamente o caso das indicações novas.
 export async function listarCandidatasDoLaco(db: any, ativoDesde: string, agora: Date): Promise<{ id: string; data: any }[]> {
   const limite = new Date(Math.max(new Date(ativoDesde).getTime(), agora.getTime() - JANELA_DO_LACO_MS)).toISOString();
+  // Faixa e ordem no MESMO campo (created_at): não pede índice composto. Mais antigas primeiro, que é a
+  // ordem em que os parceiros indicaram; o teto só pesa se houver mais de LIMITE_DO_LACO indicações em 72 h.
+  const s = await db.collection('indications').where('created_at', '>=', limite).orderBy('created_at').limit(LIMITE_DO_LACO).get();
   const achadas: { id: string; data: any }[] = [];
-  let cursor: any = null;
-  for (let pag = 0; pag < MAX_PAGINAS; pag++) {
-    let q = db.collection('indications').orderBy('created_at', 'desc').limit(POR_PAGINA);
-    if (cursor) q = q.startAfter(cursor);
-    const s = await q.get();
-    if (s.empty) break;
-    for (const d of s.docs) {
-      const data = d.data() || {};
-      if (typeof data.created_at === 'string' && data.created_at >= limite) {
-        if (!motivoNaoEnviarNoLaco(data, { ativoDesde, agora })) achadas.push({ id: d.id, data });
-      }
-    }
-    const ultima = s.docs[s.docs.length - 1].data() || {};
-    if (s.docs.length < POR_PAGINA || !(typeof ultima.created_at === 'string' && ultima.created_at >= limite)) break;
-    cursor = s.docs[s.docs.length - 1];
+  for (const d of s.docs) {
+    const data = d.data() || {};
+    if (!motivoNaoEnviarNoLaco(data, { ativoDesde, agora })) achadas.push({ id: d.id, data });
   }
-  // mais antigas primeiro: a fila anda na ordem em que os parceiros indicaram
-  return achadas.sort((a, b) => String(a.data.created_at).localeCompare(String(b.data.created_at)));
+  return achadas;
 }
 
 export async function rodarFilaCrm(deps: DepsEntradaCrm): Promise<{ pulado?: string; resultados: ResultadoEnvio[] }> {

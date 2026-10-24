@@ -9,7 +9,7 @@
 //   400 corpo que não é JSON ou sem id, evento e id_externo
 //   200 aplicado, ignorado (com o motivo) ou repetido; erro transitório do banco: 500
 import { podeReceberDoCrm, type ConfigCrm } from '../src/lib/crmIntegracao';
-import { EVENTOS_CRM, parceiroEhPessoa, planejarEvento, type EventoCrm, type Plano } from '../src/lib/crmEventos';
+import { EVENTOS_CRM, idSeguroEvento, parceiroEhPessoa, planejarEvento, type EventoCrm, type Plano } from '../src/lib/crmEventos';
 import { normalizarItensCrm } from '../src/lib/crmFaturamento';
 import { verificarAssinaturaCrm } from './crmAssinatura';
 
@@ -24,7 +24,9 @@ export type DepsEventosCrm = {
 export type RespostaCrm = { status: number; body: any };
 
 const ID_SIMPLES = /^[A-Za-z0-9_-]{1,128}$/;
-const docIdEvento = (id: string) => String(id).replace(/[\/\s]/g, '_').slice(0, 200);
+const docIdEvento = idSeguroEvento;
+// eventos que mexem em status ou dinheiro: parceiro_id é obrigatório e tem de ser o da indicação
+const EVENTOS_COM_VINCULO = ['pedido.faturado', 'pedido.lancado', 'negocio.ganho', 'negocio.perdido', 'indicacao.aceita', 'indicacao.recusada'];
 const norm = (v: any) => String(v ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9@._]+/g, ' ').trim();
 
 const PAPEIS_GESTAO_VENDA = ['admin', 'manager'];
@@ -108,14 +110,26 @@ export async function processarEventoCrm(deps: DepsEventosCrm, ev: EventoCrm): P
   const anterior = await eventoRef.get();
   if (anterior.exists && anterior.data()?.processado_em) return { status: 200, body: { ok: true, duplicado: true } };
 
+  // Nunca sobrescreve um registro 'aplicado' com 'ignorado' (corrida entre dois envios do mesmo id).
   const registrar = async (resultado: 'aplicado' | 'ignorado', motivo: string | undefined, plano?: Plano) => {
     let dadosGravados: string | null = null;
     try { const j = JSON.stringify(ev.dados ?? null); dadosGravados = j.length > 20000 ? `${j.slice(0, 20000)}…` : j; } catch { /* sem dados */ }
-    await eventoRef.set({
+    // reprocessar algo que já tinha sido aplicado (registro perdido) é "aplicado", não "ignorado"
+    const final = resultado === 'ignorado' && motivo === 'ja_aplicado' ? 'aplicado' : resultado;
+    const doc = {
       id: ev.id, evento: ev.evento, id_externo: ev.id_externo, parceiro_id: ev.parceiro_id ?? null,
-      resultado, motivo: motivo ?? null, processado_em: agora.toISOString(), em: ev.em ?? null, dados: dadosGravados,
+      resultado: final, motivo: motivo ?? null, processado_em: agora.toISOString(), em: ev.em ?? null, dados: dadosGravados,
       ...(plano?.conferencia ? { conferencia: plano.conferencia } : {}),
-    });
+      ...(plano?.substituiu ? { substituiu: plano.substituiu } : {}),
+    };
+    try {
+      await eventoRef.create(doc);
+    } catch (e: any) {
+      if (!(e?.code === 6 || /ALREADY_EXISTS|already exists/i.test(String(e?.message)))) throw e;
+      const atual = (await eventoRef.get()).data() || {};
+      if (atual.resultado === 'aplicado' || final === 'ignorado') return; // o primeiro registro 'aplicado' vale
+      await eventoRef.set(doc);
+    }
   };
 
   if (!(EVENTOS_CRM as readonly string[]).includes(ev.evento)) {
@@ -133,7 +147,11 @@ export async function processarEventoCrm(deps: DepsEventosCrm, ev: EventoCrm): P
   const indPrevia = previa.data() || {};
   const donoUid = String(indPrevia.external_seller_uid || '');
   // O evento é de outro parceiro que não o da indicação: não aplica (evita trocar andamento de lugar).
-  if (ev.parceiro_id && donoUid && String(ev.parceiro_id) !== donoUid) {
+  const parceiroDoEvento = String(ev.parceiro_id ?? '');
+  const diverge = EVENTOS_COM_VINCULO.includes(ev.evento)
+    ? parceiroDoEvento !== donoUid                      // dinheiro/status: presente e igual (ou os dois vazios)
+    : !!(parceiroDoEvento && donoUid && parceiroDoEvento !== donoUid);
+  if (diverge) {
     await registrar('ignorado', 'parceiro_diferente');
     log(`[CRM-EVENTOS] ${ev.evento} ${ev.id}: parceiro_id do evento difere do da indicação ${ev.id_externo}.`);
     return { status: 200, body: { ok: true, resultado: 'ignorado', motivo: 'parceiro_diferente' } };
