@@ -2462,6 +2462,11 @@ export default function NegotiationCentral() {
                   const isSalesOrderLoaded = !!orderNumber && orderNumber.trim() !== '';
                   return (
                     <div className="flex items-center gap-1.5 shrink-0">
+                      {(activeIndication as any)?.faturamento_aguardando_conferencia && (
+                        <span className="text-[10px] lg:text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-500/15 rounded-md px-2 py-1 shrink-0" title="O CRM faturou este pedido, mas os itens precisam de conferência antes da comissão. Confira os produtos e use Finalizar Faturamento.">
+                          Faturado no CRM: conferir
+                        </span>
+                      )}
                       <Button 
                         onClick={handleOpenFinalizeDialog}
                         disabled={loading || !isSalesOrderLoaded}

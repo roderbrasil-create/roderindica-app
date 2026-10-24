@@ -641,6 +641,8 @@ export default function Indications() {
         status: 'sold',
         // refaturada depois de um estorno: a marca do estorno sai, a venda pode ganhar a comissão que faltar
         estornado_em: deleteField(),
+        // venda que o CRM faturou e ficou aguardando conferência: faturar aqui é a conferência feita
+        faturamento_aguardando_conferencia: false,
         sale_value: totalSalesValue,
         discount_percentage: discPct,
         discount_amount: discountAmount,

@@ -54,6 +54,9 @@ import { emailConfiavelDoToken, ehDiretoriaPeloToken, papelDeQuemChama, classifi
 import { registrarDiagnosticoComissao, moverComissoesDoProvisorio, loteEmPartes } from "./server/diagnosticoComissao";
 import { conciliarComTrava, registrarCorrecoesAutomaticas } from "./server/conciliacaoComissao";
 import { garantirEmailsLigados } from "./server/emailsSempreLigados";
+import { lerConfigCrm, triagemEhDoCrm } from "./src/lib/crmIntegracao";
+import { registrarRotaEventosCrm } from "./server/crmEventos";
+import { registrarRotasAdminCrm, rodarFilaCrm, lerDataDaVirada } from "./server/crmEntrada";
 import { relatorioDiretoriaDia1, relatorioParceirosDia1, lembreteNfDia5, lembreteFinanceiroDia7, ligarEmailsComissaoUmaVez } from "./server/relatoriosComissao";
 
 let __currentDir: string;
@@ -351,6 +354,11 @@ async function startServer() {
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'Cache-Control', 'Pragma']
   }));
+
+  // Integração com o CRM do Roder Vision (docs/integracao-crm.md). A rota de eventos valida a assinatura
+  // do corpo CRU, então precisa vir ANTES do express.json() global (que consome e reescreve o corpo).
+  const configCrm = () => lerConfigCrm(process.env as any);
+  registrarRotaEventosCrm(app, express, { db, arrayUnion: (...v: any[]) => admin.firestore.FieldValue.arrayUnion(...v), config: configCrm });
 
   app.use(express.json({ limit: '50mb' }));
   // A CDN da Hostinger guardava respostas da API (a conferência de versão mostrava a de
@@ -1160,6 +1168,9 @@ Retorne um array JSON no formato exato:
     if (!ehGestao(q)) { res.status(403).json({ ok: false, error: 'Só o administrador ou a gerência podem trocar o indicador de uma venda faturada.' }); return null; }
     return q;
   }
+
+  // Integração com o CRM: estado e carga inicial, só o administrador (server/crmEntrada.ts)
+  registrarRotasAdminCrm(app, { db, config: configCrm, exigirAdmin });
 
   // Diagnóstico de comissão do parceiro (server/diagnosticoComissao.ts)
   registrarDiagnosticoComissao(app, { db, exigirAdmin, exigirGestao: exigirGestaoComissao, arrayUnion: (...v: any[]) => admin.firestore.FieldValue.arrayUnion(...v) });
@@ -5203,6 +5214,21 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     }
   }, { timezone: 'America/Sao_Paulo' });
 
+  // CRM: a cada minuto envia ao CRM as indicações novas ainda não enviadas (fila com backoff).
+  // Desligado (CRM_ATIVO != 1) não faz nada. A reserva por indicação (crm_reservado_ate) evita
+  // envio em dobro se houver mais de um processo do servidor.
+  cron.schedule('* * * * *', async () => {
+    if (!configCrm().ativo) return;
+    try {
+      const r = await rodarFilaCrm({ db, config: configCrm });
+      const enviadas = r.resultados.filter(x => x.resultado === 'enviada').length;
+      const falhas = r.resultados.filter(x => x.resultado === 'falhou' || x.resultado === 'desistiu').length;
+      if (enviadas || falhas) console.log(`[CRM-ENVIO] ${enviadas} enviada(s), ${falhas} falha(s).`);
+    } catch (e: any) {
+      console.error('[CRM-ENVIO] Erro na rodada:', e?.message);
+    }
+  }, { timezone: 'America/Sao_Paulo' });
+
   // Cancelamento automático das negociações com a proteção de 60 dias vencida.
   // Morava no navegador (Indications.tsx) e por isso: rodava na tela de qualquer pessoa logada,
   // inclusive parceiro; ignorava a renovação manual (protection_expires_at); cancelava negociação
@@ -5490,8 +5516,14 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         return;
       }
 
+      // Com o CRM ligado a triagem é feita lá: o robô de 4 horas não distribui o que o CRM já tem
+      // (ou vai ter em instantes). Desligado, nada muda.
+      const cfgCrm = configCrm();
+      const crmDesde = cfgCrm.ativo ? (cfgCrm.ativoDesde || await lerDataDaVirada(db).catch(() => null)) : null;
+
       for (const docRef of pendingSnap.docs) {
         const indData = { id: docRef.id, ...docRef.data() } as any;
+        if (triagemEhDoCrm(indData, { ativo: cfgCrm.ativo, ativoDesde: crmDesde })) continue;
         const createdAt = new Date(indData.created_at || now.toISOString());
         const slaExpirationDate = calculateSlaExpiration(createdAt, 4);
 
