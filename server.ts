@@ -56,7 +56,8 @@ import { conciliarComTrava, registrarCorrecoesAutomaticas } from "./server/conci
 import { garantirEmailsLigados } from "./server/emailsSempreLigados";
 import { lerConfigCrm, triagemEhDoCrm } from "./src/lib/crmIntegracao";
 import { registrarRotaEventosCrm } from "./server/crmEventos";
-import { registrarRotasAdminCrm, rodarFilaCrm, lerDataDaVirada } from "./server/crmEntrada";
+import { registrarRotasAdminCrm, rodarFilaCrm, rodarAtualizacoesCrm, rodarComissoesCrm, lerDataDaVirada } from "./server/crmEntrada";
+import { referenciaStorage } from "./src/lib/crmFase2";
 import { relatorioDiretoriaDia1, relatorioParceirosDia1, lembreteNfDia5, lembreteFinanceiroDia7, ligarEmailsComissaoUmaVez } from "./server/relatoriosComissao";
 
 let __currentDir: string;
@@ -1170,7 +1171,7 @@ Retorne um array JSON no formato exato:
   }
 
   // Integração com o CRM: estado e carga inicial, só o administrador (server/crmEntrada.ts)
-  registrarRotasAdminCrm(app, { db, config: configCrm, exigirAdmin });
+  registrarRotasAdminCrm(app, { db, config: configCrm, exigirAdmin, arrayUnion: (...v: any[]) => admin.firestore.FieldValue.arrayUnion(...v) });
 
   // Diagnóstico de comissão do parceiro (server/diagnosticoComissao.ts)
   registrarDiagnosticoComissao(app, { db, exigirAdmin, exigirGestao: exigirGestaoComissao, arrayUnion: (...v: any[]) => admin.firestore.FieldValue.arrayUnion(...v) });
@@ -5217,8 +5218,23 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
   // CRM: a cada minuto envia ao CRM as indicações novas ainda não enviadas (fila com backoff).
   // Desligado (CRM_ATIVO != 1) não faz nada. A reserva por indicação (crm_reservado_ate) evita
   // envio em dobro se houver mais de um processo do servidor.
+  // Fase 2 (atualização do parceiro, comissão, comissão paga) usa o mesmo interruptor.
+  const assinarAnexoCrm = async (url: string) => {
+    const ref = referenciaStorage(url);
+    if (!ref) return null;
+    const arq = getStorage(adminApp).bucket(ref.bucket).file(ref.caminho);
+    const [meta] = await arq.getMetadata();
+    const [assinada] = await arq.getSignedUrl({ action: 'read', expires: Date.now() + 24 * 60 * 60 * 1000 });
+    return { url: assinada, tamanho: Number((meta as any)?.size) || undefined };
+  };
   cron.schedule('* * * * *', async () => {
     if (!configCrm().ativo) return;
+    const depsCrm = { db, config: configCrm, assinarAnexo: assinarAnexoCrm, arrayUnion: (...v: any[]) => admin.firestore.FieldValue.arrayUnion(...v) };
+    try {
+      const a = await rodarAtualizacoesCrm(depsCrm);
+      const c = await rodarComissoesCrm(depsCrm);
+      if (a.enviadas || a.falhas || c.enviadas || c.falhas) console.log(`[CRM-FASE2] atualizações ${a.enviadas}/${a.falhas}, comissões ${c.enviadas}/${c.falhas} (ok/falha).`);
+    } catch (e: any) { console.error('[CRM-FASE2] Erro na rodada:', e?.message); }
     try {
       const r = await rodarFilaCrm({ db, config: configCrm });
       const enviadas = r.resultados.filter(x => x.resultado === 'enviada').length;

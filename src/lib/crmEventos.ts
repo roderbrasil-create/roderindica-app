@@ -19,7 +19,22 @@ export const EVENTOS_CRM = [
 ] as const;
 export type NomeEventoCrm = typeof EVENTOS_CRM[number];
 
-export type EventoCrm = { id: string; evento: string; em?: string; id_externo: string; parceiro_id?: string | null; dados?: any };
+export type EventoCrm = { id: string; evento: string; em?: string; id_externo: string; parceiro_id?: string | null; status?: string; mensagem?: string; dados?: any };
+
+// Campos do contrato final que podem vir no TOPO do corpo ou dentro de `dados` (vale `dados` se houver os dois).
+const CAMPOS_DO_TOPO = ['pedido_numero', 'numero', 'cnpj', 'data_pedido', 'previsao_entrega', 'data_faturamento', 'nota_fiscal', 'valor_total', 'total', 'itens', 'motivo', 'etapa', 'vendedora', 'vendedora_nome', 'vendedora_email', 'vendedora_uid', 'valor', 'data', 'numero_orcamento'];
+export function mesclarDadosCrm(corpo: any): Record<string, any> {
+  const out: Record<string, any> = {};
+  if (corpo && typeof corpo === 'object') for (const k of CAMPOS_DO_TOPO) if (corpo[k] !== undefined && corpo[k] !== null) out[k] = corpo[k];
+  if (corpo?.dados && typeof corpo.dados === 'object') for (const [k, v] of Object.entries(corpo.dados)) if (v !== undefined && v !== null) out[k] = v;
+  return out;
+}
+
+// `mensagem` é a fonte do texto quando `dados` não traz: "Negociação encerrada: <motivo>", "Em atendimento por <vendedora>", nome da etapa.
+export function textoDaMensagem(ev: { mensagem?: string }, prefixo?: RegExp): string {
+  const m = String(ev.mensagem ?? '').replace(/\s+/g, ' ').trim();
+  return prefixo ? m.replace(prefixo, '').trim() : m;
+}
 
 export const AUTOR_CRM = 'CRM Roder';
 export const SESSENTA_DIAS_MS = 60 * 24 * 60 * 60 * 1000;
@@ -102,7 +117,9 @@ export function idSeguroEvento(id: string): string {
 const idSeguro = idSeguroEvento;
 
 function dataDoEvento(ev: EventoCrm, agora: Date): string {
-  const t = ev.em ? new Date(ev.em).getTime() : NaN;
+  // AAAA-MM-DD sozinho vale meio-dia de São Paulo (new Date('AAAA-MM-DD') seria UTC e deslocaria o dia)
+  const emTexto = ev.em && /^\d{4}-\d{2}-\d{2}$/.test(String(ev.em).trim()) ? `${String(ev.em).trim()}T12:00:00-03:00` : ev.em;
+  const t = emTexto ? new Date(emTexto).getTime() : NaN;
   // data inválida ou no futuro distante: vale a hora em que o Indica recebeu
   if (!Number.isFinite(t) || t > agora.getTime() + 60 * 60 * 1000) return agora.toISOString();
   return new Date(t).toISOString();
@@ -131,7 +148,7 @@ export const parceiroEhPessoa = (ind: any) => !!ind.external_seller_uid && !UIDS
 function nomeDaVendedora(ev: EventoCrm, ctx: ContextoEvento): string {
   const d = dados(ev);
   const v = d.vendedora ?? d.vendedora_nome ?? d.responsavel;
-  const doEvento = typeof v === 'string' ? v : v?.nome ?? v?.name ?? '';
+  const doEvento = (typeof v === 'string' ? v : v?.nome ?? v?.name ?? '') || textoDaMensagem(ev, /^Em atendimento por\s+/i);
   return curto(ctx.vendedora?.name || doEvento, 80);
 }
 
@@ -189,7 +206,7 @@ export function planejarEvento(ind: any, ev: EventoCrm, ctx: ContextoEvento): Pl
 
     case 'indicacao.recusada': {
       if (nivel >= 1) return ignorado(nivel === 9 ? 'indicacao_encerrada' : 'status_nao_regride');
-      const motivo = textoSeguroParaParceiro(d.motivo, MOTIVO_GENERICO_RECUSA, ctx.nomesOutrosParceiros);
+      const motivo = textoSeguroParaParceiro(d.motivo ?? textoDaMensagem(ev), MOTIVO_GENERICO_RECUSA, ctx.nomesOutrosParceiros);
       return {
         resultado: 'aplicado',
         campos: { ...base, status: 'archived', cancellation_reason: 'Indicação não aceita', cancellation_details: motivo },
@@ -213,7 +230,7 @@ export function planejarEvento(ind: any, ev: EventoCrm, ctx: ContextoEvento): Pl
 
     case 'negocio.etapa': {
       if (nivel === 9) return ignorado('indicacao_encerrada');
-      const etapa = textoSeguroParaParceiro(d.etapa ?? d.nome, '', ctx.nomesOutrosParceiros, 80);
+      const etapa = textoSeguroParaParceiro(d.etapa ?? d.nome ?? textoDaMensagem(ev), '', ctx.nomesOutrosParceiros, 80);
       if (!etapa) return ignorado('etapa_sem_nome');
       return { resultado: 'aplicado', campos: { ...base, crm_etapa: etapa }, historico: [entrada(ev, agora, `Etapa: ${etapa}`)], notificacoes: [] };
     }
@@ -221,9 +238,9 @@ export function planejarEvento(ind: any, ev: EventoCrm, ctx: ContextoEvento): Pl
     case 'proposta.enviada': {
       if (nivel >= 2) return ignorado('status_nao_regride');
       if (nivel === 9) return ignorado('indicacao_encerrada');
-      const numero = curto(d.numero ?? d.numero_orcamento, 40);
+      const numero = curto(d.numero ?? d.numero_orcamento ?? d.orcamento_numero, 40);
       const dia = diaDoCrm(d.data ?? d.data_orcamento);
-      const valor = numeroDoCrm(d.valor);
+      const valor = numeroDoCrm(d.valor ?? d.valor_total);
       const campos: Record<string, any> = { ...base, budget_loaded: true };
       if (numero) campos.budget_number = numero;
       if (dia) campos.budget_date = dia;
@@ -245,7 +262,7 @@ export function planejarEvento(ind: any, ev: EventoCrm, ctx: ContextoEvento): Pl
     case 'pedido.lancado': {
       if (nivel >= 2) return ignorado('status_nao_regride');
       if (nivel === 9) return ignorado('indicacao_encerrada');
-      const numero = curto(d.numero ?? d.numero_pedido, 40);
+      const numero = curto(d.pedido_numero ?? d.numero ?? d.numero_pedido, 40);
       const itens = classificar(d.itens, ind, ctx);
       const campos: Record<string, any> = { ...base };
       if (numero) campos.sale_order_number = numero;
@@ -262,23 +279,23 @@ export function planejarEvento(ind: any, ev: EventoCrm, ctx: ContextoEvento): Pl
 
     case 'negocio.ganho': {
       if (nivel === 9) return ignorado('indicacao_encerrada');
-      const valor = numeroDoCrm(d.valor);
+      const valor = numeroDoCrm(d.valor ?? d.valor_total);
       return {
         resultado: 'aplicado',
         // não cria comissão e não muda o status: quem fatura é o pedido.faturado
         campos: { ...base, crm_ganho_em: dataDoEvento(ev, agora), ...(valor !== null && valor >= 0 ? { crm_ganho_valor: valor } : {}) },
-        historico: [entrada(ev, agora, 'Negócio ganho')], notificacoes: [],
+        historico: [entrada(ev, agora, 'Negócio fechado')], notificacoes: [],
       };
     }
 
     case 'negocio.perdido': {
       if (nivel >= 2) return ignorado('status_nao_regride');
       if (nivel === 9) return ignorado('indicacao_encerrada');
-      const motivo = textoSeguroParaParceiro(d.motivo, MOTIVO_GENERICO_PERDA, ctx.nomesOutrosParceiros);
+      const motivo = textoSeguroParaParceiro(d.motivo ?? textoDaMensagem(ev, /^Negocia[çc][ãa]o encerrada:?\s*/i), MOTIVO_GENERICO_PERDA, ctx.nomesOutrosParceiros);
       return {
         resultado: 'aplicado',
         campos: { ...base, status: 'cancelled', cancellation_reason: motivo, cancellation_details: 'Negócio encerrado no CRM da Roder.', crm_perdido_em: dataDoEvento(ev, agora) },
-        historico: [entrada(ev, agora, `Negócio perdido: ${motivo}`, 'status_change')],
+        historico: [entrada(ev, agora, `Negociação encerrada: ${motivo}`, 'status_change')],
         notificacoes: paraParceiro('Indicação Cancelada', `A negociação com ${cliente(ind)} foi encerrada. Motivo: ${motivo}`, 'warning'),
       };
     }
@@ -323,7 +340,7 @@ function planejarFaturadoBase(ind: any, ev: EventoCrm, ctx: ContextoEvento, base
   const nivel = nivelDoStatus(ind.status);
   if (nivel === 9) return ignorado('indicacao_encerrada');
   const d = dados(ev);
-  const numero = curto(d.numero ?? d.numero_pedido, 40);
+  const numero = curto(d.pedido_numero ?? d.numero ?? d.numero_pedido, 40);
   const diaPedido = diaDoCrm(d.data_pedido ?? d.data) || diaDoCrm(dataDoEvento(ev, agora));
   const diaFaturamento = diaDoCrm(d.data_faturamento);
   const entrega = diaDoCrm(d.previsao_entrega);
@@ -382,6 +399,7 @@ function planejarFaturadoBase(ind: any, ev: EventoCrm, ctx: ContextoEvento, base
     options: opcoesDosItens(ind, itens),
     faturamento_aguardando_conferencia: false,
     crm_faturado_em: diaFaturamento || diaDoCrm(dataDoEvento(ev, agora)),
+    ...(curto(d.nota_fiscal, 40) ? { crm_nota_fiscal: curto(d.nota_fiscal, 40) } : {}),
   };
   if (numero) campos.sale_order_number = numero;
   if (entrega) campos.delivery_date = entrega;

@@ -8,7 +8,7 @@ import { getApiBaseUrl } from '../../lib/utils';
 
 // Integração com o CRM do Roder Vision. Só o administrador vê.
 // A carga inicial manda ao CRM as indicações abertas que ainda não foram enviadas (cada uma uma só vez).
-interface Estado { ativo: boolean; tem_chave: boolean; tem_segredo: boolean; destino: string; ativo_desde: string | null; pendentes_da_carga: number | null }
+interface Estado { ativo: boolean; tem_chave: boolean; tem_segredo: boolean; destino: string; ativo_desde: string | null; pode_carga: boolean; pendentes_da_carga: number | null }
 
 async function chamar(caminho: string, corpo?: unknown) {
   const token = await auth.currentUser?.getIdToken();
@@ -37,14 +37,17 @@ export default function IntegracaoCrm() {
     try {
       const r = await chamar('/api/admin/crm/carga-inicial', { simulacao });
       if (simulacao) toast.info(`${r.elegiveis} indicação(ões) abertas ainda não enviadas.`);
-      else toast.success(`${r.enviadas} enviada(s), ${r.falhas} com falha. Faltam ${r.restantes}.`, { duration: 8000 });
+      else {
+        const q = r.resumo || {};
+        toast.success(`${r.enviadas} enviada(s), ${r.falhas} com falha. CRM: ${q.recebidos ?? 0} recebidas, ${q.vinculados ?? 0} vinculadas, ${q.repetidos ?? 0} repetidas, ${q.ignorados ?? 0} ignoradas. Faltam ${r.restantes}.`, { duration: 12000 });
+      }
     } catch (e: any) {
       toast.error(e.message || 'Não deu certo.');
     } finally { setOcupado(false); carregar(); }
   };
 
   if (!estado) return null;
-  const pronto = estado.ativo && estado.tem_chave;
+  const pronto = estado.pode_carga;
   return (
     <Card className="max-w-5xl mb-6">
       <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Send className="h-4 w-4" /> CRM (Roder Vision)</CardTitle></CardHeader>
@@ -55,7 +58,7 @@ export default function IntegracaoCrm() {
           {estado.pendentes_da_carga !== null ? ` · ${estado.pendentes_da_carga} aguardando a carga inicial` : ''}
         </p>
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" disabled={ocupado || !estado.ativo} onClick={() => carga(true)}>Simular carga</Button>
+          <Button size="sm" variant="outline" disabled={ocupado} onClick={() => carga(true)}>Simular carga</Button>
           <Button size="sm" disabled={ocupado || !pronto} onClick={() => carga(false)}>
             {ocupado ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Enviar indicações abertas ao CRM'}
           </Button>

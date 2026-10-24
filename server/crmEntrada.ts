@@ -2,12 +2,15 @@
 // Três entradas, todas pelo mesmo envio (enviarIndicacaoAoCrm):
 //   - laço de 1 minuto (rodarFilaCrm), só indicações criadas depois da virada;
 //   - carga inicial (cargaInicialCrm), uma vez, para as indicações abertas que já existiam;
-//   - (futuro) atualizações do parceiro e comissão: ver GANCHOS no fim deste arquivo.
 // Documentação: docs/integracao-crm.md
 import {
-  RESERVA_ENVIO_MS, STATUS_ENVIAVEIS, montarPayloadIndicacao, motivoNaoEnviarNaCarga, motivoNaoEnviarNoLaco, planoDeFalha, podeEnviarAoCrm,
+  RESERVA_ENVIO_MS, STATUS_ENVIAVEIS, montarPayloadIndicacao, motivoNaoEnviarNaCarga, motivoNaoEnviarNoLaco, planoDeFalha, podeEnviarAoCrm, podeCargaAoCrm,
   type ConfigCrm,
 } from '../src/lib/crmIntegracao';
+import {
+  MAX_ANEXOS, MAX_ANEXO_BYTES, entradasPendentesDoParceiro, montarAtualizacao, montarComissao, montarComissaoPaga, referenciaStorage, tipoDoAnexo,
+  type AnexoCrm,
+} from '../src/lib/crmFase2';
 
 export type DepsEntradaCrm = {
   db: any;
@@ -15,6 +18,9 @@ export type DepsEntradaCrm = {
   fetchFn?: (url: string, init: any) => Promise<{ ok: boolean; status: number; text: () => Promise<string> }>;
   agora?: () => Date;
   log?: (...a: any[]) => void;
+  arrayUnion?: (...v: any[]) => any;
+  // Fase 2: gera uma URL assinada de 24 h para o anexo (Firebase Storage). Sem ela, vale a URL que já está na entrada.
+  assinarAnexo?: (url: string) => Promise<{ url: string; tamanho?: number } | null>;
 };
 
 export const DOC_CONFIG_CRM = 'crm_integracao';
@@ -35,21 +41,19 @@ export async function garantirDataDaVirada(deps: DepsEntradaCrm): Promise<string
   if (!cfg.ativo) return null;
   const ref = deps.db.collection('settings').doc(DOC_CONFIG_CRM);
   const agora = (deps.agora ? deps.agora() : new Date()).toISOString();
-  try {
-    await ref.create({ ativo_desde: agora, criado_em: agora });
-    return agora;
-  } catch (e: any) {
-    if (e?.code === 6 || /ALREADY_EXISTS|already exists/i.test(String(e?.message))) {
-      const s = await ref.get();
-      const v = s.data()?.ativo_desde;
-      if (v && !Number.isNaN(new Date(v).getTime())) return new Date(v).toISOString();
-      // doc existe sem data: completa sem sobrescrever outras chaves
-      await ref.set({ ativo_desde: agora }, { merge: true });
-      return agora;
-    }
-    throw e;
-  }
+  // Se a carga inicial já rodou, a virada vale desde o INÍCIO dela: o que foi indicado depois da carga
+  // e antes de ligar o CRM_ATIVO entra como indicação nova (com triagem), e não se perde no meio.
+  return deps.db.runTransaction(async (tx: any) => {
+    const snap = await tx.get(ref);
+    const d = snap.exists ? (snap.data() || {}) : {};
+    if (valida(d.ativo_desde)) return new Date(d.ativo_desde).toISOString();
+    const v = valida(d.carga_inicial_em) ? new Date(d.carga_inicial_em).toISOString() : agora;
+    tx.set(ref, { ativo_desde: v }, { merge: true });
+    return v;
+  });
 }
+
+const valida = (v: any) => !!v && !Number.isNaN(new Date(v).getTime());
 
 export async function lerDataDaVirada(db: any): Promise<string | null> {
   const s = await db.collection('settings').doc(DOC_CONFIG_CRM).get();
@@ -173,38 +177,230 @@ export async function rodarFilaCrm(deps: DepsEntradaCrm): Promise<{ pulado?: str
 }
 
 // ---------- Carga inicial ----------
-// Indicações abertas (pending, triagem, negotiating) que ainda não foram enviadas. As VENDIDAS não vão:
-// já estão fechadas e pagas/faturadas no Indica, e entrariam no CRM como lead novo para a triagem
-// (ou como venda duplicada do que o CRM já tem por fora). Se um relatório precisar delas, é outra rotina.
+// Formato do CRM: POST { tipo: 'carga_inicial', itens: [...] } (até 500 por chamada). Entra como histórica,
+// sem aviso de "recebida", e vincula por CNPJ/CPF. Resposta { ok, recebidos, vinculados, repetidos, ignorados }.
+// Indicações abertas (pending, triagem, negotiating) ainda não enviadas. As VENDIDAS não vão: já estão
+// faturadas no Indica e não são lead. Só vão as criadas ANTES do corte (carga_inicial_em, que é gravado no
+// primeiro clique, ou ativo_desde depois da virada): o que nasce depois é do laço, que avisa a triagem.
+export const MAX_ITENS_CARGA = 500;
+
+async function corteDaCarga(deps: DepsEntradaCrm, gravar: boolean): Promise<string | null> {
+  const ref = deps.db.collection('settings').doc(DOC_CONFIG_CRM);
+  const agora = (deps.agora ? deps.agora() : new Date()).toISOString();
+  if (deps.config().ativoDesde && valida(deps.config().ativoDesde)) return new Date(deps.config().ativoDesde).toISOString();
+  if (!gravar) {
+    const d = (await ref.get()).data() || {};
+    return valida(d.ativo_desde) ? new Date(d.ativo_desde).toISOString() : valida(d.carga_inicial_em) ? new Date(d.carga_inicial_em).toISOString() : null;
+  }
+  return deps.db.runTransaction(async (tx: any) => {
+    const snap = await tx.get(ref);
+    const d = snap.exists ? (snap.data() || {}) : {};
+    if (valida(d.ativo_desde)) return new Date(d.ativo_desde).toISOString();
+    if (valida(d.carga_inicial_em)) return new Date(d.carga_inicial_em).toISOString();
+    tx.set(ref, { carga_inicial_em: agora }, { merge: true });
+    return agora;
+  });
+}
+
+export type ResumoCarga = { recebidos: number; vinculados: number; repetidos: number; ignorados: number };
+
 export async function cargaInicialCrm(deps: DepsEntradaCrm, o: { simulacao?: boolean; limite?: number } = {}) {
   const cfg = deps.config();
-  if (!o.simulacao && !podeEnviarAoCrm(cfg)) return { ok: false as const, status: 409, error: 'Ligue CRM_ATIVO=1 e configure CRM_CHAVE antes de enviar. Use a simulação para só contar.' };
+  if (!o.simulacao && !podeCargaAoCrm(cfg)) return { ok: false as const, status: 409, error: 'Configure CRM_CHAVE (e confira CRM_URL) antes de enviar. Use a simulação para só contar.' };
   const agora = deps.agora ? deps.agora() : new Date();
+  const log = deps.log || console.log;
+  const corte = await corteDaCarga(deps, !o.simulacao);
   const s = await deps.db.collection('indications').where('status', 'in', STATUS_ENVIAVEIS).get();
   const elegiveis: { id: string; status: string; criada: string }[] = [];
   const porMotivo: Record<string, number> = {};
   for (const d of s.docs) {
     const data = d.data() || {};
-    const m = motivoNaoEnviarNaCarga(data, { agora });
+    let m = motivoNaoEnviarNaCarga(data, { agora });
+    if (!m && corte && valida(data.created_at) && new Date(data.created_at).getTime() >= new Date(corte).getTime()) m = 'depois_do_corte';
     if (m) { porMotivo[m] = (porMotivo[m] || 0) + 1; continue; }
     elegiveis.push({ id: d.id, status: String(data.status), criada: String(data.created_at || '') });
   }
   elegiveis.sort((a, b) => a.criada.localeCompare(b.criada));
   const porStatus: Record<string, number> = {};
   elegiveis.forEach(e => { porStatus[e.status] = (porStatus[e.status] || 0) + 1; });
-  if (o.simulacao) return { ok: true as const, simulacao: true, elegiveis: elegiveis.length, por_status: porStatus, descartadas: porMotivo };
+  if (o.simulacao) return { ok: true as const, simulacao: true, elegiveis: elegiveis.length, por_status: porStatus, descartadas: porMotivo, corte };
 
-  const limite = Math.min(Math.max(Math.floor(o.limite || 40), 1), 100);
+  const limite = Math.min(Math.max(Math.floor(o.limite || 200), 1), MAX_ITENS_CARGA);
   const lote = elegiveis.slice(0, limite);
-  const resultados: ResultadoEnvio[] = [];
-  for (const e of lote) resultados.push(await enviarIndicacaoAoCrm(deps, e.id, { modo: 'carga', ativoDesde: null }));
-  const enviadas = resultados.filter(r => r.resultado === 'enviada').length;
-  return {
-    ok: true as const, simulacao: false, elegiveis: elegiveis.length, tentadas: lote.length, enviadas,
-    falhas: resultados.filter(r => r.resultado === 'falhou' || r.resultado === 'desistiu').length,
-    // quantas ainda faltam: o botão pode ser apertado de novo até zerar
-    restantes: Math.max(elegiveis.length - enviadas, 0),
-  };
+
+  // Reserva cada uma (relê dentro da transação) e monta os itens.
+  const itens: any[] = []; const reservadas: { id: string; ind: any }[] = [];
+  const parceiros = new Map<string, any>();
+  for (const e of lote) {
+    const ref = deps.db.collection('indications').doc(e.id);
+    const r = await deps.db.runTransaction(async (tx: any) => {
+      const sn = await tx.get(ref);
+      if (!sn.exists) return null;
+      const ind = sn.data();
+      if (motivoNaoEnviarNaCarga(ind, { agora })) return null;
+      tx.update(ref, { crm_reservado_ate: new Date(agora.getTime() + RESERVA_ENVIO_MS).toISOString() });
+      return ind;
+    });
+    if (!r) continue;
+    const uid = String(r.external_seller_uid || '');
+    if (uid && !parceiros.has(uid)) { try { parceiros.set(uid, (await deps.db.collection('users').doc(uid).get()).data() || null); } catch { parceiros.set(uid, null); } }
+    itens.push(montarPayloadIndicacao(r, e.id, parceiros.get(uid) || null, { jaEmNegociacao: r.status === 'negotiating' }));
+    reservadas.push({ id: e.id, ind: r });
+  }
+  if (!itens.length) return { ok: true as const, simulacao: false, elegiveis: elegiveis.length, tentadas: 0, enviadas: 0, falhas: 0, restantes: elegiveis.length, resumo: { recebidos: 0, vinculados: 0, repetidos: 0, ignorados: 0 } };
+
+  const r = await postarCrm(deps, { tipo: 'carga_inicial', itens });
+  const nowIso = agora.toISOString();
+  if (!r.ok) {
+    for (const x of reservadas) {
+      const f = planoDeFalha(Number(x.ind.crm_tentativas) || 0, agora);
+      await deps.db.collection('indications').doc(x.id).update({
+        crm_tentativas: f.tentativas, crm_ultimo_erro: r.erro, crm_ultima_tentativa_em: nowIso, crm_reservado_ate: null,
+        ...(f.desistiu ? { crm_desistiu_em: nowIso } : {}),
+      });
+    }
+    if (r.status === 401 || r.status === 403) log('[CRM-CARGA] O CRM recusou a chave (CRM_CHAVE).');
+    return { ok: true as const, simulacao: false, elegiveis: elegiveis.length, tentadas: reservadas.length, enviadas: 0, falhas: reservadas.length, restantes: elegiveis.length, erro: r.erro, resumo: { recebidos: 0, vinculados: 0, repetidos: 0, ignorados: 0 } };
+  }
+  // Marca só o que o CRM confirmou. Se a resposta trouxer só contagens, o lote inteiro vale.
+  const porItem: any[] | null = Array.isArray(r.json?.resultados) ? r.json.resultados : null;
+  const recusados = new Set<string>(porItem ? porItem.filter(x => x && x.ok === false).map(x => String(x.id_externo)) : []);
+  let enviadas = 0;
+  for (const x of reservadas) {
+    const ref = deps.db.collection('indications').doc(x.id);
+    if (recusados.has(x.id)) { await ref.update({ crm_reservado_ate: null, crm_ultimo_erro: 'recusada na carga', crm_desistiu_em: nowIso }); continue; }
+    await ref.update({ crm_enviado_em: nowIso, crm_id: null, crm_carga_inicial: true, crm_reservado_ate: null, crm_ultimo_erro: null, crm_proxima_tentativa_em: null });
+    enviadas++;
+  }
+  const n = (v: any, padrao = 0) => (Number.isFinite(Number(v)) ? Number(v) : padrao);
+  const resumo: ResumoCarga = { recebidos: n(r.json?.recebidos, reservadas.length), vinculados: n(r.json?.vinculados), repetidos: n(r.json?.repetidos), ignorados: n(r.json?.ignorados) };
+  return { ok: true as const, simulacao: false, elegiveis: elegiveis.length, tentadas: reservadas.length, enviadas, falhas: reservadas.length - enviadas, restantes: Math.max(elegiveis.length - enviadas, 0), resumo };
+}
+
+// ---------- POST ao CRM ----------
+async function postarCrm(deps: DepsEntradaCrm, corpo: any): Promise<{ ok: boolean; status: number; json: any; erro: string }> {
+  const cfg = deps.config();
+  let status = 0; let texto = ''; let erroRede = '';
+  try {
+    const f = deps.fetchFn || ((url: string, init: any) => fetch(url, init));
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 60000);
+    try {
+      const r = await f(cfg.url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-roder-chave': cfg.chave }, body: JSON.stringify(corpo), signal: ctrl.signal });
+      status = r.status; texto = await r.text().catch(() => '');
+    } finally { clearTimeout(t); }
+  } catch (e: any) { erroRede = e?.name === 'AbortError' ? 'tempo esgotado' : String(e?.message || 'falha de rede').slice(0, 120); }
+  let json: any = null;
+  try { json = JSON.parse(texto); } catch { /* sem JSON */ }
+  const ok = status >= 200 && status < 300 && json?.ok !== false;
+  return { ok, status, json, erro: ok ? '' : (erroRede || `HTTP ${status}`).slice(0, 160) };
+}
+
+// ---------- Fase 2: atualização do parceiro ----------
+let atualizacoesEmExecucao = false;
+
+async function prepararAnexos(deps: DepsEntradaCrm, e: any): Promise<{ anexos: AnexoCrm[]; avisos: string[] }> {
+  const anexos: AnexoCrm[] = []; const avisos: string[] = [];
+  const lista: any[] = Array.isArray(e.attachments) ? e.attachments : [];
+  for (const a of lista.slice(0, MAX_ANEXOS)) {
+    const url = String(a?.url || '');
+    const nome = String(a?.name || 'arquivo').slice(0, 160);
+    if (!/^https:\/\//.test(url)) { avisos.push(`[Anexo "${nome}" não enviado: está guardado só no aparelho]`); continue; }
+    let final = url; let tamanho: number | undefined;
+    if (deps.assinarAnexo && referenciaStorage(url)) {
+      try { const r = await deps.assinarAnexo(url); if (r) { final = r.url; tamanho = r.tamanho; } } catch { /* mantém a URL da entrada */ }
+    }
+    if (tamanho !== undefined && tamanho > MAX_ANEXO_BYTES) { avisos.push(`[Anexo "${nome}" não enviado: passa de 20 MB]`); continue; }
+    anexos.push({ url: final, tipo: tipoDoAnexo({ name: nome, url }), nome });
+  }
+  if (lista.length > MAX_ANEXOS) avisos.push(`[${lista.length - MAX_ANEXOS} anexo(s) além do limite de ${MAX_ANEXOS} não enviado(s)]`);
+  return { anexos, avisos };
+}
+
+// Indicações abertas que já estão no CRM, com entradas novas do parceiro. Sem índice composto: status in (...) e
+// o resto em memória. Entradas do CRM (autor "CRM Roder") nunca voltam, para não dar eco.
+export async function rodarAtualizacoesCrm(deps: DepsEntradaCrm): Promise<{ pulado?: string; enviadas: number; falhas: number }> {
+  const cfg = deps.config();
+  if (!podeEnviarAoCrm(cfg)) return { pulado: 'integracao_desligada', enviadas: 0, falhas: 0 };
+  if (atualizacoesEmExecucao) return { pulado: 'rodada_anterior_em_andamento', enviadas: 0, falhas: 0 };
+  atualizacoesEmExecucao = true;
+  try {
+    const agora = deps.agora ? deps.agora() : new Date();
+    const s = await deps.db.collection('indications').where('status', 'in', STATUS_ENVIAVEIS).get();
+    let enviadas = 0; let falhas = 0; let feitas = 0;
+    for (const d of s.docs) {
+      const ind = d.data() || {};
+      if (!ind.crm_enviado_em) continue;
+      for (const e of entradasPendentesDoParceiro(ind)) {
+        const falha = ind[`crm_atu_falha_${e.id}`];
+        if (falha?.proxima && new Date(falha.proxima).getTime() > agora.getTime()) continue;
+        if (feitas >= MAX_POR_RODADA) return { enviadas, falhas };
+        feitas++;
+        const { anexos, avisos } = await prepararAnexos(deps, e);
+        const r = await postarCrm(deps, montarAtualizacao(ind, d.id, e, anexos, avisos));
+        const ref = deps.db.collection('indications').doc(d.id);
+        if (r.ok) {
+          await ref.update({ crm_atualizacoes_enviadas: (deps.arrayUnion || ((...v: any[]) => v[0]))(String(e.id)) });
+          enviadas++;
+        } else {
+          const f = planoDeFalha(Number(falha?.n) || 0, agora);
+          await ref.update({
+            [`crm_atu_falha_${e.id}`]: { n: f.tentativas, proxima: f.proxima, erro: r.erro },
+            ...(f.desistiu ? { crm_atualizacoes_desistiu: (deps.arrayUnion || ((...v: any[]) => v[0]))(String(e.id)) } : {}),
+          });
+          falhas++;
+        }
+      }
+    }
+    return { enviadas, falhas };
+  } finally { atualizacoesEmExecucao = false; }
+}
+
+// ---------- Fase 2: comissão ----------
+let comissoesEmExecucao = false;
+const JANELA_COMISSAO_MS = 120 * 24 * 60 * 60 * 1000;
+
+// Comissão congelada (pela tela ou pelo CRM) vai como "comissao"; marcada paga vai como "comissao_paga".
+// Só para indicações que existem no CRM. Faixa e ordem em created_at (sem índice composto), marcas na própria comissão.
+export async function rodarComissoesCrm(deps: DepsEntradaCrm): Promise<{ pulado?: string; enviadas: number; falhas: number }> {
+  const cfg = deps.config();
+  if (!podeEnviarAoCrm(cfg)) return { pulado: 'integracao_desligada', enviadas: 0, falhas: 0 };
+  if (comissoesEmExecucao) return { pulado: 'rodada_anterior_em_andamento', enviadas: 0, falhas: 0 };
+  comissoesEmExecucao = true;
+  try {
+    const agora = deps.agora ? deps.agora() : new Date();
+    const desde = new Date(agora.getTime() - JANELA_COMISSAO_MS).toISOString();
+    const s = await deps.db.collection('commissions').where('created_at', '>=', desde).orderBy('created_at').limit(500).get();
+    let enviadas = 0; let falhas = 0;
+    const inds = new Map<string, any>();
+    for (const d of s.docs) {
+      const c = d.data() || {};
+      const precisaComissao = !c.crm_comissao_enviada_em;
+      const precisaPaga = c.status === 'paid' && !c.crm_paga_enviada_em;
+      if (!precisaComissao && !precisaPaga) continue;
+      const idInd = String(c.indication_id || d.id);
+      if (!inds.has(idInd)) inds.set(idInd, (await deps.db.collection('indications').doc(idInd).get()).data() || null);
+      const ind = inds.get(idInd);
+      if (!ind || !ind.crm_enviado_em) continue;
+      const ref = deps.db.collection('commissions').doc(d.id);
+      const passos: { campo: string; tent: string; prox: string; corpo: any }[] = [];
+      if (precisaComissao) passos.push({ campo: 'crm_comissao_enviada_em', tent: 'crm_comissao_tentativas', prox: 'crm_comissao_proxima', corpo: montarComissao(c, d.id, ind) });
+      if (precisaPaga) passos.push({ campo: 'crm_paga_enviada_em', tent: 'crm_paga_tentativas', prox: 'crm_paga_proxima', corpo: montarComissaoPaga(c, d.id, ind) });
+      for (const p of passos) {
+        if (c[p.prox] && new Date(c[p.prox]).getTime() > agora.getTime()) break;
+        if (c.crm_desistiu_em) break;
+        const r = await postarCrm(deps, p.corpo);
+        if (r.ok) { await ref.update({ [p.campo]: agora.toISOString(), [p.prox]: null }); c[p.campo] = agora.toISOString(); enviadas++; }
+        else {
+          const f = planoDeFalha(Number(c[p.tent]) || 0, agora);
+          await ref.update({ [p.tent]: f.tentativas, [p.prox]: f.proxima, crm_ultimo_erro: r.erro, ...(f.desistiu ? { crm_desistiu_em: agora.toISOString() } : {}) });
+          falhas++;
+          break; // a "paga" só vai depois da "comissao"
+        }
+      }
+    }
+    return { enviadas, falhas };
+  } finally { comissoesEmExecucao = false; }
 }
 
 // ---------- Rotas de administração ----------
@@ -216,10 +412,10 @@ export function registrarRotasAdminCrm(app: any, deps: DepsEntradaCrm & { exigir
       const desde = (await lerDataDaVirada(deps.db)) || cfg.ativoDesde;
       let host = '';
       try { host = new URL(cfg.url).host; } catch { /* url inválida */ }
-      const sim = cfg.ativo ? await cargaInicialCrm(deps, { simulacao: true }) : null;
+      const sim = await cargaInicialCrm(deps, { simulacao: true });
       return res.json({
         ok: true, ativo: cfg.ativo, tem_chave: !!cfg.chave, tem_segredo: !!cfg.segredo, destino: host, url_valida: cfg.urlValida,
-        ativo_desde: desde, pendentes_da_carga: sim && sim.ok ? sim.elegiveis : null,
+        ativo_desde: desde, pode_carga: podeCargaAoCrm(cfg), pendentes_da_carga: sim && sim.ok ? sim.elegiveis : null,
       });
     } catch (e: any) { return res.status(500).json({ ok: false, error: e?.message || 'Erro.' }); }
   });
@@ -235,10 +431,3 @@ export function registrarRotasAdminCrm(app: any, deps: DepsEntradaCrm & { exigir
     }
   });
 }
-
-// ---------- GANCHOS (próxima fase, NÃO implementados) ----------
-// - tipo "atualizacao": o parceiro acrescenta texto, áudio ou fotos a uma indicação já enviada. Entraria
-//   aqui como enviarAtualizacaoAoCrm(deps, indId, entradaDoHistorico), com fila própria (crm_fila).
-// - tipo "comissao" / "comissao_paga": avisar o CRM do valor liberado e do pagamento. Sairia de
-//   server/relatoriosComissao.ts e do fechamento mensal, reaproveitando enviarIndicacaoAoCrm() e a mesma reserva/backoff.
-// Quando existirem, o corpo de cada um precisa do mesmo id_externo (id da indicação) e do parceiro.id.

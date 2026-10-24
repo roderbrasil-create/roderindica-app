@@ -55,6 +55,8 @@ export function lerConfigCrm(env: Record<string, string | undefined>, settings?:
   };
 }
 
+// Carga inicial manual: não exige CRM_ATIVO (acontece ANTES da virada); só chave e endereço.
+export const podeCargaAoCrm = (c: ConfigCrm) => !!c.chave && c.urlValida;
 // Só envia com o interruptor ligado, com a chave e com um endereço aceitável.
 export const podeEnviarAoCrm = (c: ConfigCrm) => c.ativo && !!c.chave && c.urlValida;
 // Só aceita evento com o interruptor ligado e o segredo configurado.

@@ -34,7 +34,10 @@ Nenhum valor fica no código.
 
 ## CRM para Indica (andamento)
 
-`POST https://roderindica.com/api/crm/eventos`, corpo `{ id, evento, em, id_externo, parceiro_id, dados }`.
+`POST https://roderindica.com/api/crm/eventos`, corpo `{ id, evento, em, id_externo, parceiro_id, status, mensagem, dados }`.
+Os campos do evento (`pedido_numero`, `cnpj`, `data_pedido`, `previsao_entrega`, `data_faturamento`, `nota_fiscal`, `valor_total`, `itens`, `motivo`, `etapa`, `vendedora`) valem no topo do corpo ou dentro de `dados` (`dados` prevalece).
+`mensagem` é lida quando falta o dado estruturado: "Em atendimento por X" dá a vendedora, o motivo da recusa e da perda vêm dela (sem o prefixo "Negociação encerrada:"). Todo texto que o parceiro vê passa pelo filtro de segurança (nada de comissão, % ou nome de outro parceiro).
+`itens` é `[{codigo, nome, quantidade, valor}]` com `valor` UNITÁRIO. Datas `AAAA-MM-DD` valem o dia de America/Sao_Paulo.
 Cabeçalhos `X-Roder-Timestamp` e `X-Roder-Assinatura: sha256=` + HMAC-SHA256(`CRM_SEGREDO`, `timestamp + "." + corpo cru`) em hex.
 O timestamp pode ser segundos, milissegundos ou ISO, e é usado exatamente como veio na conta do HMAC.
 
@@ -89,13 +92,32 @@ nada é recriado nem sobrescrito. Venda sem parceiro comissionável vira `sold` 
 
 ## Carga inicial (administrador)
 
-Tela Admin, aba de configurações, cartão "CRM (Roder Vision)": **Simular carga** só conta; **Enviar indicações abertas ao CRM**
-manda até 40 por clique (pode apertar de novo até zerar). API: `GET /api/admin/crm/estado` e
-`POST /api/admin/crm/carga-inicial {simulacao, limite}`, ambas só para admin.
+Tela Admin, cartão "CRM (Roder Vision)": **Simular carga** só conta; **Enviar indicações abertas ao CRM** manda um
+`POST { "tipo": "carga_inicial", "itens": [...] }` com até 200 indicações por clique (teto 500; aperte de novo até zerar).
+Histórica: o CRM não manda aviso de "recebida" e vincula por CNPJ/CPF. A resposta `{ ok, recebidos, vinculados, repetidos, ignorados }`
+aparece na tela; se vier só a contagem, o lote inteiro é marcado como enviado quando `ok: true`.
+API: `GET /api/admin/crm/estado` e `POST /api/admin/crm/carga-inicial {simulacao, limite}`, só admin.
+**A carga exige só `CRM_CHAVE` (e `CRM_URL` se mudar): roda com `CRM_ATIVO` ainda desligado.** O endpoint de eventos
+continua 503 sem `CRM_ATIVO=1`.
 
 Decisão: vão `pending`, `triagem` e `negotiating` ainda não enviadas. As `sold` NÃO vão: já estão faturadas no Indica e
 entrariam no CRM como lead novo na triagem. As em negociação levam na observação "[Já estava em negociação no Roder Indica
-com X]" para ninguém triar de novo. Se um relatório precisar das vendidas, é uma rotina à parte.
+com X]". O primeiro envio real grava `carga_inicial_em` em `settings/crm_integracao`: é o corte. Cargas repetidas só levam
+o que nasceu antes dele; o que nasce depois é do laço, que ao ligar o `CRM_ATIVO=1` usa esse corte como `ativo_desde` e envia como
+indicação nova (com triagem), sem buraco entre a carga e a virada.
+
+## Fase 2 (Indica para CRM, só com `CRM_ATIVO=1`)
+
+Rodam no laço de 1 minuto, só para indicações que já têm `crm_enviado_em`, com o mesmo backoff (1 min até 6 h, 10 tentativas), sem índice composto.
+
+- `atualizacao`: entradas do histórico escritas pelo PARCEIRO depois do envio. Nunca volta o que veio do CRM (autor "CRM Roder", ids `crm-`).
+  `id_mensagem` = `<id da indicação>:<id da entrada>` (estável: reenviar não duplica). Anexos: até 10; URL do Firebase Storage é
+  reassinada por 24 h (se falhar, vai a URL original); anexo maior que 20 MB ou guardado só no aparelho (`data:`) não vai e o texto avisa.
+  Marcas na indicação: `crm_atualizacoes_enviadas`, `crm_atu_falha_<id>`, `crm_atualizacoes_desistiu`.
+- `comissao`: quando a comissão é congelada (tela de faturamento ou evento do CRM): pedido, parceiro, valor do equipamento, percentual,
+  valor, data de cálculo e previsão de pagamento (dia 7 do mês da comissão). Nada de desconto nem de vendedor interno.
+  Marca: `crm_comissao_enviada_em`.
+- `comissao_paga`: quando a comissão passa a `paid`. Marca: `crm_paga_enviada_em`. Só vai depois da `comissao`.
 
 ## Como testar com a chave de teste
 
@@ -113,17 +135,13 @@ curl -X POST https://roderindica.com/api/crm/eventos -H "X-Roder-Timestamp: $TS"
 
 Repetir o mesmo `id` responde 200 `duplicado`.
 
-## Virada (segunda, 26/10/2026)
+## Virada (carga no fim de semana 24-25/10, CRM ligado na segunda 26/10/2026)
 
-1. Configurar `CRM_CHAVE` (de produção) e `CRM_SEGREDO` na Hostinger, com `CRM_ATIVO` ainda vazio.
-2. Combinar com o CRM o mesmo segredo e o endereço `https://roderindica.com/api/crm/eventos`.
-3. Ligar `CRM_ATIVO=1` e reiniciar. A primeira rodada grava a data da virada.
-4. Na tela Admin: Simular carga, conferir o número, enviar até zerar.
-5. Acompanhar o log do servidor (`[CRM-ENVIO]`, `[CRM-EVENTOS]`). Voltar atrás: apagar `CRM_ATIVO` (volta ao comportamento anterior; o que já foi enviado fica no CRM).
-
-## Fora desta fase (ganchos em `server/crmEntrada.ts`)
-
-Atualizações do parceiro com áudio e fotos (`atualizacao`) e envio de comissão (`comissao`, `comissao_paga`).
+1. Configurar na Hostinger `CRM_CHAVE` (de produção) e `CRM_SEGREDO`, com `CRM_ATIVO` vazio (ou 0). Reiniciar.
+2. Fim de semana: na tela Admin, Simular carga, conferir o número, Enviar até `restantes` chegar a 0 (conferir o resumo recebidos/vinculados/repetidos/ignorados).
+3. Segunda, depois de o CRM ligar o destino: `CRM_ATIVO=1` e reiniciar. O laço passa a enviar o que nasceu depois da carga, e o endpoint de eventos e a fase 2 começam a funcionar. Uma nova carga pode ser rodada para sobras.
+4. Combinar com o CRM o mesmo segredo e o endereço `https://roderindica.com/api/crm/eventos`.
+5. Acompanhar o log (`[CRM-ENVIO]`, `[CRM-FASE2]`, `[CRM-EVENTOS]`). Voltar atrás: apagar `CRM_ATIVO`.
 
 ## Limites conhecidos
 

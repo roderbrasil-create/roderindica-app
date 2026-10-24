@@ -6,7 +6,7 @@ import {
   lerConfigCrm, montarPayloadIndicacao, motivoNaoEnviarNoLaco, motivoNaoEnviarNaCarga, atrasoDaTentativa, planoDeFalha, MAX_TENTATIVAS_ENVIO,
   separarCidadeUf, triagemEhDoCrm, podeEnviarAoCrm, CRM_URL_PADRAO,
 } from '../src/lib/crmIntegracao.ts';
-import { rodarFilaCrm, cargaInicialCrm, enviarIndicacaoAoCrm, listarCandidatasDoLaco } from '../server/crmEntrada.ts';
+import { rodarFilaCrm, rodarAtualizacoesCrm, rodarComissoesCrm, cargaInicialCrm, enviarIndicacaoAoCrm, listarCandidatasDoLaco } from '../server/crmEntrada.ts';
 import { bancoFalsoCrm } from './fixtures/bancoFalsoCrm.ts';
 
 const AGORA = new Date('2026-10-27T15:00:00Z');
@@ -118,16 +118,23 @@ function ambiente(env: Record<string, string>, ind: Record<string, any>, respost
 }
 const ENV = { CRM_ATIVO: '1', CRM_CHAVE: CHAVE_TESTE, CRM_URL: 'http://localhost:9/crm', CRM_ATIVO_DESDE: DESDE };
 
-test('INTERRUPTOR DESLIGADO: o laço e a carga não enviam nada nem alteram a indicação', async () => {
-  const a = ambiente({ CRM_CHAVE: CHAVE_TESTE }, { i1: indBase() }, [{ status: 200 }]);
+test('INTERRUPTOR DESLIGADO: o laço e as rotinas da fase 2 não enviam nada; a carga só exige a chave', async () => {
+  const sem = ambiente({}, { i1: indBase() }, [{ status: 200 }]);
+  const c0: any = await cargaInicialCrm(sem.deps, {});
+  assert.equal(c0.ok, false); assert.equal(sem.chamadas.length, 0, 'sem chave a carga não envia');
+  const a = ambiente({ CRM_CHAVE: CHAVE_TESTE, CRM_URL: 'http://localhost:9/crm' }, { i1: indBase() }, [{ status: 200 }]);
   assert.equal((await rodarFilaCrm(a.deps)).pulado, 'integracao_desligada');
-  const c: any = await cargaInicialCrm(a.deps, {});
-  assert.equal(c.ok, false);
+  assert.equal((await rodarAtualizacoesCrm(a.deps)).pulado, 'integracao_desligada');
+  assert.equal((await rodarComissoesCrm(a.deps)).pulado, 'integracao_desligada');
   assert.equal(a.chamadas.length, 0);
   assert.deepEqual(Object.keys(a.db.dados.indications.i1).filter(k => k.startsWith('crm_')), []);
-  // simulação só conta, mesmo desligada
   const s: any = await cargaInicialCrm(a.deps, { simulacao: true });
   assert.equal(s.elegiveis, 1); assert.equal(a.chamadas.length, 0);
+  // com a chave, a carga roda mesmo com CRM_ATIVO desligado, e grava o corte
+  const c: any = await cargaInicialCrm(a.deps, {});
+  assert.equal(c.enviadas, 1); assert.equal(a.chamadas.length, 1);
+  assert.equal(JSON.parse(a.chamadas[0].init.body).tipo, 'carga_inicial');
+  assert.equal(a.db.dados.settings.crm_integracao.carga_inicial_em, AGORA.toISOString());
 });
 
 test('LAÇO: envia a nova com a chave no cabeçalho e marca crm_enviado_em/crm_id; a segunda rodada não reenvia', async () => {
@@ -195,7 +202,7 @@ test('DATA DA VIRADA: sem env nem settings, o laço grava o momento da primeira 
 test('CARGA INICIAL: simulação conta, envio em lote manda cada uma uma vez, vendidas ficam de fora, idempotente', async () => {
   const ind = {
     a: indBase({ created_at: '2026-09-01T00:00:00Z' }), b: indBase({ status: 'negotiating', internal_seller_name: 'Heloisa', created_at: '2026-09-02T00:00:00Z' }),
-    c: indBase({ status: 'triagem' }), v: indBase({ status: 'sold' }), x: indBase({ status: 'cancelled' }), ja: indBase({ crm_enviado_em: 'x' }),
+    c: indBase({ status: 'triagem', created_at: '2026-09-03T00:00:00Z' }), v: indBase({ status: 'sold' }), x: indBase({ status: 'cancelled' }), ja: indBase({ crm_enviado_em: 'x' }),
   };
   const a = ambiente(ENV, ind, [{ status: 200 }]);
   const sim: any = await cargaInicialCrm(a.deps, { simulacao: true });
@@ -207,8 +214,11 @@ test('CARGA INICIAL: simulação conta, envio em lote manda cada uma uma vez, ve
   assert.equal(lote2.enviadas, 1); assert.equal(lote2.restantes, 0);
   const lote3: any = await cargaInicialCrm(a.deps, {});
   assert.equal(lote3.elegiveis, 0);
-  assert.equal(a.chamadas.length, 3);
-  const enviados = a.chamadas.map(c => JSON.parse(c.init.body));
+  assert.equal(a.chamadas.length, 2, 'dois POSTs em lote (2 + 1)');
+  const corpos = a.chamadas.map(c => JSON.parse(c.init.body));
+  assert.ok(corpos.every(c => c.tipo === 'carga_inicial' && Array.isArray(c.itens)));
+  const enviados = corpos.flatMap(c => c.itens);
+  assert.equal(enviados.length, 3);
   assert.match(enviados.find(e => e.id_externo === 'b').observacao, /Já estava em negociação/);
-  assert.equal(a.chamadas.every(c => !JSON.parse(c.init.body).notificar_email), true, 'carga não dispara e-mail de novo lead');
+  assert.equal(enviados.every(e => !e.notificar_email), true, 'carga não dispara e-mail de novo lead');
 });

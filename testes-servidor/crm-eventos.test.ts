@@ -272,7 +272,7 @@ test('GANHO: se o faturado ainda não chegou só registra no histórico (sem com
   const a = amb(ind({ status: 'negotiating' }));
   await a.rodar(ev('negocio.ganho', { valor: 200000 }));
   assert.equal(a.get().status, 'negotiating'); assert.deepEqual(a.db.dados.commissions ?? {}, {});
-  assert.deepEqual(textos(a), ['Negócio ganho']);
+  assert.deepEqual(textos(a), ['Negócio fechado']);
   assert.equal(a.get().crm_ganho_valor, 200000);
 });
 
@@ -280,7 +280,7 @@ test('PERDIDO: cancela como o botão Cancelar (motivo, histórico, notificação
   const a = amb(ind({ status: 'negotiating' }));
   await a.rodar(ev('negocio.perdido', { motivo: 'Cliente desistiu da compra' }));
   assert.equal(a.get().status, 'cancelled'); assert.equal(a.get().cancellation_reason, 'Cliente desistiu da compra');
-  assert.deepEqual(textos(a), ['Negócio perdido: Cliente desistiu da compra']);
+  assert.deepEqual(textos(a), ['Negociação encerrada: Cliente desistiu da compra']);
   assert.match(a.notificacoes()[0].message, /Cliente desistiu/);
   const b = amb(ind({ status: 'sold' }));
   assert.equal((await b.rodar(ev('negocio.perdido', { motivo: 'x' }))).body.resultado, 'ignorado');
