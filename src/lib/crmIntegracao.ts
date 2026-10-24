@@ -116,14 +116,27 @@ export function motivoNaoEnviarNaCarga(ind: any, o: { agora: Date }): string | n
 
 // Indicação que o CRM já tem (ou vai ter em instantes) e que por isso a triagem do Indica não deve
 // distribuir sozinha (o robô de 4 horas úteis de server.ts).
-export function triagemEhDoCrm(ind: any, c: Pick<ConfigCrm, 'ativo' | 'chave' | 'urlValida'>): boolean {
+export const HORAS_ATE_O_ROBO_REASSUMIR = 24;
+export const FALHAS_DE_TRANSPORTE_ATE_O_ROBO_REASSUMIR = 20;
+
+export function triagemEhDoCrm(ind: any, c: Pick<ConfigCrm, 'ativo' | 'chave' | 'urlValida'> & { ativoDesde?: string | null }, agora: Date = new Date()): boolean {
   if (!c.ativo) return false;
   if (ind?.crm_enviado_em) return true;
   if (ind?.crm_desistiu_em) return false; // o envio desistiu: o robô do Indica volta a assumir
-  // Ainda não enviada, de qualquer idade: o laço vai mandar ao CRM, então o robô não atribui. Só vale se o laço
-  // realmente consegue enviar (chave e endereço) e se a indicação é do tipo que ele envia.
+  // Ainda não enviada: o laço vai mandar ao CRM, então o robô não atribui. Só vale se o laço realmente consegue
+  // enviar (chave e endereço) e se a indicação é do tipo que ele envia.
   if (!c.chave || !c.urlValida) return false;
-  return baseEnviavel(ind) === null;
+  if (baseEnviavel(ind) !== null) return false;
+  // Nunca bloqueia sem fim: depois de 24 h sem conseguir enviar (contadas do mais recente entre a criação e a virada)
+  // ou de mais de 20 falhas de transporte seguidas, o robô reassume. O laço continua tentando; se o robô atribuir,
+  // a indicação ainda vai ao CRM depois como negotiating, com a nota "[Já estava em negociação no Roder Indica]".
+  if ((Number(ind?.crm_falhas_transporte) || 0) > FALHAS_DE_TRANSPORTE_ATE_O_ROBO_REASSUMIR) return false;
+  const marcos = [ind?.created_at, c.ativoDesde].filter(dataValida).map(v => new Date(v as string).getTime());
+  if (marcos.length) {
+    const desde = Math.max(...marcos);
+    if (agora.getTime() - desde > HORAS_ATE_O_ROBO_REASSUMIR * 60 * 60 * 1000) return false;
+  }
+  return true;
 }
 
 // ---------- Payload ----------

@@ -56,7 +56,7 @@ import { conciliarComTrava, registrarCorrecoesAutomaticas } from "./server/conci
 import { garantirEmailsLigados } from "./server/emailsSempreLigados";
 import { lerConfigCrm, triagemEhDoCrm } from "./src/lib/crmIntegracao";
 import { registrarRotaEventosCrm } from "./server/crmEventos";
-import { registrarRotasAdminCrm, rodarFilaCrm, rodarAtualizacoesCrm, rodarComissoesCrm } from "./server/crmEntrada";
+import { registrarRotasAdminCrm, rodarFilaCrm, rodarAtualizacoesCrm, rodarComissoesCrm, lerDataDaVirada } from "./server/crmEntrada";
 import { referenciaStorage } from "./src/lib/crmFase2";
 import { relatorioDiretoriaDia1, relatorioParceirosDia1, lembreteNfDia5, lembreteFinanceiroDia7, ligarEmailsComissaoUmaVez } from "./server/relatoriosComissao";
 
@@ -5551,10 +5551,11 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       // Com o CRM ligado a triagem é feita lá: o robô de 4 horas não distribui o que o CRM já tem
       // (ou vai ter em instantes). Desligado, nada muda.
       const cfgCrm = configCrm();
+      const crmDesde = cfgCrm.ativo ? (cfgCrm.ativoDesde || await lerDataDaVirada(db).catch(() => null)) : null;
 
       for (const docRef of pendingSnap.docs) {
         const indData = { id: docRef.id, ...docRef.data() } as any;
-        if (triagemEhDoCrm(indData, cfgCrm)) continue;
+        if (triagemEhDoCrm(indData, { ...cfgCrm, ativoDesde: crmDesde }, now)) continue;
         const createdAt = new Date(indData.created_at || now.toISOString());
         const slaExpirationDate = calculateSlaExpiration(createdAt, 4);
 

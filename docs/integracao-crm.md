@@ -107,12 +107,16 @@ Só a recusa por item (`resultados[].ok: false`) conta tentativa daquela indica�
 
 O primeiro envio real grava `carga_inicial_em` em `settings/crm_integracao` (o corte). Cargas repetidas só levam o que nasceu antes dele.
 O laço usa esse corte como `ativo_desde` e manda ao CRM tudo o que ainda não foi enviado, de qualquer idade: `pending` e `triagem` como indicação
-nova e `negotiating` com o aviso "[Já estava em negociação...]" (inclusive a `pending` que virou `negotiating` antes de ser enviada). Todo minuto lê as
+nova (20 por rodada). **`negotiating` criada ANTES de `ativo_desde` (inclusive a `pending` que virou `negotiating` antes de ser enviada) NUNCA vai como
+indicação normal, que o CRM triaria: vai no formato `{ tipo: "carga_inicial", itens }`, em lotes de até 100 por rodada, com a nota "[Já estava em
+negociação...]" e sem `notificar_email`.** Se `CRM_ATIVO=1` e a carga inicial ainda não foi feita (`carga_inicial_em` vazio), o card Admin mostra um aviso
+amarelo: "Carga inicial ainda não feita: as em negociação irão como histórico pelo laço". `negotiating` criada depois da virada vai como nova, com a nota. Todo minuto lê as
 últimas 72 h; a cada 15 minutos (ou enquanto ainda sobra fila) faz a varredura completa de todas as abertas, sem índice composto.
 **Aviso por e-mail (`notificar_email`): só vai na indicação criada em ou depois de `ativo_desde`.** As antigas e as sobras vão SEM aviso, para não
 gerar e-mail em massa na virada (o card Admin mostra "N pendentes irão como novas na virada, SEM aviso por e-mail").
-Com `CRM_ATIVO=1` e chave configurada, o robô de triagem do Indica não atribui nenhuma indicação ainda não enviada (de qualquer idade); se o envio
-desistir (`crm_desistiu_em`), o robô volta a assumir.
+Com `CRM_ATIVO=1` e chave configurada, o robô de triagem do Indica não atribui indicação ainda não enviada, mas nunca fica bloqueado sem fim: reassume se o
+envio desistir (`crm_desistiu_em`), se passarem 24 h sem envio (contadas do mais recente entre `created_at` e `ativo_desde`) ou se houver mais de 20 falhas de
+transporte seguidas (`crm_falhas_transporte`). O laço segue tentando; se o robô atribuir, a indicação vai ao CRM depois como `negotiating` (histórico, com a nota).
 
 **Falhas, em todos os envios (fila, carga, atualização, comissão):** erro de rede, 401, 403, 408, 429 e 5xx NÃO contam tentativa nem causam desistência;
 só reagendam com backoff (1 min até 6 h) e acendem o aviso vermelho do card Admin ("CRM recusou a chave (401)...", sem segredo), que some no primeiro
@@ -125,7 +129,7 @@ Depois de 10 falhas o laço desiste de uma indicação (`crm_desistiu_em`). O bo
 
 Rotinas separadas da fila de novas (que roda a cada minuto e nunca espera por elas), só para indicações que já têm `crm_enviado_em`, sem índice
 composto e com teto por rodada (30): `atualizacao` a cada **10 minutos**; `comissao` e `comissao_paga` a cada **5 minutos**.
-Leitura das atualizações: a rodada normal lê só indicações com `updated_at` recente (a Central grava `updated_at` em toda nota) mais as que têm
+Leitura das atualizações: o marcador de última rodada só avança depois de processar tudo; se a rodada parar pelo teto de 30, a seguinte relê a mesma janela e pega as sobras. A rodada normal lê só indicações com `updated_at` recente (a Central grava `updated_at` em toda nota) mais as que têm
 retentativa marcada (`crm_atu_retry`); a cada 6 horas (e ao reiniciar) faz a varredura completa das **2000 indicações mais recentes** por `crm_enviado_em`.
 Limite conhecido: nota que não mexa em `updated_at`, em indicação fora dessas 2000, não seria vista.
 
@@ -145,8 +149,8 @@ Limite conhecido: nota que não mexa em `updated_at`, em indicação fora dessas
   (e a `comissao_paga`) seguem com o número do primeiro envio** (`crm_comissao_pedido_numero`), para não duplicar no CRM, e a divergência é registrada
   no histórico interno da indicação. Nada de desconto nem de vendedor interno.
 - `comissao_paga`: quando a comissão passa a `paid`; só depois da `comissao`.
-- Leitura: comissões vêm de duas fontes, sem janela de dias: `crm_aguardando_paga == true` (já enviada, esperando pagamento) e as 300 mais novas
-  por `created_at` decrescente; `crm_aguardando_paga` fica ligado também quando a comissão já nasce paga. Comissão de indicação que nunca foi ao CRM recebe `crm_nao_aplica_em` e não é lida de novo.
+- Leitura: `crm_aguardando_paga == true` (qualquer idade, então a "paga" nunca se perde), as 100 mais novas por `created_at` e as criadas ou atualizadas nos
+  últimos 14 dias. Comissão já concluída (enviada, sem "paga" pendente, valores iguais ao do último envio, `crm_comissao_campos`) é pulada sem ler a indicação; `crm_aguardando_paga` fica ligado também quando a comissão já nasce paga. Comissão de indicação que nunca foi ao CRM recebe `crm_nao_aplica_em` e não é lida de novo.
 
 ## Como testar com a chave de teste
 

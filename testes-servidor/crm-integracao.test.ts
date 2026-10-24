@@ -98,16 +98,22 @@ test('BACKOFF exponencial com teto e limite de tentativas', () => {
   assert.equal(ultima.desistiu, true); assert.equal(ultima.proxima, null);
 });
 
-test('TRIAGEM do robô: com o CRM ligado não atribui NADA que o laço ainda vai mandar (qualquer idade); se o envio desistir, volta a assumir', () => {
-  const ligado = { ativo: true, chave: 'k', urlValida: true };
-  assert.equal(triagemEhDoCrm(indBase(), { ...ligado, ativo: false }), false);
-  assert.equal(triagemEhDoCrm(indBase({ crm_enviado_em: 'x', created_at: '2026-01-01T00:00:00Z' }), ligado), true);
-  assert.equal(triagemEhDoCrm(indBase(), ligado), true, 'nova e ainda na fila de envio');
-  assert.equal(triagemEhDoCrm(indBase({ created_at: '2026-01-01T00:00:00Z' }), ligado), true, 'antiga ainda não enviada: o laço vai mandar');
-  assert.equal(triagemEhDoCrm(indBase({ status: 'triagem', created_at: '2020-01-01T00:00:00Z' }), ligado), true);
-  assert.equal(triagemEhDoCrm(indBase({ crm_desistiu_em: 'x' }), ligado), false, 'o envio desistiu: o robô assume');
-  assert.equal(triagemEhDoCrm(indBase({ creator_type: 'visitor' }), ligado), false, 'o laço nunca envia esta: o robô cuida');
-  assert.equal(triagemEhDoCrm(indBase(), { ...ligado, chave: '' }), false, 'sem chave o laço não envia: não segura a triagem');
+test('TRIAGEM do robô: com o CRM ligado não atribui o que o laço ainda vai mandar; se o envio desistir, ou passar de 24 h, ou de 20 falhas de transporte, o robô reassume', () => {
+  const ligado = { ativo: true, chave: 'k', urlValida: true, ativoDesde: new Date(AGORA.getTime() - 2 * 3600 * 1000).toISOString() };
+  const t = (i: any, c: any = ligado) => triagemEhDoCrm(i, c, AGORA);
+  assert.equal(t(indBase(), { ...ligado, ativo: false }), false);
+  assert.equal(t(indBase({ crm_enviado_em: 'x', created_at: '2026-01-01T00:00:00Z' })), true);
+  assert.equal(t(indBase()), true, 'nova e ainda na fila de envio');
+  assert.equal(t(indBase({ created_at: '2026-01-01T00:00:00Z' })), true, 'antiga: conta 24 h a partir da virada (o mais recente entre criação e virada)');
+  assert.equal(t(indBase({ status: 'triagem', created_at: '2020-01-01T00:00:00Z' })), true);
+  assert.equal(t(indBase({ crm_desistiu_em: 'x' })), false, 'o envio desistiu: o robô assume');
+  assert.equal(t(indBase({ creator_type: 'visitor' })), false, 'o laço nunca envia esta: o robô cuida');
+  assert.equal(t(indBase(), { ...ligado, chave: '' }), false, 'sem chave o laço não envia: não segura a triagem');
+  // nunca bloqueia sem fim
+  assert.equal(t(indBase({ created_at: '2026-10-26T14:00:00Z' }), { ...ligado, ativoDesde: '2026-10-26T10:00:00Z' }), false, 'mais de 24 h desde a criação/virada sem enviar');
+  assert.equal(t(indBase({ created_at: '2026-10-27T14:00:00Z' }), { ...ligado, ativoDesde: '2026-10-20T00:00:00Z' }), true, 'conta do mais recente: criada há 1 h');
+  assert.equal(t(indBase({ crm_falhas_transporte: 20 })), true);
+  assert.equal(t(indBase({ crm_falhas_transporte: 21 })), false, 'mais de 20 falhas de transporte');
 });
 
 // ---------- Laço e carga com fetch falso ----------
@@ -150,14 +156,16 @@ test('LAÇO: envia a nova com a chave no cabeçalho e marca crm_enviado_em/crm_i
   const a = ambiente(ENV, { i1: indBase(), velha: indBase({ status: 'negotiating', created_at: '2026-10-01T00:00:00Z' }), vendida: indBase({ status: 'sold' }) }, [{ status: 200, corpo: { ok: true, id: 'crm-77' } }]);
   const r = await rodarFilaCrm(a.deps);
   assert.deepEqual(r.resultados.map(x => [x.id, x.resultado]).sort(), [['i1', 'enviada'], ['velha', 'enviada']]);
-  assert.equal(a.chamadas.length, 2);
+  assert.equal(a.chamadas.length, 2, 'uma indicação nova e um lote de histórico');
   assert.equal(a.chamadas[0].url, 'http://localhost:9/crm');
   assert.equal(a.chamadas[0].init.headers['x-roder-chave'], CHAVE_TESTE);
   const corpo = a.chamadas.map(c => JSON.parse(c.init.body)).find(c => c.id_externo === 'i1');
   assert.equal(corpo.id_externo, 'i1'); assert.equal(corpo.parceiro.id, 'p1'); assert.equal(corpo.parceiro.email, 'maria@x.com');
   assert.equal(a.db.dados.indications.i1.crm_id, 'crm-77');
   assert.ok(a.db.dados.indications.i1.crm_enviado_em);
-  assert.match(JSON.parse(a.chamadas.find(c => JSON.parse(c.init.body).id_externo === 'velha')!.init.body).observacao, /Já estava em negociação/);
+  const lote = JSON.parse(a.chamadas.find(c => JSON.parse(c.init.body).tipo === 'carga_inicial')!.init.body);
+  assert.deepEqual(lote.itens.map((x: any) => x.id_externo), ['velha']);
+  assert.match(lote.itens[0].observacao, /Já estava em negociação/);
   await rodarFilaCrm(a.deps);
   assert.equal(a.chamadas.length, 2, 'não duplica');
 });
@@ -210,7 +218,7 @@ test('E-MAIL NA VIRADA: notificar_email só vai na indicação criada em ou depo
     virou: indBase({ status: 'negotiating', created_at: '2026-09-01T00:00:00Z' }),
   }, [{ status: 200 }]);
   await rodarFilaCrm(a.deps);
-  const por = Object.fromEntries(a.chamadas.map(c => { const j = JSON.parse(c.init.body); return [j.id_externo, j]; }));
+  const por = Object.fromEntries(a.chamadas.flatMap(c => { const j = JSON.parse(c.init.body); return (j.itens || [j]).map((x: any) => [x.id_externo, x]); }));
   assert.equal(por.nova.notificar_email, 'luana@roderbrasil.com.br');
   for (const id of ['antiga', 'antigaTriagem', 'virou']) assert.equal('notificar_email' in por[id], false, id);
   assert.match(por.virou.observacao, /Já estava em negociação/);

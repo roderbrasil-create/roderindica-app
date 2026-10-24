@@ -1,7 +1,10 @@
 // Indica -> CRM: envia cada indicação nova ao CRM do Roder Vision, com fila, backoff e reserva.
-// Três entradas, todas pelo mesmo envio (enviarIndicacaoAoCrm):
-//   - laço de 1 minuto (rodarFilaCrm), só indicações criadas depois da virada;
-//   - carga inicial (cargaInicialCrm), uma vez, para as indicações abertas que já existiam;
+// Entradas:
+//   - laço de 1 minuto (rodarFilaCrm): pending/triagem de qualquer idade e negotiating criada depois da virada, como
+//     indicação nova (aviso por e-mail só nas criadas depois da virada); negotiating ANTERIOR à virada vai no formato
+//     de carga inicial (histórico), em lotes de até 100;
+//   - carga inicial manual (cargaInicialCrm), pela tela Admin: as em negociação, em lotes de até 500;
+//   - fase 2: atualização do parceiro (a cada 10 min), comissão e comissão paga (a cada 5 min);
 // Documentação: docs/integracao-crm.md
 import {
   RESERVA_ENVIO_MS, STATUS_ENVIAVEIS, montarPayloadIndicacao, motivoNaoEnviarNaCarga, motivoNaoEnviarNoLaco, planoDeFalha, atrasoDaTentativa, podeEnviarAoCrm, podeCargaAoCrm,
@@ -173,6 +176,8 @@ export async function listarCandidatasDoLaco(db: any, ativoDesde: string, agora:
   return achadas;
 }
 
+const MAX_HISTORICO_POR_RODADA = 100;
+
 export async function rodarFilaCrm(deps: DepsEntradaCrm): Promise<{ pulado?: string; resultados: ResultadoEnvio[] }> {
   const cfg = deps.config();
   if (!podeEnviarAoCrm(cfg)) return { pulado: 'integracao_desligada', resultados: [] };
@@ -185,11 +190,22 @@ export async function rodarFilaCrm(deps: DepsEntradaCrm): Promise<{ pulado?: str
     const est = varredura.get(deps.db) || { proxima: 0, sobrou: false };
     const completa = est.sobrou || agora.getTime() >= est.proxima;
     const candidatas = await listarCandidatasDoLaco(deps.db, desde, agora, completa);
-    if (completa) varredura.set(deps.db, { proxima: agora.getTime() + VARREDURA_COMPLETA_MS, sobrou: candidatas.length > MAX_POR_RODADA });
-    else if (est.sobrou) varredura.set(deps.db, { ...est, sobrou: candidatas.length > MAX_POR_RODADA });
+    // Em negociação ANTERIOR à virada (e ainda não enviada) não pode entrar no CRM como indicação normal, que seria triada
+    // de novo: vai no formato de carga inicial (histórico), em lotes. O resto vai como indicação nova.
+    const corte = new Date(desde).getTime();
+    const historicas = candidatas.filter(c => String(c.data.status) === 'negotiating' && !(valida(c.data.created_at) && new Date(c.data.created_at).getTime() >= corte));
+    const idsHist = new Set(historicas.map(c => c.id));
+    const normais = candidatas.filter(c => !idsHist.has(c.id));
+    const sobrou = normais.length > MAX_POR_RODADA || historicas.length > MAX_HISTORICO_POR_RODADA;
+    if (completa) varredura.set(deps.db, { proxima: agora.getTime() + VARREDURA_COMPLETA_MS, sobrou });
+    else if (est.sobrou) varredura.set(deps.db, { ...est, sobrou });
     const resultados: ResultadoEnvio[] = [];
-    for (const c of candidatas.slice(0, MAX_POR_RODADA)) {
+    for (const c of normais.slice(0, MAX_POR_RODADA)) {
       resultados.push(await enviarIndicacaoAoCrm(deps, c.id, { modo: 'laco', ativoDesde: desde }));
+    }
+    if (historicas.length) {
+      const lr = await enviarLoteComoCarga(deps, historicas.slice(0, MAX_HISTORICO_POR_RODADA).map(c => c.id), { backoff: true });
+      resultados.push(...lr.resultados);
     }
     return { resultados };
   } finally { emExecucao = false; }
@@ -247,11 +263,22 @@ export async function cargaInicialCrm(deps: DepsEntradaCrm, o: { simulacao?: boo
   const limite = Math.min(Math.max(Math.floor(o.limite || 200), 1), MAX_ITENS_CARGA);
   const lote = elegiveis.slice(0, limite);
 
-  // Reserva cada uma (relê dentro da transação) e monta os itens.
+  const lr = await enviarLoteComoCarga(deps, lote.map(e => e.id), { backoff: false });
+  if (!lr.tentadas) return { ok: true as const, simulacao: false, elegiveis: elegiveis.length, tentadas: 0, enviadas: 0, falhas: 0, restantes: elegiveis.length, resumo: lr.resumo };
+  if ('erro' in lr && lr.erro !== undefined) return { ok: true as const, simulacao: false, elegiveis: elegiveis.length, tentadas: lr.tentadas, enviadas: 0, falhas: lr.tentadas, restantes: elegiveis.length, erro: lr.erro, resumo: lr.resumo };
+  return { ok: true as const, simulacao: false, elegiveis: elegiveis.length, tentadas: lr.tentadas, enviadas: lr.enviadas, falhas: lr.tentadas - lr.enviadas, restantes: Math.max(elegiveis.length - lr.enviadas, 0), resumo: lr.resumo };
+}
+
+// Envia um lote no formato { tipo: 'carga_inicial', itens } (histórico: sem aviso de "recebida" no CRM, sem
+// notificar_email, com a nota "[Já estava em negociação...]"). Usado pela carga manual e pelo laço, para as
+// em negociação anteriores à virada. `backoff`: no laço, a falha de transporte reagenda (crm_proxima_tentativa_em).
+export async function enviarLoteComoCarga(deps: DepsEntradaCrm, ids: string[], o: { backoff: boolean }) {
+  const agora = deps.agora ? deps.agora() : new Date();
+  const log = deps.log || console.log;
   const itens: any[] = []; const reservadas: { id: string; ind: any }[] = [];
   const parceiros = new Map<string, any>();
-  for (const e of lote) {
-    const ref = deps.db.collection('indications').doc(e.id);
+  for (const id of ids) {
+    const ref = deps.db.collection('indications').doc(id);
     const r = await deps.db.runTransaction(async (tx: any) => {
       const sn = await tx.get(ref);
       if (!sn.exists) return null;
@@ -263,20 +290,28 @@ export async function cargaInicialCrm(deps: DepsEntradaCrm, o: { simulacao?: boo
     if (!r) continue;
     const uid = String(r.external_seller_uid || '');
     if (uid && !parceiros.has(uid)) { try { parceiros.set(uid, (await deps.db.collection('users').doc(uid).get()).data() || null); } catch { parceiros.set(uid, null); } }
-    itens.push(montarPayloadIndicacao(r, e.id, parceiros.get(uid) || null, { jaEmNegociacao: r.status === 'negotiating' }));
-    reservadas.push({ id: e.id, ind: r });
+    itens.push(montarPayloadIndicacao(r, id, parceiros.get(uid) || null, { jaEmNegociacao: r.status === 'negotiating' }));
+    reservadas.push({ id, ind: r });
   }
-  if (!itens.length) return { ok: true as const, simulacao: false, elegiveis: elegiveis.length, tentadas: 0, enviadas: 0, falhas: 0, restantes: elegiveis.length, resumo: { recebidos: 0, vinculados: 0, repetidos: 0, ignorados: 0 } };
+  const zero: ResumoCarga = { recebidos: 0, vinculados: 0, repetidos: 0, ignorados: 0 };
+  if (!itens.length) return { tentadas: 0, enviadas: 0, resumo: zero, resultados: [] as ResultadoEnvio[] };
 
   const r = await postarCrm(deps, { tipo: 'carga_inicial', itens });
   const nowIso = agora.toISOString();
-  const zero: ResumoCarga = { recebidos: 0, vinculados: 0, repetidos: 0, ignorados: 0 };
+  const resultados: ResultadoEnvio[] = [];
   if (!r.ok) {
     // Falha de transporte, 401, 403, 429, 5xx ou 4xx do lote inteiro: não é culpa de nenhuma indicação.
-    // Só solta a reserva. Não conta tentativa nem desiste, para a carga poder ser repetida à vontade.
-    for (const x of reservadas) await deps.db.collection('indications').doc(x.id).update({ crm_reservado_ate: null });
+    // Não conta tentativa nem desiste. Na carga manual só solta a reserva; no laço também reagenda com backoff.
+    for (const x of reservadas) {
+      const t = planoDeTransporte(Number(x.ind.crm_falhas_transporte) || 0, agora);
+      await deps.db.collection('indications').doc(x.id).update({
+        crm_reservado_ate: null,
+        ...(o.backoff ? { crm_falhas_transporte: t.falhas, crm_proxima_tentativa_em: t.proxima, crm_ultimo_erro: r.erro, crm_ultima_tentativa_em: nowIso } : {}),
+      });
+      resultados.push({ id: x.id, resultado: 'falhou', motivo: r.erro, status: r.status });
+    }
     if (r.status === 401 || r.status === 403) log('[CRM-CARGA] O CRM recusou a chave (CRM_CHAVE).');
-    return { ok: true as const, simulacao: false, elegiveis: elegiveis.length, tentadas: reservadas.length, enviadas: 0, falhas: reservadas.length, restantes: elegiveis.length, erro: r.erro, resumo: zero };
+    return { tentadas: reservadas.length, enviadas: 0, erro: r.erro, resumo: zero, resultados };
   }
   // Marca só o que o CRM confirmou. Se a resposta trouxer só contagens, o lote inteiro vale.
   // Só a recusa POR ITEM (ok:false na resposta do item) conta tentativa daquela indicação.
@@ -289,16 +324,19 @@ export async function cargaInicialCrm(deps: DepsEntradaCrm, o: { simulacao?: boo
       const f = planoDeFalha(Number(x.ind.crm_tentativas) || 0, agora);
       await ref.update({
         crm_tentativas: f.tentativas, crm_ultimo_erro: 'recusada pelo CRM na carga', crm_ultima_tentativa_em: nowIso, crm_reservado_ate: null,
+        crm_proxima_tentativa_em: f.proxima,
         ...(f.desistiu ? { crm_desistiu_em: nowIso } : {}),
       });
+      resultados.push({ id: x.id, resultado: f.desistiu ? 'desistiu' : 'falhou', motivo: 'recusada' });
       continue;
     }
-    await ref.update({ crm_enviado_em: nowIso, crm_id: null, crm_carga_inicial: true, crm_reservado_ate: null, crm_ultimo_erro: null, crm_proxima_tentativa_em: null });
+    await ref.update({ crm_enviado_em: nowIso, crm_id: null, crm_carga_inicial: true, crm_reservado_ate: null, crm_ultimo_erro: null, crm_proxima_tentativa_em: null, crm_falhas_transporte: 0 });
+    resultados.push({ id: x.id, resultado: 'enviada' });
     enviadas++;
   }
   const n = (v: any, padrao = 0) => (Number.isFinite(Number(v)) ? Number(v) : padrao);
   const resumo: ResumoCarga = { recebidos: n(r.json?.recebidos, reservadas.length), vinculados: n(r.json?.vinculados), repetidos: n(r.json?.repetidos), ignorados: n(r.json?.ignorados) };
-  return { ok: true as const, simulacao: false, elegiveis: elegiveis.length, tentadas: reservadas.length, enviadas, falhas: reservadas.length - enviadas, restantes: Math.max(elegiveis.length - enviadas, 0), resumo };
+  return { tentadas: reservadas.length, enviadas, resumo, resultados };
 }
 
 // ---------- POST ao CRM ----------
@@ -351,7 +389,7 @@ async function postarCrm(deps: DepsEntradaCrm, corpo: any, timeoutMs = 60000): P
 }
 
 // ---------- Fase 2: atualização do parceiro ----------
-// Rodam a cada 5 minutos (server.ts), DEPOIS e separadas da fila de indicações novas: nunca a atrasam.
+// Rotinas separadas da fila de indicações novas (que nunca esperam por elas): atualizações a cada 10 minutos, comissões a cada 5 (server.ts).
 let atualizacoesEmExecucao = false;
 const MAX_ATUALIZACOES_POR_RODADA = 30;
 const MAX_COMISSOES_POR_RODADA = 30;
@@ -421,7 +459,6 @@ export async function rodarAtualizacoesCrm(deps: DepsEntradaCrm): Promise<{ pula
       const ja = new Set(docs.map((x: any) => x.id));
       for (const x of retentar.docs) if (!ja.has(x.id)) docs.push(x);
     }
-    ultimaVarreduraAtu.set(deps.db, { completa: completa ? agora.getTime() : est.completa, rodada: agora.getTime() });
     let enviadas = 0; let falhas = 0; let feitas = 0;
     for (const d of docs) {
       const ind = d.data() || {};
@@ -433,6 +470,7 @@ export async function rodarAtualizacoesCrm(deps: DepsEntradaCrm): Promise<{ pula
       for (const e of entradasPendentesDoParceiro(ind)) {
         const falha = ind[`crm_atu_falha_${e.id}`];
         if (falha?.proxima && new Date(falha.proxima).getTime() > agora.getTime()) { proximaRetentativa = proximaRetentativa && proximaRetentativa < falha.proxima ? proximaRetentativa : falha.proxima; continue; }
+        // parou pelo teto: NÃO avança o marcador, a próxima rodada relê a mesma janela e pega as sobras
         if (feitas >= MAX_ATUALIZACOES_POR_RODADA) return { enviadas, falhas };
         feitas++;
         const { anexos, avisos } = await prepararAnexos(deps, e);
@@ -458,17 +496,22 @@ export async function rodarAtualizacoesCrm(deps: DepsEntradaCrm): Promise<{ pula
       }
       if (ind.crm_atu_retry && !proximaRetentativa) await ref.update({ crm_atu_retry: null });
     }
+    // só depois de processar tudo: o marcador novo vale a partir do INÍCIO desta rodada
+    ultimaVarreduraAtu.set(deps.db, { completa: completa ? agora.getTime() : est.completa, rodada: agora.getTime() });
     return { enviadas, falhas };
   } finally { atualizacoesEmExecucao = false; }
 }
 
 // ---------- Fase 2: comissão ----------
 let comissoesEmExecucao = false;
-const COMISSOES_RECENTES = 300;
+const JANELA_COMISSOES_MS = 14 * 24 * 60 * 60 * 1000;
+const camposDaComissao = (c: any) => `${Number(c.value) || 0}|${Number(c.base_value_used) || 0}|${Number(c.rate_applied) || 0}|${Number(c.commissionable_value) || 0}|${Number(c.base_commission_value) || 0}`;
 
-// Duas fontes, sem índice composto e sem janela de dias:
-//  - crm_aguardando_paga == true: comissão já enviada que ainda espera o pagamento (qualquer idade);
-//  - as 300 mais novas por created_at (decrescente), que pegam a comissão recém-congelada.
+// Fontes de leitura, sem índice composto:
+//  - crm_aguardando_paga == true: comissão já enviada que ainda espera o pagamento (qualquer idade: a "paga" nunca se perde);
+//  - as 100 mais novas por created_at (pegam a recém-congelada ainda não enviada);
+//  - criadas ou atualizadas nos últimos 14 dias (até 300 de cada).
+// Comissão já concluída (enviada, sem "paga" pendente e sem mudança nos valores) é pulada ANTES de ler a indicação.
 // Comissão de indicação que nunca foi ao CRM recebe crm_nao_aplica_em e deixa de custar leitura.
 export async function rodarComissoesCrm(deps: DepsEntradaCrm): Promise<{ pulado?: string; enviadas: number; falhas: number }> {
   const cfg = deps.config();
@@ -477,15 +520,22 @@ export async function rodarComissoesCrm(deps: DepsEntradaCrm): Promise<{ pulado?
   comissoesEmExecucao = true;
   try {
     const agora = deps.agora ? deps.agora() : new Date();
-    const aguardando = await deps.db.collection('commissions').where('crm_aguardando_paga', '==', true).get();
-    const recentes = await deps.db.collection('commissions').orderBy('created_at', 'desc').limit(COMISSOES_RECENTES).get();
+    const desde = new Date(agora.getTime() - JANELA_COMISSOES_MS).toISOString();
+    const col = () => deps.db.collection('commissions');
+    const fontes = await Promise.all([
+      col().where('crm_aguardando_paga', '==', true).get(),
+      col().orderBy('created_at', 'desc').limit(100).get(),
+      col().where('created_at', '>=', desde).orderBy('created_at', 'desc').limit(300).get(),
+      col().where('updated_at', '>=', desde).orderBy('updated_at', 'desc').limit(300).get(),
+    ]);
     const vistos = new Set<string>(); const docs: any[] = [];
-    for (const d of [...aguardando.docs, ...recentes.docs]) if (!vistos.has(d.id)) { vistos.add(d.id); docs.push(d); }
+    for (const f of fontes) for (const d of f.docs) if (!vistos.has(d.id)) { vistos.add(d.id); docs.push(d); }
     let enviadas = 0; let falhas = 0;
     const inds = new Map<string, any>();
     for (const d of docs) {
       const c = d.data() || {};
       if (c.crm_nao_aplica_em || c.crm_desistiu_em) continue;
+      if (c.crm_comissao_enviada_em && (c.status !== 'paid' || c.crm_paga_enviada_em) && c.crm_comissao_campos === camposDaComissao(c)) continue;
       const ref = deps.db.collection('commissions').doc(d.id);
       const idInd = String(c.indication_id || d.id);
       if (!inds.has(idInd)) inds.set(idInd, (await deps.db.collection('indications').doc(idInd).get()).data() || null);
@@ -515,8 +565,9 @@ export async function rodarComissoesCrm(deps: DepsEntradaCrm): Promise<{ pulado?
       const pPaga = c.status === 'paid' && !c.crm_paga_enviada_em ? montarComissaoPaga(c, d.id, ind, pedidoEnviado) : null;
       const passos: { corpo: any; ok: Record<string, any>; tent: string; prox: string; trans: string }[] = [];
       // crm_aguardando_paga fica true mesmo se a comissão já nasceu paga: a "paga" nunca depende só das 300 mais novas
-      if (comissaoPendente) passos.push({ corpo: pComissao, tent: 'crm_comissao_tentativas', trans: 'crm_comissao_transporte', prox: 'crm_comissao_proxima', ok: { crm_comissao_enviada_em: agora.toISOString(), crm_comissao_assinatura: assinatura, crm_comissao_pedido_numero: pedidoEnviado || pComissao!.pedido_numero, crm_comissao_proxima: null, crm_aguardando_paga: true } });
+      if (comissaoPendente) passos.push({ corpo: pComissao, tent: 'crm_comissao_tentativas', trans: 'crm_comissao_transporte', prox: 'crm_comissao_proxima', ok: { crm_comissao_enviada_em: agora.toISOString(), crm_comissao_assinatura: assinatura, crm_comissao_campos: camposDaComissao(c), crm_comissao_pedido_numero: pedidoEnviado || pComissao!.pedido_numero, crm_comissao_proxima: null, crm_aguardando_paga: true } });
       if (pPaga && (c.crm_comissao_enviada_em || comissaoPendente)) passos.push({ corpo: pPaga, tent: 'crm_paga_tentativas', trans: 'crm_paga_transporte', prox: 'crm_paga_proxima', ok: { crm_paga_enviada_em: agora.toISOString(), crm_paga_proxima: null, crm_aguardando_paga: false } });
+      if (!passos.length && c.crm_comissao_enviada_em && pComissao && c.crm_comissao_campos !== camposDaComissao(c)) await ref.update({ crm_comissao_campos: camposDaComissao(c) }); // comissão enviada antes desta marca
       for (const p of passos) {
         if (enviadas + falhas >= MAX_COMISSOES_POR_RODADA) return { enviadas, falhas };
         if (c[p.prox] && new Date(c[p.prox]).getTime() > agora.getTime()) break;
@@ -572,12 +623,13 @@ export function registrarRotasAdminCrm(app: any, deps: DepsEntradaCrm & { exigir
       let host = '';
       try { host = new URL(cfg.url).host; } catch { /* url inválida */ }
       const sim = await cargaInicialCrm(deps, { simulacao: true });
+      const cfgDoc = (await deps.db.collection('settings').doc(DOC_CONFIG_CRM).get()).data() || {};
       const desistiram = (await deps.db.collection('indications').where('crm_desistiu_em', '>', '').get()).docs.length;
       return res.json({
         ok: true, ativo: cfg.ativo, tem_chave: !!cfg.chave, tem_segredo: !!cfg.segredo, destino: host, url_valida: cfg.urlValida,
         ativo_desde: desde, pode_carga: podeCargaAoCrm(cfg), pendentes_da_carga: sim && sim.ok ? sim.elegiveis : null,
         pendentes_como_novas: sim && sim.ok ? (sim as any).pendentes_novas : null, desistiram,
-        alerta_transporte: ((await deps.db.collection('settings').doc(DOC_CONFIG_CRM).get()).data() || {}).alerta_transporte || null,
+        alerta_transporte: cfgDoc.alerta_transporte || null, carga_inicial_em: cfgDoc.carga_inicial_em || null,
       });
     } catch (e: any) { return res.status(500).json({ ok: false, error: e?.message || 'Erro.' }); }
   });

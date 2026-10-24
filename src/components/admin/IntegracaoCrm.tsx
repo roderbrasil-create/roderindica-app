@@ -8,7 +8,7 @@ import { getApiBaseUrl } from '../../lib/utils';
 
 // Integração com o CRM do Roder Vision. Só o administrador vê.
 // A carga inicial manda ao CRM as indicações abertas que ainda não foram enviadas (cada uma uma só vez).
-interface Estado { ativo: boolean; tem_chave: boolean; tem_segredo: boolean; destino: string; ativo_desde: string | null; pode_carga: boolean; pendentes_da_carga: number | null; pendentes_como_novas: number | null; desistiram: number; alerta_transporte: { motivo: string; seguidas: number; em: string } | null }
+interface Estado { ativo: boolean; tem_chave: boolean; tem_segredo: boolean; destino: string; ativo_desde: string | null; pode_carga: boolean; pendentes_da_carga: number | null; pendentes_como_novas: number | null; desistiram: number; carga_inicial_em: string | null; alerta_transporte: { motivo: string; seguidas: number; em: string } | null }
 
 async function chamar(caminho: string, corpo?: unknown) {
   const token = await auth.currentUser?.getIdToken();
@@ -67,6 +67,11 @@ export default function IntegracaoCrm() {
           {estado.pendentes_da_carga !== null ? ` · ${estado.pendentes_da_carga} em negociação na carga` : ''}
           {estado.pendentes_como_novas ? ` · ${estado.pendentes_como_novas} pendentes irão como novas na virada, SEM aviso por e-mail` : ''}
         </p>
+        {estado.ativo && !estado.carga_inicial_em && (
+          <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900 dark:bg-amber-950/30 dark:text-amber-200 dark:border-amber-900">
+            Carga inicial ainda não feita: as em negociação irão como histórico pelo laço.
+          </p>
+        )}
         {estado.alerta_transporte && (
           <p className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-red-800 dark:bg-red-950/30 dark:text-red-300 dark:border-red-900">
             {estado.alerta_transporte.motivo} {estado.alerta_transporte.seguidas} falha(s) seguidas, a última em {new Date(estado.alerta_transporte.em).toLocaleString('pt-BR')}. Nada foi perdido: o envio tenta de novo sozinho.
