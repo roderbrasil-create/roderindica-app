@@ -8,7 +8,7 @@ import { getApiBaseUrl } from '../../lib/utils';
 
 // Integração com o CRM do Roder Vision. Só o administrador vê.
 // A carga inicial manda ao CRM as indicações abertas que ainda não foram enviadas (cada uma uma só vez).
-interface Estado { ativo: boolean; tem_chave: boolean; tem_segredo: boolean; destino: string; ativo_desde: string | null; pode_carga: boolean; pendentes_da_carga: number | null; pendentes_como_novas: number | null; desistiram: number; carga_inicial_em: string | null; alerta_transporte: { motivo: string; seguidas: number; em: string } | null }
+interface Estado { ativo: boolean; tem_chave: boolean; tem_segredo: boolean; destino: string; ativo_desde: string | null; pode_carga: boolean; pendentes_da_carga: number | null; pendentes_como_novas: number | null; carga_em_negociacao: number | null; carga_vendidas: number | null; carga_total: number | null; desistiram: number; carga_inicial_em: string | null; alerta_transporte: { motivo: string; seguidas: number; em: string } | null }
 
 async function chamar(caminho: string, corpo?: unknown) {
   const token = await auth.currentUser?.getIdToken();
@@ -36,7 +36,7 @@ export default function IntegracaoCrm() {
     setOcupado(true);
     try {
       const r = await chamar('/api/admin/crm/carga-inicial', { simulacao });
-      if (simulacao) toast.info(`${r.elegiveis} em negociação na carga; ${r.pendentes_novas ?? 0} pendentes irão como novas na virada, sem aviso por e-mail.`, { duration: 8000 });
+      if (simulacao) toast.info(`Em negociação: ${r.em_negociacao ?? 0}. Vendidas (histórico): ${r.vendidas ?? 0}. Pendentes/triagem (irão como novas na virada, sem aviso por e-mail): ${r.pendentes_novas ?? 0}. Total da carga: ${r.total_carga ?? r.elegiveis}; próximo lote: ${r.proximo_lote ?? r.elegiveis}.`, { duration: 12000 });
       else {
         const q = r.resumo || {};
         toast.success(`${r.enviadas} enviada(s), ${r.falhas} com falha. CRM: ${q.recebidos ?? 0} recebidas, ${q.vinculados ?? 0} vinculadas, ${q.repetidos ?? 0} repetidas, ${q.ignorados ?? 0} ignoradas. Faltam ${r.restantes}.`, { duration: 12000 });
@@ -64,12 +64,12 @@ export default function IntegracaoCrm() {
         <p className="text-muted-foreground">
           {estado.ativo ? 'Ligado' : 'Desligado'}{estado.destino ? ` · destino ${estado.destino}` : ''}
           {!estado.tem_chave ? ' · falta a chave' : ''}{!estado.tem_segredo ? ' · falta o segredo' : ''}
-          {estado.pendentes_da_carga !== null ? ` · ${estado.pendentes_da_carga} em negociação na carga` : ''}
+          {estado.carga_total !== null ? ` · carga: ${estado.carga_em_negociacao ?? 0} em negociação + ${estado.carga_vendidas ?? 0} vendidas (histórico) = ${estado.carga_total}` : ''}
           {estado.pendentes_como_novas ? ` · ${estado.pendentes_como_novas} pendentes irão como novas na virada, SEM aviso por e-mail` : ''}
         </p>
-        {estado.ativo && (estado.pendentes_da_carga ?? 0) > 0 && (
+        {estado.ativo && (estado.carga_em_negociacao ?? 0) > 0 && (
           <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900 dark:bg-amber-950/30 dark:text-amber-200 dark:border-amber-900">
-            Carga inicial ainda não feita: {estado.pendentes_da_carga} em negociação ainda não enviadas irão como histórico pelo laço.
+            Carga inicial ainda não feita: {estado.carga_em_negociacao} em negociação ainda não enviadas irão como histórico pelo laço.
           </p>
         )}
         {estado.alerta_transporte && (

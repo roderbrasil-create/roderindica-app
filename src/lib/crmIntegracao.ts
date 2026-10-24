@@ -10,6 +10,17 @@ export const CRM_URL_PADRAO = 'https://roder-vision.lovable.app/api/public/hooks
 // Status que o CRM precisa conhecer. 'sold', 'cancelled' e 'archived' não entram: venda fechada ou
 // indicação morta não é lead para triar (decisão da carga inicial, ver docs/integracao-crm.md).
 export const STATUS_ENVIAVEIS = ['pending', 'triagem', 'negotiating'];
+// A carga inicial também leva as vendidas (histórico para o relatório do CRM). Arquivadas e canceladas continuam fora.
+export const STATUS_DA_CARGA = [...STATUS_ENVIAVEIS, 'sold'];
+
+// Valor do campo status_indica que o CRM aceita para cada status do Indica
+export const STATUS_INDICA: Record<string, string> = {
+  pending: 'pendente', triagem: 'triagem', negotiating: 'em_negociacao', sold: 'vendido', archived: 'arquivado', cancelled: 'cancelado',
+};
+
+// uid que não é parceiro de verdade (venda direta, indicação de cliente, pedido público)
+const UIDS_SEM_PARCEIRO = ['client_referral', 'direct_factory', 'public_request', 'anonymous'];
+export const temParceiroDeVerdade = (ind: any) => !!ind?.external_seller_uid && !UIDS_SEM_PARCEIRO.includes(String(ind.external_seller_uid));
 
 export const MAX_TENTATIVAS_ENVIO = 10;
 const ATRASO_BASE_MS = 60 * 1000; // 1 min, depois 2, 4, 8... até o teto
@@ -79,11 +90,11 @@ export function planoDeFalha(tentativasAntes: number, agora: Date): { tentativas
 const vazio = (v: any) => !String(v ?? '').trim();
 
 // Comum ao laço e à carga: a indicação é um lead de verdade e ainda não foi enviada.
-function baseEnviavel(ind: any): string | null {
+function baseEnviavel(ind: any, statusAceitos: string[] = STATUS_ENVIAVEIS): string | null {
   if (!ind) return 'inexistente';
   if (ind.crm_enviado_em) return 'ja_enviada';
   if (ind.crm_desistiu_em) return 'desistiu';
-  if (!STATUS_ENVIAVEIS.includes(String(ind.status || ''))) return 'status_nao_envia';
+  if (!statusAceitos.includes(String(ind.status || ''))) return 'status_nao_envia';
   if (ind.creator_type === 'visitor') return 'conversa_do_consultor'; // início de atendimento do consultor digital, ainda não é indicação
   if (vazio(ind.client_name)) return 'sem_cliente';
   return null;
@@ -107,9 +118,12 @@ export function motivoNaoEnviarNoLaco(ind: any, o: { ativoDesde?: string | null;
 // Carga inicial: SÓ as já aceitas (negotiating) ainda não enviadas, independente da data. Pending e
 // triagem não entram: vão pelo laço como indicação nova.
 export function motivoNaoEnviarNaCarga(ind: any, o: { agora: Date }): string | null {
-  const b = baseEnviavel(ind);
+  const b = baseEnviavel(ind, STATUS_DA_CARGA);
   if (b) return b;
-  if (String(ind.status) !== 'negotiating') return 'vai_como_nova';
+  if (String(ind.status) === 'sold') {
+    // venda direta (sem parceiro) não entra: o relatório do CRM é das indicações
+    if (!temParceiroDeVerdade(ind)) return 'venda_direta';
+  } else if (String(ind.status) !== 'negotiating') return 'vai_como_nova';
   if (reservada(ind, o.agora)) return 'reservada';
   return null;
 }
@@ -223,6 +237,8 @@ export function montarPayloadIndicacao(
     } as ParceiroPayload,
     criado_em: dataValida(ind.created_at) ? new Date(ind.created_at).toISOString() : new Date().toISOString(),
   };
+  // Situação da indicação no Indica, em todo item enviado (nova, lote e carga)
+  if (STATUS_INDICA[String(ind.status)]) payload.status_indica = STATUS_INDICA[String(ind.status)];
   if (opcoes.notificarEmail) payload.notificar_email = opcoes.notificarEmail;
   return payload;
 }

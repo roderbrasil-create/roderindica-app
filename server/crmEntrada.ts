@@ -7,11 +7,11 @@
 //   - fase 2: atualização do parceiro (a cada 10 min), comissão e comissão paga (a cada 5 min);
 // Documentação: docs/integracao-crm.md
 import {
-  RESERVA_ENVIO_MS, STATUS_ENVIAVEIS, montarPayloadIndicacao, motivoNaoEnviarNaCarga, motivoNaoEnviarNoLaco, planoDeFalha, atrasoDaTentativa, podeEnviarAoCrm, podeCargaAoCrm,
+  RESERVA_ENVIO_MS, STATUS_ENVIAVEIS, STATUS_DA_CARGA, montarPayloadIndicacao, motivoNaoEnviarNaCarga, motivoNaoEnviarNoLaco, planoDeFalha, atrasoDaTentativa, podeEnviarAoCrm, podeCargaAoCrm,
   type ConfigCrm,
 } from '../src/lib/crmIntegracao';
 import {
-  MAX_ANEXOS, MAX_ANEXO_BYTES, assinaturaDaComissao, entradasParaIgnorar, entradasPendentesDoParceiro, montarAtualizacao, montarComissao, montarComissaoPaga, referenciaStorage, tipoDoAnexo,
+  MAX_ANEXOS, MAX_ANEXO_BYTES, assinaturaDaComissao, montarVendaParaCarga, entradasParaIgnorar, entradasPendentesDoParceiro, montarAtualizacao, montarComissao, montarComissaoPaga, referenciaStorage, tipoDoAnexo,
   type AnexoCrm,
 } from '../src/lib/crmFase2';
 
@@ -262,20 +262,20 @@ export async function cargaInicialCrm(deps: DepsEntradaCrm, o: { simulacao?: boo
   const agora = deps.agora ? deps.agora() : new Date();
   const log = deps.log || console.log;
   const corte = await corteDaCarga(deps, !o.simulacao);
-  const s = await deps.db.collection('indications').where('status', 'in', STATUS_ENVIAVEIS).get();
+  const s = await deps.db.collection('indications').where('status', 'in', STATUS_DA_CARGA).get();
   const elegiveis: { id: string; status: string; criada: string }[] = [];
   const porMotivo: Record<string, number> = {};
   for (const d of s.docs) {
     const data = d.data() || {};
     let m = motivoNaoEnviarNaCarga(data, { agora });
-    if (!m && corte && valida(data.created_at) && new Date(data.created_at).getTime() >= new Date(corte).getTime()) m = 'depois_do_corte';
+    if (!m && corte && data.status === 'negotiating' && valida(data.created_at) && new Date(data.created_at).getTime() >= new Date(corte).getTime()) m = 'depois_do_corte';
     if (m) { porMotivo[m] = (porMotivo[m] || 0) + 1; continue; }
     elegiveis.push({ id: d.id, status: String(data.status), criada: String(data.created_at || '') });
   }
   elegiveis.sort((a, b) => a.criada.localeCompare(b.criada));
   const porStatus: Record<string, number> = {};
   elegiveis.forEach(e => { porStatus[e.status] = (porStatus[e.status] || 0) + 1; });
-  if (o.simulacao) return { ok: true as const, simulacao: true, elegiveis: elegiveis.length, por_status: porStatus, descartadas: porMotivo, corte, pendentes_novas: porMotivo.vai_como_nova || 0 };
+  if (o.simulacao) return { ok: true as const, simulacao: true, elegiveis: elegiveis.length, por_status: porStatus, descartadas: porMotivo, corte, pendentes_novas: porMotivo.vai_como_nova || 0, em_negociacao: porStatus.negotiating || 0, vendidas: porStatus.sold || 0, total_carga: elegiveis.length, proximo_lote: Math.min(elegiveis.length, Math.min(Math.max(Math.floor(o.limite || 200), 1), MAX_ITENS_CARGA)), vendas_diretas_fora: porMotivo.venda_direta || 0 };
 
   const limite = Math.min(Math.max(Math.floor(o.limite || 200), 1), MAX_ITENS_CARGA);
   const lote = elegiveis.slice(0, limite);
@@ -307,7 +307,15 @@ export async function enviarLoteComoCarga(deps: DepsEntradaCrm, ids: string[], o
     if (!r) continue;
     const uid = String(r.external_seller_uid || '');
     if (uid && !parceiros.has(uid)) { try { parceiros.set(uid, (await deps.db.collection('users').doc(uid).get()).data() || null); } catch { parceiros.set(uid, null); } }
-    itens.push(montarPayloadIndicacao(r, id, parceiros.get(uid) || null, { jaEmNegociacao: r.status === 'negotiating' }));
+    const item = montarPayloadIndicacao(r, id, parceiros.get(uid) || null, { jaEmNegociacao: r.status === 'negotiating' });
+    if (r.status === 'sold') {
+      // vendida: leva os dados da venda e da comissão. Nunca notificar_email. A fase 2 segue mandando comissao e
+      // comissao_paga normalmente (o CRM trata por id_externo + pedido_numero, então não há duplicidade).
+      let com: any = null;
+      try { const q = await deps.db.collection('commissions').where('indication_id', '==', id).get(); com = q.docs.length ? q.docs[0].data() : null; } catch { /* sem comissão */ }
+      Object.assign(item, montarVendaParaCarga(r, com));
+    }
+    itens.push(item);
     reservadas.push({ id, ind: r });
   }
   const zero: ResumoCarga = { recebidos: 0, vinculados: 0, repetidos: 0, ignorados: 0 };
@@ -646,6 +654,7 @@ export function registrarRotasAdminCrm(app: any, deps: DepsEntradaCrm & { exigir
         ok: true, ativo: cfg.ativo, tem_chave: !!cfg.chave, tem_segredo: !!cfg.segredo, destino: host, url_valida: cfg.urlValida,
         ativo_desde: desde, pode_carga: podeCargaAoCrm(cfg), pendentes_da_carga: sim && sim.ok ? sim.elegiveis : null,
         pendentes_como_novas: sim && sim.ok ? (sim as any).pendentes_novas : null, desistiram,
+        carga_em_negociacao: sim && sim.ok ? (sim as any).em_negociacao : null, carga_vendidas: sim && sim.ok ? (sim as any).vendidas : null, carga_total: sim && sim.ok ? (sim as any).total_carga : null,
         alerta_transporte: cfgDoc.alerta_transporte || null, carga_inicial_em: cfgDoc.carga_inicial_em || null,
       });
     } catch (e: any) { return res.status(500).json({ ok: false, error: e?.message || 'Erro.' }); }

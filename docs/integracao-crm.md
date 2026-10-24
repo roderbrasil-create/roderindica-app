@@ -128,6 +128,37 @@ sucesso. Só a rejeição de validação (outros 4xx ou `ok:false`) conta tentat
 Depois de 10 falhas o laço desiste de uma indicação (`crm_desistiu_em`). O botão **Tentar de novo as que desistiram** do cartão zera isso
 (indicações e comissões).
 
+## status_indica e as vendidas na carga
+
+Todo item de indicação enviado ao CRM (nova, lote e carga) leva `status_indica`: `pendente`, `triagem`, `em_negociacao`, `vendido`, `arquivado` ou `cancelado`
+(do status do Indica: pending, triagem, negotiating, sold, archived, cancelled). Para `em_negociacao` a observação continua com "[Já estava em negociação no Roder Indica...]".
+
+**A carga inicial inclui também as VENDIDAS (`sold`) com parceiro**, como histórico para o relatório do CRM, com `status_indica: "vendido"`, sem `notificar_email` e
+nunca como indicação nova. Venda direta (`direct_factory` e afins) não entra. Arquivadas e canceladas ficam fora. Depois de enviada, a vendida não é reenviada.
+As vendidas vão só pela carga manual do card Admin; o laço não as envia (nem como nova, nem como histórico).
+Campos extras do item vendido (campo ausente é omitido, nunca `null` nem 0 inventado):
+
+| Campo | Origem |
+|---|---|
+| `pedido_numero` | `sale_order_number` |
+| `data_pedido` | `sale_order_date` (na falta, `sale_date`), AAAA-MM-DD no fuso de São Paulo |
+| `data_faturamento` | `crm_faturado_em` (na falta, `sale_date`), AAAA-MM-DD |
+| `previsao_entrega` | `delivery_date`, AAAA-MM-DD |
+| `valor_total` | `sale_value` |
+| `itens` | `[{codigo, nome, quantidade, valor}]`, `valor` unitário (de `commissioned_products`, ou de `items`) |
+| `comissao` | `{valor_equipamento, percentual, valor_comissao, calculada_em, previsao_pagamento, paga_em}` |
+
+Em `comissao`: `valor_equipamento` é a base comissionável líquida de desconto; `percentual` em pontos percentuais (2 = 2%); `previsao_pagamento` é o dia 7 do mês da
+comissão; `paga_em` só existe se a comissão foi paga.
+**Fase 2 e duplicidade:** a carga não marca nada na comissão. A fase 2 segue mandando `comissao` e `comissao_paga` normalmente para as comissões que ela lê (aguardando pagamento,
+as mais novas e as dos últimos 14 dias); o CRM trata por `id_externo` + `pedido_numero`, então o reenvio é idempotente. As vendidas antigas, fora dessas janelas, chegam só pelo objeto
+`comissao` da carga.
+
+Simulação e card Admin mostram contagens separadas: em negociação, vendidas (histórico), pendentes/triagem (irão como novas na virada, sem aviso por e-mail), total da carga e próximo lote.
+
+**Conferência do faturado:** `valor_total` é comparado com a soma de `itens` (quantidade x `valor` unitário), menos `desconto`, mais `frete` (campos separados, no topo ou em `dados`),
+com tolerância de R$ 0,05. Se não bater, o faturamento vai para conferência, sem comissão. `data_faturamento` e `previsao_entrega` são AAAA-MM-DD (São Paulo).
+
 ## Fase 2 (Indica para CRM, só com `CRM_ATIVO=1`)
 
 Rotinas separadas da fila de novas (que roda a cada minuto e nunca espera por elas), só para indicações que já têm `crm_enviado_em`, sem índice

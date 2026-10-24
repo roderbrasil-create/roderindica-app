@@ -98,7 +98,9 @@ export function decidirFaturamento(o: {
   itensBrutos: any;                // dados.itens do evento
   catalogo: Record<string, { is_commissionable?: boolean }>;
   comissaoExistente: boolean;      // commissions/{id} ou comissão antiga com indication_id
-  totalPedido?: number | null;     // total do pedido, quando o CRM manda: tem de bater com a soma dos itens
+  totalPedido?: number | null;     // total do pedido, quando o CRM manda: soma dos itens - desconto + frete tem de bater
+  desconto?: number | null;        // desconto do pedido, em campo separado
+  frete?: number | null;           // frete do pedido, em campo separado
   entrega: string;                 // previsão de entrega (AAAA-MM-DD ou vazio)
   agora: Date;
 }): DecisaoFaturamento {
@@ -119,7 +121,9 @@ export function decidirFaturamento(o: {
   // comissão sairia errada. Conferência, sem comissão.
   if (itens.some(i => i.ambiguo)) motivos.push('Não dá para saber se o valor dos itens é unitário ou o total da linha.');
   const soma = emCentavos(itens.reduce((a, i) => a + i.base_value * i.quantity, 0));
-  if (o.totalPedido !== undefined && o.totalPedido !== null && Math.abs(soma - o.totalPedido) > 0.05) motivos.push('A soma dos itens não bate com o total do pedido.');
+  // itens x valor, menos `desconto`, mais `frete` (quando presentes), contra valor_total, com tolerância de R$ 0,05
+  const esperado = soma - (o.desconto ?? 0) + (o.frete ?? 0);
+  if (o.totalPedido !== undefined && o.totalPedido !== null && Math.abs(esperado - o.totalPedido) > 0.05) motivos.push('A soma dos itens (com desconto e frete) não bate com o total do pedido.');
   if (comParceiro && !o.parceiro) motivos.push('O parceiro ligado à indicação não existe mais no cadastro.');
   const recebeComissao = comParceiro && !!o.parceiro && papelComissionavel(o.parceiro.role);
   // Regra de item só importa quando há comissão a calcular; venda sem parceiro comissionável é só venda.

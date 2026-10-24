@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import { processarEventoCrm, tratarRequisicaoCrm } from '../server/crmEventos.ts';
 import { assinarCrm } from '../server/crmAssinatura.ts';
 import { rodarAtualizacoesCrm, rodarComissoesCrm, rodarFilaCrm, cargaInicialCrm, garantirDataDaVirada, reativarDesistidasCrm } from '../server/crmEntrada.ts';
-import { lerConfigCrm } from '../src/lib/crmIntegracao.ts';
+import { lerConfigCrm, montarPayloadIndicacao } from '../src/lib/crmIntegracao.ts';
 import { mesclarDadosCrm } from '../src/lib/crmEventos.ts';
 import { entradasPendentesDoParceiro, entradasParaIgnorar, montarAtualizacao, montarComissao, montarComissaoPaga, referenciaStorage, tipoDoAnexo, idMensagemCrm } from '../src/lib/crmFase2.ts';
 import { bancoFalsoCrm, arrayUnionFalso } from './fixtures/bancoFalsoCrm.ts';
@@ -563,4 +563,97 @@ test('AVISO DA CARGA: com CRM_ATIVO=1 e nenhuma em negociação antiga, a primei
   const a = ambEnviar(ENV_ON, { p: { client_name: 'P', status: 'pending', created_at: '2026-10-27T00:00:00Z' } });
   await rodarFilaCrm(a.deps);
   assert.ok(a.db.dados.settings.crm_integracao.carga_inicial_em);
+});
+
+// ---------- status_indica e vendidas na carga ----------
+test('STATUS_INDICA: todo item enviado (nova, lote e carga) leva o status no vocabulário do CRM', async () => {
+  const map: Record<string, string> = { pending: 'pendente', triagem: 'triagem', negotiating: 'em_negociacao', sold: 'vendido', archived: 'arquivado', cancelled: 'cancelado' };
+  for (const [st, esperado] of Object.entries(map)) assert.equal(montarPayloadIndicacao({ client_name: 'X', status: st }, 'i', null).status_indica, esperado);
+  const a = ambEnviar(ENV_ON, {
+    p: { client_name: 'P', status: 'pending', created_at: '2026-10-27T00:00:00Z' },
+    n: { client_name: 'N', status: 'negotiating', created_at: '2026-09-01T00:00:00Z' },
+  });
+  await rodarFilaCrm(a.deps);
+  const itens = a.chamadas.flatMap(c => c.corpo.itens || [c.corpo]);
+  assert.equal(itens.find((x: any) => x.id_externo === 'p').status_indica, 'pendente');
+  const n = itens.find((x: any) => x.id_externo === 'n');
+  assert.equal(n.status_indica, 'em_negociacao'); assert.match(n.observacao, /Já estava em negociação/);
+});
+
+const VENDIDA = (o: any = {}) => ({
+  client_name: 'Fazenda Boa Vista', status: 'sold', external_seller_uid: 'p1', external_seller_name: 'Maria Parceira', created_at: '2026-08-01T10:00:00Z',
+  sale_order_number: 'PV-77', sale_order_date: '2026-09-10', sale_date: '2026-09-12', delivery_date: '2026-10-30', sale_value: 100000,
+  commissioned_products: [{ code: '1000.0001', name: 'Cabeçote', quantity: 2, base_value: 50000 }], ...o,
+});
+
+test('CARGA DE VENDIDAS: leva status_indica=vendido, os dados da venda e a comissão (paga), sem e-mail; venda direta fica fora; não reenvia', async () => {
+  const a = ambEnviar({ CRM_CHAVE: CHAVE, CRM_URL: 'http://localhost:9/crm', CRM_NOTIFICAR_EMAIL: 'x@roderbrasil.com.br' }, {
+    v1: VENDIDA(), direta: VENDIDA({ external_seller_uid: 'direct_factory' }), arq: { client_name: 'A', status: 'archived' }, can: { client_name: 'C', status: 'cancelled' },
+  }, { commissions: { c1: { indication_id: 'v1', external_seller_uid: 'p1', value: 2000, base_value_used: 100000, rate_applied: 2, status: 'paid', paid_at: '2026-10-06T12:00:00Z', month: 10, year: 2026, created_at: '2026-09-12T12:00:00Z' } } });
+  const sim: any = await cargaInicialCrm(a.deps, { simulacao: true });
+  assert.equal(sim.vendidas, 1); assert.equal(sim.total_carga, 1); assert.equal(sim.vendas_diretas_fora, 1);
+  const r: any = await cargaInicialCrm(a.deps, {});
+  assert.equal(r.enviadas, 1);
+  const item = a.chamadas[0].corpo.itens[0];
+  assert.equal(item.status_indica, 'vendido'); assert.equal('notificar_email' in item, false);
+  assert.equal(item.pedido_numero, 'PV-77'); assert.equal(item.data_pedido, '2026-09-10'); assert.equal(item.data_faturamento, '2026-09-12');
+  assert.equal(item.previsao_entrega, '2026-10-30'); assert.equal(item.valor_total, 100000);
+  assert.deepEqual(item.itens, [{ codigo: '1000.0001', nome: 'Cabeçote', quantidade: 2, valor: 50000 }]);
+  assert.deepEqual(item.comissao, { valor_equipamento: 100000, percentual: 2, valor_comissao: 2000, calculada_em: '2026-09-12T12:00:00.000Z', previsao_pagamento: '2026-10-07', paga_em: '2026-10-06T12:00:00.000Z' });
+  assert.equal(a.db.dados.indications.direta.crm_enviado_em, undefined);
+  const de: any = await cargaInicialCrm(a.deps, {});
+  assert.equal(de.elegiveis, 0); assert.equal(a.chamadas.length, 1, 'não reenvia');
+});
+
+test('CARGA DE VENDIDAS: campo ausente é omitido (nada de null ou 0); sem comissão nem itens o objeto não aparece', async () => {
+  const a = ambEnviar({ CRM_CHAVE: CHAVE, CRM_URL: 'http://localhost:9/crm' }, { v: { client_name: 'V', status: 'sold', external_seller_uid: 'p1', created_at: '2026-08-01T00:00:00Z' } });
+  await cargaInicialCrm(a.deps, {});
+  const item = a.chamadas[0].corpo.itens[0];
+  for (const k of ['pedido_numero', 'data_pedido', 'data_faturamento', 'previsao_entrega', 'valor_total', 'itens', 'comissao']) assert.equal(k in item, false, k);
+  assert.equal(item.status_indica, 'vendido');
+});
+
+test('CARGA DE VENDIDAS x FASE 2: a carga não marca a comissão; a fase 2 manda comissao e comissao_paga normalmente, uma vez só', async () => {
+  const a = ambEnviar(ENV_ON, { v1: VENDIDA() }, { commissions: { c1: COM({ indication_id: 'v1', status: 'paid', updated_at: '2026-10-06T12:00:00Z', created_at: '2026-10-20T12:00:00Z' }) } });
+  await cargaInicialCrm(a.deps, {});
+  assert.equal(a.db.dados.commissions.c1.crm_comissao_enviada_em, undefined);
+  await rodarComissoesCrm(a.deps);
+  assert.deepEqual(a.chamadas.slice(1).map(c => c.corpo.tipo), ['comissao', 'comissao_paga']);
+  await rodarComissoesCrm(a.deps);
+  assert.equal(a.chamadas.length, 3);
+});
+
+test('LAÇO: vendidas nunca vão pelo laço (nem como nova, nem como histórico)', async () => {
+  const a = ambEnviar(ENV_ON, { v1: VENDIDA() });
+  await rodarFilaCrm(a.deps);
+  assert.equal(a.chamadas.length, 0);
+});
+
+// ---------- desconto e frete no faturado ----------
+test('FATURADO: valor_total confere itens x valor, menos desconto, mais frete (tolerância R$ 0,05); senão vai para conferência', async () => {
+  const itens = [{ codigo: '1000.0001', nome: 'Cabeçote', quantidade: 2, valor: 50000 }];
+  const cat = { registered_products: { r1: { code: '1000.0001', is_commissionable: true } } };
+  const f = (extra: any) => ({ pedido_numero: 'PV-1', cnpj: '12345678000190', data_pedido: '2026-10-20', data_faturamento: '2026-10-28', previsao_entrega: '2026-11-20', itens, ...extra });
+  const rodar = async (dados: any) => { const a = ambReceber(ind(), cat); await a.enviar(base('pedido.faturado', { dados })); return a; };
+  const ok = await rodar(f({ valor_total: 98000, desconto: 5000, frete: 3000 }));
+  assert.equal(ok.get().status, 'sold');
+  const ok2 = await rodar(f({ valor_total: 100000.04 }));
+  assert.equal(ok2.get().status, 'sold', 'tolerância de R$ 0,05');
+  const ruim = await rodar(f({ valor_total: 98000 }));
+  assert.equal(ruim.get().status, 'negotiating'); assert.equal(ruim.get().faturamento_aguardando_conferencia, true);
+  assert.deepEqual(ruim.db.dados.commissions ?? {}, {});
+  const ruim2 = await rodar(f({ valor_total: 98000, desconto: 5000, frete: 2000 }));
+  assert.equal(ruim2.get().faturamento_aguardando_conferencia, true);
+  // desconto e frete também valem no topo do corpo
+  const top = ambReceber(ind(), cat);
+  await top.enviar(base('pedido.faturado', { ...f({ valor_total: 98000 }), desconto: 5000, frete: 3000 }));
+  assert.equal(top.get().status, 'sold');
+});
+
+test('PARCEIRO_ID: venda direta com parceiro_id direct_factory é aceita e outro id é ignorado', async () => {
+  const a = ambReceber(ind({ external_seller_uid: 'direct_factory', external_seller_name: 'Venda Direta' }));
+  const certo = await a.enviar(base('negocio.perdido', { parceiro_id: 'direct_factory', mensagem: 'Negociação encerrada: x' }));
+  assert.equal(certo.body.resultado, 'aplicado');
+  const b = ambReceber(ind({ external_seller_uid: 'direct_factory' }));
+  assert.equal((await b.enviar(base('negocio.perdido', { parceiro_id: 'p1', mensagem: 'x' }))).body.resultado, 'ignorado');
 });

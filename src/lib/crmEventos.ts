@@ -22,7 +22,7 @@ export type NomeEventoCrm = typeof EVENTOS_CRM[number];
 export type EventoCrm = { id: string; evento: string; em?: string; id_externo: string; parceiro_id?: string | null; status?: string; mensagem?: string; dados?: any };
 
 // Campos do contrato final que podem vir no TOPO do corpo ou dentro de `dados` (vale `dados` se houver os dois).
-const CAMPOS_DO_TOPO = ['pedido_numero', 'numero', 'cnpj', 'data_pedido', 'previsao_entrega', 'data_faturamento', 'nota_fiscal', 'valor_total', 'total', 'itens', 'motivo', 'etapa', 'vendedora', 'vendedora_nome', 'vendedora_email', 'vendedora_uid', 'valor', 'data', 'numero_orcamento'];
+const CAMPOS_DO_TOPO = ['pedido_numero', 'numero', 'cnpj', 'data_pedido', 'previsao_entrega', 'data_faturamento', 'nota_fiscal', 'valor_total', 'total', 'itens', 'motivo', 'etapa', 'vendedora', 'vendedora_nome', 'vendedora_email', 'vendedora_uid', 'valor', 'data', 'numero_orcamento', 'desconto', 'frete'];
 export function mesclarDadosCrm(corpo: any): Record<string, any> {
   const out: Record<string, any> = {};
   if (corpo && typeof corpo === 'object') for (const k of CAMPOS_DO_TOPO) if (corpo[k] !== undefined && corpo[k] !== null) out[k] = corpo[k];
@@ -353,7 +353,7 @@ function planejarFaturadoBase(ind: any, ev: EventoCrm, ctx: ContextoEvento, base
 
   const dec: DecisaoFaturamento = decidirFaturamento({
     ind, parceiro: ctx.parceiro, itensBrutos: d.itens, catalogo: ctx.catalogo, comissaoExistente: ctx.comissaoExistente, entrega, agora,
-    totalPedido: numeroDoCrm(d.valor_total ?? d.total),
+    totalPedido: numeroDoCrm(d.valor_total ?? d.total), desconto: numeroDoCrm(d.desconto), frete: numeroDoCrm(d.frete),
   });
   if (dec.tipo === 'ja_faturada') return ignorado(ind.status === 'sold' ? 'ja_faturada' : 'comissao_ja_existe');
 

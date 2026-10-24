@@ -2,6 +2,7 @@
 // Parte pura; o envio está em server/crmEntrada.ts. Documentação: docs/integracao-crm.md
 import { AUTOR_CRM } from './crmEventos';
 import { parceiroEhPessoa } from './crmEventos';
+import { diaDoCrm } from './crmFaturamento';
 
 export const MAX_ANEXOS = 10;
 export const MAX_ANEXO_BYTES = 20 * 1024 * 1024;
@@ -100,14 +101,8 @@ export const previsaoDePagamento = (month: number, year: number) => `${year}-${d
 const num = (v: any) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const arred = (n: number) => Math.round(n * 100) / 100;
 
-// Retorna null quando ainda não dá para mandar (sem número de pedido, sem base ou sem percentual conhecido):
-// a rotina espera e tenta de novo, em vez de mandar zero ao CRM.
-// `percentual` vai em PONTOS percentuais (2 = 2%); `valor_equipamento` é a base comissionável LÍQUIDA de desconto
-// usada no cálculo, então valor_comissao = valor_equipamento x percentual / 100.
-// `pedidoEnviado`: número do primeiro envio; se existir, é ele que vai (o CRM trata por id_externo + pedido_numero).
-export function montarComissao(c: any, commId: string, ind: any, pedidoEnviado?: string) {
-  const pedido = String(pedidoEnviado || ind?.sale_order_number || '').trim();
-  if (!pedido) return null;
+// Base comissionável líquida de desconto, percentual (pontos percentuais) e valor, ou null se não dá para saber.
+function baseEPercentual(c: any): { base: number; pct: number; valor: number } | null {
   const valor = num(c.value);
   if (!(valor >= 0)) return null;
   const taxa = num(c.rate_applied);
@@ -122,18 +117,66 @@ export function montarComissao(c: any, commId: string, ind: any, pedidoEnviado?:
   let pct = taxa;
   if (!(pct > 0)) pct = valor > 0 ? arred((valor / base) * 100) : 0;
   if (!(pct > 0)) return null;
+  return { base: arred(base), pct, valor: arred(valor) };
+}
+
+// Retorna null quando ainda não dá para mandar (sem número de pedido, sem base ou sem percentual conhecido):
+// a rotina espera e tenta de novo, em vez de mandar zero ao CRM.
+// `percentual` vai em PONTOS percentuais (2 = 2%); `valor_equipamento` é a base comissionável LÍQUIDA de desconto
+// usada no cálculo, então valor_comissao = valor_equipamento x percentual / 100.
+// `pedidoEnviado`: número do primeiro envio; se existir, é ele que vai (o CRM trata por id_externo + pedido_numero).
+export function montarComissao(c: any, commId: string, ind: any, pedidoEnviado?: string) {
+  const pedido = String(pedidoEnviado || ind?.sale_order_number || '').trim();
+  if (!pedido) return null;
+  const bp = baseEPercentual(c);
+  if (!bp) return null;
   return {
     tipo: 'comissao' as const,
     id_externo: String(c.indication_id || commId),
     pedido_numero: pedido,
     // só o parceiro e o pedido: nada de vendedor interno nem de desconto
     parceiro: { id: String(c.external_seller_uid || ''), nome: String(c.external_seller_name || ind?.external_seller_name || '') },
-    valor_equipamento: arred(base),
-    percentual: pct,
-    valor_comissao: arred(valor),
+    valor_equipamento: bp.base,
+    percentual: bp.pct,
+    valor_comissao: bp.valor,
     calculada_em: Number.isFinite(ms(c.created_at)) ? new Date(c.created_at).toISOString() : new Date().toISOString(),
     previsao_pagamento: c.month && c.year ? previsaoDePagamento(Number(c.month), Number(c.year)) : '',
   };
+}
+
+// Dados da venda e da comissão que a carga inicial leva para as indicações VENDIDAS (histórico do relatório do CRM).
+// Campo ausente é omitido (nada de null nem 0 inventado). Nomes finais: pedido_numero, data_pedido, data_faturamento,
+// previsao_entrega, valor_total, itens [{codigo, nome, quantidade, valor}] e comissao {valor_equipamento, percentual,
+// valor_comissao, calculada_em, previsao_pagamento, paga_em}.
+export function montarVendaParaCarga(ind: any, comissao?: any | null): Record<string, any> {
+  const out: Record<string, any> = {};
+  const pedido = String(ind?.sale_order_number ?? '').trim();
+  if (pedido) out.pedido_numero = pedido;
+  const dataPedido = diaDoCrm(ind?.sale_order_date) || diaDoCrm(ind?.sale_date);
+  if (dataPedido) out.data_pedido = dataPedido;
+  const fat = diaDoCrm(ind?.crm_faturado_em) || diaDoCrm(ind?.sale_date);
+  if (fat) out.data_faturamento = fat;
+  const entrega = diaDoCrm(ind?.delivery_date);
+  if (entrega) out.previsao_entrega = entrega;
+  const total = num(ind?.sale_value);
+  if (total > 0) out.valor_total = arred(total);
+  const prods: any[] = Array.isArray(ind?.commissioned_products) && ind.commissioned_products.length ? ind.commissioned_products : [];
+  const brutos = prods.length
+    ? prods.map(p => ({ codigo: p.code, nome: p.name, quantidade: p.quantity, valor: p.base_value }))
+    : (Array.isArray(ind?.items) ? ind.items : []).map((p: any) => ({ codigo: p.code, nome: p.product_name, quantidade: p.quantity, valor: p.price }));
+  const itens = brutos
+    .filter(i => String(i.nome ?? '').trim() && num(i.valor) > 0)
+    .map(i => ({ ...(String(i.codigo ?? '').trim() ? { codigo: String(i.codigo).trim() } : {}), nome: String(i.nome).trim().slice(0, 200), quantidade: num(i.quantidade) > 0 ? num(i.quantidade) : 1, valor: arred(num(i.valor)) }));
+  if (itens.length) out.itens = itens;
+  const bp = comissao ? baseEPercentual(comissao) : null;
+  if (comissao && bp) {
+    const c: Record<string, any> = { valor_equipamento: bp.base, percentual: bp.pct, valor_comissao: bp.valor };
+    if (Number.isFinite(ms(comissao.created_at))) c.calculada_em = new Date(comissao.created_at).toISOString();
+    if (comissao.month && comissao.year) c.previsao_pagamento = previsaoDePagamento(Number(comissao.month), Number(comissao.year));
+    if (comissao.status === 'paid') { const q = comissao.paid_at || comissao.updated_at; if (Number.isFinite(ms(q))) c.paga_em = new Date(q).toISOString(); }
+    out.comissao = c;
+  }
+  return out;
 }
 
 // Resumo do que o CRM recebeu: se a comissão for corrigida depois, a assinatura muda e a rotina reenvia

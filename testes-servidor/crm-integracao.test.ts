@@ -34,8 +34,8 @@ test('CONFIG: sem nada configurado está desligado e usa a URL padrão; CRM_URL 
 
 test('PAYLOAD: campos do contrato, parceiro.id = uid, sem segredos', () => {
   const p = montarPayloadIndicacao(indBase(), 'ind1', { name: 'Maria Parceira', phone: '66988887777', email: 'maria@x.com' }, { notificarEmail: 'luana@roderbrasil.com.br' });
-  assert.deepEqual(Object.keys(p).sort(), ['cidade', 'cnpj', 'criado_em', 'email', 'empresa', 'id_externo', 'nome', 'notificar_email', 'observacao', 'parceiro', 'produto', 'telefone', 'uf'].sort());
-  assert.equal(p.id_externo, 'ind1');
+  assert.deepEqual(Object.keys(p).sort(), ['cidade', 'cnpj', 'criado_em', 'email', 'empresa', 'id_externo', 'nome', 'notificar_email', 'observacao', 'parceiro', 'produto', 'status_indica', 'telefone', 'uf'].sort());
+  assert.equal(p.id_externo, 'ind1'); assert.equal(p.status_indica, 'pendente');
   assert.equal(p.nome, 'João Silva'); assert.equal(p.empresa, 'Fazenda Boa Vista');
   assert.equal(p.cnpj, '12345678000190');
   assert.equal(p.cidade, 'Sinop'); assert.equal(p.uf, 'MT');
@@ -80,12 +80,14 @@ test('SELEÇÃO do laço: só aberta, criada depois da virada, ainda não enviad
   assert.equal(motivoNaoEnviarNoLaco(indBase({ client_name: '  ' }), o), 'sem_cliente');
 });
 
-test('SELEÇÃO da carga: só as em negociação, de qualquer data; pending e triagem vão como novas; nunca vendidas nem já enviadas', () => {
+test('SELEÇÃO da carga: em negociação e vendidas com parceiro, de qualquer data; pending e triagem vão como novas; nunca arquivadas, canceladas nem já enviadas', () => {
   const o = { agora: AGORA };
   assert.equal(motivoNaoEnviarNaCarga(indBase({ status: 'negotiating', created_at: '2025-01-01T00:00:00Z' }), o), null);
   assert.equal(motivoNaoEnviarNaCarga(indBase({ created_at: '2025-01-01T00:00:00Z' }), o), 'vai_como_nova');
   assert.equal(motivoNaoEnviarNaCarga(indBase({ status: 'triagem' }), o), 'vai_como_nova');
-  assert.equal(motivoNaoEnviarNaCarga(indBase({ status: 'sold' }), o), 'status_nao_envia');
+  assert.equal(motivoNaoEnviarNaCarga(indBase({ status: 'sold' }), o), null, 'vendida com parceiro entra na carga');
+  assert.equal(motivoNaoEnviarNaCarga(indBase({ status: 'sold', external_seller_uid: 'direct_factory' }), o), 'venda_direta');
+  for (const status of ['cancelled', 'archived']) assert.equal(motivoNaoEnviarNaCarga(indBase({ status }), o), 'status_nao_envia', status);
   assert.equal(motivoNaoEnviarNaCarga(indBase({ crm_enviado_em: 'x' }), o), 'ja_enviada');
 });
 
@@ -260,23 +262,26 @@ test('CARGA INICIAL: só as em negociação, em lote; pending e triagem ficam pa
   const ind = {
     a: neg({ created_at: '2026-09-01T00:00:00Z' }), b: neg({ created_at: '2026-09-02T00:00:00Z' }), c: neg({ created_at: '2026-09-03T00:00:00Z' }),
     p: indBase({ created_at: '2026-09-04T00:00:00Z' }), t: indBase({ status: 'triagem', created_at: '2026-09-05T00:00:00Z' }),
-    v: indBase({ status: 'sold' }), x: indBase({ status: 'cancelled' }), ja: neg({ crm_enviado_em: 'x' }),
+    v: indBase({ status: 'sold', sale_order_number: 'PV-1' }), vd: indBase({ status: 'sold', external_seller_uid: 'direct_factory' }), x: indBase({ status: 'cancelled' }), ar: indBase({ status: 'archived' }), ja: neg({ crm_enviado_em: 'x' }),
   };
   const a = ambiente(ENV, ind, [{ status: 200 }]);
   const sim: any = await cargaInicialCrm(a.deps, { simulacao: true });
-  assert.equal(sim.elegiveis, 3); assert.deepEqual(sim.por_status, { negotiating: 3 }); assert.equal(sim.pendentes_novas, 2);
+  assert.equal(sim.elegiveis, 4); assert.deepEqual(sim.por_status, { negotiating: 3, sold: 1 }); assert.equal(sim.pendentes_novas, 2);
+  assert.equal(sim.em_negociacao, 3); assert.equal(sim.vendidas, 1); assert.equal(sim.total_carga, 4);
   assert.equal(a.chamadas.length, 0);
   const lote1: any = await cargaInicialCrm(a.deps, { limite: 2 });
-  assert.equal(lote1.enviadas, 2); assert.equal(lote1.restantes, 1);
+  assert.equal(lote1.enviadas, 2); assert.equal(lote1.restantes, 2);
   const lote2: any = await cargaInicialCrm(a.deps, {});
-  assert.equal(lote2.enviadas, 1); assert.equal(lote2.restantes, 0);
+  assert.equal(lote2.enviadas, 2); assert.equal(lote2.restantes, 0);
   const lote3: any = await cargaInicialCrm(a.deps, {});
   assert.equal(lote3.elegiveis, 0);
-  assert.equal(a.chamadas.length, 2, 'dois POSTs em lote (2 + 1)');
+  assert.equal(a.chamadas.length, 2, 'dois POSTs em lote (2 + 2)');
   const corpos = a.chamadas.map(c => JSON.parse(c.init.body));
   assert.ok(corpos.every(c => c.tipo === 'carga_inicial' && Array.isArray(c.itens)));
   const enviados = corpos.flatMap(c => c.itens);
-  assert.equal(enviados.length, 3);
-  assert.ok(enviados.every(e => /Já estava em negociação/.test(e.observacao) && !e.notificar_email));
+  assert.equal(enviados.length, 4);
+  assert.ok(enviados.every(e => !e.notificar_email && e.status_indica));
+  assert.ok(enviados.filter(e => e.status_indica === 'em_negociacao').every(e => /Já estava em negociação/.test(e.observacao)));
+  assert.equal(enviados.find(e => e.id_externo === 'v').status_indica, 'vendido');
   assert.equal(a.db.dados.indications.p.crm_enviado_em, undefined);
 });
