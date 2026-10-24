@@ -11,7 +11,7 @@
 //  - a comissão só nasce quando TODOS os itens têm regra (src/lib/crmFaturamento.ts); senão a
 //    indicação fica "aguardando conferência" e a equipe decide.
 import { emCentavos } from './calculoComissao';
-import { classificarItensCrm, decidirFaturamento, diaDoCrm, numeroDoCrm, type DecisaoFaturamento, type ItemClassificado } from './crmFaturamento';
+import { classificarItensCrm, decidirFaturamento, diaDoCrm, numeroDoCrm, valorOpcionalDoCrm, type DecisaoFaturamento, type ItemClassificado } from './crmFaturamento';
 
 export const EVENTOS_CRM = [
   'indicacao.recebida', 'indicacao.aceita', 'indicacao.recusada', 'indicacao.vinculada', 'negocio.etapa',
@@ -353,7 +353,7 @@ function planejarFaturadoBase(ind: any, ev: EventoCrm, ctx: ContextoEvento, base
 
   const dec: DecisaoFaturamento = decidirFaturamento({
     ind, parceiro: ctx.parceiro, itensBrutos: d.itens, catalogo: ctx.catalogo, comissaoExistente: ctx.comissaoExistente, entrega, agora,
-    totalPedido: numeroDoCrm(d.valor_total ?? d.total), desconto: numeroDoCrm(d.desconto), frete: numeroDoCrm(d.frete),
+    totalPedido: numeroDoCrm(d.valor_total ?? d.total), desconto: valorOpcionalDoCrm(d.desconto), frete: valorOpcionalDoCrm(d.frete),
   });
   if (dec.tipo === 'ja_faturada') return ignorado(ind.status === 'sold' ? 'ja_faturada' : 'comissao_ja_existe');
 

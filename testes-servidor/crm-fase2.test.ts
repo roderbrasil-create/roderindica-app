@@ -657,3 +657,30 @@ test('PARCEIRO_ID: venda direta com parceiro_id direct_factory é aceita e outro
   const b = ambReceber(ind({ external_seller_uid: 'direct_factory' }));
   assert.equal((await b.enviar(base('negocio.perdido', { parceiro_id: 'p1', mensagem: 'x' }))).body.resultado, 'ignorado');
 });
+
+test('CARGA DE VENDIDAS: comissão marcada como "não se aplica" antes da carga volta a ser enviada pela fase 2 (comissao e comissao_paga)', async () => {
+  const antiga = COM({ indication_id: 'v1', status: 'paid', updated_at: '2025-02-06T10:00:00Z', created_at: '2025-01-05T12:00:00Z', crm_nao_aplica_em: '2026-10-01T00:00:00Z' });
+  const a = ambEnviar(ENV_ON, { v1: VENDIDA() }, { commissions: { c1: antiga } });
+  await rodarComissoesCrm(a.deps);
+  assert.equal(a.chamadas.length, 0, 'antes da carga: não se aplica');
+  await cargaInicialCrm(a.deps, {});
+  assert.equal(a.db.dados.commissions.c1.crm_nao_aplica_em, null);
+  assert.equal(a.db.dados.commissions.c1.crm_aguardando_paga, true);
+  await rodarComissoesCrm(a.deps);
+  assert.deepEqual(a.chamadas.slice(1).map(c => c.corpo.tipo), ['comissao', 'comissao_paga']);
+});
+
+test('FATURADO: desconto ou frete negativo ou não numérico vai para conferência, sem comissão', async () => {
+  const itens = [{ codigo: '1000.0001', nome: 'Cabeçote', quantidade: 2, valor: 50000 }];
+  const cat = { registered_products: { r1: { code: '1000.0001', is_commissionable: true } } };
+  for (const extra of [{ desconto: -5000 }, { frete: -3000 }, { desconto: 'abc' }, { frete: 'x' }, { desconto: -5000, frete: 5000 }]) {
+    const a = ambReceber(ind(), cat);
+    await a.enviar(base('pedido.faturado', { dados: { pedido_numero: 'PV-1', data_pedido: '2026-10-20', data_faturamento: '2026-10-28', previsao_entrega: '2026-11-20', itens, valor_total: 100000, ...extra } }));
+    assert.equal(a.get().status, 'negotiating', JSON.stringify(extra));
+    assert.equal(a.get().faturamento_aguardando_conferencia, true);
+    assert.deepEqual(a.db.dados.commissions ?? {}, {});
+  }
+  const ok = ambReceber(ind(), cat);
+  await ok.enviar(base('pedido.faturado', { dados: { pedido_numero: 'PV-1', data_pedido: '2026-10-20', data_faturamento: '2026-10-28', previsao_entrega: '2026-11-20', itens, valor_total: 100000, desconto: 0, frete: 0 } }));
+  assert.equal(ok.get().status, 'sold');
+});

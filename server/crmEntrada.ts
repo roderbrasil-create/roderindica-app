@@ -358,6 +358,14 @@ export async function enviarLoteComoCarga(deps: DepsEntradaCrm, ids: string[], o
     await ref.update({ crm_enviado_em: nowIso, crm_id: null, crm_carga_inicial: true, crm_reservado_ate: null, crm_ultimo_erro: null, crm_proxima_tentativa_em: null, crm_falhas_transporte: 0 });
     resultados.push({ id: x.id, resultado: 'enviada' });
     enviadas++;
+    if (x.ind.status === 'sold') {
+      // A indicação vendida passou a existir no CRM: comissão marcada antes como "não se aplica" volta a ser elegível
+      // para a fase 2 (comissao e comissao_paga). crm_aguardando_paga a faz ser lida mesmo fora das janelas de datas.
+      try {
+        const q = await deps.db.collection('commissions').where('indication_id', '==', x.id).get();
+        for (const c of q.docs) if ((c.data() || {}).crm_nao_aplica_em) await deps.db.collection('commissions').doc(c.id).update({ crm_nao_aplica_em: null, crm_aguardando_paga: true });
+      } catch { /* a fase 2 se vira sem isso para as comissões dentro das janelas */ }
+    }
   }
   const n = (v: any, padrao = 0) => (Number.isFinite(Number(v)) ? Number(v) : padrao);
   const resumo: ResumoCarga = { recebidos: n(r.json?.recebidos, reservadas.length), vinculados: n(r.json?.vinculados), repetidos: n(r.json?.repetidos), ignorados: n(r.json?.ignorados) };

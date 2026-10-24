@@ -19,6 +19,13 @@ export function numeroDoCrm(v: any): number | null {
 }
 
 // Dia AAAA-MM-DD a partir de "2026-10-30", "30/10/2026" ou data ISO com hora.
+// Desconto/frete opcionais do CRM: ausente vira undefined; presente mas não numérico vira NaN (a conferência rejeita).
+export function valorOpcionalDoCrm(v: any): number | undefined {
+  if (v === undefined || v === null || String(v).trim() === '') return undefined;
+  const n = numeroDoCrm(v);
+  return n === null ? NaN : n;
+}
+
 export function diaDoCrm(v: any): string {
   const s = String(v ?? '').trim();
   if (!s) return '';
@@ -122,7 +129,10 @@ export function decidirFaturamento(o: {
   if (itens.some(i => i.ambiguo)) motivos.push('Não dá para saber se o valor dos itens é unitário ou o total da linha.');
   const soma = emCentavos(itens.reduce((a, i) => a + i.base_value * i.quantity, 0));
   // itens x valor, menos `desconto`, mais `frete` (quando presentes), contra valor_total, com tolerância de R$ 0,05
-  const esperado = soma - (o.desconto ?? 0) + (o.frete ?? 0);
+  // desconto ou frete negativo, ou que não é número, é divergência: conferência, sem comissão
+  const invalido = (v: any) => v !== undefined && v !== null && (!Number.isFinite(v) || v < 0);
+  if (invalido(o.desconto) || invalido(o.frete)) motivos.push('Desconto ou frete do pedido inválido (negativo ou não numérico).');
+  const esperado = soma - (invalido(o.desconto) ? 0 : (o.desconto ?? 0)) + (invalido(o.frete) ? 0 : (o.frete ?? 0));
   if (o.totalPedido !== undefined && o.totalPedido !== null && Math.abs(esperado - o.totalPedido) > 0.05) motivos.push('A soma dos itens (com desconto e frete) não bate com o total do pedido.');
   if (comParceiro && !o.parceiro) motivos.push('O parceiro ligado à indicação não existe mais no cadastro.');
   const recebeComissao = comParceiro && !!o.parceiro && papelComissionavel(o.parceiro.role);

@@ -156,8 +156,10 @@ as mais novas e as dos últimos 14 dias); o CRM trata por `id_externo` + `pedido
 
 Simulação e card Admin mostram contagens separadas: em negociação, vendidas (histórico), pendentes/triagem (irão como novas na virada, sem aviso por e-mail), total da carga e próximo lote.
 
+**Comissão marcada antes como "não se aplica":** ao enviar a vendida na carga, a marca `crm_nao_aplica_em` das comissões dela é limpa e `crm_aguardando_paga` é ligado, e a fase 2 manda `comissao` e `comissao_paga`.
+
 **Conferência do faturado:** `valor_total` é comparado com a soma de `itens` (quantidade x `valor` unitário), menos `desconto`, mais `frete` (campos separados, no topo ou em `dados`),
-com tolerância de R$ 0,05. Se não bater, o faturamento vai para conferência, sem comissão. `data_faturamento` e `previsao_entrega` são AAAA-MM-DD (São Paulo).
+com tolerância de R$ 0,05. `desconto` ou `frete` negativo ou não numérico também é divergência. Se não bater, o faturamento vai para conferência, sem comissão. `data_faturamento` e `previsao_entrega` são AAAA-MM-DD (São Paulo).
 
 ## Fase 2 (Indica para CRM, só com `CRM_ATIVO=1`)
 
