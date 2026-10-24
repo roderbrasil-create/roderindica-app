@@ -539,3 +539,28 @@ test('COMISSÃO: fora da janela de 14 dias, a "paga" de comissão antiga ainda �
   await rodarComissoesCrm(a.deps);
   assert.deepEqual(a.chamadas.map(c => c.corpo.tipo), ['comissao_paga']);
 });
+
+test('AVISO DA CARGA: sem carga manual, o laço manda o histórico e então grava carga_inicial_em (só se vazio), sem mudar o corte', async () => {
+  const hist: Record<string, any> = {};
+  for (let k = 0; k < 130; k++) hist[`h${k}`] = { client_name: `H${k}`, status: 'negotiating', created_at: '2026-09-01T00:00:00Z' };
+  const a = ambEnviar(ENV_ON, hist);
+  await rodarFilaCrm(a.deps); // 100 de 130: ainda restam
+  assert.equal(a.db.dados.settings?.crm_integracao?.carga_inicial_em, undefined);
+  a.avancar(60 * 1000);
+  await rodarFilaCrm(a.deps); // os 30 restantes
+  assert.equal(a.db.dados.settings.crm_integracao.carga_inicial_em, a.deps.agora().toISOString());
+  const gravado = a.db.dados.settings.crm_integracao.carga_inicial_em;
+  a.avancar(60 * 60 * 1000);
+  await rodarFilaCrm(a.deps);
+  assert.equal(a.db.dados.settings.crm_integracao.carga_inicial_em, gravado, 'não regrava');
+  assert.equal(a.db.dados.settings.crm_integracao.ativo_desde, undefined, 'o corte (aqui vindo do ambiente) não é tocado');
+  // o estado do card: a simulação não acha mais nada pendente
+  const sim: any = await cargaInicialCrm(a.deps, { simulacao: true });
+  assert.equal(sim.elegiveis, 0);
+});
+
+test('AVISO DA CARGA: com CRM_ATIVO=1 e nenhuma em negociação antiga, a primeira varredura completa já registra carga_inicial_em', async () => {
+  const a = ambEnviar(ENV_ON, { p: { client_name: 'P', status: 'pending', created_at: '2026-10-27T00:00:00Z' } });
+  await rodarFilaCrm(a.deps);
+  assert.ok(a.db.dados.settings.crm_integracao.carga_inicial_em);
+});

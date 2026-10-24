@@ -67,9 +67,9 @@ export default function IntegracaoCrm() {
           {estado.pendentes_da_carga !== null ? ` · ${estado.pendentes_da_carga} em negociação na carga` : ''}
           {estado.pendentes_como_novas ? ` · ${estado.pendentes_como_novas} pendentes irão como novas na virada, SEM aviso por e-mail` : ''}
         </p>
-        {estado.ativo && !estado.carga_inicial_em && (
+        {estado.ativo && (estado.pendentes_da_carga ?? 0) > 0 && (
           <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900 dark:bg-amber-950/30 dark:text-amber-200 dark:border-amber-900">
-            Carga inicial ainda não feita: as em negociação irão como histórico pelo laço.
+            Carga inicial ainda não feita: {estado.pendentes_da_carga} em negociação ainda não enviadas irão como histórico pelo laço.
           </p>
         )}
         {estado.alerta_transporte && (

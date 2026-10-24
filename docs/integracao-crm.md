@@ -105,12 +105,15 @@ de qualquer idade e em lotes de 20 por rodada. As `sold` não vão (já faturada
 Falha de transporte, 401, 403, 429 ou 5xx na carga NÃO conta tentativa nem desiste: só solta a reserva, e a carga pode ser repetida à vontade.
 Só a recusa por item (`resultados[].ok: false`) conta tentativa daquela indicação.
 
-O primeiro envio real grava `carga_inicial_em` em `settings/crm_integracao` (o corte). Cargas repetidas só levam o que nasceu antes dele.
+O primeiro envio real da carga manual grava `carga_inicial_em` em `settings/crm_integracao` (o corte). Cargas repetidas só levam o que nasceu antes dele.
+Sem carga manual, quem manda o histórico é o laço; quando ele termina (não resta `negotiating` anterior ao corte sem `crm_enviado_em`), grava `carga_inicial_em`
+só se ainda estiver vazio. Não muda o corte, que já é `ativo_desde`.
 O laço usa esse corte como `ativo_desde` e manda ao CRM tudo o que ainda não foi enviado, de qualquer idade: `pending` e `triagem` como indicação
 nova (20 por rodada). **`negotiating` criada ANTES de `ativo_desde` (inclusive a `pending` que virou `negotiating` antes de ser enviada) NUNCA vai como
 indicação normal, que o CRM triaria: vai no formato `{ tipo: "carga_inicial", itens }`, em lotes de até 100 por rodada, com a nota "[Já estava em
-negociação...]" e sem `notificar_email`.** Se `CRM_ATIVO=1` e a carga inicial ainda não foi feita (`carga_inicial_em` vazio), o card Admin mostra um aviso
-amarelo: "Carga inicial ainda não feita: as em negociação irão como histórico pelo laço". `negotiating` criada depois da virada vai como nova, com a nota. Todo minuto lê as
+negociação...]" e sem `notificar_email`.** Se `CRM_ATIVO=1` e ainda há essas em negociação por enviar, o card Admin mostra um aviso
+amarelo ("Carga inicial ainda não feita: N em negociação ainda não enviadas irão como histórico pelo laço") enquanto existirem `negotiating` anteriores ao corte
+sem `crm_enviado_em`; ele some sozinho quando elas forem enviadas, pela carga manual ou pelo laço. `negotiating` criada depois da virada vai como nova, com a nota. Todo minuto lê as
 últimas 72 h; a cada 15 minutos (ou enquanto ainda sobra fila) faz a varredura completa de todas as abertas, sem índice composto.
 **Aviso por e-mail (`notificar_email`): só vai na indicação criada em ou depois de `ativo_desde`.** As antigas e as sobras vão SEM aviso, para não
 gerar e-mail em massa na virada (o card Admin mostra "N pendentes irão como novas na virada, SEM aviso por e-mail").

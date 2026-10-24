@@ -178,6 +178,17 @@ export async function listarCandidatasDoLaco(db: any, ativoDesde: string, agora:
 
 const MAX_HISTORICO_POR_RODADA = 100;
 
+async function marcarCargaInicialFeita(deps: DepsEntradaCrm, agora: Date) {
+  try {
+    const ref = deps.db.collection('settings').doc(DOC_CONFIG_CRM);
+    await deps.db.runTransaction(async (tx: any) => {
+      const snap = await tx.get(ref);
+      const d = snap.exists ? (snap.data() || {}) : {};
+      if (!valida(d.carga_inicial_em)) tx.set(ref, { carga_inicial_em: agora.toISOString() }, { merge: true });
+    });
+  } catch { /* o aviso do card não pode derrubar o envio */ }
+}
+
 export async function rodarFilaCrm(deps: DepsEntradaCrm): Promise<{ pulado?: string; resultados: ResultadoEnvio[] }> {
   const cfg = deps.config();
   if (!podeEnviarAoCrm(cfg)) return { pulado: 'integracao_desligada', resultados: [] };
@@ -203,10 +214,16 @@ export async function rodarFilaCrm(deps: DepsEntradaCrm): Promise<{ pulado?: str
     for (const c of normais.slice(0, MAX_POR_RODADA)) {
       resultados.push(await enviarIndicacaoAoCrm(deps, c.id, { modo: 'laco', ativoDesde: desde }));
     }
+    let historicoConcluido = completa && historicas.length === 0;
     if (historicas.length) {
       const lr = await enviarLoteComoCarga(deps, historicas.slice(0, MAX_HISTORICO_POR_RODADA).map(c => c.id), { backoff: true });
       resultados.push(...lr.resultados);
+      // terminou de mandar todo o histórico: nada sobrou além do lote e todos foram aceitos
+      historicoConcluido = completa && historicas.length <= MAX_HISTORICO_POR_RODADA && lr.resultados.length === historicas.length && lr.resultados.every(x => x.resultado === 'enviada');
     }
+    // Sem carga manual, o laço é quem manda o histórico. Quando não resta nenhuma em negociação anterior ao corte sem
+    // envio, registra carga_inicial_em (só se ainda vazio) para o aviso do card Admin não ficar aceso para sempre.
+    if (historicoConcluido) await marcarCargaInicialFeita(deps, agora);
     return { resultados };
   } finally { emExecucao = false; }
 }
