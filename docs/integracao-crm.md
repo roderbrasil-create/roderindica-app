@@ -106,18 +106,28 @@ Falha de transporte, 401, 403, 429 ou 5xx na carga NÃO conta tentativa nem desi
 Só a recusa por item (`resultados[].ok: false`) conta tentativa daquela indicação.
 
 O primeiro envio real grava `carga_inicial_em` em `settings/crm_integracao` (o corte). Cargas repetidas só levam o que nasceu antes dele.
-O laço usa esse corte como `ativo_desde` e manda como indicação nova tudo o que ainda não foi enviado: `pending`/`triagem` sem limite de idade, e
-`negotiating` criada depois do corte (essas levam o aviso "Já estava em negociação"). Todo minuto lê as últimas 72 h; a cada 15 minutos
-(ou enquanto ainda sobra fila) faz a varredura completa desde o corte, paginada, sem índice composto.
-Enquanto uma `pending` antiga não foi enviada, o robô de triagem do Indica pode tratá-la; depois de enviada com `CRM_ATIVO=1`, ele a ignora.
+O laço usa esse corte como `ativo_desde` e manda ao CRM tudo o que ainda não foi enviado, de qualquer idade: `pending` e `triagem` como indicação
+nova e `negotiating` com o aviso "[Já estava em negociação...]" (inclusive a `pending` que virou `negotiating` antes de ser enviada). Todo minuto lê as
+últimas 72 h; a cada 15 minutos (ou enquanto ainda sobra fila) faz a varredura completa de todas as abertas, sem índice composto.
+**Aviso por e-mail (`notificar_email`): só vai na indicação criada em ou depois de `ativo_desde`.** As antigas e as sobras vão SEM aviso, para não
+gerar e-mail em massa na virada (o card Admin mostra "N pendentes irão como novas na virada, SEM aviso por e-mail").
+Com `CRM_ATIVO=1` e chave configurada, o robô de triagem do Indica não atribui nenhuma indicação ainda não enviada (de qualquer idade); se o envio
+desistir (`crm_desistiu_em`), o robô volta a assumir.
+
+**Falhas, em todos os envios (fila, carga, atualização, comissão):** erro de rede, 401, 403, 408, 429 e 5xx NÃO contam tentativa nem causam desistência;
+só reagendam com backoff (1 min até 6 h) e acendem o aviso vermelho do card Admin ("CRM recusou a chave (401)...", sem segredo), que some no primeiro
+sucesso. Só a rejeição de validação (outros 4xx ou `ok:false`) conta tentativa, e depois de 10 a indicação desiste.
 
 Depois de 10 falhas o laço desiste de uma indicação (`crm_desistiu_em`). O botão **Tentar de novo as que desistiram** do cartão zera isso
 (indicações e comissões).
 
 ## Fase 2 (Indica para CRM, só com `CRM_ATIVO=1`)
 
-Rodam a cada **5 minutos**, em rotina separada e depois da fila de novas (que roda a cada minuto e nunca espera por elas), só para
-indicações que já têm `crm_enviado_em`, com o mesmo backoff (1 min até 6 h, 10 tentativas), sem índice composto e com teto por rodada (30).
+Rotinas separadas da fila de novas (que roda a cada minuto e nunca espera por elas), só para indicações que já têm `crm_enviado_em`, sem índice
+composto e com teto por rodada (30): `atualizacao` a cada **10 minutos**; `comissao` e `comissao_paga` a cada **5 minutos**.
+Leitura das atualizações: a rodada normal lê só indicações com `updated_at` recente (a Central grava `updated_at` em toda nota) mais as que têm
+retentativa marcada (`crm_atu_retry`); a cada 6 horas (e ao reiniciar) faz a varredura completa das **2000 indicações mais recentes** por `crm_enviado_em`.
+Limite conhecido: nota que não mexa em `updated_at`, em indicação fora dessas 2000, não seria vista.
 
 - `atualizacao`: só nota do PARCEIRO (`type` `note` ou `whatsapp`) escrita depois do envio. O app grava `author_uid` nas notas novas e o
   parceiro é reconhecido por `author_uid === external_seller_uid`; nota antiga sem `author_uid` só vale se o nome bater exatamente.
@@ -127,13 +137,16 @@ indicações que já têm `crm_enviado_em`, com o mesmo backoff (1 min até 6 h,
   (outro bucket ou endereço externo não vai e o texto avisa); se a assinatura falhar vai a URL original, desde que o tamanho tenha sido
   conferido no Storage; mais de 20 MB, tamanho não conferido ou `data:` (guardado só no aparelho) não vão, com aviso no texto.
 - `comissao`: quando a comissão é congelada (tela de faturamento ou evento do CRM). **`percentual` vai em pontos percentuais (2 = 2%)**;
-  `valor_equipamento` é a base comissionável usada no cálculo, já sem desconto, de modo que `valor_comissao = valor_equipamento x percentual / 100`.
+  `valor_equipamento` é a base comissionável LÍQUIDA de desconto usada no cálculo, de modo que `valor_comissao = valor_equipamento x percentual / 100`
+  (vem de `base_value_used`; na falta, outros campos só valem se baterem com taxa e valor a menos de R$ 0,01; senão a base é `valor_comissao / (taxa/100)`).
   Taxa ausente ou zero em comissão antiga: calculada de `valor_comissao / base`; se não der, a rotina espera (nunca manda 0). Sem
   `sale_order_number` na indicação a rotina espera. Se a comissão for corrigida depois, a rotina reenvia `tipo:"comissao"` atualizado (mesmo
-  `id_externo` + `pedido_numero`; o CRM deve tratar por esses dois campos). Nada de desconto nem de vendedor interno.
+  `id_externo` + `pedido_numero`; o CRM deve tratar por esses dois campos). **Se o número do pedido mudar depois do primeiro envio, os reenvios
+  (e a `comissao_paga`) seguem com o número do primeiro envio** (`crm_comissao_pedido_numero`), para não duplicar no CRM, e a divergência é registrada
+  no histórico interno da indicação. Nada de desconto nem de vendedor interno.
 - `comissao_paga`: quando a comissão passa a `paid`; só depois da `comissao`.
 - Leitura: comissões vêm de duas fontes, sem janela de dias: `crm_aguardando_paga == true` (já enviada, esperando pagamento) e as 300 mais novas
-  por `created_at` decrescente. Comissão de indicação que nunca foi ao CRM recebe `crm_nao_aplica_em` e não é lida de novo.
+  por `created_at` decrescente; `crm_aguardando_paga` fica ligado também quando a comissão já nasce paga. Comissão de indicação que nunca foi ao CRM recebe `crm_nao_aplica_em` e não é lida de novo.
 
 ## Como testar com a chave de teste
 

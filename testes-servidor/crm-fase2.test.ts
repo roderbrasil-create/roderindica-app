@@ -168,18 +168,18 @@ test('REATIVAR: a ação de admin zera a desistência das indicações e comiss�
   assert.ok(f.resultados.some(x => x.id === 'd' && x.resultado === 'enviada'));
 });
 
-test('LAÇO: pending e triagem velhas vão como NOVAS de qualquer idade (sem janela de 72 h), em lotes por rodada', async () => {
+test('LAÇO: pending, triagem e negotiating velhas vão de qualquer idade (sem janela de 72 h), em lotes por rodada', async () => {
   const velhas: Record<string, any> = {};
   for (let k = 0; k < 25; k++) velhas[`v${k}`] = { client_name: `V${k}`, status: k % 2 ? 'triagem' : 'pending', created_at: `2025-0${1 + (k % 9)}-10T00:00:00Z` };
-  const a = ambEnviar(ENV_ON, { ...velhas, neg: { client_name: 'N', status: 'negotiating', created_at: '2025-03-01T00:00:00Z' } });
+  const a = ambEnviar({ ...ENV_ON, CRM_NOTIFICAR_EMAIL: 'x@roderbrasil.com.br' }, { ...velhas, neg: { client_name: 'N', status: 'negotiating', created_at: '2025-03-01T00:00:00Z' } });
   const r1 = await rodarFilaCrm(a.deps);
   assert.equal(r1.resultados.length, 20, 'teto por rodada');
-  assert.ok(a.chamadas.every(c => c.corpo.tipo === undefined && !/Já estava/.test(c.corpo.observacao)));
   a.avancar(60 * 1000);
   const r2 = await rodarFilaCrm(a.deps);
-  assert.equal(r2.resultados.length, 5, 'sobrou fila: varre de novo no minuto seguinte');
-  assert.equal(a.db.dados.indications.neg.crm_enviado_em, undefined, 'a em negociação anterior ao corte é da carga');
+  assert.equal(r2.resultados.length, 6, 'sobrou fila: varre de novo no minuto seguinte');
   assert.equal(r1.resultados.concat(r2.resultados).every(x => x.resultado === 'enviada'), true);
+  assert.ok(a.chamadas.every(c => c.corpo.tipo === undefined && !('notificar_email' in c.corpo)), 'nenhuma antiga leva aviso por e-mail');
+  assert.equal(a.chamadas.filter(c => /Já estava/.test(c.corpo.observacao)).length, 1, 'só a negotiating leva a nota');
 });
 
 test('LAÇO: negociação criada depois do corte é achada sem janela de 72 h e leva o aviso "Já estava em negociação"', async () => {
@@ -297,12 +297,46 @@ test('ATUALIZAÇÃO: falha entra no backoff por entrada e a próxima rodada espe
   const a = ambEnviar(ENV_ON, { ind1: ind({ negotiation_history: [entrada('h1')] }) }, {}, [{ status: 500 }, { status: 200 }]);
   const r1 = await rodarAtualizacoesCrm(a.deps);
   assert.equal(r1.falhas, 1); assert.equal(a.chamadas.length, 1);
+  assert.equal(a.db.dados.indications.ind1.crm_atu_falha_h1.n, 0, '5xx não conta tentativa');
+  assert.ok(a.db.dados.indications.ind1.crm_atu_retry, 'marca para a leitura incremental achar a retentativa');
   await rodarAtualizacoesCrm(a.deps);
   assert.equal(a.chamadas.length, 1, 'dentro do backoff');
   a.avancar(2 * 60 * 1000);
   const r3 = await rodarAtualizacoesCrm(a.deps);
   assert.equal(r3.enviadas, 1);
   assert.equal(a.chamadas[1].corpo.id_mensagem, a.chamadas[0].corpo.id_mensagem, 'mesmo id_mensagem na retentativa');
+  assert.equal(a.db.dados.indications.ind1.crm_atu_retry, null);
+});
+
+test('ATUALIZAÇÃO: 401, 403, 429 e 5xx nunca fazem desistir; só a rejeição de validação conta e desiste após 10', async () => {
+  for (const status of [401, 403, 429, 503]) {
+    const a = ambEnviar(ENV_ON, { ind1: ind({ negotiation_history: [entrada('h1')] }) }, {}, [{ status }]);
+    for (let k = 0; k < 15; k++) { await rodarAtualizacoesCrm(a.deps); a.avancar(7 * 60 * 60 * 1000); }
+    assert.equal(a.chamadas.length, 15, String(status));
+    assert.equal(a.db.dados.indications.ind1.crm_atualizacoes_desistiu, undefined);
+  }
+  const b = ambEnviar(ENV_ON, { ind1: ind({ negotiation_history: [entrada('h1')] }) }, {}, [{ status: 422 }]);
+  for (let k = 0; k < 15; k++) { await rodarAtualizacoesCrm(b.deps); b.avancar(7 * 60 * 60 * 1000); }
+  assert.equal(b.chamadas.length, 10);
+  assert.deepEqual(b.db.dados.indications.ind1.crm_atualizacoes_desistiu, ['h1']);
+});
+
+test('ATUALIZAÇÃO: rodada normal lê só quem mudou (updated_at); a completa roda de 6 em 6 horas', async () => {
+  const a = ambEnviar(ENV_ON, {
+    novo: ind({ updated_at: '2026-10-28T14:55:00Z', negotiation_history: [entrada('h1')] }),
+    parado: ind({ updated_at: '2026-10-01T00:00:00Z', negotiation_history: [entrada('h2')] }),
+  });
+  await rodarAtualizacoesCrm(a.deps); // primeira rodada: completa
+  assert.equal(a.chamadas.length, 2);
+  a.db.dados.indications.parado.negotiation_history.push(entrada('h3'));
+  a.db.dados.indications.novo.negotiation_history.push(entrada('h4'));
+  a.db.dados.indications.novo.updated_at = new Date(AGORA.getTime() + 60000).toISOString();
+  a.avancar(10 * 60 * 1000);
+  await rodarAtualizacoesCrm(a.deps);
+  assert.deepEqual(a.chamadas.slice(2).map(c => c.corpo.id_mensagem), ['novo:h4'], 'o parado sem updated_at novo não foi relido');
+  a.avancar(6 * 60 * 60 * 1000);
+  await rodarAtualizacoesCrm(a.deps);
+  assert.ok(a.chamadas.some(c => c.corpo.id_mensagem === 'parado:h3'), 'a varredura completa acha o que ficou para trás');
 });
 
 // ---------- Fase 2: comissão ----------
@@ -324,7 +358,12 @@ test('COMISSÃO: valor_equipamento é a base comissionável (sem desconto), perc
   assert.equal(montarComissao(COM({ rate_applied: 0 }), 'c1', INDV())!.percentual, 2, 'taxa ausente: calcula de valor/base');
   assert.equal(montarComissao(COM({ rate_applied: undefined }), 'c1', INDV())!.percentual, 2);
   assert.equal(montarComissao(COM({ rate_applied: 0, value: 0 }), 'c1', INDV()), null, 'sem como saber o percentual: espera');
-  assert.equal(montarComissao(COM({ base_value_used: 0 }), 'c1', INDV()), null);
+  // sem base_value_used: outros campos só valem se baterem com taxa x base = valor; senão deriva do valor ou espera
+  assert.equal(montarComissao(COM({ base_value_used: 0, commissionable_value: 100000 }), 'c1', INDV())!.valor_equipamento, 100000);
+  assert.equal(montarComissao(COM({ base_value_used: 0, commissionable_value: 105000, base_commission_value: 100000 }), 'c1', INDV())!.valor_equipamento, 100000, 'pula o incoerente');
+  assert.equal(montarComissao(COM({ base_value_used: 0, commissionable_value: 105000 }), 'c1', INDV())!.valor_equipamento, 100000, 'incoerente: deriva de valor / taxa');
+  assert.equal(montarComissao(COM({ base_value_used: 0, rate_applied: 0, commissionable_value: 105000 }), 'c1', INDV()), null, 'sem taxa nem base confiável: espera');
+  assert.equal(montarComissao(COM(), 'c1', INDV({ sale_order_number: 'PV-99' }), 'PV-77')!.pedido_numero, 'PV-77', 'mantém o número do primeiro envio');
   assert.equal(montarComissao(COM(), 'c1', ind({ sale_order_number: '  ' })), null, 'sem número do pedido: espera');
   const q = montarComissaoPaga(COM({ status: 'paid', updated_at: '2026-11-06T10:00:00Z' }), 'c1', INDV());
   assert.deepEqual(q, { tipo: 'comissao_paga', id_externo: 'ind1', pedido_numero: 'PV-77', paga_em: '2026-11-06T10:00:00.000Z' });
@@ -379,11 +418,12 @@ test('COMISSÃO: com mais de 300 comissões as mais NOVAS são lidas primeiro; "
   assert.deepEqual(a.chamadas.map(c => c.corpo.tipo).sort(), ['comissao', 'comissao_paga']);
 });
 
-test('COMISSÃO: falha faz backoff e a "paga" espera a "comissao"', async () => {
+test('COMISSÃO: 5xx faz backoff sem contar tentativa e a "paga" espera a "comissao"', async () => {
   const b = ambEnviar(ENV_ON, { ind1: INDV() }, { commissions: { c1: COM({ status: 'paid' }) } }, [{ status: 500 }, { status: 200 }]);
   await rodarComissoesCrm(b.deps);
   assert.equal(b.chamadas.length, 1, 'a paga não passa na frente da comissao que falhou');
-  assert.equal(b.db.dados.commissions.c1.crm_comissao_tentativas, 1);
+  assert.equal(b.db.dados.commissions.c1.crm_comissao_transporte, 1);
+  assert.equal(b.db.dados.commissions.c1.crm_comissao_tentativas, undefined, '5xx não conta tentativa');
   await rodarComissoesCrm(b.deps);
   assert.equal(b.chamadas.length, 1, 'backoff');
   b.avancar(2 * 60 * 1000);
@@ -399,4 +439,39 @@ test('MENSAGEM: só vale como vendedora se começar com "Em atendimento por"; se
   const b = ambReceber(ind({ status: 'pending' }));
   await b.enviar(base('indicacao.aceita', { mensagem: 'Em atendimento por Heloisa Laira', dados: { vendedora: 'Fulana Nova' } }));
   assert.equal(b.get().internal_seller_name, 'Fulana Nova', 'dados.vendedora prevalece');
+});
+
+test('COMISSÃO: nascida já paga fica com crm_aguardando_paga até a "paga" ir; 401/429/5xx nunca fazem desistir', async () => {
+  const a = ambEnviar(ENV_ON, { ind1: INDV() }, { commissions: { c1: COM({ status: 'paid', updated_at: '2026-11-06T10:00:00Z' }) } }, [{ status: 200 }, { status: 500 }]);
+  await rodarComissoesCrm(a.deps);
+  assert.deepEqual(a.chamadas.map(c => c.corpo.tipo), ['comissao', 'comissao_paga']);
+  assert.equal(a.db.dados.commissions.c1.crm_aguardando_paga, true, 'enquanto a paga falhou');
+  for (const status of [401, 403, 429, 502]) {
+    const b = ambEnviar(ENV_ON, { ind1: INDV() }, { commissions: { c1: COM() } }, [{ status }]);
+    for (let k = 0; k < 15; k++) { await rodarComissoesCrm(b.deps); b.avancar(7 * 60 * 60 * 1000); }
+    assert.equal(b.chamadas.length, 15, String(status));
+    assert.equal(b.db.dados.commissions.c1.crm_desistiu_em, undefined);
+  }
+  const c = ambEnviar(ENV_ON, { ind1: INDV() }, { commissions: { c1: COM() } }, [{ status: 422 }]);
+  for (let k = 0; k < 15; k++) { await rodarComissoesCrm(c.deps); c.avancar(7 * 60 * 60 * 1000); }
+  assert.equal(c.chamadas.length, 10); assert.ok(c.db.dados.commissions.c1.crm_desistiu_em);
+});
+
+test('COMISSÃO: pedido_numero que muda depois do envio NÃO duplica no CRM: reenvia com o número do primeiro envio e registra a divergência', async () => {
+  const a = ambEnviar(ENV_ON, { ind1: INDV() }, { commissions: { c1: COM() } });
+  await rodarComissoesCrm(a.deps);
+  a.db.dados.indications.ind1.sale_order_number = 'PV-88';
+  a.db.dados.commissions.c1.value = 2500; a.db.dados.commissions.c1.base_value_used = 125000;
+  await rodarComissoesCrm(a.deps);
+  assert.equal(a.chamadas.length, 2);
+  assert.equal(a.chamadas[1].corpo.pedido_numero, 'PV-77');
+  assert.equal(a.chamadas[1].corpo.valor_comissao, 2500);
+  const hist = a.db.dados.indications.ind1.negotiation_history as any[];
+  assert.equal(hist.filter(h => /número do pedido mudou para PV-88/.test(h.content)).length, 1);
+  await rodarComissoesCrm(a.deps);
+  assert.equal((a.db.dados.indications.ind1.negotiation_history as any[]).length, hist.length, 'registra uma vez só');
+  assert.equal(a.chamadas.length, 2);
+  a.db.dados.commissions.c1.status = 'paid'; a.db.dados.commissions.c1.updated_at = '2026-11-06T10:00:00Z';
+  await rodarComissoesCrm(a.deps);
+  assert.equal(a.chamadas[2].corpo.pedido_numero, 'PV-77', 'a "paga" também usa o número conhecido pelo CRM');
 });

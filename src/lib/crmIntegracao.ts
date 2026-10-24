@@ -93,17 +93,12 @@ function reservada(ind: any, agora: Date): boolean {
   return dataValida(ind.crm_reservado_ate) && new Date(ind.crm_reservado_ate).getTime() > agora.getTime();
 }
 
-// Laço: manda como indicação NOVA (com triagem no CRM) tudo o que não foi na carga inicial.
-//  - pending e triagem: sempre, de qualquer idade (decisão de 24/10/2026: só as já aceitas vão na carga);
-//  - negotiating: só as criadas depois do corte (carga_inicial_em ou ativo_desde). As anteriores são da carga.
-export function motivoNaoEnviarNoLaco(ind: any, o: { ativoDesde: string | null; agora: Date }): string | null {
+// Laço: manda ao CRM tudo o que ainda não foi enviado, de qualquer idade: pending e triagem como indicação nova
+// (com triagem no CRM) e negotiating com a nota "[Já estava em negociação...]" (inclusive a pending que virou
+// negotiating antes de ser enviada). O aviso por e-mail só vai nas realmente novas (ver server/crmEntrada.ts).
+export function motivoNaoEnviarNoLaco(ind: any, o: { ativoDesde?: string | null; agora: Date }): string | null {
   const b = baseEnviavel(ind);
   if (b) return b;
-  if (String(ind.status) === 'negotiating') {
-    if (!o.ativoDesde) return 'sem_data_de_virada';
-    if (!dataValida(ind.created_at)) return 'sem_data_de_criacao';
-    if (new Date(ind.created_at).getTime() < new Date(o.ativoDesde).getTime()) return 'anterior_a_virada';
-  }
   if (reservada(ind, o.agora)) return 'reservada';
   if (dataValida(ind.crm_proxima_tentativa_em) && new Date(ind.crm_proxima_tentativa_em).getTime() > o.agora.getTime()) return 'aguardando_nova_tentativa';
   return null;
@@ -121,13 +116,14 @@ export function motivoNaoEnviarNaCarga(ind: any, o: { agora: Date }): string | n
 
 // Indicação que o CRM já tem (ou vai ter em instantes) e que por isso a triagem do Indica não deve
 // distribuir sozinha (o robô de 4 horas úteis de server.ts).
-export function triagemEhDoCrm(ind: any, c: Pick<ConfigCrm, 'ativo' | 'ativoDesde'>): boolean {
+export function triagemEhDoCrm(ind: any, c: Pick<ConfigCrm, 'ativo' | 'chave' | 'urlValida'>): boolean {
   if (!c.ativo) return false;
   if (ind?.crm_enviado_em) return true;
-  if (ind?.crm_desistiu_em) return false;
-  // Ainda não enviada: o robô só espera as que nasceram depois da virada (o laço manda em instantes).
-  // As antigas que ainda não foram enviadas seguem no fluxo de antes até irem ao CRM.
-  return !!c.ativoDesde && dataValida(ind?.created_at) && new Date(ind.created_at).getTime() >= new Date(c.ativoDesde).getTime();
+  if (ind?.crm_desistiu_em) return false; // o envio desistiu: o robô do Indica volta a assumir
+  // Ainda não enviada, de qualquer idade: o laço vai mandar ao CRM, então o robô não atribui. Só vale se o laço
+  // realmente consegue enviar (chave e endereço) e se a indicação é do tipo que ele envia.
+  if (!c.chave || !c.urlValida) return false;
+  return baseEnviavel(ind) === null;
 }
 
 // ---------- Payload ----------

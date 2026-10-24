@@ -4,7 +4,7 @@
 //   - carga inicial (cargaInicialCrm), uma vez, para as indicações abertas que já existiam;
 // Documentação: docs/integracao-crm.md
 import {
-  RESERVA_ENVIO_MS, STATUS_ENVIAVEIS, montarPayloadIndicacao, motivoNaoEnviarNaCarga, motivoNaoEnviarNoLaco, planoDeFalha, podeEnviarAoCrm, podeCargaAoCrm,
+  RESERVA_ENVIO_MS, STATUS_ENVIAVEIS, montarPayloadIndicacao, motivoNaoEnviarNaCarga, motivoNaoEnviarNoLaco, planoDeFalha, atrasoDaTentativa, podeEnviarAoCrm, podeCargaAoCrm,
   type ConfigCrm,
 } from '../src/lib/crmIntegracao';
 import {
@@ -97,49 +97,37 @@ export async function enviarIndicacaoAoCrm(deps: DepsEntradaCrm, indId: string, 
   const uid = String(ind.external_seller_uid || '');
   if (uid) { try { parceiro = (await db.collection('users').doc(uid).get()).data() || null; } catch { /* segue só com o que a indicação tem */ } }
   const payload = montarPayloadIndicacao(ind, indId, parceiro, {
-    notificarEmail: ctx.modo === 'laco' ? cfg.notificarEmail : null,
+    // O aviso por e-mail do CRM só vale para indicação realmente NOVA (criada em ou depois da virada).
+    // Antigas e sobras enviadas pelo laço vão sem aviso, para não gerar e-mail em massa na virada.
+    notificarEmail: ctx.modo === 'laco' && valida(ind.created_at) && !!ctx.ativoDesde && new Date(ind.created_at).getTime() >= new Date(ctx.ativoDesde).getTime() ? cfg.notificarEmail : null,
     jaEmNegociacao: ind.status === 'negotiating',
   });
 
   // 3. POST
-  let status = 0; let corpoResp = ''; let erroRede = '';
-  try {
-    const f = deps.fetchFn || ((url: string, init: any) => fetch(url, init));
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), TIMEOUT_ENVIO_MS);
-    try {
-      const r = await f(cfg.url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-roder-chave': cfg.chave },
-        body: JSON.stringify(payload),
-        signal: ctrl.signal,
-      });
-      status = r.status;
-      corpoResp = await r.text().catch(() => '');
-    } finally { clearTimeout(t); }
-  } catch (e: any) {
-    erroRede = e?.name === 'AbortError' ? 'tempo esgotado' : String(e?.message || 'falha de rede').slice(0, 120);
-  }
+  const r = await postarCrm(deps, payload, TIMEOUT_ENVIO_MS);
 
   // 4. Resultado
-  if (status >= 200 && status < 300) {
-    let crmId: string | null = null;
-    try { const j = JSON.parse(corpoResp); if (j && j.ok !== false && j.id != null) crmId = String(j.id); } catch { /* resposta sem JSON: segue */ }
-    await ref.update({ crm_enviado_em: agora().toISOString(), crm_id: crmId, crm_reservado_ate: null, crm_ultimo_erro: null, crm_proxima_tentativa_em: null });
-    return { id: indId, resultado: 'enviada', status };
+  if (r.ok) {
+    const crmId = r.json && r.json.id != null ? String(r.json.id) : null;
+    await ref.update({ crm_enviado_em: agora().toISOString(), crm_id: crmId, crm_reservado_ate: null, crm_ultimo_erro: null, crm_proxima_tentativa_em: null, crm_falhas_transporte: 0 });
+    return { id: indId, resultado: 'enviada', status: r.status };
+  }
+  if (r.transitorio) {
+    // Rede, 401, 403, 429, 5xx: não é culpa da indicação. Não conta tentativa e nunca desiste; só reagenda com backoff.
+    const t = planoDeTransporte(Number(ind.crm_falhas_transporte) || 0, agora());
+    await ref.update({ crm_falhas_transporte: t.falhas, crm_ultimo_erro: r.erro, crm_ultima_tentativa_em: agora().toISOString(), crm_reservado_ate: null, crm_proxima_tentativa_em: t.proxima });
+    return { id: indId, resultado: 'falhou', motivo: r.erro, status: r.status };
   }
   const falha = planoDeFalha(Number(ind.crm_tentativas) || 0, agora());
-  const erro = (erroRede || `HTTP ${status}`).slice(0, 160); // nunca grava o corpo da resposta nem o cabeçalho enviado
   await ref.update({
     crm_tentativas: falha.tentativas,
-    crm_ultimo_erro: erro,
+    crm_ultimo_erro: r.erro,
     crm_ultima_tentativa_em: agora().toISOString(),
     crm_reservado_ate: null,
     crm_proxima_tentativa_em: falha.proxima,
     ...(falha.desistiu ? { crm_desistiu_em: agora().toISOString() } : {}),
   });
-  if (status === 401 || status === 403) log('[CRM-ENVIO] O CRM recusou a chave (CRM_CHAVE). Confira a chave configurada.');
-  return { id: indId, resultado: falha.desistiu ? 'desistiu' : 'falhou', motivo: erro, status };
+  return { id: indId, resultado: falha.desistiu ? 'desistiu' : 'falhou', motivo: r.erro, status: r.status };
 }
 
 // ---------- Laço de 1 minuto ----------
@@ -164,13 +152,13 @@ async function paginarPorData(db: any, desde: string): Promise<any[]> {
 }
 
 // Todo minuto lê as criadas nas últimas 72 h (ou desde o corte, se for mais recente). A cada 15 minutos (ou
-// enquanto ainda sobra fila) faz a varredura COMPLETA: tudo desde o corte da carga, mais as pending/triagem de
-// qualquer idade. Filtra em memória: where('crm_enviado_em','==',null) NÃO casa campo inexistente.
+// enquanto ainda sobra fila) faz a varredura COMPLETA: todas as abertas (pending, triagem, negotiating) de qualquer idade. Filtra em memória: where('crm_enviado_em','==',null) NÃO casa campo inexistente.
 export async function listarCandidatasDoLaco(db: any, ativoDesde: string, agora: Date, completa = false): Promise<{ id: string; data: any }[]> {
-  const recente = new Date(Math.max(new Date(ativoDesde).getTime(), agora.getTime() - JANELA_RECENTE_MS)).toISOString();
-  const docs: any[] = await paginarPorData(db, completa ? ativoDesde : recente);
+  const recente = new Date(agora.getTime() - JANELA_RECENTE_MS).toISOString();
+  const docs: any[] = await paginarPorData(db, recente);
   if (completa) {
-    const s = await db.collection('indications').where('status', 'in', ['pending', 'triagem']).get();
+    // Tudo o que está aberto, de qualquer idade (status em lista, campo único, sem índice composto)
+    const s = await db.collection('indications').where('status', 'in', STATUS_ENVIAVEIS).get();
     docs.push(...s.docs);
   }
   const vistos = new Set<string>();
@@ -314,13 +302,40 @@ export async function cargaInicialCrm(deps: DepsEntradaCrm, o: { simulacao?: boo
 }
 
 // ---------- POST ao CRM ----------
-async function postarCrm(deps: DepsEntradaCrm, corpo: any): Promise<{ ok: boolean; status: number; json: any; erro: string }> {
+type RespostaPost = { ok: boolean; status: number; json: any; erro: string; transitorio: boolean };
+
+// Falha que não é culpa do item enviado: rede, 401, 403, 408, 429 e 5xx. Não conta tentativa nem faz desistir.
+export const falhaDeTransporte = (status: number, erroRede: boolean) => erroRede || status === 0 || [401, 403, 408, 429].includes(status) || status >= 500;
+
+export function planoDeTransporte(falhasAntes: number, agora: Date): { falhas: number; proxima: string } {
+  const falhas = (Number(falhasAntes) || 0) + 1;
+  return { falhas, proxima: new Date(agora.getTime() + atrasoDaTentativa(falhas)).toISOString() };
+}
+
+// Saúde da conexão com o CRM, para o aviso do card Admin (sem segredo, só o código e o motivo).
+const saude = new WeakMap<object, { seguidas: number; limpo: boolean }>();
+async function registrarSaude(deps: DepsEntradaCrm, r: { ok: boolean; status: number; transitorio: boolean }) {
+  try {
+    const est = saude.get(deps.db) || { seguidas: 0, limpo: false };
+    const ref = deps.db.collection('settings').doc(DOC_CONFIG_CRM);
+    if (r.transitorio) {
+      est.seguidas++; est.limpo = false; saude.set(deps.db, est);
+      const motivo = r.status === 401 || r.status === 403 ? `CRM recusou a chave (${r.status}). Confira a CRM_CHAVE.` : r.status ? `CRM com problema (HTTP ${r.status}).` : 'Sem conexão com o CRM.';
+      await ref.set({ alerta_transporte: { em: (deps.agora ? deps.agora() : new Date()).toISOString(), seguidas: est.seguidas, motivo } }, { merge: true });
+    } else if (!est.limpo) {
+      est.seguidas = 0; est.limpo = true; saude.set(deps.db, est);
+      await ref.set({ alerta_transporte: null }, { merge: true });
+    }
+  } catch { /* o aviso nunca derruba o envio */ }
+}
+
+async function postarCrm(deps: DepsEntradaCrm, corpo: any, timeoutMs = 60000): Promise<RespostaPost> {
   const cfg = deps.config();
   let status = 0; let texto = ''; let erroRede = '';
   try {
     const f = deps.fetchFn || ((url: string, init: any) => fetch(url, init));
     const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 60000);
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
       const r = await f(cfg.url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-roder-chave': cfg.chave }, body: JSON.stringify(corpo), signal: ctrl.signal });
       status = r.status; texto = await r.text().catch(() => '');
@@ -329,7 +344,10 @@ async function postarCrm(deps: DepsEntradaCrm, corpo: any): Promise<{ ok: boolea
   let json: any = null;
   try { json = JSON.parse(texto); } catch { /* sem JSON */ }
   const ok = status >= 200 && status < 300 && json?.ok !== false;
-  return { ok, status, json, erro: ok ? '' : (erroRede || `HTTP ${status}`).slice(0, 160) };
+  const transitorio = !ok && falhaDeTransporte(status, !!erroRede);
+  const r = { ok, status, json, erro: ok ? '' : (erroRede || `HTTP ${status}`).slice(0, 160), transitorio };
+  await registrarSaude(deps, r);
+  return r;
 }
 
 // ---------- Fase 2: atualização do parceiro ----------
@@ -370,8 +388,18 @@ async function paginar(consultaBase: () => any, tamanho: number, paginas: number
   return docs;
 }
 
-// Indicações abertas que já estão no CRM, com nota nova do parceiro. Só lê quem tem crm_enviado_em (faixa nesse
-// campo: documento sem ele não aparece e não custa leitura). Nota de outra pessoa recebe a marca de ignorada.
+// Indicações abertas que já estão no CRM, com nota nova do parceiro. Roda a cada 10 minutos.
+// Custo de leitura: a rodada normal só lê quem mudou (updated_at >= última rodada menos 30 min; toda nota da
+// Central grava updated_at). A cada 6 horas, e na primeira rodada depois de reiniciar, faz a varredura completa
+// (indicações com crm_enviado_em, teto das 2000 mais recentes) para pegar retentativas em backoff e qualquer
+// nota que tenha entrado sem mexer em updated_at. LIMITE: a varredura completa só alcança as 2000 mais recentes
+// (por crm_enviado_em); uma nota que não mexa em updated_at numa indicação mais antiga que isso não seria vista.
+// Documentado em docs/integracao-crm.md.
+export const TETO_VARREDURA_COMPLETA = 2000;
+const VARREDURA_ATUALIZACOES_MS = 6 * 60 * 60 * 1000;
+const SOBREPOSICAO_MS = 30 * 60 * 1000;
+const ultimaVarreduraAtu = new WeakMap<object, { completa: number; rodada: number }>();
+
 export async function rodarAtualizacoesCrm(deps: DepsEntradaCrm): Promise<{ pulado?: string; enviadas: number; falhas: number }> {
   const cfg = deps.config();
   if (!podeEnviarAoCrm(cfg)) return { pulado: 'integracao_desligada', enviadas: 0, falhas: 0 };
@@ -380,17 +408,31 @@ export async function rodarAtualizacoesCrm(deps: DepsEntradaCrm): Promise<{ pula
   try {
     const agora = deps.agora ? deps.agora() : new Date();
     const uniao = deps.arrayUnion || ((...v: any[]) => v);
-    const docs = await paginar(() => deps.db.collection('indications').where('crm_enviado_em', '>', '').orderBy('crm_enviado_em', 'desc'), 500, 4);
+    const est = ultimaVarreduraAtu.get(deps.db) || { completa: 0, rodada: 0 };
+    const completa = agora.getTime() - est.completa >= VARREDURA_ATUALIZACOES_MS;
+    let docs: any[];
+    if (completa) {
+      docs = await paginar(() => deps.db.collection('indications').where('crm_enviado_em', '>', '').orderBy('crm_enviado_em', 'desc'), 500, TETO_VARREDURA_COMPLETA / 500);
+    } else {
+      const desde = new Date(est.rodada - SOBREPOSICAO_MS).toISOString();
+      docs = await paginar(() => deps.db.collection('indications').where('updated_at', '>=', desde).orderBy('updated_at'), 500, 4);
+      // retentativas em backoff não mexem em updated_at: têm marca própria
+      const retentar = await deps.db.collection('indications').where('crm_atu_retry', '>', '').get();
+      const ja = new Set(docs.map((x: any) => x.id));
+      for (const x of retentar.docs) if (!ja.has(x.id)) docs.push(x);
+    }
+    ultimaVarreduraAtu.set(deps.db, { completa: completa ? agora.getTime() : est.completa, rodada: agora.getTime() });
     let enviadas = 0; let falhas = 0; let feitas = 0;
     for (const d of docs) {
       const ind = d.data() || {};
-      if (!STATUS_ENVIAVEIS.includes(String(ind.status))) continue;
+      if (!ind.crm_enviado_em || !STATUS_ENVIAVEIS.includes(String(ind.status))) continue;
       const ref = deps.db.collection('indications').doc(d.id);
       const ignorar = entradasParaIgnorar(ind);
       if (ignorar.length) await ref.update({ crm_atualizacoes_ignoradas: uniao(...ignorar) });
+      let proximaRetentativa: string | null = null;
       for (const e of entradasPendentesDoParceiro(ind)) {
         const falha = ind[`crm_atu_falha_${e.id}`];
-        if (falha?.proxima && new Date(falha.proxima).getTime() > agora.getTime()) continue;
+        if (falha?.proxima && new Date(falha.proxima).getTime() > agora.getTime()) { proximaRetentativa = proximaRetentativa && proximaRetentativa < falha.proxima ? proximaRetentativa : falha.proxima; continue; }
         if (feitas >= MAX_ATUALIZACOES_POR_RODADA) return { enviadas, falhas };
         feitas++;
         const { anexos, avisos } = await prepararAnexos(deps, e);
@@ -398,15 +440,23 @@ export async function rodarAtualizacoesCrm(deps: DepsEntradaCrm): Promise<{ pula
         if (r.ok) {
           await ref.update({ crm_atualizacoes_enviadas: uniao(String(e.id)) });
           enviadas++;
+        } else if (r.transitorio) {
+          // rede, 401, 403, 429, 5xx: só reagenda; não conta tentativa nem desiste
+          const t = planoDeTransporte(Number(falha?.t) || 0, agora);
+          await ref.update({ [`crm_atu_falha_${e.id}`]: { n: Number(falha?.n) || 0, t: t.falhas, proxima: t.proxima, erro: r.erro }, crm_atu_retry: t.proxima });
+          proximaRetentativa = t.proxima;
+          falhas++;
         } else {
           const f = planoDeFalha(Number(falha?.n) || 0, agora);
           await ref.update({
-            [`crm_atu_falha_${e.id}`]: { n: f.tentativas, proxima: f.proxima, erro: r.erro },
-            ...(f.desistiu ? { crm_atualizacoes_desistiu: uniao(String(e.id)) } : {}),
+            [`crm_atu_falha_${e.id}`]: { n: f.tentativas, t: Number(falha?.t) || 0, proxima: f.proxima, erro: r.erro },
+            ...(f.desistiu ? { crm_atualizacoes_desistiu: uniao(String(e.id)) } : { crm_atu_retry: f.proxima }),
           });
+          if (!f.desistiu) proximaRetentativa = f.proxima;
           falhas++;
         }
       }
+      if (ind.crm_atu_retry && !proximaRetentativa) await ref.update({ crm_atu_retry: null });
     }
     return { enviadas, falhas };
   } finally { atualizacoesEmExecucao = false; }
@@ -445,19 +495,40 @@ export async function rodarComissoesCrm(deps: DepsEntradaCrm): Promise<{ pulado?
         continue;
       }
       if (!ind.crm_enviado_em) continue; // ainda vai ao CRM como indicação: espera
-      const pComissao = montarComissao(c, d.id, ind);
+      // O número do pedido do PRIMEIRO envio é o que o CRM conhece (ele trata por id_externo + pedido_numero): se mudar
+      // depois, os reenvios seguem com o número antigo e a divergência é registrada no histórico interno.
+      const pedidoEnviado = String(c.crm_comissao_pedido_numero || '').trim() || undefined;
+      const pedidoAtual = String(ind.sale_order_number ?? '').trim();
+      if (pedidoEnviado && pedidoAtual && pedidoAtual !== pedidoEnviado && c.crm_pedido_divergente_registrado !== pedidoAtual) {
+        await deps.db.collection('indications').doc(idInd).update({
+          negotiation_history: (deps.arrayUnion || ((...v: any[]) => v))({
+            id: `crm-pedido-divergiu-${d.id}-${pedidoAtual}`.replace(/[^A-Za-z0-9_-]/g, '_'), type: 'system', author_name: 'Sistema', created_at: agora.toISOString(),
+            content: `O número do pedido mudou para ${pedidoAtual} depois de a comissão ir ao CRM. O CRM segue com o número ${pedidoEnviado}.`,
+          }),
+        });
+        await ref.update({ crm_pedido_divergente_registrado: pedidoAtual });
+        c.crm_pedido_divergente_registrado = pedidoAtual;
+      }
+      const pComissao = montarComissao(c, d.id, ind, pedidoEnviado);
       const assinatura = pComissao ? assinaturaDaComissao(pComissao) : '';
       const comissaoPendente = !!pComissao && (!c.crm_comissao_enviada_em || (!!c.crm_comissao_assinatura && c.crm_comissao_assinatura !== assinatura));
-      const pPaga = c.status === 'paid' && !c.crm_paga_enviada_em ? montarComissaoPaga(c, d.id, ind) : null;
-      const passos: { corpo: any; ok: Record<string, any>; tent: string; prox: string }[] = [];
-      if (comissaoPendente) passos.push({ corpo: pComissao, tent: 'crm_comissao_tentativas', prox: 'crm_comissao_proxima', ok: { crm_comissao_enviada_em: agora.toISOString(), crm_comissao_assinatura: assinatura, crm_comissao_proxima: null, ...(c.status === 'paid' ? {} : { crm_aguardando_paga: true }) } });
-      if (pPaga && (c.crm_comissao_enviada_em || comissaoPendente)) passos.push({ corpo: pPaga, tent: 'crm_paga_tentativas', prox: 'crm_paga_proxima', ok: { crm_paga_enviada_em: agora.toISOString(), crm_paga_proxima: null, crm_aguardando_paga: false } });
+      const pPaga = c.status === 'paid' && !c.crm_paga_enviada_em ? montarComissaoPaga(c, d.id, ind, pedidoEnviado) : null;
+      const passos: { corpo: any; ok: Record<string, any>; tent: string; prox: string; trans: string }[] = [];
+      // crm_aguardando_paga fica true mesmo se a comissão já nasceu paga: a "paga" nunca depende só das 300 mais novas
+      if (comissaoPendente) passos.push({ corpo: pComissao, tent: 'crm_comissao_tentativas', trans: 'crm_comissao_transporte', prox: 'crm_comissao_proxima', ok: { crm_comissao_enviada_em: agora.toISOString(), crm_comissao_assinatura: assinatura, crm_comissao_pedido_numero: pedidoEnviado || pComissao!.pedido_numero, crm_comissao_proxima: null, crm_aguardando_paga: true } });
+      if (pPaga && (c.crm_comissao_enviada_em || comissaoPendente)) passos.push({ corpo: pPaga, tent: 'crm_paga_tentativas', trans: 'crm_paga_transporte', prox: 'crm_paga_proxima', ok: { crm_paga_enviada_em: agora.toISOString(), crm_paga_proxima: null, crm_aguardando_paga: false } });
       for (const p of passos) {
         if (enviadas + falhas >= MAX_COMISSOES_POR_RODADA) return { enviadas, falhas };
         if (c[p.prox] && new Date(c[p.prox]).getTime() > agora.getTime()) break;
         const r = await postarCrm(deps, p.corpo);
         if (r.ok) { await ref.update(p.ok); enviadas++; }
-        else {
+        else if (r.transitorio) {
+          // rede, 401, 403, 429, 5xx: só reagenda; não conta tentativa nem desiste
+          const t = planoDeTransporte(Number(c[p.trans]) || 0, agora);
+          await ref.update({ [p.trans]: t.falhas, [p.prox]: t.proxima, crm_ultimo_erro: r.erro });
+          falhas++;
+          break;
+        } else {
           const f = planoDeFalha(Number(c[p.tent]) || 0, agora);
           await ref.update({ [p.tent]: f.tentativas, [p.prox]: f.proxima, crm_ultimo_erro: r.erro, ...(f.desistiu ? { crm_desistiu_em: agora.toISOString() } : {}) });
           falhas++;
@@ -485,7 +556,7 @@ export async function reativarDesistidasCrm(deps: DepsEntradaCrm): Promise<{ ind
   const com = await deps.db.collection('commissions').where('crm_desistiu_em', '>', '').get();
   for (const d of com.docs) {
     await deps.db.collection('commissions').doc(d.id).update({
-      crm_desistiu_em: null, crm_comissao_tentativas: 0, crm_comissao_proxima: null, crm_paga_tentativas: 0, crm_paga_proxima: null, crm_ultimo_erro: null,
+      crm_desistiu_em: null, crm_comissao_tentativas: 0, crm_comissao_transporte: 0, crm_comissao_proxima: null, crm_paga_tentativas: 0, crm_paga_transporte: 0, crm_paga_proxima: null, crm_ultimo_erro: null,
     });
   }
   return { indicacoes: ind.docs.length, comissoes: com.docs.length };
@@ -506,6 +577,7 @@ export function registrarRotasAdminCrm(app: any, deps: DepsEntradaCrm & { exigir
         ok: true, ativo: cfg.ativo, tem_chave: !!cfg.chave, tem_segredo: !!cfg.segredo, destino: host, url_valida: cfg.urlValida,
         ativo_desde: desde, pode_carga: podeCargaAoCrm(cfg), pendentes_da_carga: sim && sim.ok ? sim.elegiveis : null,
         pendentes_como_novas: sim && sim.ok ? (sim as any).pendentes_novas : null, desistiram,
+        alerta_transporte: ((await deps.db.collection('settings').doc(DOC_CONFIG_CRM).get()).data() || {}).alerta_transporte || null,
       });
     } catch (e: any) { return res.status(500).json({ ok: false, error: e?.message || 'Erro.' }); }
   });

@@ -68,9 +68,10 @@ test('SELEÇÃO do laço: só aberta, criada depois da virada, ainda não enviad
   // pending/triagem vão como indicação nova de QUALQUER idade; só a negotiating respeita o corte (as antigas são da carga)
   assert.equal(motivoNaoEnviarNoLaco(indBase({ created_at: '2026-10-20T10:00:00Z' }), o), null);
   assert.equal(motivoNaoEnviarNoLaco(indBase({ status: 'triagem', created_at: '2020-01-01T00:00:00Z' }), o), null);
-  assert.equal(motivoNaoEnviarNoLaco(indBase({ status: 'negotiating', created_at: '2026-10-20T10:00:00Z' }), o), 'anterior_a_virada');
-  assert.equal(motivoNaoEnviarNoLaco(indBase({ status: 'negotiating', created_at: undefined }), o), 'sem_data_de_criacao');
-  assert.equal(motivoNaoEnviarNoLaco(indBase({ status: 'negotiating' }), { ativoDesde: null, agora: AGORA }), 'sem_data_de_virada');
+  // pending que virou negotiating antes de ser enviada ainda vai (com a nota "Já estava em negociação"), de qualquer idade
+  assert.equal(motivoNaoEnviarNoLaco(indBase({ status: 'negotiating', created_at: '2026-10-20T10:00:00Z' }), o), null);
+  assert.equal(motivoNaoEnviarNoLaco(indBase({ status: 'negotiating', created_at: undefined }), o), null);
+  assert.equal(motivoNaoEnviarNoLaco(indBase({ status: 'negotiating', crm_enviado_em: 'x' }), o), 'ja_enviada');
   assert.equal(motivoNaoEnviarNoLaco(indBase({ crm_proxima_tentativa_em: '2026-10-27T15:10:00Z' }), o), 'aguardando_nova_tentativa');
   assert.equal(motivoNaoEnviarNoLaco(indBase({ crm_proxima_tentativa_em: '2026-10-27T14:50:00Z' }), o), null);
   assert.equal(motivoNaoEnviarNoLaco(indBase({ crm_reservado_ate: '2026-10-27T15:02:00Z' }), o), 'reservada');
@@ -97,13 +98,16 @@ test('BACKOFF exponencial com teto e limite de tentativas', () => {
   assert.equal(ultima.desistiu, true); assert.equal(ultima.proxima, null);
 });
 
-test('TRIAGEM do robô: só deixa de distribuir o que é do CRM, e só com o interruptor ligado', () => {
-  const ligado = { ativo: true, ativoDesde: DESDE };
-  assert.equal(triagemEhDoCrm(indBase(), { ativo: false, ativoDesde: DESDE }), false);
+test('TRIAGEM do robô: com o CRM ligado não atribui NADA que o laço ainda vai mandar (qualquer idade); se o envio desistir, volta a assumir', () => {
+  const ligado = { ativo: true, chave: 'k', urlValida: true };
+  assert.equal(triagemEhDoCrm(indBase(), { ...ligado, ativo: false }), false);
   assert.equal(triagemEhDoCrm(indBase({ crm_enviado_em: 'x', created_at: '2026-01-01T00:00:00Z' }), ligado), true);
   assert.equal(triagemEhDoCrm(indBase(), ligado), true, 'nova e ainda na fila de envio');
-  assert.equal(triagemEhDoCrm(indBase({ created_at: '2026-01-01T00:00:00Z' }), ligado), false, 'antiga e fora do CRM: segue o fluxo de antes');
-  assert.equal(triagemEhDoCrm(indBase({ crm_desistiu_em: 'x' }), ligado), false);
+  assert.equal(triagemEhDoCrm(indBase({ created_at: '2026-01-01T00:00:00Z' }), ligado), true, 'antiga ainda não enviada: o laço vai mandar');
+  assert.equal(triagemEhDoCrm(indBase({ status: 'triagem', created_at: '2020-01-01T00:00:00Z' }), ligado), true);
+  assert.equal(triagemEhDoCrm(indBase({ crm_desistiu_em: 'x' }), ligado), false, 'o envio desistiu: o robô assume');
+  assert.equal(triagemEhDoCrm(indBase({ creator_type: 'visitor' }), ligado), false, 'o laço nunca envia esta: o robô cuida');
+  assert.equal(triagemEhDoCrm(indBase(), { ...ligado, chave: '' }), false, 'sem chave o laço não envia: não segura a triagem');
 });
 
 // ---------- Laço e carga com fetch falso ----------
@@ -145,32 +149,71 @@ test('INTERRUPTOR DESLIGADO: o laço e as rotinas da fase 2 não enviam nada; a 
 test('LAÇO: envia a nova com a chave no cabeçalho e marca crm_enviado_em/crm_id; a segunda rodada não reenvia', async () => {
   const a = ambiente(ENV, { i1: indBase(), velha: indBase({ status: 'negotiating', created_at: '2026-10-01T00:00:00Z' }), vendida: indBase({ status: 'sold' }) }, [{ status: 200, corpo: { ok: true, id: 'crm-77' } }]);
   const r = await rodarFilaCrm(a.deps);
-  assert.deepEqual(r.resultados.map(x => [x.id, x.resultado]), [['i1', 'enviada']]);
-  assert.equal(a.chamadas.length, 1);
+  assert.deepEqual(r.resultados.map(x => [x.id, x.resultado]).sort(), [['i1', 'enviada'], ['velha', 'enviada']]);
+  assert.equal(a.chamadas.length, 2);
   assert.equal(a.chamadas[0].url, 'http://localhost:9/crm');
   assert.equal(a.chamadas[0].init.headers['x-roder-chave'], CHAVE_TESTE);
-  const corpo = JSON.parse(a.chamadas[0].init.body);
+  const corpo = a.chamadas.map(c => JSON.parse(c.init.body)).find(c => c.id_externo === 'i1');
   assert.equal(corpo.id_externo, 'i1'); assert.equal(corpo.parceiro.id, 'p1'); assert.equal(corpo.parceiro.email, 'maria@x.com');
   assert.equal(a.db.dados.indications.i1.crm_id, 'crm-77');
   assert.ok(a.db.dados.indications.i1.crm_enviado_em);
-  assert.equal(a.db.dados.indications.velha.crm_enviado_em, undefined, 'a em negociação anterior ao corte só vai pela carga inicial');
+  assert.match(JSON.parse(a.chamadas.find(c => JSON.parse(c.init.body).id_externo === 'velha')!.init.body).observacao, /Já estava em negociação/);
   await rodarFilaCrm(a.deps);
-  assert.equal(a.chamadas.length, 1, 'não duplica');
+  assert.equal(a.chamadas.length, 2, 'não duplica');
 });
 
-test('LAÇO: falha 500 aplica backoff e só tenta de novo depois; depois do limite desiste; nunca grava a chave', async () => {
-  const a = ambiente(ENV, { i1: indBase() }, [{ status: 500, corpo: { erro: `eco ${CHAVE_TESTE}` } }]);
-  let r = await rodarFilaCrm(a.deps);
-  assert.equal(r.resultados[0].resultado, 'falhou');
+test('LAÇO: 5xx, 401, 403 e 429 só reagendam com backoff: não contam tentativa nem desistem, mesmo após dezenas de rodadas; nunca grava a chave', async () => {
+  for (const status of [500, 401, 403, 429]) {
+    const a = ambiente(ENV, { i1: indBase() }, [{ status, corpo: { erro: `eco ${CHAVE_TESTE}` } }]);
+    const r = await rodarFilaCrm(a.deps);
+    assert.equal(r.resultados[0].resultado, 'falhou');
+    assert.equal(a.db.dados.indications.i1.crm_tentativas, undefined);
+    assert.equal(a.db.dados.indications.i1.crm_falhas_transporte, 1);
+    assert.equal(a.db.dados.indications.i1.crm_ultimo_erro, `HTTP ${status}`);
+    assert.equal(JSON.stringify(a.db.dados).includes(CHAVE_TESTE), false);
+    await rodarFilaCrm(a.deps);
+    assert.equal(a.chamadas.length, 1, 'ainda dentro do backoff');
+    for (let n = 0; n < 30; n++) { a.avancar(7 * 60 * 60 * 1000); await rodarFilaCrm(a.deps); }
+    assert.equal(a.db.dados.indications.i1.crm_desistiu_em, undefined, `${status} nunca desiste`);
+    assert.equal(a.db.dados.indications.i1.crm_tentativas, undefined);
+    assert.equal(a.chamadas.length, 31);
+    // o card Admin enxerga o problema, sem segredo
+    const alerta = a.db.dados.settings.crm_integracao.alerta_transporte;
+    assert.ok(alerta && alerta.seguidas >= 31);
+    assert.match(alerta.motivo, status === 401 || status === 403 ? /recusou a chave/ : /problema|Sem conexão/);
+    assert.equal(JSON.stringify(a.db.dados.settings).includes(CHAVE_TESTE), false);
+  }
+});
+
+test('LAÇO: só a rejeição de validação (4xx diferente de 401/403/429) conta tentativa e depois de 10 desiste; o alerta de transporte some quando volta', async () => {
+  const a = ambiente(ENV, { i1: indBase() }, [{ status: 422 }]);
+  await rodarFilaCrm(a.deps);
   assert.equal(a.db.dados.indications.i1.crm_tentativas, 1);
-  assert.equal(a.db.dados.indications.i1.crm_ultimo_erro, 'HTTP 500');
-  assert.equal(JSON.stringify(a.db.dados).includes(CHAVE_TESTE), false);
-  r = await rodarFilaCrm(a.deps);
-  assert.equal(a.chamadas.length, 1, 'ainda dentro do backoff');
   for (let n = 0; n < 20; n++) { a.avancar(7 * 60 * 60 * 1000); await rodarFilaCrm(a.deps); }
   assert.equal(a.db.dados.indications.i1.crm_tentativas, MAX_TENTATIVAS_ENVIO);
   assert.ok(a.db.dados.indications.i1.crm_desistiu_em);
   assert.equal(a.chamadas.length, MAX_TENTATIVAS_ENVIO);
+  const b = ambiente(ENV, { i1: indBase() }, [{ status: 503 }, { status: 200 }]);
+  await rodarFilaCrm(b.deps);
+  assert.ok(b.db.dados.settings.crm_integracao.alerta_transporte);
+  b.avancar(2 * 60 * 1000);
+  await rodarFilaCrm(b.deps);
+  assert.equal(b.db.dados.settings.crm_integracao.alerta_transporte, null);
+});
+
+test('E-MAIL NA VIRADA: notificar_email só vai na indicação criada em ou depois de ativo_desde; antigas e sobras vão sem aviso', async () => {
+  const env = { ...ENV, CRM_NOTIFICAR_EMAIL: 'luana@roderbrasil.com.br' };
+  const a = ambiente(env, {
+    nova: indBase({ created_at: '2026-10-27T14:00:00Z' }),
+    antiga: indBase({ created_at: '2026-08-01T00:00:00Z' }),
+    antigaTriagem: indBase({ status: 'triagem', created_at: '2026-01-01T00:00:00Z' }),
+    virou: indBase({ status: 'negotiating', created_at: '2026-09-01T00:00:00Z' }),
+  }, [{ status: 200 }]);
+  await rodarFilaCrm(a.deps);
+  const por = Object.fromEntries(a.chamadas.map(c => { const j = JSON.parse(c.init.body); return [j.id_externo, j]; }));
+  assert.equal(por.nova.notificar_email, 'luana@roderbrasil.com.br');
+  for (const id of ['antiga', 'antigaTriagem', 'virou']) assert.equal('notificar_email' in por[id], false, id);
+  assert.match(por.virou.observacao, /Já estava em negociação/);
 });
 
 test('LAÇO: erro de rede também entra no backoff e depois um 2xx envia (sem duplicar)', async () => {
@@ -193,11 +236,11 @@ test('CONSULTA SEM ÍNDICE COMPOSTO: acha indicação sem nenhum campo crm_* (ca
   assert.deepEqual(lista.map(x => x.id), ['i1']);
 });
 
-test('DATA DA VIRADA: sem env nem settings, o laço grava o momento da primeira rodada uma vez e não reenvia o passado', async () => {
+test('DATA DA VIRADA: sem env nem settings, o laço grava o momento da primeira rodada uma vez e não muda depois', async () => {
   const env = { CRM_ATIVO: '1', CRM_CHAVE: CHAVE_TESTE, CRM_URL: 'http://localhost:9/crm' };
   const a = ambiente(env, { antiga: indBase({ status: 'negotiating', created_at: '2026-10-20T00:00:00Z' }) }, [{ status: 200 }]);
   await rodarFilaCrm(a.deps);
-  assert.equal(a.chamadas.length, 0);
+  assert.equal(a.chamadas.length, 1, 'a em negociação ainda não enviada vai com a nota, mesmo anterior à virada');
   assert.equal(a.db.dados.settings.crm_integracao.ativo_desde, AGORA.toISOString());
   a.avancar(3600 * 1000);
   await rodarFilaCrm(a.deps);

@@ -8,7 +8,7 @@ import { getApiBaseUrl } from '../../lib/utils';
 
 // Integração com o CRM do Roder Vision. Só o administrador vê.
 // A carga inicial manda ao CRM as indicações abertas que ainda não foram enviadas (cada uma uma só vez).
-interface Estado { ativo: boolean; tem_chave: boolean; tem_segredo: boolean; destino: string; ativo_desde: string | null; pode_carga: boolean; pendentes_da_carga: number | null; pendentes_como_novas: number | null; desistiram: number }
+interface Estado { ativo: boolean; tem_chave: boolean; tem_segredo: boolean; destino: string; ativo_desde: string | null; pode_carga: boolean; pendentes_da_carga: number | null; pendentes_como_novas: number | null; desistiram: number; alerta_transporte: { motivo: string; seguidas: number; em: string } | null }
 
 async function chamar(caminho: string, corpo?: unknown) {
   const token = await auth.currentUser?.getIdToken();
@@ -36,7 +36,7 @@ export default function IntegracaoCrm() {
     setOcupado(true);
     try {
       const r = await chamar('/api/admin/crm/carga-inicial', { simulacao });
-      if (simulacao) toast.info(`${r.elegiveis} em negociação na carga; ${r.pendentes_novas ?? 0} pendentes irão como novas na virada.`, { duration: 8000 });
+      if (simulacao) toast.info(`${r.elegiveis} em negociação na carga; ${r.pendentes_novas ?? 0} pendentes irão como novas na virada, sem aviso por e-mail.`, { duration: 8000 });
       else {
         const q = r.resumo || {};
         toast.success(`${r.enviadas} enviada(s), ${r.falhas} com falha. CRM: ${q.recebidos ?? 0} recebidas, ${q.vinculados ?? 0} vinculadas, ${q.repetidos ?? 0} repetidas, ${q.ignorados ?? 0} ignoradas. Faltam ${r.restantes}.`, { duration: 12000 });
@@ -65,8 +65,13 @@ export default function IntegracaoCrm() {
           {estado.ativo ? 'Ligado' : 'Desligado'}{estado.destino ? ` · destino ${estado.destino}` : ''}
           {!estado.tem_chave ? ' · falta a chave' : ''}{!estado.tem_segredo ? ' · falta o segredo' : ''}
           {estado.pendentes_da_carga !== null ? ` · ${estado.pendentes_da_carga} em negociação na carga` : ''}
-          {estado.pendentes_como_novas ? ` · ${estado.pendentes_como_novas} pendentes irão como novas na virada` : ''}
+          {estado.pendentes_como_novas ? ` · ${estado.pendentes_como_novas} pendentes irão como novas na virada, SEM aviso por e-mail` : ''}
         </p>
+        {estado.alerta_transporte && (
+          <p className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-red-800 dark:bg-red-950/30 dark:text-red-300 dark:border-red-900">
+            {estado.alerta_transporte.motivo} {estado.alerta_transporte.seguidas} falha(s) seguidas, a última em {new Date(estado.alerta_transporte.em).toLocaleString('pt-BR')}. Nada foi perdido: o envio tenta de novo sozinho.
+          </p>
+        )}
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="outline" disabled={ocupado} onClick={() => carga(true)}>Simular carga</Button>
           <Button size="sm" disabled={ocupado || !pronto} onClick={() => carga(false)}>

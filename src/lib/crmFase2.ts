@@ -102,15 +102,24 @@ const arred = (n: number) => Math.round(n * 100) / 100;
 
 // Retorna null quando ainda não dá para mandar (sem número de pedido, sem base ou sem percentual conhecido):
 // a rotina espera e tenta de novo, em vez de mandar zero ao CRM.
-// `percentual` vai em PONTOS percentuais (2 = 2%); valor_equipamento é a base comissionável usada no cálculo
-// (já sem o desconto), então valor_comissao = valor_equipamento x percentual / 100.
-export function montarComissao(c: any, commId: string, ind: any) {
-  const pedido = String(ind?.sale_order_number ?? '').trim();
+// `percentual` vai em PONTOS percentuais (2 = 2%); `valor_equipamento` é a base comissionável LÍQUIDA de desconto
+// usada no cálculo, então valor_comissao = valor_equipamento x percentual / 100.
+// `pedidoEnviado`: número do primeiro envio; se existir, é ele que vai (o CRM trata por id_externo + pedido_numero).
+export function montarComissao(c: any, commId: string, ind: any, pedidoEnviado?: string) {
+  const pedido = String(pedidoEnviado || ind?.sale_order_number || '').trim();
   if (!pedido) return null;
   const valor = num(c.value);
-  const base = num(c.base_value_used) || num(c.commissionable_value) || num(c.base_commission_value);
-  if (!(base > 0) || !(valor >= 0)) return null;
-  let pct = num(c.rate_applied);
+  if (!(valor >= 0)) return null;
+  const taxa = num(c.rate_applied);
+  const coerente = (b: number) => b > 0 && taxa > 0 && Math.abs((b * taxa) / 100 - valor) <= 0.01;
+  let base = num(c.base_value_used);
+  if (!(base > 0)) {
+    // outros campos só valem se baterem com a taxa e o valor da comissão; senão deriva do valor, ou espera
+    base = [num(c.commissionable_value), num(c.base_commission_value)].find(coerente) || 0;
+    if (!(base > 0) && taxa > 0 && valor > 0) base = arred(valor / (taxa / 100));
+  }
+  if (!(base > 0)) return null;
+  let pct = taxa;
   if (!(pct > 0)) pct = valor > 0 ? arred((valor / base) * 100) : 0;
   if (!(pct > 0)) return null;
   return {
@@ -132,8 +141,8 @@ export function montarComissao(c: any, commId: string, ind: any) {
 export const assinaturaDaComissao = (p: { pedido_numero: string; valor_equipamento: number; percentual: number; valor_comissao: number }) =>
   `${p.pedido_numero}|${p.valor_equipamento}|${p.percentual}|${p.valor_comissao}`;
 
-export function montarComissaoPaga(c: any, commId: string, ind: any) {
-  const pedido = String(ind?.sale_order_number ?? '').trim();
+export function montarComissaoPaga(c: any, commId: string, ind: any, pedidoEnviado?: string) {
+  const pedido = String(pedidoEnviado || ind?.sale_order_number || '').trim();
   if (!pedido) return null;
   const quando = c.paid_at || c.updated_at;
   return {
