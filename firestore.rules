@@ -284,29 +284,40 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // ESTOQUE_SO_LEITURA=1 (servidor grava settings/estoque_config.so_leitura): estoque e reservas são feitos no
+    // Roder Vision; nenhuma escrita pelo navegador. O Vision grava pelo servidor (Admin SDK, fora das regras).
+    function estoqueSoLeitura() {
+      return exists(/databases/$(database)/documents/settings/estoque_config) &&
+        get(/databases/$(database)/documents/settings/estoque_config).data.get('so_leitura', false) == true;
+    }
+    // Parceiro indicador nunca reserva (Jeferson, 25/10/2026).
+    function parceiroIndicador() {
+      return papel() == 'external_seller';
+    }
+
     match /stock_items/{itemId} {
       allow read: if true;
-      allow create: if isEquipe();
-      allow delete: if isManager();
-      allow update: if isEquipe();
+      allow create: if isEquipe() && !estoqueSoLeitura();
+      allow delete: if isManager() && !estoqueSoLeitura();
+      allow update: if isEquipe() && !estoqueSoLeitura();
     }
 
     match /stock_sales/{saleId} {
       allow read: if naoAnonimo();
-      allow create, update, delete: if isEquipe();
+      allow create, update, delete: if isEquipe() && !estoqueSoLeitura();
     }
 
     match /stock_reservations/{resId} {
       allow read: if true;
-      allow create: if true;
-      allow update: if isEquipe() || (naoAnonimo() && resource.data.seller_uid == request.auth.uid);
-      allow delete: if isManager();
+      allow create: if !estoqueSoLeitura() && !parceiroIndicador();
+      allow update: if !estoqueSoLeitura() && (isEquipe() || (naoAnonimo() && !parceiroIndicador() && resource.data.seller_uid == request.auth.uid));
+      allow delete: if isManager() && !estoqueSoLeitura();
     }
 
     match /stock_imports_fae/{itemId} {
       allow read: if true;
-      allow create, delete: if isManager();
-      allow update: if isEquipe();
+      allow create, delete: if isManager() && !estoqueSoLeitura();
+      allow update: if isEquipe() && !estoqueSoLeitura();
     }
 
     match /registered_products/{productId} {

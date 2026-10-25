@@ -243,10 +243,14 @@ export function parseChegadaDate(dateStr: string): Date {
 import { cn, safeFormatDate } from '../lib/utils';
 import { StockItem, StockReservation, StockSale, StockImportFAE } from '../types';
 import { usePWA } from '../contexts/PWAContext';
+import { addDocE, updateDocE, deleteDocE, writeBatchE, useEstoqueSoLeitura, MENSAGEM_SO_LEITURA, estaSoLeitura, parceiroNaoReserva } from '../lib/estoqueSoLeitura';
 
 export default function PublicStock() {
   const navigate = useNavigate();
   const { profile, isAdmin, isManager, isInternalSeller, isTriagem, user } = useAuth();
+  const soLeitura = useEstoqueSoLeitura();
+  const parceiro = parceiroNaoReserva(profile?.role);
+  const semEscrita = soLeitura || parceiro;
   const { canInstall, installApp } = usePWA();
   const [items, setItems] = useState<StockItem[]>([]);
   const [sales, setSales] = useState<StockSale[]>([]);
@@ -346,7 +350,7 @@ export default function PublicStock() {
       toast.info(`Limpando ${snapshot.size} reservas expiradas...`);
       
       for (const reservationDoc of snapshot.docs) {
-        await updateDoc(reservationDoc.ref, {
+        await updateDocE(reservationDoc.ref, {
           status: 'cancelled',
           cancellation_reason: 'Expirada automaticamente (5 dias)',
           updated_at: serverTimestamp()
@@ -422,6 +426,9 @@ export default function PublicStock() {
   };
 
   const handleReserveClick = (item: StockItem) => {
+    if (soLeitura || estaSoLeitura()) { toast.info(MENSAGEM_SO_LEITURA); return; }
+    // Parceiro indicador nunca reserva (Jeferson, 25/10/2026).
+    if (parceiro) { toast.info('Reservas são feitas pela equipe Roder. Fale com o seu vendedor.'); return; }
     setReservingItem(item);
     setReserveFormData({
       seller_name: profile?.name || '',
@@ -437,6 +444,7 @@ export default function PublicStock() {
 
   const handleConfirmReservation = async () => {
     if (!reservingItem) return;
+    if (parceiro || estaSoLeitura()) { setIsReserveModalOpen(false); return; }
 
     if (!reserveFormData.seller_name || !reserveFormData.client_name) {
       toast.error('Por favor, preencha o seu nome e o nome do cliente.');
@@ -517,7 +525,7 @@ export default function PublicStock() {
           reservationData.item_description = reservingItem.description;
         }
 
-        await addDoc(collection(db, 'stock_reservations'), reservationData);
+        await addDocE(collection(db, 'stock_reservations'), reservationData);
 
         if (isImportFae) {
           toast.success('Reserva do equipamento em importação realizada com sucesso!');
@@ -542,7 +550,7 @@ export default function PublicStock() {
     if (!confirm(`Deseja realmente cancelar a reserva do cliente ${reservation.client_name}?`)) return;
 
     try {
-      await updateDoc(doc(db, 'stock_reservations', reservation.id), {
+      await updateDocE(doc(db, 'stock_reservations', reservation.id), {
         status: 'cancelled',
         cancelled_by_uid: profile?.uid,
         cancelled_by_name: profile?.name,
@@ -775,7 +783,7 @@ export default function PublicStock() {
 
   const handleUpdateQuantity = async (itemId: string, newQuantity: number) => {
     try {
-      await updateDoc(doc(db, 'stock_items', itemId), {
+      await updateDocE(doc(db, 'stock_items', itemId), {
         quantity: newQuantity,
         updated_at: serverTimestamp()
       });
@@ -1071,7 +1079,13 @@ export default function PublicStock() {
   });
 
   return (
-    <div className="min-h-screen bg-black text-zinc-100 font-sans selection:bg-orange-500/30 pb-20" data-app-version="2.3.1">
+    <div className={`min-h-screen bg-black text-zinc-100 font-sans selection:bg-orange-500/30 pb-20 ${semEscrita ? 'estoque-so-leitura' : ''}`} data-app-version="2.3.1">
+      <style>{'.estoque-so-leitura [data-escrita]{display:none !important}'}</style>
+      {soLeitura && (
+        <div className="sticky top-0 z-50 bg-blue-600 px-3 py-2 text-center text-[11px] font-black uppercase tracking-tight text-white">
+          {MENSAGEM_SO_LEITURA}
+        </div>
+      )}
       <style dangerouslySetInnerHTML={{ __html: `
         @media (max-width: 767px) {
           .mobile-safe-stock-header {
@@ -1382,7 +1396,7 @@ export default function PublicStock() {
                                       
                                       {/* Admin/Manager Cancel Button */}
                                       {(isAdmin || isManager || profile?.email === 'roderbrasil@gmail.com' || profile?.email === 'roderindica@gmail.com') && (
-                                        <Button 
+                                        <Button data-escrita="1" 
                                           variant="ghost" 
                                           size="sm" 
                                           onClick={() => handleCancelReservation(res)}
@@ -1507,7 +1521,7 @@ export default function PublicStock() {
                                       
                                       {/* Admin/Manager Cancel Button */}
                                       {(isAdmin || isManager || profile?.email === 'roderbrasil@gmail.com' || profile?.email === 'roderindica@gmail.com') && (
-                                        <Button 
+                                        <Button data-escrita="1" 
                                           key={`res-del-${res.id}`}
                                           variant="ghost" 
                                           size="sm" 
@@ -1545,7 +1559,7 @@ export default function PublicStock() {
                               <div className="flex flex-col items-center justify-center gap-0.5 py-0.5">
                                 <span key={`phy-qty-${item.id}`}>{item.quantity}</span>
                                 {canEditQuantity && (
-                                  <button 
+                                  <button data-escrita="1" 
                                     onClick={() => {
                                       setTempQuantity(item.quantity);
                                       setEditingQuantityId(item.id);
@@ -1676,7 +1690,7 @@ export default function PublicStock() {
                           </Button>
                         </div>
                       ) : canEditQuantity && (
-                        <button 
+                        <button data-escrita="1" 
                           onClick={() => {
                             setTempQuantity(item.quantity);
                             setEditingQuantityId(item.id);
@@ -1715,7 +1729,7 @@ export default function PublicStock() {
 
                             {/* Remove button if permitted */}
                             {(isAdmin || isManager || profile?.email === 'roderbrasil@gmail.com' || profile?.email === 'roderindica@gmail.com') && (
-                              <button 
+                              <button data-escrita="1" 
                                 onClick={() => handleCancelReservation(res)}
                                 className="w-full mt-1.5 text-[7px] font-extrabold uppercase text-red-600 bg-white border border-red-200 hover:bg-red-50 py-0.5 rounded shadow-sm"
                               >
@@ -1742,7 +1756,7 @@ export default function PublicStock() {
                     {/* Reserve Button Row */}
                     {availableQty > 0 && (
                       <div className="pt-2">
-                        <Button 
+                        <Button data-escrita="1" 
                           variant="default" 
                           size="xs" 
                           onClick={() => handleReserveClick({
@@ -1844,7 +1858,7 @@ export default function PublicStock() {
                           </Button>
                         </div>
                       ) : canEditQuantity && (
-                        <button 
+                        <button data-escrita="1" 
                           onClick={() => {
                             setTempQuantity(item.quantity);
                             setEditingQuantityId(item.id);
@@ -1883,7 +1897,7 @@ export default function PublicStock() {
 
                             {/* Remove button if permitted */}
                             {(isAdmin || isManager || profile?.email === 'roderbrasil@gmail.com' || profile?.email === 'roderindica@gmail.com') && (
-                              <button 
+                              <button data-escrita="1" 
                                 onClick={() => handleCancelReservation(res)}
                                 className="w-full mt-1.5 text-[7px] font-extrabold uppercase text-red-600 bg-white border border-red-200 hover:bg-red-50 py-0.5 rounded shadow-sm"
                               >
@@ -1898,7 +1912,7 @@ export default function PublicStock() {
                     {/* Reserve Button Row */}
                     {availableQty > 0 && (
                       <div className="pt-2 border-t border-dashed border-slate-100">
-                        <Button 
+                        <Button data-escrita="1" 
                           variant="default" 
                           size="xs" 
                           onClick={() => handleReserveClick(item)}

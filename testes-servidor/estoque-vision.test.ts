@@ -6,7 +6,7 @@ import { assinarCrm } from '../server/crmAssinatura';
 
 const envio = (itens: any[], origem = 'roder', filial = 'matriz') => {
   const r = lerEnvioEstoque({ tipo: 'estoque', origem, filial, itens });
-  if (!r.ok) throw new Error(r.erro);
+  if (!r.ok) throw new Error((r as any).erro);
   return r.envio;
 };
 
@@ -133,4 +133,57 @@ test('SERVIDOR: exige a assinatura do CRM (CRM_SEGREDO, janela de 5 min)', async
   assert.equal(atrasada.status, 401);
   const semSegredo = await tratarRequisicaoEstoque({ ...deps, segredo: () => '' }, { headers: {}, corpo });
   assert.equal(semSegredo.status, 503);
+});
+
+test('RESERVAS: lista do Vision substitui as ativas, liga ao item e preserva histórico', async () => {
+  const { planejarReservas, lerEnvioReservas, idReservaVision } = await import('../src/lib/estoqueVision');
+  const lido = lerEnvioReservas({ itens: [
+    { id: 'r1', tipo: 'reserva', codigo: 'r800', origem: 'roder', filial: 'matriz', descricao: 'Garra', quantidade: 1, cliente: 'Cliente A', vendedor: 'Yury' },
+    { id: 'v1', tipo: 'vendido', codigo: 'X9', origem: 'fae', filial: 'matriz', descricao: 'Sem item', quantidade: 2 },
+    { id: 'i1', tipo: 'reserva', importacao: true, descricao: 'FAE UML/S/EX/VT-125', chegada: '2026-06-20', quantidade: 1 },
+  ] });
+  assert.ok(lido.ok);
+  const agora = new Date('2026-10-26T12:00:00Z');
+  const p = planejarReservas(
+    [{ id: 'antiga', status: 'active' }, { id: 'vision_r1', status: 'active' }, { id: 'cancelada', status: 'cancelled' }],
+    [{ id: 'it1', code: 'R800', source: 'roder', branch: 'matriz' }],
+    [{ id: 'imp1', description: 'FAE UML/S/EX/VT-125', chegada_iso: '2026-06-20' }],
+    (lido as any).itens, agora,
+  );
+  assert.deepEqual(p.substituir, ['antiga']);
+  assert.equal(p.gravar.find(g => g.id === idReservaVision('r1'))!.dados.stock_item_id, 'it1');
+  assert.equal(p.gravar.find(g => g.id === 'vision_i1')!.dados.stock_imports_fae_id, 'imp1');
+  assert.deepEqual(p.sem_item, ['v1']);
+  assert.ok(p.gravar.find(g => g.id === 'vision_v1')!.dados.expires_at.getTime() > agora.getTime() + 365 * 864e5);
+  assert.equal(lerEnvioReservas({ itens: [{ id: 'a b', quantidade: 1 }] }).ok, false);
+});
+
+test('SERVIDOR: reservas exigem a mesma assinatura do CRM', async () => {
+  const { tratarRequisicaoReservas } = await import('../server/estoqueVision');
+  const db = dbFalso({ stock_items: { it1: { code: 'R800', source: 'roder', branch: 'matriz' } }, stock_reservations: { old: { status: 'active', stock_item_id: 'it1' } }, stock_imports_fae: {}, settings: {} });
+  const agora = new Date('2026-10-26T12:00:00Z');
+  const deps = { db, segredo: () => 's', agora: () => agora };
+  const corpo = Buffer.from(JSON.stringify({ tipo: 'reservas', itens: [{ id: 'r1', codigo: 'R800', origem: 'roder', filial: 'matriz', descricao: 'Garra', quantidade: 1 }] }));
+  const ts = String(Math.floor(agora.getTime() / 1000));
+  const r = await tratarRequisicaoReservas(deps, { headers: { 'x-roder-timestamp': ts, 'x-roder-assinatura': assinarCrm('s', ts, corpo) }, corpo });
+  assert.equal(r.status, 200);
+  assert.equal(db.colecoes.stock_reservations.old.status, 'substituida_vision');
+  assert.equal(db.colecoes.stock_reservations.vision_r1.stock_item_id, 'it1');
+  const ruim = await tratarRequisicaoReservas(deps, { headers: { 'x-roder-timestamp': ts, 'x-roder-assinatura': 'sha256=00' }, corpo });
+  assert.equal(ruim.status, 401);
+});
+
+test('RESERVAS: formato da Disponibilidade (reservas, codigo_item, empresa, id_origem) e lista vazia', async () => {
+  const { lerEnvioReservas, planejarReservas } = await import('../src/lib/estoqueVision');
+  const l = lerEnvioReservas({ tipo: 'reservas', reservas: [
+    { codigo_item: '1000.0812', empresa: 'sinop', tipo: 'vendido', quantidade: 2, cliente: 'C', vendedora: 'Heloísa', pedido_venda: '9100', expira_em: null, id_origem: 'abc-1' },
+  ] });
+  assert.ok(l.ok);
+  const it = (l as any).itens[0];
+  assert.deepEqual([it.id, it.codigo, it.filial, it.origem, it.tipo, it.vendedor, it.pedido_venda], ['abc-1', '1000.0812', 'sinop', 'sinop_pdf', 'vendido', 'Heloísa', '9100']);
+  const p = planejarReservas([], [{ id: 's9', code: '1000.0812', source: 'sinop_pdf', branch: 'sinop' }], [], (l as any).itens, new Date());
+  assert.equal(p.gravar[0].dados.stock_item_id, 's9');
+  const vazia = lerEnvioReservas({ tipo: 'reservas', reservas: [] });
+  assert.ok(vazia.ok);
+  assert.deepEqual(planejarReservas([{ id: 'x', status: 'active' }], [], [], (vazia as any).itens, new Date()).substituir, ['x']);
 });

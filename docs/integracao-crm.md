@@ -223,3 +223,14 @@ Repetir o mesmo `id` responde 200 `duplicado`.
 - Estoque: `{ tipo:"estoque", origem, filial, enviado_em, itens:[{ codigo, descricao, quantidade }] }`. Origem: roder, fae, accessories, manual, sinop_pdf. Filial: matriz, sinop. Cada envio substitui só aquela origem + filial, com as mesmas regras da tela Estoque > Atualizar (duplicata vale a maior; igual ignora; 0 ou sumido remove, exceto com reserva ativa, que fica com 0; novo cria). Resposta `{ ok, origem, filial, criados, atualizados (= alterados), removidos, mantidos_por_reserva, ignorados }`.
 - Importações: `{ tipo:"importacoes", enviado_em, itens:[{ descricao, quantidade, embarque, chegada }] }`, datas AAAA-MM-DD. Substitui a lista inteira; item com reserva ativa nunca é apagado. Resposta `{ ok, itens, criados, atualizados (= alterados), removidos, reservas_preservadas }`.
 - A tela antiga do Indica continua funcionando. Código: `server/estoqueVision.ts`, regras em `src/lib/estoqueVision.ts`, testes em `testes-servidor/estoque-vision.test.ts`.
+
+
+### Reservas e vendidos vindos do Vision (POST /api/public/hooks/reservas)
+- Mesma assinatura do estoque (HMAC com `CRM_SEGREDO`, janela de 5 min).
+- Corpo (formato combinado com a tela Disponibilidade do Vision): `{ tipo:"reservas", enviado_em, reservas:[{ codigo_item, empresa:"matriz|sinop|fae", tipo:"reserva|vendido", quantidade, cliente, vendedora, pedido_venda, expira_em (null para vendido), id_origem }] }`. Também aceita `itens:[{ id, codigo, origem, filial, importacao, descricao, chegada, ... }]`.
+- É a lista COMPLETA: cada item vira `stock_reservations/vision_<id_origem>` (status active, kind reserva|vendido, ligado ao `stock_item_id` por código + origem + filial, ou ao `stock_imports_fae_id` quando importacao); reserva ativa que não veio passa a `substituida_vision` (não é apagada). Lista vazia = nenhuma reserva ativa. Vendido vale até ser tirado da lista.
+- Resposta `{ ok, itens, gravadas, substituidas, sem_item }` (`sem_item` = ids sem item correspondente no Indica).
+
+### Estoque só leitura (ESTOQUE_SO_LEITURA)
+- Padrão `0`: como hoje (bidirecional). Com `1`: o servidor grava `settings/estoque_config.so_leitura = true`; as regras do Firestore recusam qualquer escrita do navegador em `stock_items`, `stock_reservations`, `stock_sales` e `stock_imports_fae`; as telas Estoque e Estoque público escondem reservar, incluir, editar, excluir e carregar PDF e mostram no topo "Estoque e reservas são feitos no Roder Vision". O Vision continua gravando pelo servidor. `GET /api/public/estoque-config` devolve `{ so_leitura }`.
+- Parceiro indicador (`external_seller`) nunca reserva, com ou sem a variável (regra e tela).

@@ -77,6 +77,7 @@ import { toPng } from 'html-to-image';
 import { scanStockPDF } from '../services/geminiService';
 import { notifyStockUpdate } from '../services/emailService';
 import { StockPdfExportModal } from '../components/stock/StockPdfExportModal';
+import { addDocE, updateDocE, deleteDocE, writeBatchE, useEstoqueSoLeitura, MENSAGEM_SO_LEITURA, estaSoLeitura, parceiroNaoReserva } from '../lib/estoqueSoLeitura';
 
 const DEFAULT_FAE_IMPORTS = [
   {
@@ -281,6 +282,8 @@ interface FirestoreErrorInfo {
 
 export default function Stock() {
   const { auth, profile, isAdmin, isManager, isMarketing, isInternalSeller, isTriagem, isExternalSeller } = useAuth();
+  const soLeitura = useEstoqueSoLeitura();
+  const semEscrita = soLeitura || parceiroNaoReserva(profile?.role);
   // Parceiro não registra venda (baixava a quantidade do estoque da fábrica): ele reserva ou indica
   const parceiroNaoVende = isExternalSeller && !isAdmin && !isManager && !isInternalSeller && !isTriagem;
   
@@ -363,6 +366,7 @@ export default function Stock() {
 
   // Automatic Cleanup of expired reservations
   const cleanupExpiredReservations = useCallback(async () => {
+    if (estaSoLeitura()) return; // no modo só leitura as reservas vêm do Roder Vision
     try {
       const now = Timestamp.now();
       const q = query(
@@ -377,7 +381,7 @@ export default function Stock() {
       toast.info(`Limpando ${snapshot.size} reservas expiradas no estoque...`);
       
       for (const reservationDoc of snapshot.docs) {
-        await updateDoc(reservationDoc.ref, {
+        await updateDocE(reservationDoc.ref, {
           status: 'cancelled',
           cancellation_reason: 'Expirada automaticamente (5 dias)',
           updated_at: serverTimestamp()
@@ -655,7 +659,7 @@ export default function Stock() {
               }
             ];
             for (const item of initialImports) {
-              await addDoc(collection(db, 'stock_imports_fae'), item);
+              await addDocE(collection(db, 'stock_imports_fae'), item);
             }
           }
         } catch (err) {
@@ -874,7 +878,7 @@ export default function Stock() {
       try {
         for (let i = 0; i < allOps.length; i += 400) {
           const chunk = allOps.slice(i, i + 400);
-          const batch = writeBatch(db);
+          const batch = writeBatchE(db);
           chunk.forEach(op => {
             if (op.type === 'update') batch.update(op.ref, op.data);
             else if (op.type === 'delete') batch.delete(op.ref);
@@ -959,7 +963,7 @@ export default function Stock() {
     }
 
     try {
-      await addDoc(collection(db, 'stock_items'), {
+      await addDocE(collection(db, 'stock_items'), {
         ...newItem,
         source: 'manual',
         branch: activeTab === 'sinop' ? 'sinop' : 'matriz',
@@ -981,7 +985,7 @@ export default function Stock() {
     }
 
     try {
-      await addDoc(collection(db, 'stock_imports_fae'), {
+      await addDocE(collection(db, 'stock_imports_fae'), {
         code: newImportItem.code || '',
         description: newImportItem.description,
         quantity: newImportItem.quantity,
@@ -1064,7 +1068,7 @@ export default function Stock() {
       const querySnapshot = await getDocs(q);
 
       if (importSaveMode === 'overwrite') {
-        const batch = writeBatch(db);
+        const batch = writeBatchE(db);
         querySnapshot.forEach((docSnap) => {
           batch.delete(docSnap.ref);
         });
@@ -1072,7 +1076,7 @@ export default function Stock() {
       }
 
       const addPromises = parsedRows.map(item => {
-        return addDoc(collection(db, 'stock_imports_fae'), {
+        return addDocE(collection(db, 'stock_imports_fae'), {
           code: item.code || '',
           description: item.description,
           quantity: Number(item.quantity) || 1,
@@ -1105,7 +1109,7 @@ export default function Stock() {
         setImportItems(prev => prev.map(i => i.id === editingImportItem.id ? editingImportItem : i));
         toast.success('Alterações salvas localmente!', { id: toastId });
       } else {
-        await updateDoc(doc(db, 'stock_imports_fae', editingImportItem.id), {
+        await updateDocE(doc(db, 'stock_imports_fae', editingImportItem.id), {
           code: editingImportItem.code || '',
           description: editingImportItem.description,
           quantity: editingImportItem.quantity,
@@ -1145,7 +1149,7 @@ export default function Stock() {
       }
 
       try {
-        const batch = writeBatch(db);
+        const batch = writeBatchE(db);
 
         // 1. Create sale record
         const saleRef = doc(collection(db, 'stock_sales'));
@@ -1197,7 +1201,7 @@ export default function Stock() {
     }
 
     try {
-      const batch = writeBatch(db);
+      const batch = writeBatchE(db);
 
       // 1. Create sale record
       const saleRef = doc(collection(db, 'stock_sales'));
@@ -1235,6 +1239,7 @@ export default function Stock() {
   };
 
   const handleRegisterReservation = async () => {
+    if (parceiroNaoReserva(profile?.role)) { toast.error('Parceiro indicador não faz reserva.'); return; }
     if (reserveData.quantity <= 0) {
       toast.error('Quantidade deve ser maior que zero.');
       return;
@@ -1270,7 +1275,7 @@ export default function Stock() {
         const expiresAt = new Date();
         expiresAt.setFullYear(expiresAt.getFullYear() + 80); // 80 years from now
 
-        await addDoc(collection(db, 'stock_reservations'), {
+        await addDocE(collection(db, 'stock_reservations'), {
           stock_imports_fae_id: reserveData.itemId,
           item_description: item.description,
           item_code: findCodeForDescription(item.description, items),
@@ -1313,7 +1318,7 @@ export default function Stock() {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 5);
 
-      await addDoc(collection(db, 'stock_reservations'), {
+      await addDocE(collection(db, 'stock_reservations'), {
         stock_item_id: reserveData.itemId,
         item_description: item.description,
         item_code: item.code,
@@ -1513,7 +1518,7 @@ export default function Stock() {
 
   const handleUpdateQuantity = async (itemId: string, newQuantity: number) => {
     try {
-      await updateDoc(doc(db, 'stock_items', itemId), {
+      await updateDocE(doc(db, 'stock_items', itemId), {
         quantity: newQuantity,
         updated_at: serverTimestamp()
       });
@@ -1527,7 +1532,13 @@ export default function Stock() {
 
   return (
     <Layout data-app-version="2.0.5">
-      <div className="p-2.5 md:p-8 pb-28 md:pb-8 max-w-7xl mx-auto space-y-3.5 md:space-y-8">
+      <div className={cn("p-2.5 md:p-8 pb-28 md:pb-8 max-w-7xl mx-auto space-y-3.5 md:space-y-8", semEscrita && "estoque-so-leitura")}>
+        <style>{'.estoque-so-leitura [data-escrita]{display:none !important}'}</style>
+        {soLeitura && (
+          <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-center text-sm font-black uppercase tracking-tight text-blue-800">
+            {MENSAGEM_SO_LEITURA}
+          </div>
+        )}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
           <div className="space-y-0.5">
             <div className="flex items-center gap-1.5 animate-fade-in">
@@ -1558,7 +1569,7 @@ export default function Stock() {
             )}
 
             {activeTab === 'fabrica' && (isAdmin || isManager || isInternalSeller || isTriagem || isMarketing || profile?.email === 'roderbrasil@gmail.com' || profile?.email === 'rogerio@roderbrasil.com.br') && (
-              <Button 
+              <Button data-escrita="1" 
                 variant="default" 
                 size="sm" 
                 onClick={() => setIsUploadModalOpen(true)} 
@@ -1593,7 +1604,7 @@ export default function Stock() {
                   onChange={handleMondayImageUpload} 
                 />
                 
-                <Button 
+                <Button data-escrita="1" 
                   variant="outline" 
                   size="sm" 
                   onClick={() => fileInputRef.current?.click()}
@@ -1609,7 +1620,7 @@ export default function Stock() {
                   IMPORTAR IMAGEM MONDAY
                 </Button>
 
-                <Button 
+                <Button data-escrita="1" 
                   variant="default" 
                   size="sm" 
                   onClick={() => setIsAddImportModalOpen(true)} 
@@ -1856,7 +1867,7 @@ export default function Stock() {
                       const itemSales = sales.filter(s => s.stock_imports_fae_id === item.id);
                       const soldQty = itemSales.reduce((acc, s) => acc + (Number(s.quantity_sold) || 0), 0);
 
-                      const canEditCode = isAdmin || isManager || profile?.email === 'gislene@roderbrasil.com.br' || profile?.email === 'rogerio@roderbrasil.com.br' || profile?.email === 'roderbrasil@gmail.com';
+                      const canEditCode = !semEscrita && isAdmin || isManager || profile?.email === 'gislene@roderbrasil.com.br' || profile?.email === 'rogerio@roderbrasil.com.br' || profile?.email === 'roderbrasil@gmail.com';
 
                       return (
                         <TableRow 
@@ -1877,7 +1888,7 @@ export default function Stock() {
                                   onKeyDown={async (e) => {
                                     if (e.key === 'Enter') {
                                       try {
-                                        await updateDoc(doc(db, 'stock_imports_fae', item.id), {
+                                        await updateDocE(doc(db, 'stock_imports_fae', item.id), {
                                           code: tempCode,
                                           updated_at: new Date().toISOString()
                                         });
@@ -1896,7 +1907,7 @@ export default function Stock() {
                                   className="h-5 w-5 text-emerald-500"
                                   onClick={async () => {
                                     try {
-                                      await updateDoc(doc(db, 'stock_imports_fae', item.id), {
+                                      await updateDocE(doc(db, 'stock_imports_fae', item.id), {
                                         code: tempCode,
                                         updated_at: new Date().toISOString()
                                       });
@@ -1951,7 +1962,7 @@ export default function Stock() {
                                     onKeyDown={async (e) => {
                                       if (e.key === 'Enter') {
                                         try {
-                                          await updateDoc(doc(db, 'stock_imports_fae', item.id), {
+                                          await updateDocE(doc(db, 'stock_imports_fae', item.id), {
                                             quantity: tempQuantity,
                                             updated_at: new Date().toISOString()
                                           });
@@ -1970,7 +1981,7 @@ export default function Stock() {
                                     className="h-5 w-5 text-emerald-500" 
                                     onClick={async () => {
                                       try {
-                                        await updateDoc(doc(db, 'stock_imports_fae', item.id), {
+                                        await updateDocE(doc(db, 'stock_imports_fae', item.id), {
                                           quantity: tempQuantity,
                                           updated_at: new Date().toISOString()
                                         });
@@ -1991,7 +2002,7 @@ export default function Stock() {
                                       {item.quantity}
                                     </span>
                                     {canEditQuantity && (
-                                      <button 
+                                      <button data-escrita="1" 
                                         onClick={() => {
                                           setTempQuantity(item.quantity);
                                           setEditingQuantityId(item.id);
@@ -2033,7 +2044,7 @@ export default function Stock() {
                                 <div className="flex items-center gap-1 justify-end">
                                   {deletingItemId === item.id ? (
                                     <>
-                                      <Button
+                                      <Button data-escrita="1"
                                         variant="destructive"
                                         size="xs"
                                         className="h-7 py-0 px-2 text-[8px] font-black uppercase rounded bg-red-600 hover:bg-red-700 text-white"
@@ -2044,7 +2055,7 @@ export default function Stock() {
                                               setImportItems(prev => prev.filter(i => i.id !== item.id));
                                               toast.success('Removido!', { id: toastId });
                                             } else {
-                                              await deleteDoc(doc(db, 'stock_imports_fae', item.id));
+                                              await deleteDocE(doc(db, 'stock_imports_fae', item.id));
                                               toast.success('Removido!', { id: toastId });
                                             }
                                           } catch (error) {
@@ -2067,7 +2078,7 @@ export default function Stock() {
                                     </>
                                   ) : (
                                     <>
-                                      <Button 
+                                      <Button data-escrita="1" 
                                         variant="ghost" 
                                         size="icon" 
                                         className="h-7 w-7 text-slate-400 hover:text-blue-500 hover:bg-slate-50 rounded-lg border border-slate-200"
@@ -2199,7 +2210,7 @@ export default function Stock() {
                                         {item.quantity}
                                       </span>
                                       {canEditQuantity && (
-                                        <button 
+                                        <button data-escrita="1" 
                                           onClick={() => {
                                             setTempQuantity(item.quantity);
                                             setEditingQuantityId(item.id);
@@ -2244,7 +2255,7 @@ export default function Stock() {
                             
                             <TableCell className="text-right py-1 px-1">
                               <div className="flex flex-wrap items-center justify-end gap-1">
-                                <Button 
+                                <Button data-escrita="1" 
                                   variant="outline" 
                                   size="sm" 
                                   className="h-7 w-7 p-0 border-amber-500/20 hover:bg-amber-500/10 text-amber-600"
@@ -2266,7 +2277,7 @@ export default function Stock() {
                                   <Bookmark className="h-3.5 w-3.5" />
                                 </Button>
     
-                                <Button 
+                                <Button data-escrita="1" 
                                   variant="outline" 
                                   size="sm" 
                                   className="h-7 w-7 p-0 border-green-500/20 hover:bg-green-500/10 text-green-600"
@@ -2292,7 +2303,7 @@ export default function Stock() {
                                   <div className="flex items-center gap-1 justify-end">
                                     {deletingItemId === item.id ? (
                                       <>
-                                        <Button
+                                        <Button data-escrita="1"
                                           variant="destructive"
                                           size="xs"
                                           className="h-7 py-0 px-2 text-[8px] font-black uppercase rounded bg-red-600 hover:bg-red-700 text-white"
@@ -2307,7 +2318,7 @@ export default function Stock() {
                           
                                               const encryptedData = await CryptoService.encrypt(itemData);
                           
-                                              await addDoc(collection(db, 'trash_bin'), {
+                                              await addDocE(collection(db, 'trash_bin'), {
                                                 original_id: item.id,
                                                 collection: 'stock_items',
                                                 entity_name: item.description,
@@ -2318,7 +2329,7 @@ export default function Stock() {
                                                 deleted_by_uid: auth?.currentUser?.uid || ''
                                               });
                           
-                                              await deleteDoc(itemRef);
+                                              await deleteDocE(itemRef);
                                               toast.success('Removido com sucesso.', { id: toastId });
                                             } catch (error: any) {
                                               toast.error('Erro ao excluir: ' + error.message, { id: toastId });
@@ -2383,7 +2394,7 @@ export default function Stock() {
                 const reservedQty = itemReservations.reduce((acc, r) => acc + (Number(r.quantity_reserved) || 0), 0);
                 const availableQty = (Number(item.quantity) || 0) - reservedQty;
 
-                const canEditCode = isAdmin || isManager || profile?.email === 'gislene@roderbrasil.com.br' || profile?.email === 'rogerio@roderbrasil.com.br' || profile?.email === 'roderbrasil@gmail.com';
+                const canEditCode = !semEscrita && isAdmin || isManager || profile?.email === 'gislene@roderbrasil.com.br' || profile?.email === 'rogerio@roderbrasil.com.br' || profile?.email === 'roderbrasil@gmail.com';
 
                 return (
                   <div key={`mob-imp-${item.id}`} className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm hover:border-slate-300 transition-all">
@@ -2399,7 +2410,7 @@ export default function Stock() {
                             onKeyDown={async (e) => {
                               if (e.key === 'Enter') {
                                 try {
-                                  await updateDoc(doc(db, 'stock_imports_fae', item.id), {
+                                  await updateDocE(doc(db, 'stock_imports_fae', item.id), {
                                     code: tempCode,
                                     updated_at: new Date().toISOString()
                                   });
@@ -2418,7 +2429,7 @@ export default function Stock() {
                             className="h-5 w-5 text-emerald-500"
                             onClick={async () => {
                               try {
-                                await updateDoc(doc(db, 'stock_imports_fae', item.id), {
+                                await updateDocE(doc(db, 'stock_imports_fae', item.id), {
                                   code: tempCode,
                                   updated_at: new Date().toISOString()
                                 });
@@ -2481,7 +2492,7 @@ export default function Stock() {
                             className="h-7 bg-emerald-600 px-2 text-white font-bold text-[10px] hover:bg-emerald-700"
                             onClick={async () => {
                               try {
-                                await updateDoc(doc(db, 'stock_imports_fae', item.id), { quantity: tempQuantity });
+                                await updateDocE(doc(db, 'stock_imports_fae', item.id), { quantity: tempQuantity });
                                 toast.success('Quantidade atualizada!');
                                 setEditingQuantityId(null);
                               } catch (error) {
@@ -2501,7 +2512,7 @@ export default function Stock() {
                           </Button>
                         </div>
                       ) : canEditQuantity && (
-                        <button 
+                        <button data-escrita="1" 
                           onClick={() => {
                             setTempQuantity(item.quantity);
                             setEditingQuantityId(item.id);
@@ -2546,7 +2557,7 @@ export default function Stock() {
 
                     {/* Buttons Row */}
                     <div className="flex items-center gap-2 pt-2">
-                      <Button 
+                      <Button data-escrita="1" 
                         variant="outline" 
                         size="xs" 
                         className="h-8 flex-1 border-amber-400 text-amber-700 font-extrabold text-[10px] uppercase flex items-center justify-center gap-1 rounded-lg bg-amber-50/20 hover:bg-amber-100"
@@ -2567,7 +2578,7 @@ export default function Stock() {
                         <Bookmark className="h-3 w-3" /> RESERVAR
                       </Button>
 
-                      <Button 
+                      <Button data-escrita="1" 
                         variant="outline" 
                         size="xs" 
                         className="h-8 flex-1 border-emerald-500 text-emerald-800 font-extrabold text-[10px] uppercase flex items-center justify-center gap-1 rounded-lg bg-emerald-50/20 hover:bg-emerald-100"
@@ -2592,7 +2603,7 @@ export default function Stock() {
                         <div className="flex items-center gap-1">
                           {deletingItemId === item.id ? (
                             <>
-                              <Button
+                              <Button data-escrita="1"
                                 variant="destructive"
                                 size="xs"
                                 className="h-8 py-0 px-2 text-[9px] font-black uppercase rounded-lg bg-red-600 hover:bg-red-700 text-white"
@@ -2603,7 +2614,7 @@ export default function Stock() {
                                       setImportItems(prev => prev.filter(i => i.id !== item.id));
                                       toast.success('Removido!', { id: toastId });
                                     } else {
-                                      await deleteDoc(doc(db, 'stock_imports_fae', item.id));
+                                      await deleteDocE(doc(db, 'stock_imports_fae', item.id));
                                       toast.success('Removido!', { id: toastId });
                                     }
                                   } catch (error) {
@@ -2626,7 +2637,7 @@ export default function Stock() {
                             </>
                           ) : (
                             <div className="flex gap-1">
-                              <Button 
+                              <Button data-escrita="1" 
                                 variant="ghost" 
                                 size="icon" 
                                 className="h-8 w-8 text-slate-400 hover:text-blue-500 hover:bg-slate-50 rounded-lg border border-slate-200"
@@ -2726,7 +2737,7 @@ export default function Stock() {
                             className="h-7 bg-emerald-600 px-2 text-white font-bold text-[10px] hover:bg-emerald-700"
                             onClick={async () => {
                               try {
-                                await updateDoc(doc(db, 'stock_items', item.id), { quantity: tempQuantity });
+                                await updateDocE(doc(db, 'stock_items', item.id), { quantity: tempQuantity });
                                 toast.success('Quantidade atualizada!');
                                 setEditingQuantityId(null);
                               } catch (error) {
@@ -2746,7 +2757,7 @@ export default function Stock() {
                           </Button>
                         </div>
                       ) : canEditQuantity && (
-                        <button 
+                        <button data-escrita="1" 
                           onClick={() => {
                             setTempQuantity(item.quantity);
                             setEditingQuantityId(item.id);
@@ -2779,7 +2790,7 @@ export default function Stock() {
 
                     {/* Buttons Row */}
                     <div className="flex items-center gap-2 pt-2 border-t border-dashed border-slate-100">
-                      <Button 
+                      <Button data-escrita="1" 
                         variant="outline" 
                         size="xs" 
                         className="h-8 flex-1 border-amber-400 text-amber-700 font-extrabold text-[10px] uppercase flex items-center justify-center gap-1 rounded-lg bg-amber-50/20 hover:bg-amber-100"
@@ -2800,7 +2811,7 @@ export default function Stock() {
                         <Bookmark className="h-3 w-3" /> RESERVAR
                       </Button>
 
-                      <Button 
+                      <Button data-escrita="1" 
                         variant="outline" 
                         size="xs" 
                         className="h-8 flex-1 border-emerald-500 text-emerald-800 font-extrabold text-[10px] uppercase flex items-center justify-center gap-1 rounded-lg bg-emerald-50/20 hover:bg-emerald-100"
@@ -2825,7 +2836,7 @@ export default function Stock() {
                         <div className="flex items-center gap-1">
                           {deletingItemId === item.id ? (
                             <>
-                              <Button
+                              <Button data-escrita="1"
                                 variant="destructive"
                                 size="xs"
                                 className="h-8 py-0 px-2 text-[9px] font-black uppercase rounded-lg bg-red-600 hover:bg-red-700 text-white"
@@ -2837,7 +2848,7 @@ export default function Stock() {
                                     const itemData = itemSnap.docs[0]?.data();
                                     if (!itemData) throw new Error('Item não encontrado');
                                     const encryptedData = await CryptoService.encrypt(itemData);
-                                    await addDoc(collection(db, 'trash_bin'), {
+                                    await addDocE(collection(db, 'trash_bin'), {
                                       original_id: item.id,
                                       collection: 'stock_items',
                                       entity_name: item.description,
@@ -2847,7 +2858,7 @@ export default function Stock() {
                                       deleted_by_name: profile?.name || auth?.currentUser?.email || 'Sistema',
                                       deleted_by_uid: auth?.currentUser?.uid || ''
                                     });
-                                    await deleteDoc(itemRef);
+                                    await deleteDocE(itemRef);
                                     toast.success('Removido com sucesso.', { id: toastId });
                                   } catch (error: any) {
                                     toast.error('Erro ao excluir: ' + error.message, { id: toastId });
@@ -3561,13 +3572,13 @@ export default function Stock() {
                           {res.quantity_reserved} UN Reservado
                         </span>
                         {(isAdmin || isManager || res.seller_uid === profile?.uid) && (
-                          <Button 
+                          <Button data-escrita="1" 
                             variant="ghost" 
                             size="sm" 
                             className="h-6 text-[9px] text-red-500 hover:bg-red-500/10"
                             onClick={async () => {
                               try {
-                                await updateDoc(doc(db, 'stock_reservations', res.id), {
+                                await updateDocE(doc(db, 'stock_reservations', res.id), {
                                   status: 'cancelled',
                                   updated_at: serverTimestamp()
                                 });
@@ -3647,7 +3658,7 @@ export default function Stock() {
                         <div className="text-[10px] text-muted-foreground">
                           Criada em: {res.created_at?.toDate ? res.created_at.toDate().toLocaleString('pt-BR') : 'Data não disponível'}
                         </div>
-                        <Button 
+                        <Button data-escrita="1" 
                           variant="ghost" 
                           size="sm" 
                           className="h-7 text-[10px] text-red-500 hover:bg-red-500/10 font-bold"
@@ -3656,7 +3667,7 @@ export default function Stock() {
                               console.log("Attempting to cancel reservation ID:", res.id);
                               try {
                                 const resRef = doc(db, 'stock_reservations', res.id);
-                                await updateDoc(resRef, {
+                                await updateDocE(resRef, {
                                   status: 'cancelled',
                                   cancelled_at: serverTimestamp(),
                                   cancelled_by: profile?.name || 'Admin (Cleanup)',

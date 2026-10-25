@@ -804,3 +804,22 @@ test('REGIÕES: o próprio cadastro não cria nem muda assigned_regions', async 
   await assertFails(updateDoc(doc(g, 'users', 'u_g'), { assigned_regions: ['PR'] }));
   await assertSucceeds(updateDoc(doc(fs_('gislene'), 'users', 'u_par'), { assigned_regions: ['PR'] }));
 });
+
+// Estoque (25/10/2026): parceiro indicador nunca reserva; com ESTOQUE_SO_LEITURA (settings/estoque_config) ninguém escreve.
+test('ESTOQUE: parceiro não reserva; vendedor externo sem login ainda reserva com o modo padrão', async () => {
+  await assertFails(addDoc(collection(fs_('parceiro'), 'stock_reservations'), { stock_item_id: 's1', quantity_reserved: 1, status: 'active', seller_uid: 'u_par' }));
+  await assertSucceeds(addDoc(collection(fs_('heloisa'), 'stock_reservations'), { stock_item_id: 's1', quantity_reserved: 1, status: 'active', seller_uid: 'u_hel' }));
+});
+
+test('ESTOQUE SÓ LEITURA: ninguém grava estoque, reservas, vendas ou importações pelo navegador', async () => {
+  await env.withSecurityRulesDisabled(async (c) => { await setDoc(doc(c.firestore(), 'settings', 'estoque_config'), { so_leitura: true }); });
+  try {
+    await assertFails(updateDoc(doc(fs_('heloisa'), 'stock_items', 's1'), { quantity: 1 }));
+    await assertFails(addDoc(collection(fs_('heloisa'), 'stock_reservations'), { stock_item_id: 's1', quantity_reserved: 1, status: 'active', seller_uid: 'u_hel' }));
+    await assertFails(addDoc(collection(fs_('heloisa'), 'stock_sales'), { stock_item_id: 's1', quantity: 1 }));
+    await assertFails(addDoc(collection(fs_('jeferson'), 'stock_imports_fae'), { description: 'FAE', quantity: 1 }));
+    await assertSucceeds(getDocs(collection(fs_(null), 'stock_items')));
+  } finally {
+    await env.withSecurityRulesDisabled(async (c) => { await setDoc(doc(c.firestore(), 'settings', 'estoque_config'), { so_leitura: false }); });
+  }
+});
