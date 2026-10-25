@@ -6057,6 +6057,14 @@ async function cargaInicialCrm(deps, o = {}) {
   if ("erro" in lr && lr.erro !== void 0) return { ok: true, simulacao: false, elegiveis: elegiveis.length, tentadas: lr.tentadas, enviadas: 0, falhas: lr.tentadas, restantes: elegiveis.length, erro: lr.erro, resumo: lr.resumo };
   return { ok: true, simulacao: false, elegiveis: elegiveis.length, tentadas: lr.tentadas, enviadas: lr.enviadas, falhas: lr.tentadas - lr.enviadas, restantes: Math.max(elegiveis.length - lr.enviadas, 0), resumo: lr.resumo };
 }
+async function reenviarCargaCrm(deps) {
+  const cfg = deps.config();
+  if (!podeCargaAoCrm(cfg)) return { ok: false, status: 409, error: "Configure CRM_CHAVE (e confira CRM_URL) antes de enviar." };
+  const s = await deps.db.collection("indications").where("crm_carga_inicial", "==", true).get();
+  const ids = s.docs.map((d) => d.id).slice(0, MAX_ITENS_CARGA);
+  const lr = await enviarLoteComoCarga(deps, ids, { backoff: false, reenvio: true });
+  return { ok: true, tentadas: lr.tentadas, enviadas: lr.enviadas, falhas: lr.tentadas - lr.enviadas, erro: lr.erro, resumo: lr.resumo };
+}
 async function enviarLoteComoCarga(deps, ids, o) {
   const agora = deps.agora ? deps.agora() : /* @__PURE__ */ new Date();
   const log = deps.log || console.log;
@@ -6069,7 +6077,7 @@ async function enviarLoteComoCarga(deps, ids, o) {
       const sn = await tx.get(ref);
       if (!sn.exists) return null;
       const ind = sn.data();
-      if (motivoNaoEnviarNaCarga(ind, { agora })) return null;
+      if (motivoNaoEnviarNaCarga(o.reenvio ? { ...ind, crm_enviado_em: null, crm_desistiu_em: null } : ind, { agora })) return null;
       tx.update(ref, { crm_reservado_ate: new Date(agora.getTime() + RESERVA_ENVIO_MS).toISOString() });
       return ind;
     });
@@ -6099,6 +6107,12 @@ async function enviarLoteComoCarga(deps, ids, o) {
   if (!itens.length) return { tentadas: 0, enviadas: 0, resumo: zero, resultados: [] };
   const r = await postarCrm(deps, { tipo: "carga_inicial", itens });
   const nowIso = agora.toISOString();
+  try {
+    await deps.db.collection("settings").doc(DOC_CONFIG_CRM).set({
+      ultima_carga: { em: nowIso, itens: itens.length, reenvio: !!o.reenvio, http: r.status, ok: r.ok, resposta: (r.json ? JSON.stringify(r.json) : r.erro || "").slice(0, 4e3) }
+    }, { merge: true });
+  } catch {
+  }
   const resultados = [];
   if (!r.ok) {
     for (const x of reservadas) {
@@ -6467,7 +6481,8 @@ function registrarRotasAdminCrm(app, deps) {
         carga_vendidas: sim && sim.ok ? sim.vendidas : null,
         carga_total: sim && sim.ok ? sim.total_carga : null,
         alerta_transporte: cfgDoc.alerta_transporte || null,
-        carga_inicial_em: cfgDoc.carga_inicial_em || null
+        carga_inicial_em: cfgDoc.carga_inicial_em || null,
+        ultima_carga: cfgDoc.ultima_carga || null
       });
     } catch (e) {
       return res.status(500).json({ ok: false, error: e?.message || "Erro." });
@@ -6481,6 +6496,16 @@ function registrarRotasAdminCrm(app, deps) {
     } catch (e) {
       (deps.log || console.error)("[CRM-CARGA] Erro:", e?.message);
       return res.status(500).json({ ok: false, error: "N\xE3o consegui concluir a carga. Tente de novo." });
+    }
+  });
+  app.post("/api/admin/crm/reenviar-carga", async (req, res) => {
+    if (!await deps.exigirAdmin(req, res)) return;
+    try {
+      const r = await reenviarCargaCrm(deps);
+      return res.status(r.ok ? 200 : r.status).json(r);
+    } catch (e) {
+      (deps.log || console.error)("[CRM-CARGA] Erro no reenvio:", e?.message);
+      return res.status(500).json({ ok: false, error: "N\xE3o consegui reenviar a carga. Tente de novo." });
     }
   });
   app.post("/api/admin/crm/reativar", async (req, res) => {
@@ -7230,7 +7255,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-24b integracao-crm-vendidas";
+  const RELEASE_LABEL = "2026-10-25 crm-reenvio-carga";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
