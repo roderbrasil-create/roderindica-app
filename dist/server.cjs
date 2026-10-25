@@ -1605,10 +1605,14 @@ function videoValido(url) {
   if (!v) return "";
   if (!/^https?:\/\//i.test(v) && !/^db-file:\/\/[A-Za-z0-9_-]+$/.test(v)) return "";
   if (VIDEOS_MORTOS.some((m) => v.toLowerCase().includes(m))) return "";
+  if (/^https?:\/\/(www\.)?roderbrasil\.com\.br\/(?!.*\.(mp4|webm|mov)(\?|$))/i.test(v)) return "";
   return v;
 }
+var VIDEO_GARRA = "Kzqi_Cn2WG4";
+var ehSkidder = (nome) => /skidder|^msr\b/i.test(String(nome || ""));
+var semVideoErrado = (url, prod, model) => String(url || "").includes(VIDEO_GARRA) && (ehSkidder(prod?.name) || ehSkidder(model?.name)) ? "" : url;
 function videoDoEquipamento(prod, model) {
-  return videoValido(model?.video_url) || videoValido(prod?.video_url) || videoValido(PRODUCT_VIDEOS[String(model?.name || "")]) || videoValido(PRODUCT_VIDEOS[String(prod?.name || "")]);
+  return videoValido(semVideoErrado(model?.video_url, prod, model)) || videoValido(semVideoErrado(prod?.video_url, prod, model)) || videoValido(PRODUCT_VIDEOS[String(model?.name || "")]) || videoValido(PRODUCT_VIDEOS[String(prod?.name || "")]);
 }
 
 // src/lib/consultorIndicar.ts
@@ -7257,7 +7261,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-25 cerebro-card-abre";
+  const RELEASE_LABEL = "2026-10-25 video-skidder";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");

@@ -4226,7 +4226,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                           <button
                             type="button"
                             onClick={() => copiarResposta(msg.content)}
-                            className="w-full min-h-[40px] h-auto rounded-xl border-[1.5px] border-[#1B1E22] bg-white text-[#1B1E22] text-[14px] font-extrabold flex items-center justify-center gap-1.5 active:scale-[0.99] transition"
+                            className="self-start min-h-[32px] px-3 rounded-lg border border-[#1B1E22]/30 bg-transparent text-[#1B1E22]/70 text-[12.5px] font-bold flex items-center gap-1 active:scale-[0.98] transition"
                           >
                             Copiar resposta
                           </button>

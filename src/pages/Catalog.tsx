@@ -1684,7 +1684,7 @@ export default function Catalog() {
         description: 'O Mini Skidder Roder é o equipamento ideal para arraste de madeira em curtas distâncias, oferecendo agilidade e robustez para sua operação florestal. Sua construção simplificada e alto desempenho garantem eficiência no campo.',
         category: 'Equipamento de Arraste',
         image_url: 'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-mini-skidder.jpg.webp',
-        video_url: 'https://www.youtube.com/watch?v=Kzqi_Cn2WG4',
+        video_url: '',
         pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Mini-Skidder-Roder.pdf',
         is_blocked: false,
         created_at: snap.empty ? new Date().toISOString() : (snap.docs[0].data() as any).created_at,
