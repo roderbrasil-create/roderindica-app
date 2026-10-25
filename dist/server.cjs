@@ -1598,6 +1598,9 @@ var PRODUCT_VIDEOS = {
   "AF400": "https://youtu.be/tlp3Grju-LM",
   "AF 400": "https://youtu.be/tlp3Grju-LM",
   "AF - 400": "https://youtu.be/tlp3Grju-LM",
+  "Feller de Disco": "https://youtu.be/1_h_BB5OHEQ",
+  "CFD 40": "https://youtu.be/1_h_BB5OHEQ",
+  "CFD40": "https://youtu.be/1_h_BB5OHEQ",
   "SSH 150": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
   "SSH 200": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
   "SSH 225": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
@@ -7269,7 +7272,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-25 fotos-af";
+  const RELEASE_LABEL = "2026-10-25 video-feller-disco";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
