@@ -361,8 +361,8 @@ async function startServer() {
   // do corpo CRU, então precisa vir ANTES do express.json() global (que consome e reescreve o corpo).
   const configCrm = () => lerConfigCrm(process.env as any);
   registrarRotaEventosCrm(app, express, { db, arrayUnion: (...v: any[]) => admin.firestore.FieldValue.arrayUnion(...v), config: configCrm });
-  // Roder Vision -> Indica: estoque semanal e importações em trânsito (VISION_CHAVE na Hostinger).
-  registrarRotaEstoqueVision(app, express, { db, chaveEnv: () => String(process.env.VISION_CHAVE || '') });
+  // Roder Vision -> Indica: estoque semanal e importações em trânsito (assinatura HMAC do CRM com CRM_SEGREDO; corpo cru, antes do express.json global).
+  registrarRotaEstoqueVision(app, express, { db, segredo: () => String(process.env.CRM_SEGREDO || '') });
 
   app.use(express.json({ limit: '50mb' }));
   // A CDN da Hostinger guardava respostas da API (a conferência de versão mostrava a de

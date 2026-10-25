@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { planejarEstoque, planejarImportacoes, lerEnvioEstoque, lerEnvioImportacoes, dataParaTela, chavesIguais } from '../src/lib/estoqueVision';
-import { processarEnvioEstoque } from '../server/estoqueVision';
+import { processarEnvioEstoque, tratarRequisicaoEstoque } from '../server/estoqueVision';
+import { assinarCrm } from '../server/crmAssinatura';
 
 const envio = (itens: any[], origem = 'roder', filial = 'matriz') => {
   const r = lerEnvioEstoque({ tipo: 'estoque', origem, filial, itens });
@@ -107,11 +108,29 @@ test('SERVIDOR: envio de estoque grava e responde as contagens', async () => {
     stock_reservations: { r1: { status: 'active', stock_item_id: 'b' } },
     settings: {},
   });
-  const r = await processarEnvioEstoque({ db, chaveEnv: () => 'x' }, { tipo: 'estoque', origem: 'roder', filial: 'matriz', itens: [{ codigo: 'R800', descricao: 'Garra', quantidade: 3 }] });
+  const r = await processarEnvioEstoque({ db, segredo: () => 'x' }, { tipo: 'estoque', origem: 'roder', filial: 'matriz', itens: [{ codigo: 'R800', descricao: 'Garra', quantidade: 3 }] });
   assert.equal(r.status, 200);
   assert.deepEqual({ ...r.body, ignorados: undefined }, { ok: true, origem: 'roder', filial: 'matriz', criados: 0, atualizados: 1, alterados: 1, removidos: 0, mantidos_por_reserva: 1, ignorados: undefined });
   assert.equal(db.colecoes.stock_items.a.quantity, 3);
   assert.equal(db.colecoes.stock_items.b.quantity, 0);
-  const ruim = await processarEnvioEstoque({ db, chaveEnv: () => 'x' }, { tipo: 'outro' });
+  const ruim = await processarEnvioEstoque({ db, segredo: () => 'x' }, { tipo: 'outro' });
   assert.equal(ruim.status, 400);
+});
+
+test('SERVIDOR: exige a assinatura do CRM (CRM_SEGREDO, janela de 5 min)', async () => {
+  const db = dbFalso({ stock_items: {}, stock_reservations: {}, settings: {} });
+  const agora = new Date('2026-10-26T12:00:00Z');
+  const deps = { db, segredo: () => 'segredo-crm', agora: () => agora };
+  const corpo = Buffer.from(JSON.stringify({ tipo: 'estoque', origem: 'fae', filial: 'matriz', itens: [{ codigo: 'UML', descricao: 'FAE UML', quantidade: 1 }] }));
+  const ts = String(Math.floor(agora.getTime() / 1000));
+  const ok = await tratarRequisicaoEstoque(deps, { headers: { 'x-roder-timestamp': ts, 'x-roder-assinatura': assinarCrm('segredo-crm', ts, corpo) }, corpo });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.body.criados, 1);
+  const errada = await tratarRequisicaoEstoque(deps, { headers: { 'x-roder-timestamp': ts, 'x-roder-assinatura': assinarCrm('outro', ts, corpo) }, corpo });
+  assert.equal(errada.status, 401);
+  const velho = String(Math.floor(agora.getTime() / 1000) - 600);
+  const atrasada = await tratarRequisicaoEstoque(deps, { headers: { 'x-roder-timestamp': velho, 'x-roder-assinatura': assinarCrm('segredo-crm', velho, corpo) }, corpo });
+  assert.equal(atrasada.status, 401);
+  const semSegredo = await tratarRequisicaoEstoque({ ...deps, segredo: () => '' }, { headers: {}, corpo });
+  assert.equal(semSegredo.status, 503);
 });

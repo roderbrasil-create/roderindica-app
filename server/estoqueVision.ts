@@ -3,23 +3,14 @@
 //    ou { tipo:"importacoes", enviado_em, itens:[{descricao, quantidade, embarque, chegada}] } (datas AAAA-MM-DD).
 // Resposta do estoque: { ok, origem, filial, criados, atualizados, removidos, mantidos_por_reserva } (alterados = atualizados, por compatibilidade).
 // Reservas em importação: stock_reservations com stock_imports_fae_id (is_import_fae) ativas nunca perdem o item.
-// Autenticação: cabeçalho x-roder-chave igual à variável VISION_CHAVE (Hostinger), ou uma chave ativa em
-// api_keys com permissions.estoque_escrita === true. A tela antiga (Estoque > Atualizar) continua funcionando.
+// Autenticação: a MESMA assinatura do CRM em /api/crm/eventos: X-Roder-Timestamp e
+// X-Roder-Assinatura = "sha256=" + HMAC-SHA256(CRM_SEGREDO, timestamp + "." + corpoCru), janela de 5 min.
+// Sem CRM_SEGREDO: 503. Não usa chave nova. A tela antiga (Estoque > Atualizar) continua funcionando.
 // Regras em src/lib/estoqueVision.ts. Reservas ativas (stock_reservations) nunca são apagadas nem perdem o item.
-import { chavesIguais, lerEnvioEstoque, lerEnvioImportacoes, planejarEstoque, planejarImportacoes } from '../src/lib/estoqueVision';
+import { lerEnvioEstoque, lerEnvioImportacoes, planejarEstoque, planejarImportacoes } from '../src/lib/estoqueVision';
+import { verificarAssinaturaCrm } from './crmAssinatura';
 
-export type DepsEstoqueVision = { db: any; chaveEnv: () => string; agora?: () => Date; log?: (...a: any[]) => void };
-
-async function autorizado(deps: DepsEstoqueVision, chave: string): Promise<boolean> {
-  const env = String(deps.chaveEnv() || '').trim();
-  if (env && chavesIguais(chave, env)) return true;
-  if (!chave) return false;
-  try {
-    const s = await deps.db.collection('api_keys').where('key', '==', chave).where('active', '==', true).limit(1).get();
-    if (s.empty) return false;
-    return (s.docs[0].data()?.permissions || {}).estoque_escrita === true;
-  } catch { return false; }
-}
+export type DepsEstoqueVision = { db: any; segredo: () => string; agora?: () => Date; log?: (...a: any[]) => void };
 
 async function idsReservados(db: any, campo: 'stock_item_id' | 'stock_imports_fae_id'): Promise<Set<string>> {
   const s = await db.collection('stock_reservations').where('status', '==', 'active').get();
@@ -75,13 +66,23 @@ export async function processarEnvioEstoque(deps: DepsEstoqueVision, corpo: any)
   return { status: 400, body: { ok: false, error: 'tipo deve ser "estoque" ou "importacoes"' } };
 }
 
+/** Confere a assinatura e processa. `corpo` é o corpo CRU (a assinatura é sobre ele). */
+export async function tratarRequisicaoEstoque(deps: DepsEstoqueVision, req: { headers: Record<string, any>; corpo: Buffer }): Promise<{ status: number; body: any }> {
+  const h = (n: string) => { const v = req.headers[n]; return Array.isArray(v) ? v[0] : v; };
+  const ver = verificarAssinaturaCrm({ segredo: String(deps.segredo() || ''), timestamp: h('x-roder-timestamp'), assinatura: h('x-roder-assinatura'), corpo: req.corpo, agora: deps.agora ? deps.agora() : undefined });
+  if (!ver.ok) return { status: ver.status, body: { ok: false, error: ver.status === 503 ? 'CRM_SEGREDO não configurado' : 'Assinatura inválida' } };
+  let json: any;
+  try { json = JSON.parse(req.corpo.toString('utf8')); } catch { return { status: 400, body: { ok: false, error: 'Corpo não é JSON.' } }; }
+  return processarEnvioEstoque(deps, json);
+}
+
 export function registrarRotaEstoqueVision(app: any, express: any, deps: DepsEstoqueVision) {
-  app.post('/api/public/hooks/estoque', express.json({ limit: '2mb' }), async (req: any, res: any) => {
+  // Corpo CRU (antes do express.json global), igual a /api/crm/eventos.
+  app.post('/api/public/hooks/estoque', express.raw({ type: () => true, limit: '2mb' }), async (req: any, res: any) => {
     const log = deps.log || console.log;
+    res.setHeader('Cache-Control', 'no-store');
     try {
-      const chave = String(req.headers['x-roder-chave'] || '').trim();
-      if (!(await autorizado(deps, chave))) return res.status(401).json({ ok: false, error: 'Chave inválida' });
-      const r = await processarEnvioEstoque(deps, req.body);
+      const r = await tratarRequisicaoEstoque(deps, { headers: req.headers, corpo: Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0) });
       if (r.status === 200) log('[ESTOQUE-VISION]', JSON.stringify(r.body));
       return res.status(r.status).json(r.body);
     } catch (e: any) {
