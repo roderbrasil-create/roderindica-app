@@ -1595,9 +1595,9 @@ var PRODUCT_VIDEOS = {
   "MSR 1000": "https://youtu.be/OE0bsl5FlRw",
   "Garra Frontal": "https://youtu.be/tlp3Grju-LM",
   "Garra para Estufagem": "https://youtu.be/tlp3Grju-LM",
-  "AR400": "https://youtu.be/tlp3Grju-LM",
-  "AR 400": "https://youtu.be/tlp3Grju-LM",
-  "AR-400": "https://youtu.be/tlp3Grju-LM",
+  "AF400": "https://youtu.be/tlp3Grju-LM",
+  "AF 400": "https://youtu.be/tlp3Grju-LM",
+  "AF - 400": "https://youtu.be/tlp3Grju-LM",
   "SSH 150": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
   "SSH 200": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
   "SSH 225": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
@@ -7269,7 +7269,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-25 videos-skidder-estufagem";
+  const RELEASE_LABEL = "2026-10-25 videos-af400";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
