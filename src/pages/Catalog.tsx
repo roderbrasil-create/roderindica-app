@@ -1095,6 +1095,17 @@ export default function Catalog() {
           addGarraEstufagem();
         }
 
+        // 25/10/2026 (Jeferson): AF-360, AF-400, AF-600 e AF-800 estavam com foto de carregador frontal.
+        // Tira as fotos desses quatro modelos UMA vez (a marca no produto evita apagar as certas que
+        // forem enviadas depois). Os AFG não mexem.
+        if (garraEstufagem && !(garraEstufagem as any).fotos_af_limpas_2026_10_25) {
+          const IDS_AF = ['af-360', 'af-400', 'af-600', 'af-800'];
+          const modelosLimpos = (garraEstufagem.models || []).map((m: any) =>
+            IDS_AF.includes(String(m?.id || '').toLowerCase()) ? { ...m, images: [], image_url: '' } : m);
+          updateDoc(doc(db, 'products', garraEstufagem.id), { models: modelosLimpos, fotos_af_limpas_2026_10_25: true })
+            .catch(err => console.warn('Não consegui limpar as fotos dos AF:', err));
+        }
+
         const carregador = data.find(p => p.name?.toLowerCase() === 'carregador frontal');
         if (!carregador && data.length > 0) {
           addCarregadorFrontal();
