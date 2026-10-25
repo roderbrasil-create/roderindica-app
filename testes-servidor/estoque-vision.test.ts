@@ -187,3 +187,14 @@ test('RESERVAS: formato da Disponibilidade (reservas, codigo_item, empresa, id_o
   assert.ok(vazia.ok);
   assert.deepEqual(planejarReservas([{ id: 'x', status: 'active' }], [], [], (vazia as any).itens, new Date()).substituir, ['x']);
 });
+
+test('RESERVAS: importação com código vazio liga pela descrição (chegada vazia também)', async () => {
+  const { lerEnvioReservas, planejarReservas } = await import('../src/lib/estoqueVision');
+  const l = lerEnvioReservas({ tipo: 'reservas', reservas: [
+    { codigo_item: '', empresa: 'fae', tipo: 'reserva', quantidade: 1, id_origem: 'imp-123e4567-e89b-12d3-a456-426614174000', importacao: true, descricao: 'FAE  UML/S/EX/VT-125', chegada: '' },
+  ] });
+  assert.ok(l.ok);
+  const p = planejarReservas([], [], [{ id: 'imp1', description: 'FAE UML/S/EX/VT-125', chegada_iso: '2026-12-01' }], (l as any).itens, new Date());
+  assert.equal(p.gravar[0].dados.stock_imports_fae_id, 'imp1');
+  assert.deepEqual(p.sem_item, []);
+});
