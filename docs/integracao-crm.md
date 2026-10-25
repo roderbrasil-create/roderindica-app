@@ -216,3 +216,10 @@ Repetir o mesmo `id` responde 200 `duplicado`.
 
 - Não há baixa automática de estoque nem pesquisa de qualidade pós-entrega no `pedido.faturado` (a tela faz isso no Faturar).
 - E-mails ao parceiro (como `notifyStatusChange`) não saem pelos eventos; só a notificação dentro do app.
+
+## Roder Vision -> Indica: estoque semanal e importações (POST /api/public/hooks/estoque)
+
+- Autenticação: cabeçalho `x-roder-chave` igual à variável `VISION_CHAVE` (Hostinger) ou uma chave ativa em `api_keys` com `permissions.estoque_escrita = true`.
+- Estoque: `{ tipo:"estoque", origem, filial, enviado_em, itens:[{ codigo, descricao, quantidade }] }`. Origem: roder, fae, accessories, manual, sinop_pdf. Filial: matriz, sinop. Cada envio substitui só aquela origem + filial, com as mesmas regras da tela Estoque > Atualizar (duplicata vale a maior; igual ignora; 0 ou sumido remove, exceto com reserva ativa, que fica com 0; novo cria). Resposta `{ ok, origem, filial, criados, alterados, removidos, mantidos_por_reserva, ignorados }`.
+- Importações: `{ tipo:"importacoes", enviado_em, itens:[{ descricao, quantidade, embarque, chegada }] }`, datas AAAA-MM-DD. Substitui a lista inteira; item com reserva ativa nunca é apagado. Resposta `{ ok, itens, criados, alterados, removidos, reservas_preservadas }`.
+- A tela antiga do Indica continua funcionando. Código: `server/estoqueVision.ts`, regras em `src/lib/estoqueVision.ts`, testes em `testes-servidor/estoque-vision.test.ts`.

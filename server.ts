@@ -56,6 +56,7 @@ import { conciliarComTrava, registrarCorrecoesAutomaticas } from "./server/conci
 import { garantirEmailsLigados } from "./server/emailsSempreLigados";
 import { lerConfigCrm, triagemEhDoCrm } from "./src/lib/crmIntegracao";
 import { registrarRotaEventosCrm } from "./server/crmEventos";
+import { registrarRotaEstoqueVision } from "./server/estoqueVision";
 import { registrarRotasAdminCrm, rodarFilaCrm, rodarAtualizacoesCrm, rodarComissoesCrm, lerDataDaVirada } from "./server/crmEntrada";
 import { referenciaStorage } from "./src/lib/crmFase2";
 import { relatorioDiretoriaDia1, relatorioParceirosDia1, lembreteNfDia5, lembreteFinanceiroDia7, ligarEmailsComissaoUmaVez } from "./server/relatoriosComissao";
@@ -360,6 +361,8 @@ async function startServer() {
   // do corpo CRU, então precisa vir ANTES do express.json() global (que consome e reescreve o corpo).
   const configCrm = () => lerConfigCrm(process.env as any);
   registrarRotaEventosCrm(app, express, { db, arrayUnion: (...v: any[]) => admin.firestore.FieldValue.arrayUnion(...v), config: configCrm });
+  // Roder Vision -> Indica: estoque semanal e importações em trânsito (VISION_CHAVE na Hostinger).
+  registrarRotaEstoqueVision(app, express, { db, chaveEnv: () => String(process.env.VISION_CHAVE || '') });
 
   app.use(express.json({ limit: '50mb' }));
   // A CDN da Hostinger guardava respostas da API (a conferência de versão mostrava a de
