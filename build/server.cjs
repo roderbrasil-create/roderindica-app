@@ -2658,6 +2658,7 @@ var ROTULO_PAPEL_CONVITE = {
   admin: "Diretoria",
   triagem: "Triagem"
 };
+var EMAILS_FORA_DO_CONVITE = ["rogerio@roderbrasil.com.br"];
 var EMAIL_OK = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function filtrarDestinatarios(usuarios) {
   const vistos = /* @__PURE__ */ new Set();
@@ -2667,6 +2668,7 @@ function filtrarDestinatarios(usuarios) {
     const papel = String(u.role || "");
     if (u.status !== "active" || !EMAIL_OK.test(email)) continue;
     if (!PAPEIS_CONVITE.includes(papel)) continue;
+    if (EMAILS_FORA_DO_CONVITE.includes(email)) continue;
     if (vistos.has(email)) continue;
     vistos.add(email);
     saida.push({ id: u.id, nome: String(u.name || "").trim() || email, email, papel, rotulo: ROTULO_PAPEL_CONVITE[papel] || papel });
@@ -7255,7 +7257,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-25 crm-reenvio-carga";
+  const RELEASE_LABEL = "2026-10-25 configuracoes-enxutas";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
