@@ -109,7 +109,7 @@ test('SERVIDOR: envio de estoque grava e responde as contagens', async () => {
   });
   const r = await processarEnvioEstoque({ db, chaveEnv: () => 'x' }, { tipo: 'estoque', origem: 'roder', filial: 'matriz', itens: [{ codigo: 'R800', descricao: 'Garra', quantidade: 3 }] });
   assert.equal(r.status, 200);
-  assert.deepEqual({ ...r.body, ignorados: undefined }, { ok: true, origem: 'roder', filial: 'matriz', criados: 0, alterados: 1, removidos: 0, mantidos_por_reserva: 1, ignorados: undefined });
+  assert.deepEqual({ ...r.body, ignorados: undefined }, { ok: true, origem: 'roder', filial: 'matriz', criados: 0, atualizados: 1, alterados: 1, removidos: 0, mantidos_por_reserva: 1, ignorados: undefined });
   assert.equal(db.colecoes.stock_items.a.quantity, 3);
   assert.equal(db.colecoes.stock_items.b.quantity, 0);
   const ruim = await processarEnvioEstoque({ db, chaveEnv: () => 'x' }, { tipo: 'outro' });

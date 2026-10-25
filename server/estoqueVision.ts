@@ -1,6 +1,8 @@
 // Roder Vision -> Indica: POST /api/public/hooks/estoque
 // Corpo { tipo:"estoque", origem, filial, enviado_em, itens:[{codigo, descricao, quantidade}] }
 //    ou { tipo:"importacoes", enviado_em, itens:[{descricao, quantidade, embarque, chegada}] } (datas AAAA-MM-DD).
+// Resposta do estoque: { ok, origem, filial, criados, atualizados, removidos, mantidos_por_reserva } (alterados = atualizados, por compatibilidade).
+// Reservas em importação: stock_reservations com stock_imports_fae_id (is_import_fae) ativas nunca perdem o item.
 // Autenticação: cabeçalho x-roder-chave igual à variável VISION_CHAVE (Hostinger), ou uma chave ativa em
 // api_keys com permissions.estoque_escrita === true. A tela antiga (Estoque > Atualizar) continua funcionando.
 // Regras em src/lib/estoqueVision.ts. Reservas ativas (stock_reservations) nunca são apagadas nem perdem o item.
@@ -53,7 +55,7 @@ export async function processarEnvioEstoque(deps: DepsEstoqueVision, corpo: any)
     plano.criar.forEach(c => ops.push(b => b.set(col.doc(), { ...c, last_list_match: true, created_at: agora, updated_at: agora, origem_envio: 'roder_vision' })));
     await gravarEmLotes(db, ops);
     await db.collection('settings').doc('estoque_vision').set({ [`ultimo_${envio.origem}_${envio.filial}`]: { em: agora, enviado_em: envio.enviado_em || null, itens: envio.itens.length } }, { merge: true });
-    return { status: 200, body: { ok: true, origem: envio.origem, filial: envio.filial, criados: plano.criar.length, alterados: plano.atualizar.length, removidos: plano.remover.length, mantidos_por_reserva: plano.zerar.length, ignorados: plano.ignorados } };
+    return { status: 200, body: { ok: true, origem: envio.origem, filial: envio.filial, criados: plano.criar.length, atualizados: plano.atualizar.length, alterados: plano.atualizar.length, removidos: plano.remover.length, mantidos_por_reserva: plano.zerar.length, ignorados: plano.ignorados } };
   }
   if (tipo === 'importacoes') {
     const lido = lerEnvioImportacoes(corpo);
@@ -68,7 +70,7 @@ export async function processarEnvioEstoque(deps: DepsEstoqueVision, corpo: any)
     plano.remover.forEach(id => ops.push(b => b.delete(col.doc(id))));
     await gravarEmLotes(db, ops);
     await db.collection('settings').doc('estoque_vision').set({ ultimo_importacoes: { em: agora, itens: lido.itens.length } }, { merge: true });
-    return { status: 200, body: { ok: true, itens: lido.itens.length, criados: plano.criar.length, alterados: plano.atualizar.length, removidos: plano.remover.length, reservas_preservadas: plano.preservados.length } };
+    return { status: 200, body: { ok: true, itens: lido.itens.length, criados: plano.criar.length, atualizados: plano.atualizar.length, alterados: plano.atualizar.length, removidos: plano.remover.length, reservas_preservadas: plano.preservados.length } };
   }
   return { status: 400, body: { ok: false, error: 'tipo deve ser "estoque" ou "importacoes"' } };
 }
