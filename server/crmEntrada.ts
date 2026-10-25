@@ -286,10 +286,20 @@ export async function cargaInicialCrm(deps: DepsEntradaCrm, o: { simulacao?: boo
   return { ok: true as const, simulacao: false, elegiveis: elegiveis.length, tentadas: lr.tentadas, enviadas: lr.enviadas, falhas: lr.tentadas - lr.enviadas, restantes: Math.max(elegiveis.length - lr.enviadas, 0), resumo: lr.resumo };
 }
 
+// Reenvia ao CRM tudo o que já foi enviado como carga inicial, em uma chamada só (até 500). Não duplica no CRM.
+export async function reenviarCargaCrm(deps: DepsEntradaCrm) {
+  const cfg = deps.config();
+  if (!podeCargaAoCrm(cfg)) return { ok: false as const, status: 409, error: 'Configure CRM_CHAVE (e confira CRM_URL) antes de enviar.' };
+  const s = await deps.db.collection('indications').where('crm_carga_inicial', '==', true).get();
+  const ids = s.docs.map((d: any) => d.id).slice(0, MAX_ITENS_CARGA);
+  const lr: any = await enviarLoteComoCarga(deps, ids, { backoff: false, reenvio: true });
+  return { ok: true as const, tentadas: lr.tentadas, enviadas: lr.enviadas, falhas: lr.tentadas - lr.enviadas, erro: lr.erro, resumo: lr.resumo };
+}
+
 // Envia um lote no formato { tipo: 'carga_inicial', itens } (histórico: sem aviso de "recebida" no CRM, sem
 // notificar_email, com a nota "[Já estava em negociação...]"). Usado pela carga manual e pelo laço, para as
 // em negociação anteriores à virada. `backoff`: no laço, a falha de transporte reagenda (crm_proxima_tentativa_em).
-export async function enviarLoteComoCarga(deps: DepsEntradaCrm, ids: string[], o: { backoff: boolean }) {
+export async function enviarLoteComoCarga(deps: DepsEntradaCrm, ids: string[], o: { backoff: boolean; reenvio?: boolean }) {
   const agora = deps.agora ? deps.agora() : new Date();
   const log = deps.log || console.log;
   const itens: any[] = []; const reservadas: { id: string; ind: any }[] = [];
@@ -300,7 +310,8 @@ export async function enviarLoteComoCarga(deps: DepsEntradaCrm, ids: string[], o
       const sn = await tx.get(ref);
       if (!sn.exists) return null;
       const ind = sn.data();
-      if (motivoNaoEnviarNaCarga(ind, { agora })) return null;
+      // Reenvio manual: o CRM não duplica (id_externo igual volta como "repetidos"), então o que já foi enviado pode ir de novo.
+      if (motivoNaoEnviarNaCarga(o.reenvio ? { ...ind, crm_enviado_em: null, crm_desistiu_em: null } : ind, { agora })) return null;
       tx.update(ref, { crm_reservado_ate: new Date(agora.getTime() + RESERVA_ENVIO_MS).toISOString() });
       return ind;
     });
@@ -323,6 +334,12 @@ export async function enviarLoteComoCarga(deps: DepsEntradaCrm, ids: string[], o
 
   const r = await postarCrm(deps, { tipo: 'carga_inicial', itens });
   const nowIso = agora.toISOString();
+  // Guarda a resposta COMPLETA do CRM: o aviso na tela some em segundos e é a prova do que chegou.
+  try {
+    await deps.db.collection('settings').doc(DOC_CONFIG_CRM).set({
+      ultima_carga: { em: nowIso, itens: itens.length, reenvio: !!o.reenvio, http: r.status, ok: r.ok, resposta: (r.json ? JSON.stringify(r.json) : (r.erro || '')).slice(0, 4000) },
+    }, { merge: true });
+  } catch { /* guardar a resposta nunca derruba o envio */ }
   const resultados: ResultadoEnvio[] = [];
   if (!r.ok) {
     // Falha de transporte, 401, 403, 429, 5xx ou 4xx do lote inteiro: não é culpa de nenhuma indicação.
@@ -663,7 +680,7 @@ export function registrarRotasAdminCrm(app: any, deps: DepsEntradaCrm & { exigir
         ativo_desde: desde, pode_carga: podeCargaAoCrm(cfg), pendentes_da_carga: sim && sim.ok ? sim.elegiveis : null,
         pendentes_como_novas: sim && sim.ok ? (sim as any).pendentes_novas : null, desistiram,
         carga_em_negociacao: sim && sim.ok ? (sim as any).em_negociacao : null, carga_vendidas: sim && sim.ok ? (sim as any).vendidas : null, carga_total: sim && sim.ok ? (sim as any).total_carga : null,
-        alerta_transporte: cfgDoc.alerta_transporte || null, carga_inicial_em: cfgDoc.carga_inicial_em || null,
+        alerta_transporte: cfgDoc.alerta_transporte || null, carga_inicial_em: cfgDoc.carga_inicial_em || null, ultima_carga: cfgDoc.ultima_carga || null,
       });
     } catch (e: any) { return res.status(500).json({ ok: false, error: e?.message || 'Erro.' }); }
   });
@@ -676,6 +693,17 @@ export function registrarRotasAdminCrm(app: any, deps: DepsEntradaCrm & { exigir
     } catch (e: any) {
       (deps.log || console.error)('[CRM-CARGA] Erro:', e?.message);
       return res.status(500).json({ ok: false, error: 'Não consegui concluir a carga. Tente de novo.' });
+    }
+  });
+
+  app.post('/api/admin/crm/reenviar-carga', async (req: any, res: any) => {
+    if (!(await deps.exigirAdmin(req, res))) return;
+    try {
+      const r = await reenviarCargaCrm(deps);
+      return res.status(r.ok ? 200 : (r as any).status).json(r);
+    } catch (e: any) {
+      (deps.log || console.error)('[CRM-CARGA] Erro no reenvio:', e?.message);
+      return res.status(500).json({ ok: false, error: 'Não consegui reenviar a carga. Tente de novo.' });
     }
   });
 

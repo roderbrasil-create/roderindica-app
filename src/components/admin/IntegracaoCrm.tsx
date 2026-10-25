@@ -8,7 +8,7 @@ import { getApiBaseUrl } from '../../lib/utils';
 
 // Integração com o CRM do Roder Vision. Só o administrador vê.
 // A carga inicial manda ao CRM as indicações abertas que ainda não foram enviadas (cada uma uma só vez).
-interface Estado { ativo: boolean; tem_chave: boolean; tem_segredo: boolean; destino: string; ativo_desde: string | null; pode_carga: boolean; pendentes_da_carga: number | null; pendentes_como_novas: number | null; carga_em_negociacao: number | null; carga_vendidas: number | null; carga_total: number | null; desistiram: number; carga_inicial_em: string | null; alerta_transporte: { motivo: string; seguidas: number; em: string } | null }
+interface Estado { ativo: boolean; tem_chave: boolean; tem_segredo: boolean; destino: string; ativo_desde: string | null; pode_carga: boolean; pendentes_da_carga: number | null; pendentes_como_novas: number | null; carga_em_negociacao: number | null; carga_vendidas: number | null; carga_total: number | null; desistiram: number; carga_inicial_em: string | null; ultima_carga: { em: string; itens: number; reenvio: boolean; http: number; ok: boolean; resposta: string } | null; alerta_transporte: { motivo: string; seguidas: number; em: string } | null }
 
 async function chamar(caminho: string, corpo?: unknown) {
   const token = await auth.currentUser?.getIdToken();
@@ -44,6 +44,15 @@ export default function IntegracaoCrm() {
     } catch (e: any) {
       toast.error(e.message || 'Não deu certo.');
     } finally { setOcupado(false); carregar(); }
+  };
+
+  const reenviar = async () => {
+    if (!window.confirm('Reenviar ao CRM as indicações da carga inicial? O CRM não duplica: o que já chegou volta como repetido.')) return;
+    setOcupado(true);
+    try {
+      const r = await chamar('/api/admin/crm/reenviar-carga', {});
+      toast.success(`${r.enviadas ?? 0} reenviada(s), ${r.falhas ?? 0} com falha. A resposta completa do CRM está logo abaixo.`, { duration: 8000 });
+    } catch (e: any) { toast.error(e.message || 'Não deu certo.'); } finally { setOcupado(false); carregar(); }
   };
 
   const reativar = async () => {
@@ -82,10 +91,22 @@ export default function IntegracaoCrm() {
           <Button size="sm" disabled={ocupado || !pronto} onClick={() => carga(false)}>
             {ocupado ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Enviar indicações abertas ao CRM'}
           </Button>
+          {estado.carga_inicial_em && (
+            <Button size="sm" variant="outline" disabled={ocupado || !pronto} onClick={reenviar}>Reenviar a carga (não duplica)</Button>
+          )}
           {estado.desistiram > 0 && (
             <Button size="sm" variant="outline" disabled={ocupado} onClick={reativar}>Tentar de novo as que desistiram ({estado.desistiram})</Button>
           )}
         </div>
+        {estado.ultima_carga && (
+          <div className="rounded-md border px-3 py-2 space-y-1">
+            <p className="text-xs text-muted-foreground">
+              Última carga{estado.ultima_carga.reenvio ? ' (reenvio)' : ''}: {new Date(estado.ultima_carga.em).toLocaleString('pt-BR')}, {estado.ultima_carga.itens} item(ns), HTTP {estado.ultima_carga.http}
+            </p>
+            <pre className="whitespace-pre-wrap break-all text-xs">{estado.ultima_carga.resposta || '(sem texto)'}</pre>
+            <Button size="sm" variant="outline" onClick={() => { try { navigator.clipboard.writeText(estado.ultima_carga!.resposta || ''); toast.success('Copiado.'); } catch { toast.error('Não consegui copiar.'); } }}>Copiar resposta</Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
