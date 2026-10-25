@@ -25,6 +25,9 @@ export interface DestinatarioConvite {
   rotulo: string;
 }
 
+// Rogério não usa o Consultor: receber o convite só geraria dúvida, então fica fora da lista.
+export const EMAILS_FORA_DO_CONVITE = ['rogerio@roderbrasil.com.br'] as const;
+
 const EMAIL_OK = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Usuários ativos, com e-mail válido e papel do comercial interno. Um e-mail aparece uma vez só.
@@ -36,6 +39,7 @@ export function filtrarDestinatarios(usuarios: Array<{ id: string } & Record<str
     const papel = String(u.role || '');
     if (u.status !== 'active' || !EMAIL_OK.test(email)) continue;
     if (!(PAPEIS_CONVITE as readonly string[]).includes(papel)) continue;
+    if ((EMAILS_FORA_DO_CONVITE as readonly string[]).includes(email)) continue;
     if (vistos.has(email)) continue;
     vistos.add(email);
     saida.push({ id: u.id, nome: String(u.name || '').trim() || email, email, papel, rotulo: ROTULO_PAPEL_CONVITE[papel] || papel });

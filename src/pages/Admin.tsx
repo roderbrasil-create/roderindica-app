@@ -12,8 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import RegrasSeguranca from '../components/admin/RegrasSeguranca';
-import SondaRegras from '../components/admin/SondaRegras';
+import RegrasFirebase from '../components/admin/RegrasFirebase';
 import ConviteConsultor from '../components/admin/ConviteConsultor';
 import DiagnosticoComissao from '../components/admin/DiagnosticoComissao';
 import IntegracaoCrm from '../components/admin/IntegracaoCrm';
@@ -56,7 +55,8 @@ import {
   Copy,
   Check,
   Power,
-  BookOpen
+  BookOpen,
+  ChevronDown
 } from 'lucide-react';
 import { 
   Tabs, 
@@ -225,12 +225,8 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
   const generateGuideText = (apiKey?: RoderApiKey | null) => {
     const keyVal = apiKey?.key || 'SUA_CHAVE_AQUI';
     const appName = apiKey?.name || 'Seu Aplicativo';
-    // Se estiver rodando no ambiente de preview/dev privado (ais-dev-*.run.app), 
-    // a URL pública/compartilhada sem autenticação do Google é ais-pre-*.run.app
-    const currentOrigin = window.location.origin;
-    const origin = currentOrigin.includes('ais-dev-')
-      ? currentOrigin.replace('ais-dev-', 'ais-pre-')
-      : currentOrigin;
+    // O endereço real de onde o app está aberto, sem trocar prefixo de hospedagem antiga.
+    const origin = window.location.origin;
 
     return `# GUIA DE INTEGRAÇÃO - API RODER INDICA V2
 # Destinado a: ${appName}
@@ -248,7 +244,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
    • Catálogo Técnico de Equipamentos:
      GET ${origin}/api/v1/catalog
 
-   (Nota: ${origin.includes('ais-pre-') ? 'Esta é a URL pública/compartilhada pública da API que NÃO exige login do Google.' : 'URL pública direta.'})
+   (Nota: URL pública direta.)
 
 2. COMO AUTENTICAR SUAS REQUISIÇÕES:
    Opção A (Recomendada via Cabeçalho HTTP Header):
@@ -438,7 +434,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
     { id: 'commissions_summary', label: 'Resumo Financeiro (Comissões)' },
     { id: 'standard_seller_efficiency', label: 'Eficiência Vendedor Padrão' },
     { id: 'active_reservations', label: 'Reservas Ativas' },
-    { id: 'goals', label: 'Metas Mensais' },
+    { id: 'goals', label: 'Comissões Previstas' },
     { id: 'recent_indications', label: 'Indicações Recentes' },
     { id: 'conversion_ranking', label: 'Ranking de Conversão' },
     { id: 'manager_financial', label: 'Resumo Gerencial (Gislene)' },
@@ -1043,6 +1039,8 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
     monthly_indications: 50,
   });
   const [savingGoals, setSavingGoals] = useState(false);
+  // Log de auditoria começa recolhido: é consulta, não rotina
+  const [logAberto, setLogAberto] = useState(false);
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const [passwordForUser, setPasswordForUser] = useState({ email: '', password: '', name: '', uid: '' });
   const [isSettingPassword, setIsSettingPassword] = useState(false);
@@ -1793,19 +1791,6 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                   <Mail className="h-4 w-4 shrink-0" /> <span>E-mail</span>
                 </TabsTrigger>
               )}
-              {(isAdmin || isManager || isMarketing) && (
-                <TabsTrigger 
-                  value="goals" 
-                  className={cn(
-                    "flex-1 flex items-center justify-center gap-2 py-3 px-4 text-[11px] md:text-xs font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer h-11",
-                    activeTab === 'goals' 
-                      ? "bg-orange-600 text-white shadow-[0_4px_12px_rgba(234,88,12,0.3)] border border-orange-600 scale-[1.02] z-10" 
-                      : "bg-transparent text-muted-foreground hover:text-foreground border border-transparent hover:bg-muted/30"
-                  )}
-                >
-                  <TrendingUp className="h-4 w-4 shrink-0" /> <span>Metas</span>
-                </TabsTrigger>
-              )}
               {isAdmin && (
                 <TabsTrigger 
                   value="system" 
@@ -2372,13 +2357,9 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
             </TabsContent>
 
           <TabsContent value="settings">
-            {(isAdmin || isManager) && <div className="max-w-5xl mb-6"><SondaRegras /></div>}
-            {(isAdmin || isManager) && <ConviteConsultor />}
-            {isAdmin && <div className="max-w-5xl"><RegrasSeguranca /></div>}
-            {isAdmin && <div className="max-w-5xl"><DiagnosticoComissao /></div>}
-            {isAdmin && <IntegracaoCrm />}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-5xl">
               <div className="flex flex-col gap-6">
+                {!isAdmin && <RegrasFirebase podePublicar={false} />}
                 {/* Central de Notificações */}
                 <Card className="bg-card border-border shadow-sm">
                   <CardHeader>
@@ -2401,7 +2382,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                               <AlertCircle className="h-3 w-3" /> Configuração Atual
                             </p>
                             <p className="text-[11px] text-blue-700/80 leading-relaxed font-medium">
-                              Utilizando <strong>hostindicaregistry@gmail.com</strong> com Senha de App (16 dígitos).
+                              Remetente configurado agora: <strong>{emailSettings.user || 'nenhum'}</strong>
                             </p>
                           </div>
 
@@ -2504,55 +2485,6 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
             </div>
           </TabsContent>
 
-          <TabsContent value="goals">
-            <div className="max-w-2xl">
-              <Card className="bg-card border-border shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-xl font-bold flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5 text-primary" /> Definição de Metas Mensais
-                  </CardTitle>
-                  <p className="text-xs text-muted-foreground">Estes valores serão usados para calcular a performance no Dashboard.</p>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="monthly_revenue" className="text-xs">Meta de Faturamento Mensal (R$)</Label>
-                      <Input 
-                        id="monthly_revenue"
-                        type="number"
-                        placeholder="500000"
-                        value={goals.monthly_revenue}
-                        onChange={(e) => setGoals({...goals, monthly_revenue: parseFloat(e.target.value) || 0})}
-                        className="bg-background border-border"
-                      />
-                      <p className="text-[10px] text-muted-foreground">Valor total somado das vendas concluídas.</p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="monthly_indications" className="text-xs">Meta de Indicações (Volume)</Label>
-                      <Input 
-                        id="monthly_indications"
-                        type="number"
-                        placeholder="50"
-                        value={goals.monthly_indications}
-                        onChange={(e) => setGoals({...goals, monthly_indications: parseInt(e.target.value) || 0})}
-                        className="bg-background border-border"
-                      />
-                      <p className="text-[10px] text-muted-foreground">Quantidade total de leads recebidos no mês.</p>
-                    </div>
-                  </div>
-
-                  <Button 
-                    onClick={handleSaveGoals} 
-                    disabled={savingGoals} 
-                    className="w-full bg-primary hover:bg-primary/90 mt-4 font-bold uppercase tracking-wider"
-                  >
-                    {savingGoals ? 'Salvando...' : 'Salvar Metas Mensais'}
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
           <TabsContent value="approval">
             <Card className="bg-card border-border shadow-sm">
               <CardHeader>
@@ -2612,18 +2544,26 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
             </Card>
           </TabsContent>
 
-          <TabsContent value="system">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Audit Log */}
-              <div className="lg:col-span-3">
-                <Card className="bg-card border-border shadow-sm min-h-[460px]">
-                  <CardHeader className="flex flex-row items-center justify-between pb-2">
-                    <CardTitle className="text-lg font-bold flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-primary" /> Log de Auditoria do Sistema
-                    </CardTitle>
+          <TabsContent value="system" className="space-y-6 max-w-5xl">
+            {/* cada bloco é recolhido e mostra o resultado à vista no cabeçalho */}
+            <RegrasFirebase podePublicar={isAdmin} />
+            {isAdmin && <DiagnosticoComissao />}
+            <Card className="bg-card border-border shadow-sm">
+              <CardHeader className="pb-2">
+                <button type="button" onClick={() => setLogAberto(v => !v)} aria-expanded={logAberto}
+                  className="flex min-h-[44px] w-full items-center justify-between gap-2 text-left">
+                  <CardTitle className="text-lg font-bold flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-primary" /> Log de Auditoria do Sistema
+                  </CardTitle>
+                  <span className="flex items-center gap-2 shrink-0">
                     <Badge variant="outline" className="text-[10px] font-black uppercase">{auditLogs.length} Eventos</Badge>
-                  </CardHeader>
-                  <CardContent>
+                    <ChevronDown className={cn("h-5 w-5 text-muted-foreground transition-transform", logAberto && "rotate-180")} />
+                  </span>
+                </button>
+                <p className="m-0 text-[12.5px] text-muted-foreground">Eventos do sistema.</p>
+              </CardHeader>
+              {logAberto && (
+                <CardContent>
                     <div className="overflow-x-auto">
                       <table className="w-full text-[11px]">
                         <thead>
@@ -2672,13 +2612,13 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                         </tbody>
                       </table>
                     </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
+                </CardContent>
+              )}
+            </Card>
           </TabsContent>
 
           <TabsContent value="ai_monitoring" className="space-y-6">
+            {(isAdmin || isManager) && <ConviteConsultor />}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
               <div className="space-y-1">
                 <h2 className="text-xl font-black uppercase tracking-tight text-foreground flex items-center gap-2">
@@ -2793,6 +2733,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
 
           {/* ABA INTEGRAÇÕES E CHAVES DE API */}
           <TabsContent value="api_keys" className="space-y-6">
+            {isAdmin && <IntegracaoCrm />}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card p-6 rounded-2xl border border-border shadow-sm">
               <div>
                 <div className="flex items-center gap-2">
@@ -2880,13 +2821,13 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                       GET
                     </Badge>
                     <span className="font-mono text-xs font-semibold text-foreground select-all">
-                      {(window.location.origin.includes('ais-dev-') ? window.location.origin.replace('ais-dev-', 'ais-pre-') : window.location.origin)}/api/v1/stock
+                      {window.location.origin}/api/v1/stock
                     </span>
                   </div>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => copyToClipboard(`${(window.location.origin.includes('ais-dev-') ? window.location.origin.replace('ais-dev-', 'ais-pre-') : window.location.origin)}/api/v1/stock`)}
+                    onClick={() => copyToClipboard(`${window.location.origin}/api/v1/stock`)}
                     className="h-8 text-xs font-semibold flex items-center gap-1.5"
                   >
                     {copiedEndpoint ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
@@ -2894,7 +2835,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  <strong className="text-foreground">URL Pública (sem login do Google):</strong> A URL acima utiliza o domínio público compartilhado (<code className="font-mono font-bold text-emerald-600">ais-pre-*.run.app</code>), permitindo que aplicativos externos acessem diretamente via API Key sem redirecionar para a tela de login do Google. Faça a requisição com o cabeçalho <code className="bg-background px-1.5 py-0.5 rounded text-[11px] font-mono text-emerald-600 font-bold">x-api-key: SUA_CHAVE</code>.
+                  <strong className="text-foreground">Endereço da API:</strong> é o mesmo endereço onde o Roder Indica está aberto agora. Aplicativos externos acessam direto com a API Key. Faça a requisição com o cabeçalho <code className="bg-background px-1.5 py-0.5 rounded text-[11px] font-mono text-emerald-600 font-bold">x-api-key: SUA_CHAVE</code>.
                 </p>
               </CardContent>
             </Card>

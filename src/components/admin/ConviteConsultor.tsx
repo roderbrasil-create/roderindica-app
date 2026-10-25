@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Mail, Loader2, RefreshCw } from 'lucide-react';
+import { Mail, Loader2, RefreshCw, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -33,6 +33,8 @@ export default function ConviteConsultor() {
   const [resultados, setResultados] = useState<Res[]>([]);
   const [erro, setErro] = useState('');
   const [ver, setVer] = useState(false);
+  // a lista de quem recebe fica recolhida: o resumo ("N pessoas marcadas") basta no dia a dia
+  const [escolher, setEscolher] = useState(false);
 
   const carregar = useCallback(async () => {
     setErro('');
@@ -74,20 +76,35 @@ export default function ConviteConsultor() {
         {erro && <p className="m-0 text-sm font-bold text-[#B42318]">{erro}</p>}
         {lista && lista.length === 0 && !erro && <p className="m-0 text-sm">Nenhum usuário ativo do comercial interno encontrado.</p>}
         {lista && lista.length > 0 && (
-          <div className="rounded-xl border border-border divide-y divide-border">
-            {lista.map(d => (
-              <label key={d.id} className="flex min-h-[44px] items-center gap-3 px-3 py-2 cursor-pointer">
-                <input type="checkbox" className="h-5 w-5" checked={marcados.has(d.email)} onChange={() => alternar(d.email)} />
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-bold truncate">{d.nome}</span>
-                  <span className="block text-[12.5px] text-muted-foreground truncate">{d.email}</span>
-                </span>
-                <span className="text-right text-[12.5px]">
-                  <span className="block font-bold">{d.rotulo}</span>
-                  {d.ultimo_convite && <span className="block text-muted-foreground">Enviado em {dataBr(d.ultimo_convite)}</span>}
-                </span>
-              </label>
-            ))}
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-block rounded-md bg-amber-100 px-2 py-1 text-[12.5px] font-extrabold text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                {marcados.size} {marcados.size === 1 ? 'pessoa marcada' : 'pessoas marcadas'}
+              </span>
+              <Button variant="outline" onClick={() => setEscolher(v => !v)} aria-expanded={escolher} className="h-11 min-h-[44px]">
+                Escolher quem recebe <ChevronDown className={`h-4 w-4 ml-1 transition-transform ${escolher ? 'rotate-180' : ''}`} />
+              </Button>
+            </div>
+            {!escolher && marcados.size > 0 && (
+              <p className="m-0 text-[12.5px] text-muted-foreground">{lista.filter(d => marcados.has(d.email)).map(d => d.nome.split(' ')[0]).join(' · ')}</p>
+            )}
+            {escolher && (
+              <div className="rounded-xl border border-border divide-y divide-border">
+                {lista.map(d => (
+                  <label key={d.id} className="flex min-h-[44px] items-center gap-3 px-3 py-2 cursor-pointer">
+                    <input type="checkbox" className="h-5 w-5" checked={marcados.has(d.email)} onChange={() => alternar(d.email)} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-bold truncate">{d.nome}</span>
+                      <span className="block text-[12.5px] text-muted-foreground truncate">{d.email}</span>
+                    </span>
+                    <span className="text-right text-[12.5px]">
+                      <span className="block font-bold">{d.rotulo}</span>
+                      {d.ultimo_convite && <span className="block text-muted-foreground">Enviado em {dataBr(d.ultimo_convite)}</span>}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
         )}
         <div className="flex flex-wrap items-center gap-2">

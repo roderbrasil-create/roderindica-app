@@ -17,12 +17,12 @@ import {
 // são as desta versão do código. Lê um documento e um arquivo "sonda" que só as regras novas deixam ler.
 const codigoDe = (e: any): string => String(e?.code || '');
 
-async function sondarFirestore(): Promise<ResultadoSonda> {
+export async function sondarFirestore(): Promise<ResultadoSonda> {
   try { await getDocFromServer(doc(db, SONDA_FIRESTORE[0], SONDA_FIRESTORE[1])); return interpretarFirestore(null); }
   catch (e) { return interpretarFirestore(codigoDe(e).replace('firestore/', '')); }
 }
 
-async function sondarStorage(): Promise<ResultadoSonda> {
+export async function sondarStorage(): Promise<ResultadoSonda> {
   // app separado, só em memória, com login anônimo: não mexe na sessão de quem está conferindo
   const app = initializeApp(firebaseConfig, `sonda-${Date.now()}`);
   try {
@@ -44,7 +44,7 @@ function Selo({ r }: { r: ResultadoSonda | null }) {
   return <span className="rounded-md bg-[#F1F2F4] px-2 py-1 text-[12.5px] font-extrabold text-[#3E444B]">Não consegui conferir</span>;
 }
 
-function Item({ nome, arquivo, link, r }: { nome: string; arquivo: string; link: string; r: ResultadoSonda | null }) {
+export function Item({ nome, arquivo, link, r }: { nome: string; arquivo: string; link: string; r: ResultadoSonda | null }) {
   return (
     <div className="rounded-xl border border-border p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">

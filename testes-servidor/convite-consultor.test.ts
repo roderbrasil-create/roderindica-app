@@ -22,6 +22,15 @@ test('CONVITE: só comercial interno ativo, com e-mail, sem repetir', () => {
   assert.ok(!l.some(d => ['external_seller', 'financial', 'marketing'].includes(d.papel)));
 });
 
+test('CONVITE: Rogério não usa o Consultor e fica fora da lista, em qualquer papel ou caixa', () => {
+  const l = filtrarDestinatarios([
+    ...usuarios,
+    { id: '20', name: 'Rogério', email: 'Rogerio@roderbrasil.com.br', role: 'manager', status: 'active' },
+  ]);
+  assert.ok(!l.some(d => d.email === 'rogerio@roderbrasil.com.br'));
+  assert.equal(l.length, 4);
+});
+
 test('CONVITE: texto com saudação pelo nome, link da equipe e os três jeitos de instalar', () => {
   const m = montarConvite('Heloísa Lima');
   assert.match(m.texto, /^Olá, Heloísa!/);

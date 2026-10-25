@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ShieldCheck, Loader2, Undo2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 
 // Publica as regras de segurança do Firebase pelo servidor, sem abrir o console.
@@ -33,7 +32,8 @@ const PAPEL: Record<string, string> = {
 };
 const dataHora = (iso?: string | null) => (iso ? new Date(iso).toLocaleString('pt-BR') : '');
 
-export default function RegrasSeguranca() {
+// `aoAgir` avisa o card pai para conferir de novo as regras publicadas depois de publicar ou voltar.
+export default function RegrasSeguranca({ aoAgir }: { aoAgir?: () => void }) {
   const [estado, setEstado] = useState<{ firestore?: EstadoAlvo; storage?: EstadoAlvo; email_confirmado?: EmailConfirmado; senhas_pela_gestao?: SenhaPelaGestao[] | { erro: string } } | null>(null);
   const [verLista, setVerLista] = useState(false);
   const [erro, setErro] = useState('');
@@ -70,6 +70,7 @@ export default function RegrasSeguranca() {
     } finally {
       setOcupado('');
       carregar();
+      aoAgir?.();
     }
   };
 
@@ -94,18 +95,16 @@ export default function RegrasSeguranca() {
   const senhasGestao = Array.isArray(sg) ? sg : [];
   const erroSenhasGestao = sg && !Array.isArray(sg) ? sg.erro : '';
 
+  // só mostra a conferência quando há algo a fazer: não terminou, tem pendência ou deu erro
+  const mostrarConferencia = !conferido || pendentes.length > 0 || (ec?.erros || 0) > 0;
+  const mostrarSenhas = !!erroSenhasGestao || senhasGestao.length > 0;
+
   return (
-    <Card className="bg-card border-border shadow-sm mb-6">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-lg font-bold flex items-center gap-2">
-          <ShieldCheck className="h-5 w-5 text-emerald-600" /> Regras de segurança do Firebase
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <div className="space-y-3">
         {erro && <p className="text-sm font-bold text-red-600">{erro}</p>}
         {linha('Banco de dados', estado?.firestore)}
         {linha('Arquivos (fotos, vídeos, notas)', estado?.storage)}
-        <div className="rounded-md border border-border p-3 text-sm space-y-1">
+        {mostrarConferencia && <div className="rounded-md border border-border p-3 text-sm space-y-1">
           <p className="font-semibold">Conferência das contas da equipe</p>
           {!estado ? <p className="text-muted-foreground">...</p> : !conferido ? (
             <p className="text-amber-600 font-bold">
@@ -151,8 +150,8 @@ export default function RegrasSeguranca() {
               )}
             </>
           )}
-        </div>
-        <div className="rounded-md border border-border p-3 text-sm space-y-1">
+        </div>}
+        {mostrarSenhas && <div className="rounded-md border border-border p-3 text-sm space-y-1">
           <p className="font-semibold">Senhas definidas por gerente ou triagem</p>
           {!estado ? <p className="text-muted-foreground">...</p> : erroSenhasGestao ? (
             <p className="text-amber-600 font-bold">Não consegui ler o registro: {erroSenhasGestao}</p>
@@ -169,7 +168,7 @@ export default function RegrasSeguranca() {
               ))}
             </ul>
           )}
-        </div>
+        </div>}
         {comErros && (
           <p className="text-sm font-bold text-amber-700 rounded-md border border-amber-400 bg-amber-50 dark:bg-amber-950/30 p-2">
             Atenção: {ec?.erros} conta(s) deram erro na conferência e ficaram sem confirmar. Se for alguém da equipe com senha,
@@ -177,18 +176,17 @@ export default function RegrasSeguranca() {
             Usuários antes de publicar, ou publique sabendo disso.
           </p>
         )}
-        <div className="flex flex-wrap gap-2 pt-1">
-          <Button onClick={() => agir('publicar')} disabled={!!ocupado || tudoNovo || !estado || !conferido} className="bg-[#facc15] text-black hover:bg-[#eab308] font-bold">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 pt-1">
+          <Button onClick={() => agir('publicar')} disabled={!!ocupado || tudoNovo || !estado || !conferido} className="min-h-[44px] bg-[#facc15] text-black hover:bg-[#eab308] font-bold">
             {ocupado === 'publicar' ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ShieldCheck className="h-4 w-4 mr-2" />}
             Publicar regras novas
           </Button>
-          <Button variant="outline" onClick={() => agir('voltar')} disabled={!!ocupado || !podeVoltar}>
+          <Button variant="outline" onClick={() => agir('voltar')} disabled={!!ocupado || !podeVoltar} className="min-h-[44px]">
             {ocupado === 'voltar' ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Undo2 className="h-4 w-4 mr-2" />}
             Voltar regras anteriores
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">Se depois de publicar alguém não conseguir entrar ou salvar, aperte "Voltar regras anteriores".</p>
-      </CardContent>
-    </Card>
+    </div>
   );
 }

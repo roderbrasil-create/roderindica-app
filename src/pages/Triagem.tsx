@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { entradaParaGravar } from '../lib/observacaoParceiro';
+import { avisoCrmTriagemVisivel, TEXTO_AVISO_CRM_TRIAGEM } from '../lib/avisoCrmTriagem';
 import Layout from '../components/layout/Layout';
 import { collection, query, where, onSnapshot, orderBy, doc, updateDoc, getDocs, addDoc, getDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -653,6 +654,11 @@ export default function Triagem() {
   return (
     <Layout>
       <div className="space-y-6">
+        {avisoCrmTriagemVisivel() && (
+          <div role="status" className="rounded-xl border border-sky-300 bg-sky-50 px-4 py-3 text-sm font-medium leading-snug text-sky-900 dark:border-sky-800 dark:bg-sky-950/30 dark:text-sky-200">
+            {TEXTO_AVISO_CRM_TRIAGEM}
+          </div>
+        )}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">

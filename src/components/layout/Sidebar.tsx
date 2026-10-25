@@ -399,19 +399,8 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     { id: 'catalog', name: 'Catálogo de Equipamentos', path: '/catalogo', icon: BookOpen, roles: ['admin', 'manager', 'internal_seller', 'triagem', 'external_seller', 'vendedor_padrao', 'marketing'] },
     { id: 'products_stock', name: 'Estoque Roder', path: '/estoque', icon: Package, roles: ['admin', 'manager', 'internal_seller', 'triagem', 'financial', 'marketing', 'external_seller', 'vendedor_padrao'] },
     { id: 'my_sales', name: 'Minhas Indicações', path: '/indicacoes', icon: Filter, roles: ['external_seller', 'vendedor_padrao'] },
-    { 
-      id: 'fairs',
-      name: 'Eventos / Feiras', 
-      icon: History, 
-      roles: ['admin', 'manager', 'internal_seller', 'triagem', 'marketing'],
-      isParent: true,
-      isOpenState: fairsMenuOpen,
-      setIsOpenState: handleSetFairsMenuOpen,
-      subItems: [
-        { name: 'Gestão de Feiras e Eventos', path: '/feiras', icon: Settings, roles: ['admin', 'manager', 'marketing'] },
-        { name: 'Endomarketing', path: '/endomarketing', icon: HeartHandshake, roles: ['admin', 'manager', 'marketing'] },
-      ]
-    },
+    // Feiras e Endomarketing saíram do menu (o comercial interno foi para o CRM Roder Vision).
+    // As rotas e páginas continuam: QR codes impressos usam /f, /expo e /cadastro-rapido.
     { 
       id: 'comercial',
       name: 'Comercial', 

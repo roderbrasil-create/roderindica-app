@@ -41,14 +41,15 @@ test('SONDA: interpretação dos códigos do Firestore e do Storage', () => {
   assert.equal(interpretarStorage('storage/retry-limit-exceeded'), 'incerto');
 });
 
-test('SONDA: links do console e cartão na tela de Configurações só para admin e gerência', () => {
+test('SONDA: links do console e cartão único na aba Monitoramento (a aba é só do admin; publicar também)', () => {
   assert.equal(LINK_REGRAS_FIRESTORE, 'https://console.firebase.google.com/project/gen-lang-client-0708423613/firestore/databases/ai-studio-e7c58188-6deb-4a73-b6a5-1858f8dce981/rules');
   assert.equal(LINK_REGRAS_STORAGE, 'https://console.firebase.google.com/project/gen-lang-client-0708423613/storage/gen-lang-client-0708423613.firebasestorage.app/rules');
   const admin = ler('src/pages/Admin.tsx');
-  assert.match(admin, /\(isAdmin \|\| isManager\) && <div[^>]*><SondaRegras \/>/);
-  const cartao = ler('src/components/admin/SondaRegras.tsx');
+  assert.match(admin, /<RegrasFirebase podePublicar=\{isAdmin\} \/>/);
+  const cartao = ler('src/components/admin/RegrasFirebase.tsx');
   assert.match(cartao, /Conferir de novo/);
   assert.match(cartao, /Falta publicar/);
-  assert.match(cartao, /Publicadas \(versão \{VERSAO_REGRAS_TEXTO\}\)/);
+  assert.match(cartao, /publicadas, versão \$\{VERSAO_REGRAS_TEXTO\}/);
+  assert.match(cartao, /Ver detalhes e publicar/);
   assert.ok(!/[—–]/.test(cartao));
 });

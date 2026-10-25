@@ -162,7 +162,6 @@ function DashboardCompleto() {
   const [missingCommValueCount, setMissingCommValueCount] = useState(0);
   const [fairAnomaliesCount, setFairAnomaliesCount] = useState(0);
   const [mounted, setMounted] = useState(false);
-  const [goals, setGoals] = useState({ monthly_revenue: 3000000, monthly_indications: 50 });
   const [performanceData, setPerformanceData] = useState({
     monthly_sales: 0,
     monthly_leads: 0,
@@ -470,17 +469,6 @@ function DashboardCompleto() {
     const intervalo = setInterval(lerTudo, 30 * 60 * 1000);
     return () => { ativo = false; clearInterval(intervalo); };
   }, [profile?.uid, isAdmin, isManager, indicacoesCompletas]);
-
-  // 3. Fetch Goals
-  useEffect(() => {
-    if (!profile?.uid) return;
-    const unsubGoals = ouvirCompartilhado('settings-goals', doc(db, 'settings', 'goals'), (snap) => {
-      if (snap.exists()) setGoals(snap.data() as any);
-    }, (error) => {
-      console.warn("Goals restricted or unavailable:", error.message);
-    });
-    return () => unsubGoals();
-  }, [profile?.uid]);
 
   // 4. Fetch Stock Reservations
   useEffect(() => {
@@ -1693,42 +1681,6 @@ function DashboardCompleto() {
               </Card>
               )}
 
-              {showGoals && (
-                <Card className="bg-card border-border shadow-sm border-l-4 border-l-green-500 overflow-hidden flex flex-col h-full">
-                <CardHeader className="p-3 pb-1 bg-muted/20">
-                  <CardTitle className="text-sm lg:text-base font-black uppercase tracking-wider flex items-center gap-1.5">
-                    <Target className="h-5 w-5 text-green-500" /> Minhas Metas
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-5 flex-1 flex flex-col justify-center space-y-5">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <p className="text-[12px] lg:text-[13px] text-muted-foreground font-normal uppercase tracking-widest leading-none">Progresso Financeiro</p>
-                      <h4 className="text-3xl lg:text-4xl font-normal text-foreground tracking-tighter">
-                        {Math.min(100, Math.round((performanceData.monthly_sales / (goals.monthly_revenue || 1)) * 100))}%
-                      </h4>
-                    </div>
-                    <div className="p-2.5 rounded-xl bg-green-500/10 text-green-600 shadow-inner">
-                      <TrendingUp className="h-6 w-6 lg:h-7 lg:w-7" />
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <div className="h-3 w-full bg-muted rounded-full overflow-hidden shadow-inner">
-                      <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: `${Math.min(100, (performanceData.monthly_sales / (goals.monthly_revenue || 1)) * 100)}%` }}
-                        className="h-full bg-green-500 shadow-[0_0_15px_rgba(34,197,94,0.4)]"
-                      />
-                    </div>
-                    <div className="flex justify-between items-baseline">
-                      <span className="text-sm lg:text-base font-normal text-green-600">R$ {performanceData.monthly_sales.toLocaleString()}</span>
-                      <span className="text-[10px] lg:text-[11px] text-muted-foreground uppercase font-normal tracking-wider">Meta: R$ {goals.monthly_revenue?.toLocaleString()}</span>
-                    </div>
-                  </div>
-                </CardContent>
-                </Card>
-              )}
 
               {/* Reservations Card */}
               {profile && !(isFinancial || isFiscal) && showReservations && (
@@ -2381,42 +2333,6 @@ function DashboardCompleto() {
                 </Card>
               )}
 
-              {showGoals && (
-                <Card className="bg-card border-border shadow-sm border-l-4 border-l-green-500 overflow-hidden flex flex-col">
-                <CardHeader className="p-3 pb-1 bg-muted/20">
-                  <CardTitle className="text-[10px] lg:text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5">
-                    <Target className="h-3.5 w-3.5 text-green-500" /> Metas Mensais
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-4 flex-1 flex flex-col justify-center space-y-5">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <p className="text-[8px] lg:text-[9px] text-muted-foreground font-normal uppercase tracking-widest leading-none">Progresso Faturamento</p>
-                      <h4 className="text-xl lg:text-2xl font-normal text-foreground tracking-tighter">
-                        {Math.min(100, Math.round((performanceData.monthly_sales / (goals.monthly_revenue || 1)) * 100))}%
-                      </h4>
-                    </div>
-                    <div className="p-2.5 rounded-xl bg-green-500/10 text-green-600 shadow-inner">
-                      <TrendingUp className="h-5 w-5 lg:h-6 lg:w-6" />
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <div className="h-2 w-full bg-muted rounded-full overflow-hidden shadow-inner">
-                      <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: `${Math.min(100, (performanceData.monthly_sales / (goals.monthly_revenue || 1)) * 100)}%` }}
-                        className="h-full bg-green-500 shadow-[0_0_12px_rgba(34,197,94,0.5)]"
-                      />
-                    </div>
-                    <div className="flex justify-between items-baseline">
-                      <span className="text-[10px] lg:text-[11px] font-normal text-green-600 font-bold">R$ {performanceData.monthly_sales.toLocaleString()}</span>
-                      <span className="text-[8px] lg:text-[9px] text-muted-foreground uppercase font-normal tracking-wider">Meta: R$ {goals.monthly_revenue?.toLocaleString()}</span>
-                    </div>
-                  </div>
-                </CardContent>
-                </Card>
-              )}
 
               <Card 
                 onClick={() => setShowFinanceModal(true)}

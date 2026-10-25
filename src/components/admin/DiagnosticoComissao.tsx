@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Search, Loader2, Link2, BadgePlus, AlertTriangle, CheckCircle2, Info, Stethoscope, Wand2 } from 'lucide-react';
+import { Search, Loader2, Link2, BadgePlus, AlertTriangle, CheckCircle2, Info, Stethoscope, Wand2, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -58,6 +58,8 @@ export default function DiagnosticoComissao() {
   // com cadastro repetido, a primeira da lista é tão provável quanto a errada.
   const [ligar, setLigar] = useState<{ ind: Indicacao; uid: string } | null>(null);
   const [correcoes, setCorrecoes] = useState<Correcoes | null>(null);
+  // Recolhido por padrão: o resultado das correções já aparece na linha de status do cabeçalho.
+  const [aberto, setAberto] = useState(false);
   const [erroCorrecoes, setErroCorrecoes] = useState('');
 
   useEffect(() => {
@@ -69,7 +71,7 @@ export default function DiagnosticoComissao() {
 
   const buscar = async (t = termo, c = conta) => {
     if (t.trim().length < 2) { setErro('Digite o nome, o e-mail ou o código do parceiro.'); return; }
-    setBuscando(true); setErro('');
+    setBuscando(true); setErro(''); setAberto(true);
     try { setRes(await chamar(`/api/admin/diagnostico-comissao?parceiro=${encodeURIComponent(t.trim())}${c ? `&conta=${encodeURIComponent(c)}` : ''}`)); }
     catch (e: any) { setErro(e.message); setRes(null); }
     finally { setBuscando(false); }
@@ -112,17 +114,22 @@ export default function DiagnosticoComissao() {
   return (
     <Card className="bg-card border-border shadow-sm mb-6">
       <CardHeader className="pb-2">
-        <CardTitle className="text-lg font-bold flex items-center gap-2">
-          <Stethoscope className="h-5 w-5 text-primary" /> Diagnóstico de comissão
-        </CardTitle>
-        <p className="text-xs text-muted-foreground">Procure o parceiro para ver por que a comissão não aparece no painel dele. Comissão em outro código é corrigida sozinha pelo servidor.</p>
+        {/* o título inteiro é o botão de abrir: alvo de toque grande no celular */}
+        <button type="button" onClick={() => setAberto(v => !v)} aria-expanded={aberto}
+          className="flex min-h-[44px] w-full items-center justify-between gap-2 text-left">
+          <CardTitle className="text-lg font-bold flex items-center gap-2">
+            <Stethoscope className="h-5 w-5 text-primary" /> Diagnóstico de comissão
+          </CardTitle>
+          <ChevronDown className={`h-5 w-5 shrink-0 text-muted-foreground transition-transform ${aberto ? 'rotate-180' : ''}`} />
+        </button>
+        <ResumoCorrecoes correcoes={correcoes} erro={erroCorrecoes} />
       </CardHeader>
       <CardContent className="space-y-4">
-        <CorrecoesAutomaticas correcoes={correcoes} erro={erroCorrecoes} />
+        {aberto && <CorrecoesAutomaticas correcoes={correcoes} erro={erroCorrecoes} />}
 
         <form className="flex gap-2" onSubmit={e => { e.preventDefault(); setConta(''); buscar(termo, ''); }}>
           <Input value={termo} onChange={e => setTermo(e.target.value)} placeholder="Nome, e-mail ou código do parceiro" className="h-11 bg-background" aria-label="Parceiro" />
-          <Button type="submit" disabled={buscando} className="h-11 px-4 bg-[#facc15] text-black hover:bg-[#eab308] font-bold shrink-0">
+          <Button type="submit" disabled={buscando} className="h-11 min-w-[44px] px-4 bg-[#facc15] text-black hover:bg-[#eab308] font-bold shrink-0" aria-label="Procurar parceiro">
             {buscando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
             <span className="ml-1.5 hidden sm:inline">Procurar</span>
           </Button>
@@ -324,6 +331,27 @@ export default function DiagnosticoComissao() {
         </DialogContent>
       </Dialog>
     </Card>
+  );
+}
+
+// Linha de status do cabeçalho: o resultado das correções automáticas à vista, sem abrir o card.
+function ResumoCorrecoes({ correcoes, erro }: { correcoes: Correcoes | null; erro: string }) {
+  const quando = (v?: string) => v ? new Date(v).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+  const ultima = correcoes?.ultima || null;
+  let chip = 'Conferindo...'; let cor = 'bg-muted text-muted-foreground';
+  if (erro) { chip = 'Não consegui ler as correções'; cor = 'bg-[#FEE4E2] text-[#B42318]'; }
+  else if (correcoes && !ultima) { chip = 'Correção ainda não rodou'; cor = 'bg-muted text-muted-foreground'; }
+  else if (ultima) {
+    const travadas = ultima.travadas.length; const erros = ultima.erros.length;
+    if (travadas > 0 || erros > 0) { chip = `${travadas} travada(s)${erros ? `, ${erros} erro(s)` : ''}: precisa de olhar`; cor = 'bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200'; }
+    else if ((correcoes?.historico || []).length === 0) { chip = 'Nenhuma comissão precisou de correção'; cor = 'bg-[#DCFCE7] text-[#14532D] dark:bg-emerald-950/40 dark:text-emerald-300'; }
+    else { chip = `${(correcoes?.historico || []).length} comissão(ões) corrigida(s) sozinha(s)`; cor = 'bg-[#DCFCE7] text-[#14532D] dark:bg-emerald-950/40 dark:text-emerald-300'; }
+  }
+  return (
+    <div className="space-y-1">
+      <span className={`inline-block rounded-md px-2 py-1 text-[12.5px] font-extrabold ${cor}`}>{chip}</span>
+      <p className="m-0 text-[12.5px] text-muted-foreground">{ultima ? `Última rodada: ${quando(ultima.rodada_em)}. ` : ''}Roda todo dia às 7h30. Procure o parceiro abaixo para ver por que a comissão não aparece no painel dele.</p>
+    </div>
   );
 }
 
