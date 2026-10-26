@@ -5,7 +5,7 @@ import { processarEnvioEstoque, tratarRequisicaoEstoque } from '../server/estoqu
 import { assinarCrm } from '../server/crmAssinatura';
 
 const envio = (itens: any[], origem = 'roder', filial = 'matriz') => {
-  const r = lerEnvioEstoque({ tipo: 'estoque', origem, filial, itens });
+  const r = lerEnvioEstoque({ tipo: 'estoque', origem, filial, itens, confirmar_vazio: true });
   if (!r.ok) throw new Error((r as any).erro);
   return r.envio;
 };
@@ -43,7 +43,7 @@ test('ESTOQUE: quantidade 0 com reserva zera; sem reserva remove', () => {
 test('ESTOQUE: valida origem e filial', () => {
   assert.equal(lerEnvioEstoque({ origem: 'xx', filial: 'matriz', itens: [] }).ok, false);
   assert.equal(lerEnvioEstoque({ origem: 'roder', filial: 'rio', itens: [] }).ok, false);
-  assert.equal(lerEnvioEstoque({ origem: 'sinop_pdf', filial: 'sinop', itens: [] }).ok, true);
+  assert.equal(lerEnvioEstoque({ origem: 'sinop_pdf', filial: 'sinop', itens: [{ codigo: 'A', quantidade: 1 }] }).ok, true);
 });
 
 test('IMPORTAÇÕES: substitui a lista e preserva item com reserva', () => {
@@ -197,4 +197,37 @@ test('RESERVAS: importação com código vazio liga pela descrição (chegada va
   const p = planejarReservas([], [], [{ id: 'imp1', description: 'FAE UML/S/EX/VT-125', chegada_iso: '2026-12-01' }], (l as any).itens, new Date());
   assert.equal(p.gravar[0].dados.stock_imports_fae_id, 'imp1');
   assert.deepEqual(p.sem_item, []);
+});
+
+test('ESTOQUE: lista vazia é recusada (por grupo e por aba) sem confirmar_vazio', async () => {
+  const { lerEnvioAba } = await import('../src/lib/estoqueVision');
+  assert.equal(lerEnvioEstoque({ origem: 'fae', filial: 'matriz', itens: [] }).ok, false);
+  assert.equal(lerEnvioEstoque({ origem: 'fae', filial: 'matriz', itens: [{ codigo: 'X', quantidade: 0 }] }).ok, false);
+  assert.equal(lerEnvioEstoque({ origem: 'fae', filial: 'matriz', itens: [], confirmar_vazio: true }).ok, true);
+  assert.equal(lerEnvioAba({ aba: 'fae', itens: [] }).ok, false);
+  assert.equal(lerEnvioAba({ aba: 'fae', itens: [{ codigo: 'X', quantidade: 1, origem: 'roder' }] }).ok, false);
+  const db = dbFalso({ stock_items: { a: { code: 'A', quantity: 1, source: 'fae', branch: 'matriz' } }, stock_reservations: {}, settings: {} });
+  const r = await processarEnvioEstoque({ db, segredo: () => 'x' }, { tipo: 'estoque', aba: 'fae', itens: [] });
+  assert.equal(r.status, 400);
+  assert.equal(db.colecoes.stock_items.a.quantity, 1);
+});
+
+test('ESTOQUE POR ABA: substitui todas as origens da aba (inclusive antigas) e preserva reservado', async () => {
+  const { lerEnvioAba, planejarEstoqueAba, abaDaOrigem } = await import('../src/lib/estoqueVision');
+  assert.deepEqual(['manual|sinop', 'sinop', 'fair'].map(o => abaDaOrigem(o, o === 'fair' ? 'sinop' : 'fabrica')), ['sinop', 'sinop', 'sinop']);
+  assert.equal(abaDaOrigem('fair', 'fabrica'), 'fabrica');
+  const existentes = [
+    { id: 'a', code: 'R800', quantity: 2, source: 'roder', branch: 'matriz' },
+    { id: 'b', code: 'OLD', quantity: 1, source: 'fair', branch: 'matriz' },
+    { id: 'c', code: 'RES', quantity: 1, source: 'manual', branch: 'matriz' },
+    { id: 'd', code: 'S1', quantity: 1, source: 'manual|sinop', branch: 'sinop' },
+    { id: 'e', code: 'F1', quantity: 1, source: 'fae', branch: 'matriz' },
+  ];
+  const l = lerEnvioAba({ aba: 'fabrica', itens: [{ codigo: 'R800', descricao: 'Garra', quantidade: 3, origem: 'roder' }, { codigo: 'SUP', descricao: 'Suporte', quantidade: 1, origem: 'accessories' }] });
+  assert.ok(l.ok);
+  const p = planejarEstoqueAba(existentes, new Set(['c']), (l as any).envio);
+  assert.deepEqual(p.atualizar.map(u => u.id), ['a']);
+  assert.deepEqual(p.remover, ['b']);
+  assert.deepEqual(p.zerar, ['c']);
+  assert.deepEqual(p.criar.map(c => [c.code, c.source, c.branch]), [['SUP', 'accessories', 'matriz']]);
 });

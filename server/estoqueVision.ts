@@ -7,7 +7,7 @@
 // X-Roder-Assinatura = "sha256=" + HMAC-SHA256(CRM_SEGREDO, timestamp + "." + corpoCru), janela de 5 min.
 // Sem CRM_SEGREDO: 503. Não usa chave nova. A tela antiga (Estoque > Atualizar) continua funcionando.
 // Regras em src/lib/estoqueVision.ts. Reservas ativas (stock_reservations) nunca são apagadas nem perdem o item.
-import { lerEnvioEstoque, lerEnvioImportacoes, lerEnvioReservas, planejarEstoque, planejarImportacoes, planejarReservas } from '../src/lib/estoqueVision';
+import { lerEnvioAba, lerEnvioEstoque, lerEnvioImportacoes, lerEnvioReservas, planejarEstoque, planejarEstoqueAba, planejarImportacoes, planejarReservas } from '../src/lib/estoqueVision';
 import { verificarAssinaturaCrm } from './crmAssinatura';
 
 export type DepsEstoqueVision = { db: any; segredo: () => string; soLeitura?: () => boolean; agora?: () => Date; log?: (...a: any[]) => void };
@@ -31,6 +31,24 @@ export async function processarEnvioEstoque(deps: DepsEstoqueVision, corpo: any)
   const agora = (deps.agora ? deps.agora() : new Date()).toISOString();
   const tipo = String(corpo?.tipo || '');
   const db = deps.db;
+  if (tipo === 'estoque' && corpo?.aba !== undefined) {
+    // Envio por aba (Vision): substitui todas as origens da aba, inclusive as antigas.
+    const lido = lerEnvioAba(corpo);
+    if (!lido.ok) return { status: 400, body: { ok: false, error: (lido as any).erro } };
+    const { envio } = lido;
+    const s = await db.collection('stock_items').get();
+    const existentes = s.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+    const plano = planejarEstoqueAba(existentes, await idsReservados(db, 'stock_item_id'), envio);
+    const col = db.collection('stock_items');
+    const ops: ((b: any) => void)[] = [];
+    plano.atualizar.forEach(u => ops.push(b => b.update(col.doc(u.id), { quantity: u.quantity, description: u.description, last_list_match: true, updated_at: agora, origem_envio: 'roder_vision' })));
+    plano.zerar.forEach(id => ops.push(b => b.update(col.doc(id), { quantity: 0, updated_at: agora, origem_envio: 'roder_vision' })));
+    plano.remover.forEach(id => ops.push(b => b.delete(col.doc(id))));
+    plano.criar.forEach(c => ops.push(b => b.set(col.doc(), { ...c, last_list_match: true, created_at: agora, updated_at: agora, origem_envio: 'roder_vision' })));
+    await gravarEmLotes(db, ops);
+    await db.collection('settings').doc('estoque_vision').set({ [`ultimo_aba_${envio.aba}`]: { em: agora, enviado_em: envio.enviado_em || null, itens: envio.itens.length } }, { merge: true });
+    return { status: 200, body: { ok: true, aba: envio.aba, criados: plano.criar.length, atualizados: plano.atualizar.length, alterados: plano.atualizar.length, removidos: plano.remover.length, mantidos_por_reserva: plano.zerar.length, ignorados: plano.ignorados } };
+  }
   if (tipo === 'estoque') {
     const lido = lerEnvioEstoque(corpo);
     if (!lido.ok) return { status: 400, body: { ok: false, error: (lido as any).erro } };

@@ -234,3 +234,7 @@ Repetir o mesmo `id` responde 200 `duplicado`.
 ### Estoque só leitura (ESTOQUE_SO_LEITURA)
 - Padrão `0`: como hoje (bidirecional). Com `1`: o servidor grava `settings/estoque_config.so_leitura = true`; as regras do Firestore recusam qualquer escrita do navegador em `stock_items`, `stock_reservations`, `stock_sales` e `stock_imports_fae`; as telas Estoque e Estoque público escondem reservar, incluir, editar, excluir e carregar PDF e mostram no topo "Estoque e reservas são feitos no Roder Vision". O Vision continua gravando pelo servidor. `GET /api/public/estoque-config` devolve `{ so_leitura }`.
 - Parceiro indicador (`external_seller`) nunca reserva, com ou sem a variável (regra e tela).
+
+### Estoque por aba (Vision, 26/10/2026)
+- `{ tipo:"estoque", aba:"fabrica"|"fae"|"sinop", enviado_em, itens:[{ codigo, descricao, quantidade, origem }] }`: substitui TODAS as origens daquela aba no Indica, inclusive as antigas ("manual|sinop", "sinop", "fair", sem source). Aba de cada item existente: Sinop se a branch ou a source falam em Sinop; FAE e importados se a source é fae/import*; senão fábrica. Origens aceitas por aba: fabrica = roder/accessories/manual; fae = fae; sinop = sinop_pdf (filial sinop).
+- Lista vazia (nenhum item com quantidade > 0) é recusada com 400, por aba e no formato antigo por grupo, a menos que venha `confirmar_vazio: true`. Item com reserva ativa nunca sai (fica com 0).

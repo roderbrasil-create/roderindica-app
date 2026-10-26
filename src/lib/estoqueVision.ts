@@ -45,7 +45,75 @@ export function lerEnvioEstoque(c: any): { ok: true; envio: EnvioEstoque } | { o
     if (!codigo) continue;
     itens.push({ codigo, descricao: txt(i?.descricao) || 'Sem descrição', quantidade: qtd(i?.quantidade) });
   }
+  // Lista vazia apagaria tudo o que não tem reserva: só com confirmação explícita.
+  if (!itens.some(i => i.quantidade > 0) && c?.confirmar_vazio !== true) return { ok: false, erro: 'lista vazia: nada foi gravado (mande confirmar_vazio:true para zerar de propósito)' };
   return { ok: true, envio: { origem, filial, enviado_em: txt(c?.enviado_em, 40) || undefined, itens } };
+}
+
+// ---------- Envio por aba (Vision): substitui todas as origens daquela aba ----------
+export type AbaEstoque = 'fabrica' | 'fae' | 'sinop';
+export const ORIGENS_DA_ABA: Record<AbaEstoque, OrigemEstoque[]> = { fabrica: ['roder', 'accessories', 'manual'], fae: ['fae'], sinop: ['sinop_pdf'] };
+/** Aba de qualquer source/branch (inclusive antigas: "manual|sinop", "sinop", "fair", vazio). Igual ao Vision. */
+export function abaDaOrigem(source: unknown, branch: unknown): AbaEstoque {
+  const o = String(source ?? '').toLowerCase();
+  const f = String(branch ?? '').toLowerCase();
+  if (f === 'sinop' || o.includes('sinop')) return 'sinop';
+  if (o === 'fae' || o.startsWith('import') || o.includes('fae')) return 'fae';
+  return 'fabrica';
+}
+export type ItemEnvioAba = ItemEnvio & { origem: OrigemEstoque };
+export type EnvioAba = { aba: AbaEstoque; filial: FilialEstoque; enviado_em?: string; itens: ItemEnvioAba[] };
+
+/** Valida { tipo:"estoque", aba, itens:[{codigo, descricao, quantidade, origem}] }. Lista vazia só com confirmar_vazio. */
+export function lerEnvioAba(c: any): { ok: true; envio: EnvioAba } | { ok: false; erro: string } {
+  const aba = txt(c?.aba, 20).toLowerCase() as AbaEstoque;
+  if (!(aba in ORIGENS_DA_ABA)) return { ok: false, erro: 'aba inválida (use fabrica, fae ou sinop)' };
+  if (!Array.isArray(c?.itens)) return { ok: false, erro: 'itens precisa ser uma lista' };
+  if (c.itens.length > 5000) return { ok: false, erro: 'itens demais (máximo 5000)' };
+  const permitidas = ORIGENS_DA_ABA[aba];
+  const itens: ItemEnvioAba[] = [];
+  for (const i of c.itens) {
+    const codigo = txt(i?.codigo, 60);
+    if (!codigo) continue;
+    const origem = (txt(i?.origem, 20).toLowerCase() || permitidas[0]) as OrigemEstoque;
+    if (!permitidas.includes(origem)) return { ok: false, erro: `origem "${origem}" não pertence à aba ${aba}` };
+    itens.push({ codigo, descricao: txt(i?.descricao) || 'Sem descrição', quantidade: qtd(i?.quantidade), origem });
+  }
+  if (!itens.some(i => i.quantidade > 0) && c?.confirmar_vazio !== true) return { ok: false, erro: 'lista vazia: nada foi gravado (mande confirmar_vazio:true para zerar a aba de propósito)' };
+  return { ok: true, envio: { aba, filial: aba === 'sinop' ? 'sinop' : 'matriz', enviado_em: txt(c?.enviado_em, 40) || undefined, itens } };
+}
+
+/** Plano por aba: tudo da aba (qualquer source antiga) que não veio sai, exceto com reserva ativa (fica com 0). */
+export function planejarEstoqueAba(existentes: ItemExistente[], reservados: Set<string>, envio: EnvioAba): PlanoEstoque {
+  const novos = new Map<string, ItemEnvioAba>();
+  for (const i of envio.itens) {
+    const k = chave(i.codigo, i.origem, envio.filial);
+    const atual = novos.get(k);
+    if (!atual || i.quantidade > atual.quantidade) novos.set(k, i);
+  }
+  const plano: PlanoEstoque = { criar: [], atualizar: [], remover: [], zerar: [], ignorados: 0 };
+  const vistos = new Set<string>();
+  for (const e of existentes) {
+    if (abaDaOrigem(e.source, e.branch) !== envio.aba) continue; // outras abas não são tocadas
+    const src = String(e.source || '').toLowerCase();
+    const br = String(e.branch || 'matriz').toLowerCase() === 'sinop' ? 'sinop' : 'matriz';
+    const k = chave(String(e.code || ''), src, br);
+    const novo = novos.get(k);
+    const reservado = reservados.has(e.id);
+    if (novo && !vistos.has(k)) {
+      vistos.add(k);
+      if (novo.quantidade === (Number(e.quantity) || 0)) { plano.ignorados++; continue; }
+      if (novo.quantidade <= 0) { if (reservado) plano.zerar.push(e.id); else plano.remover.push(e.id); continue; }
+      plano.atualizar.push({ id: e.id, quantity: novo.quantidade, description: novo.descricao || String(e.description || '') });
+    } else if (reservado) {
+      if ((Number(e.quantity) || 0) !== 0) plano.zerar.push(e.id); else plano.ignorados++;
+    } else plano.remover.push(e.id);
+  }
+  for (const [k, i] of novos) {
+    if (vistos.has(k) || i.quantidade <= 0) continue;
+    plano.criar.push({ code: i.codigo.trim(), description: i.descricao, quantity: i.quantidade, source: i.origem, branch: envio.filial });
+  }
+  return plano;
 }
 
 /** Plano de gravação do estoque para uma origem + filial. `reservados` = ids de stock_items com reserva ativa. */
