@@ -231,3 +231,21 @@ test('ESTOQUE POR ABA: substitui todas as origens da aba (inclusive antigas) e p
   assert.deepEqual(p.zerar, ['c']);
   assert.deepEqual(p.criar.map(c => [c.code, c.source, c.branch]), [['SUP', 'accessories', 'matriz']]);
 });
+
+test('ESTOQUE POR ABA: mesmo código com origem nova atualiza o documento reservado (sem duplicar a reserva)', async () => {
+  const { planejarEstoqueAba } = await import('../src/lib/estoqueVision');
+  // Reprodução do revisor: legado source "sinop" com reserva; Vision manda sinop_pdf.
+  const p1 = planejarEstoqueAba([{ id: 'a', code: 'R800', quantity: 3, source: 'sinop', branch: 'sinop' }], new Set(['a']),
+    { aba: 'sinop', filial: 'sinop', itens: [{ codigo: 'R800', descricao: 'x', quantidade: 3, origem: 'sinop_pdf' }] } as any);
+  assert.deepEqual(p1.criar, []);
+  assert.deepEqual(p1.zerar, []);
+  assert.deepEqual(p1.atualizar, [{ id: 'a', quantity: 3, description: 'x', source: 'sinop_pdf' }]);
+  // Acessório numa semana, roder na outra; mais um documento manual sem reserva do mesmo código.
+  const p2 = planejarEstoqueAba([
+    { id: 'acc', code: 'ENG1', quantity: 2, source: 'accessories', branch: 'matriz' },
+    { id: 'man', code: 'eng1', quantity: 1, source: 'manual', branch: 'matriz' },
+  ], new Set(['acc']), { aba: 'fabrica', filial: 'matriz', itens: [{ codigo: 'ENG1', descricao: 'Engate', quantidade: 2, origem: 'roder' }] } as any);
+  assert.deepEqual(p2.atualizar, [{ id: 'acc', quantity: 2, description: 'Engate', source: 'roder' }]);
+  assert.deepEqual(p2.remover, ['man']);
+  assert.deepEqual(p2.criar, []);
+});

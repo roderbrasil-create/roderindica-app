@@ -18,7 +18,7 @@ export type ItemExistente = { id: string; code?: string; description?: string; q
 
 export type PlanoEstoque = {
   criar: { code: string; description: string; quantity: number; source: OrigemEstoque; branch: FilialEstoque }[];
-  atualizar: { id: string; quantity: number; description: string }[];
+  atualizar: { id: string; quantity: number; description: string; source?: OrigemEstoque; branch?: FilialEstoque }[];
   remover: string[];
   zerar: string[]; // sumiu ou veio 0, mas tem reserva ativa
   ignorados: number;
@@ -83,34 +83,49 @@ export function lerEnvioAba(c: any): { ok: true; envio: EnvioAba } | { ok: false
   return { ok: true, envio: { aba, filial: aba === 'sinop' ? 'sinop' : 'matriz', enviado_em: txt(c?.enviado_em, 40) || undefined, itens } };
 }
 
-/** Plano por aba: tudo da aba (qualquer source antiga) que não veio sai, exceto com reserva ativa (fica com 0). */
+/**
+ * Plano por aba: dentro da aba casa só pelo CÓDIGO (a origem pode mudar de uma semana para outra: acessório -> roder,
+ * item manual, source antigo "sinop"/"manual|sinop"/vazio). O documento existente é atualizado (inclusive source e
+ * branch), nunca zerado e recriado: assim a reserva continua no mesmo documento. Com mais de um documento do mesmo
+ * código na aba, fica o que tem reserva (ou o de mesma origem); os outros saem (ou ficam com 0 se tiverem reserva).
+ * O que não veio sai, exceto com reserva ativa (fica com 0).
+ */
 export function planejarEstoqueAba(existentes: ItemExistente[], reservados: Set<string>, envio: EnvioAba): PlanoEstoque {
+  const cod = (c: string) => c.trim().toUpperCase();
   const novos = new Map<string, ItemEnvioAba>();
   for (const i of envio.itens) {
-    const k = chave(i.codigo, i.origem, envio.filial);
+    const k = cod(i.codigo);
     const atual = novos.get(k);
     if (!atual || i.quantidade > atual.quantidade) novos.set(k, i);
   }
   const plano: PlanoEstoque = { criar: [], atualizar: [], remover: [], zerar: [], ignorados: 0 };
-  const vistos = new Set<string>();
+  const porCodigo = new Map<string, ItemExistente[]>();
   for (const e of existentes) {
     if (abaDaOrigem(e.source, e.branch) !== envio.aba) continue; // outras abas não são tocadas
-    const src = String(e.source || '').toLowerCase();
-    const br = String(e.branch || 'matriz').toLowerCase() === 'sinop' ? 'sinop' : 'matriz';
-    const k = chave(String(e.code || ''), src, br);
+    const k = cod(String(e.code || ''));
+    if (!porCodigo.has(k)) porCodigo.set(k, []);
+    porCodigo.get(k)!.push(e);
+  }
+  const sair = (e: ItemExistente) => {
+    if (reservados.has(e.id)) { if ((Number(e.quantity) || 0) !== 0) plano.zerar.push(e.id); else plano.ignorados++; }
+    else plano.remover.push(e.id);
+  };
+  for (const [k, docs] of porCodigo) {
     const novo = novos.get(k);
-    const reservado = reservados.has(e.id);
-    if (novo && !vistos.has(k)) {
-      vistos.add(k);
-      if (novo.quantidade === (Number(e.quantity) || 0)) { plano.ignorados++; continue; }
-      if (novo.quantidade <= 0) { if (reservado) plano.zerar.push(e.id); else plano.remover.push(e.id); continue; }
-      plano.atualizar.push({ id: e.id, quantity: novo.quantidade, description: novo.descricao || String(e.description || '') });
-    } else if (reservado) {
-      if ((Number(e.quantity) || 0) !== 0) plano.zerar.push(e.id); else plano.ignorados++;
-    } else plano.remover.push(e.id);
+    if (!novo || novo.quantidade <= 0) { docs.forEach(sair); continue; }
+    // Documento que fica: o que tem reserva, senão o de mesma origem, senão o primeiro.
+    const principal = docs.find(d => reservados.has(d.id)) ?? docs.find(d => String(d.source || '').toLowerCase() === novo.origem) ?? docs[0]!;
+    for (const d of docs) if (d !== principal) sair(d);
+    const mesmaOrigem = String(principal.source || '').toLowerCase() === novo.origem;
+    const mesmaFilial = (String(principal.branch || 'matriz').toLowerCase() === 'sinop' ? 'sinop' : 'matriz') === envio.filial && String(principal.branch || '') !== '';
+    if (novo.quantidade === (Number(principal.quantity) || 0) && mesmaOrigem && mesmaFilial) { plano.ignorados++; continue; }
+    plano.atualizar.push({
+      id: principal.id, quantity: novo.quantidade, description: novo.descricao || String(principal.description || ''),
+      ...(mesmaOrigem ? {} : { source: novo.origem }), ...(mesmaFilial ? {} : { branch: envio.filial }),
+    });
   }
   for (const [k, i] of novos) {
-    if (vistos.has(k) || i.quantidade <= 0) continue;
+    if (porCodigo.has(k) || i.quantidade <= 0) continue;
     plano.criar.push({ code: i.codigo.trim(), description: i.descricao, quantity: i.quantidade, source: i.origem, branch: envio.filial });
   }
   return plano;

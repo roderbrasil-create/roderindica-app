@@ -41,7 +41,8 @@ export async function processarEnvioEstoque(deps: DepsEstoqueVision, corpo: any)
     const plano = planejarEstoqueAba(existentes, await idsReservados(db, 'stock_item_id'), envio);
     const col = db.collection('stock_items');
     const ops: ((b: any) => void)[] = [];
-    plano.atualizar.forEach(u => ops.push(b => b.update(col.doc(u.id), { quantity: u.quantity, description: u.description, last_list_match: true, updated_at: agora, origem_envio: 'roder_vision' })));
+    // source/branch mudam no mesmo documento (a reserva continua presa a ele).
+    plano.atualizar.forEach(u => ops.push(b => b.update(col.doc(u.id), { quantity: u.quantity, description: u.description, ...(u.source ? { source: u.source } : {}), ...(u.branch ? { branch: u.branch } : {}), last_list_match: true, updated_at: agora, origem_envio: 'roder_vision' })));
     plano.zerar.forEach(id => ops.push(b => b.update(col.doc(id), { quantity: 0, updated_at: agora, origem_envio: 'roder_vision' })));
     plano.remover.forEach(id => ops.push(b => b.delete(col.doc(id))));
     plano.criar.forEach(c => ops.push(b => b.set(col.doc(), { ...c, last_list_match: true, created_at: agora, updated_at: agora, origem_envio: 'roder_vision' })));
