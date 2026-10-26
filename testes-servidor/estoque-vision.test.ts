@@ -249,3 +249,26 @@ test('ESTOQUE POR ABA: mesmo código com origem nova atualiza o documento reserv
   assert.deepEqual(p2.remover, ['man']);
   assert.deepEqual(p2.criar, []);
 });
+
+test('ESTOQUE POR ABA: dois documentos do mesmo código com reserva somam as reservas no principal', async () => {
+  const { planejarEstoqueAba } = await import('../src/lib/estoqueVision');
+  const p = planejarEstoqueAba([
+    { id: 'a', code: 'R800', quantity: 2, source: 'roder', branch: 'matriz' },
+    { id: 'b', code: 'R800', quantity: 1, source: 'accessories', branch: 'matriz' },
+  ], new Set(['a', 'b']), { aba: 'fabrica', filial: 'matriz', itens: [{ codigo: 'R800', descricao: 'Garra', quantidade: 3, origem: 'roder' }] } as any);
+  assert.deepEqual(p.moverReservas, [{ de: 'b', para: 'a' }]);
+  assert.deepEqual(p.remover, ['b']);
+  assert.deepEqual(p.zerar, []);
+  assert.deepEqual(p.atualizar, [{ id: 'a', quantity: 3, description: 'Garra' }]);
+  // no servidor: a reserva do b passa para o a e o disponível desconta as duas
+  const db = dbFalso({
+    stock_items: { a: { code: 'R800', quantity: 2, source: 'roder', branch: 'matriz' }, b: { code: 'R800', quantity: 1, source: 'accessories', branch: 'matriz' } },
+    stock_reservations: { r1: { status: 'active', stock_item_id: 'a', quantity_reserved: 1 }, r2: { status: 'active', stock_item_id: 'b', quantity_reserved: 1 } },
+    settings: {},
+  });
+  const r = await processarEnvioEstoque({ db, segredo: () => 'x' }, { tipo: 'estoque', aba: 'fabrica', itens: [{ codigo: 'R800', descricao: 'Garra', quantidade: 3, origem: 'roder' }] });
+  assert.equal(r.status, 200);
+  assert.equal(db.colecoes.stock_reservations.r2.stock_item_id, 'a');
+  assert.equal(db.colecoes.stock_items.b, undefined);
+  assert.equal(db.colecoes.stock_items.a.quantity, 3);
+});

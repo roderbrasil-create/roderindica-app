@@ -19,6 +19,8 @@ export type ItemExistente = { id: string; code?: string; description?: string; q
 export type PlanoEstoque = {
   criar: { code: string; description: string; quantity: number; source: OrigemEstoque; branch: FilialEstoque }[];
   atualizar: { id: string; quantity: number; description: string; source?: OrigemEstoque; branch?: FilialEstoque }[];
+  /** Reservas ativas que passam de um documento duplicado para o principal (mesmo código na aba). */
+  moverReservas?: { de: string; para: string }[];
   remover: string[];
   zerar: string[]; // sumiu ou veio 0, mas tem reserva ativa
   ignorados: number;
@@ -115,7 +117,12 @@ export function planejarEstoqueAba(existentes: ItemExistente[], reservados: Set<
     if (!novo || novo.quantidade <= 0) { docs.forEach(sair); continue; }
     // Documento que fica: o que tem reserva, senão o de mesma origem, senão o primeiro.
     const principal = docs.find(d => reservados.has(d.id)) ?? docs.find(d => String(d.source || '').toLowerCase() === novo.origem) ?? docs[0]!;
-    for (const d of docs) if (d !== principal) sair(d);
+    for (const d of docs) {
+      if (d === principal) continue;
+      // Duplicado com reserva: a reserva passa para o principal (soma lá e desconta do disponível) e o duplicado sai.
+      if (reservados.has(d.id)) { (plano.moverReservas ??= []).push({ de: d.id, para: principal.id }); plano.remover.push(d.id); }
+      else sair(d);
+    }
     const mesmaOrigem = String(principal.source || '').toLowerCase() === novo.origem;
     const mesmaFilial = (String(principal.branch || 'matriz').toLowerCase() === 'sinop' ? 'sinop' : 'matriz') === envio.filial && String(principal.branch || '') !== '';
     if (novo.quantidade === (Number(principal.quantity) || 0) && mesmaOrigem && mesmaFilial) { plano.ignorados++; continue; }

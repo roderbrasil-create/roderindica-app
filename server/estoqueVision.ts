@@ -41,6 +41,11 @@ export async function processarEnvioEstoque(deps: DepsEstoqueVision, corpo: any)
     const plano = planejarEstoqueAba(existentes, await idsReservados(db, 'stock_item_id'), envio);
     const col = db.collection('stock_items');
     const ops: ((b: any) => void)[] = [];
+    // Reservas de documentos duplicados (mesmo código na aba) passam para o principal antes de o duplicado sair.
+    for (const m of plano.moverReservas ?? []) {
+      const rs = await db.collection('stock_reservations').where('status', '==', 'active').where('stock_item_id', '==', m.de).get();
+      for (const r of rs.docs) ops.push(b => b.update(db.collection('stock_reservations').doc(r.id), { stock_item_id: m.para, updated_at: agora, movida_de: m.de }));
+    }
     // source/branch mudam no mesmo documento (a reserva continua presa a ele).
     plano.atualizar.forEach(u => ops.push(b => b.update(col.doc(u.id), { quantity: u.quantity, description: u.description, ...(u.source ? { source: u.source } : {}), ...(u.branch ? { branch: u.branch } : {}), last_list_match: true, updated_at: agora, origem_envio: 'roder_vision' })));
     plano.zerar.forEach(id => ops.push(b => b.update(col.doc(id), { quantity: 0, updated_at: agora, origem_envio: 'roder_vision' })));
