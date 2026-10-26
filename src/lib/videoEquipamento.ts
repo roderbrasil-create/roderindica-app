@@ -17,6 +17,17 @@ export const PRODUCT_VIDEOS: Record<string, string> = {
   "R400": "https://www.youtube.com/watch?v=Kzqi_Cn2WG4",
   "R600": "https://www.youtube.com/watch?v=Kzqi_Cn2WG4",
   "R800": "https://www.youtube.com/watch?v=Kzqi_Cn2WG4",
+  "Mini Skidder": "https://youtu.be/OE0bsl5FlRw",
+  "MSR 600": "https://youtu.be/OE0bsl5FlRw",
+  "MSR 1000": "https://youtu.be/OE0bsl5FlRw",
+  "Garra Frontal": "https://youtu.be/tlp3Grju-LM",
+  "Garra para Estufagem": "https://youtu.be/tlp3Grju-LM",
+  "AF400": "https://youtu.be/tlp3Grju-LM",
+  "AF 400": "https://youtu.be/tlp3Grju-LM",
+  "AF - 400": "https://youtu.be/tlp3Grju-LM",
+  "Feller de Disco": "https://youtu.be/1_h_BB5OHEQ",
+  "CFD 40": "https://youtu.be/1_h_BB5OHEQ",
+  "CFD40": "https://youtu.be/1_h_BB5OHEQ",
   "SSH 150": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
   "SSH 200": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
   "SSH 225": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
@@ -35,11 +46,20 @@ export function videoValido(url: any): string {
   if (!v) return '';
   if (!/^https?:\/\//i.test(v) && !/^db-file:\/\/[A-Za-z0-9_-]+$/.test(v)) return '';
   if (VIDEOS_MORTOS.some(m => v.toLowerCase().includes(m))) return '';
+  // página do site da Roder (ex.: a da Garra Frontal) não é vídeo: tocaria como arquivo quebrado
+  if (/^https?:\/\/(www\.)?roderbrasil\.com\.br\/(?!.*\.(mp4|webm|mov)(\?|$))/i.test(v)) return '';
   return v;
 }
 
+// O Mini Skidder nasceu no cadastro com o vídeo da garra florestal (erro de 2026) e esse endereço
+// ficou gravado no produto. Enquanto o cadastro não for corrigido, esse vídeo nunca vale para ele.
+const VIDEO_GARRA = 'Kzqi_Cn2WG4';
+const ehSkidder = (nome: any) => /skidder|^msr\b/i.test(String(nome || ''));
+const semVideoErrado = (url: any, prod: any, model: any) =>
+  String(url || '').includes(VIDEO_GARRA) && (ehSkidder(prod?.name) || ehSkidder(model?.name)) ? '' : url;
+
 export function videoDoEquipamento(prod: any, model: any): string {
-  return videoValido(model?.video_url) || videoValido(prod?.video_url)
+  return videoValido(semVideoErrado(model?.video_url, prod, model)) || videoValido(semVideoErrado(prod?.video_url, prod, model))
     || videoValido(PRODUCT_VIDEOS[String(model?.name || '')]) || videoValido(PRODUCT_VIDEOS[String(prod?.name || '')]);
 }
 

@@ -1590,6 +1590,17 @@ var PRODUCT_VIDEOS = {
   "R400": "https://www.youtube.com/watch?v=Kzqi_Cn2WG4",
   "R600": "https://www.youtube.com/watch?v=Kzqi_Cn2WG4",
   "R800": "https://www.youtube.com/watch?v=Kzqi_Cn2WG4",
+  "Mini Skidder": "https://youtu.be/OE0bsl5FlRw",
+  "MSR 600": "https://youtu.be/OE0bsl5FlRw",
+  "MSR 1000": "https://youtu.be/OE0bsl5FlRw",
+  "Garra Frontal": "https://youtu.be/tlp3Grju-LM",
+  "Garra para Estufagem": "https://youtu.be/tlp3Grju-LM",
+  "AF400": "https://youtu.be/tlp3Grju-LM",
+  "AF 400": "https://youtu.be/tlp3Grju-LM",
+  "AF - 400": "https://youtu.be/tlp3Grju-LM",
+  "Feller de Disco": "https://youtu.be/1_h_BB5OHEQ",
+  "CFD 40": "https://youtu.be/1_h_BB5OHEQ",
+  "CFD40": "https://youtu.be/1_h_BB5OHEQ",
   "SSH 150": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
   "SSH 200": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
   "SSH 225": "https://www.youtube.com/watch?v=na5Z2tLWMgA",
@@ -1605,10 +1616,14 @@ function videoValido(url) {
   if (!v) return "";
   if (!/^https?:\/\//i.test(v) && !/^db-file:\/\/[A-Za-z0-9_-]+$/.test(v)) return "";
   if (VIDEOS_MORTOS.some((m) => v.toLowerCase().includes(m))) return "";
+  if (/^https?:\/\/(www\.)?roderbrasil\.com\.br\/(?!.*\.(mp4|webm|mov)(\?|$))/i.test(v)) return "";
   return v;
 }
+var VIDEO_GARRA = "Kzqi_Cn2WG4";
+var ehSkidder = (nome) => /skidder|^msr\b/i.test(String(nome || ""));
+var semVideoErrado = (url, prod, model) => String(url || "").includes(VIDEO_GARRA) && (ehSkidder(prod?.name) || ehSkidder(model?.name)) ? "" : url;
 function videoDoEquipamento(prod, model) {
-  return videoValido(model?.video_url) || videoValido(prod?.video_url) || videoValido(PRODUCT_VIDEOS[String(model?.name || "")]) || videoValido(PRODUCT_VIDEOS[String(prod?.name || "")]);
+  return videoValido(semVideoErrado(model?.video_url, prod, model)) || videoValido(semVideoErrado(prod?.video_url, prod, model)) || videoValido(PRODUCT_VIDEOS[String(model?.name || "")]) || videoValido(PRODUCT_VIDEOS[String(prod?.name || "")]);
 }
 
 // src/lib/consultorIndicar.ts
@@ -7257,7 +7272,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-25 configuracoes-enxutas";
+  const RELEASE_LABEL = "2026-10-25 video-feller-disco";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");

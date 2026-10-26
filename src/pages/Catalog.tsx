@@ -1095,6 +1095,17 @@ export default function Catalog() {
           addGarraEstufagem();
         }
 
+        // 25/10/2026 (Jeferson): AF-360, AF-400, AF-600 e AF-800 estavam com foto de carregador frontal.
+        // Tira as fotos desses quatro modelos UMA vez (a marca no produto evita apagar as certas que
+        // forem enviadas depois). Os AFG não mexem.
+        if (garraEstufagem && !(garraEstufagem as any).fotos_af_limpas_2026_10_25) {
+          const IDS_AF = ['af-360', 'af-400', 'af-600', 'af-800'];
+          const modelosLimpos = (garraEstufagem.models || []).map((m: any) =>
+            IDS_AF.includes(String(m?.id || '').toLowerCase()) ? { ...m, images: [], image_url: '' } : m);
+          updateDoc(doc(db, 'products', garraEstufagem.id), { models: modelosLimpos, fotos_af_limpas_2026_10_25: true })
+            .catch(err => console.warn('Não consegui limpar as fotos dos AF:', err));
+        }
+
         const carregador = data.find(p => p.name?.toLowerCase() === 'carregador frontal');
         if (!carregador && data.length > 0) {
           addCarregadorFrontal();
@@ -1684,7 +1695,7 @@ export default function Catalog() {
         description: 'O Mini Skidder Roder é o equipamento ideal para arraste de madeira em curtas distâncias, oferecendo agilidade e robustez para sua operação florestal. Sua construção simplificada e alto desempenho garantem eficiência no campo.',
         category: 'Equipamento de Arraste',
         image_url: 'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-mini-skidder.jpg.webp',
-        video_url: 'https://www.youtube.com/watch?v=Kzqi_Cn2WG4',
+        video_url: 'https://youtu.be/OE0bsl5FlRw',
         pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Mini-Skidder-Roder.pdf',
         is_blocked: false,
         created_at: snap.empty ? new Date().toISOString() : (snap.docs[0].data() as any).created_at,
@@ -1964,7 +1975,7 @@ export default function Catalog() {
          description: 'A Garra Frontal Roder é projetada para o carregamento e movimentação de toras com máxima agilidade. Compatível com diversos modelos de pás carregadeiras, oferece alta durabilidade e eficiência operacional em pátios de madeira e indústrias.',
          category: 'Carregadores e Garras',
          image_url: 'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Garra-Frontal.jpg.webp',
-         video_url: 'https://roderbrasil.com.br/maquinas-florestais/garra-frontal/',
+         video_url: 'https://youtu.be/tlp3Grju-LM',
          pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-Frontal-Roder.pdf',
          is_blocked: false,
          created_at: !existingDoc ? new Date().toISOString() : (existingDoc.data() as any).created_at,
@@ -2027,7 +2038,7 @@ export default function Catalog() {
          description: 'A Garra para Estufagem Roder é a solução definitiva para o carregamento e descarregamento de toras em containers (estufagem) ou vagões. Projetada para oferecer máxima eficiência e agilidade, este equipamento conta com sistema giratório opcional e construção robusta para suportar regimes de trabalho intensos, garantindo segurança e produtividade na sua logística de madeira.',
          category: 'Garras Florestais',
          image_url: 'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/08/Garra-para-Estufagem-giratoria.jpg.webp',
-         video_url: 'https://youtu.be/yK7pnHbW8rE',
+         video_url: 'https://youtu.be/tlp3Grju-LM',
          pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-para-Estufagem-Roder.pdf',
          is_blocked: false,
          created_at: !existingDoc ? new Date().toISOString() : (existingDoc.data() as any).created_at,

@@ -308,6 +308,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
       await updateDoc(docRef, {
         question: editingTeaching.question,
         improvedAnswer: editingTeaching.improvedAnswer,
+        isImproved: !!editingTeaching.improvedAnswer?.trim(),
         updated_at: new Date().toISOString()
       });
       toast.success("Ensinamento atualizado com sucesso!");
@@ -2682,7 +2683,10 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                         t.author?.toLowerCase().includes(teachingSearchTerm.toLowerCase())
                       )
                       .map((teaching) => (
-                      <div key={teaching.id} className="group p-4 rounded-xl border border-border bg-muted/10 hover:bg-muted/20 transition-all">
+                      <div key={teaching.id} role="button" tabIndex={0}
+                        onClick={() => { setEditingTeaching(teaching); setIsTeachingDialogOpen(true); }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { setEditingTeaching(teaching); setIsTeachingDialogOpen(true); } }}
+                        className="group p-4 rounded-xl border border-border bg-muted/10 hover:bg-muted/20 transition-all cursor-pointer">
                         <div className="flex flex-col md:flex-row justify-between gap-4">
                           <div className="space-y-2 flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
@@ -2690,22 +2694,26 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                                 ID: {teaching.id.slice(-6)}
                               </Badge>
                               <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                                <User className="h-3 w-3" /> {teaching.author}
+                                <User className="h-3 w-3" /> {teaching.author || teaching.userName || teaching.userEmail || 'Sem identificação'}
                               </span>
+                              {!teaching.improvedAnswer && (
+                                <span className="text-[10px] font-black uppercase rounded px-1.5 py-0.5 bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">Pergunta sem correção</span>
+                              )}
                               <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                                 <Clock className="h-3 w-3" /> {new Date(teaching.timestamp).toLocaleString()}
                               </span>
                             </div>
                             <h4 className="text-sm font-black uppercase tracking-tight text-foreground">{teaching.question}</h4>
                             <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed whitespace-pre-wrap">
-                              {teaching.improvedAnswer}
+                              {teaching.improvedAnswer || teaching.answer}
                             </p>
                           </div>
                           <div className="flex md:flex-col items-center justify-end gap-2 shrink-0">
                             <Button 
                               variant="outline" 
                               size="sm" 
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setEditingTeaching(teaching);
                                 setIsTeachingDialogOpen(true);
                               }}
@@ -2716,7 +2724,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                             <Button 
                               variant="outline" 
                               size="sm" 
-                              onClick={() => handleDeleteTeaching(teaching.id)}
+                              onClick={(e) => { e.stopPropagation(); handleDeleteTeaching(teaching.id); }}
                               className="h-8 w-8 p-0 rounded-lg hover:bg-red-100 hover:text-red-600 transition-colors"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -3029,7 +3037,20 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
               </DialogDescription>
             </DialogHeader>
             
-            <div className="p-6 space-y-6">
+            <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+              {(editingTeaching?.userName || editingTeaching?.userEmail || editingTeaching?.author) && (
+                <p className="text-xs text-muted-foreground">
+                  Quem perguntou: <b className="text-foreground">{editingTeaching?.userName || editingTeaching?.author}</b>
+                  {editingTeaching?.userEmail ? ` (${editingTeaching.userEmail})` : ''}
+                  {editingTeaching?.timestamp ? ` em ${new Date(editingTeaching.timestamp).toLocaleString('pt-BR')}` : ''}
+                </p>
+              )}
+              {editingTeaching?.answer && (
+                <div className="space-y-2">
+                  <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Resposta que o consultor deu</Label>
+                  <div className="rounded-xl border border-border bg-muted/30 p-4 text-sm leading-relaxed whitespace-pre-wrap max-h-[220px] overflow-y-auto">{editingTeaching.answer}</div>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Pergunta ou Tópico Principal</Label>
                 <Input 
@@ -3041,7 +3062,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
               </div>
 
               <div className="space-y-2">
-                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Resposta ou Explicação Técnica</Label>
+                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Sua explicação para o consultor (o que ele deve responder)</Label>
                 <textarea 
                   value={editingTeaching?.improvedAnswer || ''}
                   onChange={(e) => setEditingTeaching(prev => prev ? { ...prev, improvedAnswer: e.target.value } : null)}

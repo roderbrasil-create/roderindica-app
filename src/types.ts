@@ -498,6 +498,10 @@ export interface AITeaching {
   timestamp: string;
   source: string;
   author: string;
+  // Preenchidos quando o registro é uma pergunta feita ao consultor (e não um ensinamento direto).
+  answer?: string;
+  userName?: string;
+  userEmail?: string;
 }
 
 export interface RoderApiKey {
