@@ -1,7 +1,7 @@
 // Sondas de versão das regras de segurança (firestore.rules e storage.rules).
 // Quem mexe numa regra SOBE a versão nos TRÊS lugares: esta constante, o doc/objeto sonda de
 // firestore.rules e o de storage.rules (o teste testes-servidor/sonda-regras.test.ts confere).
-export const VERSAO_REGRAS = '2026_10_20';
+export const VERSAO_REGRAS = '2026_10_25';
 export const VERSAO_REGRAS_TEXTO = VERSAO_REGRAS.replace(/_/g, '-');
 export const SONDA_FIRESTORE = ['_sonda_regras', `v_${VERSAO_REGRAS}`] as const;
 export const SONDA_STORAGE = `_sonda_regras/v_${VERSAO_REGRAS}.txt`;

@@ -2610,9 +2610,9 @@ function parseKitsText(texto2) {
   let kit = null;
   let item = null;
   let noTitulo = false;
-  const fecha = (qtd, unidade) => {
+  const fecha = (qtd2, unidade) => {
     if (kit && item) {
-      const novo = { code: item.code, description: limpa(item.partes.join(" ")), quantity: Number.isFinite(qtd) && qtd > 0 ? qtd : 1 };
+      const novo = { code: item.code, description: limpa(item.partes.join(" ")), quantity: Number.isFinite(qtd2) && qtd2 > 0 ? qtd2 : 1 };
       if (unidade.toUpperCase() !== "UN") novo.unit = unidade.toUpperCase();
       kit.items.push(novo);
     }
@@ -3177,7 +3177,7 @@ function criarImagemPrevia(deps) {
     listas.set(codigo, { candidatas, ate: agora() + TEMPO_CANDIDATAS_MS });
     return candidatas;
   }
-  async function gerar(chave, candidatas) {
+  async function gerar(chave2, candidatas) {
     const sharp = await deps.carregarSharp();
     if (!sharp) return { jpeg: null, provisoria: false };
     let foto = null;
@@ -3197,39 +3197,39 @@ function criarImagemPrevia(deps) {
     }
     const arte = await montarArte(sharp, foto, deps.logoHorizontal?.() || null, deps.logoRedonda?.() || null);
     const provisoria = !foto && candidatas.length > 0;
-    if (provisoria) log(`[OG] nenhuma foto abriu para ${chave}; vai a arte padr\xE3o por ${TEMPO_ARTE_PROVISORIA_MS / 6e4} min e tenta de novo depois`);
+    if (provisoria) log(`[OG] nenhuma foto abriu para ${chave2}; vai a arte padr\xE3o por ${TEMPO_ARTE_PROVISORIA_MS / 6e4} min e tenta de novo depois`);
     return { jpeg: arte, provisoria };
   }
   async function arteDoCodigo(codigoBruto) {
     const codigo = String(codigoBruto || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
     const candidatas = await candidatasDoCodigo(codigo);
-    const chave = versaoDaPrevia(candidatas);
-    const daMemoria = memoria.get(chave);
-    if (daMemoria) return { jpeg: daMemoria, chave, provisoria: false };
-    const prov = provisorias.get(chave);
-    if (prov && prov.ate > agora()) return { jpeg: prov.jpeg, chave, provisoria: true };
-    if (prov) provisorias.delete(chave);
-    let tarefa = emAndamento.get(chave);
+    const chave2 = versaoDaPrevia(candidatas);
+    const daMemoria = memoria.get(chave2);
+    if (daMemoria) return { jpeg: daMemoria, chave: chave2, provisoria: false };
+    const prov = provisorias.get(chave2);
+    if (prov && prov.ate > agora()) return { jpeg: prov.jpeg, chave: chave2, provisoria: true };
+    if (prov) provisorias.delete(chave2);
+    let tarefa = emAndamento.get(chave2);
     if (!tarefa) {
       tarefa = (async () => {
         try {
-          const guardada = deps.lerCache ? await deps.lerCache(chave).catch(() => null) : null;
+          const guardada = deps.lerCache ? await deps.lerCache(chave2).catch(() => null) : null;
           if (guardada && guardada.length) return { jpeg: guardada, provisoria: false };
-          const nova = await gerar(chave, candidatas);
-          if (nova.jpeg && !nova.provisoria && deps.gravarCache) deps.gravarCache(chave, nova.jpeg).catch((e) => log(`[OG] n\xE3o gravou o cache ${chave}: ${e?.message || e}`));
+          const nova = await gerar(chave2, candidatas);
+          if (nova.jpeg && !nova.provisoria && deps.gravarCache) deps.gravarCache(chave2, nova.jpeg).catch((e) => log(`[OG] n\xE3o gravou o cache ${chave2}: ${e?.message || e}`));
           return nova;
         } finally {
-          emAndamento.delete(chave);
+          emAndamento.delete(chave2);
         }
       })();
-      emAndamento.set(chave, tarefa);
+      emAndamento.set(chave2, tarefa);
     }
     const { jpeg, provisoria } = await tarefa;
     if (jpeg && provisoria) {
       if (provisorias.size >= 200) provisorias.clear();
-      provisorias.set(chave, { jpeg, ate: agora() + TEMPO_ARTE_PROVISORIA_MS });
-    } else if (jpeg) memoria.set(chave, jpeg);
-    return { jpeg, chave, provisoria };
+      provisorias.set(chave2, { jpeg, ate: agora() + TEMPO_ARTE_PROVISORIA_MS });
+    } else if (jpeg) memoria.set(chave2, jpeg);
+    return { jpeg, chave: chave2, provisoria };
   }
   async function rota(req, res) {
     const nome = lerNomeArquivo(String(req.params?.arquivo || ""));
@@ -3812,9 +3812,9 @@ async function diagnosticar(deps, termoBruto, opcoes = {}) {
       return null;
     };
     const iguais = todos.filter((o) => motivoDe(o));
-    const chave = iguais.map((o) => o.uid).sort().join(",");
-    if (iguais.length > 1 && !vistos.has(chave)) {
-      vistos.add(chave);
+    const chave2 = iguais.map((o) => o.uid).sort().join(",");
+    if (iguais.length > 1 && !vistos.has(chave2)) {
+      vistos.add(chave2);
       const motivos = new Set(iguais.map(motivoDe).filter((m) => m && m !== "mesmo"));
       const motivo = motivos.has("mesmo e-mail") ? "mesmo e-mail" : motivos.has("mesmo nome") ? "mesmo nome" : "nome parecido";
       duplicados.push({ motivo, uids: iguais.map((o) => o.uid) });
@@ -4325,7 +4325,7 @@ async function moverComissoesDoProvisorio(db2, lote, deUids, paraUid, agoraIso, 
   }
   const presos = /* @__PURE__ */ new Set();
   const destinoTravado = /* @__PURE__ */ new Set();
-  const chave = (de, m, a) => `${de}|${m}|${a}`;
+  const chave2 = (de, m, a) => `${de}|${m}|${a}`;
   for (const [novoId, g] of grupos) {
     const fontes = [...g.fontes].sort((x, y) => (PESO_STATUS[y.data.status] || 0) - (PESO_STATUS[x.data.status] || 0));
     let base = g.destino ? { ...g.destino.data } : null;
@@ -4337,7 +4337,7 @@ async function moverComissoesDoProvisorio(db2, lote, deUids, paraUid, agoraIso, 
         continue;
       }
       if (fechamentoTravado(base) || fechamentoTravado(f.data)) {
-        presos.add(chave(f.de, f.data.month, f.data.year));
+        presos.add(chave2(f.de, f.data.month, f.data.year));
         resultado.presos.push(f.ref.id);
         console.warn(`[AUTH] Fechamento ${f.ref.id} N\xC3O foi juntado a ${novoId}: um dos dois j\xE1 est\xE1 pago ou aguardando pagamento. Ficou no c\xF3digo provis\xF3rio ${f.de}, com as comiss\xF5es do m\xEAs. Acerte no Diagn\xF3stico de comiss\xE3o.`);
         continue;
@@ -4368,7 +4368,7 @@ async function moverComissoesDoProvisorio(db2, lote, deUids, paraUid, agoraIso, 
       const d = await db2.collection("monthly_statements").doc(`${paraUid}_${month}_${year}`).get();
       travadoNoDestino = d.exists && fechamentoTravado(d.data());
     }
-    if (month && year && (presos.has(chave(c.de, month, year)) || destinoTravado.has(`${paraUid}_${month}_${year}`) || travadoNoDestino)) {
+    if (month && year && (presos.has(chave2(c.de, month, year)) || destinoTravado.has(`${paraUid}_${month}_${year}`) || travadoNoDestino)) {
       lote.update(c.ref, { transferencia_pendente: { para_uid: paraUid, motivo: `fechamento de ${mmaa(month, year)} j\xE1 pago ou aguardando pagamento`, em: agoraIso } });
       console.warn(`[AUTH] Comiss\xE3o ${c.ref.id} ficou no c\xF3digo provis\xF3rio ${c.de}: o fechamento de ${mmaa(month, year)} n\xE3o p\xF4de ser juntado. Acerte no Diagn\xF3stico de comiss\xE3o.`);
       continue;
@@ -5708,6 +5708,326 @@ function registrarRotaEventosCrm(app, express2, deps) {
     res.setHeader("Cache-Control", "no-store");
     res.status(r.status).json(r.body);
   });
+}
+
+// src/lib/estoqueVision.ts
+var ORIGENS_ESTOQUE = ["roder", "fae", "accessories", "manual", "sinop_pdf"];
+var FILIAIS_ESTOQUE = ["matriz", "sinop"];
+var txt = (v, max = 300) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, max);
+var qtd = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+};
+var chave = (code, source, branch) => `${code.trim().toUpperCase()}|${source.toLowerCase()}|${branch.toLowerCase()}`;
+function lerEnvioEstoque(c) {
+  const origem = txt(c?.origem, 20).toLowerCase();
+  const filial = txt(c?.filial, 20).toLowerCase();
+  if (!ORIGENS_ESTOQUE.includes(origem)) return { ok: false, erro: `origem inv\xE1lida (use ${ORIGENS_ESTOQUE.join(", ")})` };
+  if (!FILIAIS_ESTOQUE.includes(filial)) return { ok: false, erro: "filial inv\xE1lida (use matriz ou sinop)" };
+  if (!Array.isArray(c?.itens)) return { ok: false, erro: "itens precisa ser uma lista" };
+  if (c.itens.length > 5e3) return { ok: false, erro: "itens demais (m\xE1ximo 5000)" };
+  const itens = [];
+  for (const i of c.itens) {
+    const codigo = txt(i?.codigo, 60);
+    if (!codigo) continue;
+    itens.push({ codigo, descricao: txt(i?.descricao) || "Sem descri\xE7\xE3o", quantidade: qtd(i?.quantidade) });
+  }
+  return { ok: true, envio: { origem, filial, enviado_em: txt(c?.enviado_em, 40) || void 0, itens } };
+}
+function planejarEstoque(existentes, reservados, envio) {
+  const novos = /* @__PURE__ */ new Map();
+  for (const i of envio.itens) {
+    const k = chave(i.codigo, envio.origem, envio.filial);
+    const atual = novos.get(k);
+    if (!atual || i.quantidade > atual.quantidade) novos.set(k, i);
+  }
+  const plano = { criar: [], atualizar: [], remover: [], zerar: [], ignorados: 0 };
+  const vistos = /* @__PURE__ */ new Set();
+  for (const e of existentes) {
+    const src = String(e.source || "").toLowerCase();
+    const br = String(e.branch || "matriz").toLowerCase();
+    if (src !== envio.origem || br !== envio.filial) continue;
+    const k = chave(String(e.code || ""), src, br);
+    const novo = novos.get(k);
+    const reservado = reservados.has(e.id);
+    if (novo && !vistos.has(k)) {
+      vistos.add(k);
+      if (novo.quantidade === (Number(e.quantity) || 0)) {
+        plano.ignorados++;
+        continue;
+      }
+      if (novo.quantidade <= 0) {
+        if (reservado) plano.zerar.push(e.id);
+        else plano.remover.push(e.id);
+        continue;
+      }
+      plano.atualizar.push({ id: e.id, quantity: novo.quantidade, description: novo.descricao || String(e.description || "") });
+    } else {
+      if (reservado) {
+        if ((Number(e.quantity) || 0) !== 0) plano.zerar.push(e.id);
+        else plano.ignorados++;
+      } else plano.remover.push(e.id);
+    }
+  }
+  for (const [k, i] of novos) {
+    if (vistos.has(k) || i.quantidade <= 0) continue;
+    plano.criar.push({ code: i.codigo.trim(), description: i.descricao, quantity: i.quantidade, source: envio.origem, branch: envio.filial });
+  }
+  return plano;
+}
+var DATA_ISO = /^\d{4}-\d{2}-\d{2}$/;
+var MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+function dataParaTela(iso) {
+  if (!DATA_ISO.test(iso)) return "";
+  const [a, m, d] = iso.split("-");
+  return `${d} ${MESES[Number(m) - 1]}, ${a}`;
+}
+var normDesc = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
+function lerEnvioImportacoes(c) {
+  if (!Array.isArray(c?.itens)) return { ok: false, erro: "itens precisa ser uma lista" };
+  if (c.itens.length > 1e3) return { ok: false, erro: "itens demais (m\xE1ximo 1000)" };
+  const itens = [];
+  for (const i of c.itens) {
+    const descricao = txt(i?.descricao);
+    const quantidade = qtd(i?.quantidade);
+    if (!descricao || quantidade <= 0) continue;
+    const embarque = txt(i?.embarque, 10);
+    const chegada = txt(i?.chegada, 10);
+    if (embarque && !DATA_ISO.test(embarque) || chegada && !DATA_ISO.test(chegada)) return { ok: false, erro: `data fora do formato AAAA-MM-DD em "${descricao}"` };
+    itens.push({ descricao, quantidade, embarque, chegada });
+  }
+  return { ok: true, itens };
+}
+function planejarImportacoes(existentes, reservados, itens) {
+  const plano = { criar: [], atualizar: [], remover: [], preservados: [] };
+  const livres = [...existentes];
+  const pega = (pred) => {
+    const idx = livres.findIndex(pred);
+    return idx >= 0 ? livres.splice(idx, 1)[0] : null;
+  };
+  for (const i of itens) {
+    const d = normDesc(i.descricao);
+    const alvo = pega((e) => normDesc(String(e.description || "")) === d && (e.chegada_iso || "") === i.chegada) ?? pega((e) => normDesc(String(e.description || "")) === d);
+    const campos = { quantity: i.quantidade, embarque: dataParaTela(i.embarque), chegada: dataParaTela(i.chegada), embarque_iso: i.embarque, chegada_iso: i.chegada };
+    if (alvo) plano.atualizar.push({ id: alvo.id, ...campos });
+    else plano.criar.push({ description: i.descricao, ...campos });
+  }
+  for (const e of livres) {
+    if (reservados.has(e.id)) plano.preservados.push(e.id);
+    else plano.remover.push(e.id);
+  }
+  return plano;
+}
+var ID_VISION = /^[A-Za-z0-9_.:-]{1,120}$/;
+var idReservaVision = (id) => `vision_${id.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+function lerEnvioReservas(c) {
+  const lista = Array.isArray(c?.reservas) ? c.reservas : c?.itens;
+  if (!Array.isArray(lista)) return { ok: false, erro: "reservas precisa ser uma lista" };
+  if (lista.length > 3e3) return { ok: false, erro: "reservas demais (m\xE1ximo 3000)" };
+  const itens = [];
+  const vistos = /* @__PURE__ */ new Set();
+  for (const i of lista) {
+    const id = txt(i?.id_origem ?? i?.id, 120);
+    if (!ID_VISION.test(id) || vistos.has(id)) return { ok: false, erro: `id_origem inv\xE1lido ou repetido: "${id}"` };
+    vistos.add(id);
+    const quantidade = qtd(i?.quantidade ?? 1);
+    if (quantidade <= 0) continue;
+    const expira = txt(i?.expira_em, 40);
+    if (expira && Number.isNaN(new Date(expira).getTime())) return { ok: false, erro: `expira_em inv\xE1lido em "${id}"` };
+    const chegada = txt(i?.chegada, 10);
+    if (chegada && !DATA_ISO.test(chegada)) return { ok: false, erro: `chegada fora do formato AAAA-MM-DD em "${id}"` };
+    const empresa = txt(i?.empresa, 20).toLowerCase();
+    const filial = (txt(i?.filial, 20).toLowerCase() || empresa) === "sinop" ? "sinop" : "matriz";
+    const origem = txt(i?.origem, 20).toLowerCase() || (empresa === "fae" ? "fae" : empresa === "sinop" ? "sinop_pdf" : "");
+    const pedido = txt(i?.pedido_venda, 40);
+    itens.push({
+      id,
+      tipo: i?.tipo === "vendido" ? "vendido" : "reserva",
+      codigo: txt(i?.codigo_item ?? i?.codigo, 60),
+      origem,
+      filial,
+      importacao: i?.importacao === true,
+      descricao: txt(i?.descricao) || (pedido ? `Pedido ${pedido}` : ""),
+      chegada,
+      quantidade,
+      cliente: txt(i?.cliente, 200),
+      vendedor: txt(i?.vendedora ?? i?.vendedor, 200),
+      expira_em: expira,
+      pedido_venda: pedido
+    });
+  }
+  return { ok: true, itens };
+}
+function planejarReservas(existentes, itensEstoque, importacoes, itens, agora) {
+  const plano = { gravar: [], substituir: [], sem_item: [] };
+  const porChave = /* @__PURE__ */ new Map();
+  const porCodigoFilial = /* @__PURE__ */ new Map();
+  for (const e of itensEstoque) {
+    const cod = String(e.code || "").trim().toUpperCase();
+    if (!cod) continue;
+    const br = String(e.branch || "matriz").toLowerCase();
+    porChave.set(`${cod}|${String(e.source || "").toLowerCase()}|${br}`, e.id);
+    if (!porCodigoFilial.has(`${cod}|${br}`)) porCodigoFilial.set(`${cod}|${br}`, e.id);
+  }
+  const ids = /* @__PURE__ */ new Set();
+  for (const i of itens) {
+    const id = idReservaVision(i.id);
+    ids.add(id);
+    const dados2 = {
+      quantity_reserved: i.quantidade,
+      status: "active",
+      kind: i.tipo,
+      seller_name: i.vendedor || "Roder Vision",
+      client_name: i.cliente,
+      item_code: i.codigo,
+      item_description: i.descricao,
+      origem_envio: "roder_vision",
+      id_vision: i.id,
+      is_external: false,
+      pedido_venda: i.pedido_venda || null
+    };
+    const validade = i.tipo === "vendido" ? new Date(agora.getTime() + 80 * 365 * 864e5) : i.expira_em ? new Date(i.expira_em) : new Date(agora.getTime() + 5 * 864e5);
+    dados2.expires_at = validade;
+    if (i.importacao) {
+      const d = normDesc(i.descricao);
+      const imp = importacoes.find((x) => normDesc(String(x.description || "")) === d && (!i.chegada || (x.chegada_iso || "") === i.chegada)) ?? importacoes.find((x) => normDesc(String(x.description || "")) === d);
+      dados2.is_import_fae = true;
+      dados2.stock_imports_fae_id = imp?.id ?? null;
+      if (!imp) plano.sem_item.push(i.id);
+    } else {
+      const cod = i.codigo.trim().toUpperCase();
+      const alvo = porChave.get(`${cod}|${i.origem}|${i.filial}`) ?? porCodigoFilial.get(`${cod}|${i.filial}`);
+      dados2.stock_item_id = alvo ?? null;
+      if (!alvo) plano.sem_item.push(i.id);
+    }
+    plano.gravar.push({ id, dados: dados2 });
+  }
+  for (const r of existentes) if (r.status === "active" && !ids.has(r.id)) plano.substituir.push(r.id);
+  return plano;
+}
+
+// server/estoqueVision.ts
+async function idsReservados(db2, campo) {
+  const s = await db2.collection("stock_reservations").where("status", "==", "active").get();
+  const out = /* @__PURE__ */ new Set();
+  for (const d of s.docs) {
+    const v = d.data()?.[campo];
+    if (v) out.add(String(v));
+  }
+  return out;
+}
+async function gravarEmLotes(db2, ops) {
+  for (let i = 0; i < ops.length; i += 400) {
+    const b = db2.batch();
+    ops.slice(i, i + 400).forEach((op) => op(b));
+    await b.commit();
+  }
+}
+async function processarEnvioEstoque(deps, corpo) {
+  const agora = (deps.agora ? deps.agora() : /* @__PURE__ */ new Date()).toISOString();
+  const tipo = String(corpo?.tipo || "");
+  const db2 = deps.db;
+  if (tipo === "estoque") {
+    const lido = lerEnvioEstoque(corpo);
+    if (!lido.ok) return { status: 400, body: { ok: false, error: lido.erro } };
+    const { envio } = lido;
+    const s = await db2.collection("stock_items").where("source", "==", envio.origem).get();
+    const existentes = s.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const plano = planejarEstoque(existentes, await idsReservados(db2, "stock_item_id"), envio);
+    const col = db2.collection("stock_items");
+    const ops = [];
+    plano.atualizar.forEach((u) => ops.push((b) => b.update(col.doc(u.id), { quantity: u.quantity, description: u.description, last_list_match: true, updated_at: agora, origem_envio: "roder_vision" })));
+    plano.zerar.forEach((id) => ops.push((b) => b.update(col.doc(id), { quantity: 0, updated_at: agora, origem_envio: "roder_vision" })));
+    plano.remover.forEach((id) => ops.push((b) => b.delete(col.doc(id))));
+    plano.criar.forEach((c) => ops.push((b) => b.set(col.doc(), { ...c, last_list_match: true, created_at: agora, updated_at: agora, origem_envio: "roder_vision" })));
+    await gravarEmLotes(db2, ops);
+    await db2.collection("settings").doc("estoque_vision").set({ [`ultimo_${envio.origem}_${envio.filial}`]: { em: agora, enviado_em: envio.enviado_em || null, itens: envio.itens.length } }, { merge: true });
+    return { status: 200, body: { ok: true, origem: envio.origem, filial: envio.filial, criados: plano.criar.length, atualizados: plano.atualizar.length, alterados: plano.atualizar.length, removidos: plano.remover.length, mantidos_por_reserva: plano.zerar.length, ignorados: plano.ignorados } };
+  }
+  if (tipo === "importacoes") {
+    const lido = lerEnvioImportacoes(corpo);
+    if (!lido.ok) return { status: 400, body: { ok: false, error: lido.erro } };
+    const s = await db2.collection("stock_imports_fae").get();
+    const existentes = s.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const plano = planejarImportacoes(existentes, await idsReservados(db2, "stock_imports_fae_id"), lido.itens);
+    const col = db2.collection("stock_imports_fae");
+    const ops = [];
+    plano.atualizar.forEach((u) => {
+      const { id, ...c } = u;
+      ops.push((b) => b.update(col.doc(id), { ...c, updated_at: agora, origem_envio: "roder_vision" }));
+    });
+    plano.criar.forEach((c) => ops.push((b) => b.set(col.doc(), { ...c, created_at: agora, updated_at: agora, origem_envio: "roder_vision" })));
+    plano.remover.forEach((id) => ops.push((b) => b.delete(col.doc(id))));
+    await gravarEmLotes(db2, ops);
+    await db2.collection("settings").doc("estoque_vision").set({ ultimo_importacoes: { em: agora, itens: lido.itens.length } }, { merge: true });
+    return { status: 200, body: { ok: true, itens: lido.itens.length, criados: plano.criar.length, atualizados: plano.atualizar.length, alterados: plano.atualizar.length, removidos: plano.remover.length, reservas_preservadas: plano.preservados.length } };
+  }
+  return { status: 400, body: { ok: false, error: 'tipo deve ser "estoque" ou "importacoes"' } };
+}
+async function processarEnvioReservas(deps, corpo) {
+  if (String(corpo?.tipo || "") !== "reservas") return { status: 400, body: { ok: false, error: 'tipo deve ser "reservas"' } };
+  const lido = lerEnvioReservas(corpo);
+  if (!lido.ok) return { status: 400, body: { ok: false, error: lido.erro } };
+  const db2 = deps.db;
+  const agoraD = deps.agora ? deps.agora() : /* @__PURE__ */ new Date();
+  const agora = agoraD.toISOString();
+  const [rs, its, ims] = await Promise.all([
+    db2.collection("stock_reservations").where("status", "==", "active").get(),
+    db2.collection("stock_items").get(),
+    db2.collection("stock_imports_fae").get()
+  ]);
+  const existentes = rs.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const plano = planejarReservas(existentes, its.docs.map((d) => ({ id: d.id, ...d.data() })), ims.docs.map((d) => ({ id: d.id, ...d.data() })), lido.itens, agoraD);
+  const existe = new Set(existentes.map((e) => e.id));
+  const col = db2.collection("stock_reservations");
+  const ops = [];
+  plano.gravar.forEach((g) => ops.push((b) => b.set(col.doc(g.id), { ...g.dados, updated_at: agora, ...existe.has(g.id) ? {} : { created_at: agora } }, { merge: true })));
+  plano.substituir.forEach((id) => ops.push((b) => b.update(col.doc(id), { status: "substituida_vision", updated_at: agora })));
+  await gravarEmLotes(db2, ops);
+  await db2.collection("settings").doc("estoque_vision").set({ ultimo_reservas: { em: agora, itens: lido.itens.length } }, { merge: true });
+  return { status: 200, body: { ok: true, itens: lido.itens.length, gravadas: plano.gravar.length, substituidas: plano.substituir.length, sem_item: plano.sem_item } };
+}
+async function tratarAssinado(deps, req, processar) {
+  const h = (n) => {
+    const v = req.headers[n];
+    return Array.isArray(v) ? v[0] : v;
+  };
+  const ver = verificarAssinaturaCrm({ segredo: String(deps.segredo() || ""), timestamp: h("x-roder-timestamp"), assinatura: h("x-roder-assinatura"), corpo: req.corpo, agora: deps.agora ? deps.agora() : void 0 });
+  if (!ver.ok) return { status: ver.status, body: { ok: false, error: ver.status === 503 ? "CRM_SEGREDO n\xE3o configurado" : "Assinatura inv\xE1lida" } };
+  let json;
+  try {
+    json = JSON.parse(req.corpo.toString("utf8"));
+  } catch {
+    return { status: 400, body: { ok: false, error: "Corpo n\xE3o \xE9 JSON." } };
+  }
+  return processar(deps, json);
+}
+var tratarRequisicaoEstoque = (deps, req) => tratarAssinado(deps, req, processarEnvioEstoque);
+var tratarRequisicaoReservas = (deps, req) => tratarAssinado(deps, req, processarEnvioReservas);
+function registrarRotaEstoqueVision(app, express2, deps) {
+  const log = deps.log || console.log;
+  const soLeitura = () => deps.soLeitura ? deps.soLeitura() : false;
+  Promise.resolve().then(() => deps.db.collection("settings").doc("estoque_config").set({ so_leitura: soLeitura(), atualizado_em: (/* @__PURE__ */ new Date()).toISOString() }, { merge: true })).catch((e) => log("[ESTOQUE-VISION] settings/estoque_config:", e?.message || e));
+  app.get("/api/public/estoque-config", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ so_leitura: soLeitura(), mensagem: soLeitura() ? "Estoque e reservas s\xE3o feitos no Roder Vision" : null });
+  });
+  const rota = (caminho, tratar, rotulo) => (
+    // Corpo CRU (antes do express.json global), igual a /api/crm/eventos.
+    app.post(caminho, express2.raw({ type: () => true, limit: "2mb" }), async (req, res) => {
+      res.setHeader("Cache-Control", "no-store");
+      try {
+        const r = await tratar(deps, { headers: req.headers, corpo: Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0) });
+        if (r.status === 200) log(`[${rotulo}]`, JSON.stringify(r.body));
+        return res.status(r.status).json(r.body);
+      } catch (e) {
+        log(`[${rotulo}] falhou:`, e?.message || e);
+        return res.status(500).json({ ok: false, error: "Falha ao gravar" });
+      }
+    })
+  );
+  rota("/api/public/hooks/estoque", tratarRequisicaoEstoque, "ESTOQUE-VISION");
+  rota("/api/public/hooks/reservas", tratarRequisicaoReservas, "RESERVAS-VISION");
 }
 
 // src/lib/crmFase2.ts
@@ -7259,6 +7579,7 @@ async function startServer() {
   }));
   const configCrm = () => lerConfigCrm(process.env);
   registrarRotaEventosCrm(app, import_express.default, { db, arrayUnion: (...v) => import_firebase_admin.default.firestore.FieldValue.arrayUnion(...v), config: configCrm });
+  registrarRotaEstoqueVision(app, import_express.default, { db, segredo: () => String(process.env.CRM_SEGREDO || ""), soLeitura: () => String(process.env.ESTOQUE_SO_LEITURA || "0").trim() === "1" });
   app.use(import_express.default.json({ limit: "50mb" }));
   app.use("/api/", (_req, res, next) => {
     res.setHeader("Cache-Control", "no-store");
@@ -10923,11 +11244,11 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
     `);
   });
   const limites = /* @__PURE__ */ new Map();
-  const passouLimite = (chave, max, janelaMs) => {
+  const passouLimite = (chave2, max, janelaMs) => {
     const agora = Date.now();
-    const lista = (limites.get(chave) || []).filter((t) => agora - t < janelaMs);
+    const lista = (limites.get(chave2) || []).filter((t) => agora - t < janelaMs);
     lista.push(agora);
-    limites.set(chave, lista);
+    limites.set(chave2, lista);
     if (limites.size > 5e3) limites.clear();
     return lista.length > max;
   };
@@ -10997,15 +11318,15 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
       const [buf] = await file.download();
       return buf;
     },
-    lerCache: async (chave) => {
-      const file = bucketCache().file(`${PASTA_CACHE}/${chave}.jpg`);
+    lerCache: async (chave2) => {
+      const file = bucketCache().file(`${PASTA_CACHE}/${chave2}.jpg`);
       const [existe] = await file.exists();
       if (!existe) return null;
       const [buf] = await file.download();
       return buf;
     },
-    gravarCache: async (chave, jpeg) => {
-      await bucketCache().file(`${PASTA_CACHE}/${chave}.jpg`).save(jpeg, { contentType: "image/jpeg", resumable: false, metadata: { cacheControl: "public, max-age=31536000" } });
+    gravarCache: async (chave2, jpeg) => {
+      await bucketCache().file(`${PASTA_CACHE}/${chave2}.jpg`).save(jpeg, { contentType: "image/jpeg", resumable: false, metadata: { cacheControl: "public, max-age=31536000" } });
     },
     lerLocal: (caminho) => caminho.startsWith("/uploads/") ? lerArquivoSeguro(uploadsDir, caminho.slice("/uploads".length)) : lerArquivoSeguro(PASTA_PUBLICA, caminho),
     logoHorizontal,
@@ -12236,8 +12557,8 @@ Por favor, gere e ordene tudo de forma que fa\xE7a total sentido real de mercado
           porNome.get(nome).add(uid);
         }
       });
-      const unico = (m, chave) => {
-        const s = chave ? m.get(chave) : void 0;
+      const unico = (m, chave2) => {
+        const s = chave2 ? m.get(chave2) : void 0;
         return s && s.size === 1 ? Array.from(s)[0] : null;
       };
       const indicacoes = await db.collection("indications").select("external_seller_uid", "external_seller_email", "external_seller_name", "indicator_name").get();
