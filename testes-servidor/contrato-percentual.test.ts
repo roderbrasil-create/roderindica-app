@@ -45,7 +45,7 @@ test('MIGRAÇÃO RAFAEL: o aceite do contrato é preservado e nada de comissão 
   assert.equal(depois.contract_accepted, true);
   assert.equal(depois.contract_accepted_at, perfil.contract_accepted_at);
   const m = fonte('src/lib/migracaoContratoRafael.ts');
-  assert.match(m, /tx\.update\(ref, ajuste\)/);
+  assert.match(m, /tx\.update\(l\.ref, l\.ajuste\)/);
   assert.match(m, /migracao_contrato_rafael_2pct/);
   // só mexe em users e na marca: nunca em indications nem commissions (valores congelados no faturamento)
   assert.doesNotMatch(m, /'indications'|'commissions'/);

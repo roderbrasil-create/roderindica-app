@@ -5732,7 +5732,89 @@ function lerEnvioEstoque(c) {
     if (!codigo) continue;
     itens.push({ codigo, descricao: txt(i?.descricao) || "Sem descri\xE7\xE3o", quantidade: qtd(i?.quantidade) });
   }
+  if (!itens.some((i) => i.quantidade > 0) && c?.confirmar_vazio !== true) return { ok: false, erro: "lista vazia: nada foi gravado (mande confirmar_vazio:true para zerar de prop\xF3sito)" };
   return { ok: true, envio: { origem, filial, enviado_em: txt(c?.enviado_em, 40) || void 0, itens } };
+}
+var ORIGENS_DA_ABA = { fabrica: ["roder", "accessories", "manual"], fae: ["fae"], sinop: ["sinop_pdf"] };
+function abaDaOrigem(source, branch) {
+  const o = String(source ?? "").toLowerCase();
+  const f = String(branch ?? "").toLowerCase();
+  if (f === "sinop" || o.includes("sinop")) return "sinop";
+  if (o === "fae" || o.startsWith("import") || o.includes("fae")) return "fae";
+  return "fabrica";
+}
+function lerEnvioAba(c) {
+  const aba = txt(c?.aba, 20).toLowerCase();
+  if (!(aba in ORIGENS_DA_ABA)) return { ok: false, erro: "aba inv\xE1lida (use fabrica, fae ou sinop)" };
+  if (!Array.isArray(c?.itens)) return { ok: false, erro: "itens precisa ser uma lista" };
+  if (c.itens.length > 5e3) return { ok: false, erro: "itens demais (m\xE1ximo 5000)" };
+  const permitidas = ORIGENS_DA_ABA[aba];
+  const itens = [];
+  for (const i of c.itens) {
+    const codigo = txt(i?.codigo, 60);
+    if (!codigo) continue;
+    const origem = txt(i?.origem, 20).toLowerCase() || permitidas[0];
+    if (!permitidas.includes(origem)) return { ok: false, erro: `origem "${origem}" n\xE3o pertence \xE0 aba ${aba}` };
+    itens.push({ codigo, descricao: txt(i?.descricao) || "Sem descri\xE7\xE3o", quantidade: qtd(i?.quantidade), origem });
+  }
+  if (!itens.some((i) => i.quantidade > 0) && c?.confirmar_vazio !== true) return { ok: false, erro: "lista vazia: nada foi gravado (mande confirmar_vazio:true para zerar a aba de prop\xF3sito)" };
+  return { ok: true, envio: { aba, filial: aba === "sinop" ? "sinop" : "matriz", enviado_em: txt(c?.enviado_em, 40) || void 0, itens } };
+}
+function planejarEstoqueAba(existentes, reservados, envio) {
+  const cod = (c) => c.trim().toUpperCase();
+  const novos = /* @__PURE__ */ new Map();
+  for (const i of envio.itens) {
+    const k = cod(i.codigo);
+    const atual = novos.get(k);
+    if (!atual || i.quantidade > atual.quantidade) novos.set(k, i);
+  }
+  const plano = { criar: [], atualizar: [], remover: [], zerar: [], ignorados: 0 };
+  const porCodigo = /* @__PURE__ */ new Map();
+  for (const e of existentes) {
+    if (abaDaOrigem(e.source, e.branch) !== envio.aba) continue;
+    const k = cod(String(e.code || ""));
+    if (!porCodigo.has(k)) porCodigo.set(k, []);
+    porCodigo.get(k).push(e);
+  }
+  const sair = (e) => {
+    if (reservados.has(e.id)) {
+      if ((Number(e.quantity) || 0) !== 0) plano.zerar.push(e.id);
+      else plano.ignorados++;
+    } else plano.remover.push(e.id);
+  };
+  for (const [k, docs] of porCodigo) {
+    const novo = novos.get(k);
+    if (!novo || novo.quantidade <= 0) {
+      docs.forEach(sair);
+      continue;
+    }
+    const principal = docs.find((d) => reservados.has(d.id)) ?? docs.find((d) => String(d.source || "").toLowerCase() === novo.origem) ?? docs[0];
+    for (const d of docs) {
+      if (d === principal) continue;
+      if (reservados.has(d.id)) {
+        (plano.moverReservas ??= []).push({ de: d.id, para: principal.id });
+        plano.remover.push(d.id);
+      } else sair(d);
+    }
+    const mesmaOrigem = String(principal.source || "").toLowerCase() === novo.origem;
+    const mesmaFilial = (String(principal.branch || "matriz").toLowerCase() === "sinop" ? "sinop" : "matriz") === envio.filial && String(principal.branch || "") !== "";
+    if (novo.quantidade === (Number(principal.quantity) || 0) && mesmaOrigem && mesmaFilial) {
+      plano.ignorados++;
+      continue;
+    }
+    plano.atualizar.push({
+      id: principal.id,
+      quantity: novo.quantidade,
+      description: novo.descricao || String(principal.description || ""),
+      ...mesmaOrigem ? {} : { source: novo.origem },
+      ...mesmaFilial ? {} : { branch: envio.filial }
+    });
+  }
+  for (const [k, i] of novos) {
+    if (porCodigo.has(k) || i.quantidade <= 0) continue;
+    plano.criar.push({ code: i.codigo.trim(), description: i.descricao, quantity: i.quantidade, source: i.origem, branch: envio.filial });
+  }
+  return plano;
 }
 function planejarEstoque(existentes, reservados, envio) {
   const novos = /* @__PURE__ */ new Map();
@@ -5927,6 +6009,27 @@ async function processarEnvioEstoque(deps, corpo) {
   const agora = (deps.agora ? deps.agora() : /* @__PURE__ */ new Date()).toISOString();
   const tipo = String(corpo?.tipo || "");
   const db2 = deps.db;
+  if (tipo === "estoque" && corpo?.aba !== void 0) {
+    const lido = lerEnvioAba(corpo);
+    if (!lido.ok) return { status: 400, body: { ok: false, error: lido.erro } };
+    const { envio } = lido;
+    const s = await db2.collection("stock_items").get();
+    const existentes = s.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const plano = planejarEstoqueAba(existentes, await idsReservados(db2, "stock_item_id"), envio);
+    const col = db2.collection("stock_items");
+    const ops = [];
+    for (const m of plano.moverReservas ?? []) {
+      const rs = await db2.collection("stock_reservations").where("status", "==", "active").where("stock_item_id", "==", m.de).get();
+      for (const r of rs.docs) ops.push((b) => b.update(db2.collection("stock_reservations").doc(r.id), { stock_item_id: m.para, updated_at: agora, movida_de: m.de }));
+    }
+    plano.atualizar.forEach((u) => ops.push((b) => b.update(col.doc(u.id), { quantity: u.quantity, description: u.description, ...u.source ? { source: u.source } : {}, ...u.branch ? { branch: u.branch } : {}, last_list_match: true, updated_at: agora, origem_envio: "roder_vision" })));
+    plano.zerar.forEach((id) => ops.push((b) => b.update(col.doc(id), { quantity: 0, updated_at: agora, origem_envio: "roder_vision" })));
+    plano.remover.forEach((id) => ops.push((b) => b.delete(col.doc(id))));
+    plano.criar.forEach((c) => ops.push((b) => b.set(col.doc(), { ...c, last_list_match: true, created_at: agora, updated_at: agora, origem_envio: "roder_vision" })));
+    await gravarEmLotes(db2, ops);
+    await db2.collection("settings").doc("estoque_vision").set({ [`ultimo_aba_${envio.aba}`]: { em: agora, enviado_em: envio.enviado_em || null, itens: envio.itens.length } }, { merge: true });
+    return { status: 200, body: { ok: true, aba: envio.aba, criados: plano.criar.length, atualizados: plano.atualizar.length, alterados: plano.atualizar.length, removidos: plano.remover.length, mantidos_por_reserva: plano.zerar.length, ignorados: plano.ignorados } };
+  }
   if (tipo === "estoque") {
     const lido = lerEnvioEstoque(corpo);
     if (!lido.ok) return { status: 400, body: { ok: false, error: lido.erro } };
@@ -7593,7 +7696,7 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   }, import_express.default.static(uploadsDir));
-  const RELEASE_LABEL = "2026-10-25 video-feller-disco";
+  const RELEASE_LABEL = "2026-10-28 rafael-todos-cadastros";
   const SERVER_STARTED_AT = (/* @__PURE__ */ new Date()).toISOString();
   app.get("/api/version", (req, res) => {
     res.setHeader("Cache-Control", "no-store");

@@ -7,17 +7,21 @@ import { ajusteDeTaxaDoParceiro, EMAIL_PARCEIRO_CORRIGIDO } from './percentualCo
 // sem tocar em contract_accepted, contract_accepted_at nem em nenhum outro campo.
 export async function corrigirContratoRafaelUmaVez(db: any) {
   try {
-    const marca = doc(db, 'settings', 'migracao_contrato_rafael_2pct');
+    // v2 (28/10/2026): a primeira rodada só acertava o PRIMEIRO cadastro com esse e-mail. Se houver mais de
+    // um (login e cadastro por telefone, por exemplo), o outro continuava em 1% e a Gislene e a Luana viam 1%.
+    // Agora acerta TODOS os cadastros desse e-mail que ainda estiverem em 1%, uma vez.
+    const marca = doc(db, 'settings', 'migracao_contrato_rafael_2pct_v2');
     const achados = await getDocs(query(collection(db, 'users'), where('email', '==', EMAIL_PARCEIRO_CORRIGIDO)));
     if (achados.empty) return; // cadastro não encontrado: tenta na próxima vez, sem marca
-    const ref = achados.docs[0].ref;
     await runTransaction(db, async (tx: any) => {
       if ((await tx.get(marca)).exists()) return;
-      const atual = await tx.get(ref);
-      if (!atual.exists()) return;
-      const ajuste = ajusteDeTaxaDoParceiro(atual.data());
-      if (ajuste) tx.update(ref, ajuste);
-      tx.set(marca, { feito_em: new Date().toISOString(), parceiro: ref.id, alterou: !!ajuste });
+      const lidos: { ref: any; ajuste: { commission_rate: number } | null }[] = [];
+      for (const d of achados.docs) {
+        const atual = await tx.get(d.ref);
+        lidos.push({ ref: d.ref, ajuste: atual.exists() ? ajusteDeTaxaDoParceiro(atual.data()) : null });
+      }
+      for (const l of lidos) if (l.ajuste) tx.update(l.ref, l.ajuste);
+      tx.set(marca, { feito_em: new Date().toISOString(), cadastros: achados.size, alterados: lidos.filter(l => l.ajuste).length });
     });
   } catch (err) {
     console.error('Correção do contrato do parceiro Rafael falhou:', err);
