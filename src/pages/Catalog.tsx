@@ -275,9 +275,17 @@ function ImageCarousel({ images, zoom = 1, objectFit = 'cover', onClick }: { ima
   );
 }
 
+// Engate Rápido Hidráulico DHG (escavadeira, 13 a 22 t): tem ficha PDF própria. Não pode cair na ficha/texto
+// do engate de pá carregadeira, que também tem "engate" no nome.
+const ehEngateEscavadeira = (str?: string) => {
+  const s = (str || '').toLowerCase().trim();
+  return s === 'engate rápido hidráulico' || s.includes('ficha_engate_rapido_hidraulico');
+};
+
 const isEngateProduct = (nameOrUrl?: string) => {
   if (!nameOrUrl) return false;
   const lower = nameOrUrl.toLowerCase();
+  if (ehEngateEscavadeira(lower)) return false;
   // Só o próprio Engate Rápido (antes pegava qualquer item "para pá carregadeira", como o triturador FAE)
   return lower.includes('engate') || lower.includes('coupler') || lower.includes('hitch');
 };
@@ -360,7 +368,7 @@ const isAnyFichaSupported = (product: any) => {
   
   const containsEngateKeyword = (str: string) => {
     const s = (str || '').toLowerCase();
-    return s.includes('engate') || s.includes('hitch') || s.includes('coupler');
+    return !ehEngateEscavadeira(s) && (s.includes('engate') || s.includes('hitch') || s.includes('coupler'));
   };
   const isEngate = containsEngateKeyword(url) || containsEngateKeyword(name) ||
                     !!(product.id && (product.id.toLowerCase().includes('engate') || product.id.toLowerCase().includes('er-')));
@@ -740,6 +748,7 @@ function SortableProductCard({
 
 
 let rachadoraEmAndamento = false;
+let engateHidraulicoEmAndamento = false;
 const fichasDoSiteEmAndamento = new Set<string>();
 
 export default function Catalog() {
@@ -1128,6 +1137,11 @@ export default function Catalog() {
           addGarraClamshell();
         }
 
+        // Engate Rápido Hidráulico (escavadeira): cria uma vez
+        if ((isAdmin || isManager) && data.length > 0 && !data.some(p => (p.name || '').toLowerCase() === 'engate rápido hidráulico')) {
+          addEngateHidraulico();
+        }
+
         // Garra Rachadora GR: cria se não existir; se o card já existir (criado na tela),
         // completa só os modelos GR600/GR800 que faltam, sem apagar o que já foi editado
         if ((isAdmin || isManager) && data.length > 0) {
@@ -1282,6 +1296,64 @@ export default function Catalog() {
       toast.success('Garra Clamshell GCR adicionada ao catálogo.');
     } catch (err) {
       console.error('Erro ao criar Garra Clamshell GCR:', err);
+    }
+  };
+
+  // Engate Rápido Hidráulico DHG (escavadeiras e retroescavadeiras de 13 a 22 t). Criado uma vez; não sobrescreve edições.
+  const addEngateHidraulico = async () => {
+    if (engateHidraulicoEmAndamento) return;
+    engateHidraulicoEmAndamento = true;
+    try {
+      const snap = await getDocs(query(collection(db, 'products'), where('name', '==', 'Engate Rápido Hidráulico')));
+      if (!snap.empty) return;
+      const img = '/catalogo/engate/engate-hidraulico-produto.jpg';
+      const ficha = '/catalogo/engate/Ficha_Engate_Rapido_Hidraulico.pdf';
+      const brl = (n: number) => 'R$ ' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+      const PRECO: Record<string, number> = { 'DHG-02': 9800, 'DHG-06': 14175, 'DHG-08': 19775 };
+      const modelo = (codigo: string, dhg: string, pino: string, maquina: string) => ({
+        id: `engate-${codigo.replace(/\./g, '')}`,
+        name: `${dhg} | ${maquina.split(',')[0]}`,
+        base_value: PRECO[dhg],
+        images: [img],
+        pdf_url: ficha,
+        technical_specs: {
+          codigo_roder: codigo,
+          modelo_engate: dhg,
+          maquina,
+          pino,
+          preco_venda: brl(PRECO[dhg]),
+          kit_eletro_hidraulico: 'incluso no valor',
+          instalacao: 'por técnicos Roder, valor à parte',
+        },
+      });
+      await addDoc(collection(db, 'products'), {
+        name: 'Engate Rápido Hidráulico',
+        description: 'O Engate Rápido Hidráulico Roder (linha DHG) permite trocar conchas e implementos em segundos, sem o operador sair da cabine. É fabricado sob medida para cada marca e modelo de máquina e atende retroescavadeiras e escavadeiras de 13 a 22 toneladas. Acionamento eletro-hidráulico por botão próprio ao lado do painel, só para engatar e desengatar. O kit monta uma linha hidráulica exclusiva só para o engate: a máquina não precisa ter linha extra de fábrica e, se tiver, ela continua livre para os implementos. KIT ELETRO-HIDRÁULICO INCLUSO NO VALOR DO EQUIPAMENTO: 8 mangueiras hidráulicas, 4 conexões 90°, 3 abraçadeiras de tubo, 2 conexões e adaptadores, 2 conexões em T, 1 válvula solenoide, 1 interruptor de acionamento e 2 tubos de aço. A instalação é feita por técnicos Roder e o valor é à parte. Existem três tamanhos: DHG-02 (R$ 9.800,00), DHG-06 (R$ 14.175,00) e DHG-08 (R$ 19.775,00). O modelo certo depende da marca e do modelo da máquina e dos pinos dela (cada modelo abaixo traz o código Roder, a máquina e a medida do pino). Para perguntar "qual o engate da máquina X", procure a máquina na lista de modelos. Máquina que não está na lista: engate sob consulta, sob medida pela marca e modelo.',
+        category: 'Engates Rápidos',
+        image_url: img,
+        video_url: '',
+        pdf_url: ficha,
+        is_blocked: false,
+        created_at: new Date().toISOString(),
+        models: [
+          modelo('6000.7000.0006', 'DHG-02', 'PINO 55/50 x 258/133 x 356 mm', 'CASE 580N'),
+          modelo('6000.7000.0007', 'DHG-02', 'PINO 44,5 x 169 x 343 mm', 'JCB 3CX'),
+          modelo('6000.7000.0008', 'DHG-02', 'PINO 50/45 x 255/210 x 347 mm', 'CAT 416'),
+          modelo('6000.7000.0009', 'DHG-06', 'PINO 65 x 260 x 390 mm', 'HYUNDAI 140/150'),
+          modelo('6000.7000.0010', 'DHG-06', 'PINO 60/65 x 255 x 375 mm', 'SANY 135/155'),
+          modelo('6000.7000.0011', 'DHG-06', 'PINO 65 x 275 x 380 mm', 'VOLVO 140'),
+          modelo('6000.7000.0012', 'DHG-06', 'PINO 65 x 255 x 365 mm', 'XCMG 150'),
+          modelo('6000.7000.0013', 'DHG-08', 'PINO 80 x 337 x 475 mm', 'XCMG 225'),
+          modelo('6000.7000.0014', 'DHG-08', 'PINO 80 x 310 x 445 mm', 'CAT 320D/GC/NG'),
+          modelo('6000.7000.0015', 'DHG-08', 'PINO 80 x 330 x 460 mm', 'HYUNDAI 210/220, PC210/200, SANY 215, VOLVO (lista completa a confirmar)'),
+          modelo('6000.7000.0016', 'DHG-06', 'PINO 60 x 260 x 375 mm', 'PC130'),
+        ],
+      });
+      toast.success('Engate Rápido Hidráulico adicionado ao catálogo.');
+    } catch (err) {
+      console.error('Erro ao criar Engate Rápido Hidráulico:', err);
+    } finally {
+      engateHidraulicoEmAndamento = false;
     }
   };
 
@@ -3578,9 +3650,10 @@ export default function Catalog() {
                       
     const containsEngateKeyword = (str: string) => {
       const s = (str || '').toLowerCase();
-      return s.includes('engate') || s.includes('hitch') || s.includes('coupler');
+      return !ehEngateEscavadeira(s) && (s.includes('engate') || s.includes('hitch') || s.includes('coupler'));
     };
-    const isEngate = containsEngateKeyword(lowerUrl) || 
+    const ehDhg = ehEngateEscavadeira(lowerContextName) || ehEngateEscavadeira(lowerContextPdfUrl) || ehEngateEscavadeira(lowerUrl) || ehEngateEscavadeira(lowerViewingName) || ehEngateEscavadeira(lowerSelectedName);
+    const isEngate = !ehDhg && (containsEngateKeyword(lowerUrl) || 
                      containsEngateKeyword(lowerModelName) || 
                      containsEngateKeyword(lowerViewingName) || 
                      containsEngateKeyword(lowerSelectedName) ||
@@ -3588,7 +3661,7 @@ export default function Catalog() {
                      containsEngateKeyword(lowerContextCategory) ||
                      containsEngateKeyword(lowerContextDesc) ||
                      containsEngateKeyword(lowerContextPdfUrl) ||
-                     !!(productContext?.id && (productContext.id.toLowerCase().includes('engate') || productContext.id.toLowerCase().includes('er-')));
+                     !!(productContext?.id && (productContext.id.toLowerCase().includes('engate') || productContext.id.toLowerCase().includes('er-'))));
 
     const isEstufagem = isEstufagemProduct(lowerUrl) || 
                         isEstufagemProduct(lowerModelName) || 
@@ -5307,7 +5380,7 @@ export default function Catalog() {
                     )}
 
                     {/* Informações completas do Engate Rápido */}
-                    {selectedProductModels?.name?.toLowerCase().includes('engate') && (
+                    {selectedProductModels?.name?.toLowerCase().includes('engate') && !ehEngateEscavadeira(selectedProductModels?.name) && (
                       <div className="mt-6 border border-orange-500/20 bg-orange-500/5 rounded-xl p-5 space-y-4 shadow-sm border-l-4 border-l-orange-500">
                         <div className="flex items-center gap-2 text-orange-600 font-extrabold uppercase text-xs tracking-wider">
                           <Info className="h-5 w-5 text-orange-500" />
