@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Layout from '../components/layout/Layout';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, query, onSnapshot, orderBy, addDoc, updateDoc, doc, deleteDoc, getDoc, where, getDocs } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, addDoc, updateDoc, doc, deleteDoc, getDoc, setDoc, where, getDocs } from 'firebase/firestore';
 import { db, storage, auth } from '../lib/firebase';
 import { CryptoService } from '../lib/CryptoService';
 import { AuditService, AuditAction } from '../lib/AuditService';
@@ -279,7 +279,7 @@ function ImageCarousel({ images, zoom = 1, objectFit = 'cover', onClick }: { ima
 // do engate de pá carregadeira, que também tem "engate" no nome.
 const ehEngateEscavadeira = (str?: string) => {
   const s = (str || '').toLowerCase().trim();
-  return s === 'engate rápido hidráulico' || s.includes('ficha_engate_rapido_hidraulico');
+  return s === 'engate rápido hidráulico' || s === 'engate-rapido-hidraulico-dhg' || s.includes('ficha_engate_rapido_hidraulico');
 };
 
 const isEngateProduct = (nameOrUrl?: string) => {
@@ -1138,7 +1138,7 @@ export default function Catalog() {
         }
 
         // Engate Rápido Hidráulico (escavadeira): cria uma vez
-        if ((isAdmin || isManager) && data.length > 0 && !data.some(p => (p.name || '').toLowerCase() === 'engate rápido hidráulico')) {
+        if ((isAdmin || isManager) && data.length > 0 && !data.some(p => p.id === 'engate-rapido-hidraulico-dhg' || (p.name || '').toLowerCase().trim() === 'engate rápido hidráulico')) {
           addEngateHidraulico();
         }
 
@@ -1304,8 +1304,9 @@ export default function Catalog() {
     if (engateHidraulicoEmAndamento) return;
     engateHidraulicoEmAndamento = true;
     try {
-      const snap = await getDocs(query(collection(db, 'products'), where('name', '==', 'Engate Rápido Hidráulico')));
-      if (!snap.empty) return;
+      // id fixo: duas sessões abrindo ao mesmo tempo gravam o MESMO documento (nunca dois cadastros)
+      const ref = doc(db, 'products', 'engate-rapido-hidraulico-dhg');
+      if ((await getDoc(ref)).exists()) return;
       const img = '/catalogo/engate/engate-hidraulico-produto.jpg';
       const ficha = '/catalogo/engate/Ficha_Engate_Rapido_Hidraulico.pdf';
       const brl = (n: number) => 'R$ ' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
@@ -1326,7 +1327,7 @@ export default function Catalog() {
           instalacao: 'por técnicos Roder, valor à parte',
         },
       });
-      await addDoc(collection(db, 'products'), {
+      await setDoc(ref, {
         name: 'Engate Rápido Hidráulico',
         description: 'O Engate Rápido Hidráulico Roder (linha DHG) permite trocar conchas e implementos em segundos, sem o operador sair da cabine. É fabricado sob medida para cada marca e modelo de máquina e atende retroescavadeiras e escavadeiras de 13 a 22 toneladas. Acionamento eletro-hidráulico por botão próprio ao lado do painel, só para engatar e desengatar. O kit monta uma linha hidráulica exclusiva só para o engate: a máquina não precisa ter linha extra de fábrica e, se tiver, ela continua livre para os implementos. KIT ELETRO-HIDRÁULICO INCLUSO NO VALOR DO EQUIPAMENTO: 8 mangueiras hidráulicas, 4 conexões 90°, 3 abraçadeiras de tubo, 2 conexões e adaptadores, 2 conexões em T, 1 válvula solenoide, 1 interruptor de acionamento e 2 tubos de aço. A instalação é feita por técnicos Roder e o valor é à parte. Existem três tamanhos: DHG-02 (R$ 9.800,00), DHG-06 (R$ 14.175,00) e DHG-08 (R$ 19.775,00). O modelo certo depende da marca e do modelo da máquina e dos pinos dela (cada modelo abaixo traz o código Roder, a máquina e a medida do pino). Para perguntar "qual o engate da máquina X", procure a máquina na lista de modelos. Máquina que não está na lista: engate sob consulta, sob medida pela marca e modelo.',
         category: 'Engates Rápidos',
@@ -3652,7 +3653,7 @@ export default function Catalog() {
       const s = (str || '').toLowerCase();
       return !ehEngateEscavadeira(s) && (s.includes('engate') || s.includes('hitch') || s.includes('coupler'));
     };
-    const ehDhg = ehEngateEscavadeira(lowerContextName) || ehEngateEscavadeira(lowerContextPdfUrl) || ehEngateEscavadeira(lowerUrl) || ehEngateEscavadeira(lowerViewingName) || ehEngateEscavadeira(lowerSelectedName);
+    const ehDhg = ehEngateEscavadeira(productContext?.id) || ehEngateEscavadeira(lowerContextName) || ehEngateEscavadeira(lowerContextPdfUrl) || ehEngateEscavadeira(lowerUrl) || ehEngateEscavadeira(lowerViewingName) || ehEngateEscavadeira(lowerSelectedName);
     const isEngate = !ehDhg && (containsEngateKeyword(lowerUrl) || 
                      containsEngateKeyword(lowerModelName) || 
                      containsEngateKeyword(lowerViewingName) || 
