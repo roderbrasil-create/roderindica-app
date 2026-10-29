@@ -1137,6 +1137,21 @@ export default function Catalog() {
           addGarraClamshell();
         }
 
+        // 29/10/2026 (Jeferson): preço do engate fica com o comercial, o consultor não lê; máquinas do código 0015 confirmadas. Tira o preço do texto e dos
+        // dados dos modelos UMA vez (a marca no produto evita refazer). O valor em base_value continua só para a gerência.
+        const engateDhg = data.find(p => p.id === 'engate-rapido-hidraulico-dhg');
+        if (engateDhg && (isAdmin || isManager) && !(engateDhg as any).ajustes_engate_2026_10_29) {
+          const modelosSemPreco = (engateDhg.models || []).map((m: any) => {
+            const { preco_venda, ...resto } = m?.technical_specs || {};
+            // código 6000.7000.0015: lista de máquinas confirmada pelo Jeferson
+            if (resto.codigo_roder === '6000.7000.0015') resto.maquina = 'HYUNDAI 210/220, PC210/200, SANY 215, VOLVO 220';
+            return { ...m, technical_specs: resto };
+          });
+          const descSemPreco = String(engateDhg.description || '').replace(/ Existem três tamanhos: DHG-02 \(R\$ [\d.,]+\), DHG-06 \(R\$ [\d.,]+\) e DHG-08 \(R\$ [\d.,]+\)\./, ' Existem três tamanhos: DHG-02, DHG-06 e DHG-08. Preço não é informado pelo consultor: fica com o comercial.');
+          updateDoc(doc(db, 'products', engateDhg.id), { models: modelosSemPreco, description: descSemPreco, ajustes_engate_2026_10_29: true })
+            .catch(err => console.warn('Não consegui tirar o preço do engate:', err));
+        }
+
         // Engate Rápido Hidráulico (escavadeira): cria uma vez
         if ((isAdmin || isManager) && data.length > 0 && !data.some(p => p.id === 'engate-rapido-hidraulico-dhg' || (p.name || '').toLowerCase().trim() === 'engate rápido hidráulico')) {
           addEngateHidraulico();
@@ -1322,14 +1337,13 @@ export default function Catalog() {
           modelo_engate: dhg,
           maquina,
           pino,
-          preco_venda: brl(PRECO[dhg]),
           kit_eletro_hidraulico: 'incluso no valor',
           instalacao: 'por técnicos Roder, valor à parte',
         },
       });
       await setDoc(ref, {
         name: 'Engate Rápido Hidráulico',
-        description: 'O Engate Rápido Hidráulico Roder (linha DHG) permite trocar conchas e implementos em segundos, sem o operador sair da cabine. É fabricado sob medida para cada marca e modelo de máquina e atende retroescavadeiras e escavadeiras de 13 a 22 toneladas. Acionamento eletro-hidráulico por botão próprio ao lado do painel, só para engatar e desengatar. O kit monta uma linha hidráulica exclusiva só para o engate: a máquina não precisa ter linha extra de fábrica e, se tiver, ela continua livre para os implementos. KIT ELETRO-HIDRÁULICO INCLUSO NO VALOR DO EQUIPAMENTO: 8 mangueiras hidráulicas, 4 conexões 90°, 3 abraçadeiras de tubo, 2 conexões e adaptadores, 2 conexões em T, 1 válvula solenoide, 1 interruptor de acionamento e 2 tubos de aço. A instalação é feita por técnicos Roder e o valor é à parte. Existem três tamanhos: DHG-02 (R$ 9.800,00), DHG-06 (R$ 14.175,00) e DHG-08 (R$ 19.775,00). O modelo certo depende da marca e do modelo da máquina e dos pinos dela (cada modelo abaixo traz o código Roder, a máquina e a medida do pino). Para perguntar "qual o engate da máquina X", procure a máquina na lista de modelos. Máquina que não está na lista: engate sob consulta, sob medida pela marca e modelo.',
+        description: 'O Engate Rápido Hidráulico Roder (linha DHG) permite trocar conchas e implementos em segundos, sem o operador sair da cabine. É fabricado sob medida para cada marca e modelo de máquina e atende retroescavadeiras e escavadeiras de 13 a 22 toneladas. Acionamento eletro-hidráulico por botão próprio ao lado do painel, só para engatar e desengatar. O kit monta uma linha hidráulica exclusiva só para o engate: a máquina não precisa ter linha extra de fábrica e, se tiver, ela continua livre para os implementos. KIT ELETRO-HIDRÁULICO INCLUSO NO VALOR DO EQUIPAMENTO: 8 mangueiras hidráulicas, 4 conexões 90°, 3 abraçadeiras de tubo, 2 conexões e adaptadores, 2 conexões em T, 1 válvula solenoide, 1 interruptor de acionamento e 2 tubos de aço. A instalação é feita por técnicos Roder e o valor é à parte. Existem três tamanhos: DHG-02, DHG-06 e DHG-08. Preço não é informado pelo consultor: fica com o comercial. O modelo certo depende da marca e do modelo da máquina e dos pinos dela (cada modelo abaixo traz o código Roder, a máquina e a medida do pino). Para perguntar "qual o engate da máquina X", procure a máquina na lista de modelos. Máquina que não está na lista: engate sob consulta, sob medida pela marca e modelo.',
         category: 'Engates Rápidos',
         image_url: img,
         video_url: '',
@@ -1346,7 +1360,7 @@ export default function Catalog() {
           modelo('6000.7000.0012', 'DHG-06', 'PINO 65 x 255 x 365 mm', 'XCMG 150'),
           modelo('6000.7000.0013', 'DHG-08', 'PINO 80 x 337 x 475 mm', 'XCMG 225'),
           modelo('6000.7000.0014', 'DHG-08', 'PINO 80 x 310 x 445 mm', 'CAT 320D/GC/NG'),
-          modelo('6000.7000.0015', 'DHG-08', 'PINO 80 x 330 x 460 mm', 'HYUNDAI 210/220, PC210/200, SANY 215, VOLVO (lista completa a confirmar)'),
+          modelo('6000.7000.0015', 'DHG-08', 'PINO 80 x 330 x 460 mm', 'HYUNDAI 210/220, PC210/200, SANY 215, VOLVO 220'),
           modelo('6000.7000.0016', 'DHG-06', 'PINO 60 x 260 x 375 mm', 'PC130'),
         ],
       });
