@@ -1137,19 +1137,40 @@ export default function Catalog() {
           addGarraClamshell();
         }
 
-        // 29/10/2026 (Jeferson): preço do engate fica com o comercial, o consultor não lê; máquinas do código 0015 confirmadas. Tira o preço do texto e dos
-        // dados dos modelos UMA vez (a marca no produto evita refazer). O valor em base_value continua só para a gerência.
+        // 29/10/2026 (Jeferson), ajustes do Engate Rápido Hidráulico, cada um UMA vez (a marca no produto evita refazer).
+        // Tudo numa só gravação: duas gravações seguidas partindo do mesmo retrato dos modelos se atropelariam.
+        // 1) preço fica com o comercial, o consultor não lê, e máquinas do código 0015 confirmadas;
+        // 2) foto nova no card principal e nos modelos DHG-06 e DHG-08 (DHG-02 mantém a dela).
         const engateDhg = data.find(p => p.id === 'engate-rapido-hidraulico-dhg');
-        if (engateDhg && (isAdmin || isManager) && !(engateDhg as any).ajustes_engate_2026_10_29) {
-          const modelosSemPreco = (engateDhg.models || []).map((m: any) => {
-            const { preco_venda, ...resto } = m?.technical_specs || {};
-            // código 6000.7000.0015: lista de máquinas confirmada pelo Jeferson
-            if (resto.codigo_roder === '6000.7000.0015') resto.maquina = 'HYUNDAI 210/220, PC210/200, SANY 215, VOLVO 220';
-            return { ...m, technical_specs: resto };
-          });
-          const descSemPreco = String(engateDhg.description || '').replace(/ Existem três tamanhos: DHG-02 \(R\$ [\d.,]+\), DHG-06 \(R\$ [\d.,]+\) e DHG-08 \(R\$ [\d.,]+\)\./, ' Existem três tamanhos: DHG-02, DHG-06 e DHG-08. Preço não é informado pelo consultor: fica com o comercial.');
-          updateDoc(doc(db, 'products', engateDhg.id), { models: modelosSemPreco, description: descSemPreco, ajustes_engate_2026_10_29: true })
-            .catch(err => console.warn('Não consegui tirar o preço do engate:', err));
+        if (engateDhg && (isAdmin || isManager)) {
+          const faltaAjuste = !(engateDhg as any).ajustes_engate_2026_10_29;
+          const faltaFoto = !(engateDhg as any).foto_engate_2026_10_29;
+          if (faltaAjuste || faltaFoto) {
+            const FOTO = '/catalogo/engate/engate-hidraulico-dhg-06-08.jpg';
+            const modelosNovos = (engateDhg.models || []).map((m: any) => {
+              let novo = m;
+              if (faltaAjuste) {
+                const { preco_venda, ...resto } = m?.technical_specs || {};
+                if (resto.codigo_roder === '6000.7000.0015') resto.maquina = 'HYUNDAI 210/220, PC210/200, SANY 215, VOLVO 220';
+                novo = { ...novo, technical_specs: resto };
+              }
+              if (faltaFoto && ['DHG-06', 'DHG-08'].includes(String(m?.technical_specs?.modelo_engate || ''))) {
+                novo = { ...novo, images: [FOTO] };
+              }
+              return novo;
+            });
+            const mudanca: any = { models: modelosNovos };
+            if (faltaAjuste) {
+              mudanca.ajustes_engate_2026_10_29 = true;
+              mudanca.description = String(engateDhg.description || '').replace(/ Existem três tamanhos: DHG-02 \(R\$ [\d.,]+\), DHG-06 \(R\$ [\d.,]+\) e DHG-08 \(R\$ [\d.,]+\)\./, ' Existem três tamanhos: DHG-02, DHG-06 e DHG-08. Preço não é informado pelo consultor: fica com o comercial.');
+            }
+            if (faltaFoto) {
+              mudanca.image_url = FOTO;
+              mudanca.foto_engate_2026_10_29 = true;
+            }
+            updateDoc(doc(db, 'products', engateDhg.id), mudanca)
+              .catch(err => console.warn('Não consegui ajustar o engate:', err));
+          }
         }
 
         // Engate Rápido Hidráulico (escavadeira): cria uma vez
@@ -1323,6 +1344,8 @@ export default function Catalog() {
       const ref = doc(db, 'products', 'engate-rapido-hidraulico-dhg');
       if ((await getDoc(ref)).exists()) return;
       const img = '/catalogo/engate/engate-hidraulico-produto.jpg';
+      // 29/10/2026 (Jeferson): foto do card principal e dos modelos DHG-06 e DHG-08
+      const imgPrincipal = '/catalogo/engate/engate-hidraulico-dhg-06-08.jpg';
       const ficha = '/catalogo/engate/Ficha_Engate_Rapido_Hidraulico.pdf';
       const brl = (n: number) => 'R$ ' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
       const PRECO: Record<string, number> = { 'DHG-02': 9800, 'DHG-06': 14175, 'DHG-08': 19775 };
@@ -1330,7 +1353,7 @@ export default function Catalog() {
         id: `engate-${codigo.replace(/\./g, '')}`,
         name: `${dhg} | ${maquina.split(',')[0]}`,
         base_value: PRECO[dhg],
-        images: [img],
+        images: [dhg === 'DHG-02' ? img : imgPrincipal],
         pdf_url: ficha,
         technical_specs: {
           codigo_roder: codigo,
@@ -1345,7 +1368,7 @@ export default function Catalog() {
         name: 'Engate Rápido Hidráulico',
         description: 'O Engate Rápido Hidráulico Roder (linha DHG) permite trocar conchas e implementos em segundos, sem o operador sair da cabine. É fabricado sob medida para cada marca e modelo de máquina e atende retroescavadeiras e escavadeiras de 13 a 22 toneladas. Acionamento eletro-hidráulico por botão próprio ao lado do painel, só para engatar e desengatar. O kit monta uma linha hidráulica exclusiva só para o engate: a máquina não precisa ter linha extra de fábrica e, se tiver, ela continua livre para os implementos. KIT ELETRO-HIDRÁULICO INCLUSO NO VALOR DO EQUIPAMENTO: 8 mangueiras hidráulicas, 4 conexões 90°, 3 abraçadeiras de tubo, 2 conexões e adaptadores, 2 conexões em T, 1 válvula solenoide, 1 interruptor de acionamento e 2 tubos de aço. A instalação é feita por técnicos Roder e o valor é à parte. Existem três tamanhos: DHG-02, DHG-06 e DHG-08. Preço não é informado pelo consultor: fica com o comercial. O modelo certo depende da marca e do modelo da máquina e dos pinos dela (cada modelo abaixo traz o código Roder, a máquina e a medida do pino). Para perguntar "qual o engate da máquina X", procure a máquina na lista de modelos. Máquina que não está na lista: engate sob consulta, sob medida pela marca e modelo.',
         category: 'Engates Rápidos',
-        image_url: img,
+        image_url: imgPrincipal,
         video_url: '',
         pdf_url: ficha,
         is_blocked: false,
