@@ -5454,7 +5454,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
 .cpc-claro .msg-consultor .markdown-body{font-size:15.5px;color:#1B1E22}
 .cpc-claro .msg-consultor strong{color:#1B1E22;font-weight:700}
 .cpc-claro .cpc-entrada > div{border:1px solid #DADDE1;border-radius:16px;padding:10px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
-.cpc-claro .cpc-entrada textarea{border:0;box-shadow:none;font-weight:500;font-size:15.5px;max-height:160px}
+.cpc-claro .cpc-entrada textarea{border:0;box-shadow:none;font-weight:500;font-size:15.5px;max-height:160px;color:#1B1E22;background:transparent}
 @layer base{.cpc-claro .cpc-entrada textarea{min-height:46px !important;height:auto !important}}
 .cpc-claro .msg-consultor .border-t:empty{display:none}
 .cpc-claro .cpc-entrada textarea:focus{box-shadow:none}
