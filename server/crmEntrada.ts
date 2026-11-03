@@ -5,9 +5,12 @@
 //     de carga inicial (histórico), em lotes de até 100;
 //   - carga inicial manual (cargaInicialCrm), pela tela Admin: as em negociação, em lotes de até 500;
 //   - fase 2: atualização do parceiro (a cada 10 min), comissão e comissão paga (a cada 5 min);
+//   - vendidas: a vendida com parceiro que nunca foi ao CRM, e a que já estava lá e virou vendida, vão pelo laço no
+//     formato de carga (histórico, silencioso) com venda e comissão; varredura das vendidas a cada 6 h;
+//   - reenvio das que faltam (reenviarFaltantesCrm), pela tela Admin, com simulação;
 // Documentação: docs/integracao-crm.md
 import {
-  RESERVA_ENVIO_MS, STATUS_ENVIAVEIS, STATUS_DA_CARGA, montarPayloadIndicacao, motivoNaoEnviarNaCarga, motivoNaoEnviarNoLaco, planoDeFalha, atrasoDaTentativa, podeEnviarAoCrm, podeCargaAoCrm,
+  RESERVA_ENVIO_MS, STATUS_ENVIAVEIS, STATUS_DA_CARGA, montarPayloadIndicacao, motivoNaoEnviarNaCarga, motivoNaoEnviarNoLaco, motivoNaoEnviarVendidaNoLaco, vendaPendenteNoCrm, temParceiroDeVerdade, planoDeFalha, atrasoDaTentativa, podeEnviarAoCrm, podeCargaAoCrm,
   type ConfigCrm,
 } from '../src/lib/crmIntegracao';
 import {
@@ -140,6 +143,9 @@ const VARREDURA_COMPLETA_MS = 15 * 60 * 1000;
 const PAGINAS_MAX = 6;
 // Por banco: quando foi a última varredura completa e se ainda sobrou fila (então varre de novo no minuto seguinte)
 const varredura = new WeakMap<object, { proxima: number; sobrou: boolean }>();
+// Vendidas: varredura própria, a cada 6 h (e na primeira rodada depois de reiniciar), ou de novo enquanto sobrar.
+const VARREDURA_VENDIDAS_MS = 6 * 60 * 60 * 1000;
+const varreduraVendidas = new WeakMap<object, { proxima: number; sobrou: boolean }>();
 
 async function paginarPorData(db: any, desde: string): Promise<any[]> {
   // Faixa e ordem no MESMO campo (created_at): sem índice composto. Páginas de LIMITE_DO_LACO.
@@ -156,7 +162,7 @@ async function paginarPorData(db: any, desde: string): Promise<any[]> {
 
 // Todo minuto lê as criadas nas últimas 72 h (ou desde o corte, se for mais recente). A cada 15 minutos (ou
 // enquanto ainda sobra fila) faz a varredura COMPLETA: todas as abertas (pending, triagem, negotiating) de qualquer idade. Filtra em memória: where('crm_enviado_em','==',null) NÃO casa campo inexistente.
-export async function listarCandidatasDoLaco(db: any, ativoDesde: string, agora: Date, completa = false): Promise<{ id: string; data: any }[]> {
+export async function listarCandidatasDoLaco(db: any, ativoDesde: string, agora: Date, completa = false, varrerVendidas = false): Promise<{ id: string; data: any; vendaPendente?: boolean }[]> {
   const recente = new Date(agora.getTime() - JANELA_RECENTE_MS).toISOString();
   const docs: any[] = await paginarPorData(db, recente);
   if (completa) {
@@ -164,11 +170,22 @@ export async function listarCandidatasDoLaco(db: any, ativoDesde: string, agora:
     const s = await db.collection('indications').where('status', 'in', STATUS_ENVIAVEIS).get();
     docs.push(...s.docs);
   }
+  if (varrerVendidas) {
+    // Vendidas de qualquer idade (campo único, sem índice composto). Mais cara: só a cada 6 h (ver rodarFilaCrm).
+    const s = await db.collection('indications').where('status', '==', 'sold').get();
+    docs.push(...s.docs);
+  }
   const vistos = new Set<string>();
-  const achadas: { id: string; data: any }[] = [];
+  const achadas: { id: string; data: any; vendaPendente?: boolean }[] = [];
   for (const d of docs) {
     if (vistos.has(d.id)) continue; vistos.add(d.id);
     const data = d.data() || {};
+    if (String(data.status) === 'sold') {
+      // vendida nunca enviada vai como histórico; a que já estava no CRM e virou vendida leva só a venda
+      if (!motivoNaoEnviarVendidaNoLaco(data, { agora })) achadas.push({ id: d.id, data });
+      else if (vendaPendenteNoCrm(data, { agora })) achadas.push({ id: d.id, data, vendaPendente: true });
+      continue;
+    }
     if (!motivoNaoEnviarNoLaco(data, { ativoDesde, agora })) achadas.push({ id: d.id, data });
   }
   // mais antigas primeiro: é a ordem em que os parceiros indicaram
@@ -200,16 +217,24 @@ export async function rodarFilaCrm(deps: DepsEntradaCrm): Promise<{ pulado?: str
     const agora = deps.agora ? deps.agora() : new Date();
     const est = varredura.get(deps.db) || { proxima: 0, sobrou: false };
     const completa = est.sobrou || agora.getTime() >= est.proxima;
-    const candidatas = await listarCandidatasDoLaco(deps.db, desde, agora, completa);
+    const estV = varreduraVendidas.get(deps.db) || { proxima: 0, sobrou: false };
+    const varrerVendidas = estV.sobrou || agora.getTime() >= estV.proxima;
+    const candidatas = await listarCandidatasDoLaco(deps.db, desde, agora, completa, varrerVendidas);
     // Em negociação ANTERIOR à virada (e ainda não enviada) não pode entrar no CRM como indicação normal, que seria triada
     // de novo: vai no formato de carga inicial (histórico), em lotes. O resto vai como indicação nova.
+    // Vendida (nunca enviada, ou já no CRM com a venda ainda não enviada) vai SEMPRE como histórico: o CRM só completa
+    // o relatório e o vínculo, sem aviso a ninguém.
     const corte = new Date(desde).getTime();
-    const historicas = candidatas.filter(c => String(c.data.status) === 'negotiating' && !(valida(c.data.created_at) && new Date(c.data.created_at).getTime() >= corte));
-    const idsHist = new Set(historicas.map(c => c.id));
+    const vendasPendentes = candidatas.filter(c => c.vendaPendente);
+    const historicas = candidatas.filter(c => !c.vendaPendente && (String(c.data.status) === 'sold' || (String(c.data.status) === 'negotiating' && !(valida(c.data.created_at) && new Date(c.data.created_at).getTime() >= corte))));
+    const idsHist = new Set([...historicas, ...vendasPendentes].map(c => c.id));
     const normais = candidatas.filter(c => !idsHist.has(c.id));
     const sobrou = normais.length > MAX_POR_RODADA || historicas.length > MAX_HISTORICO_POR_RODADA;
     if (completa) varredura.set(deps.db, { proxima: agora.getTime() + VARREDURA_COMPLETA_MS, sobrou });
     else if (est.sobrou) varredura.set(deps.db, { ...est, sobrou });
+    const sobrouVendidas = historicas.filter(c => String(c.data.status) === 'sold').length > MAX_HISTORICO_POR_RODADA || vendasPendentes.length > MAX_HISTORICO_POR_RODADA;
+    if (varrerVendidas) varreduraVendidas.set(deps.db, { proxima: agora.getTime() + VARREDURA_VENDIDAS_MS, sobrou: sobrouVendidas });
+    else if (estV.sobrou) varreduraVendidas.set(deps.db, { ...estV, sobrou: sobrouVendidas });
     const resultados: ResultadoEnvio[] = [];
     for (const c of normais.slice(0, MAX_POR_RODADA)) {
       resultados.push(await enviarIndicacaoAoCrm(deps, c.id, { modo: 'laco', ativoDesde: desde }));
@@ -220,6 +245,11 @@ export async function rodarFilaCrm(deps: DepsEntradaCrm): Promise<{ pulado?: str
       resultados.push(...lr.resultados);
       // terminou de mandar todo o histórico: nada sobrou além do lote e todos foram aceitos
       historicoConcluido = completa && historicas.length <= MAX_HISTORICO_POR_RODADA && lr.resultados.length === historicas.length && lr.resultados.every(x => x.resultado === 'enviada');
+    }
+    if (vendasPendentes.length) {
+      // Já estavam no CRM e viraram vendidas: reenvio do mesmo id_externo (o CRM não duplica, só completa a venda).
+      const lv = await enviarLoteComoCarga(deps, vendasPendentes.slice(0, MAX_HISTORICO_POR_RODADA).map(c => c.id), { backoff: true, reenvio: true });
+      resultados.push(...lv.resultados);
     }
     // Sem carga manual, o laço é quem manda o histórico. Quando não resta nenhuma em negociação anterior ao corte sem
     // envio, registra carga_inicial_em (só se ainda vazio) para o aviso do card Admin não ficar aceso para sempre.
@@ -294,6 +324,37 @@ export async function reenviarCargaCrm(deps: DepsEntradaCrm) {
   const ids = s.docs.map((d: any) => d.id).slice(0, MAX_ITENS_CARGA);
   const lr: any = await enviarLoteComoCarga(deps, ids, { backoff: false, reenvio: true });
   return { ok: true as const, tentadas: lr.tentadas, enviadas: lr.enviadas, falhas: lr.tentadas - lr.enviadas, erro: lr.erro, resumo: lr.resumo };
+}
+
+// Reenvio das que faltam no CRM (tela Admin), silencioso e idempotente, no formato de carga inicial:
+//  - nunca enviadas: em negociação ou vendidas com parceiro (pendente e triagem seguem pelo laço, como novas);
+//  - já enviadas que viraram vendidas e cuja venda o CRM ainda não recebeu (crm_venda_enviada_em vazio).
+// O CRM liga cada uma ao negócio pelo CNPJ/CPF, pelo pedido ou pelo nome, sem criar negócio, e não avisa ninguém.
+// Nada de e-mail ou mensagem daqui. `simulacao` só lista. Lotes de até 100 (aperte de novo até zerar).
+export async function reenviarFaltantesCrm(deps: DepsEntradaCrm, o: { simulacao?: boolean; limite?: number } = {}) {
+  const cfg = deps.config();
+  if (!o.simulacao && !podeCargaAoCrm(cfg)) return { ok: false as const, status: 409, error: 'Configure CRM_CHAVE (e confira CRM_URL) antes de enviar.' };
+  const agora = deps.agora ? deps.agora() : new Date();
+  const s = await deps.db.collection('indications').where('status', 'in', ['negotiating', 'sold']).get();
+  const lista: { id: string; motivo: 'nunca_enviada' | 'venda_nao_enviada'; status: string; cliente: string; parceiro: string; pedido: string; criada: string }[] = [];
+  for (const d of s.docs) {
+    const ind = d.data() || {};
+    let motivo: 'nunca_enviada' | 'venda_nao_enviada' | null = null;
+    if (!ind.crm_enviado_em) {
+      const m = motivoNaoEnviarNaCarga({ ...ind, crm_desistiu_em: null }, { agora });
+      if (!m) motivo = 'nunca_enviada';
+    } else if (vendaPendenteNoCrm({ ...ind, crm_proxima_tentativa_em: null, crm_desistiu_em: null }, { agora })) motivo = 'venda_nao_enviada';
+    if (!motivo) continue;
+    lista.push({ id: d.id, motivo, status: String(ind.status), cliente: String(ind.client_name || ''), parceiro: String(ind.external_seller_name || ''), pedido: String(ind.sale_order_number || ''), criada: String(ind.created_at || '') });
+  }
+  lista.sort((a, b) => a.criada.localeCompare(b.criada));
+  const contagem = { total: lista.length, nunca_enviadas: lista.filter(x => x.motivo === 'nunca_enviada').length, vendas_nao_enviadas: lista.filter(x => x.motivo === 'venda_nao_enviada').length, vendidas: lista.filter(x => x.status === 'sold').length };
+  if (o.simulacao) return { ok: true as const, simulacao: true, ...contagem, itens: lista.slice(0, 200) };
+  const limite = Math.min(Math.max(Math.floor(o.limite || 100), 1), 100);
+  const lote = lista.slice(0, limite);
+  if (!lote.length) return { ok: true as const, simulacao: false, ...contagem, tentadas: 0, enviadas: 0, falhas: 0, restantes: 0 };
+  const lr: any = await enviarLoteComoCarga(deps, lote.map(x => x.id), { backoff: false, reenvio: true });
+  return { ok: true as const, simulacao: false, ...contagem, tentadas: lr.tentadas, enviadas: lr.enviadas, falhas: lr.tentadas - lr.enviadas, restantes: Math.max(lista.length - lr.enviadas, 0), erro: lr.erro, resumo: lr.resumo };
 }
 
 // Envia um lote no formato { tipo: 'carga_inicial', itens } (histórico: sem aviso de "recebida" no CRM, sem
@@ -372,7 +433,12 @@ export async function enviarLoteComoCarga(deps: DepsEntradaCrm, ids: string[], o
       resultados.push({ id: x.id, resultado: f.desistiu ? 'desistiu' : 'falhou', motivo: 'recusada' });
       continue;
     }
-    await ref.update({ crm_enviado_em: nowIso, crm_id: null, crm_carga_inicial: true, crm_reservado_ate: null, crm_ultimo_erro: null, crm_proxima_tentativa_em: null, crm_falhas_transporte: 0 });
+    // Reenvio de quem já estava no CRM mantém a data do primeiro envio (a fase 2 compara as notas com ela).
+    await ref.update({
+      ...(x.ind.crm_enviado_em ? {} : { crm_enviado_em: nowIso, crm_id: null, crm_carga_inicial: true }),
+      ...(x.ind.status === 'sold' ? { crm_venda_enviada_em: nowIso } : {}),
+      crm_reservado_ate: null, crm_ultimo_erro: null, crm_proxima_tentativa_em: null, crm_falhas_transporte: 0,
+    });
     resultados.push({ id: x.id, resultado: 'enviada' });
     enviadas++;
     if (x.ind.status === 'sold') {
@@ -590,7 +656,10 @@ export async function rodarComissoesCrm(deps: DepsEntradaCrm): Promise<{ pulado?
       const idInd = String(c.indication_id || d.id);
       if (!inds.has(idInd)) inds.set(idInd, (await deps.db.collection('indications').doc(idInd).get()).data() || null);
       const ind = inds.get(idInd);
-      if (!ind || (!ind.crm_enviado_em && !STATUS_ENVIAVEIS.includes(String(ind.status)))) {
+      // Vendida com parceiro ainda não enviada NÃO é "não se aplica": o laço a manda como histórico (com a comissão)
+      // e então limpa a marca. Antes ela recebia crm_nao_aplica_em e a comissão nunca chegava ao CRM.
+      const vendidaAEnviar = !!ind && String(ind.status) === 'sold' && temParceiroDeVerdade(ind) && !ind.crm_desistiu_em && ind.creator_type !== 'visitor' && !!String(ind.client_name || '').trim();
+      if (!ind || (!ind.crm_enviado_em && !STATUS_ENVIAVEIS.includes(String(ind.status)) && !vendidaAEnviar)) {
         await ref.update({ crm_nao_aplica_em: agora.toISOString() });
         continue;
       }
@@ -704,6 +773,17 @@ export function registrarRotasAdminCrm(app: any, deps: DepsEntradaCrm & { exigir
     } catch (e: any) {
       (deps.log || console.error)('[CRM-CARGA] Erro no reenvio:', e?.message);
       return res.status(500).json({ ok: false, error: 'Não consegui reenviar a carga. Tente de novo.' });
+    }
+  });
+
+  app.post('/api/admin/crm/reenviar-faltantes', async (req: any, res: any) => {
+    if (!(await deps.exigirAdmin(req, res))) return;
+    try {
+      const r = await reenviarFaltantesCrm(deps, { simulacao: req.body?.simulacao === true, limite: Number(req.body?.limite) || undefined });
+      return res.status(r.ok ? 200 : (r as any).status).json(r);
+    } catch (e: any) {
+      (deps.log || console.error)('[CRM-CARGA] Erro no reenvio das que faltam:', e?.message);
+      return res.status(500).json({ ok: false, error: 'Não consegui reenviar. Tente de novo.' });
     }
   });
 

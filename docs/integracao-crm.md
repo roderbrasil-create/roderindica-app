@@ -135,7 +135,19 @@ Todo item de indicação enviado ao CRM (nova, lote e carga) leva `status_indica
 
 **A carga inicial inclui também as VENDIDAS (`sold`) com parceiro**, como histórico para o relatório do CRM, com `status_indica: "vendido"`, sem `notificar_email` e
 nunca como indicação nova. Venda direta (`direct_factory` e afins) não entra. Arquivadas e canceladas ficam fora. Depois de enviada, a vendida não é reenviada.
-As vendidas vão só pela carga manual do card Admin; o laço não as envia (nem como nova, nem como histórico).
+**Mudou em 03/11/2026 (venda do Luiz Otávio, pedido 9997, que nunca chegou ao CRM):** a vendida com parceiro que nunca foi ao CRM (vendeu
+antes de ser enviada, ou foi cancelada/arquivada e faturada depois da carga) agora vai pelo laço, sempre no formato de carga (histórico,
+silencioso, sem `notificar_email`), com venda e comissão. Antes ela não ia por caminho nenhum e a comissão recebia `crm_nao_aplica_em`.
+A indicação que já estava no CRM e depois virou vendida manda a venda uma vez (mesmo `id_externo`, formato de carga; o CRM só completa
+`status_indica`, a venda, o vínculo e a comissão) e grava `crm_venda_enviada_em`; `crm_enviado_em` não muda. As vendidas são lidas a cada
+minuto nas criadas nas últimas 72 h e, de qualquer idade, numa varredura própria a cada 6 h (e ao reiniciar).
+Na fase 2, comissão de vendida com parceiro ainda não enviada espera o laço (não é mais "não se aplica").
+
+**Reenvio do que falta (card Admin, "Simular o que falta no CRM" / "Reenviar o que falta (silencioso)")**: `POST /api/admin/crm/reenviar-faltantes
+{simulacao, limite}`, só admin, exige só `CRM_CHAVE`. Leva, no formato de carga, as em negociação e vendidas com parceiro nunca enviadas e as
+vendidas já enviadas sem `crm_venda_enviada_em`. Lotes de até 100 (aperte até zerar). A simulação lista cliente, pedido e motivo
+(`nunca_enviada` ou `venda_nao_enviada`). Nada de e-mail ou mensagem a cliente ou parceiro, dos dois lados; o CRM não duplica (mesmo
+`id_externo` volta como repetido e só completa o que faltava) e liga ao negócio pelo CNPJ/CPF, pelo pedido ou pelo nome do cliente, sem criar negócio.
 Campos extras do item vendido (campo ausente é omitido, nunca `null` nem 0 inventado):
 
 | Campo | Origem |

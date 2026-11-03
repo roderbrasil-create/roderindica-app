@@ -157,7 +157,8 @@ test('INTERRUPTOR DESLIGADO: o laço e as rotinas da fase 2 não enviam nada; a 
 test('LAÇO: envia a nova com a chave no cabeçalho e marca crm_enviado_em/crm_id; a segunda rodada não reenvia', async () => {
   const a = ambiente(ENV, { i1: indBase(), velha: indBase({ status: 'negotiating', created_at: '2026-10-01T00:00:00Z' }), vendida: indBase({ status: 'sold' }) }, [{ status: 200, corpo: { ok: true, id: 'crm-77' } }]);
   const r = await rodarFilaCrm(a.deps);
-  assert.deepEqual(r.resultados.map(x => [x.id, x.resultado]).sort(), [['i1', 'enviada'], ['velha', 'enviada']]);
+  // a vendida (com parceiro, nunca enviada) vai no mesmo lote de histórico que a velha em negociação
+  assert.deepEqual(r.resultados.map(x => [x.id, x.resultado]).sort(), [['i1', 'enviada'], ['velha', 'enviada'], ['vendida', 'enviada']]);
   assert.equal(a.chamadas.length, 2, 'uma indicação nova e um lote de histórico');
   assert.equal(a.chamadas[0].url, 'http://localhost:9/crm');
   assert.equal(a.chamadas[0].init.headers['x-roder-chave'], CHAVE_TESTE);
@@ -166,7 +167,8 @@ test('LAÇO: envia a nova com a chave no cabeçalho e marca crm_enviado_em/crm_i
   assert.equal(a.db.dados.indications.i1.crm_id, 'crm-77');
   assert.ok(a.db.dados.indications.i1.crm_enviado_em);
   const lote = JSON.parse(a.chamadas.find(c => JSON.parse(c.init.body).tipo === 'carga_inicial')!.init.body);
-  assert.deepEqual(lote.itens.map((x: any) => x.id_externo), ['velha']);
+  assert.deepEqual(lote.itens.map((x: any) => x.id_externo), ['velha', 'vendida']);
+  assert.equal(lote.itens[1].status_indica, 'vendido');
   assert.match(lote.itens[0].observacao, /Já estava em negociação/);
   await rodarFilaCrm(a.deps);
   assert.equal(a.chamadas.length, 2, 'não duplica');
@@ -284,4 +286,14 @@ test('CARGA INICIAL: só as em negociação, em lote; pending e triagem ficam pa
   assert.ok(enviados.filter(e => e.status_indica === 'em_negociacao').every(e => /Já estava em negociação/.test(e.observacao)));
   assert.equal(enviados.find(e => e.id_externo === 'v').status_indica, 'vendido');
   assert.equal(a.db.dados.indications.p.crm_enviado_em, undefined);
+});
+
+test('venda pendente no CRM: só a vendida já enviada, sem venda enviada e sem desistência', async () => {
+  const { vendaPendenteNoCrm } = await import('../src/lib/crmIntegracao.ts');
+  const agora = new Date('2026-11-03T12:00:00Z');
+  const base = { status: 'sold', crm_enviado_em: '2026-10-01T00:00:00Z', client_name: 'Luiz Otávio', external_seller_uid: 'uid-rafael', external_seller_name: 'Rafael - MAQLOC' };
+  assert.equal(vendaPendenteNoCrm(base, { agora }), true);
+  assert.equal(vendaPendenteNoCrm({ ...base, crm_venda_enviada_em: '2026-11-03T00:00:00Z' }, { agora }), false);
+  assert.equal(vendaPendenteNoCrm({ ...base, crm_desistiu_em: '2026-11-02T00:00:00Z' }, { agora }), false);
+  assert.equal(vendaPendenteNoCrm({ ...base, status: 'negotiating' }, { agora }), false);
 });

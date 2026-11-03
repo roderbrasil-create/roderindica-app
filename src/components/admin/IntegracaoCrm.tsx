@@ -55,6 +55,22 @@ export default function IntegracaoCrm() {
     } catch (e: any) { toast.error(e.message || 'Não deu certo.'); } finally { setOcupado(false); carregar(); }
   };
 
+  // Reenvio silencioso das que faltam no CRM (nunca enviadas, ou vendidas cuja venda o CRM não recebeu).
+  const faltantes = async (simulacao: boolean) => {
+    if (!simulacao && !window.confirm('Reenviar ao CRM as indicações e vendas que faltam lá? Vai em silêncio (sem e-mail nem aviso a cliente ou parceiro) e não duplica.')) return;
+    setOcupado(true);
+    try {
+      const r = await chamar('/api/admin/crm/reenviar-faltantes', { simulacao });
+      if (simulacao) {
+        const nomes = (r.itens || []).slice(0, 15).map((x: any) => `${x.cliente || x.id}${x.pedido ? ` (pedido ${x.pedido})` : ''}`).join('; ');
+        toast.info(`Faltam no CRM: ${r.total} (${r.nunca_enviadas} nunca enviadas, ${r.vendas_nao_enviadas} vendas não enviadas; ${r.vendidas} vendidas).${nomes ? ` ${nomes}` : ''}`, { duration: 15000 });
+      } else {
+        const q = r.resumo || {};
+        toast.success(`${r.enviadas ?? 0} reenviada(s), ${r.falhas ?? 0} com falha. CRM: ${q.recebidos ?? 0} novas, ${q.vinculados ?? 0} vinculadas, ${q.repetidos ?? 0} já estavam lá. Faltam ${r.restantes ?? 0}.`, { duration: 12000 });
+      }
+    } catch (e: any) { toast.error(e.message || 'Não deu certo.'); } finally { setOcupado(false); carregar(); }
+  };
+
   const reativar = async () => {
     if (!window.confirm('Tentar de novo as indicações e comissões em que o envio ao CRM desistiu?')) return;
     setOcupado(true);
@@ -94,6 +110,8 @@ export default function IntegracaoCrm() {
           {estado.carga_inicial_em && (
             <Button size="sm" variant="outline" disabled={ocupado || !pronto} onClick={reenviar}>Reenviar a carga (não duplica)</Button>
           )}
+          <Button size="sm" variant="outline" disabled={ocupado} onClick={() => faltantes(true)}>Simular o que falta no CRM</Button>
+          <Button size="sm" variant="outline" disabled={ocupado || !pronto} onClick={() => faltantes(false)}>Reenviar o que falta (silencioso)</Button>
           {estado.desistiram > 0 && (
             <Button size="sm" variant="outline" disabled={ocupado} onClick={reativar}>Tentar de novo as que desistiram ({estado.desistiram})</Button>
           )}
