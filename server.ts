@@ -4991,9 +4991,9 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
   
   const BR_TIMEZONE = 'America/Sao_Paulo';
   const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
-  // Quem recebe a nota fiscal do parceiro quando ele responde o e-mail de comissão
+  // Quem recebe a nota fiscal do parceiro quando ele responde o e-mail de comissão (financeiro e Jeferson, que acompanha)
   const getFinanceReplyTo = (notif: any): string[] => {
-    const list = ['financeiro@roderbrasil.com.br', 'financeiro2@roderbrasil.com.br']
+    const list = ['financeiro@roderbrasil.com.br', 'financeiro2@roderbrasil.com.br', 'jeferson@roderbrasil.com.br']
       .flatMap((e: string) => String(e).split(/[,;]/)).map((e: string) => e.trim()).filter(Boolean);
     return Array.from(new Set(list));
   };

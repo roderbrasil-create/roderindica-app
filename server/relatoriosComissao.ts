@@ -160,7 +160,7 @@ export async function relatorioParceirosDia1(deps: DepsRelatorio) {
           <div style="margin-top: 24px; padding: 16px; background: #f0fdf4; border-left: 4px solid #16a34a; border-radius: 8px; font-size: 14px; line-height: 1.6;">
             <p style="margin: 0;"><strong>Próximo passo: nota fiscal de serviço</strong></p>
             <p style="margin: 6px 0 0 0;">Nosso setor financeiro está aguardando a sua <strong>nota fiscal de serviço no valor de ${formatCurrency(totalCommissions)}</strong>.</p>
-            <p style="margin: 6px 0 0 0;">Basta <strong>responder este e-mail com a nota fiscal anexada</strong> até o dia <strong>05</strong>. A resposta vai direto para o nosso financeiro, e o pagamento é feito até o dia <strong>07</strong> (se cair em fim de semana ou feriado, no próximo dia útil).</p>
+            <p style="margin: 6px 0 0 0;">O ideal é <strong>anexar a nota fiscal direto no aplicativo Roder Indica</strong>, na aba Comissões, até o dia <strong>05</strong>. Se preferir, pode responder este e-mail com a nota anexada, que a resposta vai direto para o nosso financeiro. O pagamento é feito até o dia <strong>07</strong> (se cair em fim de semana ou feriado, no próximo dia útil).</p>
             <p style="margin: 6px 0 0 0; font-size: 12px; color: #6b7280;">Se preferir, você também pode carregar a nota no Roder Indica, na tela Meus ganhos.</p>
           </div>
 
@@ -213,7 +213,7 @@ export async function lembreteNfDia5(deps: DepsRelatorio) {
               <p style="margin: 5px 0 0 0; font-size: 14px;">Conforme contrato, o não envio da NF até o dia 05 (hoje) impossibilita o pagamento neste ciclo. O valor será acumulado para o pagamento do próximo mês.</p>
             </div>
 
-            <p>Para garantir seu recebimento, <strong>responda este e-mail com a nota fiscal anexada</strong> (vai direto para o nosso financeiro) ou carregue a nota no sistema.</p>
+            <p>Para garantir seu recebimento, <strong>anexe a nota fiscal direto no aplicativo Roder Indica</strong>, na aba Comissões. Se preferir, pode responder este e-mail com a nota anexada (vai direto para o nosso financeiro).</p>
             <a href="${deps.appUrl || 'https://roder-indica.web.app'}/comissoes" style="display: inline-block; background: #eab308; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Acessar Meus ganhos</a>
           </div>
         `;
