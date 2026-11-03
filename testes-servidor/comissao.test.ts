@@ -1138,3 +1138,13 @@ test('CORREÇÃO: no máximo MAX_CRIADAS_POR_RODADA comissões criadas por rodad
   assert.equal(r2.criadas.length, 5);
   assert.equal(r2.adiadas.length, 0);
 });
+
+import { itemComissionavel as itemComissionavelReposicao } from '../src/lib/calculoComissao.ts';
+test('REPOSIÇÃO, FRETE E DESLOCAMENTO ficam fora da base; suporte e ponteira entram', () => {
+  for (const nome of ['PEÇA DE REPOSIÇÃO FACA', 'KIT DE PEÇAS DE REPOSIÇÃO CMF', 'Kit reposicao dentes', 'Peça avulsa dente', 'FRETE CIF', 'DESLOCAMENTO TÉCNICO', 'MÃO DE OBRA TERCEIRO']) {
+    assert.equal(itemComissionavelReposicao({ name: nome }), false, nome);
+  }
+  for (const nome of ['SUPORTE DESTOCADOR RETRO', 'PONTEIRA BIELA 4 CAT 320', 'CABEÇOTE MULTIFUNCIONAL CMF600']) {
+    assert.equal(itemComissionavelReposicao({ name: nome }), true, nome);
+  }
+});

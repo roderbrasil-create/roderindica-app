@@ -707,7 +707,7 @@ export default function Commissions() {
     let text = `Olá, ${sellerName}! Tudo bem?\n\n`;
     text = text + `Concluímos o fechamento das suas comissões programadas para pagamento em *${monthLabel}/${year}*.\n`;
     text = text + `O valor total de comissão calculado é de *R$ ${totalValStr}*.\n\n`;
-    text = text + `*Nota explicativa sobre o cálculo:* Lembramos que o recebimento de comissões de parceiro indicador incide apenas sobre o valor líquido dos equipamentos comissionáveis de fábrica. Valores correspondentes a itens como kits extras de instalação, frete, deslocamento de entrega técnica ou serviços de instalação não contemplam a base de produtos comissionáveis. Por esse motivo, é normal e esperado que o valor total de faturamento ou da Nota Fiscal final ao cliente seja maior do que a base de comissionamento de produtos aqui especificada.\n\n`;
+    text = text + `*Nota explicativa sobre o cálculo:* Lembramos que o recebimento de comissões de parceiro indicador incide sobre o valor líquido dos equipamentos e dos produtos de fábrica que os acompanham, como suportes e ponteiras. Valores correspondentes a itens como kits de instalação, frete, deslocamento, mão de obra de terceiros, peças de reposição ou kits de reposição não contemplam a base de produtos comissionáveis. Por esse motivo, é normal e esperado que o valor total de faturamento ou da Nota Fiscal final ao cliente seja maior do que a base de comissionamento de produtos aqui especificada.\n\n`;
     text = text + `Por favor, emita e nos envie a Nota Fiscal de serviço com este valor de R$ ${totalValStr} para darmos continuidade ao pagamento até o dia 7 (ou no próximo dia útil, se cair em fim de semana ou feriado).\n\n`;
     text = text + `*Vendas correspondentes à sua comissão:*\n`;
 

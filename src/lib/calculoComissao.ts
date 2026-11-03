@@ -13,9 +13,10 @@ const TAXA_SEM_CADASTRO = 2;
 
 export type ProdutoComissao = { code?: string; name?: string; quantity?: number; base_value?: number; is_commissionable?: boolean };
 
-const RE_SERVICO = /m[ãa]o\s*de\s*obra|frete|transporte|instala[çc][ãa]o|montagem|entrega\s*t[ée]cnica|deslocamento|kit\s+de\s+instala/i;
+const RE_SERVICO = /m[ãa]o\s*de\s*obra|frete|transporte|instala[çc][ãa]o|montagem|entrega\s*t[ée]cnica|deslocamento|kit\s+de\s+instala|reposi[çc][ãa]o|pe[çc]as?\s+avulsas?/i;
 
-// Kit de instalação (código 9000...) e serviço (frete, montagem, instalação) não entram na base.
+// Kit de instalação (código 9000...), serviço (frete, deslocamento, montagem, instalação, mão de obra) e
+// reposição (peça de reposição, kit de reposição, peça avulsa) não entram na base. Suporte e ponteira entram.
 export function itemComissionavel(p: ProdutoComissao): boolean {
   const is9000 = !!p.code && String(p.code).trim().startsWith('9000');
   const isService = RE_SERVICO.test(p.name || '');

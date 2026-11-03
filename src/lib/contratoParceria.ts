@@ -82,8 +82,8 @@ export function montarContrato(e: EntradaContrato & { jaGravado?: boolean }): Co
       ] },
       { titulo: 'CLÁUSULA 2ª – DAS COMISSÕES E BASE DE CÁLCULO', paragrafos: [
         [n('2.1. O '), b('PARCEIRO INDICADOR'), n(' fará jus a uma comissão de '), b(comissao), n(' sobre o '), b('VALOR BASE DE TABELA'), n(' do equipamento vendido.')],
-        [n('2.2. '), b('Base de Cálculo:'), n(' A comissão incide exclusivamente sobre o valor bruto de tabela do equipamento (Roder ou FAE).')],
-        [n('2.3. '), b('Exclusões:'), n(' Estão expressamente excluídos da base de cálculo os valores de: kits de instalação, suportes, adaptadores, componentes hidráulicos, mão de obra, serviços técnicos, acessórios e frete.')],
+        [n('2.2. '), b('Base de Cálculo:'), n(' A comissão incide sobre o valor bruto de tabela dos equipamentos (Roder ou FAE) e dos produtos fabricados pela '), b('RODER'), n(' que acompanham o equipamento, como suportes e ponteiras.')],
+        [n('2.3. '), b('Exclusões:'), n(' Estão expressamente excluídos da base de cálculo os valores de: kits de instalação, frete e deslocamento, mão de obra de terceiros, peças de reposição e kits de peças de reposição, inclusive quando vendidos avulsos no orçamento.')],
       ] },
       { titulo: 'CLÁUSULA 3ª – DA VALIDADE DAS PROPOSTAS E RENOVAÇÃO', paragrafos: [
         [n('3.1. '), b('Prazo de Validade:'), n(' Cada orçamento terá validade de '), b('60 (sessenta) dias corridos'), n(', contados a partir do upload do orçamento no aplicativo.')],
