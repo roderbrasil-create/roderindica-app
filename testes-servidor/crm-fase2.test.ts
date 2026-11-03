@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { processarEventoCrm, tratarRequisicaoCrm } from '../server/crmEventos.ts';
 import { assinarCrm } from '../server/crmAssinatura.ts';
-import { rodarAtualizacoesCrm, rodarComissoesCrm, rodarFilaCrm, cargaInicialCrm, garantirDataDaVirada, reativarDesistidasCrm } from '../server/crmEntrada.ts';
+import { rodarAtualizacoesCrm, rodarComissoesCrm, rodarFilaCrm, cargaInicialCrm, garantirDataDaVirada, reativarDesistidasCrm, reenviarFaltantesCrm } from '../server/crmEntrada.ts';
 import { lerConfigCrm, montarPayloadIndicacao } from '../src/lib/crmIntegracao.ts';
 import { mesclarDadosCrm } from '../src/lib/crmEventos.ts';
 import { entradasPendentesDoParceiro, entradasParaIgnorar, montarAtualizacao, montarComissao, montarComissaoPaga, referenciaStorage, tipoDoAnexo, idMensagemCrm } from '../src/lib/crmFase2.ts';
@@ -408,9 +408,17 @@ test('COMISSÃO: sem número de pedido espera; indicação que nunca foi ao CRM 
   a.db.dados.indications.ind1.sale_order_number = 'PV-1';
   await rodarComissoesCrm(a.deps);
   assert.equal(a.chamadas.length, 1, 'quando o pedido chega, envia');
+  // Vendida com parceiro ainda não enviada: espera o laço (que a manda como histórico com a comissão); NÃO é "não se aplica".
   const b = ambEnviar(ENV_ON, { ind1: ind({ crm_enviado_em: undefined, status: 'sold', sale_order_number: 'PV-1' }) }, { commissions: { c1: COM() } });
   await rodarComissoesCrm(b.deps);
-  assert.equal(b.chamadas.length, 0); assert.ok(b.db.dados.commissions.c1.crm_nao_aplica_em);
+  assert.equal(b.chamadas.length, 0); assert.equal(b.db.dados.commissions.c1.crm_nao_aplica_em, undefined);
+  // Cancelada nunca enviada, ou venda direta: não se aplica.
+  const c = ambEnviar(ENV_ON, { ind1: ind({ crm_enviado_em: undefined, status: 'cancelled' }) }, { commissions: { c1: COM() } });
+  await rodarComissoesCrm(c.deps);
+  assert.equal(c.chamadas.length, 0); assert.ok(c.db.dados.commissions.c1.crm_nao_aplica_em);
+  const d = ambEnviar(ENV_ON, { ind1: ind({ crm_enviado_em: undefined, status: 'sold', external_seller_uid: 'direct_factory' }) }, { commissions: { c1: COM() } });
+  await rodarComissoesCrm(d.deps);
+  assert.ok(d.db.dados.commissions.c1.crm_nao_aplica_em);
 });
 
 test('COMISSÃO: com mais de 300 comissões as mais NOVAS são lidas primeiro; "paga" antiga é achada pela marca, sem janela de dias', async () => {
@@ -623,10 +631,67 @@ test('CARGA DE VENDIDAS x FASE 2: a carga não marca a comissão; a fase 2 manda
   assert.equal(a.chamadas.length, 3);
 });
 
-test('LAÇO: vendidas nunca vão pelo laço (nem como nova, nem como histórico)', async () => {
-  const a = ambEnviar(ENV_ON, { v1: VENDIDA() });
+// Caso real (03/11/2026): venda do Rafael (Maqloc) para o Luiz Otávio, pedido 9997, que nunca foi ao CRM
+// (a vendida não ia pelo laço e a comissão ficava "não se aplica").
+const LUIZ = () => VENDIDA({
+  client_name: 'Luiz Otávio', client_cnpj: '', client_location: 'Lavras - MG', external_seller_uid: 'rafael', external_seller_name: 'Rafael - MAQLOC',
+  created_at: '2026-09-10T10:00:00Z', sale_order_number: '9997', sale_order_date: '2026-10-06', sale_date: '2026-10-06', sale_value: 230000,
+  commissioned_products: [{ code: 'CMF600', name: 'Cabeçote CMF 600', quantity: 1, base_value: 166809 }],
+});
+const COM_LUIZ = () => COM({ indication_id: 'luiz', external_seller_uid: 'rafael', external_seller_name: 'Rafael - MAQLOC', value: 3336.18, base_value_used: 166809, rate_applied: 2, month: 11, year: 2026, crm_nao_aplica_em: '2026-10-30T00:00:00Z', discount_applied: 0 });
+
+test('LAÇO: vendida com parceiro nunca enviada vai como histórico (silenciosa), com venda e comissão; venda direta fica fora; não reenvia', async () => {
+  const a = ambEnviar({ ...ENV_ON, CRM_NOTIFICAR_EMAIL: 'x@roderbrasil.com.br' }, { luiz: LUIZ(), direta: VENDIDA({ external_seller_uid: 'direct_factory' }) }, { commissions: { cl: COM_LUIZ() } });
   await rodarFilaCrm(a.deps);
+  assert.equal(a.chamadas.length, 1);
+  const corpo = a.chamadas[0].corpo;
+  assert.equal(corpo.tipo, 'carga_inicial');
+  assert.deepEqual(corpo.itens.map((x: any) => x.id_externo), ['luiz']);
+  const it = corpo.itens[0];
+  assert.equal(it.status_indica, 'vendido'); assert.equal(it.notificar_email, undefined);
+  assert.equal(it.pedido_numero, '9997'); assert.equal(it.data_pedido, '2026-10-06'); assert.equal(it.valor_total, 230000);
+  assert.deepEqual({ b: it.comissao.valor_equipamento, p: it.comissao.percentual, v: it.comissao.valor_comissao }, { b: 166809, p: 2, v: 3336.18 });
+  const l = a.db.dados.indications.luiz;
+  assert.ok(l.crm_enviado_em); assert.ok(l.crm_venda_enviada_em); assert.equal(l.crm_carga_inicial, true);
+  // a comissão marcada antes como "não se aplica" volta para a fase 2
+  assert.equal(a.db.dados.commissions.cl.crm_nao_aplica_em, null); assert.equal(a.db.dados.commissions.cl.crm_aguardando_paga, true);
+  await rodarFilaCrm(a.deps);
+  assert.equal(a.chamadas.length, 1, 'não reenvia');
+});
+
+test('LAÇO: indicação já no CRM que virou vendida manda a venda uma vez (mesmo id_externo), sem mudar crm_enviado_em', async () => {
+  const a = ambEnviar(ENV_ON, { v1: VENDIDA({ crm_enviado_em: '2026-10-27T10:05:00Z', crm_carga_inicial: false }) });
+  await rodarFilaCrm(a.deps);
+  assert.equal(a.chamadas.length, 1);
+  assert.equal(a.chamadas[0].corpo.tipo, 'carga_inicial');
+  assert.equal(a.chamadas[0].corpo.itens[0].status_indica, 'vendido');
+  const v = a.db.dados.indications.v1;
+  assert.equal(v.crm_enviado_em, '2026-10-27T10:05:00Z'); assert.equal(v.crm_carga_inicial, false); assert.ok(v.crm_venda_enviada_em);
+  await rodarFilaCrm(a.deps);
+  assert.equal(a.chamadas.length, 1, 'uma vez só');
+});
+
+test('REENVIO DAS QUE FALTAM: simulação lista sem enviar; envio silencioso em lote; segunda vez não acha nada', async () => {
+  const a = ambEnviar({ CRM_CHAVE: CHAVE, CRM_URL: 'http://localhost:9/crm' }, {
+    luiz: LUIZ(),
+    neg: ind({ crm_enviado_em: undefined, created_at: '2026-09-01T00:00:00Z' }),
+    ja: VENDIDA({ crm_enviado_em: '2026-10-27T10:05:00Z' }),
+    ok: VENDIDA({ crm_enviado_em: '2026-10-27T10:05:00Z', crm_venda_enviada_em: '2026-10-28T00:00:00Z' }),
+    pend: ind({ crm_enviado_em: undefined, status: 'pending' }),
+    direta: VENDIDA({ external_seller_uid: 'direct_factory' }),
+  }, { commissions: { cl: COM_LUIZ() } });
+  const sim: any = await reenviarFaltantesCrm(a.deps, { simulacao: true });
   assert.equal(a.chamadas.length, 0);
+  assert.deepEqual({ t: sim.total, n: sim.nunca_enviadas, v: sim.vendas_nao_enviadas }, { t: 3, n: 2, v: 1 });
+  assert.ok(sim.itens.some((x: any) => x.id === 'luiz' && x.pedido === '9997'));
+  const r: any = await reenviarFaltantesCrm(a.deps, {});
+  assert.equal(a.chamadas.length, 1); assert.equal(a.chamadas[0].corpo.tipo, 'carga_inicial');
+  assert.deepEqual(a.chamadas[0].corpo.itens.map((x: any) => x.id_externo).sort(), ['ja', 'luiz', 'neg']);
+  assert.ok(a.chamadas[0].corpo.itens.every((x: any) => x.notificar_email === undefined));
+  assert.equal(r.enviadas, 3); assert.equal(r.restantes, 0);
+  assert.equal(a.db.dados.indications.ja.crm_enviado_em, '2026-10-27T10:05:00Z');
+  const sim2: any = await reenviarFaltantesCrm(a.deps, { simulacao: true });
+  assert.equal(sim2.total, 0);
 });
 
 // ---------- desconto e frete no faturado ----------

@@ -128,6 +128,29 @@ export function motivoNaoEnviarNaCarga(ind: any, o: { agora: Date }): string | n
   return null;
 }
 
+// Vendida com parceiro que nunca foi ao CRM (vendeu antes de ser enviada, ou mudou de status depois da carga,
+// por exemplo cancelada pelos 60 dias e faturada depois). Vai pelo laço no formato de carga inicial (histórico,
+// silencioso: sem aviso de "recebida" no CRM, sem e-mail), com os dados da venda e da comissão. Antes ela
+// nunca era enviada e a comissão recebia crm_nao_aplica_em: o CRM não ficava sabendo da venda.
+export function motivoNaoEnviarVendidaNoLaco(ind: any, o: { agora: Date }): string | null {
+  const b = baseEnviavel(ind, ['sold']);
+  if (b) return b;
+  if (!temParceiroDeVerdade(ind)) return 'venda_direta';
+  if (reservada(ind, o.agora)) return 'reservada';
+  if (dataValida(ind.crm_proxima_tentativa_em) && new Date(ind.crm_proxima_tentativa_em).getTime() > o.agora.getTime()) return 'aguardando_nova_tentativa';
+  return null;
+}
+
+// Já está no CRM (foi como pendente/em negociação) e depois virou vendida: o CRM ainda não recebeu a venda.
+// crm_venda_enviada_em marca que a venda (status vendido, pedido, valores e comissão) já foi.
+export function vendaPendenteNoCrm(ind: any, o: { agora: Date }): boolean {
+  if (!ind || String(ind.status) !== 'sold' || !ind.crm_enviado_em || ind.crm_venda_enviada_em) return false;
+  if (!temParceiroDeVerdade(ind) || ind.creator_type === 'visitor' || vazio(ind.client_name)) return false;
+  if (reservada(ind, o.agora)) return false;
+  if (dataValida(ind.crm_proxima_tentativa_em) && new Date(ind.crm_proxima_tentativa_em).getTime() > o.agora.getTime()) return false;
+  return true;
+}
+
 // Indicação que o CRM já tem (ou vai ter em instantes) e que por isso a triagem do Indica não deve
 // distribuir sozinha (o robô de 4 horas úteis de server.ts).
 export const HORAS_ATE_O_ROBO_REASSUMIR = 24;

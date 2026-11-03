@@ -157,7 +157,8 @@ test('INTERRUPTOR DESLIGADO: o laço e as rotinas da fase 2 não enviam nada; a 
 test('LAÇO: envia a nova com a chave no cabeçalho e marca crm_enviado_em/crm_id; a segunda rodada não reenvia', async () => {
   const a = ambiente(ENV, { i1: indBase(), velha: indBase({ status: 'negotiating', created_at: '2026-10-01T00:00:00Z' }), vendida: indBase({ status: 'sold' }) }, [{ status: 200, corpo: { ok: true, id: 'crm-77' } }]);
   const r = await rodarFilaCrm(a.deps);
-  assert.deepEqual(r.resultados.map(x => [x.id, x.resultado]).sort(), [['i1', 'enviada'], ['velha', 'enviada']]);
+  // a vendida (com parceiro, nunca enviada) vai no mesmo lote de histórico que a velha em negociação
+  assert.deepEqual(r.resultados.map(x => [x.id, x.resultado]).sort(), [['i1', 'enviada'], ['velha', 'enviada'], ['vendida', 'enviada']]);
   assert.equal(a.chamadas.length, 2, 'uma indicação nova e um lote de histórico');
   assert.equal(a.chamadas[0].url, 'http://localhost:9/crm');
   assert.equal(a.chamadas[0].init.headers['x-roder-chave'], CHAVE_TESTE);
@@ -166,7 +167,8 @@ test('LAÇO: envia a nova com a chave no cabeçalho e marca crm_enviado_em/crm_i
   assert.equal(a.db.dados.indications.i1.crm_id, 'crm-77');
   assert.ok(a.db.dados.indications.i1.crm_enviado_em);
   const lote = JSON.parse(a.chamadas.find(c => JSON.parse(c.init.body).tipo === 'carga_inicial')!.init.body);
-  assert.deepEqual(lote.itens.map((x: any) => x.id_externo), ['velha']);
+  assert.deepEqual(lote.itens.map((x: any) => x.id_externo), ['velha', 'vendida']);
+  assert.equal(lote.itens[1].status_indica, 'vendido');
   assert.match(lote.itens[0].observacao, /Já estava em negociação/);
   await rodarFilaCrm(a.deps);
   assert.equal(a.chamadas.length, 2, 'não duplica');
