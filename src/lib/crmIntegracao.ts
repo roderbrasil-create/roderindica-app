@@ -144,7 +144,7 @@ export function motivoNaoEnviarVendidaNoLaco(ind: any, o: { agora: Date }): stri
 // Já está no CRM (foi como pendente/em negociação) e depois virou vendida: o CRM ainda não recebeu a venda.
 // crm_venda_enviada_em marca que a venda (status vendido, pedido, valores e comissão) já foi.
 export function vendaPendenteNoCrm(ind: any, o: { agora: Date }): boolean {
-  if (!ind || String(ind.status) !== 'sold' || !ind.crm_enviado_em || ind.crm_venda_enviada_em) return false;
+  if (!ind || String(ind.status) !== 'sold' || !ind.crm_enviado_em || ind.crm_venda_enviada_em || ind.crm_desistiu_em) return false;
   if (!temParceiroDeVerdade(ind) || ind.creator_type === 'visitor' || vazio(ind.client_name)) return false;
   if (reservada(ind, o.agora)) return false;
   if (dataValida(ind.crm_proxima_tentativa_em) && new Date(ind.crm_proxima_tentativa_em).getTime() > o.agora.getTime()) return false;

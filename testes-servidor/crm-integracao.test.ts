@@ -287,3 +287,13 @@ test('CARGA INICIAL: só as em negociação, em lote; pending e triagem ficam pa
   assert.equal(enviados.find(e => e.id_externo === 'v').status_indica, 'vendido');
   assert.equal(a.db.dados.indications.p.crm_enviado_em, undefined);
 });
+
+test('venda pendente no CRM: só a vendida já enviada, sem venda enviada e sem desistência', async () => {
+  const { vendaPendenteNoCrm } = await import('../src/lib/crmIntegracao.ts');
+  const agora = new Date('2026-11-03T12:00:00Z');
+  const base = { status: 'sold', crm_enviado_em: '2026-10-01T00:00:00Z', client_name: 'Luiz Otávio', external_seller_uid: 'uid-rafael', external_seller_name: 'Rafael - MAQLOC' };
+  assert.equal(vendaPendenteNoCrm(base, { agora }), true);
+  assert.equal(vendaPendenteNoCrm({ ...base, crm_venda_enviada_em: '2026-11-03T00:00:00Z' }, { agora }), false);
+  assert.equal(vendaPendenteNoCrm({ ...base, crm_desistiu_em: '2026-11-02T00:00:00Z' }, { agora }), false);
+  assert.equal(vendaPendenteNoCrm({ ...base, status: 'negotiating' }, { agora }), false);
+});

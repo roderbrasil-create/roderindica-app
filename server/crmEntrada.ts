@@ -343,7 +343,7 @@ export async function reenviarFaltantesCrm(deps: DepsEntradaCrm, o: { simulacao?
     if (!ind.crm_enviado_em) {
       const m = motivoNaoEnviarNaCarga({ ...ind, crm_desistiu_em: null }, { agora });
       if (!m) motivo = 'nunca_enviada';
-    } else if (vendaPendenteNoCrm({ ...ind, crm_proxima_tentativa_em: null }, { agora })) motivo = 'venda_nao_enviada';
+    } else if (vendaPendenteNoCrm({ ...ind, crm_proxima_tentativa_em: null, crm_desistiu_em: null }, { agora })) motivo = 'venda_nao_enviada';
     if (!motivo) continue;
     lista.push({ id: d.id, motivo, status: String(ind.status), cliente: String(ind.client_name || ''), parceiro: String(ind.external_seller_name || ''), pedido: String(ind.sale_order_number || ''), criada: String(ind.created_at || '') });
   }
@@ -658,7 +658,7 @@ export async function rodarComissoesCrm(deps: DepsEntradaCrm): Promise<{ pulado?
       const ind = inds.get(idInd);
       // Vendida com parceiro ainda não enviada NÃO é "não se aplica": o laço a manda como histórico (com a comissão)
       // e então limpa a marca. Antes ela recebia crm_nao_aplica_em e a comissão nunca chegava ao CRM.
-      const vendidaAEnviar = !!ind && String(ind.status) === 'sold' && temParceiroDeVerdade(ind);
+      const vendidaAEnviar = !!ind && String(ind.status) === 'sold' && temParceiroDeVerdade(ind) && !ind.crm_desistiu_em && ind.creator_type !== 'visitor' && !!String(ind.client_name || '').trim();
       if (!ind || (!ind.crm_enviado_em && !STATUS_ENVIAVEIS.includes(String(ind.status)) && !vendidaAEnviar)) {
         await ref.update({ crm_nao_aplica_em: agora.toISOString() });
         continue;
