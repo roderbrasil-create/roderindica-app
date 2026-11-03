@@ -5028,7 +5028,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     const user = (transporter.options as any)?.auth?.user;
 
     await transporter.sendMail({
-      from: `"${opts.fromName || 'Roder Sistema'}" <${user}>`,
+      from: `"${opts.fromName || 'Roder Indica'}" <${user}>`,
       to,
       subject,
       ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),

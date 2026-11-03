@@ -658,11 +658,11 @@ export default function Commissions() {
       // Avisa o financeiro (Elisângela + financeiro2) que a NF do parceiro chegou
       try {
         const brl = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
-        const toList = 'financeiro@roderbrasil.com.br, financeiro2@roderbrasil.com.br';
+        const toList = 'financeiro@roderbrasil.com.br, financeiro2@roderbrasil.com.br, jeferson@roderbrasil.com.br';
         await sendEmail({
           to: toList,
           subject: `NF de comissão recebida: ${profile?.name || 'Parceiro'} (${String(selectedPartnerPeriod.month).padStart(2, '0')}/${selectedPartnerPeriod.year})`,
-          html: `<div style="font-family: Arial, sans-serif;"><p>O parceiro <strong>${profile?.name || ''}</strong> enviou a nota fiscal de serviço da comissão de ${String(selectedPartnerPeriod.month).padStart(2, '0')}/${selectedPartnerPeriod.year}.</p><p>Valor: <strong>${brl(selectedPartnerPeriod.total)}</strong></p>${url ? `<p><a href="${url}">Abrir nota fiscal</a></p>` : ''}<p>Pagamento previsto até o dia 07 (ou no próximo dia útil, se cair em fim de semana ou feriado).</p></div>`,
+          html: `<div style="font-family: Arial, sans-serif;"><p>O parceiro <strong>${profile?.name || ''}</strong> enviou a nota fiscal de serviço da comissão de ${String(selectedPartnerPeriod.month).padStart(2, '0')}/${selectedPartnerPeriod.year}.</p><p>Valor: <strong>${brl(selectedPartnerPeriod.total)}</strong></p>${url ? `<p><a href="${url}">Abrir nota fiscal</a></p>` : ''}<p><strong>O pagamento da comissão já pode ser efetuado.</strong> Prazo até o dia 07 (ou no próximo dia útil, se cair em fim de semana ou feriado).</p></div>`,
           replyTo: profile?.email || undefined,
           fromName: 'Roder Indica',
         });

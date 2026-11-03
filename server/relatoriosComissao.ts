@@ -149,7 +149,7 @@ export async function relatorioParceirosDia1(deps: DepsRelatorio) {
             <tbody>
               ${linhas.map(({ c, x }) => `
                 <tr>
-                  <td style="padding: 8px; border-bottom: 1px solid #f3f4f6;">${x.client_name || x.client_person_name || ''}</td>
+                  <td style="padding: 8px; border-bottom: 1px solid #f3f4f6;">${nomeDoCliente(x, '')}</td>
                   <td style="padding: 8px; border-bottom: 1px solid #f3f4f6;">${x.base_machine || x.product_name || ''}</td>
                   <td style="padding: 8px; border-bottom: 1px solid #f3f4f6; text-align: right; font-weight: bold;">${formatCurrency(Number(c.value) || 0)}</td>
                 </tr>
@@ -223,6 +223,13 @@ export async function lembreteNfDia5(deps: DepsRelatorio) {
     }
     return { enviados };
   });
+}
+
+// nome do cliente da venda: a indicação pode trazê-lo em campos diferentes
+function nomeDoCliente(ind: any, vazio = 'Não informado'): string {
+  const nome = [ind?.client_name, ind?.client_company_name, ind?.company_name, ind?.client_person_name, ind?.client_contact_name]
+    .map((v: any) => String(v || '').trim()).find(Boolean);
+  return nome || vazio;
 }
 
 function emailsDoFinanceiro(notif: any) {
@@ -347,8 +354,8 @@ export async function relatorioDiretoriaDia1(deps: DepsRelatorio) {
           <tbody>
             ${monthlySales.map((sale: any) => `
               <tr>
-                <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.client_name}</td>
-                <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.product_name}</td>
+                <td style="padding: 8px; border: 1px solid #e2e8f0;">${nomeDoCliente(sale)}</td>
+                <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.product_name || sale.base_machine || '-'}</td>
                 <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.external_seller_name || '-'}</td>
                 <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.internal_seller_name || '-'}</td>
                 <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; font-weight: bold;">${formatCurrency(sale.sale_value || 0)}</td>
@@ -376,8 +383,8 @@ export async function relatorioDiretoriaDia1(deps: DepsRelatorio) {
               const daysLeft = 60 - Math.floor((now.getTime() - bDate.getTime()) / (1000 * 60 * 60 * 24));
               return `
                 <tr>
-                  <td style="padding: 8px; border: 1px solid #e2e8f0;">${neg.client_name}</td>
-                  <td style="padding: 8px; border: 1px solid #e2e8f0;">${neg.product_name}</td>
+                  <td style="padding: 8px; border: 1px solid #e2e8f0;">${nomeDoCliente(neg)}</td>
+                  <td style="padding: 8px; border: 1px solid #e2e8f0;">${neg.product_name || neg.base_machine || '-'}</td>
                   <td style="padding: 8px; border: 1px solid #e2e8f0;">${neg.internal_seller_name || '-'}</td>
                   <td style="padding: 8px; border: 1px solid #e2e8f0;">${bDate.toLocaleDateString('pt-BR')}</td>
                   <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center; color: ${daysLeft <= 5 ? '#ef4444' : '#64748b'}; font-weight: bold;">
@@ -461,7 +468,7 @@ export async function relatorioDiretoriaDia1(deps: DepsRelatorio) {
           <tbody>
             ${comissoes.map((c: any) => { const sale = indsComissao.get(c.indication_id) || {}; return `
               <tr style="border-bottom: 1px solid #e2e8f0;">
-                <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.client_name || "Não informado"}</td>
+                <td style="padding: 8px; border: 1px solid #e2e8f0;">${nomeDoCliente(sale)}</td>
                 <td style="padding: 8px; border: 1px solid #e2e8f0;">${c.external_seller_name || sale.external_seller_name || "-"}</td>
                 <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.product_name || sale.base_machine || "-"}</td>
                 <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">${formatCurrency(sale.sale_value || 0)}</td>
