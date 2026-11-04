@@ -1208,6 +1208,41 @@ export default function Catalog() {
           updateDoc(doc(db, 'products', fellerDisco.id), { is_blocked: false });
         }
 
+        // 04/11/2026 (Jeferson), ficha nova do Feller de Disco CFD 40 no lugar da antiga (criada pelo Google AI Studio):
+        // vale para o produto que já existe, UMA vez (a marca no produto evita refazer e preserva edições posteriores).
+        // Mantém fotos e valor dos modelos; troca só ficha, descrição e dados técnicos.
+        if (fellerDisco && (isAdmin || isManager) && !(fellerDisco as any).ficha_cfd40_2026_11_04) {
+          const FICHA_CFD40 = '/catalogo/feller-disco/Ficha_Feller_Disco_CFD40.pdf';
+          const modelosCfd = (fellerDisco.models || []).map((m: any) => {
+            const ehCfd40 = String(m?.id || '') === 'cfd-40' || /^cfd\s*40$/i.test(String(m?.name || '').trim());
+            if (!ehCfd40) return m;
+            return {
+              ...m,
+              pdf_url: FICHA_CFD40,
+              technical_specs: {
+                ...(m.technical_specs || {}),
+                codigo_roder: '1000.1404.0000',
+                diametro_corte: '420',
+                peso: '1850',
+                acumulador: 'SIM',
+                dentes_disco: '18 dentes',
+                disco: '1230',
+                dimensoes: '1.700 x 1.967 x 1.630 mm',
+                maquina_base: '20 a 35 Ton.',
+                pressao: '280',
+                vazao: '250 a 350',
+                preparacao_hidraulica: 'Técnicos Roder, bloco hidráulico exclusivo',
+              },
+            };
+          });
+          updateDoc(doc(db, 'products', fellerDisco.id), {
+            pdf_url: FICHA_CFD40,
+            description: 'O Feller de Disco Roder CFD 40 corta e acumula árvores em florestas plantadas, tanto em eucalipto de primeiro ciclo quanto em áreas de rebrota, com tocos de até 42 cm de diâmetro. Disco de 1.230 mm com 18 dentes de metal duro, estrutura em aço Strenx 700 e base em Hardox. A escavadeira precisa de preparação hidráulica específica, feita pelos técnicos Roder com bloco hidráulico exclusivo.',
+            models: modelosCfd,
+            ficha_cfd40_2026_11_04: true,
+          }).catch(err => console.warn('Não consegui atualizar a ficha do Feller de Disco:', err));
+        }
+
         const destocadorBroca = data.find(p => p.name === 'Destocador Tipo Broca');
         if (!destocadorBroca && data.length > 0) {
           addDestocadorBroca();
@@ -1479,11 +1514,11 @@ export default function Catalog() {
       
       const fellerDiscoData = {
         name: 'Feller de Disco',
-        description: 'O Cabeçote Feller de Disco Roder oferece altíssima performance no corte e acumulação de árvores em florestas plantadas densas. Equipado com energia cinética armazenada em um disco robusto de corte contínuo e dentes de metal duro, garante velocidade incomparável e eficiência operacional máxima, operando com segurança e suavidade na base de escavadeiras hidráulicas.',
+        description: 'O Feller de Disco Roder CFD 40 corta e acumula árvores em florestas plantadas, tanto em eucalipto de primeiro ciclo quanto em áreas de rebrota, com tocos de até 42 cm de diâmetro. Disco de 1.230 mm com 18 dentes de metal duro, estrutura em aço Strenx 700 e base em Hardox. A escavadeira precisa de preparação hidráulica específica, feita pelos técnicos Roder com bloco hidráulico exclusivo.',
         category: 'Cabeçote Florestal',
         image_url: 'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-feller-de-disco.jpg.webp',
         video_url: '',
-        pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Feller-de-Disco-Roder.pdf',
+        pdf_url: '/catalogo/feller-disco/Ficha_Feller_Disco_CFD40.pdf',
         is_blocked: false,
         created_at: snap.empty ? new Date().toISOString() : (snap.docs[0].data() as any).created_at,
         models: [
@@ -1494,14 +1529,19 @@ export default function Catalog() {
             images: [
               'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-feller-de-disco.jpg.webp'
             ],
+            pdf_url: '/catalogo/feller-disco/Ficha_Feller_Disco_CFD40.pdf',
             technical_specs: {
-              diametro_corte: '400',
-              peso: '2150',
+              codigo_roder: '1000.1404.0000',
+              diametro_corte: '420',
+              peso: '1850',
               acumulador: 'SIM',
               dentes_disco: '18 dentes',
+              disco: '1230',
+              dimensoes: '1.700 x 1.967 x 1.630 mm',
               maquina_base: '20 a 35 Ton.',
               pressao: '280',
-              vazao: '250 a 350'
+              vazao: '250 a 350',
+              preparacao_hidraulica: 'Técnicos Roder, bloco hidráulico exclusivo'
             }
           }
         ]
@@ -2802,11 +2842,11 @@ export default function Catalog() {
       },
       {
         name: 'Feller de Disco',
-        description: 'O Cabeçote Feller de Disco Roder oferece altíssima performance no corte e acumulação de árvores em florestas plantadas densas. Equipado com energia cinética armazenada em um disco robusto de corte contínuo e dentes de metal duro, garante velocidade incomparável e eficiência operacional máxima, operando com segurança e suavidade na base de escavadeiras hidráulicas.',
+        description: 'O Feller de Disco Roder CFD 40 corta e acumula árvores em florestas plantadas, tanto em eucalipto de primeiro ciclo quanto em áreas de rebrota, com tocos de até 42 cm de diâmetro. Disco de 1.230 mm com 18 dentes de metal duro, estrutura em aço Strenx 700 e base em Hardox. A escavadeira precisa de preparação hidráulica específica, feita pelos técnicos Roder com bloco hidráulico exclusivo.',
         category: 'Cabeçote Florestal',
         image_url: 'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-feller-de-disco.jpg.webp',
         video_url: '',
-        pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Feller-de-Disco-Roder.pdf',
+        pdf_url: '/catalogo/feller-disco/Ficha_Feller_Disco_CFD40.pdf',
         is_blocked: false,
         created_at: new Date().toISOString(),
         models: [
@@ -2817,14 +2857,19 @@ export default function Catalog() {
             images: [
               'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-feller-de-disco.jpg.webp'
             ],
+            pdf_url: '/catalogo/feller-disco/Ficha_Feller_Disco_CFD40.pdf',
             technical_specs: {
-              diametro_corte: '400',
-              peso: '2150',
+              codigo_roder: '1000.1404.0000',
+              diametro_corte: '420',
+              peso: '1850',
               acumulador: 'SIM',
               dentes_disco: '18 dentes',
+              disco: '1230',
+              dimensoes: '1.700 x 1.967 x 1.630 mm',
               maquina_base: '20 a 35 Ton.',
               pressao: '280',
-              vazao: '250 a 350'
+              vazao: '250 a 350',
+              preparacao_hidraulica: 'Técnicos Roder, bloco hidráulico exclusivo'
             }
           }
         ]
