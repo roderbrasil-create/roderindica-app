@@ -344,6 +344,39 @@ async function classifyQuestionTopic(ai: GoogleGenAI, question: string): Promise
   return "Dúvida Geral";
 }
 
+// 04/11/2026: troca a ficha antiga do Feller de Disco (criada no Google AI Studio) pela ficha nova do CFD 40.
+// Roda no servidor para não depender de um admin abrir o Catálogo. Mesma marca da tela: ficha_cfd40_2026_11_04.
+async function migrarFichaFellerDisco(dbx: any) {
+  const FICHA = '/catalogo/feller-disco/Ficha_Feller_Disco_CFD40.pdf';
+  const snap = await dbx.collection('products').where('name', '==', 'Feller de Disco').get();
+  for (const d of snap.docs) {
+    const p: any = d.data();
+    if (p.ficha_cfd40_2026_11_04) continue;
+    const models = (p.models || []).map((m: any) => {
+      const ehCfd40 = String(m?.id || '') === 'cfd-40' || /^cfd\s*40$/i.test(String(m?.name || '').trim());
+      if (!ehCfd40) return m;
+      return {
+        ...m,
+        pdf_url: FICHA,
+        technical_specs: {
+          ...(m.technical_specs || {}),
+          codigo_roder: '1000.1404.0000', diametro_corte: '420', peso: '1850', acumulador: 'SIM',
+          dentes_disco: '18 dentes', disco: '1230', dimensoes: '1.700 x 1.967 x 1.630 mm',
+          maquina_base: '20 a 35 Ton.', pressao: '280', vazao: '250 a 350',
+          preparacao_hidraulica: 'Técnicos Roder, bloco hidráulico exclusivo',
+        },
+      };
+    });
+    await d.ref.update({
+      pdf_url: FICHA,
+      description: 'O Feller de Disco Roder CFD 40 corta e acumula árvores em florestas plantadas, tanto em eucalipto de primeiro ciclo quanto em áreas de rebrota, com tocos de até 42 cm de diâmetro. Disco de 1.230 mm com 18 dentes de metal duro, estrutura em aço Strenx 700 e base em Hardox. A escavadeira precisa de preparação hidráulica específica, feita pelos técnicos Roder com bloco hidráulico exclusivo.',
+      models,
+      ficha_cfd40_2026_11_04: true,
+    });
+    console.log('Ficha CFD 40 aplicada ao produto', d.id);
+  }
+}
+
 async function startServer() {
   const app = express();
 
@@ -6087,6 +6120,8 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     setTimeout(() => { if (db) ligarEmailsComissaoUmaVez(db).catch(() => {}); }, 9000);
     // correção automática de comissão logo depois do início (trava em cron_locks contra dois processos)
     setTimeout(() => { if (db) conciliarComTrava({ db, arrayUnion: (...v: any[]) => admin.firestore.FieldValue.arrayUnion(...v) }, 'início do servidor').catch(() => {}); }, 15000);
+    // ficha nova do Feller de Disco CFD 40 no catálogo, uma vez só (mesma trava da tela), sem depender de alguém abrir o Catálogo
+    setTimeout(() => { if (db) migrarFichaFellerDisco(db).catch((e: any) => console.warn('Ficha CFD 40:', e?.message || e)); }, 10000);
     // os seis avisos por e-mail não têm mais interruptor na tela: ficam sempre ligados
     setTimeout(() => { if (db) garantirEmailsLigados(db).catch(() => {}); }, 12000);
 

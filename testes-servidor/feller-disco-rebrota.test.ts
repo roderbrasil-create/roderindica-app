@@ -59,3 +59,9 @@ test('PRODUTIVIDADE: faixa de 2 a 3 vezes como referência, sem prometer número
   assert.ok(!/chegou a produzir até 3 vezes/.test(servidor));
   assert.ok(/REFERÊNCIA, nunca uma garantia/.test(servidor));
 });
+
+test('FICHA: o servidor aplica a ficha nova do CFD 40 sozinho, sem esperar alguém abrir o Catálogo', () => {
+  assert.ok(/async function migrarFichaFellerDisco/.test(servidor));
+  assert.ok(/migrarFichaFellerDisco\(db\)/.test(servidor));
+  assert.ok(/Ficha_Feller_Disco_CFD40\.pdf/.test(servidor));
+});
