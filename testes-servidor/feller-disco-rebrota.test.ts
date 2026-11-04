@@ -24,3 +24,7 @@ test('FICHA: a ficha nova do CFD 40 existe e o catálogo aponta para ela, não m
 test('INSTALAÇÃO: o consultor conhece as 7 mangueiras e o bloco exclusivo do Feller de Disco', () => {
   assert.ok(/Total de 7 mangueiras/.test(servidor) && /união de fluxo das 2 bombas/.test(servidor));
 });
+
+test('COMPATIBILIDADE: Feller de Disco serve para comando pilotado com fatia extra', () => {
+  assert.ok(/comando PILOTADO e com fatia extra disponível/.test(servidor) && /Caterpillar 320 mais antiga/.test(servidor));
+});
