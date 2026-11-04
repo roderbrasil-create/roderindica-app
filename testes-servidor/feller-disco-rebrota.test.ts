@@ -20,3 +20,7 @@ test('FICHA: a ficha nova do CFD 40 existe e o catálogo aponta para ela, não m
   assert.ok(catalogo.includes('ficha_cfd40_2026_11_04'));
   assert.ok(catalogo.includes("diametro_corte: '420'") && catalogo.includes("peso: '1850'"));
 });
+
+test('INSTALAÇÃO: o consultor conhece as 7 mangueiras e o bloco exclusivo do Feller de Disco', () => {
+  assert.ok(/Total de 7 mangueiras/.test(servidor) && /união de fluxo das 2 bombas/.test(servidor));
+});
