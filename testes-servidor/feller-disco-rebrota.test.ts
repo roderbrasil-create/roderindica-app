@@ -37,3 +37,7 @@ test('CATERPILLAR NOVA: bomba extra e comando duplo, com fotos e vídeo para or�
 test('BLOCO: o consultor sabe que o bloco fica no pé do primeiro braço', () => {
   assert.ok(/pé do primeiro braço/.test(servidor));
 });
+
+test('FERRAMENTAS: dentes do Feller de Disco podem ser virados e não precisam de afiação', () => {
+  assert.ok(/podem ser VIRADOS/.test(servidor) && /NÃO precisam de afiação/.test(servidor));
+});
