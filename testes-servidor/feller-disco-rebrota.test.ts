@@ -71,3 +71,9 @@ test('MÁQUINA PEQUENA: regra de vazão e peso antes de indicar equipamento abai
   assert.ok(/FAE BL2\/EX\/VT[^\n]*NÃO deve ser indicado na SANY SY55C/.test(servidor));
   assert.ok(/Nunca invente a vazão auxiliar nem a capacidade de içamento/.test(servidor));
 });
+
+test('MÁQUINA PEQUENA: resposta em duas partes (por que não dá + indicação) e aviso de estoque', () => {
+  assert.ok(/primeiro POR QUE não dá e depois QUAL é a indicação/.test(servidor));
+  assert.ok(/PML\/EX, DML\/HY ou BL1\/EX\/VT/.test(servidor));
+  assert.ok(/equipe comercial confirma disponibilidade, valor e prazo de entrega/.test(servidor));
+});
