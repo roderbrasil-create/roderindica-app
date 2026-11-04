@@ -45,3 +45,11 @@ test('FERRAMENTAS: dentes do Feller de Disco podem ser virados e não precisam d
 test('ORÇAR: máquina nova pode passar o contato do vendedor em vez do vídeo', () => {
   assert.ok(/contato do VENDEDOR da máquina/.test(servidor) && /pé da bomba principal/.test(servidor));
 });
+
+import { existsSync as existe } from 'node:fs';
+test('FOTOS DO CONSULTOR: as 8 fotos existem e entram no índice de imagens do consultor', () => {
+  const urls = [...servidor.matchAll(/url: '(\/catalogo\/feller-disco\/consultor\/[^']+)'/g)].map(m => m[1]);
+  assert.equal(urls.length, 8);
+  for (const u of urls) assert.ok(existe('public' + u), u);
+  assert.ok(/for \(const f of FOTOS_CONSULTOR_FELLER_DISCO\) catalogImageIndex\.push\(f\)/.test(servidor));
+});
