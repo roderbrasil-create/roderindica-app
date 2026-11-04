@@ -53,3 +53,9 @@ test('FOTOS DO CONSULTOR: as 8 fotos existem e entram no índice de imagens do c
   for (const u of urls) assert.ok(existe('public' + u), u);
   assert.ok(/for \(const f of FOTOS_CONSULTOR_FELLER_DISCO\) catalogImageIndex\.push\(f\)/.test(servidor));
 });
+
+test('PRODUTIVIDADE: faixa de 2 a 3 vezes como referência, sem prometer número exato', () => {
+  assert.ok(/de 2 a 3 vezes mais que um cabeçote multifuncional na mesma operação/.test(servidor));
+  assert.ok(!/chegou a produzir até 3 vezes/.test(servidor));
+  assert.ok(/REFERÊNCIA, nunca uma garantia/.test(servidor));
+});
