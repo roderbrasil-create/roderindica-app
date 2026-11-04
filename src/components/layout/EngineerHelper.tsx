@@ -5809,6 +5809,9 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
       {/* Floating Toggle Button */}
       {(!isFullPage || !isOpen) && (
         <motion.div
+          // 04/11/2026: a cada abrir/minimizar a bolinha é remontada, zerando o deslocamento do arrasto.
+          // Sem isso ela guardava a posição antiga (e o limite da tela de antes), sumia ao minimizar e reaparecia no meio da tela.
+          key={isOpen ? 'consultor-aberto' : 'consultor-minimizado'}
           drag={!isOpen}
           dragConstraints={dragContainerRef}
           dragMomentum={false}
