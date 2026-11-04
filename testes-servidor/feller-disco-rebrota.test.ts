@@ -65,3 +65,9 @@ test('FICHA: o servidor aplica a ficha nova do CFD 40 sozinho, sem esperar algu�
   assert.ok(/migrarFichaFellerDisco\(db\)/.test(servidor));
   assert.ok(/Ficha_Feller_Disco_CFD40\.pdf/.test(servidor));
 });
+
+test('MÁQUINA PEQUENA: regra de vazão e peso antes de indicar equipamento abaixo da faixa (caso BL2 na SY55C)', () => {
+  assert.ok(/MÁQUINA BASE PEQUENA PARA TRITURADOR/.test(servidor));
+  assert.ok(/FAE BL2\/EX\/VT[^\n]*NÃO deve ser indicado na SANY SY55C/.test(servidor));
+  assert.ok(/Nunca invente a vazão auxiliar nem a capacidade de içamento/.test(servidor));
+});
