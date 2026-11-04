@@ -41,3 +41,7 @@ test('BLOCO: o consultor sabe que o bloco fica no pé do primeiro braço', () =>
 test('FERRAMENTAS: dentes do Feller de Disco podem ser virados e não precisam de afiação', () => {
   assert.ok(/podem ser VIRADOS/.test(servidor) && /NÃO precisam de afiação/.test(servidor));
 });
+
+test('ORÇAR: máquina nova pode passar o contato do vendedor em vez do vídeo', () => {
+  assert.ok(/contato do VENDEDOR da máquina/.test(servidor) && /pé da bomba principal/.test(servidor));
+});
