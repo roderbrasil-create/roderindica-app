@@ -28,3 +28,8 @@ test('INSTALAÇÃO: o consultor conhece as 7 mangueiras e o bloco exclusivo do F
 test('COMPATIBILIDADE: Feller de Disco serve para comando pilotado com fatia extra', () => {
   assert.ok(/comando PILOTADO e com fatia extra disponível/.test(servidor) && /Caterpillar 320 mais antiga/.test(servidor));
 });
+
+test('CATERPILLAR NOVA: bomba extra e comando duplo, com fotos e vídeo para orçar', () => {
+  assert.ok(/CATERPILLAR NOVA GERAÇÃO/.test(servidor) && /BOMBA EXTRA/.test(servidor) && /COMANDO DUPLO Roder/.test(servidor));
+  assert.ok(/plaqueta, bomba e o comando/.test(servidor));
+});
