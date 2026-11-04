@@ -33,3 +33,7 @@ test('CATERPILLAR NOVA: bomba extra e comando duplo, com fotos e vídeo para or�
   assert.ok(/CATERPILLAR NOVA GERAÇÃO/.test(servidor) && /BOMBA EXTRA/.test(servidor) && /COMANDO DUPLO Roder/.test(servidor));
   assert.ok(/plaqueta, bomba e o comando/.test(servidor));
 });
+
+test('BLOCO: o consultor sabe que o bloco fica no pé do primeiro braço', () => {
+  assert.ok(/pé do primeiro braço/.test(servidor));
+});
