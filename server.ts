@@ -37,6 +37,7 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { ACCESSORIES_DATA, INSTALLATION_KITS } from "./src/constants.js";
 import { donoDoLinkCurto } from "./server/linkCurtoDono";
+import { urlEncurtavel } from "./server/linkArquivo";
 import { REGRA_ENVIO_EQUIPAMENTO } from "./src/lib/pedidoEnvio";
 import { entradaParaGravar } from "./src/lib/observacaoParceiro";
 import { comDestocadorDthCorrigido, modeloParaEnvio } from "./src/lib/destocadorDth";
@@ -4681,6 +4682,48 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
       res.json({ uid: d.uid || '', pid: d.pid || '', mid: d.mid || '' });
     } catch (e: any) {
       res.status(500).json({ error: e?.message || 'Erro' });
+    }
+  });
+
+  // Link curto de ARQUIVO (vídeo, foto, PDF) para texto de WhatsApp: o endereço comprido do Storage vira /v/CODIGO.
+  // Exige login (só a equipe e os parceiros criam), reaproveita o código se o mesmo endereço já foi encurtado.
+  app.post("/api/link-arquivo", async (req, res) => {
+    try {
+      const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+      if (!token) return res.status(401).json({ error: 'Faça login novamente.' });
+      const quem = await admin.auth().verifyIdToken(token);
+      const url = urlEncurtavel(req.body?.url);
+      if (!url) return res.status(400).json({ error: 'Esse endereço não pode ser encurtado.' });
+      const existente = await db.collection('links_curtos').where('tipo', '==', 'arquivo').where('url', '==', url).limit(1).get();
+      if (!existente.empty) return res.json({ link: `${SITE_PREVIA}/v/${existente.docs[0].id}` });
+      for (let tentativa = 0; tentativa < 6; tentativa++) {
+        const codigo = novoCodigo() + novoCodigo().slice(0, 1);
+        const ref = db.collection('links_curtos').doc(codigo);
+        const criado = await db.runTransaction(async (t: any) => {
+          const snap = await t.get(ref);
+          if (snap.exists) return false;
+          t.set(ref, { tipo: 'arquivo', url, uid: quem.uid, created_at: new Date().toISOString() });
+          return true;
+        });
+        if (criado) return res.json({ link: `${SITE_PREVIA}/v/${codigo}` });
+      }
+      res.status(500).json({ error: 'Não consegui gerar o link.' });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Erro' });
+    }
+  });
+
+  // Abre o arquivo do link curto: só redireciona para endereço permitido, conferido de novo na hora de abrir
+  app.get("/v/:codigo", async (req, res) => {
+    try {
+      const codigo = codigoLimpo(req.params.codigo);
+      const snap = codigo ? await db.collection('links_curtos').doc(codigo).get() : null;
+      const d: any = snap && snap.exists ? snap.data() : null;
+      const destino = d && d.tipo === 'arquivo' ? urlEncurtavel(d.url) : '';
+      res.setHeader('Cache-Control', 'no-cache');
+      res.redirect(302, destino || SITE_PREVIA);
+    } catch (e) {
+      res.redirect(302, SITE_PREVIA);
     }
   });
 

@@ -54,6 +54,7 @@ import {
 import { linkWhatsSemNumero, textoEquipamentoCliente } from '../../lib/mensagemWhatsCliente';
 import { textoEnvioModelo, prepararFotoEnvio, compartilharModeloComFoto, comDestocadorDthCorrigido } from '../../lib/envioEquipamento';
 import { pediuFicha } from '../../lib/pedidoEnvio';
+import { encurtarLinkArquivo } from '../../lib/linkArquivoCurto';
 import { AVISO_SEM_AMOSTRA, linkPublicoDoVideo, precisaConfirmarMaquina, textoPedirConfirmacaoMaquina, videoAmostraDe } from '../../lib/confirmacaoMaquina';
 
 // Equipe Roder: exemplos de pergunta técnica na tela de início do Consultor
@@ -898,8 +899,20 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   const videoAmostra = React.useMemo(() => videoAmostraDe(videosTodos), [videosTodos]);
   // Kit de instalação depende de como a máquina está configurada: abre o WhatsApp (sem número, o vendedor
   // escolhe o contato) com o pedido de vídeo e fotos. Sem vídeo de amostra cadastrado, o texto sai sem link.
+  // 04/11/2026: o endereço do Storage tem mais de 200 caracteres e enchia a mensagem. Encurta antes do clique,
+  // para o botão continuar abrindo o WhatsApp na hora (o navegador bloqueia abrir janela depois de esperar rede).
+  const [linkAmostraCurto, setLinkAmostraCurto] = useState('');
+  useEffect(() => {
+    const longo = linkPublicoDoVideo(videoAmostra);
+    setLinkAmostraCurto('');
+    if (!longo) return;
+    let vivo = true;
+    encurtarLinkArquivo(longo).then(c => { if (vivo && c && c !== longo) setLinkAmostraCurto(c); });
+    return () => { vivo = false; };
+  }, [videoAmostra]);
   const pedirConfirmacaoMaquina = () => {
-    const url = linkWhatsSemNumero(textoPedirConfirmacaoMaquina(linkPublicoDoVideo(videoAmostra)));
+    // o link curto já vem pronto (veja o efeito abaixo); se ainda não chegou, vai o endereço original
+    const url = linkWhatsSemNumero(textoPedirConfirmacaoMaquina(linkAmostraCurto || linkPublicoDoVideo(videoAmostra)));
     let janela: Window | null = null;
     try { janela = window.open(url, '_blank'); if (janela) janela.opener = null; } catch { janela = null; }
     if (!janela) toast('Toque para abrir o WhatsApp', { duration: 15000, action: { label: 'Abrir WhatsApp', onClick: () => { window.open(url, '_blank', 'noopener'); } } });
