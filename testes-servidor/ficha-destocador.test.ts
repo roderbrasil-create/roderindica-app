@@ -46,7 +46,7 @@ test('o prompt do consultor ensina o DTH-240B com os valores confirmados e ofere
   const s = fonte('../server.ts');
   for (const t of [
     '(ficha-destocador:dth240b)', 'MESMO DESTOCADOR PARA ESCAVADEIRA E PARA RETROESCAVADEIRA', '**14 a 22 t**', '**140 a 220 L/min**', '**280 a 350 bar**',
-    '**6 a 10 t**', '**100 a 150 L/min**', '**190 a 220 bar**', '**Ø 660 mm**', '**1.452 mm**', '**740 mm**', '**750 kg**', '952, 630, 530, 477 e 260',
+    '**6 a 10 t**', '**100 a 150 L/min**', '**190 a 220 bar**', '**Ø 700 mm**', '**1.452 mm**', '**740 mm**', '**750 kg**', '952, 630, 530, 477 e 260',
     'sob medida', 'modelo e o ano da máquina', 'sem buraco', 'menor custo por hectare', 'Queimada é proibida', 'Nunca cite comissão do vendedor',
   ]) assert.ok(s.includes(t), t);
   for (const velho of ['680 milímetros', '60 centímetros (600 mm)', 'REGRA DE TRIAGEM OBRIGATÓRIA PARA PERGUNTAS SOBRE DESTOCA']) assert.ok(!s.includes(velho), velho);
@@ -56,10 +56,10 @@ test('dados do manual e do cadastro alinhados com a ficha (peso 750 kg mantido; 
   const m = fonte('../src/data/equipmentManualData.ts');
   const linha = m.split('\n').find(l => l.includes("['Destocador DTH-240B'"))!;
   assert.ok(linha, 'linha do DTH-240B');
-  for (const t of ['Ø 660 mm', '750 kg', '140 a 220', '280-350', '100 a 150', '190-220', '14 a 22', '6 a 10']) assert.ok(linha.includes(t), t);
+  for (const t of ['Ø 700 mm', '750 kg', '140 a 220', '280-350', '100 a 150', '190-220', '14 a 22', '6 a 10']) assert.ok(linha.includes(t), t);
   assert.ok(!/240 mm|14 a 25|120 a 180/.test(linha));
   const c = fonte('../src/pages/Catalog.tsx');
-  assert.ok(!c.includes("diametro_corte: '240'") && c.includes("diametro_corte: '660'") && c.includes("peso: '750'"));
+  assert.ok(!c.includes("diametro_corte: '240'") && c.includes("diametro_corte: '700'") && c.includes("peso: '750'"));
 });
 
 test('CARD DO DTH 240B: o cadastro antigo aparece com os valores novos, sem desfazer edição da diretoria', async () => {
@@ -77,7 +77,7 @@ test('CARD DO DTH 240B: o cadastro antigo aparece com os valores novos, sem desf
   const outro = [{ id: 'cmf-500', name: 'CMF 500', technical_specs: { diametro_corte: '240' } }];
   assert.equal(corrigirDestocadorDth240b(outro), null);
   assert.equal(comUnidade(SPECS_DTH240B.pressao, 'bar'), SPECS_DTH240B.pressao);
-  assert.equal(comUnidade('660', 'mm'), '660 mm');
+  assert.equal(comUnidade('700', 'mm'), '700 mm');
   assert.equal(rotuloDiametroDoModelo(antigo.models[0], 'Ø Máx. Corte'), 'Ø da broca');
   assert.equal(rotuloDiametroDoModelo(outro[0], 'Ø Máx. Corte'), 'Ø Máx. Corte');
 });
@@ -135,7 +135,7 @@ test('PERFIS DO EDITOR: só retro, só escavadeira, ambos, apagar um deles e ida
 test('MIGRAÇÃO: reconhece também os valores intermediários do commit 52160d1', async () => {
   const d = await import('../src/lib/destocadorDth.ts');
   const inter = [{ id: 'dth-240b', name: 'DTH 240B', technical_specs: {
-    diametro_corte: '660', peso: '750',
+    diametro_corte: '700', peso: '750',
     maquina_base: '14 a 22 Ton. (escavadeira) | 6 a 10 Ton. (retro/escavadeira pequena)',
     pressao: '280 a 350 (escavadeira) | 190 a 220 (retro)', vazao: '140 a 220 (escavadeira) | 100 a 150 (retro)' } }];
   const s = d.corrigirDestocadorDth240b(inter)![0].technical_specs;
@@ -162,7 +162,7 @@ test('ENVIO AO CLIENTE: card e Consultor usam a mesma função, com os dados nov
   const doConsultor = e.textoEnvioModelo(prod, antigo, link);
   const doCard = e.textoEnvioModelo(prod, e.modeloParaEnvio(antigo), link, prod.name);
   assert.equal(doCard, doConsultor);
-  for (const t of ['14 a 22 t (escavadeira) | 6 a 10 t', 'Corte até 660 mm', 'Peso 750 kg', '280 a 350 bar (escavadeira) | 190 a 220 bar (retro)', '140 a 220 L/min (escavadeira) | 100 a 150 L/min (retro)', link]) assert.ok(doConsultor.includes(t), t);
+  for (const t of ['14 a 22 t (escavadeira) | 6 a 10 t', 'Corte até 700 mm', 'Peso 750 kg', '280 a 350 bar (escavadeira) | 190 a 220 bar (retro)', '140 a 220 L/min (escavadeira) | 100 a 150 L/min (retro)', link]) assert.ok(doConsultor.includes(t), t);
   for (const velho of ['14 a 25', '240 mm', '210 a 250', '120 a 180']) assert.ok(!doConsultor.includes(velho), velho);
   // a foto: as do modelo primeiro, depois a do produto, sem repetir
   assert.deepEqual(e.imagensParaEnvio(prod, antigo), ['https://x.com/a.webp', 'https://x.com/b.webp', 'https://x.com/p.webp']);

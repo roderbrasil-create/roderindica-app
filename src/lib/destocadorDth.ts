@@ -3,7 +3,7 @@
 // O peso continua 750 kg. Cada campo só é trocado se ainda tiver o valor ANTIGO: o que a diretoria
 // editar depois pela tela de cadastro nunca é desfeito.
 export const SPECS_DTH240B = {
-  diametro_corte: '660',
+  diametro_corte: '700',
   maquina_base: '14 a 22 t (escavadeira) | 6 a 10 t (retro/escav. pequena)',
   pressao: '280 a 350 bar (escavadeira) | 190 a 220 bar (retro)',
   vazao: '140 a 220 L/min (escavadeira) | 100 a 150 L/min (retro)',
@@ -25,7 +25,7 @@ export const ROTULO_DIAMETRO_BROCA = 'Ø da broca';
 // Valores antigos: o cadastro de antes de 22/10/2026 e os intermediários do commit 52160d1
 // ("14 a 22 Ton. (escavadeira) | 6 a 10 Ton. (retro/escavadeira pequena)", pressão e vazão sem unidade)
 const ANTIGOS: Record<keyof typeof SPECS_DTH240B, RegExp[]> = {
-  diametro_corte: [/^\s*240\s*(mm)?\s*$/i],
+  diametro_corte: [/^\s*(240|660)\s*(mm)?\s*$/i],
   maquina_base: [/^\s*14\s*a\s*25\s*(t|ton)?\.?\s*$/i, /^\s*14\s*a\s*22\s*ton\.?\s*\(escavadeira\)\s*\|\s*6\s*a\s*10\s*ton\.?\s*\(retro\/escavadeira pequena\)\s*$/i],
   pressao: [/^\s*210\s*(a|-)\s*250\s*(bar)?\s*$/i, /^\s*280\s*a\s*350\s*\(escavadeira\)\s*\|\s*190\s*a\s*220\s*\(retro\)\s*$/i],
   vazao: [/^\s*120\s*(a|-)\s*180\s*(l\/min)?\s*$/i, /^\s*140\s*a\s*220\s*\(escavadeira\)\s*\|\s*100\s*a\s*150\s*\(retro\)\s*$/i],

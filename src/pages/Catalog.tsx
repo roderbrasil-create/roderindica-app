@@ -1587,7 +1587,7 @@ export default function Catalog() {
               'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-destocador-roder-03.jpg.webp'
             ],
             technical_specs: {
-              diametro_corte: '660',
+              diametro_corte: '700',
               peso: '750',
               comprimento_total: '1.452 mm',
               profundidade_trabalho: '740 mm',
@@ -2914,7 +2914,7 @@ export default function Catalog() {
               'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-destocador-roder-03.jpg.webp'
             ],
             technical_specs: {
-              diametro_corte: '660',
+              diametro_corte: '700',
               peso: '750',
               comprimento_total: '1.452 mm',
               profundidade_trabalho: '740 mm',

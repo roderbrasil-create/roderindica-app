@@ -3009,11 +3009,11 @@ ${REGRA_KIT_CONFIRMACAO}
       • **Escavadeira hidráulica (médio/grande porte)**: peso operacional ideal **14 a 22 t**, vazão **140 a 220 L/min**, pressão **280 a 350 bar**.
       • **Retroescavadeira ou escavadeira pequena**: peso operacional ideal **6 a 10 t**, vazão **100 a 150 L/min**, pressão **190 a 220 bar**.
     - **ESPECIFICAÇÕES TÉCNICAS DO DTH-240B**:
-      • **Diâmetro da broca**: **Ø 660 mm**.
+      • **Diâmetro da broca**: **Ø 700 mm**.
       • **Comprimento total sem o suporte**: **1.452 mm**. **Profundidade de trabalho sem o suporte**: **740 mm** (medida do cepo).
       • As dimensões do desenho da ficha (952, 630, 530, 477 e 260 mm) **não incluem o suporte de fixação**.
       • **Peso**: **750 kg** (apenas o destocador, sem o suporte).
-      • **Tocos menores que a broca (Ø 660 mm)**: destoca em uma única passada, com a broca centralizada sobre o toco.
+      • **Tocos menores que a broca (Ø 700 mm)**: destoca em uma única passada, com a broca centralizada sobre o toco.
       • **Tocos grandes (1 metro ou mais)**: múltiplos furos sobrepostos e sequenciais destroem o toco por completo. O operador costuma fazer furos complementares ao redor para destruir as raízes laterais mais grossas.
       • **Profundidade**: 740 mm é amplamente suficiente para o preparo agrícola, pois subsolagem e gradagem para novas culturas (soja, grãos) trabalham a **35 a 45 cm**.
     - **POR QUE VENDE**: destoca **sem buraco** (destrói o toco no próprio lugar e não altera a posição das camadas do solo), com **menos operações** e o **menor custo por hectare**, mais barato que arrancar o toco com a concha, arrastar até a borda e enterrar ou queimar. **Queimada é proibida.**
