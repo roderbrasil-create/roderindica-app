@@ -4,10 +4,13 @@
 // stream é pedido UMA vez e reaproveitado em todas as gravações enquanto o
 // consultor estiver aberto. Cada gravação cria um MediaRecorder novo sobre o
 // mesmo stream. O microfone só é liberado (indicador apaga) quando o painel
-// fecha, quando a aba fica oculta por mais de 2 minutos ou após 10 minutos sem uso.
+// fecha, quando a aba fica oculta por mais de 3 segundos ou após 45 segundos sem uso.
 
-export const OCIOSO_MS = 10 * 60 * 1000;
-export const OCULTA_MS = 2 * 60 * 1000;
+// 04/11/2026: antes eram 10 min parado e 2 min com a aba oculta, e o ponto laranja do microfone ficava aceso
+// muito depois de a pessoa parar de falar. Agora o microfone apaga 45 s depois do último uso (dá para ditar duas
+// mensagens seguidas sem nova pergunta) e 3 s depois de a pessoa sair da tela do app.
+export const OCIOSO_MS = 45 * 1000;
+export const OCULTA_MS = 3 * 1000;
 
 export interface DependenciasMicrofone {
   pedirStream: () => Promise<MediaStream>;
@@ -111,6 +114,8 @@ function ouvirVisibilidade() {
   document.addEventListener('visibilitychange', () => {
     global.aoMudarVisibilidade(document.visibilityState === 'hidden');
   });
+  // saindo da página (fechar, recarregar, trocar de app no iPhone): apaga o microfone na hora
+  window.addEventListener('pagehide', () => { global.liberar(); });
 }
 
 export const microfone = {

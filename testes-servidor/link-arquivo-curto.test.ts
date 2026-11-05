@@ -28,3 +28,8 @@ test('LINK CURTO: o pedido de confirmação da máquina usa o link curto já pro
   assert.ok(/linkAmostraCurto \|\| linkPublicoDoVideo\(videoAmostra\)/.test(helper));
   assert.ok(/encurtarLinkArquivo\(longo\)/.test(helper));
 });
+
+test('LINK CURTO: a foto da negociação enviada por WhatsApp também usa o link curto', () => {
+  const neg = readFileSync(new URL('../src/components/negotiation/NegotiationCentral.tsx', import.meta.url), 'utf8');
+  assert.ok(/encurtarLinkArquivo\(file\.url\)/.test(neg));
+});

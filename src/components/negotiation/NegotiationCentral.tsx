@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { encurtarLinkArquivo } from '../../lib/linkArquivoCurto';
 import { historicoComObservacao, ROTULO_OBSERVACAO_PARCEIRO } from '../../lib/observacaoParceiro';
 import { motion, AnimatePresence, useDragControls } from 'motion/react';
 import {
@@ -2385,7 +2386,14 @@ export default function NegotiationCentral() {
                                             size="icon" 
                                             variant="secondary" 
                                             className="h-6 w-6 rounded-full shadow-lg"
-                                            onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(`Veja esta foto da negociação: ${file.url}`)}`, '_blank')}
+                                            onClick={async () => {
+                                              // link curto no texto (o do Storage tem mais de 200 caracteres); a janela abre no toque e recebe o endereço depois
+                                              let janela: Window | null = null;
+                                              try { janela = window.open('', '_blank'); } catch { janela = null; }
+                                              const curto = await encurtarLinkArquivo(file.url);
+                                              const alvo = `https://wa.me/?text=${encodeURIComponent(`Veja esta foto da negociação: ${curto}`)}`;
+                                              if (janela && !janela.closed) janela.location.href = alvo; else window.open(alvo, '_blank');
+                                            }}
                                           >
                                             <Share2 className="h-3 w-3 text-green-600" />
                                           </Button>

@@ -490,7 +490,7 @@ export default function PublicBudgetRequest() {
                 <span className="absolute inset-0 bg-black/25" />
                 {/* botão cobrindo a área toda (o estilo global de botão fixa a altura) */}
                 <button type="button" onClick={() => setVideoAberto(true)} aria-label={`Ver o vídeo da ${tituloEquip}`} className="absolute inset-0 h-full w-full p-0 bg-transparent border-0">
-                  <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-16 w-16 rounded-full bg-[#FF0000] flex items-center justify-center shadow-lg">
+                  <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-16 w-16 rounded-full bg-[#CF5B58] flex items-center justify-center shadow-lg">
                     <Play className="h-8 w-8 text-white fill-white ml-1" />
                   </span>
                   <span className="absolute left-3 bottom-3 rounded-full bg-black/75 text-white text-[13px] font-extrabold px-3 py-1.5">▶ Veja trabalhando</span>
@@ -517,8 +517,8 @@ export default function PublicBudgetRequest() {
             {destaques.length > 0 && <p className="text-xs text-slate-600 mt-1.5">{destaques.join(' · ')}</p>}
             {(videoUrl || fichaUrl) && (
               <div className="flex gap-1.5 mt-2">
-                {videoUrl && <button type="button" onClick={() => { setVideoAberto(true); document.getElementById('video-equipamento')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} className="px-3 py-1.5 rounded-full bg-[#FF0000] text-white text-xs font-bold flex items-center gap-1"><Play className="h-3.5 w-3.5 fill-white" /> Vídeo</button>}
-                {fichaUrl && <button type="button" onClick={() => abrirDocumento(fichaUrl, `Ficha ${tituloEquip}`)} className="px-2.5 py-1.5 rounded-full bg-slate-100 text-slate-700 text-xs font-bold flex items-center gap-1"><FileText className="h-3.5 w-3.5" /> Ficha</button>}
+                {videoUrl && <button type="button" onClick={() => { setVideoAberto(true); document.getElementById('video-equipamento')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} className="px-3 py-1.5 rounded-full bg-[#CF5B58] text-white text-xs font-bold flex items-center gap-1"><Play className="h-3.5 w-3.5 fill-white" /> Vídeo</button>}
+                {fichaUrl && <button type="button" onClick={() => abrirDocumento(fichaUrl, `Ficha ${tituloEquip}`)} className="px-3 py-1.5 rounded-full bg-[#5E86B5] text-white text-xs font-bold flex items-center gap-1"><FileText className="h-3.5 w-3.5" /> Ficha</button>}
               </div>
             )}
           </div>

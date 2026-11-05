@@ -10,3 +10,9 @@ test('FOTO: no link do orçamento o equipamento ocupa mais do quadro (card e cap
   assert.ok(/object-contain scale-\[1\.28\]/.test(f));
   assert.ok(!/max-h-\[88%\] max-w-\[88%\]/.test(f));
 });
+
+test('BOTÕES: vídeo em vermelho suave e ficha em azul suave no link do cliente', () => {
+  assert.ok(/bg-\[#CF5B58\] text-white text-xs font-bold/.test(f));
+  assert.ok(/bg-\[#5E86B5\] text-white text-xs font-bold/.test(f));
+  assert.ok(!/bg-\[#FF0000\]/.test(f));
+});
