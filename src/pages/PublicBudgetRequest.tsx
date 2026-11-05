@@ -486,7 +486,7 @@ export default function PublicBudgetRequest() {
               <PlayerVideo url={videoUrl} titulo={tituloEquip} onFechar={() => setVideoAberto(false)} comAcoes={false} />
             ) : (
               <div className="relative w-full aspect-video bg-gradient-to-b from-[#F4F5F6] to-[#DCE0E4]">
-                {images.length > 0 && <img src={images[0]} alt="" className="absolute inset-0 m-auto max-h-[88%] max-w-[88%] object-contain" referrerPolicy="no-referrer" />}
+                {images.length > 0 && <img src={images[0]} alt="" className="absolute inset-0 m-auto max-h-full max-w-full object-contain scale-[1.22]" referrerPolicy="no-referrer" />}
                 <span className="absolute inset-0 bg-black/25" />
                 {/* botão cobrindo a área toda (o estilo global de botão fixa a altura) */}
                 <button type="button" onClick={() => setVideoAberto(true)} aria-label={`Ver o vídeo da ${tituloEquip}`} className="absolute inset-0 h-full w-full p-0 bg-transparent border-0">
@@ -501,9 +501,9 @@ export default function PublicBudgetRequest() {
         )}
         {/* Equipamento */}
         <div className="bg-white rounded-2xl border border-slate-200 p-2.5 flex gap-3 items-center">
-          <button type="button" onClick={() => images.length && setFotoAberta(true)} className="w-[154px] h-[154px] shrink-0 flex items-center justify-center bg-white rounded-xl">
+          <button type="button" onClick={() => images.length && setFotoAberta(true)} className="w-[168px] h-[168px] shrink-0 flex items-center justify-center bg-white rounded-xl overflow-hidden">
             {images.length > 0
-              ? <img src={images[0]} alt={tituloEquip} className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+              ? <img src={images[0]} alt={tituloEquip} className="max-w-full max-h-full object-contain scale-[1.28]" referrerPolicy="no-referrer" />
               : <Package className="h-10 w-10 text-slate-300" />}
           </button>
           <div className="min-w-0">
