@@ -184,3 +184,10 @@ test('ENVIO AO CLIENTE: todos os pontos de envio passam pela fonte única e leva
   // o servidor não pode puxar o Firebase do navegador
   assert.ok(!fonte('../server.ts').includes('lib/envioEquipamento'));
 });
+
+test('FICHA NOVA (05/11/2026): o app aponta para os arquivos novos da Linha DTH e os antigos saíram', () => {
+  assert.ok(PDF_FICHA_DESTOCADOR.endsWith('Ficha_Destocador_Linha_DTH.pdf'));
+  assert.ok(PAGINAS_FICHA_DESTOCADOR[0].endsWith('ficha-destocador-linha-dth-p1.webp'));
+  assert.ok(!existsSync(publico('/fichas-destocador/Ficha_Destocador_DTH240B.pdf')));
+  assert.ok(!existsSync(publico('/fichas-destocador/ficha-destocador-dth240b-p1.webp')));
+});
