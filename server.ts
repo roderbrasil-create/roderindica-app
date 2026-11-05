@@ -5210,6 +5210,7 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
         // Recipients
         const recipients = [
           'luana@roderbrasil.com.br',
+          'luanacamargo@roderbrasil.com.br',
           'gislene@roderbrasil.com.br',
           'roderbrasil@gmail.com'
         ];
@@ -6209,11 +6210,10 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
           const emailLower = (uData.email || "").toLowerCase().trim();
           const nameCurrent = uData.name || "";
           
-          const isLuana = emailLower === "contato@roderbrasil.com.br" ||
+          // contato@ passou a ser da Monali (05/11/2026): só a Luana é renomeada, pelos e-mails dela
+          const isLuana = emailLower === "luanacamargo@roderbrasil.com.br" ||
                           emailLower === "luana@roderbrasil.com.br" ||
-                          emailLower === "luana@roder.com.br" ||
-                          nameCurrent.includes("Contato_Roder") ||
-                          nameCurrent.includes("Contato Roder");
+                          emailLower === "luana@roder.com.br";
 
           if (isLuana && nameCurrent !== "Luana Camargo") {
             console.log(`[BOOT-HEAL] Corrigindo nome do usuário ${userDoc.id} (${uData.email}) de "${nameCurrent}" para "Luana Camargo"...`);

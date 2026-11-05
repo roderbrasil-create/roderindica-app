@@ -253,7 +253,7 @@ export function criarRotasConsultorParceiro(deps: DepsConsultorParceiro) {
   // Os mesmos e-mails do envio pelo app (src/services/emailService.ts): gestão e confirmação ao parceiro
   async function enviarEmails(dados: any, dono: { nome: string; email: string }) {
     if (!deps.enviarEmail) return;
-    const obrigatorios = ['gislene@roderbrasil.com.br', 'contato@roderbrasil.com.br', 'roderbrasil@gmail.com', 'luana@roderbrasil.com.br'];
+    const obrigatorios = ['gislene@roderbrasil.com.br', 'contato@roderbrasil.com.br', 'roderbrasil@gmail.com', 'luana@roderbrasil.com.br', 'luanacamargo@roderbrasil.com.br'];
     let config: any = {};
     try { const s = await db.collection('settings').doc('notifications').get(); config = s.exists ? (s.data() || {}) : {}; } catch { /* usa o padrão */ }
     const lista = String(Array.isArray(config.manager_emails) ? config.manager_emails.join(',') : (config.manager_emails || ''))

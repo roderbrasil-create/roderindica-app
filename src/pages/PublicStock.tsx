@@ -768,6 +768,7 @@ export default function PublicStock() {
     profile.email === 'roderindica@gmail.com' ||
     profile.email === 'rogerio@roderbrasil.com.br' ||
     profile.email === 'luana@roderbrasil.com.br' ||
+    profile.email === 'luanacamargo@roderbrasil.com.br' ||
     profile.email === 'contato@roderbrasil.com.br'
   ));
 

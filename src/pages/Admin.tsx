@@ -1097,10 +1097,10 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
       // Auto-heal Luana Camargo display name if set to Contato_Roder Brasil or email match
       const healedUsers = rawUsers.map(u => {
         const uEmail = (u.email || '').toLowerCase().trim();
-        const isLuana = uEmail === 'contato@roderbrasil.com.br' || 
+        // contato@ passou a ser da Monali (05/11/2026): só a Luana é renomeada, pelos e-mails dela
+        const isLuana = uEmail === 'luanacamargo@roderbrasil.com.br' || 
                         uEmail === 'luana@roderbrasil.com.br' || 
-                        uEmail === 'luana@roder.com.br' ||
-                        (u.name && (u.name.includes('Contato_Roder') || u.name.includes('Contato Roder')));
+                        uEmail === 'luana@roder.com.br';
         
         if (isLuana && u.name !== 'Luana Camargo') {
           console.log(`[ADMIN-HEAL] Corrigindo nome do usuário ${u.uid} (${u.email}) para "Luana Camargo"...`);

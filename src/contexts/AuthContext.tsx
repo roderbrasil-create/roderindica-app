@@ -232,7 +232,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               'rogerio@roderbrasil.com.br',
               'contato@roderbrasil.com.br',
               'luana@roder.com.br',
-              'luana@roderbrasil.com.br'
+              'luana@roderbrasil.com.br',
+              'luanacamargo@roderbrasil.com.br'
             ].includes(userEmail);
 
             if (profileData.status !== 'active') {
@@ -270,7 +271,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               'rogerio@roderbrasil.com.br',
               'contato@roderbrasil.com.br',
               'luana@roder.com.br',
-              'luana@roderbrasil.com.br'
+              'luana@roderbrasil.com.br',
+              'luanacamargo@roderbrasil.com.br'
             ].includes(userEmail);
 
             // (a busca de pré-cadastro por e-mail é do servidor: reivindicar-perfil, no passo 0)
@@ -411,7 +413,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                            user?.email === 'gislene@roder.com.br' ||
                            user?.email === 'contato@roderbrasil.com.br' ||
                            user?.email === 'rogerio@roderbrasil.com.br' ||
-                           user?.email === 'luana@roder.com.br';
+                           user?.email === 'luana@roder.com.br' ||
+                           user?.email === 'luanacamargo@roderbrasil.com.br';
     const canImpersonate = profile?.role === 'admin' || profile?.role === 'manager' || isSpecialEmail;
     if (!canImpersonate) return;
     
@@ -432,7 +435,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const podeVerComo = ['admin', 'manager', 'triagem'].includes(String(profile.role)) ||
       ['roderbrasil@gmail.com', 'roderindica@gmail.com', 'jeferson@roderbrasil.com.br', 'gislene@roderbrasil.com.br',
        'gislene@roder.com.br', 'contato@roderbrasil.com.br', 'rogerio@roderbrasil.com.br', 'luana@roder.com.br',
-       'luana@roderbrasil.com.br'].includes(String(user?.email || profile.email || '').toLowerCase());
+       'luana@roderbrasil.com.br', 'luanacamargo@roderbrasil.com.br'].includes(String(user?.email || profile.email || '').toLowerCase());
     if (!podeVerComo) {
       setImpersonatedProfile(null);
       try { localStorage.removeItem('roder_impersonation'); } catch { /* sem armazenamento */ }
@@ -451,7 +454,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                          userEmail === 'gislene@roderbrasil.com.br' ||
                          userEmail === 'gislene@roder.com.br' ||
                          userEmail === 'luana@roder.com.br' ||
-                         userEmail === 'luana@roderbrasil.com.br'
+                         userEmail === 'luana@roderbrasil.com.br' ||
+                         userEmail === 'luanacamargo@roderbrasil.com.br'
                        );
 
     const checkRole = (role: string) => {
@@ -495,7 +499,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return impersonatedProfile.role === 'triagem';
       }
       return profile?.role === 'triagem' ||
-             ((userEmail === 'luana@roder.com.br' || userEmail === 'contato@roderbrasil.com.br') && !impersonatedProfile);
+             ((userEmail === 'luana@roder.com.br' || userEmail === 'luanacamargo@roderbrasil.com.br' || userEmail === 'contato@roderbrasil.com.br') && !impersonatedProfile);
     };
 
     const getIsExternalSeller = () => {

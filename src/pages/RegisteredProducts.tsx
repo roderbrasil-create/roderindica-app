@@ -154,7 +154,7 @@ export default function RegisteredProducts() {
   }, []);
 
   // Permissions: Admin, Manager, and Luana (Internal/Triagem)
-  const canManage = isAdmin || isManager || (isInternalSeller && (profile?.email === 'luana@roderbrasil.com.br' || profile?.email === 'contato@roderbrasil.com.br' || profile?.email === 'luana@roder.com.br'));
+  const canManage = isAdmin || isManager || (isInternalSeller && (profile?.email === 'luana@roderbrasil.com.br' || profile?.email === 'luanacamargo@roderbrasil.com.br' || profile?.email === 'contato@roderbrasil.com.br' || profile?.email === 'luana@roder.com.br'));
 
   useEffect(() => {
     const q = query(collection(db, 'registered_products'), orderBy('name', 'asc'));

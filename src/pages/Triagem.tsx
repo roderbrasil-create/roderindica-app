@@ -1520,7 +1520,7 @@ export default function Triagem() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                   <div className="p-3 rounded-lg bg-muted/50 border border-border">
                     <p className="font-bold">Monalí Souza</p>
-                    <p className="text-muted-foreground">monali@roderbrasil.com.br</p>
+                    <p className="text-muted-foreground">contato@roderbrasil.com.br</p>
                     <p className="text-muted-foreground">(14) 99811-5111</p>
                   </div>
                   <div className="p-3 rounded-lg bg-muted/50 border border-border">

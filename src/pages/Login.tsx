@@ -25,6 +25,7 @@ const MASTER_ADMIN_EMAILS = [
   'gislene@roder.com.br',
   'luana@roder.com.br',
   'luana@roderbrasil.com.br',
+  'luanacamargo@roderbrasil.com.br',
   'rogerio@roderbrasil.com.br',
   'contato@roderbrasil.com.br'
 ];
