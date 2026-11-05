@@ -2194,6 +2194,27 @@ export default function Catalog() {
          created_at: !existingDoc ? new Date().toISOString() : (existingDoc.data() as any).created_at,
          models: [
            {
+             id: 'afmc-280',
+             name: 'AFMC-280',
+             base_value: 0,
+             pdf_url: '/catalogo/estufagem/Ficha_AFMC-280.pdf',
+             image_url: '/catalogo/estufagem/afmc-280.jpg',
+             images: ['/catalogo/estufagem/afmc-280.jpg'],
+             technical_specs: {
+               codigo_roder: '1000.0000.0184',
+               maquina_base: 'Mini carregadeiras',
+               engate: 'Engate rápido padrão de mini carregadeira',
+               garra: 'R280L',
+               abertura_total: '1.604 mm',
+               area_da_garra: '0,28 m² (Ø máx. 557 mm)',
+               dimensoes: '1.200 x 1.167 x 748 mm',
+               peso: '360',
+               pressao: '160 a 250',
+               vazao: '50 a 120',
+               conexao_hidraulica: '2 mangueiras, engate rápido face plana',
+             },
+      },
+           {
              id: 'af-360',
              name: 'AF - 360',
              base_value: 0,
@@ -3872,7 +3893,9 @@ export default function Catalog() {
       return;
     }
 
-    if (isEstufagem) {
+    // AFMC-280 (alimentador de forno) tem ficha PDF própria: não passa pela ficha geral das garras de estufagem
+    const ehAlimentadorForno = /afmc/i.test(String(modelName || selectedModel?.name || ''));
+    if (isEstufagem && !ehAlimentadorForno) {
       if (selectedProductModels) {
         setSuspendedProductModels(selectedProductModels);
         setSelectedProductModels(null);
