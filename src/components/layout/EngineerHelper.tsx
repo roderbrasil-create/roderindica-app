@@ -1623,6 +1623,29 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     }
   };
 
+  // As fotos da folha viram dados dentro da própria imagem antes de fotografar a folha:
+  // se o html-to-image tiver que baixá-las de novo (principalmente no Safari do iPhone), saem em branco
+  const embutirImagensDaFolha = async (raiz: HTMLElement) => {
+    const imgs = Array.from(raiz.querySelectorAll('img')) as HTMLImageElement[];
+    await Promise.all(imgs.map(async (img) => {
+      try {
+        if (!img.src || img.src.startsWith('data:')) return;
+        const resp = await fetch(img.src, { referrerPolicy: 'no-referrer' });
+        if (!resp.ok) return;
+        const blob = await resp.blob();
+        const dados: string = await new Promise((ok, erro) => {
+          const r = new FileReader();
+          r.onload = () => ok(String(r.result));
+          r.onerror = () => erro(r.error);
+          r.readAsDataURL(blob);
+        });
+        img.removeAttribute('srcset');
+        img.src = dados;
+        try { await img.decode(); } catch { /* segue mesmo assim */ }
+      } catch { /* sem a foto, a folha sai sem ela; o resto continua */ }
+    }));
+  };
+
   // Folha A4 em imagem: se o texto passa de uma folha, encolhe só o conteúdo (piso 0,72) para caber em uma
   const [zoomFolha, setZoomFolha] = useState(1);
   useEffect(() => {
@@ -1650,6 +1673,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     if (!element) return;
     const toastId = toast.loading('Gerando a imagem da folha...');
     try {
+      await embutirImagensDaFolha(element);
       const dataUrl = await toPng(element, { quality: 1.0, pixelRatio: 2, backgroundColor: '#ffffff', style: { width: '794px', maxWidth: 'none', zoom: '1', transform: 'scale(1)', transformOrigin: 'top left' } });
       const blob = await (await fetch(dataUrl)).blob();
       const nome = `Folha_Tecnica_Roder_${new Date().toISOString().slice(0, 10)}.png`;
@@ -1714,6 +1738,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
         }
       };
 
+      await embutirImagensDaFolha(element);
       const dataUrl = await toPng(element, options);
       const fileName = `Relatorio_Tecnico_Roder_${new Date().toISOString().slice(0, 10)}.png`;
 
@@ -1769,6 +1794,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
         }
       };
 
+      await embutirImagensDaFolha(element);
       const dataUrl = await toPng(element, options);
       const fileName = `Relatorio_Tecnico_Roder_${new Date().toISOString().slice(0, 10)}.pdf`;
 
@@ -4267,23 +4293,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                                 );
                               })()}
 
-                              {/* 3. Generate Report button: só em respostas técnicas completas (não em perguntas e respostas curtas) */}
-                              {idx > 0 && (() => {
-                                const c = msg.content || '';
-                                const specLines = (c.match(/^\s*[-•*]\s+.+:\s*.+$/gm) || []).length;
-                                const asksQuestion = parseConsultantOptions(c).options.length > 0 || (/\?\s*$/.test(c.trim()) && c.length < 700);
-                                return !asksQuestion && c.length >= 600 && (matchedEquip.length > 0 || specLines >= 4);
-                              })() && (
-                                <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-800/40">
-                                  <button
-                                    onClick={() => handleOpenReport(parseConsultantOptions(msg.content).text, `Relatório de Análise Técnica - ${matchedEquip.length > 0 ? matchedEquip[0].model.name : 'Dimensionamento'}`)}
-                                    className="flex items-center gap-1 text-green-400 hover:text-green-300 font-extrabold text-[9.5px] uppercase tracking-wide transition hover:underline cursor-pointer"
-                                    title="Gerar e salvar imagem do relatório técnico oficial"
-                                  >
-                                    <FileText className="h-3 w-3" /> Gerar Relatório em Imagem
-                                  </button>
-                                </div>
-                              )}
+                              {/* o botão da folha em imagem fica junto de "Copiar resposta" (um só, menor) */}
                             </div>
                           );
                           return null;
@@ -4300,16 +4310,16 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                                 <button
                                   type="button"
                                   onClick={() => handleOpenReport(c, titulo)}
-                                  className="min-h-[36px] px-3 rounded-lg bg-[#1FA855] text-white text-[13px] font-extrabold flex items-center gap-1.5 active:scale-[0.98] transition"
+                                  className="min-h-[28px] px-2.5 rounded-md bg-[#1FA855] text-white text-[12px] font-bold flex items-center gap-1 active:scale-[0.98] transition"
                                 >
-                                  <FileText className="h-4 w-4" /> Folha A4 em imagem
+                                  <FileText className="h-3.5 w-3.5" /> Folha em imagem
                                 </button>
                               );
                             })()}
                             <button
                               type="button"
                               onClick={() => copiarResposta(msg.content)}
-                              className="min-h-[36px] px-3 rounded-lg border border-[#1B1E22]/30 bg-transparent text-[#1B1E22]/70 text-[12.5px] font-bold flex items-center gap-1 active:scale-[0.98] transition"
+                              className="min-h-[28px] px-2.5 rounded-md border border-[#1B1E22]/25 bg-transparent text-[#1B1E22]/65 text-[12px] font-semibold flex items-center gap-1 active:scale-[0.98] transition"
                             >
                               Copiar resposta
                             </button>
