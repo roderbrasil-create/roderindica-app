@@ -1623,6 +1623,61 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     }
   };
 
+  // Folha A4 em imagem: se o texto passa de uma folha, encolhe só o conteúdo (piso 0,72) para caber em uma
+  const [zoomFolha, setZoomFolha] = useState(1);
+  useEffect(() => {
+    if (!isReportOpen) return;
+    setZoomFolha(1);
+    const medir = () => {
+      const folha = reportRef.current;
+      const miolo = folha?.querySelector('[data-folha-miolo]') as HTMLElement | null;
+      if (!folha || !miolo) return;
+      const altura = (z: number) => { miolo.style.zoom = String(z); return folha.scrollHeight; };
+      let z = 1;
+      while (z > 0.72 && altura(z) > 1123) z = Math.round((z - 0.04) * 100) / 100;
+      miolo.style.zoom = '';
+      setZoomFolha(z);
+    };
+    const t1 = setTimeout(medir, 150);
+    const t2 = setTimeout(medir, 1200); // de novo quando as fotos terminam de carregar
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [isReportOpen, reportContent]);
+
+  // Imagem da folha para o WhatsApp: no celular abre o compartilhar (WhatsApp na lista);
+  // no computador copia a imagem e abre o WhatsApp Web, é só colar (Ctrl+V) na conversa do cliente
+  const handleEnviarImagemWhatsapp = async () => {
+    const element = reportRef.current;
+    if (!element) return;
+    const toastId = toast.loading('Gerando a imagem da folha...');
+    try {
+      const dataUrl = await toPng(element, { quality: 1.0, pixelRatio: 2, backgroundColor: '#ffffff', style: { width: '794px', maxWidth: 'none', zoom: '1', transform: 'scale(1)', transformOrigin: 'top left' } });
+      const blob = await (await fetch(dataUrl)).blob();
+      const nome = `Folha_Tecnica_Roder_${new Date().toISOString().slice(0, 10)}.png`;
+      const arquivo = new File([blob], nome, { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [arquivo] })) {
+        try {
+          await navigator.share({ files: [arquivo], title: 'Roder' });
+          toast.success('Escolha o WhatsApp e o cliente.', { id: toastId });
+          return;
+        } catch (e: any) {
+          if (e?.name === 'AbortError') { toast.dismiss(toastId); return; }
+        }
+      }
+      let copiou = false;
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        copiou = true;
+      } catch { /* sem permissão: só baixa */ }
+      const link = document.createElement('a');
+      link.download = nome; link.href = dataUrl; link.click();
+      window.open('https://web.whatsapp.com/', '_blank', 'noopener');
+      toast.success(copiou ? 'Imagem copiada e baixada. No WhatsApp Web, abra o cliente e cole com Ctrl+V.' : 'Imagem baixada. No WhatsApp Web, abra o cliente e anexe a imagem.', { id: toastId, duration: 7000 });
+    } catch (error) {
+      console.error('Erro ao gerar a imagem da folha:', error);
+      toast.error('Não consegui gerar a imagem. Tente de novo.', { id: toastId });
+    }
+  };
+
   const handleOpenReport = (content?: string, title?: string) => {
     let finalContent = content;
     if (!finalContent) {
@@ -4236,13 +4291,29 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
 
                         {/* Equipe: copia a resposta limpa para colar no WhatsApp do cliente */}
                         {ehEquipeConsultor && idx > 0 && !msg.indicar && onboardingStep === 'COMPLETED' && !msg.content.includes('Ops, ocorreu um erro') && (
-                          <button
-                            type="button"
-                            onClick={() => copiarResposta(msg.content)}
-                            className="self-start min-h-[32px] px-3 rounded-lg border border-[#1B1E22]/30 bg-transparent text-[#1B1E22]/70 text-[12.5px] font-bold flex items-center gap-1 active:scale-[0.98] transition"
-                          >
-                            Copiar resposta
-                          </button>
+                          <div className="self-start flex flex-wrap items-center gap-2">
+                            {(() => {
+                              const c = parseConsultantOptions(msg.content).text;
+                              if (c.length < 400 || /\?\s*$/.test(c.trim())) return null;
+                              const titulo = (c.match(/^#{1,3}\s*(.+)$/m)?.[1] || c.match(/^\*\*(.+?)\*\*/m)?.[1] || 'Informações técnicas').replace(/[*#:]+/g, '').trim();
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenReport(c, titulo)}
+                                  className="min-h-[36px] px-3 rounded-lg bg-[#1FA855] text-white text-[13px] font-extrabold flex items-center gap-1.5 active:scale-[0.98] transition"
+                                >
+                                  <FileText className="h-4 w-4" /> Folha A4 em imagem
+                                </button>
+                              );
+                            })()}
+                            <button
+                              type="button"
+                              onClick={() => copiarResposta(msg.content)}
+                              className="min-h-[36px] px-3 rounded-lg border border-[#1B1E22]/30 bg-transparent text-[#1B1E22]/70 text-[12.5px] font-bold flex items-center gap-1 active:scale-[0.98] transition"
+                            >
+                              Copiar resposta
+                            </button>
+                          </div>
                         )}
                       </div>
                     ) : (
@@ -6311,11 +6382,19 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                   {/* parceiro do link pessoal só vê: sem PDF e sem salvar */}
                   {!parceiroViaLink && (<>
                   <button
-                    onClick={handleSharePdfWhatsapp}
+                    onClick={handleEnviarImagemWhatsapp}
                     className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold uppercase text-[9px] sm:text-[10px] tracking-wider rounded-lg transition shadow cursor-pointer border-0 shrink-0"
+                    title="Enviar a folha como imagem pelo WhatsApp"
+                  >
+                    <Share2 className="h-3.5 w-3.5" /> Enviar imagem no WhatsApp
+                  </button>
+
+                  <button
+                    onClick={handleSharePdfWhatsapp}
+                    className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-extrabold uppercase text-[9px] sm:text-[10px] tracking-wider rounded-lg transition cursor-pointer shrink-0"
                     title="Gerar PDF e abrir no WhatsApp para enviar diretamente ao cliente"
                   >
-                    <Share2 className="h-3.5 w-3.5" /> Compartilhar PDF no WhatsApp
+                    PDF
                   </button>
 
                   <button
@@ -6323,7 +6402,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                     className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-extrabold uppercase text-[9px] sm:text-[10px] tracking-wider rounded-lg transition cursor-pointer shrink-0"
                     title="Salvar imagem no celular ou enviar direto para Fotos"
                   >
-                    <CheckCircle className="h-3.5 w-3.5 text-green-400" /> Salvar em Fotos
+                    <CheckCircle className="h-3.5 w-3.5 text-green-400" /> Baixar imagem
                   </button>
                   </>)}
 
@@ -6366,7 +6445,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                     </div>
                     <p className="text-right text-[#666]" style={{ fontSize: '11px', marginTop: '6px' }}>Emitido em {new Date().toLocaleDateString('pt-BR')}</p>
 
-                    <div className="flex-1" style={{ fontSize: '13px', lineHeight: 1.6, marginTop: '10px' }}>
+                    <div className="flex-1" data-folha-miolo style={{ fontSize: '13px', lineHeight: 1.6, marginTop: '10px', zoom: zoomFolha } as any}>
                       <ReactMarkdown
                         urlTransform={(url) => url}
                         remarkPlugins={[remarkGfm]}
@@ -6407,7 +6486,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
 
               {/* Informative Help Footer inside Modal */}
               <div className="bg-slate-950 p-4 border-t border-slate-800 text-center text-xs text-slate-400 shrink-0">
-                Pressione o botão <span className="text-green-400 font-bold">Salvar em Fotos</span> para fazer o download direto da imagem de alta definição. Você também pode copiar o texto limpo para colá-lo diretamente no WhatsApp do cliente.
+                Use <span className="text-green-400 font-bold">Enviar imagem no WhatsApp</span> para mandar a folha pronta, ou <span className="text-green-400 font-bold">Baixar imagem</span> para guardar. No computador, a imagem é copiada: abra o cliente no WhatsApp Web e cole com Ctrl+V.
               </div>
             </div>
           </div>
