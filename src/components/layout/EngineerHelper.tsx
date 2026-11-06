@@ -1646,6 +1646,11 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     }));
   };
 
+  // No computador o botão é só baixar direto (o "compartilhar" do Windows/Mac abre uma caixa de programas
+  // e o WhatsApp Web abria em outra aba); o compartilhar fica só no celular
+  const ehCelularFolha = typeof navigator !== 'undefined' &&
+    (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/i.test(navigator.platform)));
+
   // Folha A4 em imagem: se o texto passa de uma folha, encolhe só o conteúdo (piso 0,72) para caber em uma
   const [zoomFolha, setZoomFolha] = useState(1);
   useEffect(() => {
@@ -1748,7 +1753,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
         const blob = await res.blob();
         const file = new File([blob], fileName, { type: 'image/png' });
 
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        if (ehCelularFolha && navigator.canShare && navigator.canShare({ files: [file] })) {
           await navigator.share({
             files: [file],
             title: 'Relatório Técnico Roder',
@@ -1767,7 +1772,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
       link.href = dataUrl;
       link.click();
 
-      toast.success("Imagem do relatório baixada com sucesso!", { id: toastId });
+      toast.success(ehCelularFolha ? "Imagem do relatório pronta." : "Imagem baixada na pasta Downloads.", { id: toastId });
     } catch (error) {
       console.error("Error generating report image:", error);
       toast.error("Erro ao gerar imagem. Por favor, tente novamente.", { id: toastId });
@@ -1828,7 +1833,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
       const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
 
       // If mobile supports native file sharing
-      if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+      if (ehCelularFolha && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
         try {
           await navigator.share({
             files: [pdfFile],
@@ -1846,14 +1851,9 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
         }
       }
 
-      // Fallback for Desktop: Save PDF and open WhatsApp Web with formatted text
+      // Computador: baixa direto na pasta Downloads
       pdf.save(fileName);
-      const cleanSummary = reportContent.replace(/[*#]/g, '').slice(0, 300);
-      const waText = `*RELATÓRIO DE ANÁLISE TÉCNICA - RODER BRASIL*\n\n*(Anexei o relatório completo em PDF nesta conversa)*\n\n${cleanSummary}...`;
-      const encodedWaText = encodeURIComponent(waText);
-      window.open(`https://api.whatsapp.com/send?text=${encodedWaText}`, '_blank');
-
-      toast.success("PDF baixado! Abrindo o WhatsApp Web para você selecionar o contato e anexar o PDF.", { id: toastId, duration: 6000 });
+      toast.success("PDF baixado na pasta Downloads.", { id: toastId });
     } catch (error) {
       console.error("Error generating PDF for WhatsApp:", error);
       toast.error("Erro ao gerar PDF do relatório. Por favor, tente novamente.", { id: toastId });
@@ -6391,26 +6391,26 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                 <div className="flex items-center gap-1.5 sm:gap-2 ml-auto flex-wrap sm:flex-nowrap justify-end">
                   {/* parceiro do link pessoal só vê: sem PDF e sem salvar */}
                   {!parceiroViaLink && (<>
-                  <button
+                  {ehCelularFolha && (<button
                     onClick={handleEnviarImagemWhatsapp}
                     className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold uppercase text-[9px] sm:text-[10px] tracking-wider rounded-lg transition shadow cursor-pointer border-0 shrink-0"
                     title="Enviar a folha como imagem pelo WhatsApp"
                   >
                     <Share2 className="h-3.5 w-3.5" /> Enviar imagem no WhatsApp
-                  </button>
+                  </button>)}
 
                   <button
                     onClick={handleSharePdfWhatsapp}
                     className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-extrabold uppercase text-[9px] sm:text-[10px] tracking-wider rounded-lg transition cursor-pointer shrink-0"
-                    title="Gerar PDF e abrir no WhatsApp para enviar diretamente ao cliente"
+                    title="Baixar a folha em PDF"
                   >
-                    PDF
+                    Baixar PDF
                   </button>
 
                   <button
                     onClick={handleDownloadReportPng}
                     className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-extrabold uppercase text-[9px] sm:text-[10px] tracking-wider rounded-lg transition cursor-pointer shrink-0"
-                    title="Salvar imagem no celular ou enviar direto para Fotos"
+                    title="Baixar a folha como imagem"
                   >
                     <CheckCircle className="h-3.5 w-3.5 text-green-400" /> Baixar imagem
                   </button>
@@ -6496,7 +6496,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
 
               {/* Informative Help Footer inside Modal */}
               <div className="bg-slate-950 p-4 border-t border-slate-800 text-center text-xs text-slate-400 shrink-0">
-                Use <span className="text-green-400 font-bold">Enviar imagem no WhatsApp</span> para mandar a folha pronta, ou <span className="text-green-400 font-bold">Baixar imagem</span> para guardar. No computador, a imagem é copiada: abra o cliente no WhatsApp Web e cole com Ctrl+V.
+                {ehCelularFolha ? <>Use <span className="text-green-400 font-bold">Enviar imagem no WhatsApp</span> para mandar a folha pronta, ou <span className="text-green-400 font-bold">Baixar imagem</span> para guardar.</> : <><span className="text-green-400 font-bold">Baixar imagem</span> ou <span className="text-green-400 font-bold">Baixar PDF</span> salvam direto na pasta Downloads. Depois é só anexar no WhatsApp Web.</>}
               </div>
             </div>
           </div>

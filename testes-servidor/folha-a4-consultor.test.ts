@@ -26,3 +26,14 @@ test('as fotos entram na imagem: viram dados da imagem antes de fotografar a fol
   assert.ok(c.includes('embutirImagensDaFolha'));
   assert.equal((c.match(/await embutirImagensDaFolha\(element\)/g) || []).length, 3);
 });
+
+test('no computador PDF e imagem baixam direto; o compartilhar e o botão do WhatsApp ficam só no celular', () => {
+  assert.ok(c.includes('const ehCelularFolha'));
+  assert.ok(c.includes('ehCelularFolha && navigator.canShare && navigator.canShare({ files: [pdfFile] })'));
+  assert.ok(c.includes('ehCelularFolha && navigator.canShare && navigator.canShare({ files: [file] })'));
+  assert.ok(c.includes('{ehCelularFolha && (<button'));
+  const iPdf = c.indexOf('const handleSharePdfWhatsapp');
+  const trecho = c.slice(iPdf, c.indexOf('const messagesEndRef', iPdf));
+  assert.ok(!trecho.includes('window.open'), 'o PDF no computador não abre o WhatsApp Web');
+  assert.ok(trecho.includes('pdf.save(fileName)'));
+});
