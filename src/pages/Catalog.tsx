@@ -4497,7 +4497,7 @@ export default function Catalog() {
   return (
     <Layout>
       {viewingGallery ? (
-        <div className="flex flex-col min-h-screen bg-slate-50 -mx-4 -mb-4 md:-m-8">
+        <div className="flex flex-col min-h-screen bg-[#DDE1E6] -mx-4 -mb-4 md:-m-8">
           {/* Gallery Header - para logo abaixo do cabeçalho do app (antes ficava por baixo e cortava o título) */}
           <header style={{ top: 'var(--app-header-h, 0px)' }} className="sticky z-30 bg-white border-b border-border shadow-md p-3 md:p-4 flex items-center gap-3 md:gap-4">
             <Button 
