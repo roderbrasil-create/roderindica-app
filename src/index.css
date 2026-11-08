@@ -446,3 +446,13 @@ input:focus::placeholder, textarea:focus::placeholder {
     -webkit-transform: translateZ(0);
   }
 }
+
+/* Janelas no celular: respeitam a área do relógio, sinal e bateria (em cima) e a barra do iPhone (embaixo).
+   Antes, janela alta subia por baixo da barra do aparelho e o X de fechar ficava inalcançável. */
+@media (max-width: 767.98px) {
+  [data-slot="dialog-content"], [data-slot="alert-dialog-content"] {
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 1.5rem) !important;
+    top: calc(50% + (env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) / 2) !important;
+    overflow-y: auto;
+  }
+}
