@@ -3742,7 +3742,7 @@ export default function Stock() {
                 <div className="text-xs text-amber-800 space-y-1">
                   <p><strong>Assunto:</strong> Estoque de Pronta Entrega Atualizado! 📦 - Roder Brasil</p>
                   <p className="italic bg-white/70 p-2.5 rounded-lg border border-amber-500/10 mt-1">
-                    "O estoque de Produtos a pronta entrega foi atualizado e está pronto para ser oferecido nos negócios para os clientes. Acesse no botão abaixo para ver no celular em tempo real."
+                    "O estoque de pronta entrega foi atualizado. Entre no Roder Indica para ver os equipamentos disponíveis, falar com o Consultor Técnico Roder e fazer a indicação do seu cliente. Botão: Entrar no aplicativo."
                   </p>
                 </div>
               </div>

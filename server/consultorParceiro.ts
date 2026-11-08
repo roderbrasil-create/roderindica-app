@@ -287,7 +287,8 @@ export function criarRotasConsultorParceiro(deps: DepsConsultorParceiro) {
           </div>
         </div>
       </div>`;
-    const envios: Promise<any>[] = lista.map(e => deps.enviarEmail!(e, assunto, html));
+    const unicos = Array.from(new Map(lista.map(e => [e.toLowerCase(), e])).values()).join(', ');
+    const envios: Promise<any>[] = [deps.enviarEmail!(unicos, assunto, html)];
     if (dono.email && dono.email.includes('@') && !dono.email.endsWith('@mobile.roder.com.br') && config.confirmation_partner !== false) {
       const htmlParceiro = `
         <div style="font-family: sans-serif; color: #333;">

@@ -168,7 +168,10 @@ test('indicação pelo link do parceiro: igual à do app, no nome dele', async (
   await new Promise(s => setTimeout(s, 20));
   const avisos = Object.values(db.dados.notifications || {}) as any[];
   assert.deepEqual(avisos.map(a => a.user_uid).sort(), ['gis', 'lua']);
-  assert.ok(emails.includes('carlos@gmail.com') && emails.includes('gislene@roderbrasil.com.br') && emails.includes('x@roderbrasil.com.br'));
+  // UM e-mail para a gestão, com todos os endereços juntos, mais a confirmação do parceiro
+  const todos = emails.join(',').toLowerCase().split(',').map((e: string) => e.trim());
+  assert.ok(todos.includes('carlos@gmail.com') && todos.includes('gislene@roderbrasil.com.br') && todos.includes('x@roderbrasil.com.br'));
+  assert.equal(emails.length, 2);
   // toque duplo: devolve a mesma
   res = await chamar(r.rotaIndicacao, { body: corpo });
   assert.equal(res.corpo.repetida, true);

@@ -81,15 +81,8 @@ export async function notifyNewIndication(indication: any, partnerName: string, 
 
     const managers = await getManagerEmails();
     
-    // Add partner/seller email to notification recipient list if specified
-    if (partnerEmail && partnerEmail.includes('@')) {
-      const lowerPartnerEmail = partnerEmail.trim().toLowerCase();
-      if (!managers.map(x => x.toLowerCase()).includes(lowerPartnerEmail)) {
-        managers.push(partnerEmail.trim());
-        console.log('[NOTIFICATION] Added partnerEmail to notifications list:', partnerEmail);
-      }
-    }
-    
+    // O parceiro não entra aqui: ele recebe a confirmação própria (notifyPartnerIndicationReceived).
+    // Assim a gestão recebe UM e-mail só, com todos os endereços juntos.
     console.log('[NOTIFICATION] notifyNewIndication: Recipient list =', managers);
     
     if (managers.length === 0) {
@@ -164,21 +157,10 @@ export async function notifyNewIndication(indication: any, partnerName: string, 
       </div>
     `;
 
-    // Send to each manager individually to avoid Gmail rate/format limits and secure delivery for all valid recipients
-    console.log('[NOTIFICATION] notifyNewIndication: Sending individual emails to:', managers);
-    const results = await Promise.allSettled(
-      managers.map(async (managerEmail) => {
-        try {
-          console.log(`[NOTIFICATION] Sending email to manager: ${managerEmail}`);
-          const res = await sendEmail({ to: managerEmail, subject, html });
-          return { email: managerEmail, success: res?.success || false, data: res };
-        } catch (innerErr: any) {
-          console.error(`[NOTIFICATION] Failed to send email to ${managerEmail}:`, innerErr);
-          return { email: managerEmail, success: false, error: innerErr.message };
-        }
-      })
-    );
-    console.log('[NOTIFICATION] notifyNewIndication individual results:', results);
+    const destinatarios = Array.from(new Map(managers.map(e => [e.trim().toLowerCase(), e.trim()])).values()).join(', ');
+    console.log('[NOTIFICATION] notifyNewIndication: e-mail único para:', destinatarios);
+    const res = await sendEmail({ to: destinatarios, subject, html });
+    const results = [{ email: destinatarios, success: res?.success || false, data: res }];
     return { success: true, results };
   } catch (err) {
     console.error('Erro crítico ao notificar nova indicação:', err);
@@ -477,39 +459,41 @@ export async function notifyLuanaNewFairLead(lead: any, fairName: string) {
 }
 
 export async function notifyStockUpdate(emails: string[], appOrigin: string) {
+  const appUrl = `${appOrigin}/login`;
   const stockUrl = `${appOrigin}/stock_holder`;
+  const logoUrl = `${appOrigin}/roder-logo-ficha.png`;
   const subject = `Estoque de Pronta Entrega Atualizado! 📦 - Roder Brasil`;
   const html = `
     <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #eee; padding: 30px; border-radius: 15px; background-color: #ffffff;">
       <div style="text-align: center; margin-bottom: 25px;">
-        <img src="https://roderbrasil.com.br/wp-content/uploads/2024/05/Logo-Roder-Horizontal.png" alt="Roder Brasil" style="height: 50px;">
+        <img src="${logoUrl}" alt="Roder Brasil" style="height: 50px;">
       </div>
-      
+
       <h2 style="color: #eab308; text-align: center; font-size: 22px; margin-bottom: 20px;">Estoque de Pronta Entrega Atualizado! 📦</h2>
-      
+
       <p style="font-size: 16px; line-height: 1.6; color: #475569;">Olá,</p>
-      
-      <p style="font-size: 16px; line-height: 1.6; color: #475569;">Passando para informar que o nosso **estoque de produtos a pronta entrega** (Fábrica e Filial Sinop) foi atualizado!</p>
-      
+
+      <p style="font-size: 16px; line-height: 1.6; color: #475569;">O nosso <strong>estoque de produtos a pronta entrega</strong> (Fábrica e Filial Sinop) foi atualizado e já está pronto para ser oferecido aos seus clientes.</p>
+
       <div style="background: #fef08a; border-left: 4px solid #eab308; padding: 20px; border-radius: 8px; margin: 20px 0;">
-        <p style="margin: 0; font-size: 16px; color: #854d0e; font-weight: bold; line-height: 1.6;">
-          O estoque de Produtos a pronta entrega foi atualizado e está pronto para ser oferecido nos negócios para os clientes.
+        <p style="margin: 0 0 10px 0; font-size: 16px; color: #854d0e; font-weight: bold;">Entre no Roder Indica e:</p>
+        <p style="margin: 0; font-size: 15px; color: #854d0e; line-height: 1.8;">
+          ✅ Veja os equipamentos disponíveis agora<br>
+          ✅ Tire dúvidas técnicas com o Consultor Técnico Roder<br>
+          ✅ Faça a indicação do seu cliente em poucos minutos
         </p>
       </div>
-      
-      <p style="font-size: 16px; line-height: 1.6; color: #475569;">Você pode consultar a lista e as quantidades atualizadas em tempo real clicando no botão abaixo:</p>
-      
+
       <div style="text-align: center; margin: 30px 0;">
-        <a href="${stockUrl}" style="display: inline-block; background-color: #eab308; color: #ffffff !important; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">Ver Estoque Público 🔍</a>
+        <a href="${appUrl}" style="display: inline-block; background-color: #eab308; color: #ffffff !important; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">Entrar no aplicativo 🚀</a>
       </div>
-      
+
       <p style="font-size: 14px; line-height: 1.5; color: #64748b; text-align: center;">
-        Se o botão não funcionar, clique ou copie o link abaixo:<br>
-        <a href="${stockUrl}" style="color: #3b82f6; text-decoration: underline;">${stockUrl}</a>
+        Quer só olhar a lista de estoque? <a href="${stockUrl}" style="color: #3b82f6; text-decoration: underline;">Ver estoque de pronta entrega</a>
       </p>
-      
+
       <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 35px 0;">
-      
+
       <p style="font-size: 12px; color: #94a3b8; text-align: center; line-height: 1.4;">
         Roder Brasil - Tecnologia em Equipamentos Florestais e Agrícolas<br>
         Este é um e-mail informativo do sistema Roder Indica V2.
