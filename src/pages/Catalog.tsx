@@ -526,13 +526,12 @@ function SortableProductCard({
               repeat: Infinity, 
               ease: "easeInOut" 
             }}
-            className="w-full h-full cursor-zoom-in"
+            className="w-full h-full cursor-pointer"
             style={{ perspective: 1000 }}
             onClick={(e) => {
+              // a foto do tipo abre os modelos, igual ao toque no cartão; as fotos ficam dentro de cada modelo
               e.stopPropagation();
-              if (product.image_url && onOpenLightbox) {
-                onOpenLightbox([product.image_url], product.name);
-              }
+              onSelectModels(product);
             }}
           >
             {product.image_url ? (
