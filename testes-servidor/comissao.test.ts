@@ -9,7 +9,7 @@ import { diagnosticar, gerarComissao, previaGeracao, ligarParceiro, nomeCasa, no
 import { readFileSync } from 'node:fs';
 import { conciliarComissoes, MAX_CRIADAS_POR_RODADA, conciliarComTrava, CAMPOS_COMISSAO, lerCorrecoes, DOC_TRAVA, DOC_RESULTADO } from '../server/conciliacaoComissao.ts';
 import {
-  comissoesDoCiclo, agruparPorParceiro, comTravaMensal, relatorioParceirosDia1, lembreteNfDia5, lembreteFinanceiroDia7, relatorioDiretoriaDia1, mesEmBrasilia,
+  comissoesDoCiclo, agruparPorParceiro, comTravaMensal, relatorioParceirosDia1, lembreteNfDia4, lembreteNfDia5, lembreteNfDia6, lembreteFinanceiroDia7, relatorioDiretoriaDia1, mesEmBrasilia,
   ligarEmailsComissaoUmaVez,
 } from '../server/relatoriosComissao.ts';
 
@@ -396,6 +396,23 @@ test('DIA 5: lembra só quem ainda não mandou a nota do mês da comissão', asy
   assert.deepEqual(enviados.map(e => e.to), ['rafael@maqloc.com.br']);
   await lembreteNfDia5(deps);
   assert.equal(enviados.length, 1, 'trava do mês');
+});
+
+test('DIA 4 e DIA 6: lembram só quem não mandou a nota, citam cliente e equipamento, cada dia com a sua trava', async () => {
+  const db = cenarioMes();
+  db.dados.monthly_statements.car_11_2026 = { status: 'waiting_payment', nf_url: 'x' };
+  const { deps, enviados } = depsEmail(db, new Date('2026-11-04T11:00:00Z'));
+  await lembreteNfDia4(deps);
+  assert.deepEqual(enviados.map(e => e.to), ['rafael@maqloc.com.br']);
+  assert.match(enviados[0].subject, /Amanhã vence o prazo da nota fiscal/);
+  assert.match(enviados[0].html, /Cliente A/);
+  assert.match(enviados[0].html, /CMF 600/);
+  await lembreteNfDia4(deps);
+  assert.equal(enviados.length, 1, 'trava do dia 4');
+  await lembreteNfDia6(deps);
+  assert.equal(enviados.length, 2, 'o dia 6 tem trava própria');
+  assert.match(enviados[1].subject, /Falta a nota fiscal da sua comissão/);
+  assert.match(enviados[1].html, /PRAZO DO DIA 05 PASSOU/);
 });
 
 test('DIA 7 FINANCEIRO: total pelo documento da comissão, uma vez por mês', async () => {

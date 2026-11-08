@@ -1,3 +1,4 @@
+import { nomeClienteIndicacao } from '../../lib/nomeClienteIndicacao';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, getDocs, getDoc, doc, onSnapshot, query, where, limit, or } from 'firebase/firestore';
@@ -331,7 +332,7 @@ export default function PainelParceiro() {
                 return (
                   <button key={ind.id} onClick={() => navigate('/indicacoes')} style={{ borderLeftColor: etiqueta.cor }} className="h-auto w-full text-left bg-white rounded-[14px] border-l-[5px] border-solid pl-3.5 pr-3 py-[11px] flex items-center justify-between gap-2">
                     <span className="min-w-0">
-                      <span className="block text-[14.5px] font-bold truncate text-[#1B1E22] leading-snug">{ind.client_name || 'Cliente'}</span>
+                      <span className="block text-[14.5px] font-bold truncate text-[#1B1E22] leading-snug">{nomeClienteIndicacao(ind)}</span>
                       <span className="block text-[12.5px] text-[#5E6672] truncate leading-snug">{[produto, quando].filter(Boolean).join(', ')}</span>
                     </span>
                     <span className="shrink-0 w-[84px] text-right text-[12px] font-bold leading-tight text-[#5E6672]">{etiqueta.texto}</span>

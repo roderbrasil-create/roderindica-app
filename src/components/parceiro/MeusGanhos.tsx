@@ -1,3 +1,4 @@
+import { nomeClienteIndicacao } from '../../lib/nomeClienteIndicacao';
 import React, { useState } from 'react';
 import { ChevronDown, ChevronRight, Eye } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -84,7 +85,7 @@ export default function MeusGanhos({ periodos, indicacoes, hoje, onEnviarNota }:
               <div className="divide-y divide-border">
                 {p.commissions.map(c => {
                   const ind = indicacoes[c.indication_id];
-                  const cliente = ind?.client_name || ind?.client_person_name || 'Cliente';
+                  const cliente = nomeClienteIndicacao(ind);
                   const equip = equipamentoDe(ind);
                   return (
                     <div key={c.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">

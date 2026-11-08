@@ -60,7 +60,7 @@ import { registrarRotaEventosCrm } from "./server/crmEventos";
 import { registrarRotaEstoqueVision } from "./server/estoqueVision";
 import { registrarRotasAdminCrm, rodarFilaCrm, rodarAtualizacoesCrm, rodarComissoesCrm, lerDataDaVirada } from "./server/crmEntrada";
 import { referenciaStorage } from "./src/lib/crmFase2";
-import { relatorioDiretoriaDia1, relatorioParceirosDia1, lembreteNfDia5, lembreteFinanceiroDia7, ligarEmailsComissaoUmaVez } from "./server/relatoriosComissao";
+import { relatorioDiretoriaDia1, relatorioParceirosDia1, lembreteNfDia4, lembreteNfDia5, lembreteNfDia6, lembreteFinanceiroDia7, ligarEmailsComissaoUmaVez } from "./server/relatoriosComissao";
 
 let __currentDir: string;
 try {
@@ -5300,6 +5300,18 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
   cron.schedule('0 8 1 * *', async () => {
     console.log("[Schedule] Generating Day 1 Partner Reports...");
     try { await relatorioParceirosDia1(depsRelatorio); } catch (e: any) { console.error('[Schedule] Relatório dos parceiros:', e?.message); }
+  }, { timezone: BR_TIMEZONE });
+
+  // Dia 4: véspera do prazo da nota fiscal (só para quem ainda não enviou)
+  cron.schedule('0 8 4 * *', async () => {
+    console.log("[Schedule] Running Day 4 Invoice Reminders...");
+    try { await lembreteNfDia4(depsRelatorio); } catch (e: any) { console.error('[Schedule] Lembrete do dia 4:', e?.message); }
+  }, { timezone: BR_TIMEZONE });
+
+  // Dia 6: a nota não chegou no prazo; o financeiro paga até o dia 7
+  cron.schedule('0 8 6 * *', async () => {
+    console.log("[Schedule] Running Day 6 Invoice Reminders...");
+    try { await lembreteNfDia6(depsRelatorio); } catch (e: any) { console.error('[Schedule] Lembrete do dia 6:', e?.message); }
   }, { timezone: BR_TIMEZONE });
 
   // Day 5: Invoice Deadline Reminder

@@ -175,15 +175,81 @@ export async function relatorioParceirosDia1(deps: DepsRelatorio) {
   });
 }
 
-// ---------- Dia 5: lembrete da nota fiscal ao parceiro ----------
-export async function lembreteNfDia5(deps: DepsRelatorio) {
-  const { db } = deps;
+// ---------- Lembretes da nota fiscal ao parceiro: dia 4 (véspera), dia 5 (último dia) e dia 6 (atrasada) ----------
+// O prazo da nota é o dia 5. Só recebe quem ainda não mandou a nota. Cada dia tem a sua trava em
+// cron_locks, então reinício do servidor não manda o mesmo e-mail duas vezes.
+export type MomentoLembreteNf = 'dia4' | 'dia5' | 'dia6';
+
+const TEXTO_LEMBRETE_NF: Record<MomentoLembreteNf, { tarefa: string; assunto: (v: string) => string; titulo: string; cor: string; faixa: string; detalhe: string; botao: string }> = {
+  dia4: {
+    tarefa: 'lembrete_nf_dia4',
+    assunto: v => `Amanhã vence o prazo da nota fiscal da sua comissão Roder (${v})`,
+    titulo: 'Lembrete: a nota fiscal vence amanhã',
+    cor: '#c2410c',
+    faixa: 'PRAZO: ATÉ AMANHÃ, DIA 05',
+    detalhe: 'Para o financeiro pagar até o dia 07, a nota fiscal de serviço precisa estar no Roder Indica até amanhã, dia 05.',
+    botao: 'Enviar a nota fiscal',
+  },
+  dia5: {
+    tarefa: 'lembrete_nf_dia5',
+    assunto: () => 'Último dia para enviar a nota fiscal da sua comissão Roder',
+    titulo: 'Último dia para envio da nota fiscal',
+    cor: '#dc2626',
+    faixa: 'PRAZO FINAL: HOJE',
+    detalhe: 'Conforme contrato, o não envio da nota até o dia 05 (hoje) impossibilita o pagamento neste ciclo. O valor será acumulado para o pagamento do próximo mês.',
+    botao: 'Enviar a nota fiscal agora',
+  },
+  dia6: {
+    tarefa: 'lembrete_nf_dia6',
+    assunto: v => `Falta a nota fiscal da sua comissão Roder (${v})`,
+    titulo: 'A sua nota fiscal ainda não chegou',
+    cor: '#dc2626',
+    faixa: 'PRAZO DO DIA 05 PASSOU',
+    detalhe: 'Envie a nota assim que puder, pelo aplicativo Roder Indica. Assim que ela chegar, o financeiro programa o pagamento da comissão.',
+    botao: 'Enviar a nota fiscal agora',
+  },
+};
+
+export function htmlLembreteNf(momento: MomentoLembreteNf, d: { nome: string; total: string; mesNome: string; linhas: { cliente: string; equipamento: string; valor: string }[]; appUrl: string }) {
+  const t = TEXTO_LEMBRETE_NF[momento];
+  const primeiro = String(d.nome || '').split(' ')[0] || 'parceiro';
+  return `
+    <div style="font-family: Arial, sans-serif; color: #1f2937; max-width: 620px;">
+      <h2 style="color: ${t.cor}; font-size: 20px; margin: 0 0 12px;">${t.titulo}</h2>
+      <p style="font-size: 15px;">Olá, ${primeiro}!</p>
+      <p style="font-size: 15px; line-height: 1.6;">A nota fiscal de serviço da sua comissão de <strong>${d.mesNome}</strong>, no valor de <strong>${d.total}</strong>, ainda não foi carregada no Roder Indica. Essa comissão é das vendas abaixo:</p>
+      <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin: 8px 0 16px;">
+        <thead><tr style="color: #6b7280; text-align: left;">
+          <th style="padding: 8px; border-bottom: 1px solid #e5e7eb;">Cliente</th>
+          <th style="padding: 8px; border-bottom: 1px solid #e5e7eb;">Equipamento</th>
+          <th style="padding: 8px; border-bottom: 1px solid #e5e7eb; text-align: right;">Comissão</th>
+        </tr></thead>
+        <tbody>${d.linhas.map(l => `<tr>
+          <td style="padding: 8px; border-bottom: 1px solid #f3f4f6;">${l.cliente}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #f3f4f6;">${l.equipamento}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #f3f4f6; text-align: right; font-weight: bold;">${l.valor}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+      <div style="background: #fef2f2; border: 1px solid #fee2e2; padding: 16px; border-radius: 8px; margin: 16px 0; border-left: 4px solid ${t.cor};">
+        <p style="margin: 0; font-weight: bold; color: ${t.cor};">${t.faixa}</p>
+        <p style="margin: 6px 0 0 0; font-size: 14px; line-height: 1.5;">${t.detalhe}</p>
+      </div>
+      <p style="font-size: 14px; line-height: 1.6;">Abra o aplicativo, entre em <strong>Meus ganhos</strong> e toque em <strong>Enviar nota fiscal</strong>. Se preferir, responda este e-mail com a nota anexada: a resposta vai direto para o nosso financeiro.</p>
+      <a href="${d.appUrl}/comissoes" style="display: inline-block; background: #ea580c; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">${t.botao}</a>
+      <p style="font-size: 14px; margin-top: 24px;">Um abraço,<br><strong>Equipe Roder Máquinas e Equipamentos</strong></p>
+    </div>`;
+}
+
+export async function lembreteNf(deps: DepsRelatorio, momento: MomentoLembreteNf) {
+  const { db, formatCurrency } = deps;
+  const t = TEXTO_LEMBRETE_NF[momento];
   const notif = await lerAvisos(db);
   if (!notif?.monthly_report_partners) return 'desligado';
   const agora = deps.agora ? deps.agora() : new Date();
   const ciclo = mesEmBrasilia(agora);
-  return comTravaMensal(db, 'lembrete_nf_dia5', ciclo, async () => {
+  return comTravaMensal(db, t.tarefa, ciclo, async () => {
     const grupos = agruparPorParceiro(await comissoesDoCiclo(db, ciclo));
+    const inds = await lerIndicacoes(db, grupos.flatMap(g => g.itens.map(c => c.indication_id)));
     let enviados = 0;
     for (const g of grupos) {
       if (g.total <= 0) continue;
@@ -202,28 +268,23 @@ export async function lembreteNfDia5(deps: DepsRelatorio) {
       const partner = partnerData.data() as any;
       if (!emailDeVerdade(partner.email)) continue;
 
-      const html = `
-          <div style="font-family: sans-serif; color: #333;">
-            <h2 style="color: #ef4444;">⚠️ AVISO: Último dia para envio da Nota Fiscal</h2>
-            <p>Olá ${partner.name},</p>
-            <p>Identificamos que a sua Nota Fiscal referente às comissões do mês passado ainda não foi carregada no sistema.</p>
-
-            <div style="background: #fef2f2; border: 1px solid #fee2e2; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ef4444;">
-              <p style="margin: 0; font-weight: bold; color: #991b1b;">PRAZO FINAL: HOJE</p>
-              <p style="margin: 5px 0 0 0; font-size: 14px;">Conforme contrato, o não envio da NF até o dia 05 (hoje) impossibilita o pagamento neste ciclo. O valor será acumulado para o pagamento do próximo mês.</p>
-            </div>
-
-            <p>Para garantir seu recebimento, <strong>anexe a nota fiscal direto no aplicativo Roder Indica</strong>, na aba Comissões. Se preferir, pode responder este e-mail com a nota anexada (vai direto para o nosso financeiro).</p>
-            <a href="${deps.appUrl || 'https://roder-indica.web.app'}/comissoes" style="display: inline-block; background: #eab308; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Acessar Meus ganhos</a>
-          </div>
-        `;
-
-      await deps.enviar(partner.email, `Último dia para enviar a nota fiscal da sua comissão Roder`, html, { replyTo: deps.getFinanceReplyTo(notif), fromName: 'Roder Máquinas' });
+      const linhas = g.itens.map(c => {
+        const x = inds.get(c.indication_id) || {};
+        return { cliente: nomeDoCliente(x, 'Cliente'), equipamento: String(x.items?.[0]?.product_name || x.base_machine || x.product_name || ''), valor: formatCurrency(Number(c.value) || 0) };
+      });
+      const mesNome = new Date(ciclo.year, ciclo.month - 1, 1).toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
+      const total = formatCurrency(g.total);
+      const html = htmlLembreteNf(momento, { nome: partner.name, total, mesNome, linhas, appUrl: deps.appUrl || 'https://roder-indica.web.app' });
+      await deps.enviar(partner.email, t.assunto(total), html, { replyTo: deps.getFinanceReplyTo(notif), fromName: 'Roder Máquinas' });
       enviados++;
     }
     return { enviados };
   });
 }
+
+export const lembreteNfDia4 = (deps: DepsRelatorio) => lembreteNf(deps, 'dia4');
+export const lembreteNfDia5 = (deps: DepsRelatorio) => lembreteNf(deps, 'dia5');
+export const lembreteNfDia6 = (deps: DepsRelatorio) => lembreteNf(deps, 'dia6');
 
 // nome do cliente da venda: a indicação pode trazê-lo em campos diferentes
 function nomeDoCliente(ind: any, vazio = 'Não informado'): string {
