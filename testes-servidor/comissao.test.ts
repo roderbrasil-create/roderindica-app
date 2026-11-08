@@ -419,10 +419,12 @@ test('DIA 7 FINANCEIRO: total pelo documento da comissão, uma vez por mês', as
   const db = cenarioMes();
   const { deps, enviados } = depsEmail(db, new Date('2026-11-07T11:00:00Z'));
   await lembreteFinanceiroDia7(deps);
-  assert.equal(enviados.length, 3);
+  assert.equal(enviados.length, 1, 'um e-mail só, com todos do financeiro juntos');
+  assert.match(enviados[0].to, /financeiro@roderbrasil\.com\.br/);
+  assert.match(enviados[0].to, /financeiro2@roderbrasil\.com\.br/);
   assert.match(enviados[0].html, /R\$\s8\.250,00/); // 6900 + 1000 + 300 + 50
   await lembreteFinanceiroDia7(deps);
-  assert.equal(enviados.length, 3);
+  assert.equal(enviados.length, 1);
 });
 
 test('DIA 1 DIRETORIA: vendas pela data do pedido, comissões pelo ciclo, sem taxa padrão inventada', async () => {
@@ -1164,4 +1166,16 @@ test('REPOSIÇÃO, FRETE E DESLOCAMENTO ficam fora da base; suporte e ponteira e
   for (const nome of ['SUPORTE DESTOCADOR RETRO', 'PONTEIRA BIELA 4 CAT 320', 'CABEÇOTE MULTIFUNCIONAL CMF600']) {
     assert.equal(itemComissionavelReposicao({ name: nome }), true, nome);
   }
+});
+
+test('relatórios: um e-mail só para diretoria e outro para o financeiro, sem endereço repetido; equipamento nunca sai "undefined"', async () => {
+  const { equipamentoDaIndicacao, enviarParaTodos } = await import('../server/relatoriosComissao');
+  assert.equal(equipamentoDaIndicacao({ product_name: 'undefined', base_machine: 'CMF 600' }), 'CMF 600');
+  assert.equal(equipamentoDaIndicacao({ items: [{ product_name: 'Garra R400' }, { product_name: 'Rotator' }] }), 'Garra R400, Rotator');
+  assert.equal(equipamentoDaIndicacao({ product_name: 'null' }), '-');
+  const enviados: any[] = [];
+  const deps: any = { enviar: async (to: string, subject: string) => { enviados.push({ to, subject }); } };
+  assert.equal(await enviarParaTodos(deps, ['a@x.com', 'A@x.com', ' b@x.com ', ''], 'Assunto', '<p/>'), 1);
+  assert.deepEqual(enviados[0].to, 'a@x.com, b@x.com');
+  assert.equal(await enviarParaTodos(deps, ['', 'sem-arroba'], 'Assunto', '<p/>'), 0);
 });

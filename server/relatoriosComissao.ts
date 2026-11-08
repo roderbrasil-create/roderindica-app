@@ -150,7 +150,7 @@ export async function relatorioParceirosDia1(deps: DepsRelatorio) {
               ${linhas.map(({ c, x }) => `
                 <tr>
                   <td style="padding: 8px; border-bottom: 1px solid #f3f4f6;">${nomeDoCliente(x, '')}</td>
-                  <td style="padding: 8px; border-bottom: 1px solid #f3f4f6;">${x.base_machine || x.product_name || ''}</td>
+                  <td style="padding: 8px; border-bottom: 1px solid #f3f4f6;">${equipamentoDaIndicacao(x, '')}</td>
                   <td style="padding: 8px; border-bottom: 1px solid #f3f4f6; text-align: right; font-weight: bold;">${formatCurrency(Number(c.value) || 0)}</td>
                 </tr>
               `).join('')}
@@ -270,7 +270,7 @@ export async function lembreteNf(deps: DepsRelatorio, momento: MomentoLembreteNf
 
       const linhas = g.itens.map(c => {
         const x = inds.get(c.indication_id) || {};
-        return { cliente: nomeDoCliente(x, 'Cliente'), equipamento: String(x.items?.[0]?.product_name || x.base_machine || x.product_name || ''), valor: formatCurrency(Number(c.value) || 0) };
+        return { cliente: nomeDoCliente(x, 'Cliente'), equipamento: equipamentoDaIndicacao(x, ''), valor: formatCurrency(Number(c.value) || 0) };
       });
       const mesNome = new Date(ciclo.year, ciclo.month - 1, 1).toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
       const total = formatCurrency(g.total);
@@ -291,6 +291,24 @@ function nomeDoCliente(ind: any, vazio = 'Não informado'): string {
   const nome = [ind?.client_name, ind?.client_company_name, ind?.company_name, ind?.client_person_name, ind?.client_contact_name]
     .map((v: any) => String(v || '').trim()).find(Boolean);
   return nome || vazio;
+}
+
+// Equipamento da indicação para os e-mails: os itens do pedido, senão a máquina base, senão o produto.
+// "undefined" e "null" já ficaram gravados como texto em indicações antigas e saíam escritos no relatório.
+export function equipamentoDaIndicacao(ind: any, vazio = '-'): string {
+  const limpo = (v: any) => { const t = String(v ?? '').trim(); return /^(undefined|null)$/i.test(t) ? '' : t; };
+  const itens = Array.isArray(ind?.items) ? ind.items.map((i: any) => limpo(i?.product_name)).filter(Boolean) : [];
+  return itens.join(', ') || limpo(ind?.base_machine) || limpo(ind?.product_name) || vazio;
+}
+
+// Um e-mail só para todos os destinatários (antes saía um e-mail separado para cada um, e a caixa
+// de quem manda ficava cheia de cópias iguais). Endereço repetido (maiúscula/minúscula) conta uma vez.
+export async function enviarParaTodos(deps: DepsRelatorio, destinos: string[], assunto: string, html: string, opts?: any): Promise<number> {
+  const vistos = new Set<string>();
+  const lista = destinos.map(e => String(e || '').trim()).filter(e => e && e.includes('@') && !vistos.has(e.toLowerCase()) && (vistos.add(e.toLowerCase()), true));
+  if (lista.length === 0) return 0;
+  await deps.enviar(lista.join(', '), assunto, html, opts);
+  return 1;
 }
 
 function emailsDoFinanceiro(notif: any) {
@@ -416,7 +434,7 @@ export async function relatorioDiretoriaDia1(deps: DepsRelatorio) {
             ${monthlySales.map((sale: any) => `
               <tr>
                 <td style="padding: 8px; border: 1px solid #e2e8f0;">${nomeDoCliente(sale)}</td>
-                <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.product_name || sale.base_machine || '-'}</td>
+                <td style="padding: 8px; border: 1px solid #e2e8f0;">${equipamentoDaIndicacao(sale)}</td>
                 <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.external_seller_name || '-'}</td>
                 <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.internal_seller_name || '-'}</td>
                 <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; font-weight: bold;">${formatCurrency(sale.sale_value || 0)}</td>
@@ -445,7 +463,7 @@ export async function relatorioDiretoriaDia1(deps: DepsRelatorio) {
               return `
                 <tr>
                   <td style="padding: 8px; border: 1px solid #e2e8f0;">${nomeDoCliente(neg)}</td>
-                  <td style="padding: 8px; border: 1px solid #e2e8f0;">${neg.product_name || neg.base_machine || '-'}</td>
+                  <td style="padding: 8px; border: 1px solid #e2e8f0;">${equipamentoDaIndicacao(neg)}</td>
                   <td style="padding: 8px; border: 1px solid #e2e8f0;">${neg.internal_seller_name || '-'}</td>
                   <td style="padding: 8px; border: 1px solid #e2e8f0;">${bDate.toLocaleDateString('pt-BR')}</td>
                   <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center; color: ${daysLeft <= 5 ? '#ef4444' : '#64748b'}; font-weight: bold;">
@@ -470,7 +488,7 @@ export async function relatorioDiretoriaDia1(deps: DepsRelatorio) {
       ...(notif.director_emails ? String(notif.director_emails).split(',').map((e: string) => e.trim()) : []),
     ].filter(e => e !== '');
     let enviados = 0;
-    for (const email of recipients) { await deps.enviar(email, `Relatório de Vendas Roder - ${monthName}`, html); enviados++; }
+    enviados += await enviarParaTodos(deps, recipients, `Relatório de Vendas Roder - ${monthName}`, html);
 
     // Dados bancários de cada parceiro com comissão a pagar
     const detailedSellers = await Promise.all(grupos.map(async (g) => {
@@ -531,7 +549,7 @@ export async function relatorioDiretoriaDia1(deps: DepsRelatorio) {
               <tr style="border-bottom: 1px solid #e2e8f0;">
                 <td style="padding: 8px; border: 1px solid #e2e8f0;">${nomeDoCliente(sale)}</td>
                 <td style="padding: 8px; border: 1px solid #e2e8f0;">${c.external_seller_name || sale.external_seller_name || "-"}</td>
-                <td style="padding: 8px; border: 1px solid #e2e8f0;">${sale.product_name || sale.base_machine || "-"}</td>
+                <td style="padding: 8px; border: 1px solid #e2e8f0;">${equipamentoDaIndicacao(sale)}</td>
                 <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">${formatCurrency(sale.sale_value || 0)}</td>
                 <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; font-weight: bold;">${formatCurrency(Number(c.base_value_used) || 0)}</td>
                 <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center;">${c.rate_applied !== undefined && c.rate_applied !== null ? `${c.rate_applied}%` : '-'}</td>
@@ -548,7 +566,7 @@ export async function relatorioDiretoriaDia1(deps: DepsRelatorio) {
       </div>
     `;
 
-    for (const email of emailsDoFinanceiro(notif)) { await deps.enviar(email, `Financeiro: Relatório de Pagamentos - ${monthName}`, financeHtml); enviados++; }
+    enviados += await enviarParaTodos(deps, emailsDoFinanceiro(notif), `Financeiro: Relatório de Pagamentos - ${monthName}`, financeHtml);
     return { enviados };
   });
 }
@@ -574,7 +592,7 @@ export async function lembreteFinanceiroDia7(deps: DepsRelatorio) {
       </div>
     `;
     let enviados = 0;
-    for (const email of emailsDoFinanceiro(notif)) { await deps.enviar(email, `URGENTE: Pagamento de Comissões do Mês`, html); enviados++; }
+    enviados += await enviarParaTodos(deps, emailsDoFinanceiro(notif), `URGENTE: Pagamento de Comissões do Mês`, html);
     return { enviados };
   });
 }
