@@ -472,3 +472,6 @@ input:focus::placeholder, textarea:focus::placeholder {
 .form-edicao summary { list-style: none; display: flex; align-items: center; }
 .form-edicao summary::-webkit-details-marker { display: none; }
 .form-edicao .rodape-edicao { position: sticky; bottom: 0; z-index: 5; background: #DDE1E6; border-top: 1.5px solid #AEB4BC; margin: 0 -1.5rem -1.5rem; padding: 12px 1.5rem calc(12px + env(safe-area-inset-bottom)); }
+
+.form-edicao details > summary .seta-abrir { display: inline-block; font-size: 10px; transition: transform .15s; }
+.form-edicao details[open] > summary .seta-abrir { transform: rotate(180deg); }

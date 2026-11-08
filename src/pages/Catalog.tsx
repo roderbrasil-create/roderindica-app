@@ -4554,8 +4554,11 @@ export default function Catalog() {
               const todasSpecs: Record<string, any> = { ...(DEFAULT_FAE_SPECS[model.id] || {}), ...(model.technical_specs || {}) };
               const ehPa = isEngateProduct(viewingGallery?.name) || isEngateProduct(model.name) || (viewingGallery?.name || '').toLowerCase().includes('carregadeira') || (model.name || '').toLowerCase().includes('carregadeira');
               const maquinaBase = String(todasSpecs.maquina_base || '').trim();
+              // A máquina base escrita no cadastro manda no rótulo: mini skidder é de trator, não de pá carregadeira
+              const baseTrator = /trator/i.test(maquinaBase) && !/carregadeira/i.test(maquinaBase);
+              const rotuloPotencia = baseTrator ? 'Potência do trator' : 'Pá Carregadeira';
               const specLabels: Record<string, string> = {
-                          trator: 'Pá Carregadeira',
+                          trator: rotuloPotencia,
                           peso: 'Peso Equipamento',
                           area_carga: 'Área Carga',
                           medida_a: 'Altura "A"',
@@ -4566,7 +4569,7 @@ export default function Catalog() {
                           peso_do_equipamento: 'Peso Equipamento',
                           area_da_garra: 'Área da Garra',
                           capacidade_de_carga: 'Capacidade de Carga',
-                          potencia_do_trator: 'Pá Carregadeira',
+                          potencia_do_trator: rotuloPotencia,
                           diametro_corte: rotuloDiametroDoModelo(model, 'Ø Máx. Corte'),
                           diametro_max_corte: 'Ø Máx. Corte',
                           n_facas: 'Nº Facas',
@@ -4704,7 +4707,7 @@ export default function Catalog() {
                     </div>
                     {maquinaBase && (
                       <div className="mt-1.5">
-                        <p className="!text-[10px] md:!text-xs font-bold uppercase tracking-widest text-slate-500 leading-none">{ehPa ? 'Pá carregadeira' : 'Máquina base'}</p>
+                        <p className="!text-[10px] md:!text-xs font-bold uppercase tracking-widest text-slate-500 leading-none">{ehPa && !baseTrator ? 'Pá carregadeira' : (baseTrator ? 'Trator' : 'Máquina base')}</p>
                         <p className="!text-base md:!text-xl font-black text-primary leading-tight mt-0.5 break-words">{maquinaBase}</p>
                       </div>
                     )}
@@ -6124,7 +6127,7 @@ export default function Catalog() {
                   </div>
                 </div>
 
-                <details className="cartao-edicao"><summary className="titulo-cartao cursor-pointer">⚙ Especificações técnicas <span className="text-[11px] font-semibold text-[#5E6672] ml-auto">toque para abrir</span></summary><div className="space-y-3 mt-3">
+                <details className="cartao-edicao"><summary className="titulo-cartao cursor-pointer">⚙ Especificações técnicas <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-[#EA580C] text-white text-[11px] font-bold px-3 py-1.5">Abrir <span className="seta-abrir">▼</span></span></summary><div className="space-y-3 mt-3">
                   {ehModeloDth240b(editingModelData) && (() => {
                     const sp = editingModelData.technical_specs || {};
                     const mudar = (campo: string, valor: string) => setEditingModelData({ ...editingModelData, technical_specs: { ...sp, [campo]: valor } });
@@ -6194,7 +6197,7 @@ export default function Catalog() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[10px] uppercase">Pá Carregadeira (Trator)</Label>
+                      <Label className="text-[10px] uppercase">Potência / porte da máquina base</Label>
                       <Input 
                         className="h-9 text-xs"
                         value={editingModelData.technical_specs?.trator} 
