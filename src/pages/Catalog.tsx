@@ -5814,13 +5814,13 @@ export default function Catalog() {
 
         {/* Add/Edit Dialog */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="bg-card border-border text-card-foreground max-w-[95vw] sm:max-w-xl shadow-xl max-h-[95vh] overflow-y-auto">
+          <DialogContent className="form-edicao bg-card border-border text-card-foreground max-w-[95vw] sm:max-w-xl shadow-xl max-h-[95vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold">{editingProduct ? 'Editar Produto' : 'Novo Produto'}</DialogTitle>
               <DialogDescription className="text-muted-foreground">Preencha as informações técnicas do equipamento.</DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-3 py-3">
+              <div className="grid grid-cols-2 gap-3 cartao-edicao">
                 <div className="space-y-2">
                   <Label htmlFor="name">Nome do Produto</Label>
                   <Input 
@@ -5841,7 +5841,7 @@ export default function Catalog() {
                   />
                 </div>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 cartao-edicao">
                 <Label htmlFor="description">Descrição</Label>
                 <Textarea 
                   id="description" 
@@ -5850,9 +5850,9 @@ export default function Catalog() {
                   className="bg-background border-border min-h-[100px]"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="video">Vídeo (Link YouTube ou Upload)</Label>
+              <div className="grid grid-cols-1 gap-3">
+                <div className="space-y-2 cartao-edicao">
+                  <Label htmlFor="video" className="titulo-cartao">🎬 Vídeo do produto</Label>
                   <EnvioDeVideo
                     valor={formData.video_url || ''}
                     aoMudar={(url) => setFormData(f => ({ ...f, video_url: url }))}
@@ -5861,14 +5861,24 @@ export default function Catalog() {
                     aoEnviando={setVideoEnviando}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="pdf">Link do PDF / Ficha Técnica</Label>
-                  <Input 
-                    id="pdf" 
-                    value={formData.pdf_url} 
-                    onChange={(e) => setFormData({...formData, pdf_url: e.target.value})}
-                    className="bg-background border-border"
-                  />
+                <div className="space-y-2 cartao-edicao">
+                  <Label htmlFor="pdf" className="titulo-cartao">
+                    📄 Ficha técnica geral
+                    <span className={formData.pdf_url ? 'selo-ok' : 'selo-falta'}>{formData.pdf_url ? '✓ Cadastrada' : 'Não cadastrada'}</span>
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      id="pdf" 
+                      placeholder="Cole o link do PDF da ficha"
+                      value={formData.pdf_url} 
+                      onChange={(e) => setFormData({...formData, pdf_url: e.target.value})}
+                      className="bg-background border-border flex-1"
+                    />
+                    {formData.pdf_url && !formData.pdf_url.startsWith('db-file://') && (
+                      <a href={formData.pdf_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center px-3 rounded-md border-2 border-[#8E97A3] bg-white text-xs font-bold">Ver</a>
+                    )}
+                  </div>
+                  <p className="dica-cartao">Usada quando o modelo não tem ficha própria. Cada modelo tem a sua ficha e o seu catálogo de peças na tela do modelo.</p>
                 </div>
               </div>
 
@@ -5900,8 +5910,8 @@ export default function Catalog() {
                 )}
               </div>
 
-              <div className="space-y-2" onPaste={handlePaste}>
-                <Label htmlFor="image">Foto do Produto (Link, Arquivo ou Cole aqui)</Label>
+              <div className="space-y-2 cartao-edicao" onPaste={handlePaste}>
+                <Label htmlFor="image" className="titulo-cartao">🖼 Foto principal do produto</Label>
                 <div className="flex flex-col gap-3">
                   <div className="flex items-center gap-4">
                     {(imageFile || (editingProduct?.image_url && !imageUrlInput)) && (
@@ -5983,9 +5993,9 @@ export default function Catalog() {
               </div>
 
               {/* Models Management */}
-              <div className="space-y-4 border-t border-border pt-4">
+              <div className="space-y-4 cartao-edicao">
                 <div className="flex items-center justify-between">
-                  <Label className="text-lg font-bold">Modelos do Produto</Label>
+                  <Label className="text-lg font-bold">▦ Modelos do Produto</Label>
                   <Button 
                     type="button" 
                     variant="outline" 
@@ -6070,7 +6080,7 @@ export default function Catalog() {
                 </ScrollArea>
               </div>
             </div>
-            <DialogFooter className="gap-2">
+            <DialogFooter className="gap-2 rodape-edicao">
               <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="border-border" disabled={submitting || modelUploading}>Cancelar</Button>
               <Button onClick={handleSaveProduct} disabled={submitting || modelUploading || videoEnviando} className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold">
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
@@ -6082,7 +6092,7 @@ export default function Catalog() {
 
         {/* Individual Model Edit Dialog */}
         <Dialog open={isModelEditOpen} onOpenChange={setIsModelEditOpen}>
-          <DialogContent className="bg-card border-border text-card-foreground sm:max-w-[600px] w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+          <DialogContent className="form-edicao bg-card border-border text-card-foreground sm:max-w-[600px] w-full max-h-[90vh] overflow-y-auto shadow-2xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Edit className="h-5 w-5 text-primary" />
@@ -6094,8 +6104,8 @@ export default function Catalog() {
             </DialogHeader>
 
             {editingModelData && (
-              <div className="space-y-6 py-4">
-                <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-3 py-3">
+                <div className="grid grid-cols-2 gap-3 cartao-edicao">
                   <div className="space-y-2">
                     <Label>Nome do Modelo</Label>
                     <Input 
@@ -6114,8 +6124,7 @@ export default function Catalog() {
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  <Label className="text-xs uppercase font-bold text-muted-foreground">Especificações Técnicas</Label>
+                <details className="cartao-edicao"><summary className="titulo-cartao cursor-pointer">⚙ Especificações técnicas <span className="text-[11px] font-semibold text-[#5E6672] ml-auto">toque para abrir</span></summary><div className="space-y-3 mt-3">
                   {ehModeloDth240b(editingModelData) && (() => {
                     const sp = editingModelData.technical_specs || {};
                     const mudar = (campo: string, valor: string) => setEditingModelData({ ...editingModelData, technical_specs: { ...sp, [campo]: valor } });
@@ -6502,13 +6511,15 @@ export default function Catalog() {
                       />
                     </div>
                   </div>
-                </div>
+                </div></details>
 
-                <div className="space-y-4">
-                  <Label className="text-xs uppercase font-bold text-muted-foreground">Documentos e Mídia</Label>
-                  
-                  <div className="space-y-2">
-                    <Label className="text-[10px] uppercase">Ficha Técnica (PDF ou link)</Label>
+                <div className="space-y-3">
+                  <div className="space-y-2 cartao-edicao">
+                    <Label className="titulo-cartao">
+                      📄 Ficha técnica (o cliente vê)
+                      <span className={editingModelData.pdf_url ? 'selo-ok' : 'selo-falta'}>{editingModelData.pdf_url ? '✓ Cadastrada' : 'Não cadastrada'}</span>
+                    </Label>
+                    <p className="dica-cartao">É o botão "Ficha" do catálogo e do link que o cliente abre. Envie o PDF ou cole o link.</p>
                     <Input 
                       className="h-9 text-xs"
                       value={editingModelData.pdf_url} 
@@ -6542,8 +6553,15 @@ export default function Catalog() {
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label className="text-[10px] uppercase">Catálogo de peças (PDF, link do Drive ou do Roder Vision)</Label>
+                  <div className="space-y-2 cartao-edicao">
+                    <Label className="titulo-cartao">
+                      🔧 Catálogo de peças (só equipe)
+                      <span className={editingModelData.parts_manual_url ? 'selo-ok' : 'selo-falta'}>{editingModelData.parts_manual_url ? '✓ Cadastrado' : 'Não cadastrado'}</span>
+                    </Label>
+                    <p className="dica-cartao">Aparece só no botão de peças. Nunca no botão Ficha. PDF, link do Drive ou do Roder Vision.</p>
+                    {editingModelData.parts_manual_url && editingModelData.parts_manual_url === editingModelData.pdf_url && (
+                      <p className="text-[11px] font-bold text-[#991B1B] bg-[#FEE2E2] rounded-md px-2 py-1">Atenção: este link é igual ao da ficha. Se não for o catálogo de peças, apague este campo.</p>
+                    )}
                     <Input 
                       className="h-9 text-xs"
                       value={editingModelData.parts_manual_url} 
@@ -6552,8 +6570,8 @@ export default function Catalog() {
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label className="text-[10px] uppercase">Informações e Cálculo de Produtividade do Modelo</Label>
+                  <div className="space-y-2 cartao-edicao">
+                    <Label className="titulo-cartao">🧮 Informações e cálculo de produtividade</Label>
                     <Textarea 
                       className="text-xs min-h-[70px] bg-background"
                       value={editingModelData.productivity_text || ''} 
@@ -6562,8 +6580,8 @@ export default function Catalog() {
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label className="text-[10px] uppercase">Ficha Técnica como Imagem (Upload ou Cole)</Label>
+                  <div className="space-y-2 cartao-edicao">
+                    <Label className="titulo-cartao">🖼 Ficha técnica como imagem (opcional)</Label>
                     <div className="flex flex-col gap-2">
                       <div className="flex gap-2">
                         <Input 
@@ -6609,8 +6627,8 @@ export default function Catalog() {
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label className="text-[10px] uppercase">Vídeo do Modelo (Link YouTube ou Upload)</Label>
+                  <div className="space-y-2 cartao-edicao">
+                    <Label className="titulo-cartao">🎬 Vídeo do modelo</Label>
                     <EnvioDeVideo
                       valor={editingModelData.video_url || ''}
                       aoMudar={(url) => setEditingModelData((d: any) => d ? ({ ...d, video_url: url }) : d)}
@@ -6620,8 +6638,8 @@ export default function Catalog() {
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label className="text-[10px] uppercase">Imagens da Galeria (Link, Upload ou Cole)</Label>
+                  <div className="space-y-2 cartao-edicao">
+                    <Label className="titulo-cartao">📷 Fotos do modelo (galeria)<span className={(editingModelData.images?.length || 0) > 0 ? 'selo-ok' : 'selo-falta'}>{(editingModelData.images?.length || 0) > 0 ? `${editingModelData.images.length} foto(s)` : 'Sem fotos'}</span></Label>
                     <div className="flex flex-col gap-2">
                       <div className="flex gap-2">
                         <Input 
@@ -6733,7 +6751,7 @@ export default function Catalog() {
               </div>
             )}
 
-            <DialogFooter>
+            <DialogFooter className="rodape-edicao">
               <Button variant="outline" onClick={() => { 
                 setIsModelEditOpen(false); 
                 setModelVideoFile(null); 

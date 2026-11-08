@@ -458,3 +458,17 @@ input:focus::placeholder, textarea:focus::placeholder {
     overflow-y: auto;
   }
 }
+
+
+/* Telas de edição de produto e modelo (tema claro) */
+:root:not(.dark) [data-slot="dialog-content"].form-edicao { background: #DDE1E6; }
+.form-edicao .cartao-edicao { background: #fff; border: 1.5px solid #AEB4BC; border-radius: 12px; padding: 12px; }
+.form-edicao .titulo-cartao { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; font-weight: 800; text-transform: none; letter-spacing: 0; color: #1F2933; }
+.form-edicao .dica-cartao { font-size: 11.5px; color: #5E6672; line-height: 1.35; }
+.form-edicao .selo-ok, .form-edicao .selo-falta { margin-left: auto; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 999px; }
+.form-edicao .selo-ok { background: #DCFCE7; color: #166534; }
+.form-edicao .selo-falta { background: #E5E7EB; color: #4B5563; }
+.form-edicao input, .form-edicao textarea, .form-edicao select { background: #EEF1F4; border: 1.5px solid #8E97A3; }
+.form-edicao summary { list-style: none; display: flex; align-items: center; }
+.form-edicao summary::-webkit-details-marker { display: none; }
+.form-edicao .rodape-edicao { position: sticky; bottom: 0; z-index: 5; background: #DDE1E6; border-top: 1.5px solid #AEB4BC; margin: 0 -1.5rem -1.5rem; padding: 12px 1.5rem calc(12px + env(safe-area-inset-bottom)); }
