@@ -69,6 +69,11 @@ export type TipoMaquina = 'escavadeira' | 'pa' | 'trator' | 'guindaste';
 export const NOME_MAQUINA: Record<TipoMaquina, string> = { escavadeira: 'escavadeira', pa: 'pá carregadeira', trator: 'trator', guindaste: 'guindaste, Munck ou cesto aéreo' };
 export function maquinasDoProduto(p: { name?: string; models?: any[] }): Set<TipoMaquina> {
   const r = new Set<TipoMaquina>();
+  // Engate Rápido Hidráulico (linha DHG) é só de escavadeira e retroescavadeira. O engate de pá carregadeira é outro produto.
+  if ((p.name || '').toLowerCase().trim() === 'engate rápido hidráulico') {
+    r.add('escavadeira');
+    return r;
+  }
   const modelos = (p.models && p.models.length) ? p.models : [{ name: '', technical_specs: {} }];
   for (const m of modelos) {
     const nome = `${p.name || ''} ${m?.name || ''}`;
