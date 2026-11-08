@@ -413,7 +413,19 @@ export default function PublicBudgetRequest() {
   }, []);
   // o mesmo vídeo que o parceiro viu no Consultor (catálogo, ou o mapa fixo por nome)
   const videoUrl = videoDoEquipamento(product, activeModel);
-  const fichaUrl = (activeModel as any)?.pdf_url || product?.pdf_url || '';
+  // Ficha de verdade. O campo pdf_url às vezes guarda o catálogo ou manual de peças: nunca vai no botão Ficha.
+  const ehDePecas = (u: string) => {
+    // só o nome do arquivo: as fichas ficam em pastas chamadas "catalogo"
+    let t = '';
+    try { t = decodeURIComponent((u || '').split('?')[0]).toLowerCase().split('/').pop() || ''; } catch { t = (u || '').toLowerCase(); }
+    if (/ficha/.test(t)) return false;
+    return /pe[cç]as|parts|manual|cat[aá]logo/.test(t);
+  };
+  const pecasUrls = [(activeModel as any)?.parts_manual_url, (product as any)?.parts_manual_url].filter(Boolean);
+  const candidatasFicha: string[] = [(activeModel as any)?.pdf_url, (product as any)?.pdf_url].filter(Boolean);
+  const ehGmt035 = /gmt\s*-?\s*035/i.test(`${displayProductName} ${displayModelName}`);
+  const fichaUrl = (ehGmt035 ? '/fichas-gmt/Ficha_GMT_035_Guindaste.pdf' : '') ||
+    candidatasFicha.find(u => !ehDePecas(u) && !pecasUrls.includes(u)) || '';
   const primeiroNome = formData.client_name.trim().split(/\s+/)[0] || '';
 
   if (loading) {
