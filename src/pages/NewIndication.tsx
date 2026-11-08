@@ -1577,7 +1577,7 @@ export default function NewIndication() {
           </div>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-3 md:space-y-6 form-indicacao">
           {/* Passos da indicação */}
           <div className="sticky top-0 z-20 -mx-1 px-1 pt-1 pb-3 bg-background/95 backdrop-blur">
             <div className="flex gap-1.5">
@@ -1591,14 +1591,14 @@ export default function NewIndication() {
           {step === 1 && (<>
           {/* Card 2: Customer Details */}
           <Card className="bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 shadow-md text-slate-900 dark:text-zinc-100 rounded-2xl overflow-hidden">
-            <CardHeader className="pb-4">
+            <CardHeader className="pb-2 md:pb-4">
               <CardTitle className="text-lg font-bold flex items-center gap-2">
                 <User className="h-5 w-5 text-primary" />
                 Dados do Cliente
               </CardTitle>
-              <CardDescription className="text-xs text-muted-foreground">Preencha quem é o comprador de interesse para proteção do lead comercial.</CardDescription>
+              <CardDescription className="hidden md:block text-xs text-muted-foreground">Preencha quem é o comprador de interesse para proteção do lead comercial.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3 md:space-y-4">
               {/* Origin / Partner selection for internal sellers, managers and admins */}
               {(isAdmin || isManager || isInternalSeller) && (
                 <div 
@@ -2011,8 +2011,8 @@ export default function NewIndication() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="sm:col-span-2 space-y-2">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-2 space-y-2">
                     <Label 
                       htmlFor="client_city" 
                       className={cn(
@@ -2034,7 +2034,7 @@ export default function NewIndication() {
                       )}
                     />
                   </div>
-                  <div id="client_uf-wrapper" className="sm:col-span-1 space-y-2">
+                  <div id="client_uf-wrapper" className="col-span-1 space-y-2">
                     <Label 
                       className={cn(
                         "text-xs font-bold uppercase tracking-tight transition-colors-all",

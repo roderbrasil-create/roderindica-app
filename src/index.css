@@ -409,3 +409,29 @@ input:focus::placeholder, textarea:focus::placeholder {
     print-color-adjust: exact;
   }
 }
+
+
+/* Formulário de indicação (aprovado em 08/11/2026): fundo cinza azulado, campos com borda forte,
+   campo em uso branco com borda laranja, rótulos mais escuros. Só no tema claro; compacto no celular. */
+:root:not(.dark) .form-indicacao {
+  background-color: #DDE1E6;
+  box-shadow: 0 0 0 100vmax #DDE1E6;
+  clip-path: inset(0 -100vmax);
+  padding-bottom: 1rem;
+}
+:root:not(.dark) .form-indicacao input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+:root:not(.dark) .form-indicacao textarea,
+:root:not(.dark) .form-indicacao [data-slot="select-trigger"] {
+  background-color: #EEF1F4 !important;
+  border: 2px solid #8E97A3 !important;
+  color: #1B1E22;
+}
+:root:not(.dark) .form-indicacao input::placeholder, :root:not(.dark) .form-indicacao textarea::placeholder { color: #5E6672 !important; opacity: 1; }
+:root:not(.dark) .form-indicacao input:focus, :root:not(.dark) .form-indicacao textarea:focus, :root:not(.dark) .form-indicacao [data-slot="select-trigger"]:focus {
+  background-color: #fff !important;
+  border-color: #EA580C !important;
+}
+:root:not(.dark) .form-indicacao label { color: #1B1E22; }
+@media (max-width: 767px) {
+  :root:not(.dark) .form-indicacao [data-slot="card"] { border-color: #AEB4BC; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
+}
