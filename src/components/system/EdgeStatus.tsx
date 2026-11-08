@@ -44,7 +44,7 @@ export default function EdgeStatus() {
   }, [user?.uid, profile]);
 
   return (
-    <div className="flex flex-col gap-2 px-3 py-2.5 bg-sidebar-accent/10 border-t border-sidebar-border/30">
+    <div className="flex flex-col gap-2 pl-5 pr-4 pt-2.5 pb-[max(env(safe-area-inset-bottom),20px)] bg-sidebar-accent/10 border-t border-sidebar-border/30">
       <div className="flex items-center justify-between border-t border-sidebar-border/30 pt-2.5 mt-1.5 text-xs text-sidebar-foreground/80 font-sans antialiased" translate="no">
         <span className="font-semibold tracking-tight uppercase">Versão:</span>
         <span className="text-[11px] font-mono font-bold bg-gradient-to-r from-orange-600 to-amber-500 text-white border border-orange-500/20 px-2.5 py-0.5 rounded-full shadow-md tracking-wider select-all antialiased notranslate" translate="no">
