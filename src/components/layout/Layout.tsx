@@ -120,7 +120,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background text-foreground overflow-x-clip">
+    <div className="min-h-screen bg-background [:root:not(.dark)_&]:bg-[#DDE1E6] text-foreground overflow-x-clip">
       {/* Desktop Banners (Hidden on mobile; mobile banners are inside the fixed mobile safe container) */}
       <div className="hidden md:block">
         <AnimatePresence>
