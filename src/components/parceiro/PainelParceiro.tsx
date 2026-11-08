@@ -260,8 +260,11 @@ export default function PainelParceiro() {
 
       {mostraGanhos && avisoNota && !avisoNotaFechado && (
         <div className="relative mx-4 md:mx-8 max-w-xl mt-3 mb-1 bg-[#FFF4E5] border border-[#F6C400] rounded-2xl p-3.5 pr-12 shadow-sm z-10">
-          <button onClick={() => setAvisoNotaFechado(true)} aria-label="Fechar aviso" className="absolute right-2 top-2 h-9 w-9 flex items-center justify-center rounded-full bg-white border border-[#F6C400] text-[#7A3B00] shadow-sm active:bg-[#FFF4E5]">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          <button onClick={() => setAvisoNotaFechado(true)} aria-label="Fechar aviso"
+            style={{ position: 'absolute', right: 8, top: 8, width: 40, height: 40, borderRadius: 20, background: '#fff', border: '1.5px solid #F6C400', padding: 0, display: 'block' }}>
+            {/* X desenhado com duas barras: não depende de ícone nem da cor do texto */}
+            <span aria-hidden="true" style={{ position: 'absolute', left: 11, top: 18, width: 18, height: 3, borderRadius: 2, background: '#7A3B00', transform: 'rotate(45deg)' }} />
+            <span aria-hidden="true" style={{ position: 'absolute', left: 11, top: 18, width: 18, height: 3, borderRadius: 2, background: '#7A3B00', transform: 'rotate(-45deg)' }} />
           </button>
           <div className="flex items-start gap-2.5">
             <FileText className="h-5 w-5 text-[#B45309] shrink-0 mt-0.5" />
