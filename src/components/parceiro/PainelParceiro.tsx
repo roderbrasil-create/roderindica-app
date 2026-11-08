@@ -259,8 +259,10 @@ export default function PainelParceiro() {
       </div>
 
       {mostraGanhos && avisoNota && !avisoNotaFechado && (
-        <div className="relative mx-4 md:mx-8 max-w-xl mt-3 mb-1 bg-[#FFF4E5] border border-[#F6C400] rounded-2xl p-3.5 pr-10 shadow-sm z-10">
-          <button onClick={() => setAvisoNotaFechado(true)} aria-label="Fechar aviso" className="absolute right-2 top-2 h-8 w-8 flex items-center justify-center rounded-full text-[#7A5A00] active:bg-[#F6C40033]"><X className="h-4 w-4" /></button>
+        <div className="relative mx-4 md:mx-8 max-w-xl mt-3 mb-1 bg-[#FFF4E5] border border-[#F6C400] rounded-2xl p-3.5 pr-12 shadow-sm z-10">
+          <button onClick={() => setAvisoNotaFechado(true)} aria-label="Fechar aviso" className="absolute right-2 top-2 h-9 w-9 flex items-center justify-center rounded-full bg-white border border-[#F6C400] text-[#7A3B00] shadow-sm active:bg-[#FFF4E5]">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
           <div className="flex items-start gap-2.5">
             <FileText className="h-5 w-5 text-[#B45309] shrink-0 mt-0.5" />
             <div className="min-w-0">
@@ -270,7 +272,7 @@ export default function PainelParceiro() {
               <span className="block text-[13px] text-[#7A5A00] mt-1 leading-snug">
                 {brlNota(avisoNota.total)} de {nomeDoMes(avisoNota.month)}. {avisoNota.atrasada ? 'O prazo era dia ' + DIA_LIMITE_NOTA + '. Envie agora para o financeiro programar o pagamento.' : 'Prazo: até o dia ' + DIA_LIMITE_NOTA + '.'}
               </span>
-              <button onClick={() => navigate('/comissoes', { state: { abrirNota: { month: avisoNota.month, year: avisoNota.year } } })} className="mt-2.5 h-10 px-4 rounded-xl bg-[#1B1E22] text-white text-[13px] font-bold active:opacity-80">Carregar nota fiscal</button>
+              <button onClick={() => navigate('/comissoes', { state: { abrirNota: { month: avisoNota.month, year: avisoNota.year } } })} className="mt-2.5 h-11 px-5 rounded-xl bg-[#EA580C] text-white text-[14px] font-extrabold shadow-sm active:bg-[#C2410C]">Carregar nota fiscal</button>
             </div>
           </div>
         </div>

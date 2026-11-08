@@ -2070,6 +2070,12 @@ export default function Commissions() {
                   onChange={(e) => setPartnerNFFile(e.target.files?.[0] || null)}
                   className="sr-only"
                 />
+                {partnerNFFile && (
+                  <div className="flex gap-2">
+                    <label htmlFor="partner-nf" className="flex-1 h-10 rounded-xl border border-[#E1E4E8] bg-white text-sm font-bold flex items-center justify-center cursor-pointer active:bg-[#F5F6F7]">Trocar arquivo</label>
+                    <button type="button" onClick={() => { setPartnerNFFile(null); const el = document.getElementById('partner-nf') as HTMLInputElement | null; if (el) el.value = ''; }} className="flex-1 h-10 rounded-xl border border-[#FCA5A5] bg-white text-[#B91C1C] text-sm font-bold active:bg-[#FEF2F2]">Remover arquivo</button>
+                  </div>
+                )}
                 <p className="text-xs text-[#5E6672]">Anexar ajuda o financeiro a pagar mais rápido. Se preferir, só confirme abaixo.</p>
               </div>
 
