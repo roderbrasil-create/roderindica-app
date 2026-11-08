@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Download, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Download, ExternalLink, MessageCircle } from 'lucide-react';
 import { auth } from '../../lib/firebase';
 import { getApiBaseUrl } from '../../lib/utils';
 import { ouvirDocumentos, PedidoDocumento, instalarInterceptor, abrirForaDoApp, idYoutube, idVimeo, idDrive } from '../../lib/abrirDocumento';
@@ -240,6 +240,24 @@ export default function LeitorDocumento() {
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   };
 
+  // WhatsApp: no celular abre a folha de compartilhar com o PDF já anexado (é só escolher o WhatsApp e o contato).
+  // Sem suporte a arquivo (computador), abre o WhatsApp com o link da ficha.
+  const enviarWhatsapp = async () => {
+    const titulo = pedido.titulo || 'Ficha Roder';
+    if (arquivo) {
+      const f = new File([arquivo.dados], nomeArquivo, { type: arquivo.tipo });
+      const nav: any = navigator;
+      if (nav.canShare && nav.canShare({ files: [f] })) {
+        try { await nav.share({ files: [f], title: titulo, text: `${titulo} - Roder` }); return; }
+        catch (e: any) { if (e?.name === 'AbortError') return; }
+      }
+    }
+    let link = pedido.url;
+    try { link = new URL(pedido.url, window.location.href).href; } catch { /* mantém */ }
+    if (link.startsWith('blob:') || link.startsWith('data:')) { baixar(); return; }
+    window.open(`https://wa.me/?text=${encodeURIComponent(`*${titulo} - RODER*\n${link}`)}`, '_blank');
+  };
+
   let player: React.ReactNode = null;
   if (pedido.tipo === 'video') {
     // Vídeo gravado no iPhone (.mov, formato HEVC) não toca em alguns Android: avisa e deixa baixar
@@ -281,6 +299,9 @@ export default function LeitorDocumento() {
         <p className="flex-1 min-w-0 truncate font-bold text-sm text-slate-800">{pedido.titulo || (ehPlayer ? 'Vídeo' : 'Documento')}</p>
         {ehPlayer && (
           <button type="button" aria-label="Abrir no navegador" onClick={() => abrirForaDoApp(pedido.url)} className="h-11 w-11 rounded-lg border border-slate-300 text-slate-800 flex items-center justify-center shrink-0"><ExternalLink className="h-4 w-4" /></button>
+        )}
+        {podeBaixar && estado === 'pronto' && arquivo && !ehPlayer && (
+          <button type="button" aria-label="Enviar no WhatsApp" onClick={enviarWhatsapp} className="h-11 px-3 rounded-lg bg-[#25D366] text-white font-bold text-sm flex items-center gap-1.5 shrink-0"><MessageCircle className="h-4 w-4" /> WhatsApp</button>
         )}
         {podeBaixar && estado === 'pronto' && arquivo && !ehPlayer && (
           <button type="button" aria-label="Baixar ou compartilhar" onClick={baixar} className="h-11 w-11 rounded-lg border border-slate-300 text-slate-800 flex items-center justify-center shrink-0"><Download className="h-4 w-4" /></button>
