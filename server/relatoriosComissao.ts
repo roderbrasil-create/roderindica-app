@@ -178,7 +178,7 @@ export async function relatorioParceirosDia1(deps: DepsRelatorio) {
 // ---------- Lembretes da nota fiscal ao parceiro: dia 4 (véspera), dia 5 (último dia) e dia 6 (atrasada) ----------
 // O prazo da nota é o dia 5. Só recebe quem ainda não mandou a nota. Cada dia tem a sua trava em
 // cron_locks, então reinício do servidor não manda o mesmo e-mail duas vezes.
-export type MomentoLembreteNf = 'dia4' | 'dia5' | 'dia6';
+export type MomentoLembreteNf = 'dia4' | 'dia5' | 'dia6' | 'dia7';
 
 const TEXTO_LEMBRETE_NF: Record<MomentoLembreteNf, { tarefa: string; assunto: (v: string) => string; titulo: string; cor: string; faixa: string; detalhe: string; botao: string }> = {
   dia4: {
@@ -206,6 +206,15 @@ const TEXTO_LEMBRETE_NF: Record<MomentoLembreteNf, { tarefa: string; assunto: (v
     cor: '#dc2626',
     faixa: 'PRAZO DO DIA 05 PASSOU',
     detalhe: 'Envie a nota assim que puder, pelo aplicativo Roder Indica. Assim que ela chegar, o financeiro programa o pagamento da comissão.',
+    botao: 'Enviar a nota fiscal agora',
+  },
+  dia7: {
+    tarefa: 'lembrete_nf_dia7',
+    assunto: v => `Hoje é o dia do pagamento e falta a nota fiscal da sua comissão Roder (${v})`,
+    titulo: 'Hoje é dia de pagamento e a sua nota fiscal ainda não chegou',
+    cor: '#dc2626',
+    faixa: 'DIA DO PAGAMENTO: HOJE, DIA 07',
+    detalhe: 'O financeiro paga hoje as comissões deste ciclo. Para a sua entrar, envie a nota fiscal de serviço agora, pelo aplicativo Roder Indica.',
     botao: 'Enviar a nota fiscal agora',
   },
 };
@@ -285,6 +294,7 @@ export async function lembreteNf(deps: DepsRelatorio, momento: MomentoLembreteNf
 export const lembreteNfDia4 = (deps: DepsRelatorio) => lembreteNf(deps, 'dia4');
 export const lembreteNfDia5 = (deps: DepsRelatorio) => lembreteNf(deps, 'dia5');
 export const lembreteNfDia6 = (deps: DepsRelatorio) => lembreteNf(deps, 'dia6');
+export const lembreteNfDia7 = (deps: DepsRelatorio) => lembreteNf(deps, 'dia7');
 
 // nome do cliente da venda: a indicação pode trazê-lo em campos diferentes
 function nomeDoCliente(ind: any, vazio = 'Não informado'): string {

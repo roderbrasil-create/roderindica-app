@@ -60,7 +60,7 @@ import { registrarRotaEventosCrm } from "./server/crmEventos";
 import { registrarRotaEstoqueVision } from "./server/estoqueVision";
 import { registrarRotasAdminCrm, rodarFilaCrm, rodarAtualizacoesCrm, rodarComissoesCrm, lerDataDaVirada } from "./server/crmEntrada";
 import { referenciaStorage } from "./src/lib/crmFase2";
-import { relatorioDiretoriaDia1, relatorioParceirosDia1, lembreteNfDia4, lembreteNfDia5, lembreteNfDia6, lembreteFinanceiroDia7, ligarEmailsComissaoUmaVez } from "./server/relatoriosComissao";
+import { relatorioDiretoriaDia1, relatorioParceirosDia1, lembreteNfDia4, lembreteNfDia5, lembreteNfDia6, lembreteNfDia7, lembreteFinanceiroDia7, ligarEmailsComissaoUmaVez } from "./server/relatoriosComissao";
 
 let __currentDir: string;
 try {
@@ -5314,6 +5314,12 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     try { await lembreteNfDia6(depsRelatorio); } catch (e: any) { console.error('[Schedule] Lembrete do dia 6:', e?.message); }
   }, { timezone: BR_TIMEZONE });
 
+  // Dia 7: dia do pagamento; cobra a nota de quem ainda não enviou (o financeiro tem o seu aviso próprio)
+  cron.schedule('0 9 7 * *', async () => {
+    console.log("[Schedule] Running Day 7 Invoice Reminders...");
+    try { await lembreteNfDia7(depsRelatorio); } catch (e: any) { console.error('[Schedule] Lembrete do dia 7:', e?.message); }
+  }, { timezone: BR_TIMEZONE });
+
   // Day 5: Invoice Deadline Reminder
   cron.schedule('0 8 5 * *', async () => {
     console.log("[Schedule] Running Day 5 Invoice Reminders...");
@@ -6203,6 +6209,14 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     setTimeout(() => { if (db) marcarContasDaEquipe(); }, 12000);
     // liga os três e-mails de comissão uma vez só (trava em cron_locks; depois vale o que estiver na tela)
     setTimeout(() => { if (db) ligarEmailsComissaoUmaVez(db).catch(() => {}); }, 9000);
+    // Recuperação: se o servidor subir no dia 7 depois das 9h (o cron já passou), cobra a nota agora.
+    // A trava mensal impede repetir com o cron.
+    setTimeout(() => {
+      try {
+        const br = new Date(new Date().toLocaleString('en-US', { timeZone: BR_TIMEZONE }));
+        if (db && br.getDate() === 7 && br.getHours() >= 9) lembreteNfDia7(depsRelatorio).catch((e: any) => console.error('[Schedule] Recuperação do dia 7:', e?.message));
+      } catch { /* sem efeito */ }
+    }, 20000);
     // correção automática de comissão logo depois do início (trava em cron_locks contra dois processos)
     setTimeout(() => { if (db) conciliarComTrava({ db, arrayUnion: (...v: any[]) => admin.firestore.FieldValue.arrayUnion(...v) }, 'início do servidor').catch(() => {}); }, 15000);
     // ficha nova do Feller de Disco CFD 40 no catálogo, uma vez só (mesma trava da tela), sem depender de alguém abrir o Catálogo

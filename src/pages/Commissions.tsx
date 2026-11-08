@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { 
@@ -594,6 +595,19 @@ export default function Commissions() {
       }
     });
   };
+
+  // Vindo do aviso da tela inicial: abre direto a janela da nota do mês indicado
+  const location = useLocation();
+  const abrirNota = (location.state as any)?.abrirNota as { month: number; year: number } | undefined;
+  const [abrirNotaFeito, setAbrirNotaFeito] = useState(false);
+  useEffect(() => {
+    if (!abrirNota || abrirNotaFeito || partnerPeriods.length === 0) return;
+    const alvo = partnerPeriods.find(x => x.month === abrirNota.month && x.year === abrirNota.year);
+    if (!alvo) return;
+    setAbrirNotaFeito(true);
+    setSelectedPartnerPeriod(alvo);
+    setIsPartnerNFDialogOpen(true);
+  }, [abrirNota?.month, abrirNota?.year, partnerPeriods, abrirNotaFeito]);
 
   // Submit NF helper for the external indicator partner
   const submitPartnerNF = async () => {
@@ -2029,43 +2043,53 @@ export default function Commissions() {
 
         {/* Partner NF Confirm Dialog */}
         <Dialog open={isPartnerNFDialogOpen} onOpenChange={setIsPartnerNFDialogOpen}>
-          <DialogContent className="bg-card border-border text-card-foreground">
+          <DialogContent className="bg-[#F5F6F7] border-border text-[#1B1E22] max-w-[calc(100vw-24px)] sm:max-w-md">
             <DialogHeader>
-              <DialogTitle className="text-foreground">Confirmar Envio da Nota Fiscal</DialogTitle>
-              <DialogDescription className="text-muted-foreground">
-                Comissões de {selectedPartnerPeriod?.label} no valor total de R$ {selectedPartnerPeriod?.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}.
+              <DialogTitle className="text-[#1B1E22] text-lg font-extrabold">Enviar nota fiscal</DialogTitle>
+              <DialogDescription className="text-[#5E6672]">
+                Comissões de {selectedPartnerPeriod?.label}
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-1">
-                <Label htmlFor="partner-nf" className="text-xs font-semibold">Anexar Foto ou PDF da NF (Opcional)</Label>
-                <Input 
-                  id="partner-nf" 
-                  type="file" 
-                  accept=".pdf,image/*"
-                  onChange={(e) => setPartnerNFFile(e.target.files?.[0] || null)}
-                  className="bg-background border-border text-xs"
-                />
-                <p className="text-[10px] text-muted-foreground mt-1">O envio do comprovante é opcional. Você pode continuar marcando apenas a confirmação abaixo.</p>
+            <div className="space-y-4 py-2">
+              <div className="rounded-xl bg-[#1B1E22] text-white px-4 py-3 flex items-baseline justify-between">
+                <span className="text-xs text-[#AEB4BC]">Valor da nota</span>
+                <span className="text-xl font-extrabold text-[#F6C400]">R$ {selectedPartnerPeriod?.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
               </div>
 
-              <div className="flex items-start gap-2 pt-2">
-                <input 
-                  type="checkbox" 
-                  id="partner-confirmed" 
+              <div className="space-y-2">
+                <Label htmlFor="partner-nf" className="text-sm font-bold">1. Anexe a nota (foto ou PDF)</Label>
+                <label htmlFor="partner-nf" className="flex flex-col items-center justify-center gap-1 min-h-[88px] rounded-xl border-2 border-dashed border-[#F6C400] bg-white px-3 py-4 text-center cursor-pointer active:bg-[#FFF9DB]">
+                  <FileCheck className="h-6 w-6 text-[#B45309]" />
+                  <span className="text-sm font-bold text-[#1B1E22] break-all">{partnerNFFile ? partnerNFFile.name : 'Toque aqui para escolher o arquivo'}</span>
+                  <span className="text-xs text-[#5E6672]">{partnerNFFile ? 'Toque para trocar' : 'Foto ou PDF da nota'}</span>
+                </label>
+                <input
+                  id="partner-nf"
+                  type="file"
+                  accept=".pdf,image/*"
+                  onChange={(e) => setPartnerNFFile(e.target.files?.[0] || null)}
+                  className="sr-only"
+                />
+                <p className="text-xs text-[#5E6672]">Anexar ajuda o financeiro a pagar mais rápido. Se preferir, só confirme abaixo.</p>
+              </div>
+
+              <label htmlFor="partner-confirmed" className="flex items-start gap-3 rounded-xl bg-white border border-[#E1E4E8] p-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  id="partner-confirmed"
                   checked={partnerNFConfirmed}
                   onChange={(e) => setPartnerNFConfirmed(e.target.checked)}
-                  className="mt-1 h-4 w-4 rounded border-border bg-background accent-primary"
+                  className="mt-0.5 h-5 w-5 shrink-0 rounded border-border accent-primary"
                 />
-                <Label htmlFor="partner-confirmed" className="text-xs font-bold text-foreground cursor-pointer select-none leading-normal">
-                  Eu confirmo que a Nota Fiscal de serviço correspondente já foi devidamente emitida e enviada para o setor financeiro.
-                </Label>
-              </div>
+                <span className="text-sm font-semibold text-[#1B1E22] select-none leading-snug">
+                  2. Confirmo que a nota fiscal de serviço já foi emitida e enviada ao financeiro.
+                </span>
+              </label>
             </div>
             <DialogFooter className="gap-2 sm:gap-0">
-              <Button variant="outline" onClick={() => setIsPartnerNFDialogOpen(false)} className="border-border text-xs h-9">Cancelar</Button>
-              <Button onClick={submitPartnerNF} disabled={submitting || !partnerNFConfirmed} className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs h-9 font-semibold">
-                {submitting ? 'Confirmando...' : 'Confirmar Envio'}
+              <Button variant="outline" onClick={() => setIsPartnerNFDialogOpen(false)} className="border-border h-11 text-sm">Cancelar</Button>
+              <Button onClick={submitPartnerNF} disabled={submitting || !partnerNFConfirmed} className="bg-primary hover:bg-primary/90 text-primary-foreground h-11 text-sm font-bold">
+                {submitting ? 'Enviando...' : 'Enviar nota fiscal'}
               </Button>
             </DialogFooter>
           </DialogContent>

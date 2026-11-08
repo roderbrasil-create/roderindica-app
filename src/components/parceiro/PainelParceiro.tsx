@@ -6,7 +6,8 @@ import { db, auth } from '../../lib/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { type TipoMaquina } from '../../lib/instalacao';
 import { montarProntaEntrega } from '../../lib/prontaEntrega';
-import { Package, Loader2 } from 'lucide-react';
+import { Package, Loader2, X, FileText } from 'lucide-react';
+import { proximoPassoComissao, DIA_LIMITE_NOTA, nomeDoMes, brl as brlNota } from '../../lib/proximoPassoComissao';
 import { cn, getApiBaseUrl } from '../../lib/utils';
 import { filtrosDoParceiro } from '../../lib/filtrosParceiro';
 import { somaAReceber } from '../../lib/vinculoParceiro';
@@ -179,6 +180,24 @@ export default function PainelParceiro() {
   };
 
   const aReceber = useMemo(() => somaAReceber(comissoes), [comissoes]);
+
+  // Aviso da nota fiscal: aparece toda vez que a tela abre, enquanto houver comissão sem nota.
+  // O X fecha só até a próxima abertura (de propósito não fica gravado).
+  const [avisoNotaFechado, setAvisoNotaFechado] = useState(false);
+  const avisoNota = useMemo(() => {
+    const grupos: Record<string, { month: number; year: number; total: number }> = {};
+    for (const c of comissoes) {
+      if (!(Number(c.value) > 0) || c.status === 'paid' || c.status === 'waiting_payment') continue;
+      const k = `${c.year}_${c.month}`;
+      (grupos[k] ||= { month: c.month, year: c.year, total: 0 }).total += Number(c.value) || 0;
+    }
+    const lista = Object.values(grupos).sort((a, b) => (a.year - b.year) || (a.month - b.month));
+    for (const g of lista) {
+      const p = proximoPassoComissao({ month: g.month, year: g.year, total: g.total, status: null });
+      if (p.botaoNota) return { ...g, atrasada: p.situacao === 'nota_atrasada' };
+    }
+    return null;
+  }, [comissoes]);
   // respeita o que o administrador desligou para este parceiro em Usuários (mesma regra do menu)
   const mostraGanhos = !isRegionalSeller && profile?.permissions?.sidebar?.comissoes_ext !== false;
 
@@ -238,6 +257,24 @@ export default function PainelParceiro() {
           )}
         </div>
       </div>
+
+      {mostraGanhos && avisoNota && !avisoNotaFechado && (
+        <div className="relative mx-4 md:mx-8 max-w-xl mt-3 mb-1 bg-[#FFF4E5] border border-[#F6C400] rounded-2xl p-3.5 pr-10 shadow-sm z-10">
+          <button onClick={() => setAvisoNotaFechado(true)} aria-label="Fechar aviso" className="absolute right-2 top-2 h-8 w-8 flex items-center justify-center rounded-full text-[#7A5A00] active:bg-[#F6C40033]"><X className="h-4 w-4" /></button>
+          <div className="flex items-start gap-2.5">
+            <FileText className="h-5 w-5 text-[#B45309] shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <span className="block text-[14px] font-extrabold text-[#7A3B00] leading-tight">
+                {avisoNota.atrasada ? 'Falta a nota fiscal da sua comissão' : 'Emita a nota fiscal da sua comissão'}
+              </span>
+              <span className="block text-[13px] text-[#7A5A00] mt-1 leading-snug">
+                {brlNota(avisoNota.total)} de {nomeDoMes(avisoNota.month)}. {avisoNota.atrasada ? 'O prazo era dia ' + DIA_LIMITE_NOTA + '. Envie agora para o financeiro programar o pagamento.' : 'Prazo: até o dia ' + DIA_LIMITE_NOTA + '.'}
+              </span>
+              <button onClick={() => navigate('/comissoes', { state: { abrirNota: { month: avisoNota.month, year: avisoNota.year } } })} className="mt-2.5 h-10 px-4 rounded-xl bg-[#1B1E22] text-white text-[13px] font-bold active:opacity-80">Carregar nota fiscal</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Pronta entrega em destaque, sobre a faixa. Aparece sempre para o parceiro: é a vitrine para ele
           mandar ao cliente (o cadastro antigo de vários parceiros vinha com o estoque desligado) */}
