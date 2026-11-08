@@ -435,3 +435,14 @@ input:focus::placeholder, textarea:focus::placeholder {
 @media (max-width: 767px) {
   :root:not(.dark) .form-indicacao [data-slot="card"] { border-color: #AEB4BC; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
 }
+
+
+/* iPhone: ao puxar a tela além do fim (efeito elástico) o cabeçalho e o rodapé fixos podiam sair do lugar
+   e subir junto com o conteúdo. Sem o efeito elástico e com as barras em camada própria, ficam presas. */
+@media (max-width: 767.98px) {
+  html { overscroll-behavior-y: none; }
+  .mobile-safe-header, nav[class*="fixed bottom-0"], div[class*="fixed bottom-0"][class*="z-40"] {
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+  }
+}
