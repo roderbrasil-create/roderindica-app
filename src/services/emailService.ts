@@ -458,12 +458,14 @@ export async function notifyLuanaNewFairLead(lead: any, fairName: string) {
   return { success: result.success, count: managers.length };
 }
 
-export async function notifyStockUpdate(emails: string[], appOrigin: string) {
+export const ASSUNTO_ESTOQUE_ATUALIZADO = `Estoque de Pronta Entrega Atualizado! 📦 - Roder Brasil`;
+
+/** Corpo do e-mail de estoque atualizado (usado pela tela e pelo aviso automático do servidor). */
+export function htmlEstoqueAtualizado(appOrigin: string): string {
   const appUrl = `${appOrigin}/login`;
   const stockUrl = `${appOrigin}/stock_holder`;
   const logoUrl = `${appOrigin}/roder-logo-ficha.png`;
-  const subject = `Estoque de Pronta Entrega Atualizado! 📦 - Roder Brasil`;
-  const html = `
+  return `
     <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #eee; padding: 30px; border-radius: 15px; background-color: #ffffff;">
       <div style="text-align: center; margin-bottom: 25px;">
         <img src="${logoUrl}" alt="Roder Brasil" style="height: 50px;">
@@ -500,6 +502,11 @@ export async function notifyStockUpdate(emails: string[], appOrigin: string) {
       </p>
     </div>
   `;
+}
+
+export async function notifyStockUpdate(emails: string[], appOrigin: string) {
+  const subject = ASSUNTO_ESTOQUE_ATUALIZADO;
+  const html = htmlEstoqueAtualizado(appOrigin);
 
   // Send emails using Promise.all
   const results = await Promise.all(
