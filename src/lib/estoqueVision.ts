@@ -35,7 +35,10 @@ const chave = (code: string, source: string, branch: string) => `${code.trim().t
 
 /** Valida o corpo { tipo:"estoque", origem, filial, itens }. Devolve o envio limpo ou o motivo da recusa. */
 export function lerEnvioEstoque(c: any): { ok: true; envio: EnvioEstoque } | { ok: false; erro: string } {
-  const origem = txt(c?.origem, 20).toLowerCase() as OrigemEstoque;
+  let origemTxt = txt(c?.origem, 20).toLowerCase();
+  // O Vision manda "sinop"; no Indica essa origem sempre se chamou sinop_pdf.
+  if (origemTxt === 'sinop') origemTxt = 'sinop_pdf';
+  const origem = origemTxt as OrigemEstoque;
   const filial = txt(c?.filial, 20).toLowerCase() as FilialEstoque;
   if (!ORIGENS_ESTOQUE.includes(origem)) return { ok: false, erro: `origem inválida (use ${ORIGENS_ESTOQUE.join(', ')})` };
   if (!FILIAIS_ESTOQUE.includes(filial)) return { ok: false, erro: 'filial inválida (use matriz ou sinop)' };

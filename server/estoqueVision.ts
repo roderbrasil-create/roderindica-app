@@ -70,7 +70,7 @@ export async function processarEnvioEstoque(deps: DepsEstoqueVision, corpo: any)
     plano.criar.forEach(c => ops.push(b => b.set(col.doc(), { ...c, last_list_match: true, created_at: agora, updated_at: agora, origem_envio: 'roder_vision' })));
     await gravarEmLotes(db, ops);
     await db.collection('settings').doc('estoque_vision').set({ [`ultimo_${envio.origem}_${envio.filial}`]: { em: agora, enviado_em: envio.enviado_em || null, itens: envio.itens.length } }, { merge: true });
-    return { status: 200, body: { ok: true, origem: envio.origem, filial: envio.filial, criados: plano.criar.length, atualizados: plano.atualizar.length, alterados: plano.atualizar.length, removidos: plano.remover.length, mantidos_por_reserva: plano.zerar.length, ignorados: plano.ignorados } };
+    return { status: 200, body: { ok: true, origem: envio.origem, filial: envio.filial, criados: plano.criar.length, atualizados: plano.atualizar.length, alterados: plano.atualizar.length, removidos: plano.remover.length, mantidos_por_reserva: plano.zerar.length, reservas_preservadas: plano.zerar.length, ignorados: plano.ignorados } };
   }
   if (tipo === 'importacoes') {
     const lido = lerEnvioImportacoes(corpo);
