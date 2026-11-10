@@ -59,6 +59,7 @@ import { lerConfigCrm, triagemEhDoCrm } from "./src/lib/crmIntegracao";
 import { registrarRotaEventosCrm } from "./server/crmEventos";
 import { registrarRotaEstoqueVision } from "./server/estoqueVision";
 import { enviarAvisoEstoquePendente } from "./server/avisoEstoque";
+import { enviarConfirmacoesPendentes } from "./server/confirmacaoEstoque";
 import { registrarRotasAdminCrm, rodarFilaCrm, rodarAtualizacoesCrm, rodarComissoesCrm, lerDataDaVirada } from "./server/crmEntrada";
 import { referenciaStorage } from "./src/lib/crmFase2";
 import { relatorioDiretoriaDia1, relatorioParceirosDia1, lembreteNfDia4, lembreteNfDia5, lembreteNfDia6, lembreteNfDia7, lembreteFinanceiroDia7, ligarEmailsComissaoUmaVez } from "./server/relatoriosComissao";
@@ -6210,6 +6211,8 @@ Por favor, gere e ordene tudo de forma que faça total sentido real de mercado p
     setTimeout(() => { if (db) marcarContasDaEquipe(); }, 12000);
     // aviso de estoque atualizado: um e-mail, 15 min depois do último envio do Roder Vision (ver server/avisoEstoque.ts)
     setInterval(() => { if (db) enviarAvisoEstoquePendente({ db, enviar: sendAutomaticEmail, appOrigin: 'https://roderindica.com' }).catch((e: any) => console.log('[AVISO-ESTOQUE] erro:', e?.message || e)); }, 60 * 1000);
+    // confirmação do estoque do Vision: um e-mail por lote (ver server/confirmacaoEstoque.ts)
+    setInterval(() => { if (db) enviarConfirmacoesPendentes({ db, enviar: sendAutomaticEmail }).catch((e: any) => console.log('[CONFIRMACAO-ESTOQUE] erro:', e?.message || e)); }, 60 * 1000);
     // liga os três e-mails de comissão uma vez só (trava em cron_locks; depois vale o que estiver na tela)
     setTimeout(() => { if (db) ligarEmailsComissaoUmaVez(db).catch(() => {}); }, 9000);
     // Recuperação: se o servidor subir no dia 7 depois das 9h (o cron já passou), cobra a nota agora.

@@ -10,6 +10,7 @@
 import { lerEnvioAba, lerEnvioEstoque, lerEnvioImportacoes, lerEnvioReservas, planejarEstoque, planejarEstoqueAba, planejarImportacoes, planejarReservas } from '../src/lib/estoqueVision';
 import { verificarAssinaturaCrm } from './crmAssinatura';
 import { marcarEnvioEstoque } from './avisoEstoque';
+import { lerLote, registrarParteLote } from './confirmacaoEstoque';
 
 export type DepsEstoqueVision = { db: any; segredo: () => string; soLeitura?: () => boolean; agora?: () => Date; log?: (...a: any[]) => void };
 
@@ -28,7 +29,7 @@ async function gravarEmLotes(db: any, ops: ((b: any) => void)[]) {
   }
 }
 
-export async function processarEnvioEstoque(deps: DepsEstoqueVision, corpo: any): Promise<{ status: number; body: any }> {
+async function executarEnvioEstoque(deps: DepsEstoqueVision, corpo: any): Promise<{ status: number; body: any }> {
   const agora = (deps.agora ? deps.agora() : new Date()).toISOString();
   const tipo = String(corpo?.tipo || '');
   const db = deps.db;
@@ -91,6 +92,27 @@ export async function processarEnvioEstoque(deps: DepsEstoqueVision, corpo: any)
     return { status: 200, body: { ok: true, itens: lido.itens.length, criados: plano.criar.length, atualizados: plano.atualizar.length, alterados: plano.atualizar.length, removidos: plano.remover.length, reservas_preservadas: plano.preservados.length } };
   }
   return { status: 400, body: { ok: false, error: 'tipo deve ser "estoque" ou "importacoes"' } };
+}
+
+/** Processa o envio e, se ele vier com "lote" (Roder Vision), guarda o resultado da parte para o e-mail de confirmação. */
+export async function processarEnvioEstoque(deps: DepsEstoqueVision, corpo: any): Promise<{ status: number; body: any }> {
+  const lote = String(corpo?.tipo || '') === 'estoque' ? lerLote(corpo) : null;
+  const guardar = async (r: { ok: boolean; status: number; body?: any }, erro?: string) => {
+    if (!lote) return;
+    try {
+      const b = r.body || {};
+      await registrarParteLote(deps.db, lote, {
+        ok: r.ok, status: r.status, origem: String(corpo?.origem || corpo?.aba || ''), filial: String(corpo?.filial || ''),
+        criados: b.criados, atualizados: b.atualizados, removidos: b.removidos, ignorados: b.ignorados, reservas_preservadas: b.mantidos_por_reserva,
+        ...(r.ok ? {} : { erro: erro || String(b.error || `erro ${r.status}`) }),
+      }, deps.agora ? deps.agora() : new Date());
+    } catch (e: any) { (deps.log || console.log)('[CONFIRMACAO-ESTOQUE] não guardou a parte:', e?.message || e); }
+  };
+  let r: { status: number; body: any };
+  try { r = await executarEnvioEstoque(deps, corpo); }
+  catch (e: any) { await guardar({ ok: false, status: 500 }, String(e?.message || e)); throw e; }
+  await guardar({ ok: r.status === 200 && r.body?.ok !== false, status: r.status, body: r.body });
+  return r;
 }
 
 /** Lista completa de reservas/vendidos do Vision: substitui as reservas ativas (as antigas ficam "substituida_vision"). */
