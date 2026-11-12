@@ -160,7 +160,7 @@ export default function Admin({ isUsersView = false, defaultTab = 'settings' }: 
 
       toast.success(`Chave criada com sucesso para ${newKeyName.trim()}!`);
       setNewKeyName('');
-      setNewKeyPermissions({ stock: true, catalog: true, leads: false });
+      setNewKeyPermissions({ stock: true, catalog: true, leads: false, vision_leitura: false, vision_escrita: false });
       setIsApiKeyDialogOpen(false);
     } catch (err: any) {
       console.error("Error creating API key:", err);
@@ -390,6 +390,8 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
     stock: true,
     catalog: true,
     leads: false,
+    vision_leitura: false,
+    vision_escrita: false,
   });
   const [generatingKey, setGeneratingKey] = useState(false);
   const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
@@ -3015,6 +3017,12 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                             />
                             <span className="font-medium text-foreground">Indicações / Vendas</span>
                           </label>
+
+                          {(k.permissions?.vision_leitura || k.permissions?.vision_escrita) && (
+                            <span className="font-bold text-emerald-700">
+                              Roder Vision: {[k.permissions?.vision_leitura && 'leitura técnica', k.permissions?.vision_escrita && 'enviar ensinamentos'].filter(Boolean).join(' + ')}
+                            </span>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -3759,6 +3767,36 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                       <span className="text-xs font-bold text-foreground block">Catálogo de Equipamentos</span>
                       <span className="text-[11px] text-muted-foreground block">
                         Permite consultar fichas técnicas, modelos, fotos e especificações de catálogo.
+                      </span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-2.5 p-2.5 rounded-xl border border-border/80 bg-muted/20 hover:bg-muted/40 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newKeyPermissions.vision_leitura}
+                      onChange={(e) => setNewKeyPermissions(prev => ({ ...prev, vision_leitura: e.target.checked, stock: e.target.checked ? false : prev.stock }))}
+                      className="mt-0.5 rounded border-border text-emerald-600 focus:ring-emerald-500 h-4 w-4 cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-xs font-bold text-foreground block">Roder Vision: LEITURA técnica</span>
+                      <span className="text-[11px] text-muted-foreground block">
+                        Fichas, kits de instalação, compatibilidade, regras técnicas e ensinamentos. Sem preços, clientes ou comissões. Ao marcar, o estoque é desmarcado: use uma chave só para isso.
+                      </span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-2.5 p-2.5 rounded-xl border border-border/80 bg-muted/20 hover:bg-muted/40 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newKeyPermissions.vision_escrita}
+                      onChange={(e) => setNewKeyPermissions(prev => ({ ...prev, vision_escrita: e.target.checked, stock: e.target.checked ? false : prev.stock }))}
+                      className="mt-0.5 rounded border-border text-emerald-600 focus:ring-emerald-500 h-4 w-4 cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-xs font-bold text-foreground block">Roder Vision: ENVIAR ensinamentos</span>
+                      <span className="text-[11px] text-muted-foreground block">
+                        Só envia ensinamentos aprovados para o Consultor. Não lê nada e não apaga nada. Crie como uma chave separada da leitura.
                       </span>
                     </div>
                   </label>

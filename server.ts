@@ -58,6 +58,7 @@ import { garantirEmailsLigados } from "./server/emailsSempreLigados";
 import { lerConfigCrm, triagemEhDoCrm } from "./src/lib/crmIntegracao";
 import { registrarRotaEventosCrm } from "./server/crmEventos";
 import { registrarRotaEstoqueVision } from "./server/estoqueVision";
+import { registrarRotasVision } from "./server/apiVision";
 import { enviarAvisoEstoquePendente } from "./server/avisoEstoque";
 import { enviarConfirmacoesPendentes } from "./server/confirmacaoEstoque";
 import { registrarRotasAdminCrm, rodarFilaCrm, rodarAtualizacoesCrm, rodarComissoesCrm, lerDataDaVirada } from "./server/crmEntrada";
@@ -551,6 +552,9 @@ async function startServer() {
     }
   }
 
+  // Conhecimento técnico para o Roder Vision (chaves próprias: vision_leitura e vision_escrita)
+  registrarRotasVision(app, { db, log: console.warn });
+
   // GET /api/v1/stock - Lista completa do Estoque Roder (Fábrica, Sinop, Importações FAE)
   app.get("/api/v1/stock", async (req, res) => {
     // Enable CORS for third-party apps
@@ -684,9 +688,12 @@ async function startServer() {
         created_by: created_by || 'Admin',
         last_used_at: null,
         permissions: {
-          stock: permissions?.stock !== false,
+          // chave do Vision (leitura ou escrita) NÃO abre o estoque: só quem pediu o estoque o recebe
+          stock: permissions?.vision_leitura || permissions?.vision_escrita ? permissions?.stock === true : permissions?.stock !== false,
           catalog: !!permissions?.catalog,
-          leads: !!permissions?.leads
+          leads: !!permissions?.leads,
+          vision_leitura: !!permissions?.vision_leitura,
+          vision_escrita: !!permissions?.vision_escrita
         }
       };
 

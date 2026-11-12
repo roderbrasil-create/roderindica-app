@@ -516,6 +516,8 @@ export interface RoderApiKey {
     stock: boolean;
     catalog?: boolean;
     leads?: boolean;
+    vision_leitura?: boolean;
+    vision_escrita?: boolean;
   };
 }
 
