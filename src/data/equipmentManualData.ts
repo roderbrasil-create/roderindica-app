@@ -193,7 +193,7 @@ export const EQUIPMENT_SPEC_TABLES: EquipmentSpecTable[] = [
     columnWidthsPdf: [26, 38, 26, 20, 32, 40],
     rows: [
       ['Destocador DTH-240B', 'Destoca sem buraco: destrói o toco no próprio lugar', 'Broca Ø 700 mm (740 mm de profundidade sem suporte)', '750 kg', 'Escavadeira: 140 a 220 L/min | 280-350 bar. Retro: 100 a 150 L/min | 190-220 bar', 'Escavadeira de 14 a 22 Ton. ou retroescavadeira/escavadeira de 6 a 10 Ton. (suporte sob medida)'],
-      ['Sacador SAC 500', 'Extração de árvores vivas com torrão de raiz intacto', '500 mm (torrão circular)', '920 kg', '80 a 140 L/min | 180-220 bar', 'Escavadeiras e Pás Carregadeiras'],
+      ['Sacador SAC-500', 'Arranca a árvore inteira, com toco e raízes principais, em uma única linha hidráulica', 'Placa dentada até 450 mm (seringueira, teca) | Placa em V 100 a 300 mm (eucalipto)', '2.160 kg com suporte', '180 a 250 L/min | 320-350 bar', 'Escavadeira de esteira de 20 a 30 ton.'],
       ['Mini Skidder MSR 600', 'Arraste de toras em talhões acoplado no 3º ponto', 'Garra de arraste 0,60 m²', '340 kg', 'Acionamento remoto do trator', 'Tratores Agrícolas de 60 a 90 cv'],
       ['Mini Skidder MSR 1000', 'Arraste pesado de toras em talhões florestais', 'Garra de arraste 1,00 m²', '490 kg', 'Acionamento remoto do trator', 'Tratores Agrícolas de 90 a 140 cv'],
       ['Garra Rachadora de Toras', 'Rachamento longitudinal de toras de grande diâmetro', 'Toras até 1.200 mm', '680 kg', '100 a 160 L/min | 200-250 bar', 'Escavadeiras de 12 a 20 Ton.']

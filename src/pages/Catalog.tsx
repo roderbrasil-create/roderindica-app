@@ -94,7 +94,8 @@ import { FichaDestocador } from '../components/catalog/FichaDestocador';
 import { ehDestocadorDth } from '../lib/fichaDestocador';
 import { comDestocadorDthCorrigido, comUnidade, rotuloDiametroDoModelo, ehModeloDth240b, perfisDoTexto, comporPerfis, ROTULOS_DTH240B } from '../lib/destocadorDth';
 import { corrigirDestocadorDthUmaVez } from '../lib/migracaoDestocadorDth';
-import { SacadorSac500Ficha } from '../components/catalog/SacadorSac500Ficha';
+import { FichaSacador } from '../components/catalog/FichaSacador';
+import { ehSacadorSac500 } from '../lib/fichaSacador';
 import { FichaPadrao } from '../components/catalog/FichaPadrao';
 import { FichaTrituradorFae } from '../components/catalog/FichaTrituradorFae';
 import { chaveIndividualDoModelo, type ChaveFichaIndividual } from '../lib/fichaEscavadeira';
@@ -408,7 +409,9 @@ const isAnyFichaSupported = (product: any) => {
 
   const isDestocadorDth = ehDestocadorDth(url) || ehDestocadorDth(name) || ehDestocadorDth(product.id);
 
-  return !!product.pdf_url || isDestocadorDth || isEngate || isHighTip || isFresa || isEstufagem || isLoaderTriturador || isCabecoteGmt || isCabecotePoda;
+  const isSacador = ehSacadorSac500(name) || ehSacadorSac500(url) || ehSacadorSac500(product.id);
+
+  return !!product.pdf_url || isSacador || isDestocadorDth || isEngate || isHighTip || isFresa || isEstufagem || isLoaderTriturador || isCabecoteGmt || isCabecotePoda;
 };
 
 // Mesma rota do cartão da galeria para todo botão "Ficha": a ficha própria quando existe,
@@ -6505,7 +6508,7 @@ export default function Catalog() {
                       <Label className="text-[10px] uppercase">Capacidade Máx. Diâmetro</Label>
                       <Input 
                         className="h-9 text-xs"
-                        placeholder="Ex: Até 45 cm (Seringueira) | 12 a 35 cm (Eucalipto)"
+                        placeholder="Ex: Até 45 cm (Seringueira) | 10 a 30 cm (Eucalipto)"
                         value={editingModelData.technical_specs?.capacidade_diametro || ''} 
                         onChange={(e) => setEditingModelData({ 
                           ...editingModelData, 
@@ -6942,7 +6945,7 @@ export default function Catalog() {
         )}
 
         {isSacadorSac500FichaOpen && (
-          <SacadorSac500Ficha 
+          <FichaSacador
             onClose={() => {
               setIsSacadorSac500FichaOpen(false);
               if (suspendedProductModels) {

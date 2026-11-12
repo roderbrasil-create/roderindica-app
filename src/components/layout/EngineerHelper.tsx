@@ -23,7 +23,7 @@ import { FresaSshFicha } from '../catalog/FresaSshFicha';
 import { EngateRapidoFicha } from '../catalog/EngateRapidoFicha';
 import { GarraEstufagemFicha } from '../catalog/GarraEstufagemFicha';
 import { TrituradorLoaderFaeFicha } from '../catalog/TrituradorLoaderFaeFicha';
-import { SacadorSac500Ficha } from '../catalog/SacadorSac500Ficha';
+import { FichaSacador, compartilharFichaSacador } from '../catalog/FichaSacador';
 import { CabecotePodaFicha } from '../catalog/CabecotePodaFicha';
 import { FichaGmt035, compartilharFichaGmt } from '../catalog/FichaGmt035';
 import { ehLinkFichaGmt, chaveDoLinkFichaGmt } from '../../lib/fichaGmt';
@@ -865,6 +865,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
     const tipo = fichaEspecialDe(linkFichaDe(prod, model), `${model.name} ${prod.name}`);
     if (tipo === 'gmt035') { compartilharFichaGmt(); return; }
     if (tipo === 'destocador') { compartilharFichaDestocador(); return; }
+    if (tipo === 'sac500') { compartilharFichaSacador(); return; }
     if (tipo) {
       abrirFichaEspecial(tipo, model.name, true);
       toast.info('Toque em "Enviar" na ficha para mandar o PDF.');
@@ -6531,7 +6532,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
         )}
 
         {isSacadorSac500FichaOpen && (
-          <SacadorSac500Ficha onClose={() => setIsSacadorSac500FichaOpen(false)} enviar={fichaParaEnviar} />
+          <FichaSacador onClose={() => setIsSacadorSac500FichaOpen(false)} enviar={fichaParaEnviar} />
         )}
 
         {isCabecotePodaFichaOpen && (

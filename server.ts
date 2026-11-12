@@ -2994,6 +2994,7 @@ ${REGRA_KIT_CONFIRMACAO}
       • Eventuais raízes finas secundárias podem se romper e permanecer no solo, porém são raízes finas superficiais que não interferem no cultivo ou preparo do próximo plantio.
     - **Suporte Traseiro de Acoplamento da Escavadeira**:
       • O suporte de acoplamento do Sacador SAC 500 é o suporte traseiro cadastrado na tabela de suportes (o mesmo usado no Feller Tesoura). O **Destocador DTH-240B não usa suporte padrão**: o suporte dele é fabricado sob medida pela Roder para a máquina do cliente, com instalação hidráulica pela Roder.
+    - **Suporte de acoplamento (ficha 12/11/2026)**: código **1000.1295.0000**, para escavadeiras de **20 a 24 t com pino de 80 mm**; normalmente vendido junto com o sacador. Para outras máquinas, consultar a Roder.
     - **Peso do Equipamento**: Em torno de 1.850 kg (~2.160 kg com o suporte de acoplamento da escavadeira).
     - **Dimensões Físicas**: Altura Total de 1.904 mm x Largura da Sapata de 1.600 mm x Profundidade/Extensão de 1.555 mm.
     - **Pressão e Vazão Hidráulica**: Pressão de Trabalho de 320 a 350 bar e Vazão/Fluxo necessário de 180 a 250 L/min.
@@ -3004,8 +3005,8 @@ ${REGRA_KIT_CONFIRMACAO}
       • **NÃO é indicado de forma alguma para PÁS CARREGADEIRAS, EMPILHADEIRAS ou TRATORES**.
       • **NÃO serve para áreas de rebrota de eucalipto** (projetado para árvores de tronco único e formado).
     - **Placas Frontais Inclusas de Série (2 Modelos Intercambiáveis)**:
-      1. **Placa Dentada (tipo cravo)**: Indicada para madeiras não fibrosas (Seringueira e Teca). Os cravos perfuram a casca e fixam a madeira sem deslizar. Diâmetro máximo de corte de 450 mm a 500 mm (45 a 50 cm). Apresentada em quadro quadrado na ficha técnica.
-      2. **Placa em V**: Indicada para madeira fibrosa (Eucalipto). A geometria em V com apoio plano abraça o tronco sem rachar ou quebrar. Faixa de diâmetro de 100 mm (10 cm mínimo) a 300 mm / 350 mm (30 a 35 cm máximo). Apresentada em quadro quadrado na ficha técnica.
+      1. **Placa Dentada (tipo cravo)**: Indicada para madeiras não fibrosas (Seringueira e Teca). Os cravos perfuram a casca e fixam a madeira sem deslizar. Diâmetro de até 450 mm (45 cm). Apresentada em quadro quadrado na ficha técnica.
+      2. **Placa em V**: Indicada para madeira fibrosa (Eucalipto). A geometria em V com apoio plano abraça o tronco sem rachar ou quebrar. Faixa de diâmetro de 100 a 300 mm (10 cm mínimo e **30 cm máximo**; nunca diga 35 cm). Apresentada em quadro quadrado na ficha técnica.
     - **Produtividade Estimada (Sempre com Toco e Raízes)**:
       • Seringueira (com toco e raízes): 60 a 100 árvores por hora.
       • Eucalipto (com toco e raízes - árvores formadas): 120 a 150 árvores por hora.
