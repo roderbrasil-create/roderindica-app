@@ -99,7 +99,7 @@ export function montarMensagemConvite(user: UsuarioConvite, appUrl: string, pass
     `${loginMethodInfo}\n\n` +
     `*Instruções para o seu acesso:* \n` +
     `${instructions}\n\n` +
-    `📌 *Dica:* No celular, toque no ícone de compartilhar e selecione "Adicionar à Tela de Início" para instalar o App.\n\n` +
+    `📌 *Dica:* Depois de entrar no aplicativo, salve-o na tela inicial do celular: toque no ícone de compartilhar e selecione "Adicionar à Tela de Início".\n\n` +
     `Qualquer dúvida, fale com a Luana!`;
 }
 
