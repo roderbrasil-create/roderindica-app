@@ -5,7 +5,7 @@ import { collection, query, onSnapshot, orderBy, addDoc, updateDoc, doc, deleteD
 import { db, storage, auth } from '../lib/firebase';
 import { CryptoService } from '../lib/CryptoService';
 import { AuditService, AuditAction } from '../lib/AuditService';
-import { corrigirFaixaCmf500UmaVez } from '../lib/migracaoFaixaCmf500';
+import { corrigirFaixaCmf500UmaVez, corrigirFaixaCmf800UmaVez } from '../lib/migracaoFaixaCmf500';
 import { Product } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -1087,6 +1087,7 @@ export default function Catalog() {
 
       if (user?.email === 'roderbrasil@gmail.com' || user?.email === 'roderindica@gmail.com') {
         corrigirFaixaCmf500UmaVez(data, db);
+        corrigirFaixaCmf800UmaVez(data, db);
         corrigirDestocadorDthUmaVez(dadosBrutos, db);
         const fellerTesoura = data.find(p => p.name === 'Feller Tesoura');
         if (!fellerTesoura && data.length > 0) {
@@ -2020,7 +2021,7 @@ export default function Catalog() {
               corrente: '3/4"',
               vazao: '200 a 250',
               pressao: '200 a 240',
-              peso_operacional: '20 a 30 Ton.',
+              peso_operacional: '20 a 35 Ton.',
               motor: '60 cc'
             }
           }
@@ -2909,7 +2910,7 @@ export default function Catalog() {
               corrente: '3/4"',
               vazao: '200 a 250',
               pressao: '200 a 240',
-              peso_operacional: '20 a 30 Ton.',
+              peso_operacional: '20 a 35 Ton.',
               motor: '60 cc'
             }
           }

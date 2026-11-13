@@ -3,6 +3,30 @@
 // "8 a 22 Ton.", e o explorador mostrava as duas faixas se sobrepondo, como se o CMF 500
 // fosse opção para máquina de 20 t.
 export const FAIXA_CMF500 = '8 a 13 Ton.';
+// CMF 800 (regra do Jeferson, 13/11/2026): escavadeiras de 20 a 35 t. O cadastro antigo dizia 20 a 30.
+export const FAIXA_CMF800 = '20 a 35 Ton.';
+
+const ehCmf800 = (m: { id?: string; name?: string } | null | undefined) =>
+  !!m && (/^cmf[-_ ]?800$/i.test(String(m.id || '').trim()) || /^cmf\s*800$/i.test(String(m.name || '').trim()));
+
+const faixaAntiga800 = (v: unknown) => typeof v === 'string' && /^\s*20\s*a\s*30\s*(t|ton)?\.?\s*$/i.test(v);
+
+// Correção do cadastro do CMF 800: devolve os modelos com a faixa trocada, ou null se nada muda
+export function corrigirFaixaCmf800<T extends { id?: string; name?: string; technical_specs?: any }>(modelos: T[]): T[] | null {
+  let mudou = false;
+  const novos = (modelos || []).map(m => {
+    if (!ehCmf800(m) || !m.technical_specs) return m;
+    const specs = { ...m.technical_specs };
+    let alterou = false;
+    for (const campo of ['maquina_base', 'peso_operacional']) {
+      if (faixaAntiga800(specs[campo])) { specs[campo] = FAIXA_CMF800; alterou = true; }
+    }
+    if (!alterou) return m;
+    mudou = true;
+    return { ...m, technical_specs: specs };
+  });
+  return mudou ? novos : null;
+}
 
 const ehCmf500 = (m: { id?: string; name?: string } | null | undefined) =>
   !!m && (/^cmf[-_ ]?500$/i.test(String(m.id || '').trim()) || /^cmf\s*500$/i.test(String(m.name || '').trim()));
@@ -15,6 +39,7 @@ export function faixaDoModelo(m: { id?: string; name?: string; technical_specs?:
   const specs = m?.technical_specs || {};
   const bruto = String(specs.maquina_base || specs.peso_operacional || '').trim();
   if (bruto && ehCmf500(m) && faixaAntiga(bruto)) return FAIXA_CMF500;
+  if (bruto && ehCmf800(m) && faixaAntiga800(bruto)) return FAIXA_CMF800;
   return bruto;
 }
 

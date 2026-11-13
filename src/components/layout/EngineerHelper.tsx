@@ -95,7 +95,7 @@ Traçamento de Feixes para "Metrinho":
 
   "CMF 800": `Derrubada/Colheita de Eucalipto/Mata Nativa:
 - Média Geral (Corte de grande porte de até 80cm de diâmetro): 100 a 120 árvores por hora.
-- Indicado para escavadeiras de 20 a 30 toneladas em operações pesadas. Produzido estritamente sob encomenda.
+- Indicado para escavadeiras de 20 a 35 toneladas em operações pesadas. Produzido estritamente sob encomenda.
 
 Traçamento de Grandes Volumes:
 - Produtividade Média: 30 a 45 m³ por hora.`,

@@ -1,5 +1,5 @@
 import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
-import { corrigirFaixaCmf500, FAIXA_CMF500 } from './faixaCmf';
+import { corrigirFaixaCmf500, FAIXA_CMF500, corrigirFaixaCmf800, FAIXA_CMF800 } from './faixaCmf';
 
 // CMF 500 de "8 a 22 Ton." para "8 a 13 Ton." (regra do Jeferson, 19/10/2026). Roda UMA vez:
 // a marca em settings/migracao_faixa_cmf500 impede que uma edição feita depois pela tela de
@@ -24,3 +24,21 @@ export async function corrigirFaixaCmf500UmaVez(data: any[], db: any) {
   }
 }
 
+
+// CMF 800 de "20 a 30 Ton." para "20 a 35 Ton." (Jeferson, 13/11/2026). Mesma regra: roda UMA vez.
+export async function corrigirFaixaCmf800UmaVez(data: any[], db: any) {
+  try {
+    const marca = doc(db, 'settings', 'migracao_faixa_cmf800');
+    if ((await getDoc(marca)).exists()) return;
+    const cabecote = data.find(p => (p.models || []).some((m: any) => /^cmf[-_ ]?800$/i.test(String(m.id || '')) || /^cmf\s*800$/i.test(String(m.name || '').trim())));
+    if (!cabecote) return;
+    const novos = corrigirFaixaCmf800(cabecote.models);
+    if (novos) {
+      console.log('[Healing] CMF 800: faixa de máquina 20 a 30 Ton. -> 20 a 35 Ton.');
+      await updateDoc(doc(db, 'products', cabecote.id), { models: novos });
+    }
+    await setDoc(marca, { feito_em: new Date().toISOString(), faixa: FAIXA_CMF800, produto: cabecote.id, alterou: !!novos });
+  } catch (err) {
+    console.error('Correção da faixa do CMF 800 falhou:', err);
+  }
+}
