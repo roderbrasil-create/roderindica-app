@@ -361,12 +361,14 @@ export default function NewIndication() {
     const draft = getDraft();
     if (draft && !state?.product_name) {
       setFormData(draft.data.formData);
-      setSelectedItems(draft.data.selectedItems || []);
+      // O botão Indicar abre SEM equipamento: um rascunho antigo trazia o último equipamento (ex.: sacador)
+      // e a pessoa tinha que excluí-lo. Os dados do cliente continuam restaurados; o equipamento ela escolhe de novo.
+      setSelectedItems([]);
       setOptions(draft.data.options);
       if (draft.data.selectedExternalSeller) {
         setSelectedExternalSeller(draft.data.selectedExternalSeller);
       }
-      toast.info('Rascunho restaurado automaticamente.');
+      toast.info('Rascunho restaurado. Escolha o equipamento.');
       initializedRef.current = true;
     } else if (state?.product_name && (catalogProducts.length > 0 || registeredProducts.length > 0)) {
       const stateNameLower = state.product_name.trim().toLowerCase();
