@@ -92,6 +92,8 @@ import { CabecotePodaFicha } from '../components/catalog/CabecotePodaFicha';
 import { FichaGmt035 } from '../components/catalog/FichaGmt035';
 import { FichaDestocador } from '../components/catalog/FichaDestocador';
 import { ehDestocadorDth } from '../lib/fichaDestocador';
+import { FichaRcu } from '../components/catalog/FichaRcu';
+import { ehRcu, chaveFichaRcu, type ChaveFichaRcu } from '../lib/fichaRcu';
 import { comDestocadorDthCorrigido, comUnidade, rotuloDiametroDoModelo, ehModeloDth240b, perfisDoTexto, comporPerfis, ROTULOS_DTH240B } from '../lib/destocadorDth';
 import { corrigirDestocadorDthUmaVez } from '../lib/migracaoDestocadorDth';
 import { FichaSacador } from '../components/catalog/FichaSacador';
@@ -411,7 +413,9 @@ const isAnyFichaSupported = (product: any) => {
 
   const isSacador = ehSacadorSac500(name) || ehSacadorSac500(url) || ehSacadorSac500(product.id);
 
-  return !!product.pdf_url || isSacador || isDestocadorDth || isEngate || isHighTip || isFresa || isEstufagem || isLoaderTriturador || isCabecoteGmt || isCabecotePoda;
+  const isRcu = ehRcu(name) || ehRcu(product.id);
+
+  return !!product.pdf_url || isRcu || isSacador || isDestocadorDth || isEngate || isHighTip || isFresa || isEstufagem || isLoaderTriturador || isCabecoteGmt || isCabecotePoda;
 };
 
 // Mesma rota do cartão da galeria para todo botão "Ficha": a ficha própria quando existe,
@@ -801,6 +805,7 @@ export default function Catalog() {
   const [isCabecotePodaFichaOpen, setIsCabecotePodaFichaOpen] = useState(false);
   const [isCabecoteGmt035FichaOpen, setIsCabecoteGmt035FichaOpen] = useState(false);
   const [isFichaDestocadorOpen, setIsFichaDestocadorOpen] = useState(false);
+  const [fichaRcu, setFichaRcu] = useState<ChaveFichaRcu | null>(null);
   const [isSacadorSac500FichaOpen, setIsSacadorSac500FichaOpen] = useState(false);
   // Ficha padrão em PDF (modelo sem ficha própria)
   const [fichaPadrao, setFichaPadrao] = useState<{ product: any; model: any } | null>(null);
@@ -1134,6 +1139,11 @@ export default function Catalog() {
           updateDoc(doc(db, 'products', miniSkidder.id), { is_blocked: false });
         }
 
+        // FAE RCU: um tipo principal com os 4 modelos (cria uma vez e esconde os cadastros antigos)
+        if ((isAdmin || isManager) && data.length > 0 && !data.some(p => p.name === 'FAE RCU Triturador Rádio Controle')) {
+          addFaeRcu(data);
+        }
+
         // Garra Clamshell GCR: cria uma vez (não sobrescreve edições feitas depois)
         if ((isAdmin || isManager) && data.length > 0 && !data.some(p => (p.name || '').toLowerCase().includes('clamshell'))) {
           addGarraClamshell();
@@ -1335,6 +1345,48 @@ export default function Catalog() {
         console.error('Error saving order:', error);
         toast.error('Erro ao salvar nova ordem');
       }
+    }
+  };
+
+  // FAE RCU, transportadores radiocontrolados sobre esteiras (13/11/2026, Jeferson): UM tipo principal com os 4 modelos
+  // dentro, no lugar dos dois cadastros separados e errados. Cria uma vez; os cadastros antigos de RCU são
+  // ESCONDIDOS (olhinho do card), nunca apagados, para dar para voltar atrás.
+  // Dados das fichas oficiais (manuais do operador e de peças, catálogo FAE 11/2026). O consumo por hora não é
+  // divulgado pela FAE, então não entra: nada de número inventado.
+  const addFaeRcu = async (todos: any[]) => {
+    try {
+      const NOME = 'FAE RCU Triturador Rádio Controle';
+      const q = query(collection(db, 'products'), where('name', '==', NOME));
+      const snap = await getDocs(q);
+      if (!snap.empty) return;
+      const ficha = '/fichas-rcu/Ficha_FAE_RCU_Comparativo.pdf';
+      const modelo = (n: 45 | 55 | 75 | 120, specs: Record<string, string>) => ({
+        id: `rcu-${n}`, name: `RCU ${n}`, base_value: 0,
+        images: [`/fichas-rcu/rcu${n}.webp`], image_url: `/fichas-rcu/rcu${n}.webp`,
+        pdf_url: `/fichas-rcu/Ficha_FAE_RCU${n}.pdf`,
+        technical_specs: specs,
+      });
+      await addDoc(collection(db, 'products'), {
+        name: NOME,
+        description: 'Transportador radiocontrolado sobre esteiras FAE RCU, para triturador florestal e outros implementos FAE em terrenos de difícil acesso e declives de até 55° em todas as direções, com o operador fora da área de risco. Quatro modelos: RCU 45, RCU 55, RCU 75 e RCU 120. Todos a diesel, Tier 4 Final / Stage V, com esteira de borracha e rádio controle. Só o RCU 120 usa Arla 32.',
+        category: 'Triturador Florestal',
+        image_url: '/fichas-rcu/rcu75.webp',
+        pdf_url: ficha,
+        is_blocked: false,
+        created_at: new Date().toISOString(),
+        models: [
+          modelo(45, { motor: 'Yanmar 3TNV86CT, 44 hp, diesel turbo (DOC/DPF), sem Arla', peso_operacional: '1.320 kg', largura: '1.300 mm', capacidade_carga: 'Implemento de até 450 kg', vazao: '62 l/min', pressao: '290 bar', combustivel: 'Diesel, tanque de 31 l', arla: 'Não usa', implementos: 'BL0/RCU45-125 (facas, até 100 mm) e PML/RCU45-130 (martelos)' }),
+          modelo(55, { motor: 'Kohler KDI 1903 TCR, 56 hp, diesel common rail, sem Arla', peso_operacional: '2.220 kg', largura: '1.450 a 1.750 mm (bitola variável)', capacidade_carga: 'Implemento de até 600 kg', vazao: '75 l/min', pressao: '290 bar', combustivel: 'Diesel, tanque de 42 l', arla: 'Não usa', implementos: 'BL1/RCU55-125 (facas), PML/RCU55-150 (martelos) e SCL/RCU (destocador)' }),
+          modelo(75, { motor: 'Kohler KDI 2504 TCR, 74 hp, diesel common rail, sem Arla', peso_operacional: '3.380 kg', largura: '1.700 a 2.100 mm (bitola variável)', capacidade_carga: 'Implemento de até 950 kg', vazao: '105 l/min', pressao: '320 bar', combustivel: 'Diesel, tanque de 63,5 l', arla: 'Não usa', implementos: 'BL2/RCU75-150 (facas, Limitador de Mordida), PMM/RCU75-175 (martelos) e SCL/RCU75 (destocador até 400 mm)' }),
+          modelo(120, { motor: 'Kohler KDI 3404 TCR, 120 hp, diesel DOC/DPF/SCR', peso_operacional: '3.850 kg', largura: '1.750 a 2.150 mm (bitola variável)', capacidade_carga: 'Implemento de até 1.350 kg', vazao: '105 l/min', pressao: '355 bar', combustivel: 'Diesel, tanque de 75 l', arla: 'Usa Arla 32 (DEF), tanque de 16 l', implementos: 'UML/SONIC/RCU120-150 (facas, até 200 mm), PMM/SSL-175 (martelos), SCL/SSL (destocador até 400 mm) e STC/SSL (triturador de pedras)' }),
+        ],
+      });
+      // Esconde (não apaga) os cadastros antigos de RCU, que ficaram errados e separados
+      const antigos = todos.filter(p => p?.id && p.name !== NOME && /\brcu\b|\brcu[-_ ]?\d/i.test(String(p.name || '')) && !p.is_blocked);
+      await Promise.all(antigos.map(p => updateDoc(doc(db, 'products', p.id), { is_blocked: true })));
+      toast.success('FAE RCU criado com os 4 modelos.' + (antigos.length ? ` ${antigos.length} cadastro(s) antigo(s) de RCU foram escondidos.` : ''));
+    } catch (err) {
+      console.error('Error adding FAE RCU:', err);
     }
   };
 
@@ -3653,6 +3705,22 @@ export default function Catalog() {
     // Só o começo da descrição (que nomeia o próprio produto); o resto cita outros equipamentos (ex.: "use com engate rápido")
     const lowerContextDesc = (productContext?.description || '').toLowerCase().slice(0, 90);
     const lowerContextPdfUrl = (productContext?.pdf_url || '').toLowerCase();
+
+    // Transportador radiocontrolado FAE RCU: o card do modelo abre a ficha do modelo (RCU 45, 55, 75 ou 120)
+    // e o card principal abre o comparativo dos quatro. Implemento como "BL1/RCU55-125" não conta.
+    const chaveRcu = chaveFichaRcu(modelName, url, productContext?.name, viewingGallery?.name, selectedProductModels?.name, productContext?.id);
+    if (chaveRcu) {
+      if (selectedProductModels) {
+        setSuspendedProductModels(selectedProductModels);
+        setSelectedProductModels(null);
+      }
+      if (viewingGallery) {
+        setSuspendedViewingGallery(viewingGallery);
+        setViewingGallery(null);
+      }
+      setFichaRcu(chaveRcu);
+      return;
+    }
 
     // Destocador Roder DTH 240B: abre a ficha de 1 página (suporte e kit de destocador não entram)
     const isDestocadorDth = [lowerUrl, lowerModelName, lowerViewingName, lowerSelectedName, lowerContextName, lowerContextPdfUrl, (productContext?.id || '').toLowerCase()].some(t => ehDestocadorDth(t));
@@ -6874,6 +6942,23 @@ export default function Catalog() {
                 setSuspendedViewingGallery(null);
               }
             }} 
+          />
+        )}
+
+        {fichaRcu && (
+          <FichaRcu
+            chave={fichaRcu}
+            onClose={() => {
+              setFichaRcu(null);
+              if (suspendedProductModels) {
+                setSelectedProductModels(suspendedProductModels);
+                setSuspendedProductModels(null);
+              }
+              if (suspendedViewingGallery) {
+                setViewingGallery(suspendedViewingGallery);
+                setSuspendedViewingGallery(null);
+              }
+            }}
           />
         )}
 

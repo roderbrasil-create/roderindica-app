@@ -179,7 +179,10 @@ export const EQUIPMENT_SPEC_TABLES: EquipmentSpecTable[] = [
       ['Fresa FAE SSH 200', 'Fresa de Solo e Tocos', '700 mm (70 cm)', 'Até 500 mm no solo', '4.850 kg | 78 centrais + 4 laterais', '200 a 360 (400) hp | PTO 1000 rpm', 'Tratores Agrícolas Pesados'],
       ['Fresa FAE SSH 225', 'Fresa de Solo e Tocos', '700 mm (70 cm)', 'Até 500 mm no solo', '5.200 kg | 88 centrais + 4 laterais', '200 a 360 (400) hp | PTO 1000 rpm', 'Tratores Agrícolas Pesados'],
       ['Fresa FAE SSH 250', 'Fresa de Solo e Tocos', '700 mm (70 cm)', 'Até 500 mm no solo', '5.640 kg | 98 centrais + 4 laterais', '200 a 360 (400) hp | PTO 1000 rpm', 'Tratores Agrícolas Pesados'],
-      ['FAE RCU-55 / RCU-75', 'Triturador Autopropelido', '150 a 200 mm', 'Superficial', 'Esteiras de Borracha', '56 a 75 hp Kohler Diesel', 'Radiocontrolado (Áreas Inclinadas até 55°)'],
+      ['FAE RCU 45', 'Transportador radiocontrolado', 'Até 100 mm (BL0)', 'Superficial', '1.320 kg | implemento até 450 kg', '44 hp Yanmar diesel | 62 L/min | 290 bar | sem Arla', 'Radiocontrolado (declives até 55°)'],
+      ['FAE RCU 55', 'Transportador radiocontrolado', 'Conforme implemento', 'Superficial', '2.220 kg | implemento até 600 kg', '56 hp Kohler diesel | 75 L/min | 290 bar | sem Arla', 'Radiocontrolado (declives até 55°)'],
+      ['FAE RCU 75', 'Transportador radiocontrolado', 'Conforme implemento', 'Superficial', '3.380 kg | implemento até 950 kg', '74 hp Kohler diesel | 105 L/min | 320 bar | sem Arla', 'Radiocontrolado (declives até 55°)'],
+      ['FAE RCU 120', 'Transportador radiocontrolado', 'Até 200 mm (Sonic)', 'Superficial', '3.850 kg | implemento até 1.350 kg', '120 hp Kohler diesel | 105 L/min | 355 bar | usa Arla 32', 'Radiocontrolado (declives até 55°)'],
       ['FAE PT-200', 'Triturador Autopropelido', '350 mm (35 cm)', 'Superficial / Tocos', '10.500 kg', '200 hp Cummins Turbo', 'Veículo Rastreado Florestal Pesado']
     ],
     notes: [

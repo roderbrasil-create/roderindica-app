@@ -28,6 +28,8 @@ import { CabecotePodaFicha } from '../catalog/CabecotePodaFicha';
 import { FichaGmt035, compartilharFichaGmt } from '../catalog/FichaGmt035';
 import { ehLinkFichaGmt, chaveDoLinkFichaGmt } from '../../lib/fichaGmt';
 import { FichaDestocador, compartilharFichaDestocador } from '../catalog/FichaDestocador';
+import { FichaRcu, compartilharFichaRcu } from '../catalog/FichaRcu';
+import { chaveFichaRcu, chaveDoLinkFichaRcu, ehLinkFichaRcu, type ChaveFichaRcu } from '../../lib/fichaRcu';
 import { ehLinkFichaDestocador, chaveDoLinkFichaDestocador, ehDestocadorDth } from '../../lib/fichaDestocador';
 import { FichaPadrao, enviarFichaPadrao, fotoDoModelo, tituloFicha } from '../catalog/FichaPadrao';
 import { usePodeEnviarFicha, enviarArquivoPdf, nomeArquivoFicha } from '../catalog/fichaPdf';
@@ -711,6 +713,7 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   const [isCabecotePodaFichaOpen, setIsCabecotePodaFichaOpen] = useState(false);
   const [isCabecoteGmt035FichaOpen, setIsCabecoteGmt035FichaOpen] = useState(false);
   const [isFichaDestocadorOpen, setIsFichaDestocadorOpen] = useState(false);
+  const [fichaRcu, setFichaRcu] = useState<ChaveFichaRcu | null>(null);
   // Ficha especial aberta pelo "Enviar ficha": o botão Enviar dela fica em destaque
   const [fichaParaEnviar, setFichaParaEnviar] = useState(false);
   // vídeo aberto no painel de fotos do computador (toca ali mesmo, sem abrir outra aba)
@@ -795,6 +798,13 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
       else toast.error('Não reconheci essa ficha. Procure o GMT 035 na lista de equipamentos.');
       return;
     }
+    // Transportadores FAE RCU: ficha do modelo ou comparativo (link "ficha-rcu:75", "ficha-rcu:comparativo")
+    if (ehLinkFichaRcu(url)) {
+      const chaveRcu = chaveDoLinkFichaRcu(url);
+      if (chaveRcu) setFichaRcu(chaveRcu);
+      else toast.error('Não reconheci essa ficha. Procure o FAE RCU na lista de equipamentos.');
+      return;
+    }
     // Destocador DTH-240B: abre a ficha de 1 página (link "ficha-destocador:dth240b")
     if (ehLinkFichaDestocador(url)) {
       if (chaveDoLinkFichaDestocador(url)) setIsFichaDestocadorOpen(true);
@@ -830,6 +840,8 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   };
 
   const verFicha = (prod: Product, model: ProductModel) => {
+    const rcu = chaveFichaRcu(model.name, prod.name);
+    if (rcu) { setFichaRcu(rcu); return; }
     const individual = chaveIndividualDoModelo(model);
     if (individual) { setFichaFae(individual); return; }
     const link = linkProprioDe(prod, model);
@@ -842,6 +854,8 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   // "Enviar ficha" (só equipe): a padrão gera o PDF direto; a especial abre com o Enviar em destaque
   const enviarFicha = (prod: Product, model: ProductModel) => {
     if (!podeEnviarFicha) return;
+    const rcu = chaveFichaRcu(model.name, prod.name);
+    if (rcu) { compartilharFichaRcu(rcu); return; }
     const individual = chaveIndividualDoModelo(model);
     if (individual) { enviarFichaFae(individual); return; }
     const link = linkProprioDe(prod, model);
@@ -6541,6 +6555,10 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
 
         {isCabecoteGmt035FichaOpen && (
           <FichaGmt035 onClose={() => setIsCabecoteGmt035FichaOpen(false)} enviar={fichaParaEnviar} />
+        )}
+
+        {fichaRcu && (
+          <FichaRcu chave={fichaRcu} onClose={() => setFichaRcu(null)} enviar={fichaParaEnviar} />
         )}
 
         {isFichaDestocadorOpen && (
