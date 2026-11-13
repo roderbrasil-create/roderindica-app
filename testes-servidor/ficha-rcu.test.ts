@@ -50,12 +50,15 @@ test('todos os arquivos de cada ficha existem em public/fichas-rcu', () => {
   assert.equal(paginasFichaRcu('comparativo').length, 1);
 });
 
-test('o consultor sabe o Arla e não inventa consumo por hora', () => {
+test('o consultor sabe o Arla e só fala de consumo como estimativa Roder', () => {
   const src = fs.readFileSync('server.ts', 'utf8');
   const i = src.indexOf('25. FAE RCU');
   assert.ok(i > 0);
   const sec = src.slice(i, i + 6000);
   assert.match(sec, /Só o RCU 120 usa Arla 32/);
   assert.match(sec, /NUNCA invente/);
+  assert.match(sec, /estimativa Roder/);
+  assert.match(sec, /até ~18 l\/h/);
+  assert.doesNotMatch(sec, /dado oficial da FAE:/);
   assert.match(sec, /ficha-rcu:comparativo/);
 });
