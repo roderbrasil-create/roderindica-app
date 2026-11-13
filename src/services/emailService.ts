@@ -52,7 +52,6 @@ export async function getManagerEmails(): Promise<string[]> {
     'gislene@roderbrasil.com.br', 
     'contato@roderbrasil.com.br', 
     'roderbrasil@gmail.com',
-    'luana@roderbrasil.com.br',
     'luanacamargo@roderbrasil.com.br'
   ];
   try {
