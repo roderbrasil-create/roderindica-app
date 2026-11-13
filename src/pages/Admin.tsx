@@ -78,7 +78,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Switch } from '../components/ui/switch';
 import { Link, useNavigate } from 'react-router-dom';
 import { getApiBaseUrl } from '../lib/utils';
-import { linkWhatsConvite, montarMensagemConvite, entregarConvite } from '../lib/convitePorWhatsapp';
+import { linkWhatsConvite, montarMensagemConvite, entregarConvite, emailEntraComGoogle, gerarSenhaConvite, nomePapelConvite } from '../lib/convitePorWhatsapp';
 
 import { maskPhone, maskCpfCnpj } from '../lib/masks';
 import { textoLinkParceiro } from '../lib/consultorIndicar';
@@ -530,7 +530,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
       permissions: { sidebar, dashboard_cards }
     }));
 
-    toast.success(`Permissões padrão para ${role === 'external_seller' ? 'Vendedor Externo' : role} aplicadas ao formulário.`);
+    toast.success(`Permissões padrão para ${role === 'external_seller' ? 'Parceiro Indicador' : role} aplicadas ao formulário.`);
   };
 
   const mergeDuplicateUsers = async () => {
@@ -959,7 +959,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
   };
 
   const syncAllExternalSellersPermissions = async () => {
-    if (!confirm('Esta ação irá resetar as permissões de TODOS os vendedores externos para o padrão restrito. Deseja continuar?')) return;
+    if (!confirm('Esta ação irá resetar as permissões de TODOS os parceiros indicadores para o padrão restrito. Deseja continuar?')) return;
     
     const toastId = toast.loading('Sincronizando permissões diretamente no banco...');
     try {
@@ -986,7 +986,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
         });
       }
 
-      toast.success(`${externalSellers.length} vendedores externos atualizados com sucesso!`, { id: toastId });
+      toast.success(`${externalSellers.length} parceiros indicadores atualizados com sucesso!`, { id: toastId });
     } catch (error: any) {
       toast.error('Erro ao sincronizar: ' + error.message, { id: toastId });
     }
@@ -1085,6 +1085,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
   const [sharePassword, setSharePassword] = useState('');
   const [shareIncludePassword, setShareIncludePassword] = useState(true);
   const [showSharePassword, setShowSharePassword] = useState(false);
+  const [verMensagemInteira, setVerMensagemInteira] = useState(false);
   const [isSharingViaWhatsApp, setIsSharingViaWhatsApp] = useState(false);
 
   useEffect(() => {
@@ -1679,10 +1680,14 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
     }
 
     // For all external sellers / indicators and any user with registered password:
+    // Gmail entra com o botão Google (sem senha). Quem não tem Gmail já abre com uma senha gerada,
+    // para o convite sair em três toques. Nunca derivada do telefone.
+    const entraComGoogle = emailEntraComGoogle(user.email);
     setShareUserModal(user);
-    setSharePassword(user.initial_password || '');
-    setShareIncludePassword(true);
-    setShowSharePassword(false);
+    setSharePassword(user.initial_password || (entraComGoogle ? '' : gerarSenhaConvite()));
+    setShareIncludePassword(entraComGoogle ? !!user.initial_password : true);
+    setShowSharePassword(!entraComGoogle && !user.initial_password);
+    setVerMensagemInteira(false);
   };
 
   const handleResetPassword = async (email: string) => {
@@ -1957,7 +1962,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                           </td>
                           <td className="px-2 py-4 hidden lg:table-cell">
                             <Badge variant="secondary" className={`capitalize text-[10px] px-1.5 h-5 ${user.status === 'inactive' ? 'bg-slate-100 text-slate-400' : 'bg-muted text-foreground'} border-border shrink-0`}>
-                               {user.role === 'external_seller' ? 'Externo' : 
+                               {user.role === 'external_seller' ? 'Parceiro Indicador' : 
                                user.role === 'vendedor_padrao' ? 'Padrão' :
                                user.role === 'internal_seller' ? 'Interno' :
                                user.role === 'triagem' ? 'Triagem' :
@@ -2236,7 +2241,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                         </div>
                         <div className="flex flex-col items-end gap-1">
                           <Badge variant="secondary" className={`text-[8px] px-1 h-4 uppercase ${user.status === 'inactive' ? 'bg-slate-100 text-slate-400' : 'bg-muted text-foreground'} border-border shrink-0 font-black`}>
-                            {user.role === 'external_seller' ? 'Externo' : 
+                            {user.role === 'external_seller' ? 'Parceiro Indicador' : 
                              user.role === 'vendedor_padrao' ? 'Regional' :
                              user.role === 'internal_seller' ? 'Interno' :
                              user.role === 'triagem' ? 'Triagem' :
@@ -3217,7 +3222,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-card border-border text-card-foreground min-w-[320px]">
-                          <SelectItem value="external_seller">Vendedor Externo (Indicador)</SelectItem>
+                          <SelectItem value="external_seller">Parceiro Indicador</SelectItem>
                           <SelectItem value="vendedor_padrao">Vendedor Padrão (Regional)</SelectItem>
                           {(isAdmin || isManager) && <SelectItem value="internal_seller">Vendedora Interna (Comercial)</SelectItem>}
                           {(isAdmin || isManager) && <SelectItem value="triagem">Triagem (Luana)</SelectItem>}
@@ -3439,7 +3444,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                       onClick={() => applyDefaultPermissions(formData.role)}
                       className="text-[9px] h-7 font-bold uppercase border-primary text-primary"
                     >
-                      Restaurar Padrão do Cargo ({formData.role === 'external_seller' ? 'Vendedor Externo' : formData.role})
+                      Restaurar Padrão do Cargo ({formData.role === 'external_seller' ? 'Parceiro Indicador' : formData.role})
                     </Button>
                   </div>
                   <div className="space-y-6">
@@ -3579,120 +3584,140 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
 
         {/* WhatsApp Access Share Dialog */}
         <Dialog open={!!shareUserModal} onOpenChange={(open) => !open && setShareUserModal(null)}>
-          <DialogContent className="bg-card border-border text-card-foreground max-w-lg">
+          <DialogContent className="form-edicao bg-card border-border text-card-foreground max-w-[95vw] sm:max-w-lg max-h-[92vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-lg">
-                <Share2 className="h-5 w-5 text-emerald-500" />
-                <span>Compartilhar Acesso via WhatsApp</span>
+                <span className="p-1.5 rounded-lg bg-emerald-600 text-white"><Share2 className="h-4 w-4" /></span>
+                <span>Compartilhar acesso</span>
               </DialogTitle>
               <DialogDescription>
-                Enviar mensagem de convite e dados de acesso para <strong>{shareUserModal?.name}</strong>.
+                Convite pelo WhatsApp para <strong>{shareUserModal?.name}</strong>.
               </DialogDescription>
             </DialogHeader>
 
-            {shareUserModal && (
-              <div className="space-y-4 py-2">
-                {/* User Info card */}
-                <div className="bg-muted/40 p-3 rounded-lg border border-border space-y-1 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground font-semibold">Usuário:</span>
-                    <span className="font-bold text-foreground">{shareUserModal.name}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground font-semibold">E-mail:</span>
-                    <span className="font-mono text-foreground">{shareUserModal.email}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground font-semibold">WhatsApp:</span>
-                    <span className="font-medium text-foreground">{shareUserModal.phone || 'Não informado'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground font-semibold">Papel:</span>
-                    <span className="capitalize text-foreground font-medium">{shareUserModal.role}</span>
-                  </div>
-                </div>
-
-                {/* Password options */}
-                <div className="space-y-3 p-3 bg-card rounded-lg border border-border">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="include-pwd-toggle" className="text-xs font-bold uppercase cursor-pointer">
-                        Enviar com Senha Cadastrada
-                      </Label>
-                      <p className="text-[10px] text-muted-foreground">
-                        {shareIncludePassword 
-                          ? 'O usuário receberá a senha cadastrada e entrará direto com E-mail e Senha.' 
-                          : 'O usuário receberá instrução para criar a senha pelo botão "Esqueci minha senha".'}
-                      </p>
+            {shareUserModal && (() => {
+              const entraComGoogle = emailEntraComGoogle(shareUserModal.email);
+              const senhaOk = sharePassword.trim().length >= 6;
+              const mensagem = buildWhatsAppInviteMessage(shareUserModal, sharePassword.trim(), shareIncludePassword && sharePassword.trim().length > 0);
+              return (
+                <div className="space-y-3 py-1">
+                  <div className="cartao-edicao">
+                    <div className="titulo-cartao">
+                      <span>Quem vai receber</span>
+                      <span className="selo-ok">{nomePapelConvite(shareUserModal.role)}</span>
                     </div>
-                    <Switch
-                      id="include-pwd-toggle"
-                      checked={shareIncludePassword}
-                      onCheckedChange={setShareIncludePassword}
-                    />
+                    <div className="mt-2 text-[12.5px] divide-y divide-[#E5E7EB]">
+                      <div className="flex justify-between gap-3 py-1.5"><span className="text-[#5E6672]">E-mail</span><b className="text-right break-all">{shareUserModal.email}</b></div>
+                      <div className="flex justify-between gap-3 py-1.5"><span className="text-[#5E6672]">WhatsApp</span><b className="text-right">{shareUserModal.phone || 'Não informado'}</b></div>
+                    </div>
                   </div>
 
-                  {shareIncludePassword && (
-                    <div className="space-y-2 pt-2 border-t border-border">
-                      <Label htmlFor="share-pwd-input" className="text-xs font-bold">
-                        Senha Cadastrada do Usuário
-                      </Label>
-                      <div className="relative">
-                        <Input
-                          id="share-pwd-input"
-                          type={showSharePassword ? "text" : "password"}
-                          placeholder="Digite a senha cadastrada para o usuário (mínimo 6 dígitos)"
-                          value={sharePassword}
-                          onChange={(e) => setSharePassword(e.target.value)}
-                          className="bg-background border-border pr-10 font-mono text-sm"
-                        />
-                        <button
-                          type="button"
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                          onClick={() => setShowSharePassword(!showSharePassword)}
-                        >
-                          {showSharePassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </button>
+                  <div className="cartao-edicao">
+                    <div className="titulo-cartao">
+                      <span>Como ele vai entrar</span>
+                      <span className={entraComGoogle ? 'selo-ok' : 'selo-falta'}>{entraComGoogle ? 'Conta Google' : 'Sem Gmail'}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <button
+                        type="button"
+                        onClick={() => setShareIncludePassword(!entraComGoogle)}
+                        className={`min-h-[56px] rounded-[10px] border-[1.5px] px-2 py-2 text-center text-xs font-bold leading-tight ${(!entraComGoogle ? shareIncludePassword : !shareIncludePassword) ? 'border-emerald-600 bg-[#DCFCE7] text-[#166534]' : 'border-[#8E97A3] bg-[#EEF1F4] text-[#1F2933]'}`}
+                      >
+                        {entraComGoogle ? 'Entrar com Google' : 'Enviar com senha'}
+                        <span className="block font-medium text-[10.5px] mt-0.5 opacity-80">{entraComGoogle ? 'Sem senha. Recomendado' : 'Entra direto. Recomendado'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShareIncludePassword(entraComGoogle)}
+                        className={`min-h-[56px] rounded-[10px] border-[1.5px] px-2 py-2 text-center text-xs font-bold leading-tight ${(!entraComGoogle ? !shareIncludePassword : shareIncludePassword) ? 'border-emerald-600 bg-[#DCFCE7] text-[#166534]' : 'border-[#8E97A3] bg-[#EEF1F4] text-[#1F2933]'}`}
+                      >
+                        {entraComGoogle ? 'Enviar com senha' : 'Ele cria a senha'}
+                        <span className="block font-medium text-[10.5px] mt-0.5 opacity-80">{entraComGoogle ? 'Se preferir' : 'Pelo e-mail'}</span>
+                      </button>
+                    </div>
+
+                    {shareIncludePassword ? (
+                      <div className="mt-3 space-y-2">
+                        <div className="relative">
+                          <Input
+                            id="share-pwd-input"
+                            type={showSharePassword ? 'text' : 'password'}
+                            placeholder="Senha (mínimo 6 caracteres)"
+                            value={sharePassword}
+                            onChange={(e) => setSharePassword(e.target.value)}
+                            className="pr-11 font-mono text-[15px] font-semibold tracking-wide h-11"
+                          />
+                          <button
+                            type="button"
+                            aria-label={showSharePassword ? 'Esconder senha' : 'Mostrar senha'}
+                            className="absolute right-1 top-1/2 -translate-y-1/2 h-10 w-10 flex items-center justify-center text-[#5E6672] hover:text-foreground"
+                            onClick={() => setShowSharePassword(!showSharePassword)}
+                          >
+                            {showSharePassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => { setSharePassword(gerarSenhaConvite()); setShowSharePassword(true); }}
+                            className="flex-1 h-11 rounded-[10px] border-[1.5px] border-[#D97706] bg-[#FEF3C7] text-[#92400E] text-xs font-extrabold flex items-center justify-center gap-1.5"
+                          >
+                            <RefreshCw className="h-3.5 w-3.5" /> Gerar {sharePassword ? 'outra ' : ''}senha
+                          </button>
+                          <button
+                            type="button"
+                            disabled={!sharePassword}
+                            onClick={() => { navigator.clipboard?.writeText(sharePassword).then(() => toast.success('Senha copiada.')).catch(() => toast.error('Não consegui copiar.')); }}
+                            className="h-11 px-4 rounded-[10px] border-[1.5px] border-[#8E97A3] bg-white text-xs font-extrabold flex items-center gap-1.5 disabled:opacity-50"
+                          >
+                            <Copy className="h-3.5 w-3.5" /> Copiar
+                          </button>
+                        </div>
+                        <p className="dica-cartao">
+                          {shareUserModal.initial_password && shareUserModal.initial_password === sharePassword
+                            ? 'Senha já salva no cadastro deste usuário.'
+                            : 'A senha é salva no perfil ao enviar. Ele pode trocar depois em "Esqueci minha senha".'}
+                        </p>
                       </div>
-                      <p className="text-[10px] text-muted-foreground">
-                        {shareUserModal.initial_password 
-                          ? '✅ Senha salva no cadastro deste usuário.' 
-                          : '💡 Ao enviar o convite, esta senha será salva e vinculada ao perfil do usuário.'}
+                    ) : (
+                      <p className="dica-cartao mt-2">
+                        {entraComGoogle
+                          ? <>Ele toca no botão <b>Google</b> do app e escolhe esta conta.</>
+                          : <>Ele toca em <b>"Esqueci minha senha"</b> e cria a senha pelo e-mail (pode cair no spam).</>}
                       </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Message Live Preview */}
-                <div className="space-y-1.5">
-                  <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <MessageCircle className="h-3.5 w-3.5 text-emerald-500" />
-                    <span>Prévia da Mensagem (WhatsApp)</span>
-                  </Label>
-                  <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-xs font-sans whitespace-pre-wrap text-emerald-950 dark:text-emerald-100 max-h-48 overflow-y-auto leading-relaxed select-text">
-                    {buildWhatsAppInviteMessage(
-                      shareUserModal, 
-                      sharePassword.trim(), 
-                      shareIncludePassword && sharePassword.trim().length > 0
                     )}
                   </div>
-                </div>
-              </div>
-            )}
 
-            <DialogFooter className="flex flex-col sm:flex-row gap-2 pt-2">
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] font-extrabold uppercase tracking-wider text-[#5E6672] flex items-center gap-1.5 px-0.5">
+                      <MessageCircle className="h-3.5 w-3.5 text-emerald-600" />
+                      <span>Prévia da mensagem</span>
+                    </div>
+                    <div className={`relative p-3 rounded-xl bg-[#E8FAF0] border-[1.5px] border-[#86D9A8] text-[12px] leading-relaxed whitespace-pre-wrap text-[#0F3D24] overflow-hidden ${verMensagemInteira ? '' : 'max-h-[150px]'}`}>
+                      {mensagem}
+                      {!verMensagemInteira && <div className="absolute inset-x-0 bottom-0 h-9 bg-gradient-to-t from-[#E8FAF0] to-transparent" />}
+                    </div>
+                    <button type="button" onClick={() => setVerMensagemInteira(v => !v)} className="text-[11.5px] font-extrabold text-[#166534] px-0.5 min-h-[32px]">
+                      {verMensagemInteira ? 'Mostrar menos ▲' : 'Ver mensagem inteira ▼'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <DialogFooter className="rodape-edicao flex flex-row gap-2">
               <Button
                 variant="outline"
                 onClick={() => setShareUserModal(null)}
                 disabled={isSharingViaWhatsApp}
-                className="sm:w-auto w-full"
+                className="h-12 flex-[0_0_96px] border-[1.5px] border-[#8E97A3] bg-white font-extrabold"
               >
                 Cancelar
               </Button>
               <Button
                 onClick={handleConfirmShareWithPassword}
                 disabled={isSharingViaWhatsApp || (shareIncludePassword && sharePassword.trim().length < 6)}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold sm:w-auto w-full flex items-center justify-center gap-2"
+                className="h-12 flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold flex items-center justify-center gap-2"
               >
                 {isSharingViaWhatsApp ? (
                   <>
@@ -3702,7 +3727,7 @@ Copie as orientações e coloque no aplicativo que vai ler a chave.
                 ) : (
                   <>
                     <MessageCircle className="h-4 w-4" />
-                    <span>Abrir WhatsApp com este Convite</span>
+                    <span>Abrir WhatsApp</span>
                   </>
                 )}
               </Button>

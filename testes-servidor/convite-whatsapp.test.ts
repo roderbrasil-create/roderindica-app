@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { telefoneWhatsBR, linkWhatsConvite, montarMensagemConvite, entregarConvite } from '../src/lib/convitePorWhatsapp';
+import { telefoneWhatsBR, linkWhatsConvite, montarMensagemConvite, entregarConvite, emailEntraComGoogle, gerarSenhaConvite } from '../src/lib/convitePorWhatsapp';
 
 test('normaliza o telefone brasileiro para 55 + DDD + número', () => {
   assert.equal(telefoneWhatsBR('(37) 99869-3248'), '5537998693248');
@@ -30,7 +30,7 @@ test('mensagem leva a senha cadastrada quando o interruptor está ligado', () =>
   const m = montarMensagemConvite(user, 'https://app.exemplo', 'segredo123', true);
   assert.ok(m.includes('*Senha de Acesso:* segredo123'));
   assert.ok(m.includes('*Instruções para o seu acesso:*'));
-  assert.ok(m.includes('Vendedor Externo'));
+  assert.ok(m.includes('Parceiro Indicador Roder') && !m.includes('Vendedor Externo'));
 });
 
 test('mensagem sem senha quando o interruptor está desligado ou a senha vazia', () => {
@@ -64,4 +64,21 @@ test('entrega: janela bloqueada ou fechada copia a mensagem', async () => {
 
 test('entrega: sem janela e sem área de transferência avisa que falhou', async () => {
   assert.equal(await entregarConvite({ janela: null, url: 'u', mensagem: 'm', copiar: async () => { throw new Error('negado'); } }), 'falhou');
+});
+
+test('Outlook entra com senha; Gmail e e-mail da Roder entram com Google', () => {
+  assert.equal(emailEntraComGoogle('rudinei@gmail.com'), true);
+  assert.equal(emailEntraComGoogle('Gislene@RoderBrasil.com.br'), true);
+  for (const e of ['rudineisolmario@outlook.com', 'x@hotmail.com', 'y@yahoo.com.br', '', undefined]) assert.equal(emailEntraComGoogle(e as any), false, String(e));
+});
+
+test('senha gerada: 8 caracteres, sem ambíguos, com maiúscula, minúscula e número, e diferente a cada vez', () => {
+  const vistas = new Set<string>();
+  for (let i = 0; i < 300; i++) {
+    const s = gerarSenhaConvite();
+    assert.match(s, /^[A-HJ-NP-Za-km-z2-9]{8}$/);
+    assert.ok(/[A-Z]/.test(s) && /[a-z]/.test(s) && /[2-9]/.test(s), s);
+    vistas.add(s);
+  }
+  assert.ok(vistas.size > 295);
 });

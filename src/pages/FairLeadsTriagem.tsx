@@ -800,7 +800,7 @@ const getStatusLabel = (status: FairLead['status']) => {
                                 <div className="text-left">
                                     <p className="text-sm font-black uppercase text-foreground">{seller.name}</p>
                                     <p className="text-[10px] font-bold text-muted-foreground tracking-widest">
-                                        {seller.role === 'internal_seller' ? 'INTERNO / MATRIZ' : 'VENDEDOR EXTERNO'}
+                                        {seller.role === 'internal_seller' ? 'INTERNO / MATRIZ' : 'PARCEIRO INDICADOR'}
                                     </p>
                                 </div>
                             </div>

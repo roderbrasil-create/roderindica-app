@@ -34,11 +34,34 @@ const NOME_PAPEL: Record<string, string> = {
   triagem: 'Triagem',
   financial: 'Financeiro',
   vendedor_padrao: 'Vendedor Padrão',
+  // quem indica clientes e ganha comissão: nunca "vendedor externo" para quem recebe o convite
+  external_seller: 'Parceiro Indicador Roder',
 };
+
+export const nomePapelConvite = (role?: string) => NOME_PAPEL[role || ''] || 'Parceiro Indicador Roder';
+
+// Entra com o botão Google? (Gmail e e-mails da própria Roder). Outlook, Hotmail, Yahoo etc. entram com e-mail e senha.
+export function emailEntraComGoogle(email?: string | null): boolean {
+  const e = String(email || '').toLowerCase().trim();
+  return e.endsWith('@gmail.com') || e.endsWith('@googlemail.com') || e.endsWith('@roderbrasil.com.br') || e.endsWith('@roder.com.br');
+}
+
+// Senha aleatória de 8 caracteres, fácil de digitar e de ler no WhatsApp: sem 0/O, 1/l/I. Sempre com
+// maiúscula, minúscula e número. Nunca derivada do telefone: padrão previsível deixaria um usuário
+// entrar na conta de outro.
+export function gerarSenhaConvite(aleatorio: (n: number) => number = n => { const b = new Uint32Array(1); crypto.getRandomValues(b); return b[0] % n; }): string {
+  const MAI = 'ABCDEFGHJKLMNPQRSTUVWXYZ', MIN = 'abcdefghijkmnpqrstuvwxyz', NUM = '23456789';
+  const todos = MAI + MIN + NUM;
+  const pega = (conj: string) => conj[aleatorio(conj.length)];
+  const chars = [pega(MAI), pega(MIN), pega(NUM)];
+  while (chars.length < 8) chars.push(pega(todos));
+  for (let i = chars.length - 1; i > 0; i--) { const j = aleatorio(i + 1); [chars[i], chars[j]] = [chars[j], chars[i]]; }
+  return chars.join('');
+}
 
 export function montarMensagemConvite(user: UsuarioConvite, appUrl: string, password?: string, includePassword?: boolean): string {
   const email = user.email || '';
-  const roleName = NOME_PAPEL[user.role || ''] || 'Vendedor Externo';
+  const roleName = nomePapelConvite(user.role);
   const isMobileOnly = email.endsWith('@mobile.roder.com.br');
   const isGoogle = email.endsWith('@gmail.com') || email.endsWith('@roderbrasil.com.br') || email.endsWith('@roder.com.br');
 
@@ -71,7 +94,7 @@ export function montarMensagemConvite(user: UsuarioConvite, appUrl: string, pass
   }
 
   return `Olá *${user.name}*!\n\n` +
-    `Você foi cadastrado no sistema *RODER Indica V2* como *${roleName}*.\n\n` +
+    `Você foi cadastrado no *Roder Indica* como *${roleName}*.\n\n` +
     `🔗 *Link do App:* ${appUrl}\n\n` +
     `${loginMethodInfo}\n\n` +
     `*Instruções para o seu acesso:* \n` +
