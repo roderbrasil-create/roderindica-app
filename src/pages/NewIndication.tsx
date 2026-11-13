@@ -2156,36 +2156,39 @@ export default function NewIndication() {
                             </div>
                           </div>
                           
-                          <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+                          <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-1 border-t border-border/50 sm:border-0 sm:pt-0">
                             <div className="flex items-center gap-2">
-                              <span className="text-[9px] font-bold uppercase text-muted-foreground/80 font-mono">Qtd:</span>
-                              <div className="flex items-center gap-1 bg-white dark:bg-zinc-950 border border-border/80 p-0.5 rounded-lg shadow-xs">
-                                <button 
+                              <span className="text-[10px] font-bold uppercase text-muted-foreground font-mono">Qtd:</span>
+                              <div className="flex items-center gap-1 bg-white dark:bg-zinc-900 border-2 border-slate-300 dark:border-zinc-600 p-0.5 rounded-xl">
+                                <button
                                   type="button"
+                                  aria-label="Diminuir quantidade"
                                   onClick={() => handleProductQtyChange(item.product_name, -1)}
-                                  className="h-6 w-6 rounded-md bg-muted hover:bg-muted/80 text-foreground flex items-center justify-center transition-all disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
                                   disabled={item.quantity <= 1}
+                                  className="h-10 w-10 rounded-lg bg-slate-200 dark:bg-zinc-700 text-slate-900 dark:text-white text-2xl font-black leading-none flex items-center justify-center active:scale-95 disabled:opacity-40 cursor-pointer"
                                 >
-                                  <Minus className="h-3 w-3 stroke-[2.5]" />
+                                  <span aria-hidden="true">−</span>
                                 </button>
-                                <span className="font-extrabold text-[11px] text-foreground w-5 text-center select-none">{item.quantity}</span>
-                                <button 
+                                <span className="font-black text-base text-slate-900 dark:text-white w-8 text-center select-none">{item.quantity}</span>
+                                <button
                                   type="button"
+                                  aria-label="Aumentar quantidade"
                                   onClick={() => handleProductQtyChange(item.product_name, 1)}
-                                  className="h-6 w-6 rounded-md bg-muted hover:bg-muted/80 text-foreground flex items-center justify-center transition-all cursor-pointer"
+                                  className="h-10 w-10 rounded-lg bg-primary text-white text-2xl font-black leading-none flex items-center justify-center active:scale-95 cursor-pointer"
                                 >
-                                  <Plus className="h-3 w-3 stroke-[2.5]" />
+                                  <span aria-hidden="true">+</span>
                                 </button>
                               </div>
                             </div>
 
-                            <button 
-                              type="button" 
+                            <button
+                              type="button"
+                              aria-label="Remover equipamento"
                               onClick={() => setSelectedItems(prev => prev.filter((_, idx) => idx !== id))}
-                              className="h-7 w-7 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 flex items-center justify-center transition-colors cursor-pointer"
-                              title="Remover"
+                              className="h-12 px-3 rounded-xl bg-red-600 text-white flex items-center justify-center gap-1.5 text-xs font-black uppercase active:scale-95 cursor-pointer"
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
+                              <Trash2 className="h-5 w-5 text-white" style={{ stroke: '#fff' }} />
+                              Remover
                             </button>
                           </div>
                         </div>
@@ -2210,20 +2213,20 @@ export default function NewIndication() {
                     setIsEquipSelectorOpen(true);
                   }}
                   className={cn(
-                    "flex-1 h-11 text-xs font-black uppercase tracking-wider gap-2 shadow-md rounded-xl cursor-pointer mr-0 transition-all duration-300",
+                    "flex-1 h-14 text-sm font-black uppercase tracking-wider gap-2 shadow-md rounded-xl cursor-pointer mr-0 transition-all duration-300",
                     selectedItems.length === 0 
                       ? "bg-primary hover:bg-primary/90 text-primary-foreground animate-pulse shadow-[0_0_20px_rgba(224,90,16,0.65)] ring-4 ring-primary/30 border-2 border-primary-foreground/10" 
-                      : "bg-white dark:bg-zinc-950 hover:bg-slate-50 dark:hover:bg-zinc-900 text-muted-foreground border border-border hover:text-foreground"
+                      : "bg-slate-900 hover:bg-slate-800 text-white border-2 border-slate-900 dark:bg-white dark:text-slate-900"
                   )}
                 >
-                  <Layers className={cn("h-4 w-4 shrink-0", selectedItems.length === 0 && "animate-bounce")} /> 
+                  <Layers className={cn("h-5 w-5 shrink-0", selectedItems.length === 0 && "animate-bounce")} style={{ stroke: 'currentColor' }} /> 
                   {selectedItems.length === 0 ? (
                     <>
                       <span className="sm:hidden">👉 SELECIONAR EQUIPAMENTO</span>
                       <span className="hidden sm:inline">👉 CLIQUE AQUI PARA SELECIONAR EQUIPAMENTO 👈</span>
                     </>
                   ) : (
-                    "Selecionar Equipamento"
+                    "Trocar / adicionar equipamento"
                   )}
                 </Button>
                 
