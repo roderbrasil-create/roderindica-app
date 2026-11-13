@@ -5,7 +5,7 @@ import { collection, query, onSnapshot, orderBy, addDoc, updateDoc, doc, deleteD
 import { db, storage, auth } from '../lib/firebase';
 import { CryptoService } from '../lib/CryptoService';
 import { AuditService, AuditAction } from '../lib/AuditService';
-import { corrigirFaixaCmf500UmaVez, corrigirFaixaCmf800UmaVez } from '../lib/migracaoFaixaCmf500';
+import { corrigirFaixaCmf500UmaVez, corrigirFaixaCmf800UmaVez, corrigirEspecificacoesGtUmaVez } from '../lib/migracaoFaixaCmf500';
 import { Product } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -94,7 +94,7 @@ import { FichaDestocador } from '../components/catalog/FichaDestocador';
 import { ehDestocadorDth } from '../lib/fichaDestocador';
 import { FichaRcu } from '../components/catalog/FichaRcu';
 import { FichaGt } from '../components/catalog/FichaGt';
-import { chaveFichaGt, type ChaveFichaGt } from '../lib/fichaGt';
+import { chaveFichaGt, ESPECIFICACOES_GT, type ChaveFichaGt } from '../lib/fichaGt';
 import { ehRcu, chaveFichaRcu, type ChaveFichaRcu } from '../lib/fichaRcu';
 import { comDestocadorDthCorrigido, comUnidade, rotuloDiametroDoModelo, ehModeloDth240b, perfisDoTexto, comporPerfis, ROTULOS_DTH240B } from '../lib/destocadorDth';
 import { corrigirDestocadorDthUmaVez } from '../lib/migracaoDestocadorDth';
@@ -1091,6 +1091,7 @@ export default function Catalog() {
       if (user?.email === 'roderbrasil@gmail.com' || user?.email === 'roderindica@gmail.com') {
         corrigirFaixaCmf500UmaVez(data, db);
         corrigirFaixaCmf800UmaVez(data, db);
+        corrigirEspecificacoesGtUmaVez(data, db);
         corrigirDestocadorDthUmaVez(dadosBrutos, db);
         const fellerTesoura = data.find(p => p.name === 'Feller Tesoura');
         if (!fellerTesoura && data.length > 0) {
@@ -1838,46 +1839,19 @@ export default function Catalog() {
             id: 'gt-600x',
             name: 'GT 600x',
             base_value: 0,
-            technical_specs: {
-              area_carga: '0,60',
-              peso: '1300',
-              motor: '60 cc',
-              sabre: '48" | 52"',
-              corrente: '3/4"',
-              maquina_base: '16 a 22 Ton.',
-              pressao: '220 a 250',
-              vazao: '180 a 250'
-            }
+            technical_specs: ESPECIFICACOES_GT.gt600x
           },
           {
             id: 'gt-800x',
             name: 'GT 800x',
             base_value: 0,
-            technical_specs: {
-              area_carga: '0,80',
-              peso: '1440',
-              motor: '80 cc',
-              sabre: '58"',
-              corrente: '3/4"',
-              maquina_base: '20 a 30 Ton.',
-              pressao: '220 a 250',
-              vazao: '200 a 250'
-            }
+            technical_specs: ESPECIFICACOES_GT.gt800x
           },
           {
             id: 'gt-1000x',
             name: 'GT 1000x',
             base_value: 0,
-            technical_specs: {
-              area_carga: '1,00',
-              peso: '1650',
-              motor: '-',
-              sabre: '65"',
-              corrente: '3/4"',
-              maquina_base: '25 a 35 Ton.',
-              pressao: '240 a 300',
-              vazao: '220 a 300'
-            }
+            technical_specs: ESPECIFICACOES_GT.gt1000x
           }
         ]
       };

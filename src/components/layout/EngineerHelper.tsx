@@ -185,10 +185,13 @@ Operando em conjunto (1 Cabeçote CMF 600 na derrubada + 1 Mini Skidder MSR 600 
 SISTEMA INTEGRADO (COMBO RODER):
 Operando em conjunto (1 Cabeçote CMF 600 na derrubada + 1 Mini Skidder MSR 1000 no arraste + 1 Garra Traçadora no traçamento de metrinho), a produção média combinada é de 165 a 170 metros estéreos por turno de 8h, totalmente traçado e empilhado.`,
 
-  "GT 600x": `TRAÇAMENTO & PRODUTIVIDADE (GARRA TRAÇADORA):
-- Rendimento para Metrinho: De 150 a 180 metros estéreos por turno de 8h.
-- Máquina Base Recomendada: Escavadeira hidráulica de 20 toneladas.
-- Rendimento com Madeira de 6 metros: Até 12.000 m³ por mês (trabalhando em turno de 10 horas por dia).
+  "GT 600x": `GARRA TRAÇADORA GT 600X (ficha oficial, código 1000.2091.0000):
+- Máquina Base: Escavadeiras de 16 a 22 toneladas.
+- Corte: toras de até Ø 800 mm, área de corte e de garra 0,60 m². Capacidade de carga 6.500 kg. Abertura máxima 2.124 mm (entre as pontas das unhas).
+- Sistema de corte: sabre de 52" com roldana, corrente 3/4" com 76 elos, motor de pistão de 60 cc, tensão e lubrificação automáticas. Caixa da serra aberta, motor hidráulico traseiro.
+- Rotator compatível: Roder RR550 ou IR10. Peso sem rotator 1.300 kg; com rotator RR550: 1.480 kg, com IR10: 1.385 kg.
+- Hidráulica: 240 bar, vazão de 140 a 250 L/min.
+- Rendimento para Metrinho: De 150 a 180 metros estéreos por turno de 8h. Com madeira de 6 metros: até 12.000 m³ por mês (turno de 10 horas por dia).
 - Operador qualificado e boa qualidade da madeira garantem máxima performance.
 
 SISTEMA INTEGRADO (COMBO RODER):
@@ -216,14 +219,22 @@ Operando em conjunto (1 Cabeçote CMF 600 na derrubada + 1 Mini Skidder no arras
 - Parâmetros Hidráulicos: Pressão 240 bar | Vazão de 125 a 210 L/min
 - Rendimento Estimado para Metrinho (1,10m): De 130 a 160 metros estéreos por turno de 8h.`,
 
-  "GT 800x": `TRAÇAMENTO & PRODUTIVIDADE (GARRA TRAÇADORA):
+  "GT 800x": `GARRA TRAÇADORA GT 800X (ficha oficial, código 1000.2087.0000):
+- Máquina Base: Escavadeiras de 20 a 30 toneladas.
+- Corte: toras de até Ø 940 mm, área de corte e de garra 0,80 m². Capacidade de carga 7.200 kg. Abertura máxima 2.657 mm (entre as pontas das unhas).
+- Sistema de corte: sabre de 60", corrente 3/4", motor de pistão Parker F12-60, tensão e lubrificação automáticas. Caixa da serra aberta, motor hidráulico traseiro.
+- Rotator compatível: Roder RR550 ou IR10. Peso sem rotator 1.440 kg; com rotator RR550: 1.620 kg, com IR10: 1.525 kg.
+- Hidráulica: 250 bar, vazão de 180 a 250 L/min.
 - Rendimento para Metrinho: De 180 a 220 metros estéreos por turno de 8h.
-- Máquina Base Recomendada: Escavadeiras de 20 a 30 toneladas.
 - Projetada para alta produção e troncos de maior diâmetro.`,
 
-  "GT 1000x": `TRAÇAMENTO & PRODUTIVIDADE (GARRA TRAÇADORA):
+  "GT 1000x": `GARRA TRAÇADORA GT 1000X (ficha oficial, código 1000.2077.0000):
+- Máquina Base: Escavadeiras pesadas de 25 a 35 toneladas.
+- Corte: toras de até Ø 1.128 mm, área de corte e de garra 1,00 m². Capacidade de carga 8.250 kg. Abertura máxima 2.606 mm (entre as pontas das unhas).
+- Sistema de corte: sabre de 65", corrente 3/4", motor de pistão Parker F12-80, tensão e lubrificação automáticas. Caixa da serra aberta, motor hidráulico traseiro.
+- Rotator compatível: Roder RR550 ou IR10. Peso sem rotator 1.650 kg; com rotator RR550: 1.830 kg, com IR10: 1.735 kg.
+- Hidráulica: 240 a 300 bar, vazão de 220 a 300 L/min.
 - Rendimento para Metrinho: De 220 a 260 metros estéreos por turno de 8h.
-- Máquina Base Recomendada: Escavadeiras pesadas de 25 a 35 toneladas.
 - Equipamento de altíssima performance para grandes volumes florestais.`,
 
   "R250": `COMPATIBILIDADE & PRODUTIVIDADE (R250 - 0.25m³):

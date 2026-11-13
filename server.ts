@@ -3225,6 +3225,11 @@ ${REGRA_KIT_CONFIRMACAO}
 
 24. CATÁLOGO E REGRAS DE MODELOS PARA GARRAS TRAÇADORAS (LINHA GT) E GARRAS DE CARGA (LINHA R):
     - **Modelos da Linha GT (Garra Traçadora)**: GT 280, GT 360, GT 400X, GT 600X, GT 800X, GT 1000X.
+    - **Dados oficiais das fichas novas (13/11/2026)**:
+      • **GT 600X** (cód. 1000.2091.0000): escavadeiras de 16 a 22 t | corta Ø 800 mm, 0,60 m² | carga 6.500 kg | abertura máxima 2.124 mm | sabre 52" com roldana, corrente 3/4" x 76 elos | motor de pistão 60 cc | 1.300 kg sem rotator (RR550: 1.480 kg, IR10: 1.385 kg) | 240 bar, 140 a 250 L/min.
+      • **GT 800X** (cód. 1000.2087.0000): escavadeiras de 20 a 30 t | corta Ø 940 mm, 0,80 m² | carga 7.200 kg | abertura máxima 2.657 mm | sabre 60", corrente 3/4" | motor Parker F12-60 | 1.440 kg sem rotator (RR550: 1.620 kg, IR10: 1.525 kg) | 250 bar, 180 a 250 L/min.
+      • **GT 1000X** (cód. 1000.2077.0000): escavadeiras de 25 a 35 t | corta Ø 1.128 mm, 1,00 m² | carga 8.250 kg | abertura máxima 2.606 mm | sabre 65", corrente 3/4" | motor Parker F12-80 | 1.650 kg sem rotator (RR550: 1.830 kg, IR10: 1.735 kg) | 240 a 300 bar, 220 a 300 L/min.
+      • As três: caixa da serra aberta com motor hidráulico traseiro, tensão e lubrificação automáticas, rotator Roder RR550 ou IR10. Esses valores valem mais que qualquer dado antigo.
     - **Equivalência do Sufixo "X"**: Quando o usuário ou vendedor disser "GT 400", "GT 600", "GT 800" ou "GT 1000", entenda que ele se refere à **GT 400X**, **GT 600X**, etc. A omissão da letra X no texto ou áudio não altera o modelo do produto. NUNCA diga que a GT 360 ou GT 400X não existem no catálogo Roder.
     - **Mapeamento de Garra por Área Útil (m²)**:
       • "0.36" ou "36" = Garra de Carga R360 (0,36 m²).
