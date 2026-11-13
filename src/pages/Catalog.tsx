@@ -93,6 +93,8 @@ import { FichaGmt035 } from '../components/catalog/FichaGmt035';
 import { FichaDestocador } from '../components/catalog/FichaDestocador';
 import { ehDestocadorDth } from '../lib/fichaDestocador';
 import { FichaRcu } from '../components/catalog/FichaRcu';
+import { FichaGt } from '../components/catalog/FichaGt';
+import { chaveFichaGt, type ChaveFichaGt } from '../lib/fichaGt';
 import { ehRcu, chaveFichaRcu, type ChaveFichaRcu } from '../lib/fichaRcu';
 import { comDestocadorDthCorrigido, comUnidade, rotuloDiametroDoModelo, ehModeloDth240b, perfisDoTexto, comporPerfis, ROTULOS_DTH240B } from '../lib/destocadorDth';
 import { corrigirDestocadorDthUmaVez } from '../lib/migracaoDestocadorDth';
@@ -806,6 +808,7 @@ export default function Catalog() {
   const [isCabecoteGmt035FichaOpen, setIsCabecoteGmt035FichaOpen] = useState(false);
   const [isFichaDestocadorOpen, setIsFichaDestocadorOpen] = useState(false);
   const [fichaRcu, setFichaRcu] = useState<ChaveFichaRcu | null>(null);
+  const [fichaGt, setFichaGt] = useState<ChaveFichaGt | null>(null);
   const [isSacadorSac500FichaOpen, setIsSacadorSac500FichaOpen] = useState(false);
   // Ficha padrão em PDF (modelo sem ficha própria)
   const [fichaPadrao, setFichaPadrao] = useState<{ product: any; model: any } | null>(null);
@@ -4009,6 +4012,21 @@ export default function Catalog() {
     const linkProprio = padrao
       ? (ehFichaPropria(padrao.model?.pdf_url) ? padrao.model.pdf_url : '')
       : (ehFichaPropria(url) ? url : '');
+    // Garra traçadora com ficha nova (GT 600X): abre a ficha pronta em vez da padrão automática
+    const chaveGt = padrao && !linkProprio ? chaveFichaGt(padrao.model?.name) : null;
+    if (chaveGt) {
+      if (selectedProductModels) {
+        setSuspendedProductModels(selectedProductModels);
+        setSelectedProductModels(null);
+      }
+      if (viewingGallery) {
+        setSuspendedViewingGallery(viewingGallery);
+        setViewingGallery(null);
+      }
+      setFichaGt(chaveGt);
+      return;
+    }
+
     if (padrao && !ehFresa && !linkProprio) {
       if (selectedProductModels) {
         setSuspendedProductModels(selectedProductModels);
@@ -6943,6 +6961,23 @@ export default function Catalog() {
                 setSuspendedViewingGallery(null);
               }
             }} 
+          />
+        )}
+
+        {fichaGt && (
+          <FichaGt
+            chave={fichaGt}
+            onClose={() => {
+              setFichaGt(null);
+              if (suspendedProductModels) {
+                setSelectedProductModels(suspendedProductModels);
+                setSuspendedProductModels(null);
+              }
+              if (suspendedViewingGallery) {
+                setViewingGallery(suspendedViewingGallery);
+                setSuspendedViewingGallery(null);
+              }
+            }}
           />
         )}
 
