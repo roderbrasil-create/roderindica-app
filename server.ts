@@ -63,6 +63,7 @@ import { enviarAvisoEstoquePendente } from "./server/avisoEstoque";
 import { enviarConfirmacoesPendentes } from "./server/confirmacaoEstoque";
 import { registrarRotasAdminCrm, rodarFilaCrm, rodarAtualizacoesCrm, rodarComissoesCrm, lerDataDaVirada } from "./server/crmEntrada";
 import { referenciaStorage } from "./src/lib/crmFase2";
+import { fixConsultantImages } from "./server/imagensConsultor";
 import { relatorioDiretoriaDia1, relatorioParceirosDia1, lembreteNfDia4, lembreteNfDia5, lembreteNfDia6, lembreteNfDia7, lembreteFinanceiroDia7, ligarEmailsComissaoUmaVez } from "./server/relatoriosComissao";
 
 let __currentDir: string;
@@ -95,29 +96,7 @@ const FOTOS_CONSULTOR_FELLER_DISCO: { label: string; url: string }[] = [
   { label: 'Feller de Disco ferramentas dentes metal duro visão geral do disco', url: '/catalogo/feller-disco/consultor/ferramentas-3.jpg' },
 ];
 
-function fixConsultantImages(text: string, index: { label: string; url: string }[]): string {
-  const norm = (v: string) => String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const STOP = new Set(['de', 'da', 'do', 'das', 'dos', 'para', 'com', 'e', 'o', 'a', 'roder', 'modelo', 'equipamento', 'foto', 'imagem']);
-  const tokens = (v: string) => norm(v).split(/[^a-z0-9]+/).filter(t => t.length >= 2 && !STOP.has(t));
-  const knownUrls = new Set(index.map(i => i.url));
-  let shown = 0;
-  const used = new Set<string>();
-  return text.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (_m, alt: string, url: string) => {
-    const altTokens = tokens(alt);
-    let best: { url: string; score: number } | null = null;
-    for (const entry of index) {
-      const lt = new Set(tokens(entry.label));
-      let score = 0;
-      for (const t of altTokens) if (lt.has(t)) score += /\d/.test(t) ? 3 : 1;
-      if (score > 0 && (!best || score > best.score)) best = { url: entry.url, score };
-    }
-    const finalUrl = best ? best.url : (knownUrls.has(url) ? url : '');
-    if (!finalUrl || used.has(finalUrl) || shown >= 1) return '';
-    used.add(finalUrl);
-    shown++;
-    return `![${alt}](${finalUrl})`;
-  }).replace(/\n{3,}/g, '\n\n');
-}
+// (fixConsultantImages vive em server/imagensConsultor.ts: comparativo mostra uma foto por equipamento)
 
 let adminApp: admin.app.App;
 
@@ -3111,6 +3090,16 @@ ${REGRA_KIT_CONFIRMACAO}
           ![Equipamento B](url_imagem_b) **Equipamento B**: [Escreva aqui a descrição detalhada do Equipamento B...]
 
         - **ATENÇÃO**: NUNCA coloque a tag de imagem em uma linha isolada e NUNCA coloque marcadores de lista ou quebras de linha entre a imagem e o texto. A tag da imagem e o título do equipamento em negrito DEVEM estar na mesma linha do parágrafo.
+        - **UMA FOTO POR EQUIPAMENTO COMPARADO (Jeferson, 18/11/2026)**: o relatório comparativo DEVE trazer a foto de TODOS os equipamentos comparados (A e B, e C se houver), cada uma no parágrafo do próprio equipamento. Nunca mostre só a foto de um. No texto alternativo use o nome exato do modelo (ex.: ![Cabeçote CMF 500](url) e ![Cabeçote CMF 600](url)) e use a URL "Imagem" cadastrada de CADA modelo.
+      • **FORMATO DO COMPARATIVO (Jeferson, 18/11/2026)**: o relatório vira uma folha A4 em imagem. Mantenha TUDO em UMA folha: texto curto, tabelas enxutas, sem repetir a mesma informação em seções diferentes. Só passe de uma folha se for indispensável (nesse caso a quebra será entre seções, nunca no meio de uma tabela).
+      • **REGRAS DE QUALIDADE DOS NÚMEROS (Jeferson, 18/11/2026)**:
+        - **Premissas em uma linha**: logo após a tabela de especificações, escreva uma linha "Premissas: 80% de eficiência (10 h = 8,0 h efetivas), 22 dias/mês, metragem em m³ [estéreo ou sólido, conforme a base]". Arredonde sempre do mesmo jeito (ex.: 60 m³/h x 8,0 h x 22 dias = 10.560 m³/mês; confira a conta antes de escrever).
+        - **Produtividade só com origem**: use apenas as faixas cadastradas na base (ex.: cabeçotes CMF, 1,10 m: 25 a 35 m³/h). Número que não esteja na base ou nas informações do usuário deve vir marcado como "estimativa" e dizer de onde vem; nunca invente produtividade de derrubada ou de traçamento.
+        - **Jornada com 80% aplicado**: na tabela de jornada, mostre as horas efetivas (8,0 h de 10 h) e diga se cada equipamento CABE ou NÃO cabe nesse turno para o volume que o cliente pediu. Não apresente como "cabe" um volume que exige mais de 8,0 h efetivas.
+        - **Máquina base é parte do comparativo (obrigatório)**: o cliente quer saber em que máquina cada cabeçote trabalha. Mostre sempre a faixa de máquina base: CMF 500 para escavadeiras de 8 a 13 t (máquina menor) e CMF 600 para 13 a 22 t (ideal 16 a 18 t). Diga com franqueza que o ganho de produção do CMF 600 vem junto da máquina maior, e que o CMF 500 é a opção para quem vai trabalhar em máquina pequena.
+        - **Rebrota**: CMF 500 = "Não indicado" (corrente mais fina, passo .404; exceção só com operador muito habilidoso). CMF 600 = indicado (corrente 3/4"). Nunca marque o CMF 500 como indicado para rebrota.
+        - **Sabre sempre em polegadas** (ex.: 45"); se o valor do modelo não estiver na base, não escreva.
+        - **Sem afirmações sem base**: proibido escrever "padrão da indústria", "reduz o consumo por m³", "melhor do mercado" ou qualquer vantagem que não esteja na base. Preço/investimento só entra se houver dado cadastrado; sem dado, diga "valores com a equipe comercial".
 
       • **2. Tabela Comparativa de Especificações Técnicas**:
         | Parâmetro Técnico | [Equipamento A] | [Equipamento B] |

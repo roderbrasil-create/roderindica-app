@@ -1668,10 +1668,16 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
   const embutirImagensDaFolha = async (raiz: HTMLElement) => {
     const imgs = Array.from(raiz.querySelectorAll('img')) as HTMLImageElement[];
     await Promise.all(imgs.map(async (img) => {
+      // Foto que não carrega sai como moldura vazia na imagem baixada: melhor tirar a moldura do que entregar o buraco
+      const tirarMoldura = () => { (img.closest('span.block') || img).remove(); };
       try {
-        if (!img.src || img.src.startsWith('data:')) return;
-        const resp = await fetch(img.src, { referrerPolicy: 'no-referrer' });
-        if (!resp.ok) return;
+        if (!img.src) { tirarMoldura(); return; }
+        if (img.src.startsWith('data:')) return;
+        let resp: Response | null = null;
+        for (let tentativa = 0; tentativa < 2 && !(resp && resp.ok); tentativa++) {
+          try { resp = await fetch(img.src, { referrerPolicy: 'no-referrer' }); } catch { resp = null; }
+        }
+        if (!resp || !resp.ok) { tirarMoldura(); return; }
         const blob = await resp.blob();
         const dados: string = await new Promise((ok, erro) => {
           const r = new FileReader();
@@ -1681,8 +1687,8 @@ export default function EngineerHelper({ isFullPage = false }: { isFullPage?: bo
         });
         img.removeAttribute('srcset');
         img.src = dados;
-        try { await img.decode(); } catch { /* segue mesmo assim */ }
-      } catch { /* sem a foto, a folha sai sem ela; o resto continua */ }
+        try { await img.decode(); } catch { tirarMoldura(); }
+      } catch { tirarMoldura(); }
     }));
   };
 
