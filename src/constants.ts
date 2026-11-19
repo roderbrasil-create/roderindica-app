@@ -10,12 +10,21 @@ export interface AccessoryData {
   link_garra_biela_4?: string;
   photo_urls?: {
     ponteira?: string;
+    ponteira_biela_4?: string;
+    ponteira_biela_6?: string;
     suporte?: string;
     link?: string;
+  };
+  notas?: {
+    ponteira_biela_4?: string;
+    ponteira_biela_6?: string;
   };
 }
 
 export const ACCESSORIES_DATA: AccessoryData[] = [
+  { brand: 'SANY', model: '75', pin: 'PINO Ø50 x 235', ponteira_biela_6: '1000.0000.0144', ponteira_biela_4: '1000.0000.0047',
+    photo_urls: { ponteira_biela_6: '/acessorios/ponteira-1000-0000-0144.png', ponteira_biela_4: '/acessorios/ponteira-1000-0000-0047.png' },
+    notas: { ponteira_biela_6: 'Biela 35 x 45 x 228. Para rotator de 6 t.', ponteira_biela_4: 'Biela de 4". Para rotator de 12 ou 16 t e também para cabeçote multifuncional.' } },
   { brand: 'CASE', model: 'CX180C/CX200', pin: 'PINO Ø80', ponteira_biela_4: '1000.0000.0019', suporte_destocador: '1000.1191.0000', suporte_triturador: '1000.1295.0000', link_garra_biela_4: '1000.0000.0120' },
   { brand: 'CASE', model: 'CX130', pin: 'PINO Ø65', ponteira_biela_4: '1000.0000.0072', ponteira_biela_6: '1000.0000.0102', suporte_destocador: '1000.1256.0000', suporte_triturador: '1000.1400.0000', link_garra_biela_6: '1000.0000.0139', link_garra_biela_4: '1000.0000.0123' },
   { brand: 'CATERPILLAR', model: '320D/320FM', pin: 'PINO Ø80', ponteira_biela_4: '1000.0000.0019', suporte_destocador: '1000.1191.0000', suporte_triturador: '1000.1295.0000', link_garra_biela_6: '1000.0000.0171', link_garra_biela_4: '1000.0000.0120' },

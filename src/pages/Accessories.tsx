@@ -101,6 +101,17 @@ const getAbsoluteImageUrl = (url: string | undefined): string => {
 };
 
 // Background Seeding Helpers
+// Busca inteligente: ignora maiúscula e acento, aceita várias palavras em qualquer ordem
+// ("sany 135" acha "SANY 135/155H") e a barra, o hífen e o ponto não atrapalham.
+const normalizarBusca = (t: string) =>
+  (t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[\/\\_-]+/g, ' ');
+const buscaCombina = (campos: (string | undefined)[], busca: string) => {
+  const termos = normalizarBusca(busca).split(/\s+/).filter(Boolean);
+  if (termos.length === 0) return true;
+  const alvo = normalizarBusca(campos.filter(Boolean).join(' '));
+  return termos.every(t => alvo.includes(t));
+};
+
 const seedMissingAccessories = async (existing: Accessory[]) => {
   if ((window as any).isSeedingAccessories) return;
   (window as any).isSeedingAccessories = true;
@@ -275,6 +286,9 @@ export default function Accessories() {
         if (!existing.link_garra_biela_4 && item.link_garra_biela_4) existing.link_garra_biela_4 = item.link_garra_biela_4;
         if (!existing.link_garra_biela_6 && item.link_garra_biela_6) existing.link_garra_biela_6 = item.link_garra_biela_6;
         
+        if (item.notas) {
+          existing.notas = { ...item.notas, ...existing.notas };
+        }
         if (item.photo_urls) {
           existing.photo_urls = {
             ...existing.photo_urls,
@@ -306,9 +320,8 @@ export default function Accessories() {
   }, [accessories]);
 
   const filteredAccessories = useMemo(() => {
-    return uniqueAccessories.filter(item => 
-      (item.brand.toLowerCase().includes(accessorySearch.toLowerCase()) ||
-      item.model.toLowerCase().includes(accessorySearch.toLowerCase()))
+    return uniqueAccessories.filter(item =>
+      buscaCombina([item.brand, item.model, item.ponteira_biela_4, item.ponteira_biela_6], accessorySearch)
     );
   }, [uniqueAccessories, accessorySearch]);
 
@@ -318,10 +331,7 @@ export default function Accessories() {
   }, [uniqueAccessories]);
 
   const filteredKits = useMemo(() => {
-    return kits.filter(kit => 
-      kit.code.toLowerCase().includes(kitSearch.toLowerCase()) ||
-      kit.description.toLowerCase().includes(kitSearch.toLowerCase())
-    );
+    return kits.filter(kit => buscaCombina([kit.code, kit.description], kitSearch));
   }, [kits, kitSearch]);
 
   const handleCopy = (code: string, description?: string) => {
@@ -596,7 +606,7 @@ export default function Accessories() {
     });
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'ponteira' | 'suporte' | 'link') => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'ponteira' | 'ponteira_biela_4' | 'ponteira_biela_6' | 'suporte' | 'link') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -934,8 +944,8 @@ export default function Accessories() {
                         </div>
                         
                         <div className="grid grid-cols-1 gap-2">
-                          {item.ponteira_biela_4 && <AccessoryItem label="Ponteira Biela 4" code={item.ponteira_biela_4} onCopy={() => handleCopy(item.ponteira_biela_4!)} isCopied={copiedCode === item.ponteira_biela_4} photoUrl={item.photo_urls?.ponteira} />}
-                          {item.ponteira_biela_6 && <AccessoryItem label="Ponteira Biela 6" code={item.ponteira_biela_6} onCopy={() => handleCopy(item.ponteira_biela_6!)} isCopied={copiedCode === item.ponteira_biela_6} photoUrl={item.photo_urls?.ponteira} />}
+                          {item.ponteira_biela_4 && <AccessoryItem label="Ponteira Biela 4" code={item.ponteira_biela_4} onCopy={() => handleCopy(item.ponteira_biela_4!)} isCopied={copiedCode === item.ponteira_biela_4} photoUrl={item.photo_urls?.ponteira_biela_4 || item.photo_urls?.ponteira} nota={item.notas?.ponteira_biela_4} />}
+                          {item.ponteira_biela_6 && <AccessoryItem label="Ponteira Biela 6" code={item.ponteira_biela_6} onCopy={() => handleCopy(item.ponteira_biela_6!)} isCopied={copiedCode === item.ponteira_biela_6} photoUrl={item.photo_urls?.ponteira_biela_6 || item.photo_urls?.ponteira} nota={item.notas?.ponteira_biela_6} />}
                           {item.suporte_destocador && <AccessoryItem label="Suporte Destocador" code={item.suporte_destocador} onCopy={() => handleCopy(item.suporte_destocador!)} isCopied={copiedCode === item.suporte_destocador} photoUrl={item.photo_urls?.suporte} />}
                           {item.suporte_triturador && <AccessoryItem label="Suporte Triturador" code={item.suporte_triturador} onCopy={() => handleCopy(item.suporte_triturador!)} isCopied={copiedCode === item.suporte_triturador} photoUrl={item.photo_urls?.suporte} />}
                           {item.link_garra_biela_6 && <AccessoryItem label="Link Garra Biela 6" code={item.link_garra_biela_6} onCopy={() => handleCopy(item.link_garra_biela_6!)} isCopied={copiedCode === item.link_garra_biela_6} photoUrl={item.photo_urls?.link} />}
@@ -1264,12 +1274,12 @@ export default function Accessories() {
               <div className="grid grid-cols-1 gap-4">
                 {/* Ponteira */}
                 <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Foto da Ponteira</Label>
+                  <Label className="text-xs text-muted-foreground">Foto ou desenho da Ponteira Biela 4</Label>
                   <div className="flex gap-2">
                     <Input 
                       placeholder="URL da Foto" 
-                      value={accessoryForm.photo_urls?.ponteira} 
-                      onChange={e => setAccessoryForm({...accessoryForm, photo_urls: {...accessoryForm.photo_urls, ponteira: e.target.value}})} 
+                      value={accessoryForm.photo_urls?.ponteira_biela_4} 
+                      onChange={e => setAccessoryForm({...accessoryForm, photo_urls: {...accessoryForm.photo_urls, ponteira_biela_4: e.target.value}})} 
                       className="flex-1"
                     />
                     <div className="relative">
@@ -1277,7 +1287,32 @@ export default function Accessories() {
                         type="file" 
                         accept="image/*" 
                         className="absolute inset-0 opacity-0 cursor-pointer" 
-                        onChange={e => handleFileUpload(e, 'ponteira')}
+                        onChange={e => handleFileUpload(e, 'ponteira_biela_4')}
+                        disabled={isUploading}
+                      />
+                      <Button variant="outline" size="icon" disabled={isUploading}>
+                        {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Ponteira */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Foto ou desenho da Ponteira Biela 6</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      placeholder="URL da Foto" 
+                      value={accessoryForm.photo_urls?.ponteira_biela_6} 
+                      onChange={e => setAccessoryForm({...accessoryForm, photo_urls: {...accessoryForm.photo_urls, ponteira_biela_6: e.target.value}})} 
+                      className="flex-1"
+                    />
+                    <div className="relative">
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        className="absolute inset-0 opacity-0 cursor-pointer" 
+                        onChange={e => handleFileUpload(e, 'ponteira_biela_6')}
                         disabled={isUploading}
                       />
                       <Button variant="outline" size="icon" disabled={isUploading}>
@@ -1759,7 +1794,7 @@ export default function Accessories() {
   );
 }
 
-function AccessoryItem({ label, code, onCopy, isCopied, photoUrl }: { label: string, code: string, onCopy: () => void, isCopied: boolean, photoUrl?: string }) {
+function AccessoryItem({ label, code, onCopy, isCopied, photoUrl, nota }: { label: string, code: string, onCopy: () => void, isCopied: boolean, photoUrl?: string, nota?: string }) {
   return (
     <div className="flex items-center justify-between p-2 md:p-3 rounded-lg bg-background border border-border group hover:border-primary/30 transition-all">
       <div className="flex items-center gap-2 md:gap-3">
@@ -1783,6 +1818,7 @@ function AccessoryItem({ label, code, onCopy, isCopied, photoUrl }: { label: str
           <span className="text-[9px] md:text-sm font-mono font-bold text-foreground leading-tight text-center md:text-left">
             {code} - <span className="font-sans font-bold uppercase">{label}</span>
           </span>
+          {nota && <span className="text-[10px] md:text-xs text-muted-foreground leading-snug mt-0.5">{nota}</span>}
         </div>
       </div>
       <Button 

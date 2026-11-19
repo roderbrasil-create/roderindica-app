@@ -310,8 +310,15 @@ export interface Accessory {
   link_garra_biela_4?: string;
   photo_urls?: {
     ponteira?: string;
+    ponteira_biela_4?: string;
+    ponteira_biela_6?: string;
     suporte?: string;
     link?: string;
+  };
+  // Indicação de uso de cada ponteira (ex.: rotator 12/16 t). Só aparece quando preenchida.
+  notas?: {
+    ponteira_biela_4?: string;
+    ponteira_biela_6?: string;
   };
   created_at: string;
 }
