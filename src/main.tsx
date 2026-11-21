@@ -125,6 +125,21 @@ if ('serviceWorker' in navigator && import.meta.env.PROD && (/roderindica\.com$/
   // o app às vezes termina de carregar antes deste código rodar: aí registra na hora
   if (document.readyState === 'complete') registrar();
   else window.addEventListener('load', registrar);
+
+  // Atualização sozinha: quem deixa o app aberto dias (computador da Gislene e da Luana, celular) não recebe a
+  // versão nova até recarregar. Ao voltar para o app, confere se há versão nova; quando ela assume, recarrega
+  // na hora se a pessoa não está olhando (aba escondida) ou na próxima vez que sair da tela, para nunca
+  // perder um formulário preenchido.
+  const jaTinhaControle = !!navigator.serviceWorker.controller;
+  let recarregarAoSair = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!jaTinhaControle) return; // primeira instalação: nada a recarregar
+    if (document.hidden) location.reload(); else recarregarAoSair = true;
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { if (recarregarAoSair) location.reload(); return; }
+    navigator.serviceWorker.getRegistration().then(r => r?.update()).catch(() => {});
+  });
 }
 
 createRoot(document.getElementById('root')!).render(

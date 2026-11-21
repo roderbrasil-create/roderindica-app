@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { useVoltarFecha } from '../../lib/useVoltarFecha';
 import { ZoomRolagem } from '../documento/ZoomRolagem';
 import { baixarBlob, enviarArquivoPdf, usePodeEnviarFicha } from './fichaPdf';
-import { type ChaveFichaRcu, nomeArquivoFichaRcu, paginasFichaRcu, pdfFichaRcuUrl, tituloFichaRcu } from '../../lib/fichaRcu';
+import { type ChaveFichaRcu, nomeArquivoFichaRcu, paginasFichaRcu, pdfFichaRcuUrl, proporcaoFichaRcu, tituloFichaRcu } from '../../lib/fichaRcu';
 
 // Fichas FAE RCU: páginas A4 prontas (imagens) com o PDF aprovado. Sem Firestore, sem montar nada em React.
 const pdfsEmMemoria: Partial<Record<ChaveFichaRcu, Promise<Blob>>> = {};
@@ -103,11 +103,12 @@ export function FichaRcu({ chave, onClose, enviar = false }: Props) {
               key={src}
               src={src}
               alt={`${tituloFichaRcu(chave)}, página ${i + 1} de ${paginasFichaRcu(chave).length}`}
-              width={1588}
-              height={2246}
+              width={proporcaoFichaRcu(chave).largura}
+              height={proporcaoFichaRcu(chave).altura}
+              loading={i < 2 ? 'eager' : 'lazy'}
               decoding="async"
               draggable={false}
-              className="w-full max-w-[794px] h-auto bg-white shadow-md select-none"
+              className={`w-full ${proporcaoFichaRcu(chave).horizontal ? 'max-w-[840px]' : 'max-w-[794px]'} h-auto bg-white shadow-md select-none`}
             />
           ))}
         </ZoomRolagem>

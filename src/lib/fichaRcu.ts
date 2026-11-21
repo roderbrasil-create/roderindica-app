@@ -1,6 +1,7 @@
 // Fichas dos transportadores radiocontrolados FAE RCU (45, 55, 75 e 120), versão de 11/2026.
-// Cada modelo tem a ficha oficial de 3 páginas (capa, ficha técnica, plano de manutenção) e o card principal
-// tem a ficha comparativa de 1 página, com tabela e vantagens dos quatro. São arquivos prontos em
+// Cada modelo tem a ficha oficial de 3 páginas (capa e verso, plano de manutenção) e o card principal
+// abre a Apresentação da Linha FAE RCU (22 slides na horizontal, com os 4 modelos), no lugar do comparativo antigo
+// (Jeferson, 21/11/2026). A chave continua "comparativo" para não quebrar os links e cadastros que já a usam. São arquivos prontos em
 // public/fichas-rcu: o app só exibe, baixa e compartilha.
 
 export const PASTA_FICHA_RCU = '/fichas-rcu';
@@ -8,19 +9,23 @@ export const PASTA_FICHA_RCU = '/fichas-rcu';
 export const CHAVES_FICHA_RCU = ['rcu45', 'rcu55', 'rcu75', 'rcu120', 'comparativo'] as const;
 export type ChaveFichaRcu = typeof CHAVES_FICHA_RCU[number];
 
-const PAGINAS: Record<ChaveFichaRcu, number> = { rcu45: 3, rcu55: 3, rcu75: 3, rcu120: 3, comparativo: 1 };
+const PAGINAS: Record<ChaveFichaRcu, number> = { rcu45: 3, rcu55: 3, rcu75: 3, rcu120: 3, comparativo: 22 };
 
 export const paginasFichaRcu = (chave: ChaveFichaRcu): string[] =>
   Array.from({ length: PAGINAS[chave] }, (_, i) => `${PASTA_FICHA_RCU}/ficha-${chave === 'comparativo' ? 'rcu-comparativo' : chave}-p${i + 1}.webp`);
+
+// A apresentação é horizontal (16:9, 1600x900); as fichas dos modelos são A4 em pé
+export const proporcaoFichaRcu = (chave: ChaveFichaRcu): { largura: number; altura: number; horizontal: boolean } =>
+  chave === 'comparativo' ? { largura: 1600, altura: 900, horizontal: true } : { largura: 1588, altura: 2246, horizontal: false };
 
 export const pdfFichaRcuUrl = (chave: ChaveFichaRcu): string =>
   `${PASTA_FICHA_RCU}/Ficha_FAE_${chave === 'comparativo' ? 'RCU_Comparativo' : chave.toUpperCase()}.pdf`;
 
 export const tituloFichaRcu = (chave: ChaveFichaRcu): string =>
-  chave === 'comparativo' ? 'Ficha FAE RCU, comparativo dos 4 modelos' : `Ficha FAE ${chave.toUpperCase().replace('RCU', 'RCU ')}`;
+  chave === 'comparativo' ? 'Apresentação FAE RCU, os 4 modelos' : `Ficha FAE ${chave.toUpperCase().replace('RCU', 'RCU ')}`;
 
 export const nomeArquivoFichaRcu = (chave: ChaveFichaRcu): string =>
-  chave === 'comparativo' ? 'Ficha_FAE_RCU_Comparativo.pdf' : `Ficha_FAE_${chave.toUpperCase()}.pdf`;
+  chave === 'comparativo' ? 'Apresentacao_Linha_FAE_RCU_Roder.pdf' : `Ficha_FAE_${chave.toUpperCase()}.pdf`;
 
 export const PREFIXO_LINK_FICHA_RCU = 'ficha-rcu:';
 

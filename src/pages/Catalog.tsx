@@ -758,6 +758,7 @@ function SortableProductCard({
 let rachadoraEmAndamento = false;
 let engateHidraulicoEmAndamento = false;
 const fichasDoSiteEmAndamento = new Set<string>();
+const videosRcuEmAndamento = new Set<string>();
 
 export default function Catalog() {
   const { user, profile, realProfile, isImpersonating, isManager, isAdmin, isExternalSeller, isMarketing, auth } = useAuth();
@@ -1147,6 +1148,30 @@ export default function Catalog() {
         // FAE RCU: um tipo principal com os 4 modelos (cria uma vez e esconde os cadastros antigos)
         if ((isAdmin || isManager) && data.length > 0 && !data.some(p => p.name === 'FAE RCU Triturador Rádio Controle')) {
           addFaeRcu(data);
+        }
+
+        // FAE RCU: vídeo de cada modelo (21/11/2026, Jeferson). RCU 55, 75 e 120 são os vídeos que a própria Roder
+        // publicou no site; o RCU 45 não tem vídeo da Roder, então usa o oficial da FAE. Preenche só modelo SEM
+        // vídeo, nunca troca um que alguém já pôs (a biblioteca de vídeos e a edição do modelo mandam).
+        if (isAdmin || isManager) {
+          const rcu = data.find(p => p.name === 'FAE RCU Triturador Rádio Controle');
+          const videosRcu: Record<string, string> = {
+            'RCU 45': 'https://youtu.be/Dfj8mEeNZik',
+            'RCU 55': 'https://youtu.be/Obat68xNVk8',
+            'RCU 75': 'https://youtu.be/XNj-GcYbRYE',
+            'RCU 120': 'https://youtu.be/dSFAiHNWG1o',
+          };
+          const faltam = (rcu?.models || []).some((m: any) => videosRcu[String(m.name || '').trim().toUpperCase()] && !m.video_url);
+          if (rcu && faltam && !videosRcuEmAndamento.has(rcu.id)) {
+            videosRcuEmAndamento.add(rcu.id);
+            const novos = (rcu.models || []).map((m: any) => {
+              const v = videosRcu[String(m.name || '').trim().toUpperCase()];
+              return v && !m.video_url ? { ...m, video_url: v } : m;
+            });
+            updateDoc(doc(db, 'products', rcu.id), { models: novos })
+              .catch(err => console.error('Erro ao cadastrar vídeos do RCU:', err))
+              .finally(() => videosRcuEmAndamento.delete(rcu.id));
+          }
         }
 
         // Garra Clamshell GCR: cria uma vez (não sobrescreve edições feitas depois)
