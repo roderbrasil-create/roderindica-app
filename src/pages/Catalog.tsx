@@ -1153,20 +1153,24 @@ export default function Catalog() {
         // FAE RCU: vídeo de cada modelo (21/11/2026, Jeferson). RCU 55, 75 e 120 são os vídeos que a própria Roder
         // publicou no site; o RCU 45 não tem vídeo da Roder, então usa o oficial da FAE. Preenche só modelo SEM
         // vídeo, nunca troca um que alguém já pôs (a biblioteca de vídeos e a edição do modelo mandam).
+        // Exceção (22/11/2026): o RCU 45 agora tem o vídeo próprio da Roder, em português, narrado pelo Jeferson
+        // (arquivo em /videos/rcu45-pt.mp4). Ele substitui SÓ o vídeo oficial em inglês da FAE que o preenchimento
+        // anterior gravou; um vídeo diferente posto por alguém continua mandando.
         if (isAdmin || isManager) {
           const rcu = data.find(p => p.name === 'FAE RCU Triturador Rádio Controle');
           const videosRcu: Record<string, string> = {
-            'RCU 45': 'https://youtu.be/Dfj8mEeNZik',
+            'RCU 45': 'https://roderindica.com/videos/rcu45-pt.mp4',
             'RCU 55': 'https://youtu.be/Obat68xNVk8',
             'RCU 75': 'https://youtu.be/XNj-GcYbRYE',
             'RCU 120': 'https://youtu.be/dSFAiHNWG1o',
           };
-          const faltam = (rcu?.models || []).some((m: any) => videosRcu[String(m.name || '').trim().toUpperCase()] && !m.video_url);
+          const videoAntigoFae = (m: any) => String(m.video_url || '').includes('Dfj8mEeNZik');
+          const faltam = (rcu?.models || []).some((m: any) => videosRcu[String(m.name || '').trim().toUpperCase()] && (!m.video_url || videoAntigoFae(m)));
           if (rcu && faltam && !videosRcuEmAndamento.has(rcu.id)) {
             videosRcuEmAndamento.add(rcu.id);
             const novos = (rcu.models || []).map((m: any) => {
               const v = videosRcu[String(m.name || '').trim().toUpperCase()];
-              return v && !m.video_url ? { ...m, video_url: v } : m;
+              return v && (!m.video_url || videoAntigoFae(m)) ? { ...m, video_url: v } : m;
             });
             updateDoc(doc(db, 'products', rcu.id), { models: novos })
               .catch(err => console.error('Erro ao cadastrar vídeos do RCU:', err))
