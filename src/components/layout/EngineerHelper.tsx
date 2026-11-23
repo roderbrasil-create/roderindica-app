@@ -201,14 +201,14 @@ Operando em conjunto (1 Cabeçote CMF 600 na derrubada + 1 Mini Skidder no arras
 - Máquina Base: Escavadeiras de 5 a 10 toneladas.
 - Corte: toras de até Ø 570 mm, garra R280 / 0,28 m². Abertura máxima 1.464 mm. Peso 545 kg.
 - Sistema de corte: sabre de 88 cm, corrente 0,404", motor de 24 cc, reservatório de lubrificação de 4 litros. Rotator de 6 t.
-- Hidráulica: 200 a 240 bar, vazão de 80 a 150 L/min.`,
+- Hidráulica: 190 a 220 bar, vazão de 80 a 150 L/min.`,
 
   "GT 360": `GARRA TRAÇADORA GT 360 (ficha oficial, código 1000.2068.0000):
 - Rendimento para Metrinho: De 100 a 130 metros estéreos por turno de 8h.
 - Máquina Base Recomendada: Escavadeiras de 8 a 16 toneladas.
 - Corte: toras de até Ø 670 mm, garra R360 / 0,36 m². Abertura máxima 1.826 mm. Peso 700 kg.
 - Sistema de corte: sabre de 100 cm, corrente 0,404", motor de 24 cc, reservatório de lubrificação de 4 litros. Rotator de 6 t ou 12 t.
-- Hidráulica: 200 a 250 bar, vazão de 100 a 200 L/min.
+- Hidráulica: 190 a 220 bar, vazão de 100 a 200 L/min.
 - Ideal para operações de médio porte, garantindo excelente agilidade no traçamento.`,
 
   "GT 400": `GARRA TRAÇADORA GT 400 (ficha oficial, código 1000.2095.0000):

@@ -53,11 +53,11 @@ export function chaveFichaGt(modelo?: string | null): ChaveFichaGt | null {
 export const ESPECIFICACOES_GT: Record<ChaveFichaGt, Record<string, string>> = {
   gt280: {
     area_carga: '0,28', diametro_corte: 'Ø 570 mm', peso: '545', motor: '24 cc', sabre: '88 cm', corrente: '0,404"',
-    maquina_base: '5 a 10 Ton.', pressao: '200 a 240', vazao: '80 a 150', abertura_maxima: '1.464 mm',
+    maquina_base: '5 a 10 Ton.', pressao: '190 a 220', vazao: '80 a 150', abertura_maxima: '1.464 mm',
   },
   gt360: {
     area_carga: '0,36', diametro_corte: 'Ø 670 mm', peso: '700', motor: '24 cc', sabre: '100 cm', corrente: '0,404"',
-    maquina_base: '8 a 16 Ton.', pressao: '200 a 250', vazao: '100 a 200', abertura_maxima: '1.826 mm',
+    maquina_base: '8 a 16 Ton.', pressao: '190 a 220', vazao: '100 a 200', abertura_maxima: '1.826 mm',
   },
   gt400: {
     area_carga: '0,40', diametro_corte: 'Ø 600 mm', peso: '900', motor: 'Pistão Parker F12-60', sabre: '45" com roldana', corrente: '3/4"',

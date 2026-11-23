@@ -36,8 +36,8 @@ export const EQUIPMENT_SPEC_TABLES: EquipmentSpecTable[] = [
     headers: ['Modelo', 'Área de Garra', 'Compr. Sabre', 'Passo Corrente', 'Abertura Máx.', 'Peso Estimado', 'Vazão / Pressão', 'Máquina Base'],
     columnWidthsPdf: [20, 22, 23, 23, 24, 22, 28, 28],
     rows: [
-      ['GT 280', '0,28 m²', '88 cm', '0,404"', '1.464 mm', '545 kg', '80-150 L/min | 200-240 bar', '5 a 10 Ton.'],
-      ['GT 360', '0,36 m²', '100 cm', '0,404"', '1.826 mm', '700 kg', '100-200 L/min | 200-250 bar', '8 a 16 Ton.'],
+      ['GT 280', '0,28 m²', '88 cm', '0,404"', '1.464 mm', '545 kg', '80-150 L/min | 190-220 bar', '5 a 10 Ton.'],
+      ['GT 360', '0,36 m²', '100 cm', '0,404"', '1.826 mm', '700 kg', '100-200 L/min | 190-220 bar', '8 a 16 Ton.'],
       ['GT 400', '0,40 m²', '114 cm (45")', '3/4"', '1.832 mm', '900 kg', '120-220 L/min | 240 bar', '13 a 22 Ton.'],
       ['GT 600X', '0,60 m²', '115 cm', '3/4" (Pesada)', '2.130 mm', '980 kg', '120-180 L/min | 210-250 bar', '14 a 22 Ton.'],
       ['GT 800X', '0,80 m²', '130 cm', '3/4" (Pesada)', '2.675 mm', '1.250 kg', '150-220 L/min | 220-260 bar', '18 a 28 Ton.'],
