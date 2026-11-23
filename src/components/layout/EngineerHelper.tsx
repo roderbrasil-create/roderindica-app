@@ -150,7 +150,7 @@ Para declividades acima de 10°, o Feller Tesoura/Disco não é recomendado, poi
   "GT 360 vs GT 400": `COMPARATIVO DE GARRAS TRAÇADORAS (GT 360 vs GT 400):
 1. GARRA TRAÇADORA GT 360:
    - Área útil de garra: 0,36 m²
-   - Máquina Base Recomendada: Escavadeiras de 8 a 14 toneladas ou tratores pesados com grua florestal de grande porte.
+   - Máquina Base Recomendada: Escavadeiras de 8 a 16 toneladas ou tratores pesados com grua florestal de grande porte.
    - Perfil de Operação: Ideal para traçar feixes médios e toras individuais com excelente agilidade.
 
 2. GARRA TRAÇADORA GT 400:
@@ -197,9 +197,18 @@ Operando em conjunto (1 Cabeçote CMF 600 na derrubada + 1 Mini Skidder MSR 1000
 SISTEMA INTEGRADO (COMBO RODER):
 Operando em conjunto (1 Cabeçote CMF 600 na derrubada + 1 Mini Skidder no arraste + 1 Garra Traçadora GT 600x no traçamento de metrinho), a produção média combinada é de 165 a 170 metros estéreos por turno de 8h, totalmente traçado e empilhado.`,
 
-  "GT 360": `TRAÇAMENTO & PRODUTIVIDADE (GARRA TRAÇADORA):
+  "GT 280": `GARRA TRAÇADORA GT 280 (ficha oficial, código 1000.2047.0000):
+- Máquina Base: Escavadeiras de 5 a 10 toneladas.
+- Corte: toras de até Ø 570 mm, garra R280 / 0,28 m². Abertura máxima 1.464 mm. Peso 545 kg.
+- Sistema de corte: sabre de 88 cm, corrente 0,404", motor de 24 cc, reservatório de lubrificação de 4 litros. Rotator de 6 t.
+- Hidráulica: 200 a 240 bar, vazão de 80 a 150 L/min.`,
+
+  "GT 360": `GARRA TRAÇADORA GT 360 (ficha oficial, código 1000.2068.0000):
 - Rendimento para Metrinho: De 100 a 130 metros estéreos por turno de 8h.
 - Máquina Base Recomendada: Escavadeiras de 8 a 16 toneladas.
+- Corte: toras de até Ø 670 mm, garra R360 / 0,36 m². Abertura máxima 1.826 mm. Peso 700 kg.
+- Sistema de corte: sabre de 100 cm, corrente 0,404", motor de 24 cc, reservatório de lubrificação de 4 litros. Rotator de 6 t ou 12 t.
+- Hidráulica: 200 a 250 bar, vazão de 100 a 200 L/min.
 - Ideal para operações de médio porte, garantindo excelente agilidade no traçamento.`,
 
   "GT 400": `GARRA TRAÇADORA GT 400 (ficha oficial, código 1000.2095.0000):

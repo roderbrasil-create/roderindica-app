@@ -5,7 +5,7 @@ import { collection, query, onSnapshot, orderBy, addDoc, updateDoc, doc, deleteD
 import { db, storage, auth } from '../lib/firebase';
 import { CryptoService } from '../lib/CryptoService';
 import { AuditService, AuditAction } from '../lib/AuditService';
-import { corrigirFaixaCmf500UmaVez, corrigirFaixaCmf800UmaVez, corrigirEspecificacoesGtUmaVez, trazerFichaGt400ParaOAppUmaVez } from '../lib/migracaoFaixaCmf500';
+import { corrigirFaixaCmf500UmaVez, corrigirFaixaCmf800UmaVez, corrigirEspecificacoesGtUmaVez, trazerFichaGt400ParaOAppUmaVez, trazerFichasGt280e360ParaOAppUmaVez } from '../lib/migracaoFaixaCmf500';
 import { Product } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -1094,6 +1094,7 @@ export default function Catalog() {
         corrigirFaixaCmf800UmaVez(data, db);
         corrigirEspecificacoesGtUmaVez(data, db);
         trazerFichaGt400ParaOAppUmaVez(data, db);
+        trazerFichasGt280e360ParaOAppUmaVez(data, db);
         // Ficha ou vídeo salvo como link do Google Drive pede login e não abre para parceiro nem cliente.
         // Só avisa a diretoria (uma vez por abertura), dizendo quais equipamentos precisam de arquivo no app.
         const comDrive: string[] = [];
@@ -1837,31 +1838,13 @@ export default function Catalog() {
             id: 'gt-280',
             name: 'GT 280',
             base_value: 0,
-            technical_specs: {
-              area_carga: '0,28',
-              peso: '545',
-              motor: '24 cc',
-              sabre: '88 cm',
-              corrente: '0,404"',
-              maquina_base: '5 a 10 Ton.',
-              pressao: '200 a 240',
-              vazao: '80 a 150'
-            }
+            technical_specs: ESPECIFICACOES_GT.gt280
           },
           {
             id: 'gt-360',
             name: 'GT 360',
             base_value: 0,
-            technical_specs: {
-              area_carga: '0,36',
-              peso: '700',
-              motor: '24 cc',
-              sabre: '100 cm',
-              corrente: '0,404"',
-              maquina_base: '8 a 16 Ton.',
-              pressao: '200 a 250',
-              vazao: '100 a 200'
-            }
+            technical_specs: ESPECIFICACOES_GT.gt360
           },
           {
             id: 'gt-400',

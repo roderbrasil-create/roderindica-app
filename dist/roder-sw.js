@@ -7,7 +7,7 @@
 //   self.addEventListener('install', () => self.skipWaiting());
 //   self.addEventListener('activate', () => self.registration.unregister());
 // e publique. Os celulares buscam este arquivo sem cache e se desligam sozinhos.
-const VERSAO = 'roder-v2';
+const VERSAO = 'roder-v2'; // v2.1: imagem do próprio app passou a ser internet primeiro (ver o bloco de fotos)
 const APP = `${VERSAO}-app`;      // tela do app, pacote JS/CSS, pdf.js, ícones
 const FOTOS = 'roder-fotos';      // fotos dos equipamentos (fica entre versões)
 const LIMITE_FOTOS = 900;
@@ -134,6 +134,24 @@ self.addEventListener('fetch', (e) => {
   if (ehFoto(req, url) && !url.pathname.startsWith('/marca/')) {
     e.respondWith((async () => {
       const c = await caches.open(FOTOS);
+      // Imagem do PRÓPRIO app (fichas, fotos de /catalogo, /fichas-rcu...): o nome do arquivo não muda quando
+      // ela é trocada, então "a guardada vale" mostrava a ficha antiga para sempre (achado em 21/11/2026, fichas
+      // RCU novas no ar e a Gislene e a Luana vendo as velhas). Aqui a internet manda: pergunta ao servidor
+      // (304 quando não mudou, quase de graça) e só usa a guardada se estiver sem internet ou lento (4 s).
+      if (mesmaOrigem) {
+        const salva = await c.match(url.href, { ignoreVary: true });
+        try {
+          const r = await Promise.race([
+            fetch(req.url, { cache: 'no-cache' }),
+            new Promise((_, rej) => setTimeout(() => rej(new Error('lento')), salva ? 4000 : 20000)),
+          ]);
+          if (r.ok && (r.headers.get('content-type') || '').startsWith('image/')) {
+            e.waitUntil(guardar(c, url.href, r.clone()));
+            return r;
+          }
+        } catch { /* sem internet ou lento: usa a guardada */ }
+        return salva || fetch(req);
+      }
       const salvo = await c.match(url.href, { ignoreVary: true });
       if (salvo) return salvo;
       try {

@@ -88,3 +88,29 @@ export async function trazerFichaGt400ParaOAppUmaVez(data: any[], db: any) {
     console.error('Ficha da GT 400 no app falhou:', err);
   }
 }
+
+// GT 280 e GT 360 ganharam ficha nova no app (23/11/2026): sai qualquer link de Drive e entram os dados oficiais do site
+export async function trazerFichasGt280e360ParaOAppUmaVez(data: any[], db: any) {
+  try {
+    const marca = doc(db, 'settings', 'migracao_gt280_gt360_ficha_no_app');
+    if ((await getDoc(marca)).exists()) return;
+    const garra = data.find(p => p.name === 'Garra Traçadora');
+    if (!garra) return;
+    let mudou = false;
+    const modelos = (garra.models || []).map((m: any) => {
+      const txt = `${m.name || ''} ${m.id || ''}`;
+      const chave = /gt[-_ ]?280/i.test(txt) ? 'gt280' : /gt[-_ ]?360/i.test(txt) ? 'gt360' : null;
+      if (!chave) return m;
+      mudou = true;
+      const { pdf_url, ...resto } = m;
+      return { ...resto, technical_specs: { ...(m.technical_specs || {}), ...ESPECIFICACOES_GT[chave] } };
+    });
+    if (mudou) {
+      console.log('[Healing] GT 280 e GT 360: ficha nova abre do app');
+      await updateDoc(doc(db, 'products', garra.id), { models: modelos });
+    }
+    await setDoc(marca, { feito_em: new Date().toISOString(), produto: garra.id, alterou: mudou });
+  } catch (err) {
+    console.error('Ficha da GT 280 e GT 360 no app falhou:', err);
+  }
+}

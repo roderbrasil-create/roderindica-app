@@ -1,10 +1,10 @@
 // Fichas das garras traçadoras Roder GT, no padrão novo (1 página A4 pronta, com o PDF aprovado).
 // GT 600X, 800X e 1000X têm a ficha nova (13/11/2026) e a GT 400 entrou em 23/11/2026 (o PDF dela mora no app, nunca no Google Drive: parceiro e cliente não têm acesso ao Drive). Modelo novo entra aqui: coloque o PDF e a imagem
-// em public/fichas-gt e inclua a chave abaixo. GT 280 e 360 seguem com a ficha padrão automática.
+// em public/fichas-gt e inclua a chave abaixo.
 
 export const PASTA_FICHA_GT = '/fichas-gt';
 
-export const CHAVES_FICHA_GT = ['gt400', 'gt600x', 'gt800x', 'gt1000x'] as const;
+export const CHAVES_FICHA_GT = ['gt280', 'gt360', 'gt400', 'gt600x', 'gt800x', 'gt1000x'] as const;
 export type ChaveFichaGt = typeof CHAVES_FICHA_GT[number];
 
 export const paginasFichaGt = (chave: ChaveFichaGt): string[] => [`${PASTA_FICHA_GT}/ficha-${chave}-p1.webp`];
@@ -51,6 +51,14 @@ export function chaveFichaGt(modelo?: string | null): ChaveFichaGt | null {
 // Dados oficiais das fichas novas (13/11/2026). É a fonte do cadastro dos cards (technical_specs) e do consultor.
 // Formato igual ao do cadastro antigo: a ficha padrão acrescenta kg, bar e L/min sozinha.
 export const ESPECIFICACOES_GT: Record<ChaveFichaGt, Record<string, string>> = {
+  gt280: {
+    area_carga: '0,28', diametro_corte: 'Ø 570 mm', peso: '545', motor: '24 cc', sabre: '88 cm', corrente: '0,404"',
+    maquina_base: '5 a 10 Ton.', pressao: '200 a 240', vazao: '80 a 150', abertura_maxima: '1.464 mm',
+  },
+  gt360: {
+    area_carga: '0,36', diametro_corte: 'Ø 670 mm', peso: '700', motor: '24 cc', sabre: '100 cm', corrente: '0,404"',
+    maquina_base: '8 a 16 Ton.', pressao: '200 a 250', vazao: '100 a 200', abertura_maxima: '1.826 mm',
+  },
   gt400: {
     area_carga: '0,40', diametro_corte: 'Ø 600 mm', peso: '900', motor: 'Pistão Parker F12-60', sabre: '45" com roldana', corrente: '3/4"',
     maquina_base: '13 a 22 Ton.', pressao: '240', vazao: '120 a 220', abertura_maxima: '1.832 mm',
