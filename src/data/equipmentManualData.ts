@@ -38,13 +38,13 @@ export const EQUIPMENT_SPEC_TABLES: EquipmentSpecTable[] = [
     rows: [
       ['GT 280', '0,28 m²', '80 cm', '0,404"', '1.465 mm', '420 kg', '80-120 L/min | 180-210 bar', '7 a 10 Ton.'],
       ['GT 360', '0,36 m²', '90 cm', '0,404"', '1.830 mm', '520 kg', '90-140 L/min | 190-220 bar', '8 a 14 Ton.'],
-      ['GT 400X', '0,40 m²', '100 cm', '0,404" ou 3/4"', '1.905 mm', '620 kg', '100-160 L/min | 200-240 bar', '12 a 18 Ton.'],
+      ['GT 400', '0,40 m²', '114 cm (45")', '3/4"', '1.832 mm', '900 kg', '120-220 L/min | 240 bar', '13 a 22 Ton.'],
       ['GT 600X', '0,60 m²', '115 cm', '3/4" (Pesada)', '2.130 mm', '980 kg', '120-180 L/min | 210-250 bar', '14 a 22 Ton.'],
       ['GT 800X', '0,80 m²', '130 cm', '3/4" (Pesada)', '2.675 mm', '1.250 kg', '150-220 L/min | 220-260 bar', '18 a 28 Ton.'],
       ['GT 1000X', '1,00 m²', '150 cm', '3/4" (Pesada)', '3.015 mm', '1.650 kg', '180-250 L/min | 220-280 bar', '22 a 35 Ton.']
     ],
     notes: [
-      'Sufixo "X" e Nomenclatura: Quando o usuário ou cliente falar "GT 400", "GT 600", "GT 800", "GT 1000", refere-se diretamente aos modelos de alta resistência GT 400X, GT 600X, GT 800X e GT 1000X.',
+      'Sufixo "X" e Nomenclatura: Quando o usuário ou cliente falar "GT 400", "GT 600", "GT 800", "GT 1000", refere-se diretamente aos modelos GT 400 (esta sem o X), GT 600X, GT 800X e GT 1000X.',
       'Rendimento da GT 600: Produção de 70 a 100 m³/h no traçamento padrão de 3,00m e ~68 m³/h contínuos em 3,60m (atinge 12.000 m³/mês em 176h úteis).'
     ]
   },

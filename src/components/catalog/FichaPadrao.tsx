@@ -211,7 +211,7 @@ const numBr = (n: number, casas = 0) => n.toLocaleString('pt-BR', { minimumFract
 
 // Médias de campo Roder (AGENTS.md), em m³/h, por comprimento de tora.
 // Mês: 80% de eficiência em turno de 10 h = 8 h úteis x 22 dias = 176 h.
-// GT 280, 360 e 400X ainda não têm média de campo: a ficha mostra só a nota de corrente e sabre.
+// GT 280 e 360 ainda não têm média de campo: a ficha mostra só a nota de corrente e sabre.
 const MEDIAS_GT: Record<string, [string, number, number][]> = {
   '600': [['1,10 m (metrinho)', 30, 45], ['2,20 m (metrão)', 50, 90], ['3,00 m', 70, 100], ['6,00 m', 100, 140]],
   '800': [['1,10 m (metrinho)', 35, 55], ['2,20 m (metrão)', 65, 95], ['3,00 m', 80, 110], ['6,00 m', 120, 160]],

@@ -147,20 +147,20 @@ Escavadeiras são mais produtivas que pás carregadeiras pois cortam até 3 linh
 DIRETRIZ DE SEGURANÇA EM ACLIVES / TERRENOS INCLINADOS:
 Para declividades acima de 10°, o Feller Tesoura/Disco não é recomendado, pois seu acoplamento rígido faz com que as árvores mantidas no cabeçote sigam o ângulo do terreno, desequilibrando a máquina. Recomenda-se o Cabeçote Multifuncional CMF (com link pendular que compensa o terreno e mantém o equilíbrio da máquina base).`,
 
-  "GT 360 vs GT 400X": `COMPARATIVO DE GARRAS TRAÇADORAS (GT 360 vs GT 400X):
+  "GT 360 vs GT 400": `COMPARATIVO DE GARRAS TRAÇADORAS (GT 360 vs GT 400):
 1. GARRA TRAÇADORA GT 360:
    - Área útil de garra: 0,36 m²
    - Máquina Base Recomendada: Escavadeiras de 8 a 14 toneladas ou tratores pesados com grua florestal de grande porte.
    - Perfil de Operação: Ideal para traçar feixes médios e toras individuais com excelente agilidade.
 
-2. GARRA TRAÇADORA GT 400X:
-   - Área útil de garra: 0,40 m² (Linha X: Estrutura reforçada de alta durabilidade)
-   - Máquina Base Recomendada: Escavadeiras de 12 a 18 toneladas.
+2. GARRA TRAÇADORA GT 400:
+   - Área útil de garra: 0,40 m² (mesmo conjunto de corte reforçado da GT 600)
+   - Máquina Base Recomendada: Escavadeiras de 13 a 22 toneladas.
    - Perfil de Operação: Maior abertura e capacidade de fechamento de feixe, permitindo maior volume traçado (m³/h) por ciclo.
 
 REGRAS DE NOMENCLATURA & CONSULTORIA:
 - Área útil (m²): "0.36" / "36" = R360; "0.60" / "60" = R600; "1.0" / "1000" = R1000; "traçadora 0.60" = GT 600X.
-- Quando o cliente diz "GT 400", ele refere-se à GT 400X.
+- A GT 400 não tem X no nome (o modelo é GT 400, código 1000.2095.0000).
 - Áudios/transcrições que indicarem "engate de reboque GT" referem-se à Garra Traçadora GT.
 - Se o usuário perguntar de forma genérica ("garra 0.60" ou "diferença entre 360 e 400"), atue como consultor objetivo, responda diretamente e ofereça opções interativas para o usuário selecionar.`,
 
@@ -202,21 +202,12 @@ Operando em conjunto (1 Cabeçote CMF 600 na derrubada + 1 Mini Skidder no arras
 - Máquina Base Recomendada: Escavadeiras de 8 a 16 toneladas.
 - Ideal para operações de médio porte, garantindo excelente agilidade no traçamento.`,
 
-  "GT 400X": `TRAÇAMENTO & PRODUTIVIDADE (GARRA TRAÇADORA GT 400X):
-- Área de Carga: 0,40 m²
-- Máquina Base Recomendada: Escavadeiras de 10 a 22 toneladas.
-- Peso do Equipamento: 825 kg
-- Especificações do Sistema de Corte: Corrente 3/4" 11H | Motor de Pistão Parker 60cc | Sabre 45"
-- Parâmetros Hidráulicos: Pressão 240 bar | Vazão de 125 a 210 L/min
-- Rendimento Estimado para Metrinho (1,10m): De 130 a 160 metros estéreos por turno de 8h.
-- Equipamento de altíssima resistência estrutural para trabalho pesado e contínuo.`,
-
-  "GT 400x": `TRAÇAMENTO & PRODUTIVIDADE (GARRA TRAÇADORA GT 400X):
-- Área de Carga: 0,40 m²
-- Máquina Base Recomendada: Escavadeiras de 10 a 22 toneladas.
-- Peso do Equipamento: 825 kg
-- Especificações do Sistema de Corte: Corrente 3/4" 11H | Motor de Pistão Parker 60cc | Sabre 45"
-- Parâmetros Hidráulicos: Pressão 240 bar | Vazão de 125 a 210 L/min
+  "GT 400": `GARRA TRAÇADORA GT 400 (ficha oficial, código 1000.2095.0000):
+- Máquina Base: Escavadeiras de 13 a 22 toneladas.
+- Corte: toras de até Ø 600 mm, área de garra R400 / 0,40 m². Abertura máxima 1.832 mm.
+- Sistema de corte: sabre de 45" com roldana, corrente de passo 3/4", motor de pistão Parker F12-60, lubrificação automática da corrente (bomba automática, reservatório de 5 litros). Mesmo conjunto de corte reforçado da GT 600.
+- Rotator: permite montagem com rotator de 12 a 17 t. Peso 900 kg.
+- Hidráulica: 240 bar, vazão de 120 a 220 L/min.
 - Rendimento Estimado para Metrinho (1,10m): De 130 a 160 metros estéreos por turno de 8h.`,
 
   "GT 800x": `GARRA TRAÇADORA GT 800X (ficha oficial, código 1000.2087.0000):

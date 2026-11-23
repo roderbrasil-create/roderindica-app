@@ -1094,6 +1094,21 @@ export default function Catalog() {
         corrigirFaixaCmf800UmaVez(data, db);
         corrigirEspecificacoesGtUmaVez(data, db);
         trazerFichaGt400ParaOAppUmaVez(data, db);
+        // Ficha ou vídeo salvo como link do Google Drive pede login e não abre para parceiro nem cliente.
+        // Só avisa a diretoria (uma vez por abertura), dizendo quais equipamentos precisam de arquivo no app.
+        const comDrive: string[] = [];
+        data.forEach(p => {
+          const temDrive = (u?: string) => /drive\.google\.com|docs\.google\.com/i.test(u || '');
+          if (temDrive(p.pdf_url)) comDrive.push(`${p.name} (ficha)`);
+          (p.models || []).forEach((m: any) => { if (temDrive(m.pdf_url)) comDrive.push(`${m.name} (ficha)`); });
+        });
+        if (comDrive.length) {
+          console.warn('[Fichas] Link do Google Drive no cadastro:', comDrive);
+          if (!sessionStorage.getItem('aviso_fichas_drive')) {
+            sessionStorage.setItem('aviso_fichas_drive', '1');
+            toast.warning(`Ficha com link do Google Drive (não abre para parceiro): ${comDrive.slice(0, 6).join(', ')}${comDrive.length > 6 ? ` e mais ${comDrive.length - 6}` : ''}.`, { duration: 12000 });
+          }
+        }
         corrigirDestocadorDthUmaVez(dadosBrutos, db);
         const fellerTesoura = data.find(p => p.name === 'Feller Tesoura');
         if (!fellerTesoura && data.length > 0) {
@@ -1849,11 +1864,11 @@ export default function Catalog() {
             }
           },
           {
-            id: 'gt-400x',
-            name: 'GT 400X',
+            id: 'gt-400',
+            name: 'GT 400',
             base_value: 0,
             images: ['db-file://gt400x_cad_render_file'],
-            technical_specs: ESPECIFICACOES_GT.gt400x
+            technical_specs: ESPECIFICACOES_GT.gt400
           },
           {
             id: 'gt-600x',
@@ -4007,7 +4022,8 @@ export default function Catalog() {
       ? (ehFichaPropria(padrao.model?.pdf_url) ? padrao.model.pdf_url : '')
       : (ehFichaPropria(url) ? url : '');
     // Garra traçadora com ficha nova (GT 600X): abre a ficha pronta em vez da padrão automática
-    const chaveGt = padrao && !linkProprio ? chaveFichaGt(padrao.model?.name) : null;
+    // A ficha oficial das GT vale mais que qualquer link salvo no cadastro (a GT 400 tinha link do Drive, que pede login)
+    const chaveGt = padrao ? chaveFichaGt(padrao.model?.name) : null;
     if (chaveGt) {
       if (selectedProductModels) {
         setSuspendedProductModels(selectedProductModels);

@@ -76,7 +76,8 @@ export async function trazerFichaGt400ParaOAppUmaVez(data: any[], db: any) {
       if (!/gt[-_ ]?400/i.test(`${m.name || ''} ${m.id || ''}`)) return m;
       mudou = true;
       const { pdf_url, ...resto } = m;
-      return { ...resto, technical_specs: { ...(m.technical_specs || {}), ...ESPECIFICACOES_GT.gt400x } };
+      // não existe GT 400X: o modelo se chama GT 400
+      return { ...resto, id: 'gt-400', name: 'GT 400', technical_specs: { ...(m.technical_specs || {}), ...ESPECIFICACOES_GT.gt400 } };
     });
     if (mudou) {
       console.log('[Healing] GT 400: ficha sai do Drive e passa a abrir do app');

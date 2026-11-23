@@ -4,20 +4,16 @@
 
 export const PASTA_FICHA_GT = '/fichas-gt';
 
-export const CHAVES_FICHA_GT = ['gt400x', 'gt600x', 'gt800x', 'gt1000x'] as const;
+export const CHAVES_FICHA_GT = ['gt400', 'gt600x', 'gt800x', 'gt1000x'] as const;
 export type ChaveFichaGt = typeof CHAVES_FICHA_GT[number];
 
 export const paginasFichaGt = (chave: ChaveFichaGt): string[] => [`${PASTA_FICHA_GT}/ficha-${chave}-p1.webp`];
 
-// A GT 400 se chama "GT400" na ficha e no Drive (sem o X): o nome do arquivo e o título seguem a ficha
-const NOME_NA_FICHA: Partial<Record<ChaveFichaGt, string>> = { gt400x: 'GT400' };
-const nomeDoModelo = (chave: ChaveFichaGt): string => NOME_NA_FICHA[chave] || chave.toUpperCase();
-
-export const nomeArquivoFichaGt = (chave: ChaveFichaGt): string => `Ficha_Garra_Tracadora_${nomeDoModelo(chave)}.pdf`;
+export const nomeArquivoFichaGt = (chave: ChaveFichaGt): string => `Ficha_Garra_Tracadora_${chave.toUpperCase()}.pdf`;
 
 export const pdfFichaGtUrl = (chave: ChaveFichaGt): string => `${PASTA_FICHA_GT}/${nomeArquivoFichaGt(chave)}`;
 
-export const tituloFichaGt = (chave: ChaveFichaGt): string => `Ficha Garra Traçadora ${nomeDoModelo(chave).replace('GT', 'GT ')}`;
+export const tituloFichaGt = (chave: ChaveFichaGt): string => `Ficha Garra Traçadora ${chave.toUpperCase().replace('GT', 'GT ')}`;
 
 export const PREFIXO_LINK_FICHA_GT = 'ficha-gt:';
 
@@ -25,12 +21,17 @@ export function ehLinkFichaGt(href: string): boolean {
   return String(href || '').trim().toLowerCase().startsWith(PREFIXO_LINK_FICHA_GT);
 }
 
+// Só a GT 400 não tem X no nome (GT400); 600, 800 e 1000 são "X"
+function achaChaveGt(numero: string): ChaveFichaGt | null {
+  const candidatas = [`gt${numero}`, `gt${numero}x`];
+  return (candidatas.find(c => (CHAVES_FICHA_GT as readonly string[]).includes(c)) as ChaveFichaGt | undefined) ?? null;
+}
+
 // "GT 600x", "GT600X", "gt-600" ... Só devolve chave de modelo que já tem ficha nova
 export function chaveModeloGt(texto?: string | null): ChaveFichaGt | null {
   const m = String(texto || '').toLowerCase().match(/\bgt[-_ ]?(\d{3,4})\s*x?\b/);
   if (!m) return null;
-  const chave = `gt${m[1]}x` as ChaveFichaGt;
-  return (CHAVES_FICHA_GT as readonly string[]).includes(chave) ? chave : null;
+  return achaChaveGt(m[1]);
 }
 
 // "ficha-gt:600x", "ficha-gt:gt600"
@@ -39,8 +40,7 @@ export function chaveDoLinkFichaGt(href: string): ChaveFichaGt | null {
   const resto = String(href).trim().slice(PREFIXO_LINK_FICHA_GT.length).toLowerCase().replace(/[^a-z0-9]/g, '');
   const m = resto.match(/^(?:gt)?(\d{3,4})x?$/);
   if (!m) return null;
-  const chave = `gt${m[1]}x` as ChaveFichaGt;
-  return (CHAVES_FICHA_GT as readonly string[]).includes(chave) ? chave : null;
+  return achaChaveGt(m[1]);
 }
 
 // Decide a ficha pelo nome do modelo (o card do produto, sem modelo, não abre ficha nova)
@@ -51,7 +51,7 @@ export function chaveFichaGt(modelo?: string | null): ChaveFichaGt | null {
 // Dados oficiais das fichas novas (13/11/2026). É a fonte do cadastro dos cards (technical_specs) e do consultor.
 // Formato igual ao do cadastro antigo: a ficha padrão acrescenta kg, bar e L/min sozinha.
 export const ESPECIFICACOES_GT: Record<ChaveFichaGt, Record<string, string>> = {
-  gt400x: {
+  gt400: {
     area_carga: '0,40', diametro_corte: 'Ø 600 mm', peso: '900', motor: 'Pistão Parker F12-60', sabre: '45" com roldana', corrente: '3/4"',
     maquina_base: '13 a 22 Ton.', pressao: '240', vazao: '120 a 220', abertura_maxima: '1.832 mm',
   },
