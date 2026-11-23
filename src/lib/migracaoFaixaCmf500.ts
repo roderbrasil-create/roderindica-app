@@ -1,5 +1,5 @@
 import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
-import { corrigirEspecificacoesGt } from './fichaGt';
+import { corrigirEspecificacoesGt, ESPECIFICACOES_GT } from './fichaGt';
 import { corrigirFaixaCmf500, FAIXA_CMF500, corrigirFaixaCmf800, FAIXA_CMF800 } from './faixaCmf';
 
 // CMF 500 de "8 a 22 Ton." para "8 a 13 Ton." (regra do Jeferson, 19/10/2026). Roda UMA vez:
@@ -60,5 +60,30 @@ export async function corrigirEspecificacoesGtUmaVez(data: any[], db: any) {
     await setDoc(marca, { feito_em: new Date().toISOString(), produto: garra.id, alterou: !!novos });
   } catch (err) {
     console.error('Correção dos dados das garras traçadoras falhou:', err);
+  }
+}
+
+// GT 400: a ficha era um link do Google Drive, que pede login e não abre para parceiro indicador nem cliente.
+// Tira o link do cadastro (a ficha nova mora no app) e põe os dados da ficha de 23/11/2026. Roda UMA vez.
+export async function trazerFichaGt400ParaOAppUmaVez(data: any[], db: any) {
+  try {
+    const marca = doc(db, 'settings', 'migracao_gt400_ficha_no_app');
+    if ((await getDoc(marca)).exists()) return;
+    const garra = data.find(p => p.name === 'Garra Traçadora');
+    if (!garra) return;
+    let mudou = false;
+    const modelos = (garra.models || []).map((m: any) => {
+      if (!/gt[-_ ]?400/i.test(`${m.name || ''} ${m.id || ''}`)) return m;
+      mudou = true;
+      const { pdf_url, ...resto } = m;
+      return { ...resto, technical_specs: { ...(m.technical_specs || {}), ...ESPECIFICACOES_GT.gt400x } };
+    });
+    if (mudou) {
+      console.log('[Healing] GT 400: ficha sai do Drive e passa a abrir do app');
+      await updateDoc(doc(db, 'products', garra.id), { models: modelos });
+    }
+    await setDoc(marca, { feito_em: new Date().toISOString(), produto: garra.id, alterou: mudou });
+  } catch (err) {
+    console.error('Ficha da GT 400 no app falhou:', err);
   }
 }

@@ -1,19 +1,23 @@
 // Fichas das garras traçadoras Roder GT, no padrão novo (1 página A4 pronta, com o PDF aprovado).
-// GT 600X, 800X e 1000X têm a ficha nova (13/11/2026). Modelo novo entra aqui: coloque o PDF e a imagem
-// em public/fichas-gt e inclua a chave abaixo. GT 280, 360 e 400X seguem com a ficha padrão automática.
+// GT 600X, 800X e 1000X têm a ficha nova (13/11/2026) e a GT 400 entrou em 23/11/2026 (o PDF dela mora no app, nunca no Google Drive: parceiro e cliente não têm acesso ao Drive). Modelo novo entra aqui: coloque o PDF e a imagem
+// em public/fichas-gt e inclua a chave abaixo. GT 280 e 360 seguem com a ficha padrão automática.
 
 export const PASTA_FICHA_GT = '/fichas-gt';
 
-export const CHAVES_FICHA_GT = ['gt600x', 'gt800x', 'gt1000x'] as const;
+export const CHAVES_FICHA_GT = ['gt400x', 'gt600x', 'gt800x', 'gt1000x'] as const;
 export type ChaveFichaGt = typeof CHAVES_FICHA_GT[number];
 
 export const paginasFichaGt = (chave: ChaveFichaGt): string[] => [`${PASTA_FICHA_GT}/ficha-${chave}-p1.webp`];
 
-export const nomeArquivoFichaGt = (chave: ChaveFichaGt): string => `Ficha_Garra_Tracadora_${chave.toUpperCase()}.pdf`;
+// A GT 400 se chama "GT400" na ficha e no Drive (sem o X): o nome do arquivo e o título seguem a ficha
+const NOME_NA_FICHA: Partial<Record<ChaveFichaGt, string>> = { gt400x: 'GT400' };
+const nomeDoModelo = (chave: ChaveFichaGt): string => NOME_NA_FICHA[chave] || chave.toUpperCase();
+
+export const nomeArquivoFichaGt = (chave: ChaveFichaGt): string => `Ficha_Garra_Tracadora_${nomeDoModelo(chave)}.pdf`;
 
 export const pdfFichaGtUrl = (chave: ChaveFichaGt): string => `${PASTA_FICHA_GT}/${nomeArquivoFichaGt(chave)}`;
 
-export const tituloFichaGt = (chave: ChaveFichaGt): string => `Ficha Garra Traçadora ${chave.toUpperCase().replace('GT', 'GT ')}`;
+export const tituloFichaGt = (chave: ChaveFichaGt): string => `Ficha Garra Traçadora ${nomeDoModelo(chave).replace('GT', 'GT ')}`;
 
 export const PREFIXO_LINK_FICHA_GT = 'ficha-gt:';
 
@@ -47,6 +51,10 @@ export function chaveFichaGt(modelo?: string | null): ChaveFichaGt | null {
 // Dados oficiais das fichas novas (13/11/2026). É a fonte do cadastro dos cards (technical_specs) e do consultor.
 // Formato igual ao do cadastro antigo: a ficha padrão acrescenta kg, bar e L/min sozinha.
 export const ESPECIFICACOES_GT: Record<ChaveFichaGt, Record<string, string>> = {
+  gt400x: {
+    area_carga: '0,40', diametro_corte: 'Ø 600 mm', peso: '900', motor: 'Pistão Parker F12-60', sabre: '45" com roldana', corrente: '3/4"',
+    maquina_base: '13 a 22 Ton.', pressao: '240', vazao: '120 a 220', abertura_maxima: '1.832 mm',
+  },
   gt600x: {
     area_carga: '0,60', capacidade_carga: '6.500 kg', diametro_corte: 'Ø 800 mm', peso: '1300', peso_com_rotator: 'RR550: 1.480 kg · IR10: 1.385 kg',
     motor: '60 cc', sabre: '52" com roldana', corrente: '3/4"', maquina_base: '16 a 22 Ton.', pressao: '240', vazao: '140 a 250', abertura_maxima: '2.124 mm',
