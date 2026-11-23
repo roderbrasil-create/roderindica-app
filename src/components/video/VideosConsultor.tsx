@@ -121,7 +121,33 @@ function AcoesDoCartao({ v, nome, compacto }: { v: VideoConsultor; nome: string;
 }
 
 // Cartões embaixo da resposta do consultor: só os ids que existem na lista
-export function VideosDaResposta({ ids, lista, foto }: { ids: string[]; lista: VideoConsultor[]; foto?: (v: VideoConsultor) => string | undefined }) {
+// Linha de uma só altura: o vídeo só vira cartão com player depois do toque (pedido do Jeferson em 23/11/2026:
+// a conversa ficava cheia de quadros grandes depois de cada resposta).
+function LinhaVideo({ v, fotoReserva }: { v: VideoConsultor; fotoReserva?: string }) {
+  const [aberto, setAberto] = useState(false);
+  if (aberto) {
+    return (
+      <div className="space-y-1">
+        <CartaoVideo v={v} fotoReserva={fotoReserva} />
+        <button type="button" onClick={() => setAberto(false)} className="min-h-[36px] px-1 text-[13px] font-bold text-[#5B6168] underline-offset-2 hover:underline">Fechar vídeo</button>
+      </div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => setAberto(true)}
+      aria-label={`Ver vídeo: ${v.titulo}`}
+      className="flex w-full min-h-[44px] items-center gap-2.5 rounded-xl border border-[#E2E5E8] bg-white px-3 py-1.5 text-left active:scale-[0.99] transition"
+    >
+      <span className="h-7 w-7 shrink-0 rounded-full bg-[#1B1E22] flex items-center justify-center"><Play className="h-3.5 w-3.5 fill-[#F6C400] text-[#F6C400] ml-0.5" /></span>
+      <span className="min-w-0 flex-1 truncate text-[14px] font-extrabold text-[#1B1E22]">{v.titulo}</span>
+      <span className="shrink-0 text-[12.5px] font-bold text-[#5B6168]">Ver vídeo</span>
+    </button>
+  );
+}
+
+export function VideosDaResposta({ ids, lista, foto, resumido = false }: { ids: string[]; lista: VideoConsultor[]; foto?: (v: VideoConsultor) => string | undefined; resumido?: boolean }) {
   const videos = useMemo(() => ids.map(id => lista.find(v => v.id === id)).filter(Boolean) as VideoConsultor[], [ids, lista]);
   // A lista vem do servidor depois do texto da resposta. Enquanto não chegou, um quadro do tamanho de um
   // cartão guarda o lugar: sem ele os cartões "apareciam do nada" e empurravam a conversa que a pessoa lia.
@@ -129,7 +155,7 @@ export function VideosDaResposta({ ids, lista, foto }: { ids: string[]; lista: V
     return (
       <div className="flex justify-start" aria-hidden="true">
         <div className="w-full max-w-[88%] sm:max-w-[420px] space-y-2">
-          {ids.map(id => <div key={id} className="h-[330px] w-full rounded-[14px] border border-[#E2E5E8] bg-white/60" />)}
+          {ids.map(id => <div key={id} className={cn('w-full rounded-[14px] border border-[#E2E5E8] bg-white/60', resumido ? 'h-11' : 'h-[330px]')} />)}
         </div>
       </div>
     );
@@ -138,7 +164,9 @@ export function VideosDaResposta({ ids, lista, foto }: { ids: string[]; lista: V
   return (
     <div className="flex justify-start">
       <div className="w-full max-w-[88%] sm:max-w-[420px] space-y-2">
-        {videos.map(v => <CartaoVideo key={v.id} v={v} fotoReserva={foto?.(v)} />)}
+        {videos.map(v => resumido
+          ? <LinhaVideo key={v.id} v={v} fotoReserva={foto?.(v)} />
+          : <CartaoVideo key={v.id} v={v} fotoReserva={foto?.(v)} />)}
       </div>
     </div>
   );

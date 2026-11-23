@@ -3797,7 +3797,7 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
     if (!mq && !equip && !perguntas.length && !alternativas.length) return null;
     return (
       <div className="flex justify-start">
-        <div className="w-full max-w-[88%] space-y-2.5">
+        <div className="w-full max-w-[88%] space-y-1.5">
           {mq && (() => {
             const cor = corServe(mq.serve);
             // não repete o que o título já diz ("Escavadeira 14 t" com "14 t" embaixo)
@@ -3808,15 +3808,13 @@ Você poderia detalhar se esta produtividade é ideal e qual modelo Roder/FAE se
               .join(', ');
             const serveTxt = mq.serve === 'nao' ? 'não serve' : mq.serve === 'sim' ? 'serve' : mq.serve === 'verificar' ? 'verificar' : '';
             return (
-              <div className={cn('rounded-2xl border px-4 py-3', cor.caixa)}>
-                <p className={cn('text-[11px] font-extrabold uppercase tracking-[0.12em]', cor.titulo)}>Máquina do cliente</p>
-                <p className="fonte-titulo text-[17px] font-extrabold leading-tight mt-0.5 text-[#1B1E22] break-words">{mq.nome}</p>
-                {(detalhe || serveTxt) && (
-                  <p className="mt-0.5 text-[14px] text-[#3E444B]">
-                    {detalhe}{detalhe && serveTxt ? ' · ' : ''}{serveTxt && <span className={cn('font-bold', cor.valor)}>{serveTxt}</span>}
-                  </p>
-                )}
-                {mq.motivo && <p className="mt-1 text-[13px] leading-snug text-[#5B6168]">{mq.motivo}</p>}
+              <div className={cn('rounded-xl border px-3 py-2', cor.caixa)}>
+                <p className="m-0 text-[14px] leading-snug text-[#3E444B]">
+                  <span className="fonte-titulo font-extrabold text-[#1B1E22]">{mq.nome}</span>
+                  {(detalhe || serveTxt) && <> · {detalhe}{detalhe && serveTxt ? ' · ' : ''}{serveTxt && <span className={cn('font-bold', cor.valor)}>{serveTxt}</span>}</>}
+                </p>
+                {/* só quando há alerta (não serve ou verificar) o motivo aparece; quando serve, a linha basta */}
+                {mq.motivo && mq.serve !== 'sim' && <p className="m-0 mt-0.5 text-[13px] leading-snug text-[#5B6168]">{mq.motivo}</p>}
               </div>
             );
           })()}
@@ -4383,7 +4381,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                 {msg.role === 'assistant' && msg.painel?.videos && msg.painel.videos.length > 0 && (() => {
                   // só na primeira vez por equipamento; volta se a pessoa pedir vídeo de novo
                   const idsVideo = idsVideosParaMostrar(messages, idx, videosConsultor);
-                  return idsVideo.length > 0 ? <VideosDaResposta ids={idsVideo} lista={videosConsultor} foto={fotoDoVideo} /> : null;
+                  return idsVideo.length > 0 ? <VideosDaResposta ids={idsVideo} lista={videosConsultor} foto={fotoDoVideo} resumido /> : null;
                 })()}
                 {/* Pergunta de kit: o kit depende da configuração da máquina, então o pedido de vídeo e fotos ao cliente */}
                 {msg.role === 'assistant' && perfilConsultor !== 'visitante' && idx > 0 && !(loading && idx === messages.length - 1) && precisaConfirmarMaquina(msg.painel, messages[idx - 1]?.role === 'user' ? messages[idx - 1].content : '') && (
@@ -4409,7 +4407,7 @@ Você poderia me detalhar os requisitos de acoplamento no trator e o funcionamen
                   const acao = ehParceiroConsultor && onIndicarPe
                     ? { rotulo: 'Indicar', fn: () => indicarProntaEntrega(it) }
                     : { rotulo: 'Perguntar', fn: () => perguntarProntaEntrega(it) };
-                  return <AvisoProntaEntrega item={it} foto={fotoPe} rotulo={acao.rotulo} onAcao={acao.fn} parceiro={ehParceiroConsultor} />;
+                  return <AvisoProntaEntrega item={it} foto={fotoPe} rotulo={acao.rotulo} onAcao={acao.fn} parceiro={ehParceiroConsultor} resumido />;
                 })()}
                 </React.Fragment>
               ))}

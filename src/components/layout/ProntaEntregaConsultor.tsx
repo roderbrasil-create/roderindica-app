@@ -443,16 +443,28 @@ export function ListaProntaEntrega({ itens, foto, onPerguntar, onIndicar }: {
 }
 
 // Aviso amarelo na conversa: o equipamento indicado está no estoque
-export function AvisoProntaEntrega({ item, foto, rotulo, onAcao, parceiro }: {
+export function AvisoProntaEntrega({ item, foto, rotulo, onAcao, parceiro, resumido = false }: {
   item: ItemProntaEntrega;
   foto: FotoFn;
   rotulo: string;
   onAcao: () => void;
   parceiro: boolean;
+  resumido?: boolean;
 }) {
   // título no singular com o modelo ("Garra Florestal R400"), o mesmo do carrossel e da folha
   const modelo = String(item.nome || item.modelo?.name || '');
   const [video, setVideo] = useState(false);
+  // Resumido (conversa): uma linha só, sem foto e sem vídeo; o detalhe está no carrossel de pronta entrega
+  if (resumido) {
+    return (
+      <div className="flex justify-start">
+        <div className="w-full max-w-[88%] sm:max-w-[420px] flex items-center gap-2 rounded-xl border-[1.5px] border-[#F6C400] bg-[#FFFBEA] pl-3 pr-1.5 py-1">
+          <p className="m-0 min-w-0 flex-1 truncate text-[14px] font-extrabold text-[#1B1E22]">{modelo} à pronta entrega</p>
+          <button type="button" onClick={onAcao} className="h-10 shrink-0 px-3.5 rounded-[10px] bg-[#F6C400] text-[#1B1E22] text-[14px] font-extrabold active:scale-[0.97] transition">{rotulo}</button>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="flex justify-start">
       <div className="w-full max-w-[88%] sm:max-w-[420px] rounded-2xl border-2 border-[#F6C400] bg-[#FFFBEA] p-2.5">
