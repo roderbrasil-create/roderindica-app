@@ -138,3 +138,26 @@ export async function fichaPorModeloGcrUmaVez(data: any[], db: any) {
     console.error('Ficha por modelo da GCR falhou:', err);
   }
 }
+
+// Garra Clamshell GCR: rotator compatível (12 ou 16 ton), pressão de 190 bar e fluxo de 80 a 150 l/min nos três modelos (25/11/2026). Roda UMA vez.
+export async function rotatorPressaoFluxoGcrUmaVez(data: any[], db: any) {
+  try {
+    const marca = doc(db, 'settings', 'migracao_gcr_rotator_pressao_fluxo');
+    if ((await getDoc(marca)).exists()) return;
+    const garra = data.find(p => p.name === 'Garra Clamshell GCR');
+    if (!garra) return;
+    let mudou = false;
+    const modelos = (garra.models || []).map((m: any) => {
+      if (!/^GCR(1000|1500|2500)$/.test(String(m.name || '').replace(/\s+/g, '').toUpperCase())) return m;
+      mudou = true;
+      return { ...m, technical_specs: { ...(m.technical_specs || {}), rotator_compativel: '12 ou 16 ton', pressao_trabalho: '190', fluxo_oleo: '80 a 150 l/min' } };
+    });
+    if (mudou) {
+      console.log('[Healing] Garra Clamshell GCR: rotator, pressão e fluxo');
+      await updateDoc(doc(db, 'products', garra.id), { models: modelos });
+    }
+    await setDoc(marca, { feito_em: new Date().toISOString(), produto: garra.id, alterou: mudou });
+  } catch (err) {
+    console.error('Rotator, pressão e fluxo da GCR falharam:', err);
+  }
+}

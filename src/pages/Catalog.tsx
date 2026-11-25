@@ -5,7 +5,7 @@ import { collection, query, onSnapshot, orderBy, addDoc, updateDoc, doc, deleteD
 import { db, storage, auth } from '../lib/firebase';
 import { CryptoService } from '../lib/CryptoService';
 import { AuditService, AuditAction } from '../lib/AuditService';
-import { corrigirFaixaCmf500UmaVez, corrigirFaixaCmf800UmaVez, corrigirEspecificacoesGtUmaVez, trazerFichaGt400ParaOAppUmaVez, trazerFichasGt280e360ParaOAppUmaVez, fichaPorModeloGcrUmaVez } from '../lib/migracaoFaixaCmf500';
+import { corrigirFaixaCmf500UmaVez, corrigirFaixaCmf800UmaVez, corrigirEspecificacoesGtUmaVez, trazerFichaGt400ParaOAppUmaVez, trazerFichasGt280e360ParaOAppUmaVez, fichaPorModeloGcrUmaVez, rotatorPressaoFluxoGcrUmaVez } from '../lib/migracaoFaixaCmf500';
 import { Product } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -1096,6 +1096,7 @@ export default function Catalog() {
         trazerFichaGt400ParaOAppUmaVez(data, db);
         trazerFichasGt280e360ParaOAppUmaVez(data, db);
         fichaPorModeloGcrUmaVez(data, db);
+        rotatorPressaoFluxoGcrUmaVez(data, db);
         // Ficha ou vídeo salvo como link do Google Drive pede login e não abre para parceiro nem cliente.
         // Só avisa a diretoria (uma vez por abertura), dizendo quais equipamentos precisam de arquivo no app.
         const comDrive: string[] = [];
@@ -1465,9 +1466,9 @@ export default function Catalog() {
         is_blocked: false,
         created_at: new Date().toISOString(),
         models: [
-          modelo('gcr-1000', 'GCR1000', { volume: '1,0 m³', peso: '650 kg', abertura_maxima: '2.000 mm', dimensoes: '905 x 1.715 x 1.365 mm (C x L x A)', escavadeira_cavaco: '12 a 16 ton', escavadeira_areia: '14 a 20 ton' }),
-          modelo('gcr-1500', 'GCR1500', { volume: '1,5 m³', peso: '1.050 kg', abertura_maxima: '2.000 mm', dimensoes: '1.300 x 1.715 x 1.465 mm (C x L x A)', escavadeira_cavaco: '14 a 20 ton', escavadeira_areia: '20 a 25 ton' }),
-          modelo('gcr-2500', 'GCR2500', { volume: '2,5 m³', peso: '1.555 kg', abertura_maxima: '2.000 mm', dimensoes: '2.050 x 1.715 x 1.465 mm (C x L x A)', escavadeira_cavaco: '20 a 25 ton', escavadeira_areia: '30 a 36 ton' }),
+          modelo('gcr-1000', 'GCR1000', { volume: '1,0 m³', peso: '650 kg', abertura_maxima: '2.000 mm', dimensoes: '905 x 1.715 x 1.365 mm (C x L x A)', escavadeira_cavaco: '12 a 16 ton', rotator_compativel: '12 ou 16 ton', pressao_trabalho: '190', fluxo_oleo: '80 a 150 l/min', escavadeira_areia: '14 a 20 ton' }),
+          modelo('gcr-1500', 'GCR1500', { volume: '1,5 m³', peso: '1.050 kg', abertura_maxima: '2.000 mm', dimensoes: '1.300 x 1.715 x 1.465 mm (C x L x A)', escavadeira_cavaco: '14 a 20 ton', rotator_compativel: '12 ou 16 ton', pressao_trabalho: '190', fluxo_oleo: '80 a 150 l/min', escavadeira_areia: '20 a 25 ton' }),
+          modelo('gcr-2500', 'GCR2500', { volume: '2,5 m³', peso: '1.555 kg', abertura_maxima: '2.000 mm', dimensoes: '2.050 x 1.715 x 1.465 mm (C x L x A)', escavadeira_cavaco: '20 a 25 ton', rotator_compativel: '12 ou 16 ton', pressao_trabalho: '190', fluxo_oleo: '80 a 150 l/min', escavadeira_areia: '30 a 36 ton' }),
         ],
       });
       toast.success('Garra Clamshell GCR adicionada ao catálogo.');
@@ -4687,6 +4688,9 @@ export default function Catalog() {
                           volume: 'Volume',
                           escavadeira_cavaco: 'Escavadeira p/ cavaco',
                           escavadeira_areia: 'Escavadeira p/ areia',
+                          rotator_compativel: 'Rotator compatível',
+                          pressao_trabalho: 'Pressão de trabalho',
+                          fluxo_oleo: 'Fluxo de óleo',
                           diametro_rachamento: 'Diâmetro máx. de rachamento',
                           altura_garra_aberta: 'Altura (garra aberta)',
                           peso_sem_rotator: 'Peso sem rotator',
