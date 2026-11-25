@@ -5,7 +5,7 @@ import { collection, query, onSnapshot, orderBy, addDoc, updateDoc, doc, deleteD
 import { db, storage, auth } from '../lib/firebase';
 import { CryptoService } from '../lib/CryptoService';
 import { AuditService, AuditAction } from '../lib/AuditService';
-import { corrigirFaixaCmf500UmaVez, corrigirFaixaCmf800UmaVez, corrigirEspecificacoesGtUmaVez, trazerFichaGt400ParaOAppUmaVez, trazerFichasGt280e360ParaOAppUmaVez } from '../lib/migracaoFaixaCmf500';
+import { corrigirFaixaCmf500UmaVez, corrigirFaixaCmf800UmaVez, corrigirEspecificacoesGtUmaVez, trazerFichaGt400ParaOAppUmaVez, trazerFichasGt280e360ParaOAppUmaVez, fichaPorModeloGcrUmaVez } from '../lib/migracaoFaixaCmf500';
 import { Product } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -1095,6 +1095,7 @@ export default function Catalog() {
         corrigirEspecificacoesGtUmaVez(data, db);
         trazerFichaGt400ParaOAppUmaVez(data, db);
         trazerFichasGt280e360ParaOAppUmaVez(data, db);
+        fichaPorModeloGcrUmaVez(data, db);
         // Ficha ou vídeo salvo como link do Google Drive pede login e não abre para parceiro nem cliente.
         // Só avisa a diretoria (uma vez por abertura), dizendo quais equipamentos precisam de arquivo no app.
         const comDrive: string[] = [];
@@ -1452,7 +1453,7 @@ export default function Catalog() {
       // Vídeo hospedado no próprio Roder Indica: abre para qualquer pessoa pelo link (WhatsApp)
       const video = 'https://roderindica.com/catalogo/gcr/Garra-Clamshell-Roder.mp4';
       const modelo = (id: string, name: string, specs: Record<string, string>) => ({
-        id, name, base_value: 0, images: [img, imgOp], pdf_url: ficha, video_url: video, technical_specs: specs
+        id, name, base_value: 0, images: [img, imgOp], pdf_url: `/catalogo/gcr/Ficha_Garra_Clamshell_${name}.pdf`, video_url: video, technical_specs: specs
       });
       await addDoc(collection(db, 'products'), {
         name: 'Garra Clamshell GCR',

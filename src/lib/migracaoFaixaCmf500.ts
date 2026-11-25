@@ -114,3 +114,27 @@ export async function trazerFichasGt280e360ParaOAppUmaVez(data: any[], db: any) 
     console.error('Ficha da GT 280 e GT 360 no app falhou:', err);
   }
 }
+
+// Garra Clamshell GCR: o produto principal abre a ficha com os três modelos e cada modelo abre a própria (25/11/2026). Roda UMA vez.
+export async function fichaPorModeloGcrUmaVez(data: any[], db: any) {
+  try {
+    const marca = doc(db, 'settings', 'migracao_gcr_ficha_por_modelo');
+    if ((await getDoc(marca)).exists()) return;
+    const garra = data.find(p => p.name === 'Garra Clamshell GCR');
+    if (!garra) return;
+    let mudou = false;
+    const modelos = (garra.models || []).map((m: any) => {
+      const n = String(m.name || '').replace(/\s+/g, '').toUpperCase();
+      if (!/^GCR(1000|1500|2500)$/.test(n)) return m;
+      mudou = true;
+      return { ...m, pdf_url: `/catalogo/gcr/Ficha_Garra_Clamshell_${n}.pdf` };
+    });
+    if (mudou) {
+      console.log('[Healing] Garra Clamshell GCR: ficha própria em cada modelo');
+      await updateDoc(doc(db, 'products', garra.id), { pdf_url: '/catalogo/gcr/Ficha_Garra_Clamshell_GCR.pdf', models: modelos });
+    }
+    await setDoc(marca, { feito_em: new Date().toISOString(), produto: garra.id, alterou: mudou });
+  } catch (err) {
+    console.error('Ficha por modelo da GCR falhou:', err);
+  }
+}
