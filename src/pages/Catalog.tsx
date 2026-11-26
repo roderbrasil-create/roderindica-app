@@ -5,7 +5,7 @@ import { collection, query, onSnapshot, orderBy, addDoc, updateDoc, doc, deleteD
 import { db, storage, auth } from '../lib/firebase';
 import { CryptoService } from '../lib/CryptoService';
 import { AuditService, AuditAction } from '../lib/AuditService';
-import { corrigirFaixaCmf500UmaVez, corrigirFaixaCmf800UmaVez, corrigirEspecificacoesGtUmaVez, trazerFichaGt400ParaOAppUmaVez, trazerFichasGt280e360ParaOAppUmaVez, fichaPorModeloGcrUmaVez, rotatorPressaoFluxoGcrUmaVez, fichaCmf600UmaVez } from '../lib/migracaoFaixaCmf500';
+import { corrigirFaixaCmf500UmaVez, corrigirFaixaCmf800UmaVez, corrigirEspecificacoesGtUmaVez, trazerFichaGt400ParaOAppUmaVez, trazerFichasGt280e360ParaOAppUmaVez, fichaPorModeloGcrUmaVez, rotatorPressaoFluxoGcrUmaVez, fichaCmf600UmaVez, fichasGarraFlorestalUmaVez } from '../lib/migracaoFaixaCmf500';
 import { Product } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -1097,6 +1097,7 @@ export default function Catalog() {
         trazerFichasGt280e360ParaOAppUmaVez(data, db);
         fichaPorModeloGcrUmaVez(data, db);
         fichaCmf600UmaVez(data, db);
+        fichasGarraFlorestalUmaVez(data, db);
         rotatorPressaoFluxoGcrUmaVez(data, db);
         // Ficha ou vídeo salvo como link do Google Drive pede login e não abre para parceiro nem cliente.
         // Só avisa a diretoria (uma vez por abertura), dizendo quais equipamentos precisam de arquivo no app.
@@ -2771,7 +2772,7 @@ export default function Catalog() {
         category: 'Garras Florestais',
         image_url: 'https://roderbrasil.com.br/wp-content/uploads/2021/05/garra-florestal-roder.jpg',
         video_url: 'https://www.youtube.com/watch?v=Kzqi_Cn2WG4',
-        pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-Florestal-Roder.pdf',
+        pdf_url: '/catalogo/garra-florestal/Ficha_Garra_Florestal_LinhaR.pdf',
         is_blocked: false,
         created_at: new Date().toISOString(),
         models: [
@@ -2779,7 +2780,7 @@ export default function Catalog() {
             id: 'r250', 
             name: 'R250', 
             base_value: 15000, 
-            pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-Florestal-Roder.pdf',
+            pdf_url: '/catalogo/garra-florestal/Ficha_Garra_Florestal_R250.pdf',
             parts_manual_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-Florestal-Roder.pdf',
             images: ['https://roderbrasil.com.br/wp-content/uploads/2021/05/garra-florestal-roder.jpg'],
             technical_specs: { area_carga: '0,25', diametro_minimo: '100', abertura_maxima: '1190', peso: '160', pressao_trabalho: '180', maquina_base: '5-8 Ton.' } 
@@ -2788,7 +2789,7 @@ export default function Catalog() {
             id: 'r280', 
             name: 'R280', 
             base_value: 18000, 
-            pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-Florestal-Roder.pdf',
+            pdf_url: '/catalogo/garra-florestal/Ficha_Garra_Florestal_R280.pdf',
             parts_manual_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-Florestal-Roder.pdf',
             images: ['https://roderbrasil.com.br/wp-content/uploads/2021/05/garra-florestal-roder.jpg'],
             technical_specs: { area_carga: '0,28', diametro_minimo: '140', abertura_maxima: '1465', peso: '250', pressao_trabalho: '180', maquina_base: '6-10 Ton.' } 
@@ -2797,7 +2798,7 @@ export default function Catalog() {
             id: 'r360', 
             name: 'R360', 
             base_value: 22000, 
-            pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-Florestal-Roder.pdf',
+            pdf_url: '/catalogo/garra-florestal/Ficha_Garra_Florestal_R360.pdf',
             parts_manual_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-Florestal-Roder.pdf',
             images: ['https://roderbrasil.com.br/wp-content/uploads/2021/05/garra-florestal-roder.jpg'],
             technical_specs: { area_carga: '0,36', diametro_minimo: '170', abertura_maxima: '1830', peso: '330', pressao_trabalho: '180', maquina_base: '8-12 Ton.' } 
@@ -2806,7 +2807,7 @@ export default function Catalog() {
             id: 'r400', 
             name: 'R400', 
             base_value: 26000, 
-            pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-Florestal-Roder.pdf',
+            pdf_url: '/catalogo/garra-florestal/Ficha_Garra_Florestal_R400.pdf',
             parts_manual_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-Florestal-Roder.pdf',
             images: ['https://roderbrasil.com.br/wp-content/uploads/2021/05/garra-florestal-roder.jpg'],
             technical_specs: { area_carga: '0,40', diametro_minimo: '180', abertura_maxima: '1905', peso: '360', pressao_trabalho: '180', maquina_base: '12-18 Ton.' } 
@@ -2815,7 +2816,7 @@ export default function Catalog() {
             id: 'r600', 
             name: 'R600', 
             base_value: 35000, 
-            pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-Florestal-Roder.pdf',
+            pdf_url: '/catalogo/garra-florestal/Ficha_Garra_Florestal_R600_CA_CB.pdf',
             parts_manual_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-Florestal-Roder.pdf',
             images: ['https://roderbrasil.com.br/wp-content/uploads/2021/05/garra-florestal-roder.jpg'],
             technical_specs: { area_carga: '0,60', diametro_minimo: '190', abertura_maxima: '2130', peso: '710', pressao_trabalho: '190', maquina_base: '14-22 Ton.' } 
@@ -2824,7 +2825,7 @@ export default function Catalog() {
             id: 'r800', 
             name: 'R800', 
             base_value: 42000, 
-            pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-Florestal-Roder.pdf',
+            pdf_url: '/catalogo/garra-florestal/Ficha_Garra_Florestal_R800CA.pdf',
             parts_manual_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-Florestal-Roder.pdf',
             images: ['https://roderbrasil.com.br/wp-content/uploads/2021/05/garra-florestal-roder.jpg'],
             technical_specs: { area_carga: '0,80', diametro_minimo: '230', abertura_maxima: '2675', peso: '890', pressao_trabalho: '190', maquina_base: '18-25 Ton.' } 
@@ -2833,7 +2834,7 @@ export default function Catalog() {
             id: 'r1000', 
             name: 'R1000', 
             base_value: 55000, 
-            pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-Florestal-Roder.pdf',
+            pdf_url: '/catalogo/garra-florestal/Ficha_Garra_Florestal_R1000CA.pdf',
             parts_manual_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-Florestal-Roder.pdf',
             images: ['https://roderbrasil.com.br/wp-content/uploads/2021/05/garra-florestal-roder.jpg'],
             technical_specs: { area_carga: '1,00', diametro_minimo: '400', abertura_maxima: '3015', peso: '1125', pressao_trabalho: '220', maquina_base: '22-30 Ton.' } 
@@ -2842,7 +2843,7 @@ export default function Catalog() {
             id: 'r1200', 
             name: 'R1200', 
             base_value: 68000, 
-            pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-Florestal-Roder.pdf',
+            pdf_url: '/catalogo/garra-florestal/Ficha_Garra_Florestal_LinhaR.pdf',
             parts_manual_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-Florestal-Roder.pdf',
             images: ['https://roderbrasil.com.br/wp-content/uploads/2021/05/garra-florestal-roder.jpg'],
             technical_specs: { area_carga: '1,20', diametro_minimo: '400', abertura_maxima: '3430', peso: '1410', pressao_trabalho: '220', maquina_base: '24-35 Ton.' } 
@@ -2851,7 +2852,7 @@ export default function Catalog() {
             id: 'r1400', 
             name: 'R1400', 
             base_value: 85000, 
-            pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-Florestal-Roder.pdf',
+            pdf_url: '/catalogo/garra-florestal/Ficha_Garra_Florestal_LinhaR.pdf',
             parts_manual_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-Florestal-Roder.pdf',
             images: ['https://roderbrasil.com.br/wp-content/uploads/2021/05/garra-florestal-roder.jpg'],
             technical_specs: { area_carga: '1,40', diametro_minimo: '400', abertura_maxima: '3450', peso: '1500', pressao_trabalho: '220', maquina_base: '25-35 Ton.' } 

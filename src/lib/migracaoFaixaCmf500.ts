@@ -184,3 +184,29 @@ export async function fichaCmf600UmaVez(data: any[], db: any) {
     console.error('Ficha do CMF 600 no app falhou:', err);
   }
 }
+
+// Garra Florestal (linha R): o produto abre a ficha da linha inteira e cada modelo abre a própria (26/11/2026). Roda UMA vez.
+export async function fichasGarraFlorestalUmaVez(data: any[], db: any) {
+  try {
+    const marca = doc(db, 'settings', 'migracao_garra_florestal_fichas');
+    if ((await getDoc(marca)).exists()) return;
+    const garra = data.find(p => p.name === 'Garra Florestal');
+    if (!garra) return;
+    const pasta = '/catalogo/garra-florestal/Ficha_Garra_Florestal_';
+    const arquivo: Record<string, string> = { R250: 'R250', R280: 'R280', R360: 'R360', R400: 'R400', R600: 'R600_CA_CB', R800: 'R800CA', R1000: 'R1000CA', R1200: 'LinhaR', R1400: 'LinhaR' };
+    let mudou = false;
+    const modelos = (garra.models || []).map((m: any) => {
+      const n = String(m.name || '').replace(/\s+/g, '').toUpperCase();
+      if (!arquivo[n]) return m;
+      mudou = true;
+      return { ...m, pdf_url: `${pasta}${arquivo[n]}.pdf` };
+    });
+    if (mudou) {
+      console.log('[Healing] Garra Florestal: ficha da linha e ficha própria em cada modelo');
+      await updateDoc(doc(db, 'products', garra.id), { pdf_url: `${pasta}LinhaR.pdf`, models: modelos });
+    }
+    await setDoc(marca, { feito_em: new Date().toISOString(), produto: garra.id, alterou: mudou });
+  } catch (err) {
+    console.error('Fichas da Garra Florestal falharam:', err);
+  }
+}
