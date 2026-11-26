@@ -161,3 +161,26 @@ export async function rotatorPressaoFluxoGcrUmaVez(data: any[], db: any) {
     console.error('Rotator, pressão e fluxo da GCR falharam:', err);
   }
 }
+
+// CMF 600: ficha nova no padrão Roder, guardada no app, aberta pelo modelo CMF 600 (25/11/2026). Roda UMA vez.
+export async function fichaCmf600UmaVez(data: any[], db: any) {
+  try {
+    const marca = doc(db, 'settings', 'migracao_cmf600_ficha_no_app');
+    if ((await getDoc(marca)).exists()) return;
+    const cabecote = data.find(p => (p.models || []).some((m: any) => /^cmf[-_ ]?600$/i.test(String(m.id || '')) || /^cmf\s*600$/i.test(String(m.name || '').trim())));
+    if (!cabecote) return;
+    let mudou = false;
+    const modelos = (cabecote.models || []).map((m: any) => {
+      if (!(/^cmf[-_ ]?600$/i.test(String(m.id || '')) || /^cmf\s*600$/i.test(String(m.name || '').trim()))) return m;
+      mudou = true;
+      return { ...m, pdf_url: '/catalogo/cmf/Ficha_Cabecote_Multifuncional_CMF600.pdf' };
+    });
+    if (mudou) {
+      console.log('[Healing] CMF 600: ficha nova no app');
+      await updateDoc(doc(db, 'products', cabecote.id), { models: modelos });
+    }
+    await setDoc(marca, { feito_em: new Date().toISOString(), produto: cabecote.id, alterou: mudou });
+  } catch (err) {
+    console.error('Ficha do CMF 600 no app falhou:', err);
+  }
+}

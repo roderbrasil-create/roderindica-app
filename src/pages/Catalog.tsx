@@ -5,7 +5,7 @@ import { collection, query, onSnapshot, orderBy, addDoc, updateDoc, doc, deleteD
 import { db, storage, auth } from '../lib/firebase';
 import { CryptoService } from '../lib/CryptoService';
 import { AuditService, AuditAction } from '../lib/AuditService';
-import { corrigirFaixaCmf500UmaVez, corrigirFaixaCmf800UmaVez, corrigirEspecificacoesGtUmaVez, trazerFichaGt400ParaOAppUmaVez, trazerFichasGt280e360ParaOAppUmaVez, fichaPorModeloGcrUmaVez, rotatorPressaoFluxoGcrUmaVez } from '../lib/migracaoFaixaCmf500';
+import { corrigirFaixaCmf500UmaVez, corrigirFaixaCmf800UmaVez, corrigirEspecificacoesGtUmaVez, trazerFichaGt400ParaOAppUmaVez, trazerFichasGt280e360ParaOAppUmaVez, fichaPorModeloGcrUmaVez, rotatorPressaoFluxoGcrUmaVez, fichaCmf600UmaVez } from '../lib/migracaoFaixaCmf500';
 import { Product } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -1096,6 +1096,7 @@ export default function Catalog() {
         trazerFichaGt400ParaOAppUmaVez(data, db);
         trazerFichasGt280e360ParaOAppUmaVez(data, db);
         fichaPorModeloGcrUmaVez(data, db);
+        fichaCmf600UmaVez(data, db);
         rotatorPressaoFluxoGcrUmaVez(data, db);
         // Ficha ou vídeo salvo como link do Google Drive pede login e não abre para parceiro nem cliente.
         // Só avisa a diretoria (uma vez por abertura), dizendo quais equipamentos precisam de arquivo no app.
@@ -1997,6 +1998,7 @@ export default function Catalog() {
             name: 'CMF 600',
             base_value: 0,
             images: ['https://roderbrasil.com.br/wp-content/uploads/2021/06/Cabecote-Multifuncional-Roder.jpg'],
+            pdf_url: '/catalogo/cmf/Ficha_Cabecote_Multifuncional_CMF600.pdf',
             technical_specs: {
               diametro_corte: '600',
               sabre: '45"',
@@ -2886,6 +2888,7 @@ export default function Catalog() {
             name: 'CMF 600',
             base_value: 0,
             images: ['https://roderbrasil.com.br/wp-content/uploads/2021/06/Cabecote-Multifuncional-Roder.jpg'],
+            pdf_url: '/catalogo/cmf/Ficha_Cabecote_Multifuncional_CMF600.pdf',
             technical_specs: {
               diametro_corte: '600',
               sabre: '45"',
