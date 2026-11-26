@@ -1902,7 +1902,7 @@ export default function Catalog() {
         category: 'Equipamento de Arraste',
         image_url: 'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-mini-skidder.jpg.webp',
         video_url: 'https://youtu.be/OE0bsl5FlRw',
-        pdf_url: '/catalogo/mini-skidder/Mini-Skidder-Roder.pdf',
+        pdf_url: '/catalogo/mini-skidder/Ficha_Mini_Skidder_MSR600_MSR1000.pdf',
         is_blocked: false,
         created_at: snap.empty ? new Date().toISOString() : (snap.docs[0].data() as any).created_at,
         models: [
@@ -1910,7 +1910,7 @@ export default function Catalog() {
             id: 'msr-600',
             name: 'MSR 600',
             base_value: 0,
-            pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Mini-Skidder-Roder.pdf',
+            pdf_url: '/catalogo/mini-skidder/Ficha_Mini_Skidder_MSR600_MSR1000.pdf',
             parts_manual_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Mini-Skidder-Roder.pdf',
             images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-mini-skidder.jpg.webp'],
             technical_specs: {
@@ -1925,7 +1925,7 @@ export default function Catalog() {
             id: 'msr-1000',
             name: 'MSR 1000',
             base_value: 0,
-            pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Mini-Skidder-Roder.pdf',
+            pdf_url: '/catalogo/mini-skidder/Ficha_Mini_Skidder_MSR600_MSR1000.pdf',
             parts_manual_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Mini-Skidder-Roder.pdf',
             images: ['https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-mini-skidder.jpg.webp'],
             technical_specs: {

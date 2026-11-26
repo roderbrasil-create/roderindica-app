@@ -231,14 +231,16 @@ export async function aberturaR1000UmaVez(data: any[], db: any) {
   }
 }
 
-// Ficha do card principal do Mini Skidder: o PDF do site, enviado pelo Jeferson em 26/11/2026, é o padrão.
+// Ficha do Mini Skidder (card principal, MSR 600 e MSR 1000): uma ficha só, feita em 26/11/2026 sobre os dados do PDF do site.
 export async function fichaMiniSkidderUmaVez(data: any[], db: any) {
   try {
     const marca = doc(db, 'settings', 'migracao_mini_skidder_ficha_principal');
     if ((await getDoc(marca)).exists()) return;
     const prod = data.find(p => p.name === 'Mini Skidder');
     if (!prod) return;
-    await updateDoc(doc(db, 'products', prod.id), { pdf_url: '/catalogo/mini-skidder/Mini-Skidder-Roder.pdf' });
+    const ficha = '/catalogo/mini-skidder/Ficha_Mini_Skidder_MSR600_MSR1000.pdf';
+    const modelos = (prod.models || []).map((m: any) => (m.id === 'msr-600' || m.id === 'msr-1000') ? { ...m, pdf_url: ficha } : m);
+    await updateDoc(doc(db, 'products', prod.id), { pdf_url: ficha, models: modelos });
     await setDoc(marca, { feito_em: new Date().toISOString(), produto: prod.id });
   } catch (err) {
     console.error('Ficha do Mini Skidder falhou:', err);
