@@ -5,7 +5,7 @@ import { collection, query, onSnapshot, orderBy, addDoc, updateDoc, doc, deleteD
 import { db, storage, auth } from '../lib/firebase';
 import { CryptoService } from '../lib/CryptoService';
 import { AuditService, AuditAction } from '../lib/AuditService';
-import { corrigirFaixaCmf500UmaVez, corrigirFaixaCmf800UmaVez, corrigirEspecificacoesGtUmaVez, trazerFichaGt400ParaOAppUmaVez, trazerFichasGt280e360ParaOAppUmaVez, fichaPorModeloGcrUmaVez, rotatorPressaoFluxoGcrUmaVez, fichaCmf600UmaVez, fichasGarraFlorestalUmaVez } from '../lib/migracaoFaixaCmf500';
+import { corrigirFaixaCmf500UmaVez, corrigirFaixaCmf800UmaVez, corrigirEspecificacoesGtUmaVez, trazerFichaGt400ParaOAppUmaVez, trazerFichasGt280e360ParaOAppUmaVez, fichaPorModeloGcrUmaVez, rotatorPressaoFluxoGcrUmaVez, fichaCmf600UmaVez, fichasGarraFlorestalUmaVez, aberturaR1000UmaVez } from '../lib/migracaoFaixaCmf500';
 import { Product } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -1098,6 +1098,7 @@ export default function Catalog() {
         fichaPorModeloGcrUmaVez(data, db);
         fichaCmf600UmaVez(data, db);
         fichasGarraFlorestalUmaVez(data, db);
+        aberturaR1000UmaVez(data, db);
         rotatorPressaoFluxoGcrUmaVez(data, db);
         // Ficha ou vídeo salvo como link do Google Drive pede login e não abre para parceiro nem cliente.
         // Só avisa a diretoria (uma vez por abertura), dizendo quais equipamentos precisam de arquivo no app.
@@ -2837,7 +2838,7 @@ export default function Catalog() {
             pdf_url: '/catalogo/garra-florestal/Ficha_Garra_Florestal_R1000CA.pdf',
             parts_manual_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Garra-Florestal-Roder.pdf',
             images: ['https://roderbrasil.com.br/wp-content/uploads/2021/05/garra-florestal-roder.jpg'],
-            technical_specs: { area_carga: '1,00', diametro_minimo: '400', abertura_maxima: '3015', peso: '1125', pressao_trabalho: '220', maquina_base: '22-30 Ton.' } 
+            technical_specs: { area_carga: '1,00', diametro_minimo: '400', abertura_maxima: '2606', peso: '1125', pressao_trabalho: '220', maquina_base: '22-30 Ton.' } 
           },
           { 
             id: 'r1200', 

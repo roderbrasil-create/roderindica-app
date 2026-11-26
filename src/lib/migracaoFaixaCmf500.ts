@@ -210,3 +210,23 @@ export async function fichasGarraFlorestalUmaVez(data: any[], db: any) {
     console.error('Fichas da Garra Florestal falharam:', err);
   }
 }
+
+// Abertura máxima da R1000 é 2.606 mm (definido pelo Jeferson em 26/11/2026); o card trazia 3.015.
+export async function aberturaR1000UmaVez(data: any[], db: any) {
+  try {
+    const marca = doc(db, 'settings', 'migracao_garra_florestal_abertura_r1000');
+    if ((await getDoc(marca)).exists()) return;
+    const garra = data.find(p => p.name === 'Garra Florestal');
+    if (!garra) return;
+    let mudou = false;
+    const modelos = (garra.models || []).map((m: any) => {
+      if (String(m.name || '').replace(/\s+/g, '').toUpperCase() !== 'R1000') return m;
+      mudou = true;
+      return { ...m, technical_specs: { ...(m.technical_specs || {}), abertura_maxima: '2606' } };
+    });
+    if (mudou) await updateDoc(doc(db, 'products', garra.id), { models: modelos });
+    await setDoc(marca, { feito_em: new Date().toISOString(), produto: garra.id, alterou: mudou });
+  } catch (err) {
+    console.error('Abertura da R1000 falhou:', err);
+  }
+}
