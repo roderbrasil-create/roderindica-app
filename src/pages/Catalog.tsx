@@ -5,7 +5,7 @@ import { collection, query, onSnapshot, orderBy, addDoc, updateDoc, doc, deleteD
 import { db, storage, auth } from '../lib/firebase';
 import { CryptoService } from '../lib/CryptoService';
 import { AuditService, AuditAction } from '../lib/AuditService';
-import { corrigirFaixaCmf500UmaVez, corrigirFaixaCmf800UmaVez, corrigirEspecificacoesGtUmaVez, trazerFichaGt400ParaOAppUmaVez, trazerFichasGt280e360ParaOAppUmaVez, fichaPorModeloGcrUmaVez, rotatorPressaoFluxoGcrUmaVez, fichaCmf600UmaVez, fichasGarraFlorestalUmaVez, aberturaR1000UmaVez } from '../lib/migracaoFaixaCmf500';
+import { corrigirFaixaCmf500UmaVez, corrigirFaixaCmf800UmaVez, corrigirEspecificacoesGtUmaVez, trazerFichaGt400ParaOAppUmaVez, trazerFichasGt280e360ParaOAppUmaVez, fichaPorModeloGcrUmaVez, rotatorPressaoFluxoGcrUmaVez, fichaCmf600UmaVez, fichasGarraFlorestalUmaVez, aberturaR1000UmaVez, fichaMiniSkidderUmaVez } from '../lib/migracaoFaixaCmf500';
 import { Product } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -1099,6 +1099,7 @@ export default function Catalog() {
         fichaCmf600UmaVez(data, db);
         fichasGarraFlorestalUmaVez(data, db);
         aberturaR1000UmaVez(data, db);
+        fichaMiniSkidderUmaVez(data, db);
         rotatorPressaoFluxoGcrUmaVez(data, db);
         // Ficha ou vídeo salvo como link do Google Drive pede login e não abre para parceiro nem cliente.
         // Só avisa a diretoria (uma vez por abertura), dizendo quais equipamentos precisam de arquivo no app.
@@ -1901,7 +1902,7 @@ export default function Catalog() {
         category: 'Equipamento de Arraste',
         image_url: 'https://roderbrasil.com.br/wp-content/webp-express/webp-images/uploads/2024/07/img-mini-skidder.jpg.webp',
         video_url: 'https://youtu.be/OE0bsl5FlRw',
-        pdf_url: 'https://roderbrasil.com.br/wp-content/uploads/2025/10/Mini-Skidder-Roder.pdf',
+        pdf_url: '/catalogo/mini-skidder/Mini-Skidder-Roder.pdf',
         is_blocked: false,
         created_at: snap.empty ? new Date().toISOString() : (snap.docs[0].data() as any).created_at,
         models: [

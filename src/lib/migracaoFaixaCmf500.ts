@@ -230,3 +230,17 @@ export async function aberturaR1000UmaVez(data: any[], db: any) {
     console.error('Abertura da R1000 falhou:', err);
   }
 }
+
+// Ficha do card principal do Mini Skidder: o PDF do site, enviado pelo Jeferson em 26/11/2026, é o padrão.
+export async function fichaMiniSkidderUmaVez(data: any[], db: any) {
+  try {
+    const marca = doc(db, 'settings', 'migracao_mini_skidder_ficha_principal');
+    if ((await getDoc(marca)).exists()) return;
+    const prod = data.find(p => p.name === 'Mini Skidder');
+    if (!prod) return;
+    await updateDoc(doc(db, 'products', prod.id), { pdf_url: '/catalogo/mini-skidder/Mini-Skidder-Roder.pdf' });
+    await setDoc(marca, { feito_em: new Date().toISOString(), produto: prod.id });
+  } catch (err) {
+    console.error('Ficha do Mini Skidder falhou:', err);
+  }
+}
