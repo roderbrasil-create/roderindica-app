@@ -296,7 +296,7 @@ export const EQUIPMENT_SPEC_TABLES: EquipmentSpecTable[] = [
       ['9000.9000.9041', 'KIT INSTALACAO DESTOCADOR EM ESCAVADEIRA - ( MAQUINA COM LINHA DE GARRA)', 'Máquina com linha de garra', '12 itens no cadastro do ERP'],
       ['9000.9000.9042', 'KIT INSTALACAO DESTOCADOR EM ESCAVADEIRA - ( MAQUINA COM LINHA HARVESTER)', 'Máquina com linha harvester', '3 itens no cadastro do ERP'],
       ['9000.9000.9043', 'KIT INSTALACAO GT600/800 + LANCA EXTENSORA ROTATOR SEM PASSAGEM EXTRA EM ESCAVADEIRA 20TON - ( MAQUINA COM FATIA EXTRA SEM LINHA)', 'Máquina com fatia extra sem linha', '39 itens no cadastro do ERP'],
-      ['9000.9000.9044', 'KIT INSTALACAO CMF500/600 + LINCK ESCAVADEIRA CAT 320GC - ( MAQUINA COM FATIA EXTRA SEM LINHA)', 'Máquina com fatia extra sem linha', '34 itens no cadastro do ERP'],
+      ['9000.9000.9044', 'KIT INSTALACAO CMF500/600 + LINCK ESCAVADEIRA CAT 320GC - ( MAQUINA COM FATIA EXTRA DUPLA SEM LINHA)', 'Máquina com fatia extra dupla sem linha', '34 itens no cadastro do ERP'],
       ['9000.9000.9045', 'KIT INSTALACAO CMF500 + PONTEIRA PARA RETRO (MAQUINA COM LINHA EXTRA BI-DIRECIONAL)', 'Máquina com linha extra bi-direcional', '3 itens no cadastro do ERP'],
       ['9000.9000.9046', 'KIT INSTALACAO GARRA EM ESCAVADEIRA - (MAQUINA COM LINHA EXTRA BI-DIRECIONAL)', 'Máquina com linha extra bi-direcional', '3 itens no cadastro do ERP'],
       ['9000.9000.9047', 'KIT INSTALACAO GT280/360 EM GRUA - ( MAQUINA COM FATIA EXTRA )', 'Máquina com fatia extra', '2 itens no cadastro do ERP'],

@@ -71,6 +71,7 @@ import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { formatarQuantidadeKit } from '../lib/kitQuantidade';
 import { computeKitsDiff } from '../lib/kitsDiff';
+import { alterarKit9044UmaVez } from '../lib/kit9044';
 import { parseKitsText } from '../../server/kitsPdf';
 
 const getDisplayImageUrl = (url: string | undefined): string => {
@@ -172,7 +173,7 @@ const seedMissingKits = async (existing: InstallationKit[]) => {
 };
 
 export default function Accessories() {
-  const { isManager, profile } = useAuth();
+  const { isManager, isAdmin, isImpersonating, profile } = useAuth();
   
   // Data State
   const [accessories, setAccessories] = useState<Accessory[]>([]);
@@ -258,6 +259,11 @@ export default function Accessories() {
       unsubKits();
     };
   }, []);
+
+  // Kit 9044 do pedido de exportação (27/11/2026): roda uma vez, só a diretoria, quando os kits carregam
+  useEffect(() => {
+    if (isAdmin && !isImpersonating && kits.length > 0) alterarKit9044UmaVez(kits as any, db);
+  }, [isAdmin, isImpersonating, kits]);
 
   const uniqueAccessories = useMemo(() => {
     const map = new Map<string, Accessory>();
